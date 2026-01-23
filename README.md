@@ -12,8 +12,6 @@
   </p>
 </p>
 
-<br>
-
 # 🐱 Meow Decoder
 ## Secure Optical Air-Gap File Transfer via QR Code GIFs
 
