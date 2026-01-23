@@ -693,8 +693,8 @@ MIT License - see [LICENSE](./LICENSE)
 
 ## 📮 **Contact**
 
-- **Author:** Paul Morel
-- **Issues:** [GitHub Issues](https://github.com/yourusername/meow-decoder/issues)
+- **Author:** Paul Clark
+- **Issues:** [GitHub Issues](https://github.com/systemslibrarian/meow-decoder/issues)
 - **Security:** See [SECURITY.md](./SECURITY.md) for responsible disclosure
 
 ---
