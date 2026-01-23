@@ -1,3 +1,19 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/meow-decoder-logo.png" 
+       alt="Meow Decoder Logo — cat with lock and green QR accents" 
+       width="400"/>
+  <br><br>
+  <h1 align="center">Meow Decoder</h1>
+  <p align="center">
+    Secure Optical Air-Gap File Transfer via QR Code GIFs
+  </p>
+  <p align="center">
+    Hiss secrets into yarn balls 😼 — air-gapped smuggling with cat-meme QR GIFs, fountain codes, forward secrecy & paranoid stego. Meow-quantum ready 😻🔐
+  </p>
+</p>
+
+<br>
+
 # 🐱 Meow Decoder
 ## Secure Optical Air-Gap File Transfer via QR Code GIFs
 
