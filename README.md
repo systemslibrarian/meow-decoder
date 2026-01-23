@@ -1,7 +1,7 @@
 # 🐱 Meow Decoder
 
 <p align="center">
-  <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
+  <img src="meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
 </p>
 
 <p align="center">
