@@ -1,0 +1,64 @@
+# 🐱 Meow Decoder - .gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Testing
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+.hypothesis/
+*.cover
+coverage.xml
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Meow Decoder Specific
+*.gif
+!assets/*.gif
+!examples/*.gif
+*.enc
+*.encrypted
+*.key
+*.keyfile
+secrets/
+test_output/
+*.log
+
+# Build artifacts
+*.whl
+*.tar.gz
