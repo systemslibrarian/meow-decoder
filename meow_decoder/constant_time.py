@@ -83,19 +83,31 @@ def secure_zero_memory(buffer: Any) -> None:
                 buffer[i] = 0
         return
     
-    # Get buffer address and size
+    # Get buffer address and size.
+    # IMPORTANT: Pass a correctly-typed pointer to memset to avoid UB/segfaults.
     if isinstance(buffer, bytearray):
-        addr = (ctypes.c_char * len(buffer)).from_buffer(buffer)
         size = len(buffer)
+        if size == 0:
+            return
+        addr = ctypes.addressof((ctypes.c_char * size).from_buffer(buffer))
     elif isinstance(buffer, ctypes.Array):
-        addr = ctypes.addressof(buffer)
         size = ctypes.sizeof(buffer)
+        if size == 0:
+            return
+        addr = ctypes.addressof(buffer)
     else:
         # Unsupported type, skip
         return
-    
-    # Zero with memset (cannot be optimized away)
-    _libc.memset(addr, 0, size)
+
+    # Prefer ctypes.memset with an explicit void* to avoid ctypes default-int
+    # calling conventions (which can segfault on some platforms).
+    try:
+        ctypes.memset(ctypes.c_void_p(addr), 0, size)
+    except Exception:
+        # Fallback: manual zeroing (best-effort)
+        if isinstance(buffer, bytearray):
+            for i in range(len(buffer)):
+                buffer[i] = 0
 
 
 @contextmanager

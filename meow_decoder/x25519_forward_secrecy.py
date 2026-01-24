@@ -186,10 +186,12 @@ def save_receiver_keypair(
         f.write(public_bytes)
     
     # Save private key (encrypted if password provided)
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding, PrivateFormat
+    )
+
     if password:
-        from cryptography.hazmat.primitives.serialization import (
-            Encoding, PrivateFormat, BestAvailableEncryption
-        )
+        from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
         encryption = BestAvailableEncryption(password.encode('utf-8'))
     else:
         from cryptography.hazmat.primitives.serialization import NoEncryption
