@@ -226,18 +226,22 @@ class TestForwardSecrecy:
     )
     def test_forward_secrecy_roundtrip(self, tmp_path):
         """Forward secrecy mode should work end-to-end."""
-        from meow_decoder.x25519_forward_secrecy import (
-            generate_receiver_keypair,
-            serialize_private_key,
-            serialize_public_key
-        )
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        from cryptography.hazmat.primitives import serialization
         
         # Generate receiver keys (returns key objects)
         privkey_obj, pubkey_obj = generate_receiver_keypair()
         
-        # Serialize to bytes
-        privkey = serialize_private_key(privkey_obj)
-        pubkey = serialize_public_key(pubkey_obj)
+        # Serialize to bytes using cryptography's standard methods
+        privkey = privkey_obj.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        pubkey = pubkey_obj.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
         
         # Save keys
         privkey_file = tmp_path / "receiver_private.pem"
@@ -277,20 +281,23 @@ class TestForwardSecrecy:
     )
     def test_wrong_receiver_key_fails(self, tmp_path):
         """Using wrong receiver key should fail."""
-        from meow_decoder.x25519_forward_secrecy import (
-            generate_receiver_keypair,
-            serialize_private_key,
-            serialize_public_key
-        )
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        from cryptography.hazmat.primitives import serialization
         
         # Generate two keypairs (returns key objects)
         privkey1_obj, pubkey1_obj = generate_receiver_keypair()
         privkey2_obj, pubkey2_obj = generate_receiver_keypair()
         
-        # Serialize to bytes
-        privkey1 = serialize_private_key(privkey1_obj)
-        pubkey1 = serialize_public_key(pubkey1_obj)
-        privkey2 = serialize_private_key(privkey2_obj)
+        # Serialize to bytes using cryptography's standard methods
+        privkey2 = privkey2_obj.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        pubkey1 = pubkey1_obj.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
         
         # Create test file
         input_file = tmp_path / "test.txt"
