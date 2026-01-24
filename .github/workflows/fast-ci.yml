@@ -1,0 +1,2 @@
+name: Fast CI
+on: [pull_request]
