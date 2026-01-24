@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Smuggle bytes through the air — Security-focused QR code encryption</strong>
+  <strong>Smuggle bytes through the air — Security‑focused QR code encryption</strong>
 </p>
 
 <p align="center">
@@ -13,48 +13,73 @@
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml/badge.svg" alt="Security CI">
   </a>
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml">
-    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Security Scan">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
   </a>
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg" alt="codecov">
   </a>
-  <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT">
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
   </a>
-  <a href="https://www.python.org/downloads/">
-    <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
-  </a>
+  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
 </p>
 
-## 🎬 Demo
+---
+
+## 🎬 Demo (How It Works)
 
 <p align="center">
   <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="750">
 </p>
 
-The GIF above is a preview. In real use, the encoder generates an **animated QR GIF** where **each frame carries encrypted payload bytes**.
+This demo shows the **clear mechanics** of Meow Decoder.  
+Each frame of the animated GIF contains encrypted payload bytes encoded into QR frames.
+
+This version is intentionally explicit — it teaches and reassures.
 
 ---
 
-## 🚀 What is Meow Decoder?
+## 🐈 Camouflage Mode (Optional)
 
-**Meow Decoder** transforms sensitive files into animated GIFs containing QR codes, enabling secure air-gapped data transfer.  
-It is designed for environments where **networks are untrusted or unavailable**.
+<p align="center">
+  <img src="assets/demo_camouflage.gif" alt="Camouflaged payload disguised as a cat GIF" width="750">
+</p>
 
-### ✨ Key Features
+Same encrypted‑payload concept, but **visually disguised** as a harmless looping cat animation.
 
-- 🔒 **Strong Encryption**: AES-256-GCM with Argon2id key derivation
-- 📱 **Air-Gap Friendly**: Transfer data via QR codes using any camera
-- 🛡️ **Forward Secrecy (Optional)**: X25519 ephemeral key exchange
-- 🐈‍⬛ **Schrödinger Mode**: Dual-secret plausible deniability
-- 📊 **Error Resilient**: Fountain codes tolerate dropped or damaged frames
-- ✅ **CI-Enforced Quality**: Security and regression tests on every commit
+Humans see a normal GIF.  
+The decoder extracts structured data from each frame.
+
+Use the clear demo above to learn.  
+This one exists for **plausible deniability and personality**.
+
+---
+
+## 🚀 What Is Meow Decoder?
+
+**Meow Decoder** transforms sensitive files into animated GIFs containing QR‑encoded frames, enabling secure **air‑gapped data transfer**.
+
+It is designed for environments where:
+- Networks are untrusted or unavailable
+- Removable media is restricted
+- Only cameras and screens can cross boundaries
+
+---
+
+## ✨ Key Features
+
+- 🔒 **Strong Encryption** — AES‑256‑GCM with Argon2id key derivation  
+- 📱 **Air‑Gap Friendly** — Transfer data using only screens and cameras  
+- 🛡️ **Forward Secrecy (Optional)** — X25519 ephemeral key exchange  
+- 🐈‍⬛ **Schrödinger Mode** — Dual‑secret plausible deniability  
+- 📊 **Error Resilience** — Fountain codes tolerate dropped frames  
+- ✅ **CI‑Enforced Quality** — Security tests on every commit  
 
 ---
 
 ## 📦 Quick Start
 
-### Installation
+### Install
 
 ```bash
 pip install meow-decoder
@@ -68,53 +93,54 @@ cd meow-decoder
 pip install -e .
 ```
 
-### Basic Usage
+### Encrypt
 
-**Encrypt a file**
 ```bash
-meow-encode -i secret.txt -o animated.gif -p "my-secure-password"
+meow-encode -i secret.txt -o payload.gif -p "passphrase"
 ```
 
-**Decrypt a file**
+### Decrypt
+
 ```bash
-meow-decode-gif -i animated.gif -o recovered.txt -p "my-secure-password"
+meow-decode-gif -i payload.gif -o recovered.txt -p "passphrase"
 ```
 
 ---
 
-## 📱 Phone-Based Transfer Model
+## 📱 Phone‑Based Transfer Model
 
-Meow Decoder intentionally **does not require a mobile app**.
+Meow Decoder **does not require a mobile app**.
 
 ### Workflow
 
-1. **Display** the animated QR GIF on any screen
-2. **Record** the looping animation with a phone camera (video or burst photos)
-3. **Transfer** the recording to a computer
-4. **Decode** on the computer using the passphrase
+1. Display the animated GIF on any screen  
+2. Record the looping animation with a phone (video or burst photos)  
+3. Transfer the recording to a computer  
+4. Decode on the computer using the passphrase  
 
-This design treats the phone as an **untrusted optical sensor**, while cryptography and decoding occur on a trusted machine.
+The phone is treated as an **untrusted optical sensor**.  
+All cryptography and verification occur on the trusted machine.
 
 ---
 
 ## 🎯 Security Properties
 
 | Property | Status |
-|--------|--------|
-| Authenticated Encryption | ✅ AES-256-GCM |
-| Key Derivation | ✅ Argon2id |
-| Tamper Detection | ✅ Frame & manifest MACs |
-| Forward Secrecy | ✅ Optional (X25519) |
-| Error Recovery | ✅ Fountain codes |
-| CI Security Tests | ✅ Enforced |
+|-------|--------|
+| Authenticated Encryption | AES‑256‑GCM |
+| Key Derivation | Argon2id |
+| Tamper Detection | Frame + manifest MACs |
+| Forward Secrecy | Optional (X25519) |
+| Error Recovery | Fountain codes |
+| Security CI | Enforced |
 
-For details, see:
+See:
 - [Security Policy](SECURITY.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 
 ---
 
-## 🏗️ Architecture (High-Level)
+## 🏗️ Architecture (High‑Level)
 
 ```
 File → Encrypt → Fountain Encode → QR Frames → Animated GIF
@@ -122,7 +148,7 @@ File → Encrypt → Fountain Encode → QR Frames → Animated GIF
                               Camera Capture
 ```
 
-A detailed walkthrough is available in:
+Detailed internals:
 - [Architecture](docs/ARCHITECTURE.md)
 
 ---
@@ -130,10 +156,7 @@ A detailed walkthrough is available in:
 ## 🧪 Development
 
 ```bash
-# Run tests
 pytest tests/
-
-# Security-focused tests
 pytest tests/test_security.py tests/test_adversarial.py
 ```
 
@@ -146,15 +169,16 @@ CI runs on Python 3.10–3.12 with CodeQL and security checks enabled.
 - [Usage Guide](docs/USAGE.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 - [Schrödinger Mode](docs/SCHRODINGER.md)
+- [Stability Tiers](docs/STABILITY_TIERS.md)
 
 ---
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE)
+MIT — see [LICENSE](LICENSE)
 
 ---
 
 <p align="center">
-  <strong>Built for air-gapped, hostile, or zero-trust environments.</strong>
+  <strong>Built for air‑gapped, hostile, and zero‑trust environments.</strong>
 </p>
