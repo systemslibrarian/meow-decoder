@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>Smuggle bytes through the air — Security‑focused QR code encryption</strong>
+  <strong>Smuggle bytes through the air — Security-focused QR code encryption</strong>
 </p>
 
 <p align="center">
@@ -18,24 +18,24 @@
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg" alt="codecov">
   </a>
-  <a href="LICENSE">
+  <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
   </a>
-  <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
+  </a>
 </p>
 
 ---
 
-## 🎬 Demo (How It Works)
+## 🎬 Demo (Clear / Teaching)
 
 <p align="center">
   <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="750">
 </p>
 
-This demo shows the **clear mechanics** of Meow Decoder.  
-Each frame of the animated GIF contains encrypted payload bytes encoded into QR frames.
-
-This version is intentionally explicit — it teaches and reassures.
+This demo shows the **explicit mechanics** of Meow Decoder.  
+QR codes are intentionally visible so first-time users can clearly understand what is happening.
 
 ---
 
@@ -45,41 +45,36 @@ This version is intentionally explicit — it teaches and reassures.
   <img src="assets/demo_camouflage.gif" alt="Camouflaged payload disguised as a cat GIF" width="750">
 </p>
 
-Same encrypted‑payload concept, but **visually disguised** as a harmless looping cat animation.
-
-Humans see a normal GIF.  
-The decoder extracts structured data from each frame.
-
-Use the clear demo above to learn.  
-This one exists for **plausible deniability and personality**.
+Same encrypted payload concept — visually disguised as a harmless looping cat animation.  
+This mode is about **plausible deniability and fun**, not teaching.
 
 ---
 
-## 🚀 What Is Meow Decoder?
+## 🚀 What is Meow Decoder?
 
-**Meow Decoder** transforms sensitive files into animated GIFs containing QR‑encoded frames, enabling secure **air‑gapped data transfer**.
+**Meow Decoder** transforms sensitive files into animated GIFs containing QR codes, enabling secure **air-gapped data transfer**.
 
 It is designed for environments where:
 - Networks are untrusted or unavailable
-- Removable media is restricted
-- Only cameras and screens can cross boundaries
+- Only optical transfer is allowed
+- Phones can act as cameras but not trusted compute devices
 
 ---
 
 ## ✨ Key Features
 
-- 🔒 **Strong Encryption** — AES‑256‑GCM with Argon2id key derivation  
-- 📱 **Air‑Gap Friendly** — Transfer data using only screens and cameras  
+- 🔒 **Strong Encryption** — AES-256-GCM with Argon2id key derivation  
+- 📱 **Air-Gap Friendly** — transfer data using any camera  
 - 🛡️ **Forward Secrecy (Optional)** — X25519 ephemeral key exchange  
-- 🐈‍⬛ **Schrödinger Mode** — Dual‑secret plausible deniability  
-- 📊 **Error Resilience** — Fountain codes tolerate dropped frames  
-- ✅ **CI‑Enforced Quality** — Security tests on every commit  
+- 🐈‍⬛ **Schrödinger Mode** — dual-secret plausible deniability  
+- 📊 **Error Resilient** — fountain codes tolerate dropped frames  
+- ✅ **CI-Enforced Quality** — security and regression tests on every commit  
 
 ---
 
 ## 📦 Quick Start
 
-### Install
+### Installation
 
 ```bash
 pip install meow-decoder
@@ -93,54 +88,54 @@ cd meow-decoder
 pip install -e .
 ```
 
-### Encrypt
+### Basic Usage
 
+**Encrypt**
 ```bash
-meow-encode -i secret.txt -o payload.gif -p "passphrase"
+meow-encode -i secret.txt -o payload.gif -p "password"
 ```
 
-### Decrypt
-
+**Decrypt**
 ```bash
-meow-decode-gif -i payload.gif -o recovered.txt -p "passphrase"
+meow-decode-gif -i payload.gif -o recovered.txt -p "password"
 ```
 
 ---
 
-## 📱 Phone‑Based Transfer Model
+## 📱 Phone-Based Transfer Model
 
-Meow Decoder **does not require a mobile app**.
+Meow Decoder intentionally **does not require a mobile app**.
 
 ### Workflow
 
 1. Display the animated GIF on any screen  
-2. Record the looping animation with a phone (video or burst photos)  
-3. Transfer the recording to a computer  
+2. Record the looping animation with a phone camera  
+3. Transfer the video/photos to a computer  
 4. Decode on the computer using the passphrase  
 
 The phone is treated as an **untrusted optical sensor**.  
-All cryptography and verification occur on the trusted machine.
+All cryptography happens on the trusted machine.
 
 ---
 
 ## 🎯 Security Properties
 
 | Property | Status |
-|-------|--------|
-| Authenticated Encryption | AES‑256‑GCM |
+|--------|--------|
+| Authenticated Encryption | AES-256-GCM |
 | Key Derivation | Argon2id |
-| Tamper Detection | Frame + manifest MACs |
+| Tamper Detection | Frame & manifest MACs |
 | Forward Secrecy | Optional (X25519) |
 | Error Recovery | Fountain codes |
-| Security CI | Enforced |
+| Security Tests | CI-enforced |
 
 See:
-- [Security Policy](SECURITY.md)
+- [SECURITY.md](SECURITY.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 
 ---
 
-## 🏗️ Architecture (High‑Level)
+## 🏗️ Architecture (High-Level)
 
 ```
 File → Encrypt → Fountain Encode → QR Frames → Animated GIF
@@ -148,7 +143,7 @@ File → Encrypt → Fountain Encode → QR Frames → Animated GIF
                               Camera Capture
 ```
 
-Detailed internals:
+More detail:
 - [Architecture](docs/ARCHITECTURE.md)
 
 ---
@@ -160,7 +155,7 @@ pytest tests/
 pytest tests/test_security.py tests/test_adversarial.py
 ```
 
-CI runs on Python 3.10–3.12 with CodeQL and security checks enabled.
+CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 
 ---
 
@@ -168,17 +163,17 @@ CI runs on Python 3.10–3.12 with CodeQL and security checks enabled.
 
 - [Usage Guide](docs/USAGE.md)
 - [Threat Model](docs/THREAT_MODEL.md)
+- [Architecture](docs/ARCHITECTURE.md)
 - [Schrödinger Mode](docs/SCHRODINGER.md)
-- [Stability Tiers](docs/STABILITY_TIERS.md)
 
 ---
 
 ## 📄 License
 
-MIT — see [LICENSE](LICENSE)
+MIT License — see [LICENSE](LICENSE)
 
 ---
 
 <p align="center">
-  <strong>Built for air‑gapped, hostile, and zero‑trust environments.</strong>
+  <strong>Built for air-gapped, hostile, or zero-trust environments.</strong>
 </p>
