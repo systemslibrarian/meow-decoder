@@ -227,12 +227,24 @@ class TestForwardSecrecy:
     def test_forward_secrecy_roundtrip(self, tmp_path):
         """Forward secrecy mode should work end-to-end."""
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        from cryptography.hazmat.primitives import serialization
         
-        # Generate receiver keys
-        privkey, pubkey = generate_receiver_keypair()
+        # Generate receiver keys (returns key objects)
+        privkey_obj, pubkey_obj = generate_receiver_keypair()
         
-        # Save keys
-        privkey_file = tmp_path / "receiver_private.pem"
+        # Serialize BOTH to Raw bytes (32 bytes each)
+        privkey = privkey_obj.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        pubkey = pubkey_obj.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
+        
+        # Save keys to files
+        privkey_file = tmp_path / "receiver_private.key"
         pubkey_file = tmp_path / "receiver_public.key"
         privkey_file.write_bytes(privkey)
         pubkey_file.write_bytes(pubkey)
@@ -244,20 +256,20 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with forward secrecy
+        # Encode with forward secrecy (use serialized bytes)
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey
+            receiver_public_key=pubkey  # 32 bytes
         )
         
-        # Decode with receiver private key
+        # Decode with receiver private key (use serialized bytes)
         decode_gif(
             gif_file,
             output_file,
             password="testpass123",
-            receiver_private_key=privkey
+            receiver_private_key=privkey  # 32 bytes
         )
         
         # Verify
@@ -270,10 +282,22 @@ class TestForwardSecrecy:
     def test_wrong_receiver_key_fails(self, tmp_path):
         """Using wrong receiver key should fail."""
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        from cryptography.hazmat.primitives import serialization
         
-        # Generate two keypairs
-        privkey1, pubkey1 = generate_receiver_keypair()
-        privkey2, pubkey2 = generate_receiver_keypair()
+        # Generate two keypairs (returns key objects)
+        privkey1_obj, pubkey1_obj = generate_receiver_keypair()
+        privkey2_obj, pubkey2_obj = generate_receiver_keypair()
+        
+        # Serialize to Raw bytes (32 bytes each)
+        privkey2 = privkey2_obj.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption()
+        )
+        pubkey1 = pubkey1_obj.public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw
+        )
         
         # Create test file
         input_file = tmp_path / "test.txt"
@@ -282,21 +306,21 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with pubkey1
+        # Encode with pubkey1 (use serialized bytes)
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey1
+            receiver_public_key=pubkey1  # 32 bytes
         )
         
-        # Try to decode with privkey2 (wrong key)
+        # Try to decode with privkey2 (wrong key, use serialized bytes)
         with pytest.raises(Exception):
             decode_gif(
                 gif_file,
                 output_file,
                 password="testpass123",
-                receiver_private_key=privkey2
+                receiver_private_key=privkey2  # 32 bytes
             )
 
 
