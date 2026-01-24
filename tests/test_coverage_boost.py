@@ -35,7 +35,7 @@ class TestCryptoDeepCoverage:
         keyfile = b"additional_secret_key_data"
         
         # Encrypt with keyfile
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, keyfile, None
         )
         
@@ -66,7 +66,7 @@ class TestCryptoDeepCoverage:
         
         # Already compressed data (should not compress further)
         compressed_data = secrets.token_bytes(1000)
-        comp1, sha1, salt1, nonce1, cipher1, _ = encrypt_file_bytes(
+        comp1, sha1, salt1, nonce1, cipher1, _, _ = encrypt_file_bytes(
             compressed_data, password, None, None
         )
         

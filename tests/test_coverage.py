@@ -67,7 +67,7 @@ class TestCryptoComprehensive:
         
         for data in test_cases:
             # Encrypt
-            comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+            comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
                 data, password, None, None
             )
             
@@ -87,13 +87,13 @@ class TestCryptoComprehensive:
         
         # Highly compressible
         compressible = b"A" * 10000
-        comp1, sha1, salt1, nonce1, cipher1, _ = encrypt_file_bytes(
+        comp1, sha1, salt1, nonce1, cipher1, _, _ = encrypt_file_bytes(
             compressible, password, None, None
         )
         
         # Incompressible
         incompressible = secrets.token_bytes(10000)
-        comp2, sha2, salt2, nonce2, cipher2, _ = encrypt_file_bytes(
+        comp2, sha2, salt2, nonce2, cipher2, _, _ = encrypt_file_bytes(
             incompressible, password, None, None
         )
         

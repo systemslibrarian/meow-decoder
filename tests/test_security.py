@@ -66,7 +66,7 @@ class TestTamperDetection:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -107,7 +107,7 @@ class TestTamperDetection:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -186,7 +186,7 @@ class TestNonceSafety:
         
         # Encrypt same data 100 times
         for _ in range(100):
-            _, _, _, nonce, _, _ = encrypt_file_bytes(data, password, None, None)
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, password, None, None)
             
             # Nonce should be unique
             assert nonce not in nonces, "Nonce reuse detected!"
@@ -201,7 +201,7 @@ class TestNonceSafety:
         
         # Collect nonces
         for _ in range(10):
-            _, _, _, nonce, _, _ = encrypt_file_bytes(data, password, None, None)
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, password, None, None)
             nonces.append(nonce)
         
         # Nonces should be 12 bytes
@@ -227,24 +227,12 @@ class TestForwardSecrecy:
     def test_forward_secrecy_roundtrip(self, tmp_path):
         """Forward secrecy mode should work end-to-end."""
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
-        from cryptography.hazmat.primitives import serialization
         
-        # Generate receiver keys (returns key objects)
-        privkey_obj, pubkey_obj = generate_receiver_keypair()
+        # Generate receiver keys
+        privkey, pubkey = generate_receiver_keypair()
         
-        # Serialize BOTH to Raw bytes (32 bytes each)
-        privkey = privkey_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        pubkey = pubkey_obj.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
-        
-        # Save keys to files
-        privkey_file = tmp_path / "receiver_private.key"
+        # Save keys
+        privkey_file = tmp_path / "receiver_private.pem"
         pubkey_file = tmp_path / "receiver_public.key"
         privkey_file.write_bytes(privkey)
         pubkey_file.write_bytes(pubkey)
@@ -256,20 +244,20 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with forward secrecy - pass raw bytes
+        # Encode with forward secrecy
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey  # 32 bytes
+            receiver_public_key=pubkey
         )
         
-        # Decode with receiver private key - pass raw bytes
+        # Decode with receiver private key
         decode_gif(
             gif_file,
             output_file,
             password="testpass123",
-            receiver_private_key=privkey  # 32 bytes
+            receiver_private_key=privkey
         )
         
         # Verify
@@ -282,28 +270,10 @@ class TestForwardSecrecy:
     def test_wrong_receiver_key_fails(self, tmp_path):
         """Using wrong receiver key should fail."""
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
-        from cryptography.hazmat.primitives import serialization
         
-        # Generate two keypairs (returns key objects)
-        privkey1_obj, pubkey1_obj = generate_receiver_keypair()
-        privkey2_obj, pubkey2_obj = generate_receiver_keypair()
-        
-        # Serialize to Raw bytes (32 bytes each)
-        privkey2 = privkey2_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        pubkey1 = pubkey1_obj.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
-        
-        # Save to files
-        privkey2_file = tmp_path / "receiver_private2.key"
-        pubkey1_file = tmp_path / "receiver_public1.key"
-        privkey2_file.write_bytes(privkey2)
-        pubkey1_file.write_bytes(pubkey1)
+        # Generate two keypairs
+        privkey1, pubkey1 = generate_receiver_keypair()
+        privkey2, pubkey2 = generate_receiver_keypair()
         
         # Create test file
         input_file = tmp_path / "test.txt"
@@ -317,7 +287,7 @@ class TestForwardSecrecy:
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey1  # 32 bytes
+            receiver_public_key=pubkey1
         )
         
         # Try to decode with privkey2 (wrong key)
@@ -326,7 +296,7 @@ class TestForwardSecrecy:
                 gif_file,
                 output_file,
                 password="testpass123",
-                receiver_private_key=privkey2  # 32 bytes
+                receiver_private_key=privkey2
             )
 
 
@@ -339,7 +309,7 @@ class TestAuthenticationCoverage:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -369,7 +339,7 @@ class TestAuthenticationCoverage:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         

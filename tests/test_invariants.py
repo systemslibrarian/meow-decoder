@@ -32,7 +32,7 @@ class TestCriticalInvariants:
         password = "password"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -79,7 +79,7 @@ class TestCriticalInvariants:
         
         nonces = set()
         for _ in range(100):
-            _, _, _, nonce, _, _ = encrypt_file_bytes(data, password, None, None)
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, password, None, None)
             
             # MUST be unique
             assert nonce not in nonces, f"CRITICAL: Nonce reused! {nonce.hex()}"
@@ -95,7 +95,7 @@ class TestCriticalInvariants:
         password = "password"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -232,7 +232,7 @@ class TestNoRegressions:
         
         nonces = []
         for _ in range(50):
-            _, _, _, nonce, _, _ = encrypt_file_bytes(data, password, None, None)
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, password, None, None)
             nonces.append(nonce)
         
         # Check entropy (should not have patterns)
@@ -253,7 +253,7 @@ class TestNoRegressions:
         # Highly compressible data
         compressible = b"A" * 10000
         
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             compressible, "password", None, None
         )
         

@@ -104,7 +104,7 @@ class TestFuzzing:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -288,7 +288,7 @@ class TestManifestCorruption:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -317,7 +317,7 @@ class TestManifestCorruption:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -357,7 +357,7 @@ class TestPartialDecryption:
         password = "testpass123"
         
         # Encrypt
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -430,7 +430,7 @@ class TestEdgeCases:
         password = "x" * 10000  # 10KB password
         
         # Should work (Argon2 can handle long passwords)
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
@@ -451,7 +451,7 @@ class TestEdgeCases:
         password = "pāsswørd🔒密码"  # Mixed scripts + emoji
         
         # Should work
-        comp, sha, salt, nonce, cipher, _ = encrypt_file_bytes(
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
             data, password, None, None
         )
         
