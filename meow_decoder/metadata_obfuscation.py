@@ -12,6 +12,7 @@ Security Goals:
 
 import secrets
 import struct
+import random
 from typing import Tuple, List
 from dataclasses import dataclass
 
@@ -179,9 +180,8 @@ def randomize_frame_order(
     # Create index list
     indices = list(range(len(frames)))
     
-    # Deterministic shuffle using seed as RNG
-    rng = secrets.SystemRandom()
-    rng.seed(int.from_bytes(seed, 'big'))
+    # Deterministic shuffle using seed
+    rng = random.Random(int.from_bytes(seed, 'big'))
     rng.shuffle(indices)
     
     # Reorder frames

@@ -681,7 +681,15 @@ if __name__ == "__main__":
     print(f"   Compressed: {len(comp)} bytes ({len(comp)/len(test_data)*100:.1f}%)")
     print(f"   Encrypted: {len(cipher)} bytes")
     
-    decrypted = decrypt_to_raw(cipher, password, salt, nonce)
+    decrypted = decrypt_to_raw(
+        cipher,
+        password,
+        salt,
+        nonce,
+        orig_len=len(test_data),
+        comp_len=len(comp),
+        sha256=sha,
+    )
     assert decrypted == test_data, "Decryption should recover original"
     print("   ✓ Encryption/decryption roundtrip works")
     
@@ -741,16 +749,33 @@ if __name__ == "__main__":
         keyfile = verify_keyfile(keyfile_path)
         
         # Encrypt with keyfile
-        _, _, salt_kf, nonce_kf, cipher_kf, _, _ = encrypt_file_bytes(test_data, password, keyfile)
+        comp_kf, sha_kf, salt_kf, nonce_kf, cipher_kf, _, _ = encrypt_file_bytes(test_data, password, keyfile)
         
-        # Decrypt with keyfile
-        decrypted_kf = decrypt_to_raw(cipher_kf, password, salt_kf, nonce_kf, keyfile)
+        # Decrypt with keyfile (include AAD parameters)
+        decrypted_kf = decrypt_to_raw(
+            cipher_kf,
+            password,
+            salt_kf,
+            nonce_kf,
+            keyfile,
+            orig_len=len(test_data),
+            comp_len=len(comp_kf),
+            sha256=sha_kf,
+        )
         assert decrypted_kf == test_data
         print("   ✓ Keyfile encryption/decryption works")
         
         # Try decrypting without keyfile (should fail)
         try:
-            decrypt_to_raw(cipher_kf, password, salt_kf, nonce_kf)
+            decrypt_to_raw(
+                cipher_kf,
+                password,
+                salt_kf,
+                nonce_kf,
+                orig_len=len(test_data),
+                comp_len=len(comp_kf),
+                sha256=sha_kf,
+            )
             print("   ✗ Decryption without keyfile should fail")
         except RuntimeError:
             print("   ✓ Keyfile is required for decryption")

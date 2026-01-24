@@ -259,11 +259,18 @@ def generate_receiver_keys_cli(output_dir: str = ".", password: Optional[str] = 
         receiver_public.key - Public key (32 bytes)
     """
     import os
+    import sys
     from getpass import getpass
     
     if password is None:
-        password = getpass("Enter password to protect private key: ")
-        confirm = getpass("Confirm password: ")
+        # Non-interactive support (e.g., tests/CI): if stdin is piped, read two lines.
+        # This avoids getpass() trying to read from /dev/tty and hanging.
+        if sys.stdin is not None and not sys.stdin.isatty():
+            password = sys.stdin.readline().rstrip("\n")
+            confirm = sys.stdin.readline().rstrip("\n")
+        else:
+            password = getpass("Enter password to protect private key: ")
+            confirm = getpass("Confirm password: ")
         if password != confirm:
             raise ValueError("Passwords don't match")
     

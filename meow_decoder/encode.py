@@ -6,6 +6,7 @@ Encodes files into GIF animations with QR codes
 
 import sys
 import argparse
+import struct
 from pathlib import Path
 from getpass import getpass
 from typing import Optional
@@ -124,12 +125,23 @@ def encode_file(
     )
     
     # Compute HMAC (need to handle variable manifest size)
-    if ephemeral_public_key:
-        # MEOW3 with FS: 147 bytes (115 + 32)
-        packed_no_hmac = pack_manifest(manifest)[:-32]  # Remove HMAC placeholder
-    else:
-        # MEOW3 password-only or MEOW2: 115 bytes
-        packed_no_hmac = pack_manifest(manifest)[:-32]  # Remove HMAC placeholder
+    # CRITICAL: Manifest format is: MAGIC + salt + nonce + lengths + sha256 + HMAC + ephemeral_key
+    # We need to pack WITHOUT hmac field, then compute HMAC, then insert it
+    
+    # Build packed manifest without HMAC
+    from .crypto import MAGIC
+    packed_no_hmac = (
+        MAGIC +
+        manifest.salt +
+        manifest.nonce +
+        struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len) +
+        struct.pack(">HI", manifest.block_size, manifest.k_blocks) +
+        manifest.sha256
+    )
+    
+    # Add ephemeral public key if present (AFTER all other fields, BEFORE HMAC)
+    if ephemeral_public_key is not None:
+        packed_no_hmac += ephemeral_public_key
     
     # Compute HMAC using the encryption key directly (critical for forward secrecy!)
     manifest.hmac = compute_manifest_hmac(
@@ -251,10 +263,11 @@ Examples:
         """
     )
     
-    # Required arguments
-    parser.add_argument('-i', '--input', type=Path, required=True,
+    # Input/output are required for normal encoding, but NOT for --generate-keys.
+    # We enforce requirement after parsing so key generation can run standalone.
+    parser.add_argument('-i', '--input', type=Path,
                        help='Input file to encode')
-    parser.add_argument('-o', '--output', type=Path, required=True,
+    parser.add_argument('-o', '--output', type=Path,
                        help='Output GIF file')
     
     # Optional arguments
@@ -329,8 +342,8 @@ Examples:
         except Exception as e:
             print(f"\n❌ Key generation failed: {e}")
             return 1
-    
-    # Easter egg: summon void cat
+
+    # Easter egg: summon void cat (doesn't require input/output)
     if args.summon_void_cat:
         print("""
 　／＞　　フ
@@ -350,6 +363,10 @@ Nothing to see here.
 😶‍🌫️ Meow.
 """)
         sys.exit(0)
+
+    # For normal operation, require input/output.
+    if args.input is None or args.output is None:
+        parser.error("the following arguments are required: -i/--input, -o/--output")
     
     # Void cat mode
     if args.mode == 'void':

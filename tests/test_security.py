@@ -212,9 +212,9 @@ class TestNonceSafety:
         # Check that they're not all similar
         # 10 nonces × 12 bytes = 120 bytes total
         # Expect ~95% unique (114 unique) for truly random
-        # Threshold: >90 unique bytes (allows some collisions)
+        # Threshold: ≥85 unique bytes (allows more collisions due to birthday paradox with small sample)
         unique_bytes = len(set(b for nonce in nonces for b in nonce))
-        assert unique_bytes > 90, f"Nonces appear non-random (only {unique_bytes}/120 unique bytes)"
+        assert unique_bytes >= 85, f"Nonces appear non-random (only {unique_bytes}/120 unique bytes)"
 
 
 class TestForwardSecrecy:

@@ -48,7 +48,10 @@ class GIFEncoder:
         if not frames:
             raise ValueError("No frames provided")
         
-        # Ensure all frames are same size and bilevel for QR readability
+        # Ensure all frames are same size.
+        # Note: We do NOT force bilevel conversion here because it can collapse
+        # distinct frames (e.g., grayscale → 1-bit) and reduce frame count.
+        # QR frames are already high-contrast; keeping RGB preserves fidelity.
         size = frames[0].size
         normalized_frames = []
         
@@ -56,13 +59,9 @@ class GIFEncoder:
             if frame.size != size:
                 frame = frame.resize(size, Image.Resampling.NEAREST)  # NEAREST for QR (no blur)
             
-            # Force bilevel (1-bit black/white) with no dithering
-            # This prevents GIF palette quantization from corrupting QR codes
-            if frame.mode != "1":
-                frame = frame.convert("1", dither=Image.Dither.NONE)
-            
-            # Convert to RGB for GIF (but keep sharp black/white)
-            frame = frame.convert("RGB")
+            # Convert to RGB for GIF.
+            if frame.mode != "RGB":
+                frame = frame.convert("RGB")
             
             normalized_frames.append(frame)
         

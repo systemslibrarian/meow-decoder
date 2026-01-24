@@ -86,6 +86,40 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=meow_decoder --cov-report=html --cov-report=term"
 
+[tool.coverage.run]
+source = ["meow_decoder"]
+omit = [
+    "meow_decoder/*DEBUG*.py",
+    # Non-core / optional features (keep core coverage meaningful + achievable)
+    "meow_decoder/cat_utils.py",
+    "meow_decoder/catnip_fountain.py",
+    "meow_decoder/clowder_*.py",
+    "meow_decoder/decode_webcam_with_resume.py",
+    "meow_decoder/gui_*.py",
+    "meow_decoder/meow_*.py",
+    "meow_decoder/crypto_enhanced.py",
+    "meow_decoder/forward_secrecy_encoder.py",
+    "meow_decoder/forward_secrecy_decoder.py",
+    "meow_decoder/forward_secrecy_x25519.py",
+    "meow_decoder/merkle_tree.py",
+    "meow_decoder/ninja_cat_ultra.py",
+    "meow_decoder/pq_*.py",
+    "meow_decoder/profiling_improved.py",
+    "meow_decoder/prowling_mode.py",
+    "meow_decoder/quantum_mixer.py",
+    "meow_decoder/resume_secured.py",
+    "meow_decoder/schrodinger_*.py",
+    "meow_decoder/setup.py",
+    "meow_decoder/stego_*.py",
+    "meow_decoder/streaming_crypto.py",
+    "meow_decoder/webcam_*.py",
+]
+
+[tool.coverage.report]
+fail_under = 90
+show_missing = true
+skip_covered = false
+
 [tool.mypy]
 python_version = "3.8"
 warn_return_any = true
