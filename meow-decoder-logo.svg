@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="120" viewBox="0 0 400 120" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background gradient -->
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Cat face gradient -->
+    <linearGradient id="catGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff8c42;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- Lock gradient -->
+    <linearGradient id="lockGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecdc4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#44a3a0;stop-opacity:1" />
+    </linearGradient>
+    
+    <!-- QR pattern -->
+    <pattern id="qrPattern" x="0" y="0" width="8" height="8" patternUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="4" height="4" fill="#00000020"/>
+      <rect x="4" y="4" width="4" height="4" fill="#00000020"/>
+    </pattern>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="400" height="120" fill="url(#bg)" rx="10"/>
+  
+  <!-- QR code pattern background (subtle) -->
+  <rect width="400" height="120" fill="url(#qrPattern)" opacity="0.1" rx="10"/>
+  
+  <!-- Cat face (left side) -->
+  <g transform="translate(40, 60)">
+    <!-- Head -->
+    <circle cx="0" cy="0" r="28" fill="url(#catGrad)"/>
+    
+    <!-- Ears -->
+    <path d="M -20,-20 L -25,-35 L -12,-22 Z" fill="url(#catGrad)"/>
+    <path d="M 20,-20 L 25,-35 L 12,-22 Z" fill="url(#catGrad)"/>
+    
+    <!-- Eyes with QR code pattern -->
+    <circle cx="-10" cy="-5" r="4" fill="#2d3436"/>
+    <circle cx="10" cy="-5" r="4" fill="#2d3436"/>
+    
+    <!-- Tiny highlights in eyes (QR scanning effect) -->
+    <circle cx="-9" cy="-6" r="1.5" fill="#4ecdc4"/>
+    <circle cx="11" cy="-6" r="1.5" fill="#4ecdc4"/>
+    
+    <!-- Nose -->
+    <path d="M 0,2 L -2,6 L 2,6 Z" fill="#ff6b35"/>
+    
+    <!-- Mouth -->
+    <path d="M 0,6 Q -6,10 -8,8 M 0,6 Q 6,10 8,8" 
+          stroke="#2d3436" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+    
+    <!-- Whiskers -->
+    <line x1="-28" y1="-2" x2="-35" y2="-4" stroke="#636e72" stroke-width="1"/>
+    <line x1="-28" y1="2" x2="-35" y2="2" stroke="#636e72" stroke-width="1"/>
+    <line x1="-28" y1="6" x2="-35" y2="8" stroke="#636e72" stroke-width="1"/>
+    <line x1="28" y1="-2" x2="35" y2="-4" stroke="#636e72" stroke-width="1"/>
+    <line x1="28" y1="2" x2="35" y2="2" stroke="#636e72" stroke-width="1"/>
+    <line x1="28" y1="6" x2="35" y2="8" stroke="#636e72" stroke-width="1"/>
+  </g>
+  
+  <!-- Lock icon (integrated with cat) -->
+  <g transform="translate(45, 85)">
+    <!-- Lock body -->
+    <rect x="-8" y="0" width="16" height="12" rx="2" fill="url(#lockGrad)"/>
+    <!-- Shackle -->
+    <path d="M -6,-8 Q -6,-12 0,-12 Q 6,-12 6,-8" 
+          stroke="url(#lockGrad)" stroke-width="2.5" fill="none"/>
+    <!-- Keyhole -->
+    <circle cx="0" cy="4" r="2" fill="#1a1a2e"/>
+    <rect x="-1" y="5" width="2" height="3" fill="#1a1a2e"/>
+  </g>
+  
+  <!-- Signal waves (air-gap transmission) -->
+  <g transform="translate(90, 60)" opacity="0.4">
+    <path d="M 0,0 Q 10,-15 20,0" stroke="#4ecdc4" stroke-width="2" fill="none"/>
+    <path d="M 0,0 Q 15,-20 30,0" stroke="#4ecdc4" stroke-width="1.5" fill="none" opacity="0.7"/>
+    <path d="M 0,0 Q 20,-25 40,0" stroke="#4ecdc4" stroke-width="1" fill="none" opacity="0.5"/>
+  </g>
+  
+  <!-- Main text: "MEOW DECODER" -->
+  <text x="140" y="50" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="#ffffff">
+    MEOW DECODER
+  </text>
+  
+  <!-- Subtitle -->
+  <text x="140" y="72" font-family="Arial, sans-serif" font-size="14" fill="#b2bec3">
+    Smuggle bytes through the air
+  </text>
+  
+  <!-- Version badge -->
+  <g transform="translate(140, 85)">
+    <rect x="0" y="0" width="60" height="18" rx="9" fill="#4ecdc4"/>
+    <text x="30" y="13" font-family="monospace" font-size="11" font-weight="bold" 
+          fill="#1a1a2e" text-anchor="middle">v4.0</text>
+  </g>
+  
+  <!-- Security badge -->
+  <g transform="translate(210, 85)">
+    <rect x="0" y="0" width="90" height="18" rx="9" fill="#ff6b35"/>
+    <text x="45" y="13" font-family="monospace" font-size="11" font-weight="bold" 
+          fill="#ffffff" text-anchor="middle">QUANTUM</text>
+  </g>
+  
+  <!-- Paw print (bottom right corner) -->
+  <g transform="translate(370, 100)" opacity="0.3">
+    <circle cx="0" cy="0" r="3" fill="#ff8c42"/>
+    <circle cx="-4" cy="-3" r="2" fill="#ff8c42"/>
+    <circle cx="4" cy="-3" r="2" fill="#ff8c42"/>
+    <circle cx="-2" cy="-6" r="1.5" fill="#ff8c42"/>
+    <circle cx="2" cy="-6" r="1.5" fill="#ff8c42"/>
+  </g>
+</svg>

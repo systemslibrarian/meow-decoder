@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#1a1a2e;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#16213e;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="catGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#ff8c42;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff6b35;stop-opacity:1" />
+    </linearGradient>
+    
+    <linearGradient id="lockGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#4ecdc4;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#44a3a0;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="128" height="128" fill="url(#bg)" rx="16"/>
+  
+  <!-- Cat face (centered) -->
+  <g transform="translate(64, 55)">
+    <!-- Head -->
+    <circle cx="0" cy="0" r="35" fill="url(#catGrad)"/>
+    
+    <!-- Ears -->
+    <path d="M -25,-25 L -31,-42 L -15,-28 Z" fill="url(#catGrad)"/>
+    <path d="M 25,-25 L 31,-42 L 15,-28 Z" fill="url(#catGrad)"/>
+    
+    <!-- Eyes (QR scanning) -->
+    <circle cx="-12" cy="-6" r="5" fill="#2d3436"/>
+    <circle cx="12" cy="-6" r="5" fill="#2d3436"/>
+    <circle cx="-11" cy="-7" r="2" fill="#4ecdc4"/>
+    <circle cx="13" cy="-7" r="2" fill="#4ecdc4"/>
+    
+    <!-- Nose -->
+    <path d="M 0,3 L -3,8 L 3,8 Z" fill="#ff6b35"/>
+    
+    <!-- Mouth -->
+    <path d="M 0,8 Q -8,13 -10,10 M 0,8 Q 8,13 10,10" 
+          stroke="#2d3436" stroke-width="2" fill="none" stroke-linecap="round"/>
+    
+    <!-- Whiskers -->
+    <line x1="-35" y1="-3" x2="-44" y2="-5" stroke="#636e72" stroke-width="1.5"/>
+    <line x1="-35" y1="3" x2="-44" y2="3" stroke="#636e72" stroke-width="1.5"/>
+    <line x1="-35" y1="9" x2="-44" y2="11" stroke="#636e72" stroke-width="1.5"/>
+    <line x1="35" y1="-3" x2="44" y2="-5" stroke="#636e72" stroke-width="1.5"/>
+    <line x1="35" y1="3" x2="44" y2="3" stroke="#636e72" stroke-width="1.5"/>
+    <line x1="35" y1="9" x2="44" y2="11" stroke="#636e72" stroke-width="1.5"/>
+  </g>
+  
+  <!-- Lock badge (bottom) -->
+  <g transform="translate(64, 105)">
+    <rect x="-12" y="-8" width="24" height="16" rx="3" fill="url(#lockGrad)"/>
+    <circle cx="0" cy="0" r="3" fill="#1a1a2e"/>
+    <rect x="-1.5" y="1" width="3" height="4" fill="#1a1a2e"/>
+  </g>
+  
+  <!-- QR corner markers (subtle) -->
+  <g opacity="0.15">
+    <rect x="8" y="8" width="8" height="8" fill="#4ecdc4"/>
+    <rect x="112" y="8" width="8" height="8" fill="#4ecdc4"/>
+    <rect x="8" y="112" width="8" height="8" fill="#4ecdc4"/>
+  </g>
+</svg>
