@@ -8,7 +8,7 @@ version = "5.4.0"
 description = "🐱 Schrödinger's Yarn Ball - Optical air-gap transfer with quantum plausible deniability"
 readme = "README.md"
 requires-python = ">=3.8"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Paul Morel", email = "paul.morel@example.com"}
 ]
@@ -19,7 +19,6 @@ keywords = [
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
@@ -105,3 +104,8 @@ exclude = [
     "venv",
     "env",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["meow_decoder*"]
+exclude = ["assets*", "sounds*"]
