@@ -326,15 +326,6 @@ Total: 248 bytes
    - Side-channel resistance
    - Quantum computer resistance
 
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
-
-**Key areas needing help:**
-- Decoder architecture (cryptographic design)
-- Performance optimization
-- Security auditing
-- Documentation
 
 ## References
 
