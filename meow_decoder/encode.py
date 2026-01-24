@@ -87,7 +87,7 @@ def encode_file(
     if verbose:
         print("Encrypting data with length padding (metadata protection)...")
     
-    comp, sha256, salt, nonce, cipher, ephemeral_public_key = encrypt_file_bytes(
+    comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
         raw_data, password, keyfile, receiver_public_key, use_length_padding=True
     )
     
@@ -131,7 +131,10 @@ def encode_file(
         # MEOW3 password-only or MEOW2: 115 bytes
         packed_no_hmac = pack_manifest(manifest)[:-32]  # Remove HMAC placeholder
     
-    manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, keyfile)
+    # Compute HMAC using the encryption key directly (critical for forward secrecy!)
+    manifest.hmac = compute_manifest_hmac(
+        password, salt, packed_no_hmac, keyfile, encryption_key=encryption_key
+    )
     
     # Pack final manifest
     manifest_bytes = pack_manifest(manifest)

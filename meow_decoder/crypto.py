@@ -118,7 +118,7 @@ def encrypt_file_bytes(
     keyfile: Optional[bytes] = None,
     receiver_public_key: Optional[bytes] = None,
     use_length_padding: bool = True
-) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes]]:
+) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
     
@@ -131,9 +131,10 @@ def encrypt_file_bytes(
         use_length_padding: Add length padding to hide true size (default: True)
         
     Returns:
-        Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key)
+        Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, encryption_key)
         - ephemeral_public_key is None if password-only mode
         - ephemeral_public_key is 32 bytes if forward secrecy mode
+        - encryption_key is the 32-byte key used for encryption (needed for HMAC computation)
         
     Raises:
         RuntimeError: If encryption fails
@@ -226,7 +227,7 @@ def encrypt_file_bytes(
         aesgcm = AESGCM(key)
         cipher = aesgcm.encrypt(nonce, comp, aad)  # ← AAD prevents metadata tampering!
         
-        return comp, sha, salt, nonce, cipher, ephemeral_public_key
+        return comp, sha, salt, nonce, cipher, ephemeral_public_key, key
     except Exception as e:
         raise RuntimeError(f"Encryption failed: {e}")
 
@@ -486,7 +487,10 @@ def compute_manifest_hmac(
     password: str,
     salt: bytes,
     packed_no_hmac: bytes,
-    keyfile: Optional[bytes] = None
+    keyfile: Optional[bytes] = None,
+    ephemeral_public_key: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None,
+    encryption_key: Optional[bytes] = None
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
@@ -496,11 +500,57 @@ def compute_manifest_hmac(
         salt: Salt from manifest
         packed_no_hmac: Serialized manifest without HMAC field
         keyfile: Optional keyfile content
+        ephemeral_public_key: Optional ephemeral X25519 public key (forward secrecy mode)
+        receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present during decoding)
+        encryption_key: Pre-derived encryption key (32 bytes) - if provided, used directly instead of deriving
         
     Returns:
         32-byte HMAC-SHA256 tag
+        
+    Security:
+        - Uses same key derivation as encryption
+        - Forward secrecy mode: Uses X25519 shared secret
+        - Password-only mode: Uses Argon2id key derivation
+        - During encoding: encryption_key is provided directly
+        - During decoding: key is derived from receiver_private_key + ephemeral_public_key
     """
-    key = derive_key(password, salt, keyfile)
+    # Use pre-derived key if provided (encoding path)
+    if encryption_key is not None:
+        key = encryption_key
+    # Otherwise derive key based on encryption mode (decoding path)
+    elif ephemeral_public_key is not None:
+        # FORWARD SECRECY MODE
+        if receiver_private_key is None:
+            raise ValueError("Forward secrecy mode requires receiver private key")
+        
+        try:
+            from meow_decoder.x25519_forward_secrecy import (
+                derive_shared_secret,
+                deserialize_public_key
+            )
+        except ImportError:
+            from x25519_forward_secrecy import (
+                derive_shared_secret,
+                deserialize_public_key
+            )
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        
+        # Load receiver's private key
+        receiver_privkey = X25519PrivateKey.from_private_bytes(receiver_private_key)
+        
+        # Deserialize sender's ephemeral public key
+        sender_pubkey = deserialize_public_key(ephemeral_public_key)
+        
+        # Derive shared secret (same as encryption)
+        key = derive_shared_secret(
+            receiver_privkey,
+            sender_pubkey,
+            password,
+            salt
+        )
+    else:
+        # PASSWORD-ONLY MODE
+        key = derive_key(password, salt, keyfile)
     
     # Derive HMAC key from encryption key
     key_material = MANIFEST_HMAC_KEY_PREFIX + key
@@ -514,7 +564,8 @@ def compute_manifest_hmac(
 def verify_manifest_hmac(
     password: str,
     manifest: Manifest,
-    keyfile: Optional[bytes] = None
+    keyfile: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None
 ) -> bool:
     """
     Verify manifest HMAC with constant-time comparison and timing equalization.
@@ -523,6 +574,7 @@ def verify_manifest_hmac(
         password: User password
         manifest: Manifest to verify
         keyfile: Optional keyfile content
+        receiver_private_key: Receiver's X25519 private key (required if manifest has ephemeral_public_key)
         
     Returns:
         True if HMAC is valid
@@ -531,6 +583,7 @@ def verify_manifest_hmac(
         - Constant-time comparison prevents timing attacks
         - Timing equalization adds defense in depth
         - Prevents password/keyfile oracle attacks
+        - Supports forward secrecy mode with X25519
     """
     # Pack manifest without HMAC
     packed_no_hmac = (
@@ -546,8 +599,15 @@ def verify_manifest_hmac(
     if manifest.ephemeral_public_key is not None:
         packed_no_hmac += manifest.ephemeral_public_key
     
-    # Compute expected HMAC
-    expected_hmac = compute_manifest_hmac(password, manifest.salt, packed_no_hmac, keyfile)
+    # Compute expected HMAC (with forward secrecy support)
+    expected_hmac = compute_manifest_hmac(
+        password, 
+        manifest.salt, 
+        packed_no_hmac, 
+        keyfile,
+        ephemeral_public_key=manifest.ephemeral_public_key,
+        receiver_private_key=receiver_private_key
+    )
     
     # Constant-time comparison with timing equalization
     try:
@@ -616,7 +676,7 @@ if __name__ == "__main__":
     print("\n2. Testing encryption/decryption...")
     test_data = b"Secret cat message! " * 100
     
-    comp, sha, salt, nonce, cipher = encrypt_file_bytes(test_data, password)
+    comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(test_data, password)
     print(f"   Original: {len(test_data)} bytes")
     print(f"   Compressed: {len(comp)} bytes ({len(comp)/len(test_data)*100:.1f}%)")
     print(f"   Encrypted: {len(cipher)} bytes")
@@ -681,7 +741,7 @@ if __name__ == "__main__":
         keyfile = verify_keyfile(keyfile_path)
         
         # Encrypt with keyfile
-        _, _, salt_kf, nonce_kf, cipher_kf = encrypt_file_bytes(test_data, password, keyfile)
+        _, _, salt_kf, nonce_kf, cipher_kf, _, _ = encrypt_file_bytes(test_data, password, keyfile)
         
         # Decrypt with keyfile
         decrypted_kf = decrypt_to_raw(cipher_kf, password, salt_kf, nonce_kf, keyfile)

@@ -152,7 +152,7 @@ def decode_gif(
     if verbose:
         print("\nVerifying manifest HMAC...")
     
-    if not verify_manifest_hmac(password, manifest, keyfile):
+    if not verify_manifest_hmac(password, manifest, keyfile, receiver_private_key):
         raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
     if verbose:
