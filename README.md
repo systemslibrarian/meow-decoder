@@ -146,7 +146,6 @@ CI runs on Python 3.10–3.12 with CodeQL and security checks enabled.
 - [Usage Guide](docs/USAGE.md)
 - [Threat Model](docs/THREAT_MODEL.md)
 - [Schrödinger Mode](docs/SCHRODINGER.md)
-- [Stability Tiers](docs/STABILITY_TIERS.md)
 
 ---
 
