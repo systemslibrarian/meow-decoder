@@ -1,0 +1,107 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "meow-decoder"
+version = "5.4.0"
+description = "🐱 Schrödinger's Yarn Ball - Optical air-gap transfer with quantum plausible deniability"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Paul Morel", email = "paul.morel@example.com"}
+]
+keywords = [
+    "encryption", "air-gap", "qr-code", "security", 
+    "cryptography", "post-quantum", "optical-transfer"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+]
+dependencies = [
+    "cryptography>=41.0.0",
+    "Pillow>=10.0.0",
+    "opencv-python>=4.8.0",
+    "pyzbar>=0.1.9",
+    "qrcode[pil]>=7.4.2",
+    "argon2-cffi>=23.1.0",
+    "numpy>=1.24.0",
+]
+
+[project.optional-dependencies]
+quantum = ["liboqs-python>=0.9.0"]
+gui = ["dearpygui>=1.10.0", "cairosvg>=2.7.0"]
+streaming = ["psutil>=5.9.0"]
+sounds = ["playsound>=1.3.0"]
+progress = ["tqdm>=4.66.0"]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.7.0",
+    "flake8>=6.1.0",
+    "mypy>=1.5.0",
+    "bandit>=1.7.5",
+]
+all = [
+    "liboqs-python>=0.9.0",
+    "dearpygui>=1.10.0",
+    "cairosvg>=2.7.0",
+    "psutil>=5.9.0",
+    "playsound>=1.3.0",
+    "tqdm>=4.66.0",
+]
+
+[project.scripts]
+meow-encode = "meow_decoder.encode:main"
+meow-decode-gif = "meow_decoder.decode_gif:main"
+# Optional scripts (uncomment if you install the gui dependencies):
+# meow-webcam = "meow_decoder.decode_webcam_with_resume:main"
+# meow-dashboard = "meow_decoder.meow_dashboard_demo:main"
+
+[project.urls]
+Homepage = "https://github.com/yourusername/meow-decoder"
+Documentation = "https://github.com/yourusername/meow-decoder/tree/main/docs"
+Repository = "https://github.com/yourusername/meow-decoder"
+"Bug Tracker" = "https://github.com/yourusername/meow-decoder/issues"
+Changelog = "https://github.com/yourusername/meow-decoder/blob/main/CHANGELOG.md"
+
+[tool.black]
+line-length = 100
+target-version = ['py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --cov=meow_decoder --cov-report=html --cov-report=term"
+
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+
+[tool.flake8]
+max-line-length = 100
+extend-ignore = "E203"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    "venv",
+    "env",
+]

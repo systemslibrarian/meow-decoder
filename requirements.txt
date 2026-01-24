@@ -1,0 +1,34 @@
+# Meow Decoder - Python Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core dependencies
+Pillow>=10.0.0              # Image processing (QR, GIF, PNG)
+qrcode>=7.4.2               # QR code generation
+pyzbar>=0.1.9               # QR code reading
+opencv-python>=4.8.0        # Webcam capture and image processing
+numpy>=1.24.0               # Numerical operations
+
+# Cryptography
+cryptography>=41.0.0        # AES-256-GCM, HKDF, X25519
+argon2-cffi>=23.1.0         # Argon2id key derivation
+
+# Optional enhancements (for security features)
+scipy>=1.11.0               # For advanced steganography (optional)
+psutil>=5.9.0               # Memory monitoring for streaming (optional)
+dearpygui>=1.10.0           # GUI dashboard (optional)
+# liboqs-python>=0.9.0      # Post-quantum crypto (experimental, not yet stable)
+
+# Development tools (optional)
+pytest>=7.4.0               # Testing framework
+black>=23.7.0               # Code formatting
+mypy>=1.5.0                 # Type checking
+flake8>=6.1.0               # Linting
+
+# Platform-specific notes:
+# - pyzbar requires zbar library:
+#   - Ubuntu/Debian: sudo apt-get install libzbar0
+#   - macOS: brew install zbar
+#   - Windows: Download from http://zbar.sourceforge.net/
+#
+# - opencv-python might need additional libraries:
+#   - Ubuntu/Debian: sudo apt-get install libgl1-mesa-glx

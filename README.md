@@ -1,7 +1,7 @@
 # 🐱 Meow Decoder
 
 <p align="center">
-  <img src="meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
+  <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
 </p>
 
 <p align="center">
@@ -9,16 +9,16 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/YOUR_USERNAME/meow-decoder/actions/workflows/security-ci.yml">
-    <img src="https://github.com/YOUR_USERNAME/meow-decoder/actions/workflows/security-ci.yml/badge.svg" alt="CI passing">
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml/badge.svg" alt="CI passing">
   </a>
-  <a href="https://github.com/YOUR_USERNAME/meow-decoder/actions/workflows/codeql.yml">
-    <img src="https://github.com/YOUR_USERNAME/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Security Scan passing">
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL Security Scan passing">
   </a>
-  <a href="https://codecov.io/gh/YOUR_USERNAME/meow-decoder">
-    <img src="https://codecov.io/gh/YOUR_USERNAME/meow-decoder/branch/main/graph/badge.svg" alt="codecov">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg" alt="codecov">
   </a>
-  <a href="https://github.com/YOUR_USERNAME/meow-decoder/blob/main/LICENSE">
+  <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License: MIT">
   </a>
   <a href="https://www.python.org/downloads/">
@@ -32,6 +32,15 @@
   </a>
 </p>
 
+## 🎬 Demo
+
+<p align="center">
+  <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="750">
+</p>
+
+The GIF above is a tiny “what happens” preview. In real use, the encoder generates an **animated QR GIF** where **each frame carries encrypted payload bytes**.
+
+---
 ---
 
 ## 🚀 What is Meow Decoder?
@@ -62,7 +71,7 @@ pip install meow-decoder
 Or install from source:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/meow-decoder.git
+git clone https://github.com/systemslibrarian/meow-decoder.git
 cd meow-decoder
 pip install -e .
 ```
@@ -405,8 +414,8 @@ See [SECURITY.md](SECURITY.md) for our security policy.
 
 ## 📞 Support
 
-- 🐛 **Bug reports**: [GitHub Issues](https://github.com/YOUR_USERNAME/meow-decoder/issues)
-- 💬 **Discussions**: [GitHub Discussions](https://github.com/YOUR_USERNAME/meow-decoder/discussions)
+- 🐛 **Bug reports**: [GitHub Issues](https://github.com/systemslibrarian/meow-decoder/issues)
+- 💬 **Discussions**: [GitHub Discussions](https://github.com/systemslibrarian/meow-decoder/discussions)
 - 📧 **Email**: support@your-domain.com (replace with actual email)
 
 ---

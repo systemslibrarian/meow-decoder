@@ -1,0 +1,22 @@
+# Include documentation
+include README.md
+include LICENSE
+include CHANGELOG.md
+include CONTRIBUTING.md
+include SECURITY.md
+include THREAT_MODEL.md
+include ARCHITECTURE.md
+include MANIFEST_VERSIONING.md
+
+# Include assets
+recursive-include assets *.svg *.png
+recursive-include sounds *.wav
+
+# Include examples
+recursive-include examples *.py *.md
+
+# Exclude unnecessary files
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.swp

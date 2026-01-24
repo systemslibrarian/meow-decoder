@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use Meow Decoder in a project, please cite it!"
+title: "Meow Decoder"
+type: software
+authors:
+  - family-names: "Clark"
+    given-names: "Paul"
+repository-code: "https://github.com/<YOUR_GITHUB_USERNAME>/meow-decoder"
+license: "MIT"

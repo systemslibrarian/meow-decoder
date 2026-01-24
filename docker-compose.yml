@@ -1,0 +1,9 @@
+services:
+  meow-decoder:
+    build: .
+    image: systemslibrarian/meow-decoder:local
+    environment:
+      MEOW_PASSWORD: "meow-meow"
+      MEOW_MESSAGE: "Meow Decoder says hello 🐾\n"
+    volumes:
+      - ./data:/data

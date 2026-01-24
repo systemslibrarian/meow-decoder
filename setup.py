@@ -32,22 +32,22 @@ else:
 setup(
     # Basic package info
     name="meow-decoder",
-    version="4.0.0",
-    description="🐱 Smuggle bytes through the air - Optical air-gap file transfer with quantum-resistant encryption",
+    version="5.0.0",
+    description="🐱 Schrödinger's Clowder - Optical air-gap file transfer with quantum plausible deniability",
     long_description=long_description,
     long_description_content_type="text/markdown",
     
     # Author info
-    author="Your Name",
-    author_email="you@example.com",
+    author="Paul Morel",
+    author_email="paul.morel@example.com",  # Update this
     
     # URLs
-    url="https://github.com/yourusername/meow-decoder",
+    url="https://github.com/pmorel/meow-decoder",  # Update this
     project_urls={
-        "Documentation": "https://github.com/yourusername/meow-decoder/tree/main/docs",
-        "Source Code": "https://github.com/yourusername/meow-decoder",
-        "Bug Reports": "https://github.com/yourusername/meow-decoder/issues",
-        "Changelog": "https://github.com/yourusername/meow-decoder/blob/main/CHANGELOG.md",
+        "Documentation": "https://github.com/pmorel/meow-decoder#readme",
+        "Source Code": "https://github.com/pmorel/meow-decoder",
+        "Bug Reports": "https://github.com/pmorel/meow-decoder/issues",
+        "Changelog": "https://github.com/pmorel/meow-decoder/blob/main/CHANGELOG.md",
         "Logo": "https://raw.githubusercontent.com/yourusername/meow-decoder/main/assets/meow-decoder-logo.svg",
         "Icon": "https://raw.githubusercontent.com/yourusername/meow-decoder/main/assets/meow-icon-128.svg",
     },
@@ -129,10 +129,10 @@ setup(
     # Console scripts (CLI commands)
     entry_points={
         "console_scripts": [
-            "meow-encode=encode:main",
-            "meow-decode=decode_gif:main",
-            "meow-webcam=decode_webcam_with_resume:main",
-            "meow-dashboard=meow_gui_enhanced:main",
+            "meow-encode=meow_decoder.encode:main",
+            "meow-decode=meow_decoder.decode_gif:main",
+            "meow-webcam=meow_decoder.decode_webcam_with_resume:main",
+            "meow-dashboard=meow_decoder.meow_gui_enhanced:main",
         ],
     },
     
