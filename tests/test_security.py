@@ -256,20 +256,20 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with forward secrecy - pass FILE PATH
+        # Encode with forward secrecy - pass raw bytes
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=str(pubkey_file)  # Try file path
+            receiver_public_key=pubkey  # 32 bytes
         )
         
-        # Decode with receiver private key - pass FILE PATH
+        # Decode with receiver private key - pass raw bytes
         decode_gif(
             gif_file,
             output_file,
             password="testpass123",
-            receiver_private_key=str(privkey_file)  # Try file path
+            receiver_private_key=privkey  # 32 bytes
         )
         
         # Verify
@@ -312,21 +312,21 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with pubkey1 - try file path
+        # Encode with pubkey1
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=str(pubkey1_file)
+            receiver_public_key=pubkey1  # 32 bytes
         )
         
-        # Try to decode with privkey2 (wrong key) - try file path
+        # Try to decode with privkey2 (wrong key)
         with pytest.raises(Exception):
             decode_gif(
                 gif_file,
                 output_file,
                 password="testpass123",
-                receiver_private_key=str(privkey2_file)
+                receiver_private_key=privkey2  # 32 bytes
             )
 
 
