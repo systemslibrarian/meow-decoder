@@ -1,7 +1,7 @@
 # 🛡️ Security Policy
 
 **Project:** Meow Decoder  
-**Version:** 4.0  
+**Version:** 5.0  
 **Last Updated:** 2026-01-22
 
 ---
