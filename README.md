@@ -39,14 +39,25 @@ QR codes are intentionally visible so first-time users can clearly understand wh
 
 ---
 
-## 🐈 Camouflage Mode (Optional)
+## 🐈 Camouflage Modes (Optional)
+
+These modes keep the **same encrypted payload**, but render frames so the GIF looks like a normal animation instead of obvious QR tiles.
+
+### 1) Photographic cat camouflage (realistic)
 
 <p align="center">
-  <img src="assets/demo_camouflage.gif" alt="Camouflaged payload disguised as a cat GIF" width="750">
+  <img src="assets/demo_camouflage_photo.gif" alt="Photographic cat camouflage demo" width="750">
 </p>
 
-Same encrypted payload concept — visually disguised as a harmless looping cat animation.  
-This mode is about **plausible deniability and fun**, not teaching.
+Looks like a normal looping cat GIF. Payload energy is blended into natural image texture (subtle contrast/luminance modulation).
+
+### 2) Logo-eyes carrier (themed / iconic)
+
+<p align="center">
+  <img src="assets/demo_logo_eyes.gif" alt="Logo-eyes carrier demo" width="750">
+</p>
+
+A branded “carrier skin” where the **eyes act as the data window**. This is a themed mode for demos/branding — the default “QR tiles” mode remains the most transparent for troubleshooting.
 
 ---
 
