@@ -690,19 +690,10 @@ def _create_statistics_tab(self):
 
 ---
 
-## 📚 **Further Reading**
-
-- [THREAT_MODEL.md](THREAT_MODEL.md) - What we protect against
-- [MANIFEST_VERSIONING.md](MANIFEST_VERSIONING.md) - Format specs
-- [SECURITY.md](SECURITY.md) - Vulnerability reporting
-- [README.md](README.md) - Getting started
-
----
-
 **🐾 "The architecture is like a cat: elegant, mysterious, and always lands on its feet!" 😺**
 
 ---
 
 **Last Updated:** 2026-01-22  
-**Version:** 4.0  
+**Version:** 5.0  
 **Status:** Research/Educational
