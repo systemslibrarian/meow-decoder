@@ -253,12 +253,12 @@ def schrodinger_encode_data(
     shuffle_seed = secrets.token_bytes(8)
     
     # Encrypt both realities independently
-    # encrypt_file_bytes returns: (comp, sha, salt, nonce, cipher, ephemeral_key)
-    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, _ = encrypt_file_bytes(
+    # encrypt_file_bytes returns: (comp, sha, salt, nonce, cipher, ephemeral_key, encryption_key)
+    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, _, enc_key_a = encrypt_file_bytes(
         real_data, real_password, None, None, use_length_padding=True
     )
     
-    comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, _ = encrypt_file_bytes(
+    comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, _, enc_key_b = encrypt_file_bytes(
         decoy_data, decoy_password, None, None, use_length_padding=True
     )
     

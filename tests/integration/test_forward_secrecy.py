@@ -31,7 +31,7 @@ def test_password_only_mode():
     password = "test_password_123"
     
     # Encrypt (no receiver_public_key)
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, None
     )
     
@@ -75,7 +75,7 @@ def test_forward_secrecy_mode():
     print(f"   Public key: {receiver_public_bytes.hex()[:32]}...")
     
     # Encrypt with forward secrecy
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, receiver_public_bytes
     )
     
@@ -189,7 +189,7 @@ def test_wrong_password():
     receiver_public_bytes = serialize_public_key(receiver_public)
     
     # Encrypt
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, receiver_public_bytes
     )
     

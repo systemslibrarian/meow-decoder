@@ -88,7 +88,7 @@ def test_encode_decode_programmatic():
     
     # Encrypt with forward secrecy
     print("\nEncrypting with forward secrecy...")
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, receiver_pub_bytes
     )
     
@@ -131,7 +131,7 @@ def test_password_only_mode():
     
     # Encrypt without receiver public key
     print("Encrypting (password-only)...")
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, None  # No receiver pubkey
     )
     

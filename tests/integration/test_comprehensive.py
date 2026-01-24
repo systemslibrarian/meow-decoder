@@ -105,7 +105,7 @@ def test_integrated_encryption():
     # - Forward secrecy (X25519 ephemeral keys)
     # - Length padding (metadata obfuscation)
     # - AAD authentication
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, receiver_pub_bytes, use_length_padding=True
     )
     
@@ -146,7 +146,7 @@ def test_backward_compatibility():
     password = "simple_password"
     
     # Encrypt without forward secrecy, without padding
-    comp, sha, salt, nonce, cipher, ephemeral_pub = encrypt_file_bytes(
+    comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_bytes(
         plaintext, password, None, None, use_length_padding=False
     )
     
