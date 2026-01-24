@@ -233,7 +233,6 @@ class TestForwardSecrecy:
         privkey_obj, pubkey_obj = generate_receiver_keypair()
         
         # Serialize BOTH to Raw bytes (32 bytes each)
-        # This matches what the crypto functions expect
         privkey = privkey_obj.private_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PrivateFormat.Raw,
@@ -244,8 +243,8 @@ class TestForwardSecrecy:
             format=serialization.PublicFormat.Raw
         )
         
-        # Save keys
-        privkey_file = tmp_path / "receiver_private.pem"
+        # Save keys to files
+        privkey_file = tmp_path / "receiver_private.key"
         pubkey_file = tmp_path / "receiver_public.key"
         privkey_file.write_bytes(privkey)
         pubkey_file.write_bytes(pubkey)
@@ -257,20 +256,20 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with forward secrecy (use serialized bytes)
+        # Encode with forward secrecy - pass FILE PATH
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey
+            receiver_public_key=str(pubkey_file)  # Try file path
         )
         
-        # Decode with receiver private key (use serialized bytes)
+        # Decode with receiver private key - pass FILE PATH
         decode_gif(
             gif_file,
             output_file,
             password="testpass123",
-            receiver_private_key=privkey
+            receiver_private_key=str(privkey_file)  # Try file path
         )
         
         # Verify
@@ -300,6 +299,12 @@ class TestForwardSecrecy:
             format=serialization.PublicFormat.Raw
         )
         
+        # Save to files
+        privkey2_file = tmp_path / "receiver_private2.key"
+        pubkey1_file = tmp_path / "receiver_public1.key"
+        privkey2_file.write_bytes(privkey2)
+        pubkey1_file.write_bytes(pubkey1)
+        
         # Create test file
         input_file = tmp_path / "test.txt"
         input_file.write_text("Secret data")
@@ -307,21 +312,21 @@ class TestForwardSecrecy:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with pubkey1 (use serialized bytes)
+        # Encode with pubkey1 - try file path
         encode_file(
             input_file,
             gif_file,
             password="testpass123",
-            receiver_public_key=pubkey1
+            receiver_public_key=str(pubkey1_file)
         )
         
-        # Try to decode with privkey2 (wrong key, use serialized bytes)
+        # Try to decode with privkey2 (wrong key) - try file path
         with pytest.raises(Exception):
             decode_gif(
                 gif_file,
                 output_file,
                 password="testpass123",
-                receiver_private_key=privkey2
+                receiver_private_key=str(privkey2_file)
             )
 
 
