@@ -232,10 +232,11 @@ class TestForwardSecrecy:
         # Generate receiver keys (returns key objects)
         privkey_obj, pubkey_obj = generate_receiver_keypair()
         
-        # Serialize to bytes using cryptography's standard methods
+        # Serialize BOTH to Raw bytes (32 bytes each)
+        # This matches what the crypto functions expect
         privkey = privkey_obj.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
             encryption_algorithm=serialization.NoEncryption()
         )
         pubkey = pubkey_obj.public_bytes(
@@ -288,10 +289,10 @@ class TestForwardSecrecy:
         privkey1_obj, pubkey1_obj = generate_receiver_keypair()
         privkey2_obj, pubkey2_obj = generate_receiver_keypair()
         
-        # Serialize to bytes using cryptography's standard methods
+        # Serialize to Raw bytes (32 bytes each)
         privkey2 = privkey2_obj.private_bytes(
-            encoding=serialization.Encoding.PEM,
-            format=serialization.PrivateFormat.PKCS8,
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
             encryption_algorithm=serialization.NoEncryption()
         )
         pubkey1 = pubkey1_obj.public_bytes(
