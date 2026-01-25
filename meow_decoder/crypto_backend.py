@@ -374,7 +374,7 @@ class CryptoBackend:
             backend = env_backend
         
         # Check explicit enable flag (legacy/convenience)
-        if os.environ.get("MEOW_USE_RUST", "0") == "1":
+        if os.environ.get("MEOW_USE_RUST", "0") == "1" or os.environ.get("MEOW_RUST", "0") == "1":
             backend = "rust"
         
         if backend == "auto":

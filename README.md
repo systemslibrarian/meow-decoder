@@ -1,7 +1,10 @@
 # 🐱 Meow Decoder
 
-### ⚠️ EXPERIMENTAL PROTOTYPE – NO INDEPENDENT AUDIT – RESEARCH/TESTING ONLY ⚠️
-> **Do NOT use for real sensitive data until audited. Potential undiscovered issues/side-channels.**
+# ⚠️ EXPERIMENTAL PROTOTYPE – NO INDEPENDENT AUDIT – RESEARCH/TESTING USE ONLY ⚠️
+
+> **Do NOT transfer real sensitive data. Potential side-channels, bugs, or undiscovered issues exist.**
+>
+> **See [THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md) for assumptions/limitations.**
 
 <p align="center">
   <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
@@ -190,6 +193,49 @@ meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123
 ```
 
 **Done!** Your file is recovered with integrity verification.
+
+---
+
+## ⚡ Optional Constant-Time Rust Crypto Backend
+
+For maximum security and performance, Meow Decoder supports a Rust-based cryptographic backend. This uses the `rust_crypto` module to provide constant-time implementations of critical primitives (AES-GCM, Argon2id, etc.) via PyO3.
+
+### Prerequisites
+- [Rust](https://www.rust-lang.org/tools/install) installed (`rustup`)
+- `maturin` build tool (`pip install maturin`)
+
+### Build & Enable
+```bash
+# Build the Rust extension
+cd rust_crypto
+maturin develop --release
+cd ..
+
+# Enable via environment variable
+export MEOW_RUST=1
+meow-encode -i secret.pdf ...
+```
+You can verify it is active by checking the verbose output `meow-encode -v ...`.
+
+See [rust_crypto/README.md](rust_crypto/README.md) for full details.
+
+---
+
+## 🔬 Fuzzing & Security Testing
+
+This project uses **AFL++** (via `atheris`) for continuous fuzzing of critical components to detect crashes and edge cases.
+
+### Fuzz Targets
+- **Manifest Parsing**: Tests against malformed binary structures
+- **Crypto Operations**: Tests error handling in key derivation/decryption
+- **Fountain Codes**: Tests droplet parsing logic
+
+### Running Fuzzers
+```bash
+# Example: Fuzz manifest parser
+python3 fuzz/fuzz_manifest.py -runs=100000
+```
+See [fuzz/README.md](fuzz/README.md) for detailed instructions on corpus generation and running specific targets.
 
 ---
 
