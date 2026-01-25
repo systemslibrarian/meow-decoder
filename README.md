@@ -109,7 +109,9 @@ Receiver: Video → meow-decode → secret.pdf (recovered)
 ## 🎬 Demo
 
 <p align="center">
-  <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="400">
+  <a href="https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo.gif">
+    <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="260">
+  </a>
 </p>
 
 This demo shows the **explicit mechanics** of Meow Decoder.  
