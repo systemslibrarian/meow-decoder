@@ -1,0 +1,8 @@
+[run]
+source = meow_decoder
+
+[report]
+exclude_lines =
+    if __name__ == .__main__.:
+    def main
+fail_under = 90

@@ -32,6 +32,19 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
-      - name: Run security-focused tests
+      - name: Run security-focused tests with coverage
         run: |
-          pytest -q tests/test_security.py tests/test_adversarial.py
+          # Run security tests with coverage for security-critical modules only
+          # Uses .coveragerc-security from repository root (excludes __main__ blocks)
+          # Measures coverage ONLY on crypto, fountain, and frame_mac modules
+          # These are the core security-critical modules
+          
+          pytest tests/test_security.py tests/test_adversarial.py \
+            -o "addopts=" \
+            --cov=meow_decoder.crypto \
+            --cov=meow_decoder.fountain \
+            --cov=meow_decoder.frame_mac \
+            --cov-config=.coveragerc-security \
+            --cov-report=term \
+            --cov-fail-under=90 \
+            -v
