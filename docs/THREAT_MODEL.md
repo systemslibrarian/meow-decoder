@@ -120,6 +120,44 @@ These protections are based on well-understood cryptographic primitives with no 
 | Frame obfuscation | Randomized padding | Uniform appearance |
 | **Status** | ✅ **IMPLEMENTED** | Size fingerprinting prevented |
 
+#### Metadata Padding Policy
+
+**Problem:** File sizes can fingerprint content types (e.g., a 3.2 MB file is likely a photo, 847 KB is likely a document).
+
+**Solution:** Length padding rounds compressed data to size classes, hiding true file size.
+
+**Default Mode (Automatic):**
+- Compressed data is padded to the next power-of-2 boundary
+- Example: 1.3 MB → 2 MB (padded), 5.1 MB → 8 MB (padded)
+- Provides ~50% size obfuscation on average
+
+**Paranoid Mode (`--paranoid`):**
+For maximum metadata protection, use paranoid mode which pads to fixed size buckets:
+
+```bash
+# Enable paranoid metadata padding
+meow-encode --paranoid -i secret.pdf -o secret.gif -p "password"
+```
+
+| Original Size | Default Padding | Paranoid Padding |
+|---------------|-----------------|------------------|
+| 100 KB        | 128 KB          | 1 MB             |
+| 500 KB        | 512 KB          | 1 MB             |
+| 1.5 MB        | 2 MB            | 4 MB             |
+| 7 MB          | 8 MB            | 16 MB            |
+| 20 MB         | 32 MB           | 64 MB            |
+
+**Paranoid Size Buckets:** 1 MB, 4 MB, 16 MB, 64 MB, 256 MB
+
+**Trade-off:** Paranoid mode increases GIF size significantly but makes size-based traffic analysis much harder.
+
+**When to Use Paranoid Mode:**
+- Transferring documents that could be identified by size
+- Adversary has statistical knowledge of your file patterns
+- Maximum metadata protection is required
+
+**Implementation:** See `meow_decoder/metadata_obfuscation.py`
+
 ---
 
 ## ⚠️ **PARTIAL PROTECTION (Mitigated But Not Eliminated)**

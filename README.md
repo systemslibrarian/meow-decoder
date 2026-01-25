@@ -376,27 +376,41 @@ While inspired by these projects, Meow Decoder adds critical security features:
 
 ---
 
-## � Optional Constant-Time Rust Crypto
+## 🦀 Rust Crypto Backend (Recommended)
 
-For higher performance and better constant-time guarantees, you can enable the Rust cryptographic backend.
+For **better security guarantees**, install the Rust cryptographic backend.
+
+### Why Rust Backend?
+
+| Property | Python Backend | Rust Backend |
+|----------|----------------|--------------|
+| Constant-time operations | ⚠️ Best-effort | ✅ Guaranteed (`subtle` crate) |
+| Memory zeroing | ⚠️ GC-dependent | ✅ Automatic (`zeroize` crate) |
+| Side-channel resistance | ❌ Python limitations | ✅ Audited crates |
+| Performance | Baseline | ~2x faster |
 
 ### Installation
 
 ```bash
-# 1. Install Rust
+# 1. Install Rust (if not already installed)
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
 
-# 2. Install maturin
+# 2. Install maturin (Python ↔ Rust build tool)
 pip install maturin
 
 # 3. Build and install the Rust module
 cd rust_crypto
 maturin develop --release
+cd ..
+
+# 4. Verify installation
+python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.backend_info())"
 ```
 
 ### Usage
 
-The encoder/decoder will automatically detect `meow_crypto_rs` if installed.
+The encoder/decoder **automatically uses Rust backend** when installed.
 You can force it (or disable it) via environment variable:
 
 ```bash

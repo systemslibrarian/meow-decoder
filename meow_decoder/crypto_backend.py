@@ -355,10 +355,19 @@ class CryptoBackend:
     """
     Unified crypto backend with automatic or manual backend selection.
     
+    SECURITY NOTE:
+        When available, Rust backend is STRONGLY PREFERRED because:
+        - Constant-time operations (subtle crate) - prevents timing attacks
+        - Automatic memory zeroing (zeroize crate) - prevents memory forensics
+        - No Python GC interference - deterministic security properties
+    
     Usage:
-        crypto = CryptoBackend()  # Auto-select best
-        crypto = CryptoBackend(backend="rust")  # Force Rust
-        crypto = CryptoBackend(backend="python")  # Force Python
+        crypto = CryptoBackend()  # Auto-select (prefers Rust if available)
+        crypto = CryptoBackend(backend="rust")  # Force Rust (error if unavailable)
+        crypto = CryptoBackend(backend="python")  # Force Python fallback
+    
+    Build Rust backend:
+        cd rust_crypto && maturin develop --release
     """
     
     def __init__(self, backend: BackendType = "auto"):
@@ -378,11 +387,21 @@ class CryptoBackend:
             backend = "rust"
         
         if backend == "auto":
-            # Prefer Rust if available
+            # SECURITY: Prefer Rust backend for constant-time operations
             if _RUST_AVAILABLE:
                 self._backend = RustCryptoBackend()
+                import warnings
+                # Silence - Rust is ideal
             else:
                 self._backend = PythonCryptoBackend()
+                import warnings
+                warnings.warn(
+                    "Rust crypto backend not available. Using Python fallback. "
+                    "For better security (constant-time ops), build Rust backend: "
+                    "cd rust_crypto && maturin develop --release",
+                    UserWarning,
+                    stacklevel=2
+                )
         elif backend == "rust":
             self._backend = RustCryptoBackend()
         elif backend == "python":
