@@ -346,11 +346,11 @@ Examples:
     parser.add_argument('--aggressive', action='store_true',
                        help='Use aggressive QR preprocessing')
     
-    # Crypto backend selection (SECURITY: Rust required by default)
+    # Crypto backend selection (SECURITY: Rust is HARD DEFAULT for constant-time)
     parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
-                       help='Crypto backend: python, rust, or auto (default: auto, requires Rust)')
-    parser.add_argument('--python-fallback', action='store_true',
-                       help='⚠️  Allow Python backend fallback (NOT constant-time, use for testing only)')
+                       help='Crypto backend: python, rust, or auto (default: auto, Rust required)')
+    parser.add_argument('--legacy-python', '--python-fallback', action='store_true', dest='legacy_python',
+                       help='⚠️  LEGACY: Allow Python backend (NOT constant-time, timing attacks possible)')
     
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -360,8 +360,8 @@ Examples:
     
     args = parser.parse_args()
     
-    # CRITICAL: Wire --python-fallback to env var BEFORE any crypto calls
-    if args.python_fallback:
+    # CRITICAL: Wire --legacy-python to env var BEFORE any crypto calls
+    if args.legacy_python:
         import os
         os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
     

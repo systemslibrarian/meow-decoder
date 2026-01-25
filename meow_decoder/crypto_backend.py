@@ -397,11 +397,11 @@ class CryptoBackend:
                 self._backend = RustCryptoBackend()
                 # Rust is default and ideal - no warning needed
             elif allow_python_fallback:
-                # User explicitly allowed Python fallback with --python-fallback flag
+                # User explicitly allowed Python fallback with --legacy-python flag
                 self._backend = PythonCryptoBackend()
                 import warnings
                 warnings.warn(
-                    "⚠️  SECURITY WARNING: Using Python backend (--python-fallback)\n"
+                    "⚠️  SECURITY WARNING: Using Python backend (--legacy-python)\n"
                     "Python backend is NOT constant-time and may leak secrets via timing.\n"
                     "DO NOT USE for production/sensitive data.\n"
                     "Build Rust backend: cd rust_crypto && maturin develop --release\n"
@@ -418,7 +418,7 @@ class CryptoBackend:
                     "  cd rust_crypto && maturin develop --release\n"
                     "\n"
                     "Option 2: Explicit fallback (NOT RECOMMENDED for sensitive data)\n"
-                    "  meow-encode --python-fallback ...\n"
+                    "  meow-encode --legacy-python ...\n"
                     "\n"
                     "See: https://github.com/systemslibrarian/meow-decoder#rust-backend"
                 )
@@ -432,7 +432,7 @@ class CryptoBackend:
         elif backend == "python":
             if not allow_python_fallback:
                 raise RuntimeError(
-                    "Python backend requires explicit --python-fallback flag for safety"
+                    "Python backend requires explicit --legacy-python flag for safety"
                 )
             self._backend = PythonCryptoBackend()
         else:

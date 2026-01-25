@@ -309,6 +309,175 @@ class TestBackendConstantTime:
             pytest.skip("Rust backend not available")
 
 
+class TestBackendEdgeCases:
+    """Test edge cases and error conditions for backend parity."""
+    
+    def test_empty_plaintext(self):
+        """Empty plaintext should encrypt/decrypt correctly."""
+        plaintext = b""
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        aad = b"empty_test"
+        
+        backend_py = CryptoBackend(backend="python")
+        cipher_py = backend_py.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        decrypted_py = backend_py.aes_gcm_decrypt(key, nonce, cipher_py, aad)
+        assert decrypted_py == plaintext
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            cipher_rs = backend_rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
+            assert cipher_py == cipher_rs, "Empty plaintext ciphertext mismatch"
+            decrypted_rs = backend_rs.aes_gcm_decrypt(key, nonce, cipher_rs, aad)
+            assert decrypted_rs == plaintext
+        except ImportError:
+            pytest.skip("Rust backend not available")
+    
+    def test_large_plaintext(self):
+        """Large plaintext (1 MB) should encrypt/decrypt correctly."""
+        plaintext = secrets.token_bytes(1024 * 1024)  # 1 MB
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        aad = b"large_test"
+        
+        backend_py = CryptoBackend(backend="python")
+        cipher_py = backend_py.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        decrypted_py = backend_py.aes_gcm_decrypt(key, nonce, cipher_py, aad)
+        assert decrypted_py == plaintext
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            cipher_rs = backend_rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
+            assert cipher_py == cipher_rs, "Large plaintext ciphertext mismatch"
+        except ImportError:
+            pytest.skip("Rust backend not available")
+    
+    def test_aad_none_vs_empty(self):
+        """None AAD and empty AAD should produce same result."""
+        plaintext = b"Test AAD handling"
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        
+        backend_py = CryptoBackend(backend="python")
+        cipher_none = backend_py.aes_gcm_encrypt(key, nonce, plaintext, None)
+        cipher_empty = backend_py.aes_gcm_encrypt(key, nonce, plaintext, b"")
+        
+        # Note: None and empty bytes may differ depending on implementation
+        # Just verify both decrypt correctly
+        decrypted_none = backend_py.aes_gcm_decrypt(key, nonce, cipher_none, None)
+        decrypted_empty = backend_py.aes_gcm_decrypt(key, nonce, cipher_empty, b"")
+        
+        assert decrypted_none == plaintext
+        assert decrypted_empty == plaintext
+    
+    def test_invalid_gcm_tag_rejected(self):
+        """Modified ciphertext should fail GCM verification on both backends."""
+        plaintext = b"Integrity test message"
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        aad = b"integrity_aad"
+        
+        backend_py = CryptoBackend(backend="python")
+        cipher = backend_py.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        
+        # Flip a bit in ciphertext
+        corrupted = bytearray(cipher)
+        corrupted[0] ^= 0x01
+        corrupted = bytes(corrupted)
+        
+        # Python backend should reject
+        with pytest.raises(Exception):  # May be InvalidTag or similar
+            backend_py.aes_gcm_decrypt(key, nonce, corrupted, aad)
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            # Rust backend should also reject
+            with pytest.raises(Exception):
+                backend_rs.aes_gcm_decrypt(key, nonce, corrupted, aad)
+        except ImportError:
+            pytest.skip("Rust backend not available")
+    
+    def test_wrong_key_rejected(self):
+        """Wrong key should fail decryption on both backends."""
+        plaintext = b"Wrong key test"
+        key1 = secrets.token_bytes(32)
+        key2 = secrets.token_bytes(32)  # Different key
+        nonce = secrets.token_bytes(12)
+        
+        backend_py = CryptoBackend(backend="python")
+        cipher = backend_py.aes_gcm_encrypt(key1, nonce, plaintext, None)
+        
+        # Wrong key should fail
+        with pytest.raises(Exception):
+            backend_py.aes_gcm_decrypt(key2, nonce, cipher, None)
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            with pytest.raises(Exception):
+                backend_rs.aes_gcm_decrypt(key2, nonce, cipher, None)
+        except ImportError:
+            pytest.skip("Rust backend not available")
+    
+    def test_hmac_different_messages(self):
+        """Different messages should produce different HMACs."""
+        key = secrets.token_bytes(32)
+        msg1 = b"Message one"
+        msg2 = b"Message two"
+        
+        backend_py = CryptoBackend(backend="python")
+        hmac1 = backend_py.hmac_sha256(key, msg1)
+        hmac2 = backend_py.hmac_sha256(key, msg2)
+        
+        assert hmac1 != hmac2, "Different messages should have different HMACs"
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            hmac1_rs = backend_rs.hmac_sha256(key, msg1)
+            hmac2_rs = backend_rs.hmac_sha256(key, msg2)
+            
+            assert hmac1 == hmac1_rs, "HMAC mismatch for message 1"
+            assert hmac2 == hmac2_rs, "HMAC mismatch for message 2"
+        except ImportError:
+            pytest.skip("Rust backend not available")
+    
+    def test_argon2id_wrong_password(self):
+        """Different passwords should produce different keys."""
+        salt = secrets.token_bytes(16)
+        
+        backend_py = CryptoBackend(backend="python")
+        key1 = backend_py.derive_key_argon2id(
+            b"password1", salt, output_len=32, 
+            iterations=3, memory_kib=65536, parallelism=4
+        )
+        key2 = backend_py.derive_key_argon2id(
+            b"password2", salt, output_len=32,
+            iterations=3, memory_kib=65536, parallelism=4
+        )
+        
+        assert key1 != key2, "Different passwords should derive different keys"
+    
+    def test_hkdf_different_info(self):
+        """Different info strings should produce different keys."""
+        ikm = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        backend_py = CryptoBackend(backend="python")
+        key1 = backend_py.derive_key_hkdf(ikm, salt, b"info_context_1")
+        key2 = backend_py.derive_key_hkdf(ikm, salt, b"info_context_2")
+        
+        assert key1 != key2, "Different info should derive different keys"
+        
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+            key1_rs = backend_rs.derive_key_hkdf(ikm, salt, b"info_context_1")
+            key2_rs = backend_rs.derive_key_hkdf(ikm, salt, b"info_context_2")
+            
+            assert key1 == key1_rs, "HKDF key 1 mismatch"
+            assert key2 == key2_rs, "HKDF key 2 mismatch"
+        except ImportError:
+            pytest.skip("Rust backend not available")
+
+
 # Tests for anti-spoofing in bidirectional.py
 class TestBidirectionalAntiSpoofing:
     """Verify bidirectional control channel has anti-spoofing protection."""

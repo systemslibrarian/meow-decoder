@@ -160,39 +160,70 @@ meow-encode -i secret.pdf -o secret.gif \
 
 When using bidirectional mode (`--bidirectional`), the control channel uses cryptographic authentication to prevent spoofing and replay attacks.
 
-**Key Derivation:**
+**Key Derivation (HKDF-SHA256):**
 ```python
 # Session key derived from shared password
-auth_key = HKDF-SHA256(
-    ikm=password.encode('utf-8'),
-    salt=session_salt,  # 16-byte random value exchanged in handshake
-    info=b"meow_bidir_auth_v1",
-    length=32
-)
+# Exact parameters from bidirectional.py:194-203
+auth_key = HKDF(
+    algorithm=SHA256,
+    length=32,                              # 256-bit key
+    salt=session_salt,                      # 16-byte random (secrets.token_bytes(16))
+    info=b"meow_bidirectional_auth_v1"      # Domain separation
+).derive(password.encode('utf-8'))
+```
+
+**Message Format:**
+```
+┌──────────────┬────────────┬─────────────┬────────────────────┐
+│ Type (1B)    │ HMAC (32B) │ Counter (4B)│ Payload (variable) │
+└──────────────┴────────────┴─────────────┴────────────────────┘
 ```
 
 **Message Authentication (HMAC-SHA256):**
-- All control messages (ACK, COMPLETION, STATUS_UPDATE, PAUSE, RESUME, RESEND_REQUEST) include HMAC
-- Format: `message_type || counter || payload || HMAC(auth_key, message_type || counter || payload)`
-- HMAC truncated to 16 bytes for efficiency
+- All control messages include HMAC: ACK, COMPLETION, STATUS_UPDATE, PAUSE, RESUME, RESEND_REQUEST
+- HMAC computed over: `message_type || payload` (counter is in payload for replay-protected types)
+- Full 32-byte HMAC (no truncation)
 - Constant-time verification using `secrets.compare_digest()`
+- Invalid HMAC → Message silently dropped (no oracle)
 
-**Replay Protection:**
-- 4-byte monotonic counter (big-endian) prepended to all messages
-- Counter window: Must be strictly greater than last seen counter
-- Window size: No upper limit (unlimited late messages accepted if counter increases)
-- Out-of-order rejection: Messages with counter ≤ last_seen are silently dropped
+**Replay Protection (Monotonic Counter):**
+```python
+# Counter window logic from bidirectional.py:280-290
+replay_protected_types = [STATUS_UPDATE, COMPLETION, PAUSE, RESUME, RESEND_REQUEST]
 
-**Failure Modes:**
-- Invalid HMAC → Message dropped, no error logged (fail-silent)
-- Counter reuse → Message dropped, no error logged (replay detected)
-- Missing password → `UserWarning` during initialization
+if msg_type in replay_protected_types:
+    counter = struct.unpack('>I', payload[:4])[0]  # 4-byte big-endian
+    if counter <= last_rx_counter:
+        return None  # REJECT: Replay detected (silent drop)
+    last_rx_counter = counter  # Accept and advance
+```
+
+| Property | Value | Security Rationale |
+|----------|-------|-------------------|
+| Counter size | 4 bytes (32-bit) | 4 billion messages before wrap |
+| Counter window | Strictly monotonic | `counter > last_seen` required |
+| Out-of-order tolerance | **NONE** | Messages must arrive in order |
+| Late message handling | **REJECTED** | Counter ≤ last_seen → drop |
+| Wrap protection | **NONE** (4B overflow) | Session restart before 2³² msgs |
+
+**Idempotent Message Types (No Counter):**
+- `SESSION_ACK`, `FRAME_ACK` are safe to replay (no state change)
+- These skip counter validation
+
+**Failure Modes (Fail-Silent):**
+| Condition | Behavior | Logged |
+|-----------|----------|--------|
+| Invalid HMAC | Message dropped | ❌ No |
+| Counter ≤ last_seen | Message dropped | ❌ No |
+| Payload too short | Message dropped | ❌ No |
+| Missing password | `UserWarning` at init | ✅ Yes |
 
 **Security Properties:**
 - **Authentication**: Only parties with shared password can send valid control messages
 - **Integrity**: Any modification to message invalidates HMAC
-- **Replay Prevention**: Counter ensures each message unique
-- **Timing Safety**: Constant-time HMAC verification prevents oracle attacks
+- **Replay Prevention**: Monotonic counter ensures each message unique
+- **Timing Safety**: `secrets.compare_digest()` prevents timing oracle
+- **Fail-Silent**: Invalid messages reveal no information
 
 ---
 
