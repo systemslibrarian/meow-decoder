@@ -28,7 +28,110 @@
 
 ---
 
-## 🎬 Demo (Clear / Teaching)
+## ⚠️ Who This Is For (And Who It Isn't)
+
+| ✅ This IS for you if... | ❌ This is NOT for you if... |
+|--------------------------|------------------------------|
+| You're a developer/researcher | You want a consumer mobile app |
+| You need air-gapped file transfer | You want one-tap phone scanning |
+| You understand command-line tools | You need plug-and-play simplicity |
+| You want to audit the crypto yourself | You need production enterprise support |
+
+**Honest disclaimer:** This is a **developer/research tool**, not a consumer app (yet). It requires Python, command-line comfort, and understanding of what you're doing. If you're looking for a polished mobile experience, check back later or contribute!
+
+---
+
+## ⏱️ How It Works (60 Seconds)
+
+**The Problem:** You need to move a file between two computers that can't touch the network (air-gapped, hostile network, zero-trust).
+
+**The Solution:** Turn the file into animated QR codes, display on screen, record with any camera, decode on the other side.
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                        MEOW DECODER FLOW                            │
+├─────────────────────────────────────────────────────────────────────┤
+│                                                                     │
+│   SENDER (Computer A)              RECEIVER (Computer B)            │
+│   ══════════════════               ════════════════════             │
+│                                                                     │
+│   ┌──────────────┐                                                  │
+│   │  secret.pdf  │                                                  │
+│   └──────┬───────┘                                                  │
+│          │                                                          │
+│          ▼                                                          │
+│   ┌──────────────┐                                                  │
+│   │ meow-encode  │  ← Encrypt + fountain code + QR                  │
+│   └──────┬───────┘                                                  │
+│          │                                                          │
+│          ▼                                                          │
+│   ┌──────────────┐         📱 Phone Camera        ┌──────────────┐ │
+│   │ Animated GIF │ ═══════════════════════════════▶│ Video File   │ │
+│   │ (QR codes)   │    Record the screen!          │ (.mp4/.mov)  │ │
+│   └──────────────┘                                └──────┬───────┘ │
+│                                                          │          │
+│                              Transfer video to Computer B│          │
+│                                       (USB, email, etc.) │          │
+│                                                          ▼          │
+│                                                   ┌──────────────┐  │
+│                                                   │ meow-decode  │  │
+│                                                   └──────┬───────┘  │
+│                                                          │          │
+│                                                          ▼          │
+│                                                   ┌──────────────┐  │
+│                                                   │  secret.pdf  │  │
+│                                                   │  (recovered) │  │
+│                                                   └──────────────┘  │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
+```
+
+**That's it.** The phone is just a dumb optical sensor. All crypto happens on trusted computers.
+
+---
+
+## 🔐 What This Protects / Doesn't Protect
+
+### ✅ DOES Protect Against
+
+| Threat | How |
+|--------|-----|
+| **Network eavesdropping** | Data never touches a network |
+| **Man-in-the-middle** | Optical channel, no network routing |
+| **Brute force attacks** | Argon2id (256 MiB, 10 iterations) |
+| **Tampering/modification** | AES-GCM authentication + HMAC |
+| **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
+| **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
+| **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) |
+| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-768, optional) |
+
+### ❌ Does NOT Protect Against
+
+| Threat | Why |
+|--------|-----|
+| **Shoulder surfing** | Someone watching your screen sees the GIF |
+| **Compromised endpoint** | Malware on sender/receiver defeats everything |
+| **Keyloggers** | Password stolen before encryption |
+| **Physical coercion (torture)** | No crypto defeats rubber-hose cryptanalysis |
+| **Screen recording malware** | Same as shoulder surfing, automated |
+| **State-level adversaries** | No formal audit; use certified tools for classified data |
+
+### 🎯 Adversary Model
+
+| Adversary | Can Meow Decoder Stop Them? |
+|-----------|------------------------------|
+| Script kiddie | ✅ Yes, easily |
+| Skilled hacker (network) | ✅ Yes (no network exposure) |
+| Corporate IT snooping | ✅ Yes (optical bypasses monitoring) |
+| Law enforcement (legal demand) | ⚠️ Maybe (Schrödinger mode helps) |
+| Intelligence agency | ⚠️ Partial (endpoint risk) |
+| NSA with full resources | ❌ Not designed for this |
+
+**Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility.
+
+---
+
+## 🎬 Demo
 
 <p align="center">
   <img src="assets/demo.gif" alt="Meow Decoder demo: Encode → Transmit → Decode" width="750">
@@ -39,83 +142,153 @@ QR codes are intentionally visible so first-time users can clearly understand wh
 
 ---
 
-## 🐈 Camouflage Modes (Optional)
+## 🚀 Quick Start (5 Minutes)
 
-These modes keep the **same encrypted payload**, but render frames so the GIF looks like a normal animation instead of obvious QR tiles.
-
-### 1) Photographic cat camouflage (realistic)
-
-<p align="center">
-  <img src="assets/demo_camouflage_photo.gif" alt="Photographic cat camouflage demo" width="750">
-</p>
-
-Looks like a normal looping cat GIF. Payload energy is blended into natural image texture (subtle contrast/luminance modulation).
-
-### 2) Logo-eyes carrier (themed / iconic)
-
-<p align="center">
-  <img src="assets/demo_logo_eyes.gif" alt="Logo-eyes carrier demo" width="750">
-</p>
-
-A branded “carrier skin” where the **eyes act as the data window**. This is a themed mode for demos/branding — the default “QR tiles” mode remains the most transparent for troubleshooting.
-
----
-
-## 🚀 What is Meow Decoder?
-
-**Meow Decoder** transforms sensitive files into animated GIFs containing QR codes, enabling secure **air-gapped data transfer**.
-
-It is designed for environments where:
-- Networks are untrusted or unavailable
-- Only optical transfer is allowed
-- Phones can act as cameras but not trusted compute devices
-
----
-
-## ✨ Key Features
-
-- 🔒 **Strong Encryption** — AES-256-GCM with Argon2id key derivation  
-- 📱 **Air-Gap Friendly** — transfer data using any camera  
-- 🛡️ **Forward Secrecy (Optional)** — X25519 ephemeral key exchange  
-- 🐈‍⬛ **Schrödinger Mode** — dual-secret plausible deniability  
-- 📊 **Error Resilient** — fountain codes tolerate dropped frames  
-- ✅ **CI-Enforced Quality** — security and regression tests on every commit  
-
----
-
-## 📦 Quick Start
-
-### Installation
+### 1. Install
 
 ```bash
 pip install meow-decoder
 ```
 
 Or from source:
-
 ```bash
 git clone https://github.com/systemslibrarian/meow-decoder.git
 cd meow-decoder
 pip install -e .
 ```
 
-### Basic Usage
+### 2. Encode (Sender)
 
-**Encrypt**
 ```bash
-meow-encode -i secret.txt -o payload.gif -p "password"
+# Encrypt a file into animated QR GIF
+meow-encode -i secret.pdf -o secret.gif -p "YourStrongPassword123"
 ```
 
-**Decrypt**
+### 3. Display & Record
+
 ```bash
-meow-decode-gif -i payload.gif -o recovered.txt -p "password"
+# Open the GIF (it loops automatically)
+open secret.gif  # macOS
+xdg-open secret.gif  # Linux
+start secret.gif  # Windows
 ```
+
+**Record the screen with your phone camera for 10-15 seconds.**
+
+### 4. Transfer Video
+
+Move the video file to the receiving computer (USB, email, cloud - the video is encrypted garbage without the password).
+
+### 5. Decode (Receiver)
+
+```bash
+# Decrypt from the video recording
+meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123"
+```
+
+**Done!** Your file is recovered with integrity verification.
+
+---
+
+## 🐈 Camouflage Modes (Optional)
+
+Want the GIF to look innocent instead of obvious QR codes?
+
+### Photographic Cat Camouflage
+<p align="center">
+  <img src="assets/demo_camouflage_photo.gif" alt="Photographic cat camouflage demo" width="750">
+</p>
+
+Looks like a normal looping cat GIF. Data hidden in image texture.
+
+### Logo-Eyes Carrier
+<p align="center">
+  <img src="assets/demo_logo_eyes.gif" alt="Logo-eyes carrier demo" width="750">
+</p>
+
+Branded animation where the eyes contain the data.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| 🔒 **AES-256-GCM** | Military-grade authenticated encryption |
+| 🔑 **Argon2id** | Memory-hard KDF (256 MiB, 10 iterations) |
+| 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
+| 🛡️ **Forward Secrecy** | X25519 ephemeral keys (optional) |
+| 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
+| 🔮 **Post-Quantum** | ML-KEM-768 hybrid (optional) |
+| 📊 **Fountain Codes** | Tolerates 33% frame loss |
+| 🔐 **Duress Mode** | Panic password triggers secure wipe |
+| 🖥️ **Hardware Keys** | TPM/YubiKey support (optional) |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ENCODING PIPELINE                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  File → Compress → Encrypt → Fountain Code → QR Frames → GIF   │
+│          (zlib)   (AES-GCM)  (Luby Transform)  (qrcode)  (PIL)  │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                    DECODING PIPELINE                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  GIF/Video → Extract Frames → Read QR → Fountain Decode →      │
+│              (PIL/OpenCV)    (pyzbar)   (Belief Prop)           │
+│                                                                 │
+│           → Decrypt → Decompress → Verify Hash → File          │
+│             (AES-GCM)   (zlib)     (SHA-256)                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Crypto Stack:**
+- **Encryption:** AES-256-GCM (authenticated)
+- **Key Derivation:** Argon2id (256 MiB memory, 10 iterations)
+- **Forward Secrecy:** X25519 ECDH (optional)
+- **Post-Quantum:** ML-KEM-768 + X25519 hybrid (optional)
+- **Integrity:** HMAC-SHA256 + per-frame MACs
+- **Error Correction:** Luby Transform fountain codes
+
+For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
+
+---
+
+## 🎯 Security Properties
+
+| Property | Implementation | Status |
+|----------|----------------|--------|
+| Authenticated Encryption | AES-256-GCM | ✅ |
+| Memory-Hard KDF | Argon2id (256 MiB) | ✅ |
+| Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
+| Forward Secrecy | X25519 ephemeral keys | ✅ Optional |
+| Post-Quantum | ML-KEM-768 hybrid | ✅ Optional |
+| Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
+| Coercion Resistance | Duress passwords | ✅ Optional |
+| Error Recovery | Fountain codes (33% loss OK) | ✅ |
+| Security Tests | 125+ tests, CI-enforced | ✅ |
+
+**Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
 ---
 
 ## 📱 Phone-Based Transfer Model
 
 Meow Decoder intentionally **does not require a mobile app**.
+
+### Why?
+
+1. **Phones are untrusted** — treat them as dumb optical sensors
+2. **No app = no attack surface** — nothing to exploit on the phone
+3. **Works with any camera** — phone, webcam, DSLR, whatever
+4. **All crypto on trusted machines** — you control the endpoints
 
 ### Workflow
 
@@ -124,46 +297,22 @@ Meow Decoder intentionally **does not require a mobile app**.
 3. Transfer the video/photos to a computer  
 4. Decode on the computer using the passphrase  
 
-The phone is treated as an **untrusted optical sensor**.  
-All cryptography happens on the trusted machine.
-
----
-
-## 🎯 Security Properties
-
-| Property | Status |
-|--------|--------|
-| Authenticated Encryption | AES-256-GCM |
-| Key Derivation | Argon2id |
-| Tamper Detection | Frame & manifest MACs |
-| Forward Secrecy | Optional (X25519) |
-| Error Recovery | Fountain codes |
-| Security Tests | CI-enforced |
-
-See:
-- [SECURITY.md](SECURITY.md)
-- [Threat Model](docs/THREAT_MODEL.md)
-
----
-
-## 🏗️ Architecture (High-Level)
-
-```
-File → Encrypt → Fountain Encode → QR Frames → Animated GIF
-                                   ↑
-                              Camera Capture
-```
-
-More detail:
-- [Architecture](docs/ARCHITECTURE.md)
-
 ---
 
 ## 🧪 Development
 
 ```bash
+# Install dev dependencies
+pip install -e ".[dev]"
+
+# Run all tests
 pytest tests/
+
+# Run security tests specifically
 pytest tests/test_security.py tests/test_adversarial.py
+
+# Run with coverage
+pytest --cov=meow_decoder tests/
 ```
 
 CI runs on Python 3.10–3.12 with CodeQL and security scanning.
@@ -172,10 +321,26 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 
 ## 📖 Documentation
 
-- [Usage Guide](docs/USAGE.md)
-- [Threat Model](docs/THREAT_MODEL.md)
-- [Architecture](docs/ARCHITECTURE.md)
-- [Schrödinger Mode](docs/SCHRODINGER.md)
+| Document | Description |
+|----------|-------------|
+| [QUICKSTART.md](QUICKSTART.md) | 5-minute phone capture demo |
+| [Usage Guide](docs/USAGE.md) | Detailed usage instructions |
+| [Threat Model](docs/THREAT_MODEL.md) | Security analysis & limitations |
+| [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive |
+| [Schrödinger Mode](docs/SCHRODINGER.md) | Plausible deniability |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+
+---
+
+## 🤝 Contributing
+
+Contributions welcome! Especially:
+- Security researchers (find vulnerabilities, get credit)
+- UX designers (help make it more accessible)
+- Mobile developers (native app would be great)
+- Cryptographers (review our implementation)
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ---
 
@@ -187,4 +352,6 @@ MIT License — see [LICENSE](LICENSE)
 
 <p align="center">
   <strong>Built for air-gapped, hostile, or zero-trust environments.</strong>
+  <br>
+  <em>🐱 "Trust no network. Trust the cat." 🐱</em>
 </p>
