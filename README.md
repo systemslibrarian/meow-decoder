@@ -272,12 +272,16 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
 
 Looks like a normal looping cat GIF. Data hidden in image texture.
 
+**Try it:** This demo contains John 3:16 encrypted. Download and decode with password `JesusIsTheSonOfGod`
+
 ### Logo-Eyes Carrier
 <p align="center">
   <img src="assets/demo_logo_eyes.gif" alt="Logo-eyes carrier demo" width="750">
 </p>
 
 Branded animation where the eyes contain the data.
+
+**Try it:** This demo contains John 3:16 encrypted. Download and decode with password `JesusIsTheSonOfGod`
 
 ```bash
 # Logo-eyes with default "MEOW" branding
