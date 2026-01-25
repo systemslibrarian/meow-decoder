@@ -9,10 +9,15 @@ This is NOT a security test (backends are equally secure), but an EQUIVALENCE te
 It proves the constant-time optimization doesn't change behavior.
 """
 
+import os
 import pytest
 import secrets
 import hashlib
 from pathlib import Path
+
+# CRITICAL: Allow Python backend explicitly for parity testing
+# These tests REQUIRE both backends to compare outputs
+os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
 
 from meow_decoder.crypto_backend import CryptoBackend
 from meow_decoder.crypto import (
@@ -117,15 +122,18 @@ class TestBackendParityArgon2id:
     def test_argon2id_deterministic(self):
         """Argon2id is deterministic: same inputs always produce same output."""
         password = "deterministic_test_password"
-        salt = b"fixed_salt_16byte"
+        salt = b"fixedsalt16bytes"  # Exactly 16 bytes
         
         backend = CryptoBackend(backend="python")
         
+        # Use keyword args to avoid confusion: 64 MiB, 3 iterations
         key1 = backend.derive_key_argon2id(
-            password.encode('utf-8'), salt, 32, 2, 262144, 4
+            password.encode('utf-8'), salt,
+            memory_kib=65536, iterations=3, parallelism=4, output_len=32
         )
         key2 = backend.derive_key_argon2id(
-            password.encode('utf-8'), salt, 32, 2, 262144, 4
+            password.encode('utf-8'), salt,
+            memory_kib=65536, iterations=3, parallelism=4, output_len=32
         )
         
         assert key1 == key2, "Argon2id not deterministic!"
@@ -241,32 +249,41 @@ class TestBackendTimingCharacteristics:
         """Verify Rust backend is available (optional but preferred)."""
         try:
             backend = CryptoBackend(backend="rust")
-            assert backend.info().name == "rust"
-        except ImportError:
-            pytest.skip("Rust backend not available (set MEOW_FORCE_PYTHON=0 to enable)")
+            assert backend.get_info().name == "rust"
+        except (ImportError, RuntimeError):
+            pytest.skip("Rust backend not available")
     
     def test_backend_auto_selection(self):
         """Verify auto-selection chooses Rust if available, falls back to Python."""
         backend = CryptoBackend(backend="auto")
         
         # Backend should be either rust or python
-        assert backend.info().name in ["rust", "python"]
+        assert backend.get_info().name in ["rust", "python"]
     
     def test_backend_selection_env_var(self):
-        """Verify MEOW_FORCE_PYTHON env var forces Python backend."""
+        """Verify MEOW_CRYPTO_BACKEND env var works."""
         import os
-        original = os.environ.get("MEOW_FORCE_PYTHON")
+        original = os.environ.get("MEOW_CRYPTO_BACKEND")
+        original_fallback = os.environ.get("MEOW_ALLOW_PYTHON_FALLBACK")
         
         try:
-            # Force Python backend
-            os.environ["MEOW_FORCE_PYTHON"] = "1"
+            # Force Python backend (requires fallback flag)
+            os.environ["MEOW_CRYPTO_BACKEND"] = "python"
+            os.environ["MEOW_ALLOW_PYTHON_FALLBACK"] = "1"
+            # Reset cached backend
+            from meow_decoder import crypto_backend
+            crypto_backend._default_backend = None
             backend = CryptoBackend(backend="auto")
-            assert backend.info().name == "python"
+            assert backend.get_info().name == "python"
         finally:
             if original is not None:
-                os.environ["MEOW_FORCE_PYTHON"] = original
+                os.environ["MEOW_CRYPTO_BACKEND"] = original
             else:
-                os.environ.pop("MEOW_FORCE_PYTHON", None)
+                os.environ.pop("MEOW_CRYPTO_BACKEND", None)
+            if original_fallback is not None:
+                os.environ["MEOW_ALLOW_PYTHON_FALLBACK"] = original_fallback
+            else:
+                os.environ.pop("MEOW_ALLOW_PYTHON_FALLBACK", None)
 
 
 class TestBackendConstantTime:
@@ -275,7 +292,7 @@ class TestBackendConstantTime:
     def test_backend_info_timing_claims(self):
         """Verify backend correctly reports constant-time guarantees."""
         backend_py = CryptoBackend(backend="python")
-        info_py = backend_py.info()
+        info_py = backend_py.get_info()
         
         # Python backend claims best-effort constant-time
         assert info_py.name == "python"
@@ -283,12 +300,12 @@ class TestBackendConstantTime:
         
         try:
             backend_rs = CryptoBackend(backend="rust")
-            info_rs = backend_rs.info()
+            info_rs = backend_rs.get_info()
             
             # Rust backend claims constant-time operations
             assert info_rs.name == "rust"
             assert info_rs.constant_time == True  # Subtle crate guarantee
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 

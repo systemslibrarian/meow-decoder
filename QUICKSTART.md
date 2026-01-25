@@ -333,7 +333,27 @@ meow-encode -i file.txt -o file.gif -p "pass" --forward-secrecy --receiver-key "
 meow-decode-gif -i captured.mp4 -o file.txt -p "pass" --receiver-key-file receiver.key
 ```
 
-### Tip 4: Test Before You Need It
+### Tip 4: Hide in Your Cat Photos 🐱
+
+```bash
+# Use steganography to hide QR codes in your images
+meow-encode -i file.txt -o cats.gif -p "pass" --stego-level 3 --carrier ~/Pictures/cats/*.jpg
+
+# Stealth levels:
+#   0 = Plain QR codes (default)
+#   1 = Visible (3-bit LSB)
+#   2 = Subtle (2-bit LSB) - recommended
+#   3 = Hidden (1-bit LSB)
+#   4 = Paranoid (1-bit LSB + noise)
+
+# Multiple images cycle through frames
+meow-encode -i file.txt -o vacation.gif -p "pass" --stego-level 2 --carrier photo1.jpg photo2.jpg
+
+# Decoding is automatic - just use:
+meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
+```
+
+### Tip 5: Test Before You Need It
 
 ```bash
 # Always test your workflow before relying on it:

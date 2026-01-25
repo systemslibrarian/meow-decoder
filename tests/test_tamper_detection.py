@@ -167,14 +167,14 @@ class TestManifestTamperDetection:
             unpack_manifest(truncated)
     
     def test_extension_detected(self):
-        """Appending extra bytes → detected (length check)."""
+        """Appending extra bytes → detected (length check in unpack)."""
         packed = pack_manifest(self.manifest)
         extended = packed + b"extra_garbage_data"
         
-        # Unpack might succeed but HMAC should fail
-        m = unpack_manifest(extended[:len(packed)])
-        result = verify_manifest_hmac(self.password, m)
-        assert result is False, "HMAC should reject manifest if extra bytes present"
+        # Unpack should fail due to invalid length
+        # Manifest must be exactly 115, 147, or 1235 bytes
+        with pytest.raises(ValueError, match="Manifest length invalid"):
+            unpack_manifest(extended)
 
 
 class TestDecryptionFailClosed:

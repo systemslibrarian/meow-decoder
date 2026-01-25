@@ -360,6 +360,11 @@ Examples:
     
     args = parser.parse_args()
     
+    # CRITICAL: Wire --python-fallback to env var BEFORE any crypto calls
+    if args.python_fallback:
+        import os
+        os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
+    
     # Validate input file
     if not args.input.exists():
         print(f"Error: Input file not found: {args.input}", file=sys.stderr)

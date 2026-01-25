@@ -24,6 +24,8 @@ from .gif_handler import GIFEncoder
 from .progress import ProgressBar
 
 
+from typing import List
+
 def encode_file(
     input_path: Path,
     output_path: Path,
@@ -33,6 +35,8 @@ def encode_file(
     forward_secrecy: bool = True,
     receiver_public_key: Optional[bytes] = None,
     use_pq: bool = False,
+    stego_level: int = 0,
+    carrier_images: Optional[List[Path]] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -47,6 +51,8 @@ def encode_file(
         forward_secrecy: Enable forward secrecy (MEOW3, default True)
         receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
         use_pq: Enable post-quantum hybrid mode (MEOW4)
+        stego_level: Steganography level (0=off, 1-4=stealth levels)
+        carrier_images: Optional list of carrier image paths (your cat photos!)
         verbose: Print verbose output
         
     Returns:
@@ -210,12 +216,66 @@ def encode_file(
         print(f"  Total QR codes: {len(qr_frames)} (all with frame MACs)")
         print(f"  QR size: {qr_frames[0].size}")
     
+    # Apply steganography if enabled
+    if stego_level > 0:
+        if verbose:
+            print(f"\n🥷 Applying steganography (level {stego_level})...")
+        
+        from .stego_advanced import encode_with_stego, StealthLevel
+        from PIL import Image
+        
+        # Map level 1-4 to StealthLevel enum
+        stealth_map = {1: StealthLevel.VISIBLE, 2: StealthLevel.SUBTLE, 
+                       3: StealthLevel.HIDDEN, 4: StealthLevel.PARANOID}
+        stealth = stealth_map.get(stego_level, StealthLevel.SUBTLE)
+        
+        # Load carrier images if provided (your cat photos!)
+        carriers = None
+        if carrier_images:
+            carriers = []
+            for img_path in carrier_images:
+                try:
+                    img = Image.open(img_path).convert('RGB')
+                    carriers.append(img)
+                    if verbose:
+                        print(f"  🐱 Loaded carrier: {img_path.name}")
+                except Exception as e:
+                    if verbose:
+                        print(f"  ⚠️ Skipping {img_path}: {e}")
+            
+            # Cycle carriers to match frame count
+            if carriers:
+                while len(carriers) < len(qr_frames):
+                    carriers.extend(carriers[:len(qr_frames) - len(carriers)])
+                carriers = carriers[:len(qr_frames)]
+                if verbose:
+                    print(f"  Using {len(set(carrier_images))} custom carrier image(s)")
+        
+        # Apply steganography
+        try:
+            qr_frames, qualities = encode_with_stego(
+                qr_frames,
+                stealth_level=stealth,
+                carriers=carriers,
+                enable_animation=(carriers is None)  # Animate if no custom carriers
+            )
+            
+            if verbose:
+                avg_psnr = sum(q.psnr for q in qualities) / len(qualities)
+                print(f"  ✅ Steganography applied (avg PSNR: {avg_psnr:.1f} dB)")
+                if carriers:
+                    print(f"  🐱 QR codes hidden in your cat photos!")
+        except Exception as e:
+            if verbose:
+                print(f"  ⚠️ Steganography failed: {e}")
+                print(f"  Falling back to plain QR codes")
+    
     # Create GIF
     if verbose:
         print("\nCreating GIF...")
     
     gif_encoder = GIFEncoder(fps=config.fps, loop=0)
-    gif_size = gif_encoder.create_gif(qr_frames, output_path, optimize=True)
+    gif_size = gif_encoder.create_gif(qr_frames, output_path, optimize=(stego_level == 0))
     
     elapsed = time.time() - start_time
     
@@ -259,8 +319,11 @@ Examples:
   # High redundancy for poor capture conditions
   meow-encode --input secret.pdf --redundancy 2.0 --output secret.gif
 
-  # Custom block size
-  meow-encode --input secret.pdf --block-size 1024 --output secret.gif
+  # Hide QR codes in your cat photos! 🐱
+  meow-encode -i secret.pdf -o cats.gif --stego-level 3 --carrier ~/Pictures/cats/*.jpg
+
+  # Maximum stealth with custom carriers
+  meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier photo1.jpg photo2.png
         """
     )
     
@@ -298,6 +361,12 @@ Examples:
                        help='Crypto backend: python, rust, or auto (default: auto, requires Rust)')
     parser.add_argument('--python-fallback', action='store_true',
                        help='⚠️  Allow Python backend fallback (NOT constant-time, use for testing only)')
+    
+    # Steganography options (hide QR in images)
+    parser.add_argument('--stego-level', type=int, choices=[0, 1, 2, 3, 4], default=0,
+                       help='Steganography level: 0=off, 1=visible, 2=subtle, 3=hidden, 4=paranoid (default: 0)')
+    parser.add_argument('--carrier', '-c', type=Path, nargs='+', dest='carrier_images',
+                       help='Custom carrier images (your cat photos!) for steganography. Images cycle through frames.')
     
     # Security features (Forward Secrecy ON by default!)
     parser.add_argument('--forward-secrecy', action='store_true', default=True,
@@ -338,6 +407,10 @@ Examples:
                        help='Show operational security checklist and exit')
     
     args = parser.parse_args()
+    
+    # CRITICAL: Wire --python-fallback to env var BEFORE any crypto calls
+    if args.python_fallback:
+        os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
     
     # Handle key generation (do this first, then exit)
     if args.generate_keys:
@@ -542,6 +615,8 @@ Nothing to see here. 😶‍🌫️
             forward_secrecy=args.forward_secrecy,
             receiver_public_key=receiver_public_key,  # Forward secrecy support
             use_pq=args.pq,
+            stego_level=args.stego_level,
+            carrier_images=args.carrier_images,
             verbose=args.verbose
         )
         

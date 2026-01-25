@@ -216,7 +216,35 @@ See [fuzz/README.md](fuzz/README.md) for detailed instructions on corpus generat
 
 ## 🐈 Camouflage Modes (Optional)
 
-Want the GIF to look innocent instead of obvious QR codes?
+Want the GIF to look innocent instead of obvious QR codes? **Use your own cat photos!**
+
+### Using Custom Carrier Images 🐱
+
+Hide your encrypted QR codes inside your own images (cat photos recommended!):
+
+```bash
+# Hide in a single cat photo (cycles through frames)
+meow-encode -i secret.pdf -o cats.gif --stego-level 3 --carrier my_cat.jpg
+
+# Hide in multiple photos (uses each in sequence)
+meow-encode -i secret.pdf -o vacation.gif --stego-level 2 --carrier photo1.jpg photo2.jpg photo3.jpg
+
+# Use a glob pattern for all your cat photos
+meow-encode -i secret.pdf -o cats.gif --stego-level 3 --carrier ~/Pictures/cats/*.jpg
+
+# Maximum stealth mode (paranoid level + obfuscation)
+meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
+```
+
+### Stealth Levels
+
+| Level | Name | Description |
+|-------|------|-------------|
+| 0 | Off | Plain QR codes (default) |
+| 1 | Visible | 3-bit LSB, high capacity, visible under analysis |
+| 2 | Subtle | 2-bit LSB, balanced (recommended) |
+| 3 | Hidden | 1-bit LSB, nearly invisible |
+| 4 | Paranoid | 1-bit LSB + noise obfuscation |
 
 ### Photographic Cat Camouflage
 <p align="center">
@@ -231,6 +259,8 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 </p>
 
 Branded animation where the eyes contain the data.
+
+**Decoding works the same way** - the decoder automatically extracts QR data from steganographic images.
 
 ---
 
