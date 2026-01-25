@@ -27,7 +27,7 @@ class EncodingConfig:
     stealth_level: int = 2                   # Stealth level (1-4)
     enable_animation: bool = False           # Animated carriers
     enable_low_memory: bool = False          # Low-memory streaming mode
-    enable_pq: bool = False                  # Post-quantum crypto (experimental, requires liboqs)
+    enable_pq: bool = True                   # ✅ Post-quantum crypto (ML-KEM-1024 + X25519 hybrid) - DEFAULT ON
     
     # Enhanced security features
     enable_duress: bool = False              # Duress password support
@@ -77,8 +77,8 @@ class CryptoConfig:
         - argon2_iterations to 4 or 5
     """
     key_derivation: str = "argon2id"         # Key derivation function
-    argon2_memory: int = 262144              # 256 MiB (4x OWASP minimum)
-    argon2_iterations: int = 10              # 10 passes
+    argon2_memory: int = 524288              # 512 MiB (8x OWASP minimum) - ULTRA HARDENED
+    argon2_iterations: int = 20              # 20 passes (~5-10 sec delay)
     argon2_parallelism: int = 4              # 4 threads
     cipher: str = "aes-256-gcm"              # Cipher algorithm
     
@@ -86,9 +86,9 @@ class CryptoConfig:
     enable_forward_secrecy: bool = True      # Enabled by default
     ratchet_interval: int = 50               # Ratchet every 50 blocks
     
-    # Post-quantum (experimental)
-    enable_pq: bool = False                  # Disabled by default (requires liboqs)
-    kyber_variant: str = "kyber768"          # ML-KEM-768
+    # Post-quantum (DEFAULT ON for quantum resilience)
+    enable_pq: bool = True                   # ✅ ENABLED by default (ML-KEM-1024 + X25519 hybrid)
+    kyber_variant: str = "kyber1024"         # ML-KEM-1024 (NIST FIPS 203 - highest security)
 
 
 @dataclass

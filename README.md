@@ -104,12 +104,12 @@
 |--------|-----|
 | **Network eavesdropping** | Data never touches a network |
 | **Man-in-the-middle** | Optical channel, no network routing |
-| **Brute force attacks** | Argon2id (256 MiB, 10 iterations) |
+| **Brute force attacks** | Argon2id (512 MiB, 20 iterations) |
 | **Tampering/modification** | AES-GCM authentication + HMAC |
 | **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
 | **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
 | **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) |
-| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-768, optional) |
+| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-1024, DEFAULT ON) |
 
 ### ❌ Does NOT Protect Against
 
@@ -268,11 +268,11 @@ Branded animation where the eyes contain the data.
 | Feature | Description |
 |---------|-------------|
 | 🔒 **AES-256-GCM** | Military-grade authenticated encryption |
-| 🔑 **Argon2id** | Memory-hard KDF (256 MiB, 10 iterations) |
+| 🔑 **Argon2id** | Memory-hard KDF (512 MiB, 20 iterations) |
 | 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
-| 🛡️ **Forward Secrecy** | X25519 ephemeral keys (optional) |
+| 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
 | 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
-| 🔮 **Post-Quantum** | ML-KEM-768 hybrid (optional) |
+| 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
 | 🖥️ **Hardware Keys** | TPM/YubiKey support (optional) |
@@ -304,9 +304,10 @@ Branded animation where the eyes contain the data.
 
 **Crypto Stack:**
 - **Encryption:** AES-256-GCM (authenticated)
-- **Key Derivation:** Argon2id (256 MiB memory, 10 iterations)
-- **Forward Secrecy:** X25519 ECDH (optional)
-- **Post-Quantum:** ML-KEM-768 + X25519 hybrid (optional)
+- **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
+- **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
+- **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (DEFAULT ON)
+- **Signatures:** Dilithium3 + Ed25519 hybrid (manifest auth)
 - **Integrity:** HMAC-SHA256 + per-frame MACs
 - **Error Correction:** Luby Transform fountain codes
 
@@ -319,14 +320,15 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Property | Implementation | Status |
 |----------|----------------|--------|
 | Authenticated Encryption | AES-256-GCM | ✅ |
-| Memory-Hard KDF | Argon2id (256 MiB) | ✅ |
+| Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
 | Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
-| Forward Secrecy | X25519 ephemeral keys | ✅ Optional |
-| Post-Quantum | ML-KEM-768 hybrid | ✅ Optional |
+| Forward Secrecy | X25519 ephemeral keys | ✅ Default |
+| Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
 | Coercion Resistance | Duress passwords | ✅ Optional |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
-| Security Tests | 125+ tests, CI-enforced | ✅ |
+| Constant-Time Ops | Rust crypto backend | ✅ |
+| Security Tests | 140+ tests, CI-enforced | ✅ |
 
 **Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 

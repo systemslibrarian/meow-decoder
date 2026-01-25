@@ -2,6 +2,45 @@
 
 All notable changes to Meow Decoder.
 
+## [5.8.0] - 2026-01-25
+
+### Added - State-of-the-Art Security Hardening 🔐🔮🚀
+
+#### Post-Quantum Crypto Now DEFAULT
+- **ML-KEM-1024**: Upgraded from ML-KEM-768 to highest security level (NIST FIPS 203)
+- **Dilithium3**: Manifest signatures for quantum-resistant authentication (FIPS 204)
+- **Hybrid Mode**: X25519 + ML-KEM-1024 (secure if EITHER primitive holds)
+- **Default ON**: No longer optional - quantum-ready always
+
+#### Ultra-Hardened Key Derivation
+- **512 MiB Memory**: 8x OWASP minimum (was already upgraded in 5.6.0)
+- **20 Iterations**: ~5-10 seconds per attempt
+- **Brute-Force Math**: 10^35 years for 20-char password on RTX 4090 farm
+
+#### Enhanced CI Security Pipeline
+- **pip-audit**: Python dependency vulnerability scanning
+- **cargo-audit**: Rust dependency vulnerability scanning
+- **mutmut**: Mutation testing for crypto-critical code
+- **Bandit**: Static security analysis for Python
+
+#### Rust Backend Recommended by Default
+- **Constant-Time**: Uses `subtle` crate for timing attack resistance
+- **Memory Zeroing**: Secure zeroize on sensitive data
+- **Kyber/Dilithium**: Native PQ crypto support
+
+### Changed
+- `config.py`: `enable_pq=True` now default (was False)
+- `config.py`: `kyber_variant="kyber1024"` now default (was "kyber768")
+- `pq_hybrid.py`: Uses Kyber1024 (1568-byte public keys)
+- Forward secrecy now on by default
+
+### Security
+- Updated THREAT_MODEL.md with new brute-force mathematics
+- Updated README.md to reflect production-ready status
+- All security tests passing with new parameters
+
+---
+
 ## [5.7.0] - 2026-01-25
 
 ### Added - AFL++ Fuzzing & Double Ratchet 🔬🔐

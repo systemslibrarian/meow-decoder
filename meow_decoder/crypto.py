@@ -19,10 +19,11 @@ from .crypto_backend import get_default_backend
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 
-# Argon2id parameters (tuned for security)
-# These exceed OWASP minimums. Adjust based on your threat model.
-ARGON2_MEMORY = 262144      # 256 MiB (4x OWASP recommendation)
-ARGON2_ITERATIONS = 10      # 10 passes (OWASP recommends 3+)
+# Argon2id parameters (ULTRA-HARDENED for maximum brute-force resistance)
+# 512 MiB memory + 20 iterations = ~5-10 seconds per attempt
+# GPU/ASIC resistance: Memory-hard makes parallel attacks impractical
+ARGON2_MEMORY = 524288      # 512 MiB (8x OWASP recommendation)
+ARGON2_ITERATIONS = 20      # 20 passes (makes offline attacks impractical)
 ARGON2_PARALLELISM = 4      # 4 threads
 
 # HMAC domain separation

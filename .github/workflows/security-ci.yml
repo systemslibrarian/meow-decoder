@@ -53,3 +53,75 @@ jobs:
             --cov-report=term \
             --cov-fail-under=90 \
             -v
+
+  # Rust backend security audit
+  rust-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+
+      - name: Run cargo audit
+        working-directory: rust_crypto
+        run: |
+          cargo audit || echo "::warning::Cargo audit found issues"
+
+  # Mutation testing for crypto-critical code
+  mutation-testing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
+          pip install mutmut
+
+      - name: Run mutation testing on crypto module
+        run: |
+          # Mutation test critical crypto functions
+          mutmut run \
+            --paths-to-mutate=meow_decoder/crypto.py \
+            --tests-dir=tests \
+            --runner="pytest tests/test_security.py -x -q" \
+            --no-progress || echo "::warning::Some mutants survived"
+          
+          # Show results
+          mutmut results || true
+
+  # Bandit static analysis for security issues
+  bandit-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install bandit
+        run: pip install bandit[toml]
+
+      - name: Run bandit security scan
+        run: |
+          bandit -r meow_decoder/ -f json -o bandit-report.json || true
+          bandit -r meow_decoder/ -ll -ii

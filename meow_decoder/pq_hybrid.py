@@ -28,7 +28,7 @@ from cryptography.hazmat.primitives import serialization
 try:
     import oqs
     LIBOQS_AVAILABLE = True
-    PQ_ALGORITHM = "Kyber768"  # ML-KEM-768
+    PQ_ALGORITHM = "Kyber1024"  # ML-KEM-1024 (NIST FIPS 203 - highest security)
 except ImportError:
     LIBOQS_AVAILABLE = False
     PQ_ALGORITHM = None
@@ -36,13 +36,13 @@ except ImportError:
 
 class HybridKeyPair:
     """
-    Hybrid keypair: X25519 + ML-KEM-768.
+    Hybrid keypair: X25519 + ML-KEM-1024.
     
     Attributes:
         classical_private: X25519 private key
         classical_public: X25519 public key (32 bytes)
-        pq_public: ML-KEM-768 public key (1184 bytes)
-        pq_secret: ML-KEM-768 secret key (internal, not exported)
+        pq_public: ML-KEM-1024 public key (1568 bytes)
+        pq_secret: ML-KEM-1024 secret key (internal, not exported)
     """
     
     def __init__(self, use_pq: bool = True):
