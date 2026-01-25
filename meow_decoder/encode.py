@@ -374,8 +374,8 @@ Examples:
                        help='Fountain code block size (default: 512)')
     parser.add_argument('--redundancy', type=float, default=1.5,
                        help='Redundancy factor (default: 1.5)')
-    parser.add_argument('--fps', type=int, default=10,
-                       help='GIF frames per second (default: 10)')
+    parser.add_argument('--fps', type=int, default=2,
+                       help='GIF frames per second (default: 2, slow for readability)')
     
     # QR code parameters
     parser.add_argument('--qr-error', choices=['L', 'M', 'Q', 'H'], default='M',

@@ -14,7 +14,7 @@ class GIFEncoder:
     GIF encoder for creating animated GIFs from QR code frames.
     """
     
-    def __init__(self, fps: int = 10, loop: int = 0):
+    def __init__(self, fps: int = 2, loop: int = 0):
         """
         Initialize GIF encoder.
         
