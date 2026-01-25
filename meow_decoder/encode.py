@@ -324,6 +324,12 @@ Examples:
     parser.add_argument('--summon-void-cat', action='store_true',
                        help='Summon the void cat (easter egg)')
     
+    # MAXIMUM SECURITY - For users facing state-level adversaries
+    parser.add_argument('--oppression', '--iran', '--high-risk', action='store_true',
+                       help='MAXIMUM security mode for users facing state-level adversaries (512 MiB Argon2, Kyber-1024, 7-pass wipe)')
+    parser.add_argument('--safety-checklist', action='store_true',
+                       help='Show safety checklist for high-risk users and exit')
+    
     args = parser.parse_args()
     
     # Handle key generation (do this first, then exit)
@@ -363,6 +369,29 @@ Nothing to see here.
 😶‍🌫️ Meow.
 """)
         sys.exit(0)
+    
+    # Safety checklist for high-risk users
+    if args.safety_checklist:
+        from .oppression_mode import get_safety_checklist
+        print(get_safety_checklist())
+        sys.exit(0)
+    
+    # OPPRESSION MODE - Maximum security for Iran, China, Russia, etc.
+    if args.oppression:
+        from .oppression_mode import enable_oppression_mode, OppressionConfig
+        enable_oppression_mode(silent=False)
+        opp = OppressionConfig()
+        print("\n🛡️  OPPRESSION MODE ACTIVATED")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("Maximum security for high-risk users")
+        print(f"  Argon2id: {opp.argon2_memory // 1024} MiB, {opp.argon2_iterations} iterations")
+        print(f"  Post-Quantum: {opp.kyber_variant}")
+        print(f"  Secure wipe: {opp.secure_wipe_passes} passes (DoD standard)")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("⚠️  Key derivation will take 5-10 seconds")
+        print("    This is intentional - it protects you.\n")
+        # Force wipe source
+        args.wipe_source = True
 
     # For normal operation, require input/output.
     if args.input is None or args.output is None:
@@ -520,13 +549,27 @@ Nothing to see here. 😶‍🌫️
             if args.verbose:
                 print(f"\nSecurely wiping source file...")
             
-            # Simple overwrite (for full security, use crypto.secure_wipe from crypto_enhanced)
-            file_size = args.input.stat().st_size
-            with open(args.input, 'wb') as f:
-                f.write(b'\x00' * file_size)
-            
-            args.input.unlink()
-            print(f"  ✓ Source file wiped: {args.input}")
+            # Use oppression mode's secure wipe if available (7-pass DoD standard)
+            try:
+                from .oppression_mode import secure_wipe_file
+                if args.oppression:
+                    # 7-pass DoD wipe for high-risk users
+                    success = secure_wipe_file(args.input, passes=7)
+                else:
+                    # 3-pass wipe for normal users
+                    success = secure_wipe_file(args.input, passes=3)
+                
+                if success:
+                    print(f"  ✓ Source file securely wiped: {args.input}")
+                else:
+                    print(f"  ⚠️  Wipe may have failed - manually verify deletion")
+            except ImportError:
+                # Fallback to simple overwrite
+                file_size = args.input.stat().st_size
+                with open(args.input, 'wb') as f:
+                    f.write(b'\x00' * file_size)
+                args.input.unlink()
+                print(f"  ✓ Source file wiped: {args.input}")
         
         print(f"\nOutput saved to: {args.output}")
         
