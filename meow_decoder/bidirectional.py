@@ -23,6 +23,7 @@ Use Cases:
 import secrets
 import struct
 import hashlib
+import hmac
 import time
 from dataclasses import dataclass, field
 from typing import Optional, List, Set, Dict, Any
@@ -61,37 +62,46 @@ class SessionInfo:
     - Uniqueness (prevents mixing transfers)
     - Ordering (sequence numbers)
     - Binding (receiver knows which session they're in)
+    - Authentication (HMAC key shared via session start)
     """
     session_id: bytes  # 8 bytes, random
     total_frames: int
     k_blocks: int
     block_size: int
     file_hash: bytes  # SHA-256 of original file
+    auth_key: bytes   # 32 bytes, HMAC key
     created_at: float = field(default_factory=time.time)
     
     def pack(self) -> bytes:
         """Pack session info to bytes."""
+        # Format: session_id(8) + total_frames(4) + k(4) + block_size(2) + file_hash(32) + auth_key(32)
+        # Total: 82 bytes
         return struct.pack(
-            '>8sIIH32s',
+            '>8sIIH32s32s',
             self.session_id,
             self.total_frames,
             self.k_blocks,
             self.block_size,
-            self.file_hash
+            self.file_hash,
+            self.auth_key
         )
     
     @classmethod
     def unpack(cls, data: bytes) -> 'SessionInfo':
         """Unpack session info from bytes."""
-        session_id, total_frames, k_blocks, block_size, file_hash = struct.unpack(
-            '>8sIIH32s', data[:50]
+        if len(data) < 82:
+            raise ValueError(f"Session info too short: {len(data)} (need 82)")
+            
+        session_id, total_frames, k_blocks, block_size, file_hash, auth_key = struct.unpack(
+            '>8sIIH32s32s', data[:82]
         )
         return cls(
             session_id=session_id,
             total_frames=total_frames,
             k_blocks=k_blocks,
             block_size=block_size,
-            file_hash=file_hash
+            file_hash=file_hash,
+            auth_key=auth_key
         )
 
 

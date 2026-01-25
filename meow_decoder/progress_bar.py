@@ -28,8 +28,10 @@ class ProgressStats:
     
     # Throughput calculation (sliding window)
     _throughput_samples: deque = field(default_factory=lambda: deque(maxlen=10))
+    _throughput_fps_samples: deque = field(default_factory=lambda: deque(maxlen=10))
     _last_sample_time: float = field(default_factory=time.time)
     _last_bytes: int = 0
+    _last_items_count: int = 0
     
     @property
     def percentage(self) -> float:
@@ -59,13 +61,20 @@ class ProgressStats:
         time_delta = now - self._last_sample_time
         
         if time_delta >= 0.5:  # Sample every 500ms
+            # Byte throughput
             bytes_delta = current_bytes - self._last_bytes
             if time_delta > 0:
                 rate = bytes_delta / time_delta
                 self._throughput_samples.append(rate)
+                
+                # FPS throughput
+                items_delta = self.received_items - self._last_items_count
+                fps = items_delta / time_delta
+                self._throughput_fps_samples.append(fps)
             
             self._last_sample_time = now
             self._last_bytes = current_bytes
+            self._last_items_count = self.received_items
     
     @property
     def throughput_bps(self) -> float:
@@ -73,17 +82,29 @@ class ProgressStats:
         if not self._throughput_samples:
             return 0.0
         return sum(self._throughput_samples) / len(self._throughput_samples)
+
+    @property
+    def throughput_fps(self) -> float:
+        """Return throughput in items (frames) per second."""
+        if not self._throughput_fps_samples:
+            return 0.0
+        return sum(self._throughput_fps_samples) / len(self._throughput_fps_samples)
     
     @property
     def throughput_str(self) -> str:
-        """Return human-readable throughput."""
+        """Return human-readable throughput (Bytes and FPS)."""
         bps = self.throughput_bps
+        fps = self.throughput_fps
+        
+        # Format bytes
         if bps >= 1024 * 1024:
-            return f"{bps / (1024 * 1024):.1f} MB/s"
+            s_bytes = f"{bps / (1024 * 1024):.1f} MB/s"
         elif bps >= 1024:
-            return f"{bps / 1024:.1f} KB/s"
+            s_bytes = f"{bps / 1024:.1f} KB/s"
         else:
-            return f"{bps:.0f} B/s"
+            s_bytes = f"{bps:.0f} B/s"
+            
+        return f"{s_bytes} ({fps:.1f} fps)"
     
     @property
     def eta_seconds(self) -> Optional[float]:

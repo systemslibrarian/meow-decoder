@@ -13,6 +13,7 @@ Features:
 """
 
 import sys
+import shutil
 from typing import Optional, List
 import qrcode
 from qrcode.constants import ERROR_CORRECT_L, ERROR_CORRECT_M, ERROR_CORRECT_Q, ERROR_CORRECT_H
@@ -296,6 +297,39 @@ def print_terminal_qr(data: str, mode: str = 'unicode',
         print("─" * (len(title) + 4))
     
     qr = ASCIIQRCode(data, error_correction=error_correction, border=border)
+    
+    # Check terminal size
+    term_width, term_lines = shutil.get_terminal_size()
+    
+    # Calculate required size
+    # Unicode mode: 1 char width per module, 0.5 char height per module
+    # ASCII/Large/Colored: 2 char width per module, 1 char height per module
+    # We ignore border in calculation as qrcode adds it internally to matrix, but we added manual border param
+    # actually qr.size is the module count including border if qrcode lib added it. 
+    # But ASCIIQRCode init sets border=border in qrcode.QRCode. So self.size INCLUDES border.
+    
+    req_width = qr.size
+    req_lines = qr.size
+    
+    if mode == 'unicode':
+        req_lines = (qr.size + 1) // 2
+    elif mode in ['ascii', 'colored']:
+        req_width = qr.size * 2
+        req_lines = qr.size
+    elif mode == 'large':
+        req_width = qr.size * 2
+        req_lines = qr.size * 2
+        
+    # Safety Check
+    if req_width > term_width or req_lines > term_lines:
+        error_msg = (
+            f"❌ Terminal too small for QR code!\n"
+            f"   Required: {req_width}x{req_lines}\n"
+            f"   Has:      {term_width}x{term_lines}\n"
+            f"   Try maximizing window or using 'unicode' mode."
+        )
+        raise ValueError(error_msg)
+
     print(qr.render(mode=mode, invert=invert))
     
     # Print info
