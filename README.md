@@ -119,12 +119,11 @@ QR codes are intentionally visible so first-time users can clearly understand wh
 
 ### 🔓 Try It Yourself!
 
-**The demo GIFs above contain a real encrypted message you can decode:**
+**The demo GIF contains a real encrypted message you can decode:**
 
 | Demo File | Description | Download |
 |-----------|-------------|----------|
 | `demo.gif` | Standard QR animation | [Download](https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo.gif) |
-| `demo_compact.gif` | More frames, smaller blocks | [Download](https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo_compact.gif) |
 
 **Password:** `JesusIsTheSonOfGod`
 
