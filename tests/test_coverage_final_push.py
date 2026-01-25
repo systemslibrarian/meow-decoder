@@ -86,7 +86,7 @@ class TestCryptoEdgeCases:
         try:
             decrypt_to_raw(
                 cipher=b'A' * 32,
-                password="test",
+                password="test_password",
                 salt=b'B' * 16,
                 nonce=b'C' * 12,
                 ephemeral_public_key=b'D' * 32,  # FS key present
@@ -100,17 +100,9 @@ class TestCryptoEdgeCases:
         """Test HMAC computation in forward secrecy mode during decoding."""
         from meow_decoder.crypto import compute_manifest_hmac
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
-        from cryptography.hazmat.primitives import serialization
         
-        # Generate receiver keypair
-        recv_priv, recv_pub = generate_receiver_keypair()
-        
-        # Get raw private key bytes
-        recv_priv_bytes = recv_priv.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
+        # Generate receiver keypair - returns raw bytes
+        recv_priv_bytes, recv_pub_bytes = generate_receiver_keypair()
         
         # Compute HMAC without encryption_key (decoding path)
         from meow_decoder.x25519_forward_secrecy import serialize_public_key, generate_ephemeral_keypair
@@ -123,7 +115,7 @@ class TestCryptoEdgeCases:
         
         # This should work with receiver_private_key
         hmac_result = compute_manifest_hmac(
-            password="test",
+            password="test_password",
             salt=salt,
             packed_no_hmac=packed_no_hmac,
             ephemeral_public_key=eph_pub_bytes,

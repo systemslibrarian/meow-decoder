@@ -62,7 +62,7 @@ class TestCryptoDeepCoverage:
     
     def test_compression_edge_cases(self):
         """Test compression with various data patterns."""
-        password = "test"
+        password = "test_password"
         
         # Already compressed data (should not compress further)
         compressed_data = secrets.token_bytes(1000)
@@ -401,7 +401,7 @@ class TestErrorPathCoverage:
         input_file.write_text("Test")
         
         gif_file = tmp_path / "test.gif"
-        encode_file(input_file, gif_file, password="test")
+        encode_file(input_file, gif_file, password="test_password")
         
         # MEOW3 magic is inside QR code payload, not in GIF container
         # The best way to test magic validation is to use wrong password

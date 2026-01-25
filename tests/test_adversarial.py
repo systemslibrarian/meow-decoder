@@ -413,7 +413,7 @@ class TestEdgeCases:
         output_file = tmp_path / "output.txt"
         
         with pytest.raises(Exception):
-            decode_gif(empty_file, output_file, password="test")
+            decode_gif(empty_file, output_file, password="test_password")
     
     def test_tiny_file(self, tmp_path):
         """Very small file should fail gracefully."""
@@ -423,7 +423,7 @@ class TestEdgeCases:
         output_file = tmp_path / "output.txt"
         
         with pytest.raises(Exception):
-            decode_gif(tiny_file, output_file, password="test")
+            decode_gif(tiny_file, output_file, password="test_password")
     
     def test_very_long_password(self):
         """Very long password should be handled."""

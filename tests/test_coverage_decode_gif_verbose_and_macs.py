@@ -112,7 +112,7 @@ def test_decode_gif_verbose_frame_macs_progress_and_success(tmp_path: Path, monk
     stats = dg.decode_gif(
         input_path=tmp_path / "in.gif",
         output_path=out_path,
-        password="pw",
+        password="password_test",
         config=dg.DecodingConfig(preprocessing="normal"),
         keyfile=None,
         receiver_private_key=b"R" * 32,
@@ -126,5 +126,5 @@ def test_decode_gif_verbose_frame_macs_progress_and_success(tmp_path: Path, monk
     # A couple of strong signals that the verbose + MAC paths ran.
     assert "Detected frame MACs" in out
     assert "Frame MAC verification enabled" in out
-    assert "Progress:" in out
+    assert "Processing Droplets" in out or "Droplets" in out  # Progress bar label changed
     assert "Decoding complete" in out

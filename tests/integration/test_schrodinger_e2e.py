@@ -295,7 +295,7 @@ def test_statistical_indistinguishability():
     
     mixed, manifest = schrodinger_encode_data(
         real_data, decoy_data,
-        "pw1", "pw2",
+        "password_one", "password_two",
         block_size=256
     )
     

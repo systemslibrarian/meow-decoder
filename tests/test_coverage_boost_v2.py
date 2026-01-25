@@ -16,9 +16,10 @@ class TestCryptoEdgeCases(unittest.TestCase):
     
     def test_derive_key_exception(self):
         """Test derive_key raises RuntimeError on internal failure."""
-        with patch('meow_decoder.crypto.low_level.hash_secret_raw', side_effect=Exception("Boom")):
+        with patch('meow_decoder.crypto.get_default_backend') as mock_backend:
+            mock_backend.return_value.derive_key_argon2id.side_effect = Exception("Boom")
             with self.assertRaises(RuntimeError) as cm:
-                crypto.derive_key("password", b"salt"*4)
+                crypto.derive_key("test_password", b"salt"*4)
             self.assertIn("Key derivation failed", str(cm.exception))
 
     def test_encrypt_file_bytes_exception(self):
@@ -26,17 +27,16 @@ class TestCryptoEdgeCases(unittest.TestCase):
         # Force zlib failure
         with patch('zlib.compress', side_effect=Exception("Zip fail")):
             with self.assertRaises(RuntimeError) as cm:
-                crypto.encrypt_file_bytes(b"data", "pass")
+                crypto.encrypt_file_bytes(b"data", "test_password")
             self.assertIn("Encryption failed", str(cm.exception))
 
     def test_decrypt_to_raw_exception(self):
         """Test decrypt_to_raw raises RuntimeError."""
-        # Force zlib failure (happens last, easier to mock inner)
-        # Or mock AESGCM
-        with patch('meow_decoder.crypto.AESGCM') as mock_aes:
-             mock_aes.return_value.decrypt.side_effect = Exception("Decrypt fail")
+        # Mock the backend to make decryption fail
+        with patch('meow_decoder.crypto.get_default_backend') as mock_backend:
+             mock_backend.return_value.aes_gcm_decrypt.side_effect = Exception("Decrypt fail")
              with self.assertRaises(RuntimeError) as cm:
-                 crypto.decrypt_to_raw(b"cipher", "pass", b"salt"*8, b"nonce"*4)
+                 crypto.decrypt_to_raw(b"cipher", "test_password", b"salt"*4, b"nonce"*3)
              self.assertIn("Decryption failed", str(cm.exception))
 
     def test_forward_secrecy_missing_privkey(self):

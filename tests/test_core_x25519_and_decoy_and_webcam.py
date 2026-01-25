@@ -28,7 +28,7 @@ def test_x25519_public_key_serialize_roundtrip():
 
 
 def test_x25519_shared_secret_matches_both_sides():
-    password = "pw"
+    password = "password_test"
     salt = b"S" * 16
 
     receiver_priv, receiver_pub = generate_receiver_keypair()

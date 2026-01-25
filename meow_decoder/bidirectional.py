@@ -644,7 +644,7 @@ class BiDirectionalProtocol:
     def on_decode_progress(self, blocks_decoded: int) -> None:
         """Update decode progress (receiver side)."""
         if self.receiver:
-            self.receiver.on_blocks_decoded(blocks_decoded)
+            self.receiver.blocks_decoded = blocks_decoded
     
     def get_feedback_qr(self) -> Optional[str]:
         """

@@ -68,7 +68,7 @@ def test_encode_file_covers_pq_and_fs_branches(monkeypatch, tmp_path: Path, caps
     encode_file(
         inp,
         out_gif,
-        password="pw",
+        password="password_test",
         config=cfg,
         forward_secrecy=True,
         receiver_public_key=None,
@@ -81,7 +81,7 @@ def test_encode_file_covers_pq_and_fs_branches(monkeypatch, tmp_path: Path, caps
     encode_file(
         inp,
         out_gif2,
-        password="pw",
+        password="password_test",
         config=cfg,
         forward_secrecy=True,
         receiver_public_key=b"R" * 32,
@@ -151,7 +151,7 @@ def test_decode_main_loads_receiver_privkey_and_keyfile(monkeypatch, tmp_path: P
             "-o",
             str(out_file),
             "-p",
-            "pw",
+            "password_test",
             "--keyfile",
             str(keyfile_path),
             "--receiver-privkey",
@@ -165,7 +165,7 @@ def test_decode_main_loads_receiver_privkey_and_keyfile(monkeypatch, tmp_path: P
     # Should not raise.
     dec.main()
 
-    assert called["password"] == "pw"
+    assert called["password"] == "password_test"
     assert called["keyfile_len"] == 64
     # X25519 raw private key length is 32 bytes.
     assert called["receiver_private_key_len"] == 32

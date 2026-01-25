@@ -420,7 +420,8 @@ class TestSessionInfo:
             total_frames=100,
             k_blocks=80,
             block_size=512,
-            file_hash=hashlib.sha256(b"test").digest()
+            file_hash=hashlib.sha256(b"test").digest(),
+            session_salt=b'0123456789abcdef'  # 16 bytes
         )
         
         assert session.total_frames == 100
@@ -434,7 +435,8 @@ class TestSessionInfo:
             total_frames=150,
             k_blocks=100,
             block_size=256,
-            file_hash=hashlib.sha256(b"test data").digest()
+            file_hash=hashlib.sha256(b"test data").digest(),
+            session_salt=b'abcdef0123456789'  # 16 bytes
         )
         
         packed = original.pack()
@@ -516,7 +518,8 @@ class TestBiDirectionalSender:
             file_hash=file_hash,
             k_blocks=100,
             block_size=512,
-            total_frames=150
+            total_frames=150,
+            password="test_password"
         )
         
         assert sender.session.k_blocks == 100
@@ -525,7 +528,7 @@ class TestBiDirectionalSender:
     def test_session_start_message(self):
         """Test generating session start message."""
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password="test_password")
         
         msg = sender.get_session_start_message()
         
@@ -537,7 +540,7 @@ class TestBiDirectionalSender:
     def test_should_continue_sending(self):
         """Test sending continuation logic."""
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password="test_password")
         
         # Should continue at start
         assert sender.should_continue_sending() == True
@@ -566,12 +569,13 @@ class TestBiDirectionalReceiver:
         """Test processing session start."""
         # Create sender and get session start message
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        password = "test_password"
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password=password)
         msg = sender.get_session_start_message()
         
         # Receiver processes it
         receiver = BiDirectionalReceiver()
-        result = receiver.process_session_start(msg)
+        result = receiver.process_session_start(msg, password=password)
         
         assert result == True
         assert receiver.session is not None
@@ -593,16 +597,17 @@ class TestBiDirectionalReceiver:
         """Test generating status update."""
         # Setup receiver with session
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        password = "test_password"
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password=password)
         msg = sender.get_session_start_message()
         
         receiver = BiDirectionalReceiver()
-        receiver.process_session_start(msg)
+        receiver.process_session_start(msg, password=password)
         
         # Add some progress
         for i in range(50):
             receiver.on_frame_received(i, success=True)
-        receiver.on_blocks_decoded(40)
+        receiver.blocks_decoded = 40
         
         status = receiver.get_status_update()
         
@@ -613,32 +618,34 @@ class TestBiDirectionalReceiver:
     def test_completion_detection(self):
         """Test detecting completion."""
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        password = "test_password"
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password=password)
         msg = sender.get_session_start_message()
         
         receiver = BiDirectionalReceiver()
-        receiver.process_session_start(msg)
+        receiver.process_session_start(msg, password=password)
         
         # Not complete yet
-        receiver.on_blocks_decoded(50)
+        receiver.blocks_decoded = 50
         assert receiver.is_complete() == False
         
         # Complete
-        receiver.on_blocks_decoded(100)
+        receiver.blocks_decoded = 100
         assert receiver.is_complete() == True
     
     def test_feedback_qr_data(self):
         """Test getting feedback QR data."""
         file_hash = hashlib.sha256(b"data").digest()
-        sender = BiDirectionalSender(file_hash, 100, 512, 150)
+        password = "test_password"
+        sender = BiDirectionalSender(file_hash, 100, 512, 150, password=password)
         msg = sender.get_session_start_message()
         
         receiver = BiDirectionalReceiver()
-        receiver.process_session_start(msg)
+        receiver.process_session_start(msg, password=password)
         
         for i in range(75):
             receiver.on_frame_received(i, success=True)
-        receiver.on_blocks_decoded(60)
+        receiver.blocks_decoded = 60
         
         feedback = receiver.get_status_qr_data()
         
@@ -655,7 +662,7 @@ class TestBiDirectionalProtocol:
         """Test sender-side protocol."""
         file_hash = hashlib.sha256(b"data").digest()
         
-        protocol = BiDirectionalProtocol(is_sender=True)
+        protocol = BiDirectionalProtocol(password="test_password", is_sender=True)
         msg = protocol.start_session(file_hash, 100, 512, 150)
         
         assert protocol.sender is not None
@@ -663,20 +670,21 @@ class TestBiDirectionalProtocol:
     
     def test_receiver_protocol(self):
         """Test receiver-side protocol."""
-        protocol = BiDirectionalProtocol(is_sender=False)
+        protocol = BiDirectionalProtocol(password="test_password", is_sender=False)
         
         assert protocol.receiver is not None
     
     def test_end_to_end_protocol(self):
         """Test full protocol exchange."""
         file_hash = hashlib.sha256(b"test data").digest()
+        password = "shared_password"
         
         # Sender starts session
-        sender = BiDirectionalProtocol(is_sender=True)
+        sender = BiDirectionalProtocol(password=password, is_sender=True)
         session_msg = sender.start_session(file_hash, 100, 512, 150)
         
         # Receiver gets session
-        receiver = BiDirectionalProtocol(is_sender=False)
+        receiver = BiDirectionalProtocol(password=password, is_sender=False)
         result = receiver.receive_session_start(session_msg)
         assert result == True
         
@@ -703,14 +711,14 @@ class TestConvenienceFunctions:
         """Test create_sender_protocol function."""
         file_hash = hashlib.sha256(b"data").digest()
         
-        protocol = create_sender_protocol(file_hash, 100, 512, 150)
+        protocol = create_sender_protocol("test_password", file_hash, 100, 512, 150)
         
         assert protocol.sender is not None
         assert protocol.sender.session.k_blocks == 100
     
     def test_create_receiver_protocol(self):
         """Test create_receiver_protocol function."""
-        protocol = create_receiver_protocol()
+        protocol = create_receiver_protocol("test_password")
         
         assert protocol.receiver is not None
         assert protocol.receiver.session is None  # Until session received
@@ -745,10 +753,11 @@ class TestIntegration:
         """Test displaying bidirectional status as ASCII QR."""
         # Setup bidirectional receiver
         file_hash = hashlib.sha256(b"data").digest()
-        sender = create_sender_protocol(file_hash, 100, 512, 150)
+        password = "test_password"
+        sender = create_sender_protocol(password, file_hash, 100, 512, 150)
         session_msg = sender.sender.get_session_start_message()
         
-        receiver = create_receiver_protocol()
+        receiver = create_receiver_protocol(password)
         receiver.receive_session_start(session_msg)
         
         # Generate status

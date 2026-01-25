@@ -68,7 +68,7 @@ def test_encode_file_unit_smoke(tmp_path: Path, monkeypatch):
     input_path.write_bytes(b"hello" * 10)
     out_gif = tmp_path / "out.gif"
 
-    stats = encode_mod.encode_file(input_path, out_gif, password="pw", verbose=False)
+    stats = encode_mod.encode_file(input_path, out_gif, password="password_test", verbose=False)
     assert out_gif.exists()
     assert stats["output_size"] > 0
     assert stats["qr_frames"] >= 1
@@ -86,7 +86,7 @@ def test_decode_gif_unit_rejects_bad_manifest_length(tmp_path: Path, monkeypatch
     monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _BadReader())
 
     with pytest.raises(ValueError):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="pw", verbose=False)
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
 
 
 def test_decode_gif_unit_happy_path_with_stubs(tmp_path: Path, monkeypatch):
@@ -130,7 +130,7 @@ def test_decode_gif_unit_happy_path_with_stubs(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="pw", verbose=False)
+    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password_test", verbose=False)
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)

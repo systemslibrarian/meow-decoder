@@ -51,7 +51,7 @@ def _make_manifest_bytes(cipher_len: int = 16, block_size: int = 8, k_blocks: in
 def test_decode_gif_raises_if_no_frames(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _FramesOnlyGIFDecoder([]))
     with pytest.raises(ValueError, match="No frames found"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="pw", verbose=False)
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
 
 
 def test_decode_gif_raises_if_no_qr_codes(tmp_path: Path, monkeypatch):
@@ -60,7 +60,7 @@ def test_decode_gif_raises_if_no_qr_codes(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceReader([[], []]))
 
     with pytest.raises(ValueError, match="No QR codes found"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="pw", verbose=False)
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
 
 
 def test_decode_gif_manifest_with_frame_mac_then_disable_on_invalid(tmp_path: Path, monkeypatch):
@@ -81,7 +81,7 @@ def test_decode_gif_manifest_with_frame_mac_then_disable_on_invalid(tmp_path: Pa
 
     # Decoder will fail later due to no droplets, but we at least cover the MAC path.
     with pytest.raises(RuntimeError, match="Decoding incomplete"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="pw", verbose=False)
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
 
 
 def test_decode_gif_rejects_invalid_frame_macs_on_droplets(tmp_path: Path, monkeypatch):
@@ -111,4 +111,4 @@ def test_decode_gif_rejects_invalid_frame_macs_on_droplets(tmp_path: Path, monke
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", fake_unpack_frame_with_mac)
 
     with pytest.raises(RuntimeError, match="Decoding incomplete"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="pw", verbose=False)
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
