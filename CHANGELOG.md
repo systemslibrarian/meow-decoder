@@ -2,6 +2,43 @@
 
 All notable changes to Meow Decoder.
 
+## [5.7.0] - 2026-01-25
+
+### Added - AFL++ Fuzzing & Double Ratchet 🔬🔐
+
+#### AFL++ Fuzzing Infrastructure
+- **GitHub Actions Workflow**: `.github/workflows/fuzz.yml` for CI fuzzing
+- **Atheris Integration**: Google's coverage-guided Python fuzzer
+- **AFL++ Support**: Native AFL++ fuzzing for maximum coverage
+- **Fuzz Targets**:
+  - `fuzz_manifest.py`: Manifest parsing (edge cases, corruption)
+  - `fuzz_fountain.py`: Fountain code decoding (droplet parsing)
+  - `fuzz_crypto.py`: Key derivation, decryption error handling
+- **Corpus Generation**: `seed_corpus.py` creates valid samples for mutation
+- **Crash Detection**: Automatic artifact upload on crashes
+- **Weekly Scheduled Runs**: Deep fuzzing on Sundays
+
+#### Double Ratchet Protocol (Signal-style)
+- **New Module**: `double_ratchet.py` (~600 lines)
+- **DH Ratchet**: X25519 key rotation for forward secrecy
+- **Symmetric Ratchet**: HKDF-based chain key derivation
+- **Message Keys**: Per-message key derivation prevents replay
+- **Out-of-Order Support**: Handles missed/reordered messages
+- **State Serialization**: Save/restore session state
+- **Clowder Integration**: `ClowderSession` for multi-party streams
+
+#### Security Properties
+- **Forward Secrecy**: Past messages protected from key compromise
+- **Future Secrecy**: System heals after DH ratchet step
+- **Break-in Recovery**: Temporary compromise heals automatically
+- **DoS Protection**: `MAX_SKIP=1000` limits skipped key storage
+
+### Tests
+- 16 new tests for fuzzing and double ratchet
+- All 63 tests passing (47 existing + 16 new)
+
+---
+
 ## [5.6.0] - 2026-01-25
 
 ### Added - Maximum Security Hardening 🔐🔮

@@ -1,8 +1,35 @@
 # 🗺️ Meow Decoder Security Roadmap
 
-**Version:** 5.5.0+  
+**Version:** 5.7.0  
 **Date:** 2026-01-25  
 **Status:** Living Document
+
+---
+
+## ✅ Completed (v5.7.0)
+
+### AFL++ Fuzzing & Double Ratchet
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| AFL++ Fuzzing | `fuzz/*.py` | Coverage-guided fuzzing for manifest, fountain, crypto |
+| Atheris Integration | `fuzz/fuzz_*.py` | Google's Python fuzzer with full instrumentation |
+| Double Ratchet | `double_ratchet.py` | Signal-style key ratcheting for Clowder mode |
+| Clowder Sessions | `double_ratchet.py` | Multi-party forward secrecy sessions |
+| CI Fuzzing Workflow | `.github/workflows/fuzz.yml` | Weekly automated fuzzing runs |
+
+---
+
+## ✅ Completed (v5.6.0)
+
+### Maximum Security Hardening
+
+| Feature | Module | Description |
+|---------|--------|-------------|
+| Dilithium Signatures | `pq_signatures.py` | FIPS 204 post-quantum signatures |
+| Argon2id 512 MiB | `crypto.py` | 8x OWASP memory recommendation |
+| Argon2id 20 iterations | `crypto.py` | 6.7x OWASP iteration minimum |
+| Hybrid Signatures | `pq_signatures.py` | Ed25519 + Dilithium3 defense-in-depth |
 
 ---
 
@@ -23,45 +50,21 @@
 
 ---
 
-## 🔜 Short-Term (v5.6.0 - Q1 2026)
-
-### Cryptographic Upgrades
-
-#### Dilithium Signatures (FIPS 204)
-- **Priority:** HIGH
-- **Effort:** 2-3 weeks
-- **Description:** Add post-quantum digital signatures for manifest verification
-- **Dependencies:** liboqs-python
-- **Files to modify:** `crypto.py`, `encode.py`, `decode_gif.py`
-
-```python
-# Planned API
-from meow_decoder.pq_signatures import sign_manifest, verify_manifest
-signature = sign_manifest(manifest_bytes, private_key)
-is_valid = verify_manifest(manifest_bytes, signature, public_key)
-```
-
-#### Double-Ratchet Protocol
-- **Priority:** MEDIUM
-- **Effort:** 2-4 weeks
-- **Description:** Signal-style double-ratchet for multi-session forward secrecy
-- **Use case:** Clowder mode (multi-device streaming)
-- **References:** [Signal Protocol Spec](https://signal.org/docs/specifications/doubleratchet/)
+## 🔜 Short-Term (v5.8.0 - Q1 2026)
 
 ### Implementation Hardening
-
-#### AFL++ Fuzzing Integration
-- **Priority:** MEDIUM
-- **Effort:** 1-2 weeks
-- **Description:** Add fuzzing to CI/CD pipeline
-- **Targets:** QR decoding, manifest parsing, fountain decoding
-- **Files:** `.github/workflows/fuzz.yml`
 
 #### CodeQL Deep Integration
 - **Priority:** MEDIUM
 - **Effort:** 1 week
 - **Description:** Enhanced static analysis beyond default rules
 - **Focus:** Crypto misuse patterns, injection vulnerabilities
+
+#### Improve Test Coverage
+- **Priority:** MEDIUM  
+- **Effort:** 1-2 weeks
+- **Description:** Increase coverage from 8% to 90%+
+- **Focus:** All security-critical modules
 
 ---
 
