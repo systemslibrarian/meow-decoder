@@ -178,7 +178,8 @@ class BiDirectionalSender:
             session_id=secrets.token_bytes(8),
             total_frames=total_frames,
             k_blocks=k_blocks,
-            block_size=block_size,
+            block_size=block_si,
+            auth_key=secrets.token_bytes(32)  # Generate random auth keyze,
             file_hash=file_hash
         )
         
@@ -201,11 +202,24 @@ class BiDirectionalSender:
             ack_data: Raw acknowledgment data
             
         Returns:
-            StatusUpdate if this is a status message, None otherwise
-        """
-        if len(ack_data) < 1:
+            StatusUpdate if33:
+            # Need Type (1) + HMAC (32)
             return None
         
+        msg_type = ack_data[0]
+        mac = ack_data[1:33]
+        payload = ack_data[33:]
+        
+        # Verify HMAC
+        expected_mac = hmac.new(
+            self.session.auth_key,
+            bytes([msg_type]) + payload,
+            hashlib.sha256
+        ).digest()
+        
+        if not secrets.compare_digest(mac, expected_mac):
+            print("⚠️  Invalid HMAC on ack packet")
+            return None
         msg_type = ack_data[0]
         payload = ack_data[1:]
         
@@ -312,28 +326,59 @@ class BiDirectionalReceiver:
         """
         Record that a frame was received.
         
-        Args:
+        _sign_packet(self, msg_type: int, payload: bytes) -> bytes:
+        """Sign and pack a message."""
+        if not self.session:
+            return b''
+            
+        # Format: Type(1) + HMAC(32) + Payload
+        header = bytes([msg_type])
+        mac = hmac.new(
+            self.session.auth_key, 
+            header + payload, 
+            hashlib.sha256
+        ).digest()
+        
+        return header + mac + payload
+
+    def Args:
             frame_idx: Frame index
             success: Whether QR decoding succeeded
         """
         self.frames_received.add(frame_idx)
         if success:
             self.frames_decoded.add(frame_idx)
-        else:
-            self.error_count += 1
-    
-    def on_blocks_decoded(self, count: int) -> None:
-        """Update count of decoded source blocks."""
-        self.blocks_decoded = count
-    
-    def get_status_update(self) -> StatusUpdate:
-        """Generate current status update."""
-        k_blocks = self.session.k_blocks if self.session else 0
+        else:bytes:
+        """
+        Generate binary status packet for QR display back to sender.
+        Returns binary data (Type + HMAC + Payload).
+        """
+        if not self.session:
+            return b''
+            
+        # Pack status payload
+        # Format: session_id(8) + frames_received(4) + frames_decoded(4) + 
+        #         blocks_decoded(4) + k_blocks_needed(4) + missing(4) + errors(4)
+        payload = self.session.session_id
         
-        # Estimate how many more frames needed
-        # Fountain codes need ~1.05-1.1x k_blocks typically
-        if self.blocks_decoded > 0:
-            ratio = len(self.frames_decoded) / self.blocks_decoded
+        status = self.get_status_update()
+        
+        payload += struct.pack(
+            '>IIIIII',
+            status.frames_received,
+            status.frames_decoded,
+            status.blocks_decoded,
+            status.k_blocks_needed,
+            status.missing_estimate,
+            status.error_count
+        )
+        
+        return self._sign_packet(MessageType.STATUS_UPDATE, payload)
+    
+    def get_completion_message(self) -> bytes:
+        """Generate completion message to send to sender."""
+        payload = self.session.session_id if self.session else b'\x00' * 8
+        return self._sign_packet(MessageType.COMPLETION, payload)= len(self.frames_decoded) / self.blocks_decoded
             missing = int((k_blocks - self.blocks_decoded) * ratio) + 5
         else:
             missing = k_blocks
@@ -439,7 +484,7 @@ class BiDirectionalProtocol:
             return {
                 'session_id': self.sender.session.session_id.hex(),
                 'frames_sent': self.sender.frames_sent,
-                'is_complete': self.sender.is_complete,
+                'is_complete': self.senderbytes_complete,
                 'is_paused': self.sender.is_paused,
                 'status_updates': len(self.sender.status_updates),
             }
