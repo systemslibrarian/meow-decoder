@@ -35,9 +35,9 @@ class EncodingConfig:
     enable_enhanced_entropy: bool = True     # Multi-source entropy collection
     enable_chaff_frames: bool = False        # Add dummy frames to GIF
     
-    # Backend selection
-    prefer_rust_backend: bool = True         # Use Rust backend by default (constant-time)
-    legacy_python_only: bool = False         # Force Python backend (for compatibility)
+    # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
+    require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
+    allow_python_fallback: bool = False      # Allow Python backend with explicit flag
     
     # Performance
     enable_profiling: bool = False           # Enable performance profiling
@@ -90,9 +90,9 @@ class CryptoConfig:
     
     cipher: str = "aes-256-gcm"              # Cipher algorithm
     
-    # Backend selection
-    prefer_rust_backend: bool = True         # Use Rust backend by default (constant-time)
-    legacy_python_only: bool = False         # Force Python backend
+    # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
+    require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
+    allow_python_fallback: bool = False      # Allow Python backend with explicit flag
     
     # Forward secrecy
     enable_forward_secrecy: bool = True      # Enabled by default

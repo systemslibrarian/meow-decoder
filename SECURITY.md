@@ -154,31 +154,102 @@ meow-encode -i secret.pdf -o secret.gif \
 
 ---
 
-## 🔐 **Control Channel Security**
+## 🔐 **Control Channel Security (Bidirectional Mode)**
 
-### **Bidirectional Mode Authentication:**
+### **Authentication Architecture:**
 
-When using bidirectional mode (`--bidirectional`), the control channel is protected by:
+When using bidirectional mode (`--bidirectional`), the control channel uses cryptographic authentication to prevent spoofing and replay attacks.
 
-1. **HKDF-Derived Session Key**
-   - Derived from shared password + random session salt
-   - `auth_key = HKDF(password, session_salt, "meow_bidir_auth_v1")`
+**Key Derivation:**
+```python
+# Session key derived from shared password
+auth_key = HKDF-SHA256(
+    ikm=password.encode('utf-8'),
+    salt=session_salt,  # 16-byte random value exchanged in handshake
+    info=b"meow_bidir_auth_v1",
+    length=32
+)
+```
 
-2. **HMAC-SHA256 Authentication**
-   - All control messages signed with auth_key
-   - Truncated to 16 bytes for efficiency
+**Message Authentication (HMAC-SHA256):**
+- All control messages (ACK, COMPLETION, STATUS_UPDATE, PAUSE, RESUME, RESEND_REQUEST) include HMAC
+- Format: `message_type || counter || payload || HMAC(auth_key, message_type || counter || payload)`
+- HMAC truncated to 16 bytes for efficiency
+- Constant-time verification using `secrets.compare_digest()`
 
-3. **Replay Protection**
-   - 4-byte monotonic counter prepended to all messages
-   - Types protected: ACK, COMPLETION, STATUS_UPDATE, PAUSE, RESUME, RESEND_REQUEST
-   - Counter must strictly increase
+**Replay Protection:**
+- 4-byte monotonic counter (big-endian) prepended to all messages
+- Counter window: Must be strictly greater than last seen counter
+- Window size: No upper limit (unlimited late messages accepted if counter increases)
+- Out-of-order rejection: Messages with counter ≤ last_seen are silently dropped
 
-4. **Constant-Time Verification**
-   - `secrets.compare_digest()` for all MAC comparisons
-   - Prevents timing attacks on authentication
+**Failure Modes:**
+- Invalid HMAC → Message dropped, no error logged (fail-silent)
+- Counter reuse → Message dropped, no error logged (replay detected)
+- Missing password → `UserWarning` during initialization
 
-### **Security Note:**
-Empty passwords trigger a `UserWarning` as control channel authentication is effectively disabled. Always use a shared password for bidirectional mode.
+**Security Properties:**
+- **Authentication**: Only parties with shared password can send valid control messages
+- **Integrity**: Any modification to message invalidates HMAC
+- **Replay Prevention**: Counter ensures each message unique
+- **Timing Safety**: Constant-time HMAC verification prevents oracle attacks
+
+---
+
+## 🔒 **Fail-Closed Manifest Integrity**
+
+### **Guarantee: 1-Bit Flip = Complete Failure**
+
+Meow Decoder implements **fail-closed** behavior for manifest integrity. Any modification to the manifest causes complete decryption failure with **zero information leakage**.
+
+**Cryptographic Mechanisms:**
+
+1. **AES-256-GCM Authenticated Encryption**
+   - GCM tag binds all metadata fields
+   - AAD (Additional Authenticated Data) includes:
+     - Original length, compressed length, cipher length
+     - Salt, nonce, SHA-256 hash
+     - Magic bytes (version identifier)
+     - Ephemeral public key (if forward secrecy enabled)
+   - **Any bit flip in AAD or ciphertext → GCM decryption fails**
+
+2. **HMAC-SHA256 Manifest Authentication**
+   - Separate HMAC over entire manifest (excluding HMAC field itself)
+   - Derived from: `HKDF(password, salt, "meow_manifest_auth_v2")`
+   - Verified in constant-time before any decryption attempt
+   - **HMAC mismatch → Immediate abort, no partial output**
+
+3. **Per-Frame MAC**
+   - 8-byte truncated HMAC per QR frame
+   - Derived from: `HKDF(password, manifest_salt, "frame_mac_v1")`
+   - Invalid frames silently dropped during decoding
+   - **DoS protection: Malicious frames rejected before fountain decode**
+
+**Tested Attack Vectors (see `tests/test_tamper_detection.py`):**
+- ✅ Flip 1 bit in salt → Decryption fails
+- ✅ Flip 1 bit in nonce → Decryption fails
+- ✅ Flip 1 bit in lengths → Decryption fails
+- ✅ Flip 1 bit in SHA-256 hash → Integrity check fails
+- ✅ Flip 1 bit in HMAC → Authentication fails
+- ✅ Swap manifest between files → HMAC mismatch, fails
+- ✅ Modify ciphertext → GCM tag verification fails
+
+**Failure Behavior:**
+- No partial plaintext output
+- No error messages revealing plaintext structure
+- Generic error: "Decryption failed (wrong password/keyfile or tampered manifest)"
+- Logs do NOT contain sensitive data
+
+**Proof:**
+```python
+# From tests/test_tamper_detection.py (342 lines of tests)
+def test_single_bit_flip_in_all_fields():
+    """Flip 1 bit in every manifest field → all fail."""
+    for field in ['salt', 'nonce', 'orig_len', 'comp_len', 'cipher_len', 'sha256', 'hmac']:
+        modified_manifest = flip_bit_in_field(manifest, field, bit=0)
+        with pytest.raises((RuntimeError, ValueError)):
+            decrypt_to_raw(cipher, password, modified_manifest.salt, ...)
+```
 
 ---
 

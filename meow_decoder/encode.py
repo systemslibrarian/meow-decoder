@@ -293,9 +293,11 @@ Examples:
     parser.add_argument('--qr-border', type=int, default=4,
                        help='QR border size in boxes (default: 4)')
     
-    # Crypto backend selection
+    # Crypto backend selection (SECURITY: Rust required by default)
     parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
-                       help='Crypto backend: python, rust, or auto (default: auto)')
+                       help='Crypto backend: python, rust, or auto (default: auto, requires Rust)')
+    parser.add_argument('--python-fallback', action='store_true',
+                       help='⚠️  Allow Python backend fallback (NOT constant-time, use for testing only)')
     
     # Security features (Forward Secrecy ON by default!)
     parser.add_argument('--forward-secrecy', action='store_true', default=True,

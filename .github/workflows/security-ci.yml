@@ -36,6 +36,17 @@ jobs:
         run: |
           pip install pip-audit
           pip-audit --strict --desc on
+      
+      - name: Install Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      
+      - name: Run cargo audit (Rust dependency vulnerability check)
+        run: |
+          cargo install cargo-audit
+          cd rust_crypto
+          cargo audit --deny warnings
 
       - name: Run security-focused tests with coverage
         run: |

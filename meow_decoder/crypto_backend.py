@@ -370,12 +370,13 @@ class CryptoBackend:
         cd rust_crypto && maturin develop --release
     """
     
-    def __init__(self, backend: BackendType = "auto"):
+    def __init__(self, backend: BackendType = "auto", allow_python_fallback: bool = False):
         """
         Initialize crypto backend.
         
         Args:
             backend: "auto" (default), "rust", or "python"
+            allow_python_fallback: Allow Python fallback (requires --python-fallback CLI flag)
         """
         # Check environment variable override
         env_backend = os.environ.get("MEOW_CRYPTO_BACKEND", "").lower()
@@ -386,26 +387,53 @@ class CryptoBackend:
         if os.environ.get("MEOW_USE_RUST", "0") == "1" or os.environ.get("MEOW_RUST", "0") == "1":
             backend = "rust"
         
+        # Check fallback environment variable
+        if os.environ.get("MEOW_ALLOW_PYTHON_FALLBACK", "0") == "1":
+            allow_python_fallback = True
+        
         if backend == "auto":
-            # SECURITY: Prefer Rust backend for constant-time operations
+            # SECURITY: Rust is REQUIRED by default for constant-time operations
             if _RUST_AVAILABLE:
                 self._backend = RustCryptoBackend()
                 # Rust is default and ideal - no warning needed
-            else:
+            elif allow_python_fallback:
+                # User explicitly allowed Python fallback with --python-fallback flag
                 self._backend = PythonCryptoBackend()
                 import warnings
                 warnings.warn(
-                    "⚠️  SECURITY WARNING: Rust crypto backend not available!\n"
+                    "⚠️  SECURITY WARNING: Using Python backend (--python-fallback)\n"
                     "Python backend is NOT constant-time and may leak secrets via timing.\n"
-                    "DO NOT USE for production/sensitive data without Rust backend.\n"
+                    "DO NOT USE for production/sensitive data.\n"
                     "Build Rust backend: cd rust_crypto && maturin develop --release\n"
                     "Or install via: pip install meow-decoder[rust]",
                     UserWarning,
                     stacklevel=2
                 )
+            else:
+                # FAIL-CLOSED: No Rust, no explicit fallback = abort
+                raise RuntimeError(
+                    "🔒 SECURITY: Rust crypto backend required for constant-time operations!\n"
+                    "\n"
+                    "Option 1 (RECOMMENDED): Build Rust backend\n"
+                    "  cd rust_crypto && maturin develop --release\n"
+                    "\n"
+                    "Option 2: Explicit fallback (NOT RECOMMENDED for sensitive data)\n"
+                    "  meow-encode --python-fallback ...\n"
+                    "\n"
+                    "See: https://github.com/systemslibrarian/meow-decoder#rust-backend"
+                )
         elif backend == "rust":
+            if not _RUST_AVAILABLE:
+                raise RuntimeError(
+                    "Rust backend explicitly requested but not available.\n"
+                    "Build: cd rust_crypto && maturin develop --release"
+                )
             self._backend = RustCryptoBackend()
         elif backend == "python":
+            if not allow_python_fallback:
+                raise RuntimeError(
+                    "Python backend requires explicit --python-fallback flag for safety"
+                )
             self._backend = PythonCryptoBackend()
         else:
             raise ValueError(f"Unknown backend: {backend}. Use 'auto', 'rust', or 'python'")

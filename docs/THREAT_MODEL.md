@@ -1,9 +1,99 @@
-# 🛡️ THREAT MODEL - Meow Decoder v5.8
+# 🛡️ THREAT MODEL - Meow Decoder v6.0
 
 **Date:** 2026-01-25  
-**Version:** 5.8.0 (State-of-the-Art Security Hardening)  
+**Version:** 6.0-alpha1 (Rust Default + Security Hardening)  
 **Classification:** Production-Ready Security Tool  
 **Last Security Review:** 2026-01-25
+
+---
+
+## 📊 **METADATA LEAKAGE POLICY (One-Pager)**
+
+### **What Information Can Leak?**
+
+| Metadata Type | Leakage Vector | Mitigation | Status |
+|---------------|---------------|------------|--------|
+| **File Size** | Frame count (k_blocks × redundancy) | Bucketed padding (`--paranoid`) | ⚠️ Approximate size visible |
+| **File Type** | None (encrypted) | N/A | ✅ Fully hidden |
+| **Timestamp** | GIF creation date | Remove EXIF with `exiftool` | ⚠️ Visible in file metadata |
+| **Encryption Mode** | Manifest version byte | Constant across all files | ⚠️ Visible (MEOW3/MEOW4) |
+| **Forward Secrecy** | Ephemeral pubkey presence (32 bytes) | Always present in MEOW3+ | ⚠️ Detectable if analyzing |
+| **Steganography** | Frame pattern analysis | Layer-2 cat carrier images | ✅ Hidden unless analyzed deeply |
+| **Password Strength** | None (Argon2id resistant) | N/A | ✅ No timing oracle |
+
+### **Frame Count → Approximate Size Calculation**
+
+```python
+# Attacker can estimate size from frame count
+qr_frames = count_frames_in_gif(gif)
+k_blocks = (qr_frames - 1) / redundancy  # Minus manifest frame
+approx_size = k_blocks * block_size
+
+# Example: 180 frames, redundancy=1.5, block_size=512
+# k_blocks = (180 - 1) / 1.5 = 119
+# approx_size = 119 * 512 = ~61 KB
+```
+
+**Accuracy:** ±50% due to compression, padding, block size variations
+
+### **Mitigation Strategies**
+
+**Default Mode (Automatic Padding):**
+- Compressed data padded to next power-of-2
+- Example: 1.3 MB → 2 MB, 5.1 MB → 8 MB
+- **Leakage:** Size class (1-2 MB, 2-4 MB, 4-8 MB, etc.)
+- **Protection:** Prevents exact size fingerprinting
+
+**Paranoid Mode (`--paranoid`):**
+```bash
+meow-encode --paranoid -i secret.pdf -o secret.gif -p "password"
+```
+- Fixed buckets: 1 MB, 4 MB, 16 MB, 64 MB, 256 MB
+- Chaff frames added to match bucket
+- **Leakage:** Bucket only (e.g., "4-16 MB range")
+- **Protection:** Maximum size obfuscation
+
+**Steganography Mode (Layer 2):**
+```bash
+meow-encode --stego-level 4 -i secret.pdf -o cat_photos.gif -p "password"
+```
+- QR codes hidden in photographic cat images
+- Frame count appears natural (vacation photos)
+- **Leakage:** Appears as normal GIF (20-50 MB typical)
+- **Protection:** Hides presence of encrypted data
+
+### **Traffic Analysis Resistance**
+
+| Attack | Mitigation | Effectiveness |
+|--------|-----------|--------------|
+| **GIF size on wire** | Compress/archive after encoding | ⚠️ Moderate (still ~10 MB typical) |
+| **Frame timing** | Constant rate (10 FPS default) | ✅ Good (no timing patterns) |
+| **Carrier detection** | Steganography mode | ✅ Excellent (looks like cat photos) |
+| **Frequency analysis** | Entropy-tested mixers | ✅ Excellent (uniform distribution) |
+
+### **Bottom Line**
+
+**What's Protected:**
+- ✅ File contents (AES-256-GCM)
+- ✅ File type (compressed then encrypted)
+- ✅ Password (Argon2id, no oracle)
+- ✅ Exact size (bucketed padding)
+
+**What's Visible:**
+- ⚠️ Approximate size class (via frame count)
+- ⚠️ Encryption used (manifest magic bytes)
+- ⚠️ Meow Decoder used (QR patterns unless stego)
+
+**Recommendation for Maximum Privacy:**
+```bash
+# Combine all mitigations
+meow-encode --paranoid --stego-level 4 \
+    --chaff-frames 30 \
+    -i secret.pdf -o innocent_cats.gif -p "strong_password"
+
+# Then remove EXIF metadata
+exiftool -all= innocent_cats.gif
+```
 
 ---
 
