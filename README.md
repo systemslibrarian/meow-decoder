@@ -117,6 +117,26 @@ Receiver: Video → meow-decode → secret.pdf (recovered)
 This demo shows the **explicit mechanics** of Meow Decoder.  
 QR codes are intentionally visible so first-time users can clearly understand what is happening.
 
+### 🔓 Try It Yourself!
+
+**The demo GIFs above contain a real encrypted message you can decode:**
+
+| Demo File | Description | Download |
+|-----------|-------------|----------|
+| `demo.gif` | Standard QR animation | [Download](https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo.gif) |
+| `demo_compact.gif` | More frames, smaller blocks | [Download](https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo_compact.gif) |
+
+**Password:** `JesusIsTheSonOfGod`
+
+```bash
+# Download and decode the demo
+curl -O https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/demo.gif
+meow-decode-gif -i demo.gif -o message.txt -p "JesusIsTheSonOfGod"
+cat message.txt
+```
+
+**Hidden message:** John 3:16 (KJV) - *"For God so loved the world..."*
+
 ---
 
 ## 🚀 Quick Start (5 Minutes)
