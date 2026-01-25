@@ -27,7 +27,13 @@ class EncodingConfig:
     stealth_level: int = 2                   # Stealth level (1-4)
     enable_animation: bool = False           # Animated carriers
     enable_low_memory: bool = False          # Low-memory streaming mode
-    enable_pq: bool = False                  # Post-quantum crypto
+    enable_pq: bool = True                   # ✅ Post-quantum crypto (NOW DEFAULT per Grok recommendation)
+    
+    # Enhanced security features (Grok recommendations)
+    enable_duress: bool = False              # Duress password support
+    enable_hardware_keys: bool = True        # Auto-detect hardware security (TPM/YubiKey)
+    enable_enhanced_entropy: bool = True     # Multi-source entropy collection
+    enable_chaff_frames: bool = False        # Add dummy frames to GIF
     
     # Performance
     enable_profiling: bool = False           # Enable performance profiling

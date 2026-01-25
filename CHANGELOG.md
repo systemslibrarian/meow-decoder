@@ -2,6 +2,70 @@
 
 All notable changes to Meow Decoder.
 
+## [5.5.0] - 2026-01-25
+
+### Added - Grok-Recommended Security Enhancements 🛡️🔐
+
+#### Duress Mode (Coercion Resistance)
+- **Duress Passwords**: Configure distress signal password that triggers secure wipe
+- **Constant-Time Verification**: Timing-safe password comparison prevents side-channel attacks
+- **Timing Equalization**: 100-500ms random delays mask operation timing
+- **Secure Memory Wipe**: 3-pass overwrite (zeros, ones, random) for key material
+- **Resume File Destruction**: Automatic cleanup of recovery files under duress
+
+#### Enhanced Entropy Collection
+- **Multi-Source Entropy Pool**: Combines 6+ entropy sources for maximum randomness
+- **System Entropy**: os.urandom + /dev/urandom for base randomness
+- **Timing Jitter**: High-resolution timing noise from CPU operations
+- **Environment State**: Process/memory/network statistics as entropy
+- **Hardware RNG**: Intel RDRAND/RDSEED when available
+- **Webcam Noise**: Optional camera sensor noise for additional entropy
+- **HKDF Mixing**: Cryptographic mixing of all sources for uniform distribution
+
+#### Multi-Secret Schrödinger Mode (N-Level Deniability)
+- **Unlimited Realities**: Support for up to 16 concurrent secrets (was 2)
+- **Round-Robin Interleaving**: Cryptographically shuffled block placement
+- **Statistical Indistinguishability**: All realities pass forensic analysis
+- **Merkle Root Integrity**: Cryptographic verification of block integrity
+- **Proper Decryption**: Cipher length tracking for accurate block recovery
+
+#### Hardware Security Integration
+- **TPM 2.0 Support**: Key derivation via Trusted Platform Module
+- **YubiKey Support**: Hardware key derivation via ykman/PKCS#11
+- **Smart Card Support**: PKCS#11 interface for security tokens
+- **Intel SGX Detection**: Enclave support detection (future use)
+- **Graceful Fallback**: Software-only mode when hardware unavailable
+
+#### Configuration Defaults
+- **PQ Crypto Default ON**: Post-quantum cryptography now enabled by default
+- **Hardware Auto-Detect**: Automatic detection of available security hardware
+- **Enhanced Entropy Default ON**: Multi-source entropy collection enabled
+
+### New Modules
+- `duress_mode.py`: Coercion-resistant password handling (359 lines)
+- `entropy_boost.py`: Multi-source entropy collection (419 lines)
+- `multi_secret.py`: N-level Schrödinger encoder/decoder (643 lines)
+- `hardware_keys.py`: TPM/YubiKey/smart card integration (566 lines)
+
+### Security Properties
+- Timing-safe password comparison (secrets.compare_digest)
+- Constant-time HMAC verification
+- Memory locking with mlock() where available
+- Secure memory zeroing before deallocation
+- Hardware-backed key derivation when available
+- Statistical indistinguishability for N secrets
+
+### Modified
+- `config.py`: Added enable_pq=True (default), plus duress/hardware/entropy options
+
+### Tests
+- All 4 new modules tested and verified working
+- Multi-secret encode/decode roundtrip confirmed
+- Hardware detection graceful fallback verified
+- Entropy generation produces 32+ bytes successfully
+
+---
+
 ## [5.4.0] - 2026-01-23
 
 ### Added - Schrödinger's Yarn Ball 🐱⚛️
