@@ -2456,6 +2456,110 @@ class TestDecoyGenerator:
             assert len(zf.namelist()) >= 1
 
 
+# ======================================================================
+# PASSWORD POLICY TESTS
+# ======================================================================
+
+class TestPasswordPolicy:
+    """Tests for password security policies."""
+    
+    def test_password_minimum_length_enforced(self):
+        """Test that passwords shorter than 8 characters are rejected."""
+        from meow_decoder.crypto import derive_key, MIN_PASSWORD_LENGTH
+        
+        salt = secrets.token_bytes(16)
+        
+        # Too short passwords should be rejected
+        with pytest.raises(ValueError) as excinfo:
+            derive_key("short", salt)
+        assert "at least" in str(excinfo.value).lower()
+        
+        # Exactly minimum length should work
+        min_pass = "a" * MIN_PASSWORD_LENGTH
+        key = derive_key(min_pass, salt)
+        assert len(key) == 32
+    
+    def test_empty_password_rejected(self):
+        """Test that empty passwords are rejected."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        with pytest.raises(ValueError):
+            derive_key("", salt)
+    
+    def test_password_with_spaces_allowed(self):
+        """Test that passwords with spaces (passphrases) are allowed."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        passphrase = "correct horse battery staple"
+        
+        key = derive_key(passphrase, salt)
+        assert len(key) == 32
+
+
+# ======================================================================
+# SECURE CLEANUP TESTS
+# ======================================================================
+
+class TestSecureCleanup:
+    """Tests for secure memory cleanup functionality."""
+    
+    def test_buffer_registration_and_zeroing(self):
+        """Test that registered buffers are zeroed."""
+        from meow_decoder.secure_cleanup import (
+            register_sensitive_buffer,
+            unregister_and_zero
+        )
+        
+        secret = b"super_secret_key_12345"
+        mutable = register_sensitive_buffer(secret)
+        
+        # Should have same content
+        assert mutable == bytearray(secret)
+        
+        # Zero it
+        unregister_and_zero(mutable)
+        
+        # Should be all zeros
+        assert all(b == 0 for b in mutable)
+    
+    def test_context_manager_zeroes_on_exit(self):
+        """Test SecureCleanupManager zeros on exit."""
+        from meow_decoder.secure_cleanup import SecureCleanupManager
+        
+        with SecureCleanupManager() as cleanup:
+            key = cleanup.register(b"encryption_key_here_123")
+            assert len(key) == 23
+        
+        # After context, should be zeroed
+        assert all(b == 0 for b in key)
+    
+    def test_password_context_zeroes(self):
+        """Test secure_password_context zeroes password."""
+        from meow_decoder.secure_cleanup import secure_password_context
+        
+        with secure_password_context("MySecretPassword") as pwd:
+            assert pwd == bytearray(b"MySecretPassword")
+        
+        # After context, should be zeroed
+        assert all(b == 0 for b in pwd)
+    
+    def test_handlers_registered(self):
+        """Test that cleanup handlers are registered."""
+        from meow_decoder.secure_cleanup import (
+            register_sensitive_buffer,
+            _handlers_registered
+        )
+        
+        # Register something to trigger handler registration
+        buf = register_sensitive_buffer(b"test")
+        
+        # Handlers should be registered
+        assert _handlers_registered
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

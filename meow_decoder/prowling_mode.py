@@ -60,7 +60,7 @@ class MemoryProwler:
             ram_mb = process.memory_info().rss // (1024 * 1024)
             self.peak_rss_mb = max(self.peak_rss_mb, ram_mb)
             return ram_mb
-        except:
+        except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
             return None
     
     def get_available_ram_mb(self) -> Optional[int]:
@@ -71,7 +71,7 @@ class MemoryProwler:
         try:
             mem = psutil.virtual_memory()
             return mem.available // (1024 * 1024)
-        except:
+        except (psutil.Error, OSError):
             return None
     
     def check_memory(self) -> bool:
@@ -314,8 +314,8 @@ class DiskBasedKibbleCollector:
         # Clean up temp file
         try:
             self.temp_file.unlink()
-        except:
-            pass
+        except (OSError, PermissionError):
+            pass  # Best-effort cleanup
         
         # Remove padding
         return full_data[:original_length]

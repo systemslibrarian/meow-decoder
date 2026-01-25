@@ -64,12 +64,16 @@ class Manifest:
     pq_ciphertext: Optional[bytes] = None  # Post-quantum hybrid support
 
 
+# Minimum password length (NIST SP 800-63B recommends 8+)
+MIN_PASSWORD_LENGTH = 8
+
+
 def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> bytes:
     """
     Derive encryption key using Argon2id.
     
     Args:
-        password: User passphrase
+        password: User passphrase (minimum 8 characters)
         salt: Random salt (16 bytes)
         keyfile: Optional keyfile content
         
@@ -77,10 +81,12 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         32-byte encryption key
         
     Raises:
-        ValueError: If password is empty or salt is wrong length
+        ValueError: If password is empty, too short, or salt is wrong length
     """
     if not password:
         raise ValueError("Password cannot be empty")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)")
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
     

@@ -289,8 +289,11 @@ class HardwareKeyManager:
         if not self.has_tpm():
             raise RuntimeError("TPM not available")
         
-        # Create primary key context (transient)
-        primary_ctx = Path('/tmp/meow_tpm_primary.ctx')
+        # Create primary key context (transient) - use secure temp file
+        import tempfile
+        fd, primary_ctx_path = tempfile.mkstemp(prefix='meow_tpm_', suffix='.ctx')
+        os.close(fd)  # Close fd, we just need the path for tpm2_createprimary
+        primary_ctx = Path(primary_ctx_path)
         
         try:
             # Create primary key
