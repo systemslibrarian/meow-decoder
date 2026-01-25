@@ -96,7 +96,7 @@ CAT_FACTS = [
 
 MOTIVATIONAL_MEOWS = [
     "💪 Your encryption is stronger than a cat's desire for a cardboard box!",
-    "🏆 Purr-fect security achieved! Even the NSA would be impressed!",
+    "🏆 Purr-fect security achieved! Your secrets are safe!",
     "✨ Your secrets are safer than a cat in a sunbeam!",
     "🎯 That's some seriously strong catnip-level encryption!",
     "🔐 Locked tighter than a cat protecting its favorite nap spot!",

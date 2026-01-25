@@ -1,9 +1,6 @@
 """
 🔌 Hardware Security Module (HSM) Integration
 
-Grok's suggestion: "For high-security deployments, add hooks for hardware 
-key storage (TPMs, YubiKeys, or encrypted enclaves like Intel SGX)."
-
 This module provides:
 1. Hardware key detection (TPM, YubiKey, smart cards)
 2. TPM-backed key storage (via tpm2-tools)

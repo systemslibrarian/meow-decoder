@@ -89,7 +89,7 @@ def format_time_ago(timestamp_str: str) -> str:
 def print_header():
     """Print colorful header."""
     print(f"\n{Fore.CYAN}{'='*70}")
-    print(f"{Fore.YELLOW}🐱 Meow Webcam Decoder v2.1 - Grok Edition 🐱")
+    print(f"{Fore.YELLOW}🐱 Meow Webcam Decoder v2.1 🐱")
     print(f"{Fore.CYAN}{'='*70}{Style.RESET_ALL}\n")
 
 

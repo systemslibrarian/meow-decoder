@@ -328,11 +328,11 @@ Examples:
     parser.add_argument('--summon-void-cat', action='store_true',
                        help='Summon the void cat (easter egg)')
     
-    # MAXIMUM SECURITY - For users facing state-level adversaries
-    parser.add_argument('--oppression', '--iran', '--high-risk', action='store_true',
-                       help='MAXIMUM security mode for users facing state-level adversaries (512 MiB Argon2, Kyber-1024, 7-pass wipe)')
+    # High-security mode
+    parser.add_argument('--high-security', '--paranoid', action='store_true',
+                       help='High-security mode: increased Argon2 memory, post-quantum crypto, secure wipe')
     parser.add_argument('--safety-checklist', action='store_true',
-                       help='Show safety checklist for high-risk users and exit')
+                       help='Show operational security checklist and exit')
     
     args = parser.parse_args()
     
@@ -374,28 +374,31 @@ Nothing to see here.
 """)
         sys.exit(0)
     
-    # Safety checklist for high-risk users
+    # Safety checklist
     if args.safety_checklist:
-        from .oppression_mode import get_safety_checklist
-        print(get_safety_checklist())
+        try:
+            from .high_security import get_safety_checklist
+            print(get_safety_checklist())
+        except ImportError:
+            print("Security checklist module not available.")
         sys.exit(0)
     
-    # OPPRESSION MODE - Maximum security for Iran, China, Russia, etc.
-    if args.oppression:
-        from .oppression_mode import enable_oppression_mode, OppressionConfig
-        enable_oppression_mode(silent=False)
-        opp = OppressionConfig()
-        print("\n🛡️  OPPRESSION MODE ACTIVATED")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("Maximum security for high-risk users")
-        print(f"  Argon2id: {opp.argon2_memory // 1024} MiB, {opp.argon2_iterations} iterations")
-        print(f"  Post-Quantum: {opp.kyber_variant}")
-        print(f"  Secure wipe: {opp.secure_wipe_passes} passes (DoD standard)")
-        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("⚠️  Key derivation will take 5-10 seconds")
-        print("    This is intentional - it protects you.\n")
-        # Force wipe source
-        args.wipe_source = True
+    # High-security mode - increased parameters for threat models requiring stronger protection
+    if args.high_security:
+        try:
+            from .high_security import enable_high_security_mode, HighSecurityConfig
+            enable_high_security_mode(silent=False)
+            hs_config = HighSecurityConfig()
+            print("\n🔒 HIGH-SECURITY MODE ENABLED")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print(f"  Argon2id: {hs_config.argon2_memory // 1024} MiB, {hs_config.argon2_iterations} iterations")
+            print(f"  Post-Quantum: {hs_config.kyber_variant}")
+            print(f"  Secure wipe: {hs_config.secure_wipe_passes} passes")
+            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            print("⚠️  Key derivation will take several seconds.\n")
+            args.wipe_source = True
+        except ImportError:
+            print("Warning: High-security module not available, using defaults.")
 
     # For normal operation, require input/output.
     if args.input is None or args.output is None:
@@ -553,11 +556,11 @@ Nothing to see here. 😶‍🌫️
             if args.verbose:
                 print(f"\nSecurely wiping source file...")
             
-            # Use oppression mode's secure wipe if available (7-pass DoD standard)
+            # Use secure wipe if available (DoD standard)
             try:
-                from .oppression_mode import secure_wipe_file
-                if args.oppression:
-                    # 7-pass DoD wipe for high-risk users
+                from .high_security import secure_wipe_file
+                if args.high_security:
+                    # 7-pass DoD wipe for high-security mode
                     success = secure_wipe_file(args.input, passes=7)
                 else:
                     # 3-pass wipe for normal users

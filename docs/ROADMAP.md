@@ -35,7 +35,7 @@
 
 ## ✅ Completed (v5.5.0)
 
-### Grok-Recommended Security Enhancements
+### Security Enhancements
 
 | Feature | Module | Description |
 |---------|--------|-------------|
@@ -72,28 +72,25 @@
 
 ### Language Rewrite (Rust Crypto Backend)
 
-#### `meow-crypto-rs` Crate
-- **Priority:** HIGH (for production use)
+#### `meow-crypto-rs` Crate (Future - No Pressure)
+- **Priority:** LOW (nice-to-have, not required for security)
 - **Effort:** 3-6 months
-- **Description:** Rewrite crypto core in Rust for constant-time guarantees
+- **Status:** Stub interface exists in `crypto_backend.py`
+- **Description:** Optional Rust crypto backend for constant-time guarantees
 - **Benefits:**
   - True constant-time operations (no GC pauses)
   - Memory safety without runtime overhead
   - Side-channel resistance via `subtle` crate
-  - Cross-platform (WASM for web support)
+- **Note:** Python backend is already secure for most threat models.
+  Rust is an *improvement*, not a requirement.
 
 ```
-meow-crypto-rs/
+rust_crypto/           # Optional, future work
 ├── src/
-│   ├── aes_gcm.rs       # AES-256-GCM wrapper
-│   ├── argon2.rs        # Key derivation
-│   ├── x25519.rs        # ECDH
-│   ├── kyber.rs         # ML-KEM-768/1024
-│   ├── dilithium.rs     # Signatures
-│   └── lib.rs           # FFI exports
-├── Cargo.toml
-└── python/
-    └── meow_crypto/     # PyO3 bindings
+│   ├── aes_gcm.rs     # AES-256-GCM wrapper
+│   ├── argon2.rs      # Key derivation
+│   └── lib.rs         # PyO3 FFI exports
+└── Cargo.toml
 ```
 
 #### Python FFI Integration

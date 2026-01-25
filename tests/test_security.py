@@ -2038,14 +2038,14 @@ class TestSecureBuffer:
 # OPPRESSION MODE TESTS
 # ============================================================================
 
-class TestOppressionMode:
-    """Tests for oppression mode (maximum security for high-risk users)."""
+class TestHighSecurityMode:
+    """Tests for high security mode (maximum protection)."""
     
-    def test_oppression_config_defaults(self):
-        """Test that oppression config has correct defaults."""
-        from meow_decoder.oppression_mode import OppressionConfig
+    def test_high_security_config_defaults(self):
+        """Test that high security config has correct defaults."""
+        from meow_decoder.high_security import HighSecurityConfig
         
-        config = OppressionConfig()
+        config = HighSecurityConfig()
         
         # Maximum security parameters
         assert config.argon2_memory == 524288  # 512 MiB
@@ -2057,17 +2057,17 @@ class TestOppressionMode:
         assert config.enable_schrodinger is True
         assert config.enable_stego is True
     
-    def test_enable_oppression_mode(self):
-        """Test that oppression mode patches crypto parameters."""
-        from meow_decoder.oppression_mode import enable_oppression_mode, is_oppression_mode
+    def test_enable_high_security_mode(self):
+        """Test that high security mode patches crypto parameters."""
+        from meow_decoder.high_security import enable_high_security_mode, is_high_security_mode
         
-        enable_oppression_mode(silent=True)
+        enable_high_security_mode(silent=True)
         
-        assert is_oppression_mode() is True
+        assert is_high_security_mode() is True
     
     def test_generic_error_no_info_leak(self):
         """Test that generic_error reveals nothing."""
-        from meow_decoder.oppression_mode import generic_error
+        from meow_decoder.high_security import generic_error
         
         err = generic_error("Decryption")
         
@@ -2079,7 +2079,7 @@ class TestOppressionMode:
     
     def test_normalize_size_to_bucket(self):
         """Test size normalization to prevent fingerprinting."""
-        from meow_decoder.oppression_mode import normalize_size
+        from meow_decoder.high_security import normalize_size
         
         # Small data should be padded to first bucket
         small_data = b"x" * 1000  # 1 KB
@@ -2091,7 +2091,7 @@ class TestOppressionMode:
     
     def test_normalize_size_large_data(self):
         """Test normalization with larger data."""
-        from meow_decoder.oppression_mode import normalize_size
+        from meow_decoder.high_security import normalize_size
         
         # Medium data
         data = b"x" * (100 * 1024)  # 100 KB
@@ -2102,7 +2102,7 @@ class TestOppressionMode:
     
     def test_innocuous_filename_generation(self):
         """Test that generated filenames look innocent."""
-        from meow_decoder.oppression_mode import generate_innocuous_filename
+        from meow_decoder.high_security import generate_innocuous_filename
         
         for _ in range(10):
             filename = generate_innocuous_filename()
@@ -2115,7 +2115,7 @@ class TestOppressionMode:
     
     def test_safety_checklist_exists(self):
         """Test that safety checklist is comprehensive."""
-        from meow_decoder.oppression_mode import get_safety_checklist
+        from meow_decoder.high_security import get_safety_checklist
         
         checklist = get_safety_checklist()
         
@@ -2128,17 +2128,21 @@ class TestOppressionMode:
         assert "Tails" in checklist  # Recommend Tails OS
         assert "decoy" in checklist.lower()  # Decoy password advice
     
-    def test_apply_oppression_to_config(self):
-        """Test applying oppression settings to MeowConfig."""
-        from meow_decoder.oppression_mode import apply_oppression_to_config
+    def test_apply_high_security_to_config(self):
+        """Test applying high security settings to MeowConfig."""
+        from meow_decoder.high_security import apply_high_security_to_config
         from meow_decoder.config import MeowConfig
         
         config = MeowConfig()
-        modified = apply_oppression_to_config(config)
+        modified = apply_high_security_to_config(config)
         
         assert modified.crypto.argon2_memory == 524288
         assert modified.crypto.argon2_iterations == 20
         assert modified.crypto.enable_pq is True
+
+
+# Backward compatibility alias for tests
+TestOppressionMode = TestHighSecurityMode
 
 
 # ============================================================================

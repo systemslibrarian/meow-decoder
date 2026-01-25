@@ -1,9 +1,6 @@
 """
 🎲 Enhanced Entropy Collection
 
-Grok's suggestion: "Use system entropy pools combined with user-supplied 
-randomness (e.g., mouse movements or webcam noise) for salts/nonces."
-
 This module provides:
 1. System entropy (/dev/urandom + secrets module)
 2. User-supplied entropy (keyboard timing, optional mouse/webcam)

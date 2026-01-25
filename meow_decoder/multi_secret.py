@@ -1,9 +1,6 @@
 """
 🐱⚛️ Multi-Secret Schrödinger Mode (N-Deniability)
 
-Grok's suggestion: "Multi-Level Deniability - Instead of two secrets (Schrödinger mode),
-support N levels of deniable encryption where each key reveals a different 'reality'."
-
 This module extends Schrödinger mode to support N secrets (3+) with:
 - Quantum superposition of N realities
 - Each password reveals ONE reality

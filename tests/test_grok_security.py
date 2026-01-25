@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-🧪 Tests for Grok-Recommended Security Enhancements
+🧪 Tests for Security Enhancement Modules
 
-Tests the new security modules:
+Tests the security modules:
 - duress_mode.py: Coercion-resistant passwords
 - entropy_boost.py: Multi-source entropy collection
 - multi_secret.py: N-level Schrödinger mode

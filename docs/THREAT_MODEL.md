@@ -66,8 +66,8 @@ These protections are based on well-understood cryptographic primitives with no 
 | Aspect | Implementation | Strength |
 |--------|---------------|----------|
 | KDF | Argon2id | Memory-hard, GPU/ASIC resistant |
-| Memory | **256 MiB** (AI-hardened default) | Massively increases attack cost |
-| Iterations | **10 passes** (AI-hardened default) | ~2-4 seconds per attempt |
+| Memory | **256 MiB** | Increases attack cost |
+| Iterations | **10 passes** | ~2-4 seconds per attempt |
 | **Status** | ✅ **EXCELLENT** | 10^15+ attempts infeasible |
 
 **AI-Hardened:** Defaults are now 4x OWASP recommendations. Each password attempt takes 2-4 seconds.
@@ -255,7 +255,7 @@ These threats cannot be mitigated by software alone:
 ### Level 1: Default Security (AI-Hardened - Already Maximum!)
 Already enabled out of the box:
 - ✅ AES-256-GCM encryption
-- ✅ Argon2id (**256 MiB, 10 iterations** - AI-hardened)
+- ✅ Argon2id (**256 MiB, 10 iterations**)
 - ✅ Forward secrecy (X25519)
 - ✅ Frame MAC authentication
 - ✅ Metadata padding

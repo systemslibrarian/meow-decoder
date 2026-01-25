@@ -27,9 +27,9 @@ class EncodingConfig:
     stealth_level: int = 2                   # Stealth level (1-4)
     enable_animation: bool = False           # Animated carriers
     enable_low_memory: bool = False          # Low-memory streaming mode
-    enable_pq: bool = True                   # ✅ Post-quantum crypto (NOW DEFAULT per Grok recommendation)
+    enable_pq: bool = False                  # Post-quantum crypto (experimental, requires liboqs)
     
-    # Enhanced security features (Grok recommendations)
+    # Enhanced security features
     enable_duress: bool = False              # Duress password support
     enable_hardware_keys: bool = True        # Auto-detect hardware security (TPM/YubiKey)
     enable_enhanced_entropy: bool = True     # Multi-source entropy collection
@@ -77,18 +77,18 @@ class CryptoConfig:
         - argon2_iterations to 4 or 5
     """
     key_derivation: str = "argon2id"         # Key derivation function
-    argon2_memory: int = 524288              # 512 MiB (8x OWASP - MAXIMUM SECURITY)
-    argon2_iterations: int = 20              # 20 passes (6.7x OWASP - MAXIMUM SECURITY)
+    argon2_memory: int = 262144              # 256 MiB (4x OWASP minimum)
+    argon2_iterations: int = 10              # 10 passes
     argon2_parallelism: int = 4              # 4 threads
     cipher: str = "aes-256-gcm"              # Cipher algorithm
     
-    # Forward secrecy (🐱 Nine Lives Mode!)
-    enable_forward_secrecy: bool = True      # ✅ ENABLED BY DEFAULT
-    ratchet_interval: int = 50               # Ratchet every 50 blocks (more frequent)
+    # Forward secrecy
+    enable_forward_secrecy: bool = True      # Enabled by default
+    ratchet_interval: int = 50               # Ratchet every 50 blocks
     
-    # Post-quantum (🔮 Quantum Nine Lives!)
-    enable_pq: bool = True                   # ✅ ENABLED BY DEFAULT (AI-hardened)
-    kyber_variant: str = "kyber1024"         # Maximum security variant
+    # Post-quantum (experimental)
+    enable_pq: bool = False                  # Disabled by default (requires liboqs)
+    kyber_variant: str = "kyber768"          # ML-KEM-768
 
 
 @dataclass

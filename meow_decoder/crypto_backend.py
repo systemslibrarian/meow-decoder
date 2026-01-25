@@ -73,9 +73,9 @@ class PythonCryptoBackend:
     
     NAME = "python"
     
-    # Default Argon2id parameters (AI-hardened maximum)
-    ARGON2_MEMORY = 524288      # 512 MiB
-    ARGON2_ITERATIONS = 20      # 20 passes
+    # Default Argon2id parameters (4x OWASP minimum)
+    ARGON2_MEMORY = 262144      # 256 MiB
+    ARGON2_ITERATIONS = 10      # 10 passes
     ARGON2_PARALLELISM = 4      # 4 threads
     
     def get_info(self) -> BackendInfo:

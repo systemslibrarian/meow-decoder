@@ -72,7 +72,7 @@ All notable changes to Meow Decoder.
 
 ## [5.5.0] - 2026-01-25
 
-### Added - Grok-Recommended Security Enhancements 🛡️🔐
+### Added - Security Enhancements
 
 #### Duress Mode (Coercion Resistance)
 - **Duress Passwords**: Configure distress signal password that triggers secure wipe

@@ -37,5 +37,32 @@ jobs:
           pip install -r requirements-dev.txt || true
           pip install -e .
 
-      - name: Pytest
+      - name: Run all tests
         run: pytest -q
+
+      - name: Run security invariant tests
+        run: pytest tests/test_invariants.py -v --tb=short
+
+  invariants:
+    name: Security Invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
+
+      - name: Install
+        run: |
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Run invariant tests (MUST NOT FAIL)
+        run: pytest tests/test_invariants.py -v
