@@ -18,13 +18,14 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
+from .crypto_backend import get_default_backend
 
 @dataclass
 class ForwardSecrecyKeys:
-    """Container for forward secrecy key material."""
-    ephemeral_private: X25519PrivateKey
-    ephemeral_public: X25519PublicKey
-    receiver_public: Optional[X25519PublicKey] = None
+    """Container for forward secrecy key material (raw bytes)."""
+    ephemeral_private: bytes
+    ephemeral_public: bytes
+    receiver_public: Optional[bytes] = None
 
 
 def generate_ephemeral_keypair() -> ForwardSecrecyKeys:
@@ -32,15 +33,9 @@ def generate_ephemeral_keypair() -> ForwardSecrecyKeys:
     Generate ephemeral X25519 keypair for forward secrecy.
     
     Returns:
-        ForwardSecrecyKeys with ephemeral private and public keys
-        
-    Security:
-        - Private key should be destroyed after single use
-        - Never store ephemeral private key to disk
-        - Each encryption gets new ephemeral keypair
+        ForwardSecrecyKeys with ephemeral private and public keys (bytes)
     """
-    private_key = X25519PrivateKey.generate()
-    public_key = private_key.public_key()
+    private_key, public_key = get_default_backend().x25519_generate_keypair()
     
     return ForwardSecrecyKeys(
         ephemeral_private=private_key,
@@ -49,8 +44,8 @@ def generate_ephemeral_keypair() -> ForwardSecrecyKeys:
 
 
 def derive_shared_secret(
-    ephemeral_private: X25519PrivateKey,
-    receiver_public: X25519PublicKey,
+    ephemeral_private: bytes,
+    receiver_public: bytes,
     password: str,
     salt: bytes,
     info: bytes = b"meow_forward_secrecy_v1"
@@ -59,64 +54,42 @@ def derive_shared_secret(
     Derive shared secret using X25519 + password via HKDF.
     
     Args:
-        ephemeral_private: Sender's ephemeral private key
-        receiver_public: Receiver's long-term public key
+        ephemeral_private: Sender's ephemeral private key (bytes)
+        receiver_public: Receiver's long-term public key (bytes)
         password: User password
         salt: Random salt (16 bytes)
         info: HKDF info string for domain separation
         
     Returns:
         32-byte shared secret for encryption
-        
-    Security:
-        - Combines ECDH shared secret + password
-        - HKDF ensures cryptographic mixing
-        - Salt prevents rainbow tables
-        - Info string provides domain separation
-        
-    Formula:
-        shared_secret = HKDF(
-            X25519_exchange(ephemeral_private, receiver_public) || password,
-            salt=salt,
-            info=info
-        )
     """
+    backend = get_default_backend()
+    
     # Perform X25519 key exchange
-    x25519_shared = ephemeral_private.exchange(receiver_public)
+    x25519_shared = backend.x25519_exchange(ephemeral_private, receiver_public)
     
     # Combine with password
     password_bytes = password.encode('utf-8')
     combined = x25519_shared + password_bytes
     
     # Derive final key using HKDF
-    hkdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        info=info
-    )
-    shared_secret = hkdf.derive(combined)
-    
-    return shared_secret
+    return backend.derive_key_hkdf(combined, salt, info)
 
 
-def serialize_public_key(public_key: X25519PublicKey) -> bytes:
+def serialize_public_key(public_key: bytes) -> bytes:
     """
     Serialize X25519 public key to bytes.
     
     Args:
-        public_key: X25519 public key
+        public_key: X25519 public key bytes
         
     Returns:
         32 bytes representing the public key
     """
-    return public_key.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw
-    )
+    return public_key
 
 
-def deserialize_public_key(public_key_bytes: bytes) -> X25519PublicKey:
+def deserialize_public_key(public_key_bytes: bytes) -> bytes:
     """
     Deserialize X25519 public key from bytes.
     
@@ -124,71 +97,47 @@ def deserialize_public_key(public_key_bytes: bytes) -> X25519PublicKey:
         public_key_bytes: 32 bytes representing the public key
         
     Returns:
-        X25519PublicKey object
-        
-    Raises:
-        ValueError: If public_key_bytes is not 32 bytes
+        X25519 public key bytes
     """
     if len(public_key_bytes) != 32:
         raise ValueError(f"X25519 public key must be 32 bytes, got {len(public_key_bytes)}")
     
-    return X25519PublicKey.from_public_bytes(public_key_bytes)
+    return public_key_bytes
 
 
-def generate_receiver_keypair() -> Tuple[X25519PrivateKey, X25519PublicKey]:
+def generate_receiver_keypair() -> Tuple[bytes, bytes]:
     """
     Generate receiver's long-term X25519 keypair.
     
     Returns:
-        Tuple of (private_key, public_key)
-        
-    Security:
-        - Private key should be stored securely (encrypted at rest)
-        - Public key can be distributed freely
-        - Keep private key offline/air-gapped when possible
-        
-    Usage:
-        receiver_private, receiver_public = generate_receiver_keypair()
-        # Save receiver_public to share with senders
-        # Protect receiver_private with strong encryption
+        Tuple of (private_key_bytes, public_key_bytes)
     """
-    private_key = X25519PrivateKey.generate()
-    public_key = private_key.public_key()
-    
-    return private_key, public_key
+    return get_default_backend().x25519_generate_keypair()
 
 
 def save_receiver_keypair(
-    private_key: X25519PrivateKey,
-    public_key: X25519PublicKey,
+    private_key: bytes,
+    public_key: bytes,
     private_key_file: str,
     public_key_file: str,
     password: Optional[str] = None
 ) -> None:
     """
     Save receiver keypair to files.
-    
-    Args:
-        private_key: X25519 private key
-        public_key: X25519 public key
-        private_key_file: Path to save encrypted private key
-        public_key_file: Path to save public key
-        password: Password to encrypt private key (None = unencrypted)
-        
-    Security:
-        - Private key should ALWAYS be password-protected
-        - Use strong password for private key encryption
-        - Public key file can be world-readable
     """
-    # Save public key (unencrypted)
-    public_bytes = serialize_public_key(public_key)
+    # Save public key (raw bytes)
+    # Note: original implementation saved Raw bytes for public key
     with open(public_key_file, 'wb') as f:
-        f.write(public_bytes)
+        f.write(public_key)
     
-    # Save private key (encrypted if password provided)
+    # Save private key (encrypted PEM)
+    # We use cryptography library for PEM encoding/encryption
     from cryptography.hazmat.primitives.serialization import (
         Encoding, PrivateFormat
     )
+    
+    # Wrap bytes in object for serialization
+    priv_obj = X25519PrivateKey.from_private_bytes(private_key)
 
     if password:
         from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
@@ -197,7 +146,7 @@ def save_receiver_keypair(
         from cryptography.hazmat.primitives.serialization import NoEncryption
         encryption = NoEncryption()
     
-    private_bytes = private_key.private_bytes(
+    private_bytes = priv_obj.private_bytes(
         encoding=Encoding.PEM,
         format=PrivateFormat.PKCS8,
         encryption_algorithm=encryption
@@ -211,25 +160,21 @@ def load_receiver_keypair(
     private_key_file: str,
     public_key_file: str,
     password: Optional[str] = None
-) -> Tuple[X25519PrivateKey, X25519PublicKey]:
+) -> Tuple[bytes, bytes]:
     """
     Load receiver keypair from files.
     
-    Args:
-        private_key_file: Path to encrypted private key
-        public_key_file: Path to public key
-        password: Password to decrypt private key
-        
     Returns:
-        Tuple of (private_key, public_key)
-        
-    Raises:
-        ValueError: If files don't exist or password is wrong
+        Tuple of (private_key_bytes, public_key_bytes)
     """
     # Load public key
     with open(public_key_file, 'rb') as f:
         public_bytes = f.read()
-    public_key = deserialize_public_key(public_bytes)
+    
+    if len(public_bytes) != 32:
+        raise ValueError(f"Invalid public key length: {len(public_bytes)}")
+        
+    public_key = public_bytes
     
     # Load private key
     with open(private_key_file, 'rb') as f:
@@ -238,12 +183,20 @@ def load_receiver_keypair(
     from cryptography.hazmat.primitives.serialization import load_pem_private_key
     
     password_bytes = password.encode('utf-8') if password else None
-    private_key = load_pem_private_key(private_bytes, password=password_bytes)
+    private_key_obj = load_pem_private_key(private_bytes, password=password_bytes)
     
-    if not isinstance(private_key, X25519PrivateKey):
+    if not isinstance(private_key_obj, X25519PrivateKey):
         raise ValueError("Loaded key is not X25519PrivateKey")
     
+    # Extract raw bytes
+    private_key = private_key_obj.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption()
+    )
+    
     return private_key, public_key
+
 
 
 # CLI helper functions for key generation

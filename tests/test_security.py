@@ -229,19 +229,8 @@ class TestForwardSecrecy:
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
         from cryptography.hazmat.primitives import serialization
         
-        # Generate receiver keys (returns key objects)
-        privkey_obj, pubkey_obj = generate_receiver_keypair()
-        
-        # Serialize BOTH to Raw bytes (32 bytes each)
-        privkey = privkey_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        pubkey = pubkey_obj.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
+        # Generate receiver keys (returns bytes)
+        privkey, pubkey = generate_receiver_keypair()
         
         # Save keys to files
         privkey_file = tmp_path / "receiver_private.key"
@@ -284,20 +273,9 @@ class TestForwardSecrecy:
         from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
         from cryptography.hazmat.primitives import serialization
         
-        # Generate two keypairs (returns key objects)
-        privkey1_obj, pubkey1_obj = generate_receiver_keypair()
-        privkey2_obj, pubkey2_obj = generate_receiver_keypair()
-        
-        # Serialize to Raw bytes (32 bytes each)
-        privkey2 = privkey2_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        pubkey1 = pubkey1_obj.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
+        # Generate two keypairs (returns bytes)
+        privkey1, pubkey1 = generate_receiver_keypair()
+        privkey2, pubkey2 = generate_receiver_keypair()
         
         # Create test file
         input_file = tmp_path / "test.txt"
@@ -758,17 +736,7 @@ class TestCryptoEdgeCases:
         from cryptography.hazmat.primitives import serialization
         
         # Generate receiver keypair
-        privkey_obj, pubkey_obj = generate_receiver_keypair()
-        
-        pubkey = pubkey_obj.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
-        privkey = privkey_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
+        privkey, pubkey = generate_receiver_keypair()
         
         # Encrypt with forward secrecy
         data = b"Forward secrecy test data"

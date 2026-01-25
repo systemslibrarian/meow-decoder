@@ -1,6 +1,6 @@
 """
 Base Cryptography Module for Meow Decoder
-Provides AES-256-GCM encryption with Argon2id key derivation
+Provides AES-256-GCM encryption with Argon2id key derivation using Pluggable Backend
 
 This is the base version. For enhanced security features, see crypto_enhanced.py
 """
@@ -9,15 +9,11 @@ import os
 import struct
 import hashlib
 import zlib
-import hmac
 import secrets
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
-from argon2 import low_level
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.hmac import HMAC
+from .crypto_backend import get_default_backend
 
 
 # Magic bytes for manifest version identification
@@ -96,15 +92,15 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         secret = secret + keyfile
     
     try:
-        # Derive key using Argon2id
-        key = low_level.hash_secret_raw(
-            secret=secret,
-            salt=salt,
-            time_cost=ARGON2_ITERATIONS,
-            memory_cost=ARGON2_MEMORY,
-            parallelism=ARGON2_PARALLELISM,
-            hash_len=32,
-            type=low_level.Type.ID
+        # Derive key using Argon2id via backend
+        backend = get_default_backend()
+        key = backend.derive_key_argon2id(
+            secret,
+            salt,
+            output_len=32,
+            iterations=ARGON2_ITERATIONS,
+            memory_kib=ARGON2_MEMORY,
+            parallelism=ARGON2_PARALLELISM
         )
         
         return key
@@ -181,20 +177,20 @@ def encrypt_file_bytes(
                 )
             except ImportError:
                 # Try relative import
-                from x25519_forward_secrecy import (
+                from .x25519_forward_secrecy import (
                     generate_ephemeral_keypair,
                     derive_shared_secret,
                     deserialize_public_key,
                     serialize_public_key
                 )
             
-            # Generate ephemeral keypair
+            # Generate ephemeral keypair (now returns ForwardSecrecyKeys with bytes)
             fs_keys = generate_ephemeral_keypair()
             
-            # Deserialize receiver's public key
+            # Deserialize receiver's public key (validates bytes)
             receiver_pubkey = deserialize_public_key(receiver_public_key)
             
-            # Derive shared secret
+            # Derive shared secret (expects bytes)
             key = derive_shared_secret(
                 fs_keys.ephemeral_private,
                 receiver_pubkey,
@@ -202,7 +198,7 @@ def encrypt_file_bytes(
                 salt
             )
             
-            # Export ephemeral public key for transmission
+            # Export ephemeral public key for transmission (validates bytes)
             ephemeral_public_key = serialize_public_key(fs_keys.ephemeral_public)
             
             # NOTE: fs_keys.ephemeral_private goes out of scope here
@@ -224,8 +220,8 @@ def encrypt_file_bytes(
         
         # Encrypt with AES-256-GCM using AAD
         # AAD is authenticated but not encrypted
-        aesgcm = AESGCM(key)
-        cipher = aesgcm.encrypt(nonce, comp, aad)  # ← AAD prevents metadata tampering!
+        backend = get_default_backend()
+        cipher = backend.aes_gcm_encrypt(key, nonce, comp, aad)  # ← AAD prevents metadata tampering!
         
         return comp, sha, salt, nonce, cipher, ephemeral_public_key, key
     except Exception as e:
@@ -288,21 +284,18 @@ def decrypt_to_raw(
                 )
             except ImportError:
                 # Try relative import
-                from x25519_forward_secrecy import (
+                from .x25519_forward_secrecy import (
                     derive_shared_secret,
                     deserialize_public_key
                 )
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-            
-            # Load receiver's private key
-            receiver_privkey = X25519PrivateKey.from_private_bytes(receiver_private_key)
             
             # Deserialize sender's ephemeral public key
             sender_pubkey = deserialize_public_key(ephemeral_public_key)
             
             # Derive shared secret (same as sender)
+            # Receiver private key is passed as bytes, sender pubkey as bytes
             key = derive_shared_secret(
-                receiver_privkey,
+                receiver_private_key,
                 sender_pubkey,
                 password,
                 salt
@@ -327,8 +320,8 @@ def decrypt_to_raw(
         
         # Decrypt with AES-256-GCM
         # GCM will verify AAD matches before decrypting
-        aesgcm = AESGCM(key)
-        comp = aesgcm.decrypt(nonce, cipher, aad)  # ← AAD verified here!
+        backend = get_default_backend()
+        comp = backend.aes_gcm_decrypt(key, nonce, cipher, aad)  # ← AAD verified here!
         
         # Remove length padding if present
         # Try to remove padding, fall back to no padding for backward compatibility
@@ -529,21 +522,17 @@ def compute_manifest_hmac(
                 deserialize_public_key
             )
         except ImportError:
-            from x25519_forward_secrecy import (
+            from .x25519_forward_secrecy import (
                 derive_shared_secret,
                 deserialize_public_key
             )
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        
-        # Load receiver's private key
-        receiver_privkey = X25519PrivateKey.from_private_bytes(receiver_private_key)
         
         # Deserialize sender's ephemeral public key
         sender_pubkey = deserialize_public_key(ephemeral_public_key)
         
         # Derive shared secret (same as encryption)
         key = derive_shared_secret(
-            receiver_privkey,
+            receiver_private_key,
             sender_pubkey,
             password,
             salt
@@ -555,10 +544,8 @@ def compute_manifest_hmac(
     # Derive HMAC key from encryption key
     key_material = MANIFEST_HMAC_KEY_PREFIX + key
     
-    h = HMAC(key_material, hashes.SHA256())
-    h.update(packed_no_hmac)
-    
-    return h.finalize()
+    backend = get_default_backend()
+    return backend.hmac_sha256(key_material, packed_no_hmac)
 
 
 def verify_manifest_hmac(
@@ -617,12 +604,10 @@ def verify_manifest_hmac(
         equalize_timing(0.001, 0.005)  # 1-5ms random delay
         return result
     except ImportError:
-        # Fallback to hmac.compare_digest
-        import hmac
-        result = hmac.compare_digest(expected_hmac, manifest.hmac)
+        # Fallback to secrets.compare_digest
+        result = secrets.compare_digest(expected_hmac, manifest.hmac)
         # Still add some timing jitter
         import time
-        import secrets
         time.sleep(secrets.randbelow(5) / 1000.0)  # 0-5ms
         return result
 
@@ -654,6 +639,7 @@ def verify_keyfile(keyfile_path: str) -> bytes:
         raise ValueError(f"Keyfile too large (max 1 MB, got {len(keyfile)} bytes)")
     
     return keyfile
+
 
 
 # Testing

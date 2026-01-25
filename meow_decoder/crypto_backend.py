@@ -370,8 +370,12 @@ class CryptoBackend:
         """
         # Check environment variable override
         env_backend = os.environ.get("MEOW_CRYPTO_BACKEND", "").lower()
-        if env_backend in ("rust", "python"):
+        if env_backend in ("rust", "python", "auto"):
             backend = env_backend
+        
+        # Check explicit enable flag (legacy/convenience)
+        if os.environ.get("MEOW_USE_RUST", "0") == "1":
+            backend = "rust"
         
         if backend == "auto":
             # Prefer Rust if available

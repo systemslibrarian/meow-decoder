@@ -39,6 +39,17 @@ pip install -e .
 
 ## 🎯 Step-by-Step Demo
 
+### Level 0: Instant Recovery (Optional)
+
+Don't want to record a video right now? We included a sample GIF for you!
+
+1. **Locate the demo file**: `assets/demo.gif` included in this repo.
+2. **Decode it immediately**:
+   ```bash
+   meow-decode-gif -i assets/demo.gif -o recovered_demo.txt -p "demo123"
+   ```
+3. **Success!** You should see "The cat is out of the bag!" in `recovered_demo.txt`.
+
 ### Step 1: Create a Test File (10 seconds)
 
 ```bash

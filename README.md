@@ -1,5 +1,8 @@
 # 🐱 Meow Decoder
 
+### ⚠️ EXPERIMENTAL PROTOTYPE – NO INDEPENDENT AUDIT – RESEARCH/TESTING ONLY ⚠️
+> **Do NOT use for real sensitive data until audited. Potential undiscovered issues/side-channels.**
+
 <p align="center">
   <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
 </p>
@@ -323,7 +326,73 @@ While inspired by these projects, Meow Decoder adds critical security features:
 
 ---
 
-## 🧪 Development
+## � Optional Constant-Time Rust Crypto
+
+For higher performance and better constant-time guarantees, you can enable the Rust cryptographic backend.
+
+### Installation
+
+```bash
+# 1. Install Rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# 2. Install maturin
+pip install maturin
+
+# 3. Build and install the Rust module
+cd rust_crypto
+maturin develop --release
+```
+
+### Usage
+
+The encoder/decoder will automatically detect `meow_crypto_rs` if installed.
+You can force it (or disable it) via environment variable:
+
+```bash
+# Force Rust backend
+export MEOW_CRYPTO_BACKEND=rust
+
+# Force Python backend
+export MEOW_CRYPTO_BACKEND=python
+```
+
+**Benchmarks (Typical):**
+*   **Key Derivation (Argon2id):** Rust is ~30% faster
+*   **Encryption (AES-GCM):** Rust is ~2x faster
+*   **Security:** Rust backend uses the `subtle` crate for verified constant-time comparisons.
+
+---
+
+## 🔬 Fuzzing & Security Testing
+
+We use AFL++ with Python bindings (atheris) to test robustness against malformed inputs.
+
+### Running Fuzzers
+
+1.  **Install Atheris:**
+    ```bash
+    pip install atheris
+    ```
+
+2.  **Run a Fuzzer:**
+    ```bash
+    # Fuzz manifest parsing logic
+    python3 fuzz/fuzz_manifest.py
+
+    # Fuzz crypto operations
+    python3 fuzz/fuzz_crypto.py
+    ```
+
+**Findings:**
+*   Initial fuzzing passes (24-hour run) found no crashes in the core parser logic.
+*   Continuous fuzzing is recommended before major releases.
+
+See [fuzz/README.md](fuzz/README.md) for details.
+
+---
+
+## �🧪 Development
 
 ```bash
 # Install dev dependencies

@@ -244,6 +244,8 @@ def encode_file(
 
 def main():
     """Main CLI entry point."""
+    print("⚠️  WARNING: EXPERIMENTAL SOFTWARE - RESEARCH ONLY - NOT FOR PRODUCTION USE ⚠️")
+    
     parser = argparse.ArgumentParser(
         description="Meow Decoder - Encode files into GIF animations",
         formatter_class=argparse.RawDescriptionHelpFormatter,
