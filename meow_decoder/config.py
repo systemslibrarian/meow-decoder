@@ -77,8 +77,8 @@ class CryptoConfig:
         - argon2_iterations to 4 or 5
     """
     key_derivation: str = "argon2id"         # Key derivation function
-    argon2_memory: int = 262144              # 256 MiB (AI-HARDENED MAXIMUM)
-    argon2_iterations: int = 10              # 10 passes (AI-HARDENED MAXIMUM)
+    argon2_memory: int = 524288              # 512 MiB (8x OWASP - MAXIMUM SECURITY)
+    argon2_iterations: int = 20              # 20 passes (6.7x OWASP - MAXIMUM SECURITY)
     argon2_parallelism: int = 4              # 4 threads
     cipher: str = "aes-256-gcm"              # Cipher algorithm
     

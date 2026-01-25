@@ -2,6 +2,37 @@
 
 All notable changes to Meow Decoder.
 
+## [5.6.0] - 2026-01-25
+
+### Added - Maximum Security Hardening 🔐🔮
+
+#### Argon2id Parameters Bumped to Maximum
+- **512 MiB Memory**: 8x OWASP recommendation (was 256 MiB)
+- **20 Iterations**: 6.7x OWASP minimum (was 10)
+- **~5-10 Second Delay**: Intentionally slow for maximum GPU/ASIC resistance
+- **Updated in**: `crypto.py`, `crypto_enhanced.py`, `config.py`
+
+#### Post-Quantum Signatures (Dilithium / FIPS 204)
+- **New Module**: `pq_signatures.py` for manifest authentication
+- **Dilithium3**: NIST security level 3 (quantum-resistant)
+- **Ed25519 Fallback**: Classical signatures when liboqs unavailable
+- **Hybrid Mode**: Ed25519 + Dilithium3 for defense-in-depth
+- **Key Management**: Generate, save, load signing keypairs
+- **Manifest Signing**: Cryptographic proof of manifest authenticity
+
+#### Security Roadmap
+- **New Document**: `docs/ROADMAP.md` with complete security roadmap
+- **Short-term**: AFL++ fuzzing, double-ratchet protocol
+- **Medium-term**: Rust crypto backend, HSM integration
+- **Long-term**: Formal verification, third-party audit
+
+### Changed
+- Argon2id memory: 256 MiB → 512 MiB
+- Argon2id iterations: 10 → 20
+- Key derivation now takes 5-10 seconds (security feature)
+
+---
+
 ## [5.5.0] - 2026-01-25
 
 ### Added - Grok-Recommended Security Enhancements 🛡️🔐
