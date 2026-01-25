@@ -40,6 +40,7 @@ class LogoConfig:
     brand_color: Tuple[int, int, int] = (100, 100, 120)  # Subtle gray
     animate_blink: bool = True
     blink_interval: int = 30  # Frames between blinks
+    visible_qr: bool = True   # Show QR codes visibly in eyes (not LSB hidden)
 
 
 class LogoEyesEncoder:
@@ -242,34 +243,54 @@ class LogoEyesEncoder:
         """
         Embed QR code data into the eye regions.
         
-        The QR code is split and placed in both eyes,
-        with each eye containing part of the data.
+        The QR code is placed in both eyes for redundancy.
+        In visible_qr mode, the QR is directly pasted into the eyes.
+        In hidden mode, LSB steganography is used.
         """
-        # Resize QR to fit in eye region (split between both eyes)
+        # Resize QR to fit in eye region
         eye_size = self.left_eye.radius * 2
         
         # We'll put the full QR in each eye (redundancy)
         qr_small = qr_frame.resize((eye_size, eye_size), Image.Resampling.LANCZOS)
         
-        # Convert to arrays for manipulation
-        logo_array = np.array(logo)
-        qr_array = np.array(qr_small.convert('RGB'))
-        
-        # Embed in left eye using LSB
-        logo_array = self._embed_in_region(
-            logo_array, qr_array, 
-            self.left_eye.center_x - self.left_eye.radius,
-            self.left_eye.center_y - self.left_eye.radius
-        )
-        
-        # Embed in right eye using LSB  
-        logo_array = self._embed_in_region(
-            logo_array, qr_array,
-            self.right_eye.center_x - self.right_eye.radius,
-            self.right_eye.center_y - self.right_eye.radius
-        )
-        
-        return Image.fromarray(logo_array)
+        if self.config.visible_qr:
+            # VISIBLE MODE: Directly paste QR codes into eyes
+            # Create a circular mask for clean edges
+            mask = Image.new('L', (eye_size, eye_size), 0)
+            mask_draw = ImageDraw.Draw(mask)
+            mask_draw.ellipse([0, 0, eye_size-1, eye_size-1], fill=255)
+            
+            # Paste QR into left eye
+            left_x = self.left_eye.center_x - self.left_eye.radius
+            left_y = self.left_eye.center_y - self.left_eye.radius
+            logo.paste(qr_small.convert('RGB'), (left_x, left_y), mask)
+            
+            # Paste QR into right eye
+            right_x = self.right_eye.center_x - self.right_eye.radius
+            right_y = self.right_eye.center_y - self.right_eye.radius
+            logo.paste(qr_small.convert('RGB'), (right_x, right_y), mask)
+            
+            return logo
+        else:
+            # HIDDEN MODE: Use LSB steganography
+            logo_array = np.array(logo)
+            qr_array = np.array(qr_small.convert('RGB'))
+            
+            # Embed in left eye using LSB
+            logo_array = self._embed_in_region(
+                logo_array, qr_array, 
+                self.left_eye.center_x - self.left_eye.radius,
+                self.left_eye.center_y - self.left_eye.radius
+            )
+            
+            # Embed in right eye using LSB  
+            logo_array = self._embed_in_region(
+                logo_array, qr_array,
+                self.right_eye.center_x - self.right_eye.radius,
+                self.right_eye.center_y - self.right_eye.radius
+            )
+            
+            return Image.fromarray(logo_array)
     
     def _embed_in_region(self, carrier: np.ndarray, data: np.ndarray,
                         x: int, y: int, lsb_bits: int = 2) -> np.ndarray:
