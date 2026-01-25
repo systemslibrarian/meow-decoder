@@ -267,7 +267,7 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
 
 ### Photographic Cat Camouflage
 <p align="center">
-  <img src="assets/demo_camouflage_photo.gif" alt="Photographic cat camouflage demo" width="750">
+  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Photographic cat camouflage demo" width="750">
 </p>
 
 Looks like a normal looping cat GIF. Data hidden in image texture.
