@@ -17,6 +17,10 @@ Test Categories:
 import secrets
 import tempfile
 from pathlib import Path
+import sys
+
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from meow_decoder.schrodinger_encode import (
     schrodinger_encode_data,

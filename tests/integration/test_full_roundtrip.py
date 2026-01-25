@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 import hashlib
 
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from meow_decoder.schrodinger_encode import schrodinger_encode_file
 from meow_decoder.schrodinger_decode import schrodinger_decode_file

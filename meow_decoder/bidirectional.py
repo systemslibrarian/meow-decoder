@@ -717,3 +717,97 @@ if __name__ == "__main__":
     
     print("\n🎉 Bidirectional protocol working!")
     print("💡 Note: This augments fountain codes, doesn't replace them")
+
+# =============================================================================
+# ANTI-SPOOFING MECHANISMS (v5.8.0+)
+# =============================================================================
+
+def create_session_hmac(session_key: bytes, message: bytes) -> bytes:
+    """
+    Create HMAC for bidirectional control message (anti-spoofing).
+    
+    Args:
+        session_key: Derived session authentication key (32 bytes)
+        message: Control message bytes
+        
+    Returns:
+        8-byte HMAC tag for verification
+        
+    Security:
+        - Uses HMAC-SHA256 (NIST-approved)
+        - 8-byte tag sufficient for session (birthday bound ~2^32)
+        - Prevents message forgery from external attackers
+    """
+    tag = hmac.new(session_key, message, hashlib.sha256).digest()
+    return tag[:8]  # Truncate to 8 bytes (sufficient for session replay prevention)
+
+
+def verify_session_hmac(session_key: bytes, message: bytes, tag: bytes) -> bool:
+    """
+    Verify HMAC on bidirectional control message (anti-spoofing).
+    
+    Args:
+        session_key: Derived session authentication key
+        message: Control message bytes
+        tag: Received HMAC tag (8 bytes)
+        
+    Returns:
+        True if tag is valid, False otherwise
+        
+    Security:
+        - Constant-time comparison prevents timing attacks
+        - Any bit flip in message causes verification failure
+        - Prevents message substitution and forgery
+    """
+    expected_tag = create_session_hmac(session_key, message)
+    # Use hmac.compare_digest for constant-time comparison
+    return hmac.compare_digest(expected_tag, tag)
+
+
+class BidirectionalReceiver:
+    """
+    Receiver state for bidirectional protocol with anti-spoofing.
+    
+    Tracks:
+    - Monotonic sequence numbers (replay prevention)
+    - Session authentication key
+    - Message counters
+    """
+    
+    def __init__(self):
+        """Initialize receiver state."""
+        self.highest_seq_seen = -1  # Initialize to -1 so seq=0 is accepted
+        self.session_authenticated = False
+        self.session_key = None
+    
+    def check_sequence_number(self, seq: int) -> bool:
+        """
+        Check if sequence number is valid (prevents replay attacks).
+        
+        Args:
+            seq: Message sequence number
+            
+        Returns:
+            True if seq > highest_seq_seen (new message), False if replay
+            
+        Security:
+            - Sequence numbers must be strictly monotonic increasing
+            - Any replay is instantly rejected
+            - Prevents out-of-order processing attacks
+        """
+        if seq > self.highest_seq_seen:
+            self.highest_seq_seen = seq
+            return True
+        else:
+            # Replay detected
+            return False
+    
+    def set_session_key(self, session_key: bytes) -> None:
+        """
+        Set the session key for future message verification.
+        
+        Args:
+            session_key: 32-byte session authentication key
+        """
+        self.session_key = session_key
+        self.session_authenticated = True

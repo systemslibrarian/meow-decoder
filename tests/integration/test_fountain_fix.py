@@ -5,7 +5,7 @@ Simple test for fountain encoding fix
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from meow_decoder.fountain import RobustSolitonDistribution, FountainEncoder
 import secrets

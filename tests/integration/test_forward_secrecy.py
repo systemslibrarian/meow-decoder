@@ -7,8 +7,8 @@ Tests end-to-end encryption/decryption with X25519 ephemeral keys
 import sys
 import os
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 from meow_decoder.crypto import (
     encrypt_file_bytes,

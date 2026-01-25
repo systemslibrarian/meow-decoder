@@ -35,6 +35,10 @@ class EncodingConfig:
     enable_enhanced_entropy: bool = True     # Multi-source entropy collection
     enable_chaff_frames: bool = False        # Add dummy frames to GIF
     
+    # Backend selection
+    prefer_rust_backend: bool = True         # Use Rust backend by default (constant-time)
+    legacy_python_only: bool = False         # Force Python backend (for compatibility)
+    
     # Performance
     enable_profiling: bool = False           # Enable performance profiling
 
@@ -80,7 +84,15 @@ class CryptoConfig:
     argon2_memory: int = 524288              # 512 MiB (8x OWASP minimum) - ULTRA HARDENED
     argon2_iterations: int = 20              # 20 passes (~5-10 sec delay)
     argon2_parallelism: int = 4              # 4 threads
+    
+    # Ultra-hardened mode (when lives depend on it)
+    ultra_hardened: bool = False             # 1 GiB / 40 iterations (~20-30 sec)
+    
     cipher: str = "aes-256-gcm"              # Cipher algorithm
+    
+    # Backend selection
+    prefer_rust_backend: bool = True         # Use Rust backend by default (constant-time)
+    legacy_python_only: bool = False         # Force Python backend
     
     # Forward secrecy
     enable_forward_secrecy: bool = True      # Enabled by default

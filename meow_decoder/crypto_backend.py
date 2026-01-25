@@ -390,15 +390,16 @@ class CryptoBackend:
             # SECURITY: Prefer Rust backend for constant-time operations
             if _RUST_AVAILABLE:
                 self._backend = RustCryptoBackend()
-                import warnings
-                # Silence - Rust is ideal
+                # Rust is default and ideal - no warning needed
             else:
                 self._backend = PythonCryptoBackend()
                 import warnings
                 warnings.warn(
-                    "Rust crypto backend not available. Using Python fallback. "
-                    "For better security (constant-time ops), build Rust backend: "
-                    "cd rust_crypto && maturin develop --release",
+                    "⚠️  SECURITY WARNING: Rust crypto backend not available!\n"
+                    "Python backend is NOT constant-time and may leak secrets via timing.\n"
+                    "DO NOT USE for production/sensitive data without Rust backend.\n"
+                    "Build Rust backend: cd rust_crypto && maturin develop --release\n"
+                    "Or install via: pip install meow-decoder[rust]",
                     UserWarning,
                     stacklevel=2
                 )
