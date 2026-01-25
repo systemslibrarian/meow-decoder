@@ -96,11 +96,7 @@ def test_encode_decode_programmatic():
     print(f"✅ Ephemeral public key: {ephemeral_pub.hex()[:32]}... ({len(ephemeral_pub)} bytes)")
     
     # Serialize receiver private key
-    receiver_priv_bytes = receiver_priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption()
-    )
+    receiver_priv_bytes = receiver_priv
     
     # Decrypt
     print("\nDecrypting with forward secrecy...")

@@ -35,8 +35,8 @@ rand_core = "0.6"
 getrandom = "0.2"
 
 # Post-quantum (optional - will use feature flag)
-# Note: pqcrypto requires additional setup, we'll stub it initially
-# pqcrypto-kyber = "0.8"
+pqcrypto-kyber = "0.8"
+pqcrypto-traits = "0.3.5"
 
 # Serialization
 hex = "0.4"

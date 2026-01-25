@@ -85,12 +85,7 @@ def test_forward_secrecy_mode():
     print(f"   Nonce: {nonce.hex()[:16]}...")
     
     # Serialize receiver private key for decryption
-    from cryptography.hazmat.primitives import serialization
-    receiver_private_bytes = receiver_private.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption()
-    )
+    receiver_private_bytes = receiver_private
     
     # Decrypt with forward secrecy
     decrypted = decrypt_to_raw(
@@ -196,12 +191,7 @@ def test_wrong_password():
     print(f"✅ Encrypted with password: '{password}'")
     
     # Try to decrypt with wrong password
-    from cryptography.hazmat.primitives import serialization
-    receiver_private_bytes = receiver_private.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption()
-    )
+    receiver_private_bytes = receiver_private
     
     try:
         decrypted = decrypt_to_raw(

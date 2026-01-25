@@ -29,6 +29,9 @@ use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
+use pqcrypto_kyber::kyber768;
+use pqcrypto_traits::kem::{SecretKey as KemSecretKey, PublicKey as KemPublicKey, Ciphertext as KemCiphertext, SharedSecret as KemSharedSecret};
+
 // =============================================================================
 // Argon2id Key Derivation
 // =============================================================================
@@ -55,9 +58,12 @@ fn derive_key_argon2id<'py>(
     parallelism: u32,
     output_len: usize,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    // Validate salt length
-    if salt.len() < 8 {
-        return Err(PyValueError::new_err("Salt must be at least 8 bytes"));
+    // Validate salt length - STRICT 16 BYTES
+    if salt.len() != 16 {
+        return Err(PyValueError::new_err(format!(
+            "Salt must be exactly 16 bytes, got {}",
+            salt.len()
+        )));
     }
 
     // Build Argon2id params
@@ -411,41 +417,77 @@ fn backend_info() -> String {
 }
 
 // =============================================================================
-// ML-KEM-768 (Post-Quantum) - Stubs
+// ML-KEM-768 (Post-Quantum) - Kyber
 // =============================================================================
-
-// These are stubs that return NotImplementedError
-// Full implementation requires pqcrypto-kyber crate
 
 #[pyfunction]
 fn mlkem768_keygen<'py>(
-    _py: Python<'py>,
+    py: Python<'py>,
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-    Err(PyValueError::new_err(
-        "ML-KEM-768 not yet implemented in Rust backend. \
-         Install liboqs-python for post-quantum crypto."
+    let (pk, sk) = kyber768::keypair();
+    
+    Ok((
+        PyBytes::new_bound(py, sk.as_bytes()),
+        PyBytes::new_bound(py, pk.as_bytes()),
     ))
 }
 
 #[pyfunction]
 fn mlkem768_encapsulate<'py>(
-    _py: Python<'py>,
-    _public_key: &[u8],
+    py: Python<'py>,
+    public_key: &[u8],
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-    Err(PyValueError::new_err(
-        "ML-KEM-768 not yet implemented in Rust backend."
+    // Check key length
+    if public_key.len() != kyber768::public_key_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid public key length: expected {}, got {}",
+            kyber768::public_key_bytes(),
+            public_key.len()
+        )));
+    }
+
+    let pk = kyber768::PublicKey::from_bytes(public_key)
+        .map_err(|e| PyValueError::new_err(format!("Invalid public key: {:?}", e)))?;
+    
+    let (ss, ct) = kyber768::encapsulate(&pk);
+    
+    Ok((
+        PyBytes::new_bound(py, ss.as_bytes()),
+        PyBytes::new_bound(py, ct.as_bytes()),
     ))
 }
 
 #[pyfunction]
 fn mlkem768_decapsulate<'py>(
-    _py: Python<'py>,
-    _private_key: &[u8],
-    _ciphertext: &[u8],
+    py: Python<'py>,
+    private_key: &[u8],
+    ciphertext: &[u8],
 ) -> PyResult<Bound<'py, PyBytes>> {
-    Err(PyValueError::new_err(
-        "ML-KEM-768 not yet implemented in Rust backend."
-    ))
+    // Check lengths
+    if private_key.len() != kyber768::secret_key_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid private key length: expected {}, got {}",
+            kyber768::secret_key_bytes(),
+            private_key.len()
+        )));
+    }
+    if ciphertext.len() != kyber768::ciphertext_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid ciphertext length: expected {}, got {}",
+            kyber768::ciphertext_bytes(),
+            ciphertext.len()
+        )));
+    }
+
+    let sk = kyber768::SecretKey::from_bytes(private_key)
+        .map_err(|e| PyValueError::new_err(format!("Invalid private key: {:?}", e)))?;
+        
+    let ct = kyber768::Ciphertext::from_bytes(ciphertext)
+        .map_err(|e| PyValueError::new_err(format!("Invalid ciphertext: {:?}", e)))?;
+
+    let ss = kyber768::decapsulate(&ct, &sk);
+    
+    Ok(PyBytes::new_bound(py, ss.as_bytes()))
 }
 
 // =============================================================================

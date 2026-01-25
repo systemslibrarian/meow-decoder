@@ -30,6 +30,8 @@ from typing import Optional, List, Set, Dict, Any
 from enum import IntEnum
 import base64
 import json
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
 
 
 class MessageType(IntEnum):
@@ -69,31 +71,31 @@ class SessionInfo:
     k_blocks: int
     block_size: int
     file_hash: bytes  # SHA-256 of original file
-    auth_key: bytes   # 32 bytes, HMAC key
+    session_salt: bytes # 16 bytes, random salt for key derivation
     created_at: float = field(default_factory=time.time)
     
     def pack(self) -> bytes:
         """Pack session info to bytes."""
-        # Format: session_id(8) + total_frames(4) + k(4) + block_size(2) + file_hash(32) + auth_key(32)
-        # Total: 82 bytes
+        # Format: session_id(8) + total_frames(4) + k(4) + block_size(2) + file_hash(32) + session_salt(16)
+        # Total: 66 bytes
         return struct.pack(
-            '>8sIIH32s32s',
+            '>8sIIH32s16s',
             self.session_id,
             self.total_frames,
             self.k_blocks,
             self.block_size,
             self.file_hash,
-            self.auth_key
+            self.session_salt
         )
     
     @classmethod
     def unpack(cls, data: bytes) -> 'SessionInfo':
         """Unpack session info from bytes."""
-        if len(data) < 82:
-            raise ValueError(f"Session info too short: {len(data)} (need 82)")
+        if len(data) < 66:
+            raise ValueError(f"Session info too short: {len(data)} (need 66)")
             
-        session_id, total_frames, k_blocks, block_size, file_hash, auth_key = struct.unpack(
-            '>8sIIH32s32s', data[:82]
+        session_id, total_frames, k_blocks, block_size, file_hash, session_salt = struct.unpack(
+            '>8sIIH32s16s', data[:66]
         )
         return cls(
             session_id=session_id,
@@ -101,7 +103,7 @@ class SessionInfo:
             k_blocks=k_blocks,
             block_size=block_size,
             file_hash=file_hash,
-            auth_key=auth_key
+            session_salt=session_salt
         )
 
 
@@ -164,7 +166,7 @@ class BiDirectionalSender:
     """
     
     def __init__(self, file_hash: bytes, k_blocks: int, block_size: int,
-                 total_frames: int):
+                 total_frames: int, password: str = ""):
         """
         Initialize bidirectional sender.
         
@@ -173,14 +175,40 @@ class BiDirectionalSender:
             k_blocks: Number of source blocks
             block_size: Size of each block
             total_frames: Total fountain frames to send
+            password: Shared secret for session authentication (required for security)
         """
+        if not password:
+            # Security: Empty password is a critical weakness. Raise error for production.
+            # Control channel messages would be trivially spoofable with empty password.
+            import warnings
+            warnings.warn(
+                "BiDirectionalSender initialized with empty password. "
+                "Control channel authentication is DISABLED. "
+                "Use a shared password for secure bidirectional mode.",
+                UserWarning  # Use standard warning category
+            )
+
+        # Generate random session salt
+        session_salt = secrets.token_bytes(16)
+        
+        # Derive session authentication key using HKDF
+        # Salt: generated random salt
+        # Info: context binding
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=session_salt,
+            info=b"meow_bidirectional_auth_v1"
+        )
+        self.auth_key = hkdf.derive(password.encode('utf-8'))
+        
         self.session = SessionInfo(
             session_id=secrets.token_bytes(8),
             total_frames=total_frames,
             k_blocks=k_blocks,
-            block_size=block_si,
-            auth_key=secrets.token_bytes(32)  # Generate random auth keyze,
-            file_hash=file_hash
+            block_size=block_size,
+            file_hash=file_hash,
+            session_salt=session_salt
         )
         
         self.frames_sent = 0
@@ -188,11 +216,24 @@ class BiDirectionalSender:
         self.status_updates: List[StatusUpdate] = []
         self.is_complete = False
         self.is_paused = False
+        self.last_rx_counter = 0  # Replay protection counter
     
     def get_session_start_message(self) -> bytes:
-        """Generate session start message (encode to QR for receiver)."""
-        msg_type = struct.pack('B', MessageType.SESSION_START)
-        return msg_type + self.session.pack()
+        """
+        Generate session start message (encode to QR for receiver).
+        Format: Type(1) + HMAC(32) + Payload(SessionInfo)
+        """
+        msg_type = bytes([MessageType.SESSION_START])
+        payload = self.session.pack()
+        
+        # Calculate HMAC to authenticate the session start
+        mac = hmac.new(
+            self.auth_key, 
+            msg_type + payload, 
+            hashlib.sha256
+        ).digest()
+        
+        return msg_type + mac + payload
     
     def process_ack(self, ack_data: bytes) -> Optional[StatusUpdate]:
         """
@@ -202,8 +243,9 @@ class BiDirectionalSender:
             ack_data: Raw acknowledgment data
             
         Returns:
-            StatusUpdate if33:
-            # Need Type (1) + HMAC (32)
+            StatusUpdate if payload is valid status
+        """
+        if len(ack_data) < 33:
             return None
         
         msg_type = ack_data[0]
@@ -212,16 +254,41 @@ class BiDirectionalSender:
         
         # Verify HMAC
         expected_mac = hmac.new(
-            self.session.auth_key,
+            self.auth_key,
             bytes([msg_type]) + payload,
             hashlib.sha256
         ).digest()
         
         if not secrets.compare_digest(mac, expected_mac):
-            print("⚠️  Invalid HMAC on ack packet")
+            # Invalid HMAC - reject silently
             return None
-        msg_type = ack_data[0]
-        payload = ack_data[1:]
+        
+        # Payload verification passed
+        
+        # Check replay protection for ALL control messages that need it
+        # Counter is required at the start of payload for replay-protected messages
+        # SESSION_ACK and FRAME_ACK are inherently idempotent (safe to replay)
+        # STATUS_UPDATE, COMPLETION, PAUSE, RESUME need replay protection
+        replay_protected_types = [
+            MessageType.STATUS_UPDATE,
+            MessageType.COMPLETION,
+            MessageType.PAUSE,
+            MessageType.RESUME,
+            MessageType.RESEND_REQUEST,
+        ]
+        
+        if msg_type in replay_protected_types:
+            if len(payload) < 4:
+                # Missing counter - reject message
+                return None
+            counter = struct.unpack('>I', payload[:4])[0]
+            if hasattr(self, 'last_rx_counter') and counter <= self.last_rx_counter:
+                # Replay detected - reject silently
+                return None
+            self.last_rx_counter = counter
+            
+            # Strip counter from payload for downstream processing
+            payload = payload[4:]
         
         if msg_type == MessageType.COMPLETION:
             self.is_complete = True
@@ -293,30 +360,64 @@ class BiDirectionalReceiver:
     def __init__(self):
         """Initialize bidirectional receiver."""
         self.session: Optional[SessionInfo] = None
+        self.auth_key: Optional[bytes] = None
         self.frames_received: Set[int] = set()
         self.frames_decoded: Set[int] = set()  # Successfully QR-decoded
         self.blocks_decoded = 0
         self.error_count = 0
         self.started_at: Optional[float] = None
+        self.tx_counter = 0  # Replay protection counter for outgoing messages
     
-    def process_session_start(self, data: bytes) -> bool:
+    def process_session_start(self, data: bytes, password: str = "") -> bool:
         """
         Process session start message from sender.
         
         Args:
             data: Session start message (with type byte)
+            password: Shared secret for session authentication
             
         Returns:
             True if valid session, False otherwise
         """
-        if len(data) < 1:
+        # Format: Type(1) + HMAC(32) + Payload
+        if len(data) < 33:
             return False
         
         if data[0] != MessageType.SESSION_START:
             return False
+            
+        received_mac = data[1:33]
+        payload = data[33:]
         
         try:
-            self.session = SessionInfo.unpack(data[1:])
+            temp_session = SessionInfo.unpack(payload)
+            
+            # Derive session key to verify HMAC
+            if not password:
+                # Insecure fallback or verify logic needs password
+                return False
+                
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=temp_session.session_salt,
+                info=b"meow_bidirectional_auth_v1"
+            )
+            derived_key = hkdf.derive(password.encode('utf-8'))
+            
+            # Verify HMAC
+            expected_mac = hmac.new(
+                derived_key,
+                bytes([MessageType.SESSION_START]) + payload,
+                hashlib.sha256
+            ).digest()
+            
+            if not secrets.compare_digest(received_mac, expected_mac):
+                return False
+                
+            # Valid session
+            self.session = temp_session
+            self.auth_key = derived_key
             self.started_at = time.time()
             return True
         except Exception:
@@ -326,59 +427,53 @@ class BiDirectionalReceiver:
         """
         Record that a frame was received.
         
-        _sign_packet(self, msg_type: int, payload: bytes) -> bytes:
-        """Sign and pack a message."""
-        if not self.session:
-            return b''
-            
-        # Format: Type(1) + HMAC(32) + Payload
-        header = bytes([msg_type])
-        mac = hmac.new(
-            self.session.auth_key, 
-            header + payload, 
-            hashlib.sha256
-        ).digest()
-        
-        return header + mac + payload
-
-    def Args:
+        Args:
             frame_idx: Frame index
             success: Whether QR decoding succeeded
         """
         self.frames_received.add(frame_idx)
         if success:
             self.frames_decoded.add(frame_idx)
-        else:bytes:
+        else:
+            self.error_count += 1
+
+    def _sign_packet(self, msg_type: int, payload: bytes, include_counter: bool = False) -> bytes:
         """
-        Generate binary status packet for QR display back to sender.
-        Returns binary data (Type + HMAC + Payload).
+        Sign and pack a message.
+        
+        Args:
+            msg_type: Message type byte
+            payload: Message payload
+            include_counter: If True, prepend replay protection counter to payload
+        
+        Returns:
+            Signed message: Type(1) + HMAC(32) + [Counter(4)] + Payload
         """
-        if not self.session:
+        if not self.session or not self.auth_key:
             return b''
+        
+        # Prepend counter for replay protection if required
+        if include_counter:
+            self.tx_counter += 1
+            payload = struct.pack('>I', self.tx_counter) + payload
             
-        # Pack status payload
-        # Format: session_id(8) + frames_received(4) + frames_decoded(4) + 
-        #         blocks_decoded(4) + k_blocks_needed(4) + missing(4) + errors(4)
-        payload = self.session.session_id
+        # Format: Type(1) + HMAC(32) + Payload
+        header = bytes([msg_type])
+        mac = hmac.new(
+            self.auth_key, 
+            header + payload, 
+            hashlib.sha256
+        ).digest()
         
-        status = self.get_status_update()
+        return header + mac + payload
+
+    def get_status_update(self) -> StatusUpdate:
+        """Get current status update."""
+        k_blocks = self.session.k_blocks if self.session else 0
         
-        payload += struct.pack(
-            '>IIIIII',
-            status.frames_received,
-            status.frames_decoded,
-            status.blocks_decoded,
-            status.k_blocks_needed,
-            status.missing_estimate,
-            status.error_count
-        )
-        
-        return self._sign_packet(MessageType.STATUS_UPDATE, payload)
-    
-    def get_completion_message(self) -> bytes:
-        """Generate completion message to send to sender."""
-        payload = self.session.session_id if self.session else b'\x00' * 8
-        return self._sign_packet(MessageType.COMPLETION, payload)= len(self.frames_decoded) / self.blocks_decoded
+        # Estimate missing droplets
+        if self.blocks_decoded > 0:
+            ratio = len(self.frames_decoded) / self.blocks_decoded
             missing = int((k_blocks - self.blocks_decoded) * ratio) + 5
         else:
             missing = k_blocks
@@ -392,7 +487,40 @@ class BiDirectionalReceiver:
             missing_estimate=missing,
             error_count=self.error_count
         )
+
+    def get_status_message(self) -> bytes:
+        """
+        Generate binary status packet for QR display back to sender.
+        Returns binary data (Type + HMAC + Payload).
+        """
+        if not self.session:
+            return b''
+            
+        # Pack status payload
+        # Format: session_id(8) + frames_received(4) + frames_decoded(4) + 
+        #         blocks_decoded(4) + k_blocks_needed(4) + missing(4) + errors(4)
+        status = self.get_status_update()
+        
+        payload = status.session_id
+        payload += struct.pack(
+            '>IIIIII',
+            status.frames_received,
+            status.frames_decoded,
+            status.blocks_decoded,
+            status.k_blocks_needed,
+            status.missing_estimate,
+            status.error_count
+        )
+        
+        # Include counter for replay protection
+        return self._sign_packet(MessageType.STATUS_UPDATE, payload, include_counter=True)
     
+    def get_completion_message(self) -> bytes:
+        """Generate completion message to send to sender."""
+        payload = self.session.session_id if self.session else b'\x00' * 8
+        # Include counter for replay protection
+        return self._sign_packet(MessageType.COMPLETION, payload, include_counter=True)
+
     def get_status_qr_data(self) -> str:
         """
         Generate compact status string for QR display back to sender.
@@ -402,12 +530,6 @@ class BiDirectionalReceiver:
         """
         status = self.get_status_update()
         return status.to_compact_string()
-    
-    def get_completion_message(self) -> bytes:
-        """Generate completion message to send to sender."""
-        msg = struct.pack('B', MessageType.COMPLETION)
-        msg += self.session.session_id if self.session else b'\x00' * 8
-        return msg
     
     def is_complete(self) -> bool:
         """Check if decoding is complete."""
@@ -423,23 +545,17 @@ class BiDirectionalProtocol:
     This class orchestrates the bidirectional communication,
     providing a clean interface for integration with the
     existing encoder/decoder.
-    
-    DESIGN NOTE:
-    The bidirectional channel is OPTIONAL and NON-ESSENTIAL.
-    Transfers work fine without it (standard fountain code behavior).
-    When available, it provides:
-    - Faster completion (stop early when receiver is done)
-    - Better UX (progress visibility on sender side)
-    - Debugging (see which frames are problematic)
     """
     
-    def __init__(self, is_sender: bool = True):
+    def __init__(self, password: str, is_sender: bool = True):
         """
         Initialize protocol manager.
         
         Args:
+            password: Shared password for authentication
             is_sender: True for sender, False for receiver
         """
+        self.password = password
         self.is_sender = is_sender
         self.sender: Optional[BiDirectionalSender] = None
         self.receiver: Optional[BiDirectionalReceiver] = None
@@ -460,6 +576,7 @@ class BiDirectionalProtocol:
             Session start message to display/transmit
         """
         self.sender = BiDirectionalSender(
+            password=self.password,
             file_hash=file_hash,
             k_blocks=k_blocks,
             block_size=block_size,
@@ -484,7 +601,7 @@ class BiDirectionalProtocol:
             return {
                 'session_id': self.sender.session.session_id.hex(),
                 'frames_sent': self.sender.frames_sent,
-                'is_complete': self.senderbytes_complete,
+                'is_complete': self.sender.bytes_complete,
                 'is_paused': self.sender.is_paused,
                 'status_updates': len(self.sender.status_updates),
             }
@@ -517,7 +634,7 @@ class BiDirectionalProtocol:
         """
         if not self.receiver:
             self.receiver = BiDirectionalReceiver()
-        return self.receiver.process_session_start(data)
+        return self.receiver.process_session_start(data, self.password)
     
     def on_frame(self, frame_idx: int, success: bool) -> None:
         """Record frame receipt (receiver side)."""
@@ -543,36 +660,41 @@ class BiDirectionalProtocol:
 
 # Convenience functions
 
-def create_sender_protocol(file_hash: bytes, k_blocks: int,
+def create_sender_protocol(password: str, file_hash: bytes, k_blocks: int,
                           block_size: int, total_frames: int) -> BiDirectionalProtocol:
     """Create and configure sender-side protocol."""
-    protocol = BiDirectionalProtocol(is_sender=True)
+    protocol = BiDirectionalProtocol(password, is_sender=True)
     protocol.start_session(file_hash, k_blocks, block_size, total_frames)
     return protocol
 
 
-def create_receiver_protocol() -> BiDirectionalProtocol:
+def create_receiver_protocol(password: str) -> BiDirectionalProtocol:
     """Create receiver-side protocol."""
-    return BiDirectionalProtocol(is_sender=False)
+    return BiDirectionalProtocol(password, is_sender=False)
 
 
 # Testing
 if __name__ == "__main__":
     print("🐱 Bidirectional Protocol Demo\n")
     
+    password = "test_password_secret"
     # Simulate a transfer
     file_hash = hashlib.sha256(b"test data").digest()
     
+    print(f"🔐 Using password: {password}")
+    
     print("📤 Sender side:")
-    sender = create_sender_protocol(file_hash, k_blocks=100, block_size=512, total_frames=150)
+    sender = create_sender_protocol(password, file_hash, k_blocks=100, block_size=512, total_frames=150)
     session_msg = sender.sender.get_session_start_message()
     print(f"   Session ID: {sender.sender.session.session_id.hex()}")
     print(f"   Session message: {len(session_msg)} bytes")
     
     print("\n📥 Receiver side:")
-    receiver = create_receiver_protocol()
-    receiver.receive_session_start(session_msg)
-    print(f"   Session received: {receiver.receiver.session.session_id.hex()}")
+    receiver = create_receiver_protocol(password)
+    if receiver.receive_session_start(session_msg):
+        print(f"   ✅ Session authenticated & received: {receiver.receiver.session.session_id.hex()}")
+    else:
+        print(f"   ❌ Session authentication failed")
     
     # Simulate some frames
     for i in range(75):

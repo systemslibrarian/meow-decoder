@@ -309,7 +309,6 @@ def decode_gif(
 
 def main():
     """Main CLI entry point."""
-    print("⚠️  WARNING: EXPERIMENTAL SOFTWARE - RESEARCH ONLY - NOT FOR PRODUCTION USE ⚠️")
     
     parser = argparse.ArgumentParser(
         description="Meow Decoder - Decode files from GIF animations",

@@ -1,8 +1,8 @@
 # 🛡️ Security Policy
 
 **Project:** Meow Decoder  
-**Version:** 5.0  
-**Last Updated:** 2026-01-22
+**Version:** 5.7.0  
+**Last Updated:** 2026-01-25
 
 ---
 
@@ -100,6 +100,88 @@ We thank the following security researchers for responsible disclosure:
 
 ---
 
+## 📊 **Metadata Leakage Controls**
+
+### **What Is Protected:**
+
+1. **File Size** ✅
+   - Length padding rounds to power-of-2 size classes
+   - Attacker sees only the class (e.g., 1-2 MB), not exact size
+   - Implementation: `metadata_obfuscation.py:add_length_padding()`
+
+2. **Manifest Contents** ✅
+   - All fields authenticated via HMAC-SHA256
+   - `block_size`, `k_blocks`, `sha256` bound to HMAC
+   - AAD prevents tampering with `orig_len`, `comp_len`
+
+3. **Frame Content** ✅
+   - Per-frame MAC authentication (8-byte truncated HMAC)
+   - Prevents frame injection/substitution attacks
+   - Implementation: `frame_mac.py`
+
+### **What May Leak:**
+
+1. **Approximate File Size** ⚠️
+   - Frame count reveals size class (~33% granularity)
+   - **Mitigation:** Chaff frames (`--chaff-frames` option, not default)
+
+2. **Transfer Duration** ⚠️
+   - Total playback time reveals data volume
+   - **Mitigation:** Constant-rate streaming (use `--constant-rate`)
+
+3. **Software Fingerprint** ⚠️
+   - "MEOW" magic bytes identify format
+   - **Mitigation:** Steganography mode hides in images
+
+4. **Encoding Parameters** ⚠️
+   - QR size/error correction visible in images
+   - **Mitigation:** Use standard QR parameters
+
+5. **Session Timing** ⚠️
+   - Bidirectional mode ACK timing reveals RTT
+   - **Mitigation:** Random delay padding (not implemented)
+
+### **Paranoid Mode:**
+
+For maximum metadata protection, use:
+```bash
+meow-encode -i secret.pdf -o secret.gif \
+    --stego-mode ninja    # Hide in cat images
+    --chaff-frames 20     # Add decoy frames
+    --constant-rate       # Fixed timing
+    --paranoid            # All obfuscation enabled
+```
+
+---
+
+## 🔐 **Control Channel Security**
+
+### **Bidirectional Mode Authentication:**
+
+When using bidirectional mode (`--bidirectional`), the control channel is protected by:
+
+1. **HKDF-Derived Session Key**
+   - Derived from shared password + random session salt
+   - `auth_key = HKDF(password, session_salt, "meow_bidir_auth_v1")`
+
+2. **HMAC-SHA256 Authentication**
+   - All control messages signed with auth_key
+   - Truncated to 16 bytes for efficiency
+
+3. **Replay Protection**
+   - 4-byte monotonic counter prepended to all messages
+   - Types protected: ACK, COMPLETION, STATUS_UPDATE, PAUSE, RESUME, RESEND_REQUEST
+   - Counter must strictly increase
+
+4. **Constant-Time Verification**
+   - `secrets.compare_digest()` for all MAC comparisons
+   - Prevents timing attacks on authentication
+
+### **Security Note:**
+Empty passwords trigger a `UserWarning` as control channel authentication is effectively disabled. Always use a shared password for bidirectional mode.
+
+---
+
 ## 🔒 **Security Best Practices**
 
 ### **For Users:**
@@ -183,23 +265,39 @@ We're particularly interested in reports for:
 
 ## 🛠️ **Security Fixes**
 
+### **v5.7.0 (2026-01-25)**
+- ✅ Extended replay protection to all control message types
+- ✅ Added `pip-audit` to CI for Python dependency scanning
+- ✅ Empty password now triggers `UserWarning` in bidirectional mode
+- ✅ Comprehensive control channel security tests
+- ✅ Updated security documentation with metadata leakage controls
+
+### **v5.6.0 (2026-01-25)**
+- ✅ Argon2id parameters increased to 512 MiB, 20 iterations
+- ✅ Post-quantum signatures (Dilithium/FIPS 204)
+
+### **v5.5.0 (2026-01-25)**
+- ✅ Duress mode for coercion resistance
+- ✅ Enhanced entropy collection
+- ✅ Multi-secret Schrödinger mode
+- ✅ Hardware security integration (TPM/YubiKey)
+
+### **v5.4.0 (2026-01-23)**
+- ✅ Schrödinger's Yarn Ball (quantum plausible deniability)
+- ✅ Decoy generation
+
+### **v5.3.0 (2026-01-23)**
+- ✅ Forward secrecy with X25519 ephemeral keys
+- ✅ Frame-level MACs for DoS protection
+- ✅ Constant-time operations
+- ✅ Metadata obfuscation (length padding)
+
 ### **v4.0 (2026-01-22)**
 - ✅ Forward secrecy enabled by default (MEOW3)
 - ✅ Post-quantum support added (MEOW4)
 - ✅ Enhanced steganography (Ninja Cat ULTRA)
 - ✅ Streaming decode for low-memory devices
 - ✅ Constant-time HMAC comparison
-
-### **v3.0 (Previous)**
-- ✅ Forward secrecy implementation
-- ✅ Signal-style ratcheting
-- ✅ Per-block key derivation
-- ✅ HMAC authentication
-
-### **v2.0 (Previous)**
-- ✅ AES-256-GCM encryption
-- ✅ Argon2id KDF (47 MB memory)
-- ✅ SHA-256 integrity verification
 
 ---
 
@@ -309,6 +407,6 @@ After a fix is released:
 
 ---
 
-**Last Updated:** 2026-01-22  
-**Version:** 4.0  
+**Last Updated:** 2026-01-25  
+**Version:** 5.7.0  
 **Status:** Research/Educational - Not Audited

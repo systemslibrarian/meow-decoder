@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "meow-decoder"
-version = "0.1.0-alpha"
+version = "1.0.0"
 description = "🐱 Schrödinger's Yarn Ball - Optical air-gap transfer with quantum plausible deniability"
 readme = "README.md"
 requires-python = ">=3.8"

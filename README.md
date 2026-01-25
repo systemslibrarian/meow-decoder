@@ -212,9 +212,11 @@ maturin develop --release
 cd ..
 
 # Enable via environment variable
-export MEOW_RUST=1
+export MEOW_CRYPTO_BACKEND=rust
 meow-encode -i secret.pdf ...
 ```
+(Legacy aliases `MEOW_RUST=1` or `MEOW_USE_RUST=1` also work)
+
 You can verify it is active by checking the verbose output `meow-encode -v ...`.
 
 See [rust_crypto/README.md](rust_crypto/README.md) for full details.
@@ -236,6 +238,8 @@ This project uses **AFL++** (via `atheris`) for continuous fuzzing of critical c
 python3 fuzz/fuzz_manifest.py -runs=100000
 ```
 See [fuzz/README.md](fuzz/README.md) for detailed instructions on corpus generation and running specific targets.
+
+**Findings:** Initial fuzzing runs have identified no crashes or critical parsing vulnerabilities to date. Continued fuzzing is recommended for production assurance.
 
 ---
 

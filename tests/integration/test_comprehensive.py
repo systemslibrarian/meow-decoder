@@ -115,11 +115,8 @@ def test_integrated_encryption():
     print(f"   - Ciphertext: {len(cipher)} bytes")
     
     # Serialize receiver private key
-    receiver_priv_bytes = receiver_priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption()
-    )
+    # receiver_priv is already bytes in the new backend
+    receiver_priv_bytes = receiver_priv
     
     # Decrypt
     decrypted = decrypt_to_raw(

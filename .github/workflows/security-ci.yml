@@ -32,6 +32,11 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
+      - name: Run pip-audit (Python dependency vulnerability check)
+        run: |
+          pip install pip-audit
+          pip-audit --strict --desc on
+
       - name: Run security-focused tests with coverage
         run: |
           # Run security tests with coverage for security-critical modules only

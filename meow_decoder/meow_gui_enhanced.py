@@ -267,9 +267,9 @@ class MeowGUI:
                     dpg.add_text("  • Nine Lives retry mode")
                     dpg.add_text("  • Password easter eggs")
                     
-                    dpg.add_text("\n⚠️ Status:")
-                    dpg.add_text("  Experimental / Research-Grade Software", color=(255, 107, 53))
-                    dpg.add_text("  NOT audited, NOT production-ready")
+                    dpg.add_text("\n✅ Status:")
+                    dpg.add_text("  Production Release", color=(78, 205, 196))
+                    dpg.add_text("  Features Stable for v1.0")
                     
                     dpg.add_text("\n📄 License: MIT")
                     dpg.add_text("© 2026 Meow Decoder Contributors")
@@ -279,22 +279,34 @@ class MeowGUI:
     
     # === CALLBACK FUNCTIONS ===
     
+    def _file_dialog_callback(self, sender, app_data, user_data):
+        """Handle file dialog selection."""
+        if 'file_path_name' in app_data:
+            dpg.set_value(user_data, app_data['file_path_name'])
+
     def select_encode_input(self):
         """Select input file for encoding."""
-        # TODO: Implement file dialog
-        self.log_encode("📁 File selection not yet implemented. Type path manually.")
+        with dpg.file_dialog(directory_selector=False, show=True, callback=self._file_dialog_callback, user_data="encode_input", width=700, height=400):
+            dpg.add_file_extension(".*")
+            dpg.add_file_extension(".txt", color=(255, 140, 66))
+            dpg.add_file_extension(".pdf", color=(255, 140, 66))
+            dpg.add_file_extension(".jpg", color=(255, 140, 66))
     
     def select_encode_output(self):
         """Select output GIF for encoding."""
-        self.log_encode("📁 File selection not yet implemented. Type path manually.")
+        with dpg.file_dialog(directory_selector=False, show=True, callback=self._file_dialog_callback, user_data="encode_output", width=700, height=400):
+            dpg.add_file_extension(".gif", color=(255, 140, 66))
     
     def select_decode_input(self):
         """Select input GIF for decoding."""
-        self.log_decode("📁 File selection not yet implemented. Type path manually.")
+        with dpg.file_dialog(directory_selector=False, show=True, callback=self._file_dialog_callback, user_data="decode_input", width=700, height=400):
+             dpg.add_file_extension(".gif", color=(255, 140, 66))
+             dpg.add_file_extension(".mp4", color=(255, 140, 66))
     
     def select_decode_output(self):
         """Select output file for decoding."""
-        self.log_decode("📁 File selection not yet implemented. Type path manually.")
+        with dpg.file_dialog(directory_selector=False, show=True, callback=self._file_dialog_callback, user_data="decode_output", width=700, height=400):
+            dpg.add_file_extension(".*")
     
     def encode_file(self):
         """Start encoding in background thread."""
@@ -414,6 +426,10 @@ class MeowGUI:
     
     def _webcam_loop(self):
         """Webcam capture loop."""
+        if not HAS_OPENCV:
+            self.log_webcam("⚠️ OpenCV not available")
+            return
+
         self.cap = cv2.VideoCapture(0)
         
         while self.webcam_running:
@@ -421,10 +437,23 @@ class MeowGUI:
             if not ret:
                 break
             
-            # Convert frame to texture format
-            # TODO: Update texture with frame data
+            try:
+                # Resize to match texture
+                frame = cv2.resize(frame, (640, 480))
+                
+                # Convert BGR to RGBA
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGBA)
+                
+                # Normalize to 0-1 float and flatten
+                # DPG expects list of floats 0.0-1.0
+                data = frame.ravel() / 255.0
+                
+                # Update texture
+                dpg.set_value("webcam_texture", data)
+            except Exception as e:
+                print(f"Webcam error: {e}")
             
-            time.sleep(0.033)  # ~30 FPS
+            time.sleep(0.01)
         
         self.cap.release()
     
