@@ -38,6 +38,7 @@ def encode_file(
     stego_level: int = 0,
     carrier_images: Optional[List[Path]] = None,
     logo_eyes: bool = False,
+    logo_eyes_hidden: bool = False,
     brand_text: Optional[str] = None,
     verbose: bool = False
 ) -> dict:
@@ -56,6 +57,7 @@ def encode_file(
         stego_level: Steganography level (0=off, 1-4=stealth levels)
         carrier_images: Optional list of carrier image paths (your cat photos!)
         logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
+        logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
         brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
         verbose: Print verbose output
         
@@ -227,10 +229,11 @@ def encode_file(
         
         from .logo_eyes import encode_with_logo_eyes, LogoConfig
         
-        # Configure logo
+        # Configure logo - visible_qr is opposite of logo_eyes_hidden
         logo_config = LogoConfig(
             brand_text=brand_text or "MEOW",
-            animate_blink=True
+            animate_blink=True,
+            visible_qr=not logo_eyes_hidden  # Default: visible QR codes
         )
         
         try:
@@ -239,7 +242,10 @@ def encode_file(
             if verbose:
                 print(f"  ✅ Logo-eyes carrier applied")
                 print(f"  🐱 Brand: {logo_config.brand_text}")
-                print(f"  👁️ QR data embedded in animated cat eyes!")
+                if logo_eyes_hidden:
+                    print(f"  🥷 QR data hidden in eyes (LSB steganography)")
+                else:
+                    print(f"  👁️ QR codes visible in animated cat eyes!")
         except Exception as e:
             if verbose:
                 print(f"  ⚠️ Logo-eyes failed: {e}")
@@ -399,7 +405,9 @@ Examples:
     
     # Logo-eyes mode (branded animation with data in eyes)
     parser.add_argument('--logo-eyes', action='store_true',
-                       help='Use logo-eyes carrier: animated cat logo with QR data in glowing eyes')
+                       help='Use logo-eyes carrier: animated cat logo with QR data in eyes (visible by default)')
+    parser.add_argument('--logo-eyes-hidden', action='store_true',
+                       help='Hide QR codes in logo eyes using LSB steganography (stealthy but harder to decode)')
     parser.add_argument('--brand-text', type=str, default=None,
                        help='Custom brand text for logo-eyes mode (default: MEOW)')
     
@@ -653,6 +661,7 @@ Nothing to see here. 😶‍🌫️
             stego_level=args.stego_level,
             carrier_images=args.carrier_images,
             logo_eyes=args.logo_eyes,
+            logo_eyes_hidden=args.logo_eyes_hidden,
             brand_text=args.brand_text,
             verbose=args.verbose
         )
