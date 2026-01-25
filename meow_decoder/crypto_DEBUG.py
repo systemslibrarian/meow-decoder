@@ -23,10 +23,10 @@ from cryptography.hazmat.primitives.hmac import HMAC
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 
-# Argon2id parameters (OWASP-recommended, tuned for security over speed)
-# ~500-800ms on modern hardware (2024+)
-ARGON2_MEMORY = 65536       # 64 MiB (OWASP minimum recommendation)
-ARGON2_ITERATIONS = 3       # 3 passes (OWASP minimum)
+# Argon2id parameters (MAXIMUM SECURITY - AI-hardened)
+# ~2-4 seconds on modern hardware (2026+) - Security over speed!
+ARGON2_MEMORY = 262144      # 256 MiB (4x OWASP recommendation)
+ARGON2_ITERATIONS = 10      # 10 passes (3x OWASP minimum)
 ARGON2_PARALLELISM = 4      # 4 threads (balance security/performance)
 
 # HMAC domain separation

@@ -24,10 +24,11 @@ from cryptography.hazmat.primitives import constant_time
 
 MAGIC = b"MEOW2"  # v2: includes HMAC + Argon2id
 
-# Argon2id parameters (balanced for ~150–300 ms on 2026 hardware)
-ARGON2_MEMORY = 47104      # ~46 MiB
-ARGON2_ITERATIONS = 2
-ARGON2_PARALLELISM = 2
+# Argon2id parameters (MAXIMUM SECURITY - AI-hardened)
+# ~2-4 seconds on modern hardware (2026+) - Security over speed!
+ARGON2_MEMORY = 262144      # 256 MiB (4x OWASP recommendation)
+ARGON2_ITERATIONS = 10      # 10 passes (3x OWASP minimum)
+ARGON2_PARALLELISM = 4      # 4 threads
 
 # Prefix for manifest HMAC key derivation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_grok"

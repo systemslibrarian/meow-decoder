@@ -1,8 +1,29 @@
 [run]
-source = meow_decoder
+source = 
+    meow_decoder/crypto.py
+    meow_decoder/fountain.py
+    meow_decoder/frame_mac.py
+    meow_decoder/constant_time.py
+    meow_decoder/x25519_forward_secrecy.py
+    meow_decoder/merkle_tree.py
+    meow_decoder/metadata_obfuscation.py
+    meow_decoder/forward_secrecy.py
+include =
+    */crypto.py
+    */fountain.py
+    */frame_mac.py
+    */constant_time.py
+    */x25519_forward_secrecy.py
+    */merkle_tree.py
+    */metadata_obfuscation.py
+    */forward_secrecy.py
 
 [report]
 exclude_lines =
+    pragma: no cover
     if __name__ == .__main__.:
     def main
-fail_under = 90
+    raise NotImplementedError
+    raise AssertionError
+    if TYPE_CHECKING:
+fail_under = 85

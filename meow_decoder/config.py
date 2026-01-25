@@ -71,18 +71,18 @@ class CryptoConfig:
         - argon2_iterations to 4 or 5
     """
     key_derivation: str = "argon2id"         # Key derivation function
-    argon2_memory: int = 65536               # Argon2 memory (KB) - 64 MB (OWASP minimum)
-    argon2_iterations: int = 3               # Argon2 iterations (OWASP minimum)
-    argon2_parallelism: int = 4              # Argon2 parallelism (4 threads)
+    argon2_memory: int = 262144              # 256 MiB (AI-HARDENED MAXIMUM)
+    argon2_iterations: int = 10              # 10 passes (AI-HARDENED MAXIMUM)
+    argon2_parallelism: int = 4              # 4 threads
     cipher: str = "aes-256-gcm"              # Cipher algorithm
     
     # Forward secrecy (🐱 Nine Lives Mode!)
     enable_forward_secrecy: bool = True      # ✅ ENABLED BY DEFAULT
-    ratchet_interval: int = 100
+    ratchet_interval: int = 50               # Ratchet every 50 blocks (more frequent)
     
-    # Post-quantum
-    enable_pq: bool = False
-    kyber_variant: str = "kyber768"          # kyber512/kyber768/kyber1024
+    # Post-quantum (🔮 Quantum Nine Lives!)
+    enable_pq: bool = True                   # ✅ ENABLED BY DEFAULT (AI-hardened)
+    kyber_variant: str = "kyber1024"         # Maximum security variant
 
 
 @dataclass

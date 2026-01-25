@@ -77,9 +77,9 @@ def derive_hybrid_key(
     # First stage: Derive password key with Argon2id
     from argon2 import low_level
     
-    ARGON2_MEMORY = 47104  # ~46 MiB
-    ARGON2_ITERATIONS = 2
-    ARGON2_PARALLELISM = 2
+    ARGON2_MEMORY = 262144  # 256 MiB (MAXIMUM SECURITY)
+    ARGON2_ITERATIONS = 10   # 10 passes (AI-hardened)
+    ARGON2_PARALLELISM = 4   # 4 threads
     
     password_key = low_level.hash_secret_raw(
         secret=password.encode('utf-8'),
