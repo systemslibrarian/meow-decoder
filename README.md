@@ -299,6 +299,30 @@ Meow Decoder intentionally **does not require a mobile app**.
 
 ---
 
+## 🙏 Inspired By
+
+Meow Decoder builds on ideas from these pioneering projects:
+
+| Project | Description | What We Learned |
+|---------|-------------|-----------------|
+| [**TXQR**](https://github.com/divan/txqr) | Transfer via QR - Protocol for animated QR data transfer using fountain codes | Fountain code mechanics for error correction |
+| [**BitFountain**](https://github.com/mguentner/bitfountain) | Experimental data transceiver using QR codes between devices | Camera-to-camera interaction concepts |
+| [**QRExfil**](https://github.com/Shell-Company/QRExfil) | Convert binary files to QR GIFs for air-gapped exfiltration | Demonstrated DLP bypass risks via optical channels |
+| [**QRFileTransfer**](https://github.com/LucaIaco/QRFileTransfer) | Cross-platform offline file transfer using only camera streams | Platform-agnostic optical transfer |
+
+### How Meow Decoder Differs
+
+While inspired by these projects, Meow Decoder adds critical security features:
+
+- 🔐 **Authenticated Encryption** — AES-256-GCM with HMAC (not just encoding)
+- 🔮 **Post-Quantum Ready** — ML-KEM-768 + Dilithium3 hybrid cryptography
+- 🌊 **Loss-Tolerant** — Fountain codes reconstruct from any ~1.5× k frames
+- 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
+- ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
+- 🔑 **Forward Secrecy** — X25519 ephemeral keys protect past messages
+
+---
+
 ## 🧪 Development
 
 ```bash
@@ -328,6 +352,7 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 | [Threat Model](docs/THREAT_MODEL.md) | Security analysis & limitations |
 | [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive |
 | [Schrödinger Mode](docs/SCHRODINGER.md) | Plausible deniability |
+| [Security Roadmap](docs/ROADMAP.md) | Future security enhancements |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 
 ---
