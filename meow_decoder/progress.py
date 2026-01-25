@@ -81,6 +81,17 @@ class ProgressBar:
         elif not self.disable:
             print(" done")
     
+    def __call__(self, iterable: Iterable) -> Iterator:
+        """
+        Wrap an iterable to update progress automatically.
+        """
+        try:
+            for item in iterable:
+                yield item
+                self.update()
+        finally:
+            self.close()
+
     def __enter__(self):
         return self
     

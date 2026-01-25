@@ -114,7 +114,7 @@ def test_encode_decode_roundtrip():
         assert original_hash == decoded_hash, f"Hash mismatch! Original: {original_hash}, Decoded: {decoded_hash}"
         
         print("\n✅ SUCCESS! Hash match - roundtrip verified!")
-
+        return True
 
 def test_wrong_password():
     """Test that wrong password fails gracefully."""
@@ -163,6 +163,7 @@ def test_wrong_password():
             raise  # Re-raise assertion errors
         except Exception as e:
             print(f"✅ Correctly rejected wrong password: {type(e).__name__}")
+            return True
 
 
 def main():

@@ -21,6 +21,7 @@ from .crypto import (
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
+from .progress import ProgressBar
 
 
 def encode_file(
@@ -192,7 +193,9 @@ def encode_file(
         print(f"  Frame 0: Manifest ({len(manifest_bytes)} bytes + {len(manifest_with_mac) - len(manifest_bytes)} byte MAC)")
     
     # Remaining frames: droplets (with MACs)
-    for i in range(num_droplets):
+    progress_bar = ProgressBar(num_droplets, desc="Generating Droplets", unit="droplets", disable=not verbose)
+    
+    for i in progress_bar(range(num_droplets)):
         droplet = fountain.droplet()
         droplet_bytes = pack_droplet(droplet)
         
@@ -202,9 +205,6 @@ def encode_file(
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
         mac_stats.record_valid()
-        
-        if verbose and (i + 1) % 100 == 0:
-            print(f"  Generated {i + 1}/{num_droplets} droplets...")
     
     if verbose:
         print(f"  Total QR codes: {len(qr_frames)} (all with frame MACs)")

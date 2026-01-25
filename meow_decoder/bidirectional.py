@@ -2,7 +2,7 @@
 🐱 Bidirectional Communication Module
 Optional reverse channel for enhanced transfer reliability
 
-IMPORTANT DESIGN DECISION (per ChatGPT security analysis):
+DESIGN DECISION:
 - This is a CONTROL CHANNEL ONLY
 - We do NOT replace fountain code redundancy with ACK-heavy retransmission
 - Fountain codes remain the primary error correction mechanism

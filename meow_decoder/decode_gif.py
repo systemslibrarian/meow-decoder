@@ -21,6 +21,7 @@ from .crypto import (
 from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
 from .gif_handler import GIFDecoder
+from .progress import ProgressBar
 
 
 def decode_gif(
@@ -81,17 +82,20 @@ def decode_gif(
     qr_reader = QRCodeReader(preprocessing=config.preprocessing)
     qr_data_list = []
     
-    for i, frame in enumerate(frames):
+    progress = ProgressBar(len(frames), desc="Scanning QR Codes", unit="frames", disable=not verbose)
+    
+    for i, frame in enumerate(progress(frames)):
         qr_data = qr_reader.read_image(frame)
         
         if qr_data:
             qr_data_list.extend(qr_data)
-            
-            if verbose and (i + 1) % 100 == 0:
-                print(f"  Processed {i + 1}/{len(frames)} frames...")
         elif verbose:
-            print(f"  Warning: Frame {i} has no QR code")
-    
+            # Only print warning if we're not using tqdm, or use tqdm write if available
+            # But ProgressBar doesn't expose write yet. 
+            # For now, let's silence the warning to avoid breaking progress bar,
+            # or we could just count them.
+            pass
+            
     if verbose:
         print(f"  Total QR codes read: {len(qr_data_list)}")
     
@@ -197,7 +201,9 @@ def decode_gif(
     droplets_processed = 0
     droplets_rejected = 0
     
-    for idx, qr_data in enumerate(qr_data_list[1:]):  # Skip manifest
+    progress = ProgressBar(len(qr_data_list) - 1, desc="Processing Droplets", unit="droplets", disable=not verbose)
+    
+    for idx, qr_data in enumerate(progress(qr_data_list[1:])):  # Skip manifest
         try:
             # Verify frame MAC if enabled
             if has_frame_macs:
@@ -225,10 +231,6 @@ def decode_gif(
                 if verbose:
                     print(f"  ✓ Decoding complete after {droplets_processed} droplets")
                 break
-            
-            if verbose and droplets_processed % 100 == 0:
-                progress = decoder.decoded_count / manifest.k_blocks * 100
-                print(f"  Progress: {decoder.decoded_count}/{manifest.k_blocks} blocks ({progress:.1f}%)")
         
         except Exception as e:
             if verbose:
