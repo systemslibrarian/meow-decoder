@@ -37,6 +37,8 @@ def encode_file(
     use_pq: bool = False,
     stego_level: int = 0,
     carrier_images: Optional[List[Path]] = None,
+    logo_eyes: bool = False,
+    brand_text: Optional[str] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -53,6 +55,8 @@ def encode_file(
         use_pq: Enable post-quantum hybrid mode (MEOW4)
         stego_level: Steganography level (0=off, 1-4=stealth levels)
         carrier_images: Optional list of carrier image paths (your cat photos!)
+        logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
+        brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
         verbose: Print verbose output
         
     Returns:
@@ -216,8 +220,33 @@ def encode_file(
         print(f"  Total QR codes: {len(qr_frames)} (all with frame MACs)")
         print(f"  QR size: {qr_frames[0].size}")
     
-    # Apply steganography if enabled
-    if stego_level > 0:
+    # Apply logo-eyes carrier if enabled
+    if logo_eyes:
+        if verbose:
+            print(f"\n👁️ Applying logo-eyes carrier...")
+        
+        from .logo_eyes import encode_with_logo_eyes, LogoConfig
+        
+        # Configure logo
+        logo_config = LogoConfig(
+            brand_text=brand_text or "MEOW",
+            animate_blink=True
+        )
+        
+        try:
+            qr_frames = encode_with_logo_eyes(qr_frames, config=logo_config)
+            
+            if verbose:
+                print(f"  ✅ Logo-eyes carrier applied")
+                print(f"  🐱 Brand: {logo_config.brand_text}")
+                print(f"  👁️ QR data embedded in animated cat eyes!")
+        except Exception as e:
+            if verbose:
+                print(f"  ⚠️ Logo-eyes failed: {e}")
+                print(f"  Falling back to plain QR codes")
+    
+    # Apply steganography if enabled (and not using logo-eyes)
+    elif stego_level > 0:
         if verbose:
             print(f"\n🥷 Applying steganography (level {stego_level})...")
         
@@ -367,6 +396,12 @@ Examples:
                        help='Steganography level: 0=off, 1=visible, 2=subtle, 3=hidden, 4=paranoid (default: 0)')
     parser.add_argument('--carrier', '-c', type=Path, nargs='+', dest='carrier_images',
                        help='Custom carrier images (your cat photos!) for steganography. Images cycle through frames.')
+    
+    # Logo-eyes mode (branded animation with data in eyes)
+    parser.add_argument('--logo-eyes', action='store_true',
+                       help='Use logo-eyes carrier: animated cat logo with QR data in glowing eyes')
+    parser.add_argument('--brand-text', type=str, default=None,
+                       help='Custom brand text for logo-eyes mode (default: MEOW)')
     
     # Security features (Forward Secrecy ON by default!)
     parser.add_argument('--forward-secrecy', action='store_true', default=True,
@@ -617,6 +652,8 @@ Nothing to see here. 😶‍🌫️
             use_pq=args.pq,
             stego_level=args.stego_level,
             carrier_images=args.carrier_images,
+            logo_eyes=args.logo_eyes,
+            brand_text=args.brand_text,
             verbose=args.verbose
         )
         
