@@ -1,0 +1,59 @@
+[package]
+name = "meow_crypto_rs"
+version = "0.1.0"
+edition = "2021"
+authors = ["Meow Decoder Team"]
+description = "Rust crypto backend for Meow Decoder - constant-time, side-channel resistant"
+license = "MIT"
+readme = "README.md"
+
+[lib]
+name = "meow_crypto_rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+# PyO3 for Python bindings
+pyo3 = { version = "0.21", features = ["extension-module"] }
+
+# Core cryptography - all audited, production-ready crates
+argon2 = "0.5"              # Argon2id KDF (password hashing)
+aes-gcm = "0.10"            # AES-256-GCM AEAD encryption
+hkdf = "0.12"               # HKDF key derivation (RFC 5869)
+hmac = "0.12"               # HMAC-SHA256 authentication
+sha2 = "0.10"               # SHA-256/SHA-512 hashing
+
+# X25519 key exchange
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+
+# Side-channel resistance
+subtle = "2.5"              # Constant-time operations
+zeroize = { version = "1.7", features = ["derive"] }
+
+# Random number generation
+rand = "0.8"
+rand_core = "0.6"
+getrandom = "0.2"
+
+# Post-quantum (optional - will use feature flag)
+# Note: pqcrypto requires additional setup, we'll stub it initially
+# pqcrypto-kyber = "0.8"
+
+# Serialization
+hex = "0.4"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[features]
+default = []
+pq = []  # Enable post-quantum crypto
+
+[profile.release]
+lto = true
+codegen-units = 1
+opt-level = 3
+
+# Maturin config
+[tool.maturin]
+python-source = "python"
+features = ["pyo3/extension-module"]

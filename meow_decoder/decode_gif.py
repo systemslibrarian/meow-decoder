@@ -343,6 +343,10 @@ Examples:
     parser.add_argument('--aggressive', action='store_true',
                        help='Use aggressive QR preprocessing')
     
+    # Crypto backend selection
+    parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
+                       help='Crypto backend: python, rust, or auto (default: auto)')
+    
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')

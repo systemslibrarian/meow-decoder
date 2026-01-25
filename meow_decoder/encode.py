@@ -292,6 +292,10 @@ Examples:
     parser.add_argument('--qr-border', type=int, default=4,
                        help='QR border size in boxes (default: 4)')
     
+    # Crypto backend selection
+    parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
+                       help='Crypto backend: python, rust, or auto (default: auto)')
+    
     # Security features (Forward Secrecy ON by default!)
     parser.add_argument('--forward-secrecy', action='store_true', default=True,
                        help='Enable forward secrecy (ON by default, MEOW3)')

@@ -1,0 +1,245 @@
+# Rust Crypto Backend CI Workflow
+# Builds and tests the PyO3 Rust extension for multiple platforms
+
+name: Rust Crypto Backend
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'rust_crypto/**'
+      - '.github/workflows/rust-crypto.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'rust_crypto/**'
+  release:
+    types: [published]
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  # ===========================================================================
+  # Build and test on Linux
+  # ===========================================================================
+  linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+      
+      - name: Install maturin
+        run: pip install maturin
+      
+      - name: Build wheel
+        run: |
+          cd rust_crypto
+          maturin build --release --out dist
+      
+      - name: Install and test
+        run: |
+          pip install rust_crypto/dist/*.whl
+          pip install pytest cryptography argon2-cffi
+          python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
+      
+      - name: Run compatibility tests
+        run: |
+          pip install -e .
+          pytest tests/test_crypto_backend.py -v
+      
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-linux-py${{ matrix.python-version }}
+          path: rust_crypto/dist/*.whl
+
+  # ===========================================================================
+  # Build and test on macOS (Intel + ARM)
+  # ===========================================================================
+  macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+        target: ['x86_64-apple-darwin', 'aarch64-apple-darwin']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      
+      - name: Install maturin
+        run: pip install maturin
+      
+      - name: Build wheel
+        run: |
+          cd rust_crypto
+          maturin build --release --target ${{ matrix.target }} --out dist
+      
+      - name: Install and test (native only)
+        if: matrix.target == 'x86_64-apple-darwin'
+        run: |
+          pip install rust_crypto/dist/*.whl
+          pip install pytest cryptography argon2-cffi
+          python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
+      
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-macos-${{ matrix.target }}-py${{ matrix.python-version }}
+          path: rust_crypto/dist/*.whl
+
+  # ===========================================================================
+  # Build and test on Windows
+  # ===========================================================================
+  windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+      
+      - name: Install maturin
+        run: pip install maturin
+      
+      - name: Build wheel
+        run: |
+          cd rust_crypto
+          maturin build --release --out dist
+      
+      - name: Install and test
+        run: |
+          pip install (Get-ChildItem rust_crypto/dist/*.whl).FullName
+          pip install pytest cryptography argon2-cffi
+          python -c "import meow_crypto_rs; print(f'Rust backend loaded')"
+        shell: pwsh
+      
+      - name: Upload wheel
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-windows-py${{ matrix.python-version }}
+          path: rust_crypto/dist/*.whl
+
+  # ===========================================================================
+  # Build manylinux wheels for PyPI
+  # ===========================================================================
+  manylinux:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    strategy:
+      matrix:
+        target: ['x86_64-unknown-linux-gnu', 'aarch64-unknown-linux-gnu']
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          args: --release --out dist -m rust_crypto/Cargo.toml
+          manylinux: auto
+      
+      - name: Upload wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheel-manylinux-${{ matrix.target }}
+          path: dist/*.whl
+
+  # ===========================================================================
+  # Publish to PyPI on release
+  # ===========================================================================
+  publish:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release'
+    needs: [linux, macos, windows, manylinux]
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      
+      - name: Display structure of downloaded files
+        run: ls -lR dist
+      
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: dist/
+
+  # ===========================================================================
+  # Security audit
+  # ===========================================================================
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+      
+      - name: Install cargo-audit
+        run: cargo install cargo-audit
+      
+      - name: Security audit
+        run: |
+          cd rust_crypto
+          cargo audit
+
+  # ===========================================================================
+  # Rust code quality
+  # ===========================================================================
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-action@stable
+        with:
+          toolchain: stable
+          components: clippy, rustfmt
+      
+      - name: Check formatting
+        run: |
+          cd rust_crypto
+          cargo fmt --check
+      
+      - name: Clippy lints
+        run: |
+          cd rust_crypto
+          cargo clippy -- -D warnings
