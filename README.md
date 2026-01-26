@@ -399,7 +399,64 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 
 ---
 
-## 📱 Phone-Based Transfer Model
+## � Coercion Resistance Features
+
+### Schrödinger Mode (Dual-Secret Plausible Deniability)
+
+Encodes **two completely separate secrets** into one GIF. Each password reveals a different reality:
+
+```bash
+# Encode two secrets in quantum superposition
+meow-schrodinger-encode \
+    --real secret_plans.pdf \
+    --decoy vacation_photos.zip \
+    --real-password "ActualSecret123" \
+    --decoy-password "InnocentPassword" \
+    -o quantum.gif
+```
+
+| Password Entered | What You Get |
+|------------------|--------------|
+| `ActualSecret123` | Your real secret file |
+| `InnocentPassword` | Innocent decoy content |
+| Wrong password | Decryption fails normally |
+
+**Key property:** Neither secret can prove the other exists. An attacker with one password cannot detect that a second secret is hidden.
+
+**Full docs:** [SCHRODINGER.md](docs/SCHRODINGER.md)
+
+### Duress Mode (Panic Password)
+
+A "distress signal" password that **appears to work normally** but secretly:
+1. Shows innocent decoy content
+2. Silently wipes all encryption keys from memory
+3. Optionally triggers secure deletion of key material
+4. Leaves no trace that a real secret existed
+
+```bash
+# Set up duress password during encoding
+meow-encode \
+    -i secret.pdf \
+    -o secret.gif \
+    --password "RealPassword123" \
+    --duress-password "GiveThisToAttacker"
+```
+
+**If coerced:** Enter the duress password. The attacker sees decoy content, your keys are wiped, and there's no evidence of the real secret.
+
+| Feature | Schrödinger Mode | Duress Mode |
+|---------|------------------|-------------|
+| **Purpose** | Cryptographic deniability | Emergency key destruction |
+| **Two secrets?** | ✅ Yes, both recoverable | ❌ Real secret destroyed |
+| **Attacker sees** | Valid decoy content | Valid decoy content |
+| **Keys after** | Both intact | Wiped from memory |
+| **Best for** | Legal/border crossings | Physical coercion |
+
+**⚠️ Warning:** Neither feature protects against determined adversaries with forensic capabilities or physical torture. These are last-resort tools for specific threat models.
+
+---
+
+## �📱 Phone-Based Transfer Model
 
 Meow Decoder intentionally **does not require a mobile app**.
 
