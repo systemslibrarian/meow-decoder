@@ -114,7 +114,6 @@ def test_encode_decode_roundtrip():
         assert original_hash == decoded_hash, f"Hash mismatch! Original: {original_hash}, Decoded: {decoded_hash}"
         
         print("\n✅ SUCCESS! Hash match - roundtrip verified!")
-        return True
 
 def test_wrong_password():
     """Test that wrong password fails gracefully."""
@@ -163,7 +162,6 @@ def test_wrong_password():
             raise  # Re-raise assertion errors
         except Exception as e:
             print(f"✅ Correctly rejected wrong password: {type(e).__name__}")
-            return True
 
 
 def main():
@@ -174,13 +172,11 @@ def main():
     
     tests_passed = 0
     tests_failed = 0
-    
+
     # Test 1: Golden path roundtrip
     try:
-        if test_encode_decode_roundtrip():
-            tests_passed += 1
-        else:
-            tests_failed += 1
+        test_encode_decode_roundtrip()
+        tests_passed += 1
     except Exception as e:
         print(f"❌ Test crashed: {e}")
         import traceback
@@ -189,16 +185,14 @@ def main():
     
     # Test 2: Wrong password
     try:
-        if test_wrong_password():
-            tests_passed += 1
-        else:
-            tests_failed += 1
+        test_wrong_password()
+        tests_passed += 1
     except Exception as e:
         print(f"❌ Test crashed: {e}")
         import traceback
         traceback.print_exc()
         tests_failed += 1
-    
+
     # Summary
     print("\n" + "=" * 60)
     print(f"🧪 Test Results: {tests_passed} passed, {tests_failed} failed")

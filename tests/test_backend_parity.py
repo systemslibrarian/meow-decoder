@@ -32,6 +32,12 @@ class TestBackendParityAES256GCM:
     
     def test_aes_gcm_encrypt_identical(self):
         """Same plaintext + key + nonce → same ciphertext on both backends."""
+        # Check if Rust backend is available first
+        try:
+            backend_rs = CryptoBackend(backend="rust")
+        except (ImportError, RuntimeError):
+            pytest.skip("Rust backend not available")
+        
         plaintext = b"Secret message for encryption test" * 100
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(12)
@@ -41,19 +47,15 @@ class TestBackendParityAES256GCM:
         backend_py = CryptoBackend(backend="python")
         cipher_py = backend_py.aes_gcm_encrypt(key, nonce, plaintext, aad)
         
-        # Encrypt with Rust backend (if available)
-        try:
-            backend_rs = CryptoBackend(backend="rust")
-            cipher_rs = backend_rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
-            
-            # CRITICAL: Ciphertexts must be IDENTICAL
-            assert cipher_py == cipher_rs, (
-                f"AES-GCM ciphertext mismatch between backends!\n"
-                f"Python: {cipher_py.hex()[:32]}...\n"
-                f"Rust:   {cipher_rs.hex()[:32]}..."
-            )
-        except ImportError:
-            pytest.skip("Rust backend not available")
+        # Encrypt with Rust backend
+        cipher_rs = backend_rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        
+        # CRITICAL: Ciphertexts must be IDENTICAL
+        assert cipher_py == cipher_rs, (
+            f"AES-GCM ciphertext mismatch between backends!\n"
+            f"Python: {cipher_py.hex()[:32]}...\n"
+            f"Rust:   {cipher_rs.hex()[:32]}..."
+        )
     
     def test_aes_gcm_decrypt_identical(self):
         """Decrypt with both backends produces same plaintext."""
@@ -78,7 +80,7 @@ class TestBackendParityAES256GCM:
             assert decrypted_py == decrypted_rs, (
                 f"Decrypted data differs between backends!"
             )
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 
@@ -116,7 +118,7 @@ class TestBackendParityArgon2id:
                 f"Python: {key_py.hex()}\n"
                 f"Rust:   {key_rs.hex()}"
             )
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_argon2id_deterministic(self):
@@ -159,7 +161,7 @@ class TestBackendParityHMACSHA256:
                 f"Python: {hmac_py.hex()}\n"
                 f"Rust:   {hmac_rs.hex()}"
             )
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 
@@ -199,7 +201,7 @@ class TestBackendParityX25519:
                 f"Python: {shared_py.hex()}\n"
                 f"Rust:   {shared_rs.hex()}"
             )
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 
@@ -238,7 +240,7 @@ class TestBackendParityIntegration:
             )
             assert decrypted_rs == plaintext
             assert decrypted_py == decrypted_rs
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 
@@ -330,7 +332,7 @@ class TestBackendEdgeCases:
             assert cipher_py == cipher_rs, "Empty plaintext ciphertext mismatch"
             decrypted_rs = backend_rs.aes_gcm_decrypt(key, nonce, cipher_rs, aad)
             assert decrypted_rs == plaintext
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_large_plaintext(self):
@@ -349,7 +351,7 @@ class TestBackendEdgeCases:
             backend_rs = CryptoBackend(backend="rust")
             cipher_rs = backend_rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
             assert cipher_py == cipher_rs, "Large plaintext ciphertext mismatch"
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_aad_none_vs_empty(self):
@@ -394,7 +396,7 @@ class TestBackendEdgeCases:
             # Rust backend should also reject
             with pytest.raises(Exception):
                 backend_rs.aes_gcm_decrypt(key, nonce, corrupted, aad)
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_wrong_key_rejected(self):
@@ -415,7 +417,7 @@ class TestBackendEdgeCases:
             backend_rs = CryptoBackend(backend="rust")
             with pytest.raises(Exception):
                 backend_rs.aes_gcm_decrypt(key2, nonce, cipher, None)
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_hmac_different_messages(self):
@@ -437,7 +439,7 @@ class TestBackendEdgeCases:
             
             assert hmac1 == hmac1_rs, "HMAC mismatch for message 1"
             assert hmac2 == hmac2_rs, "HMAC mismatch for message 2"
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
     
     def test_argon2id_wrong_password(self):
@@ -474,7 +476,7 @@ class TestBackendEdgeCases:
             
             assert key1 == key1_rs, "HKDF key 1 mismatch"
             assert key2 == key2_rs, "HKDF key 2 mismatch"
-        except ImportError:
+        except (ImportError, RuntimeError):
             pytest.skip("Rust backend not available")
 
 

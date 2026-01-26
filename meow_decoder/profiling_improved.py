@@ -498,6 +498,11 @@ if __name__ == "__main__":
     # Print summary with suggestions
     profiler.print_summary(show_suggestions=True)
     
-    # Save profile
-    profiler.save_profile("/tmp/meow_profile_with_suggestions.json")
-    print(f"{Fore.GREEN}✓ Profile saved to /tmp/meow_profile_with_suggestions.json{Style.RESET_ALL}\n")
+    # Save profile to temp directory (avoid hardcoded /tmp)
+    import tempfile
+    from pathlib import Path
+
+    temp_dir = Path(tempfile.gettempdir())
+    profile_path = temp_dir / "meow_profile_with_suggestions.json"
+    profiler.save_profile(profile_path)
+    print(f"{Fore.GREEN}✓ Profile saved to {profile_path}{Style.RESET_ALL}\n")

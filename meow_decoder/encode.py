@@ -16,7 +16,7 @@ import time
 from .config import MeowConfig, EncodingConfig
 from .crypto import (
     encrypt_file_bytes, compute_manifest_hmac, pack_manifest,
-    Manifest, verify_keyfile
+    Manifest, verify_keyfile, compute_duress_hash
 )
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
@@ -40,6 +40,7 @@ def encode_file(
     logo_eyes: bool = False,
     logo_eyes_hidden: bool = False,
     brand_text: Optional[str] = None,
+    duress_password: Optional[str] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -59,6 +60,7 @@ def encode_file(
         logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
         logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
         brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
+        duress_password: Optional duress password (triggers emergency response on decode)
         verbose: Print verbose output
         
     Returns:
@@ -66,6 +68,10 @@ def encode_file(
     """
     if config is None:
         config = EncodingConfig()
+    
+    # Duress mode requires forward secrecy (to avoid manifest size ambiguity)
+    if duress_password and not forward_secrecy:
+        raise ValueError("Duress mode requires forward secrecy (do not use --no-forward-secrecy with --duress-password)")
     
     # Select crypto mode based on flags
     if use_pq:
@@ -123,6 +129,15 @@ def encode_file(
         print(f"  Blocks (k): {k_blocks}")
         print(f"  Droplets: {num_droplets} ({config.redundancy:.1f}x redundancy)")
     
+    # Compute duress hash if duress password provided
+    duress_hash = None
+    if duress_password:
+        if duress_password == password:
+            raise ValueError("Duress password cannot be the same as encryption password")
+        duress_hash = compute_duress_hash(duress_password, salt)
+        if verbose:
+            print(f"  🚨 Duress password configured (emergency response on decode)")
+    
     # Create manifest
     manifest = Manifest(
         salt=salt,
@@ -134,7 +149,8 @@ def encode_file(
         block_size=config.block_size,
         k_blocks=k_blocks,
         hmac=b'\x00' * 32,  # Placeholder
-        ephemeral_public_key=ephemeral_public_key  # Forward secrecy support
+        ephemeral_public_key=ephemeral_public_key,  # Forward secrecy support
+        duress_hash=duress_hash  # Duress password support
     )
     
     # Compute HMAC (need to handle variable manifest size)
@@ -421,6 +437,12 @@ Examples:
     parser.add_argument('--pq', '--post-quantum', action='store_true',
                        help='Enable post-quantum hybrid mode (MEOW4, requires liboqs)')
     
+    # Duress mode (coercion resistance)
+    parser.add_argument('--duress-password', type=str,
+                       help='Duress password that triggers emergency wipe on decode (⚠️ Cannot be same as main password)')
+    parser.add_argument('--duress-password-prompt', action='store_true',
+                       help='Prompt for duress password interactively (more secure than CLI arg)')
+    
     # Key generation
     parser.add_argument('--generate-keys', action='store_true',
                        help='Generate receiver keypair for forward secrecy and exit')
@@ -637,6 +659,32 @@ Nothing to see here. 😶‍🌫️
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
     
+    # Handle duress password
+    duress_password = None
+    if args.duress_password_prompt:
+        duress_password = getpass("Enter duress password (triggers emergency wipe): ")
+        if duress_password:
+            duress_confirm = getpass("Confirm duress password: ")
+            if duress_password != duress_confirm:
+                print("Error: Duress passwords do not match", file=sys.stderr)
+                sys.exit(1)
+            if duress_password == password:
+                print("Error: Duress password cannot be same as encryption password", file=sys.stderr)
+                sys.exit(1)
+            print("🚨 Duress password configured")
+    elif args.duress_password:
+        duress_password = args.duress_password
+        if duress_password == password:
+            print("Error: Duress password cannot be same as encryption password", file=sys.stderr)
+            sys.exit(1)
+        print("🚨 Duress password configured (WARNING: visible in CLI args)")
+    
+    # Duress mode requires forward secrecy to avoid manifest size ambiguity
+    if duress_password and not args.forward_secrecy:
+        print("Error: Duress mode requires forward secrecy enabled", file=sys.stderr)
+        print("   Do not use --no-forward-secrecy with --duress-password", file=sys.stderr)
+        sys.exit(1)
+    
     # Create encoding config
     config = EncodingConfig(
         block_size=args.block_size,
@@ -663,6 +711,7 @@ Nothing to see here. 😶‍🌫️
             logo_eyes=args.logo_eyes,
             logo_eyes_hidden=args.logo_eyes_hidden,
             brand_text=args.brand_text,
+            duress_password=duress_password,
             verbose=args.verbose
         )
         

@@ -47,6 +47,7 @@ class DuressConfig:
     wipe_memory: bool = True           # Zero all keys in memory
     wipe_resume_files: bool = True     # Delete resume state files
     show_decoy: bool = True            # Show convincing decoy content
+    exit_after_wipe: bool = False      # Exit process after wipe (for CLI)
     trigger_callback: Optional[Callable] = None  # Custom action (e.g., network beacon)
     
     # Timing equalization (prevent detection via timing)
@@ -225,6 +226,25 @@ class DuressHandler:
     def was_triggered(self) -> bool:
         """Check if duress was triggered (for testing only)."""
         return self._triggered
+    
+    def execute_emergency_response(self, sensitive_data: Optional[list] = None):
+        """
+        Execute duress emergency response directly.
+        
+        This is called when duress is detected during decoding.
+        Wipes all sensitive data and optionally triggers callbacks.
+        
+        Args:
+            sensitive_data: List of bytearrays to wipe
+            
+        Security:
+            - Wipes all provided sensitive data
+            - Wipes resume files
+            - Forces garbage collection
+            - Calls trigger callback if configured
+            - All operations are silent (no error messages)
+        """
+        self._trigger_duress(sensitive_data)
 
 
 def generate_duress_decoy() -> bytes:

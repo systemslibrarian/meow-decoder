@@ -191,8 +191,8 @@ class TestConfigComprehensive:
         config = CryptoConfig()
         
         assert config.key_derivation == "argon2id"
-        assert config.argon2_memory == 262144  # 256 MB
-        assert config.argon2_iterations == 10  # 10 passes
+        assert config.argon2_memory == 524288  # 512 MB (8x OWASP minimum)
+        assert config.argon2_iterations == 20  # 20 passes (ultra-hardened)
 
 
 class TestErrorHandling:

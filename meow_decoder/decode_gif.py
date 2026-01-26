@@ -16,7 +16,7 @@ import hashlib
 from .config import MeowConfig, DecodingConfig
 from .crypto import (
     decrypt_to_raw, verify_manifest_hmac, unpack_manifest,
-    verify_keyfile
+    verify_keyfile, check_duress_password
 )
 from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
@@ -110,12 +110,14 @@ def decode_gif(
     manifest_raw = qr_data_list[0]
     
     # CRITICAL: Verify manifest frame decoded correctly from QR/GIF
-    # Expected lengths:
+    # Expected lengths (base = 115, FS ephemeral = +32, duress = +32, frame MAC = +8):
     #   - Password-only (no MAC): 115 bytes
     #   - Password-only (with MAC): 123 bytes (115 + 8)
     #   - Forward secrecy (no MAC): 147 bytes (115 + 32)
     #   - Forward secrecy (with MAC): 155 bytes (147 + 8)
-    expected_lengths = [115, 123, 147, 155]
+    #   - FS + duress (no MAC): 179 bytes (147 + 32)
+    #   - FS + duress (with MAC): 187 bytes (179 + 8)
+    expected_lengths = [115, 123, 147, 155, 179, 187]
     
     if len(manifest_raw) not in expected_lengths:
         raise ValueError(
@@ -127,12 +129,13 @@ def decode_gif(
         )
     
     # Check if manifest has MAC (length check)
-    # Manifest without MAC: 115 or 147 bytes
-    # Manifest with MAC: 115+8=123 or 147+8=155 bytes
+    # Manifest with MAC: adds 8 bytes to any base size
+    # Base sizes: 115 (password-only), 147 (FS), 179 (FS+duress)
+    # With MAC: 123, 155, 187
     has_frame_macs = False
     manifest_bytes = manifest_raw
     
-    if len(manifest_raw) in [123, 155]:
+    if len(manifest_raw) in [123, 155, 187]:
         # Might have frame MAC, but we need password to verify
         # For now, skip MAC verification on manifest (we'll do full manifest HMAC)
         # Just strip the potential MAC for now
@@ -151,6 +154,33 @@ def decode_gif(
         print(f"  Block size: {manifest.block_size} bytes")
         if manifest.ephemeral_public_key:
             print(f"  ✅ Forward secrecy: Ephemeral key present")
+    
+    # Check for duress password BEFORE doing expensive HMAC verification
+    if manifest.duress_hash is not None:
+        if check_duress_password(password, manifest.salt, manifest.duress_hash):
+            # DURESS PASSWORD DETECTED - trigger emergency response
+            if verbose:
+                print("\n🚨 DURESS PASSWORD DETECTED - Emergency protocol activated")
+            
+            # Import and use DuressHandler
+            try:
+                from .duress_mode import DuressHandler, DuressConfig
+                
+                handler = DuressHandler(DuressConfig(
+                    wipe_memory=True,
+                    wipe_resume_files=True,
+                    show_decoy=False,  # Let decoding "fail" naturally
+                    exit_after_wipe=False
+                ))
+                
+                # Execute emergency response
+                handler.execute_emergency_response([])
+                
+            except ImportError:
+                pass  # Duress mode module not available
+            
+            # Return fake "failed" error to not reveal duress was triggered
+            raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
     # Verify HMAC
     if verbose:

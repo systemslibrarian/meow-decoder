@@ -63,10 +63,50 @@ class Manifest:
     hmac: bytes
     ephemeral_public_key: Optional[bytes] = None  # Forward secrecy support
     pq_ciphertext: Optional[bytes] = None  # Post-quantum hybrid support
+    duress_hash: Optional[bytes] = None  # Duress password hash (32 bytes)
 
 
 # Minimum password length (NIST SP 800-63B recommends 8+)
 MIN_PASSWORD_LENGTH = 8
+
+# Duress password domain separation
+DURESS_HASH_PREFIX = b"duress_check_v1"
+
+
+def compute_duress_hash(password: str, salt: bytes) -> bytes:
+    """
+    Compute duress password hash for fast constant-time comparison.
+    
+    This is NOT for key derivation - it's for quickly checking if
+    a password is the duress password before doing expensive Argon2id.
+    
+    Args:
+        password: Duress password
+        salt: Salt from manifest (16 bytes)
+        
+    Returns:
+        32-byte SHA-256 hash
+    """
+    return hashlib.sha256(DURESS_HASH_PREFIX + salt + password.encode('utf-8')).digest()
+
+
+def check_duress_password(entered_password: str, salt: bytes, duress_hash: bytes) -> bool:
+    """
+    Check if entered password matches duress hash (constant-time).
+    
+    Args:
+        entered_password: Password entered by user
+        salt: Salt from manifest
+        duress_hash: Expected duress hash from manifest
+        
+    Returns:
+        True if password is the duress password
+        
+    Security:
+        Uses secrets.compare_digest for constant-time comparison.
+    """
+    computed = compute_duress_hash(entered_password, salt)
+    return secrets.compare_digest(computed, duress_hash)
 
 
 def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> bytes:
@@ -408,6 +448,12 @@ def pack_manifest(m: Manifest) -> bytes:
             raise ValueError(f"PQ ciphertext must be 1088 bytes, got {len(m.pq_ciphertext)}")
         base = base + m.pq_ciphertext
     
+    # Add duress hash if present (32 bytes) - ALWAYS LAST for easy detection
+    if m.duress_hash is not None:
+        if len(m.duress_hash) != 32:
+            raise ValueError(f"Duress hash must be 32 bytes, got {len(m.duress_hash)}")
+        base = base + m.duress_hash
+    
     return base
 
 
@@ -416,28 +462,35 @@ def unpack_manifest(b: bytes) -> Manifest:
     Deserialize manifest from bytes.
     
     Args:
-        b: Serialized manifest bytes (115, 147, or 1235 bytes)
+        b: Serialized manifest bytes
         
     Returns:
-        Manifest object with optional ephemeral_public_key and pq_ciphertext
+        Manifest object with optional ephemeral_public_key, pq_ciphertext, and duress_hash
         
     Raises:
         ValueError: If manifest is invalid or wrong version
         
     Notes:
-        - 115 bytes = password-only mode (MEOW2)
+        Valid manifest sizes:
+        - 115 bytes = password-only mode (MEOW2, legacy)
         - 147 bytes = forward secrecy mode (MEOW3)
+        - 179 bytes = forward secrecy + duress (MEOW3 + duress)
         - 1235 bytes = PQ hybrid mode (MEOW4)
+        - 1267 bytes = PQ hybrid + duress (MEOW4 + duress)
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
+    fs_duress_len = fs_len + 32  # 179 bytes (with FS + duress)
     pq_len = fs_len + 1088  # 1235 bytes (with PQ ciphertext)
+    pq_duress_len = pq_len + 32  # 1267 bytes (with PQ + duress)
+    
+    valid_sizes = [min_len, fs_len, fs_duress_len, pq_len, pq_duress_len]
     
     if len(b) < min_len:
         raise ValueError(f"Manifest too short (got {len(b)}, need at least {min_len} bytes)")
     
-    if len(b) not in [min_len, fs_len, pq_len]:
-        raise ValueError(f"Manifest length invalid (got {len(b)}, expected {min_len}, {fs_len}, or {pq_len} bytes)")
+    if len(b) not in valid_sizes:
+        raise ValueError(f"Manifest length invalid (got {len(b)}, expected one of {valid_sizes} bytes)")
     
     if b[:len(MAGIC)] != MAGIC:
         # Try MEOW2 for backward compatibility
@@ -456,17 +509,22 @@ def unpack_manifest(b: bytes) -> Manifest:
     sha = b[off:off+32]; off += 32
     hmac_tag = b[off:off+32]; off += 32
     
-    # Check for forward secrecy extension
+    # Parse optional fields based on manifest size
     ephemeral_public_key = None
+    pq_ciphertext = None
+    duress_hash = None
+    
     if len(b) >= fs_len:
         # Forward secrecy mode - extract ephemeral public key
         ephemeral_public_key = b[off:off+32]; off += 32
     
-    # Check for PQ hybrid extension
-    pq_ciphertext = None
-    if len(b) == pq_len:
+    if len(b) >= pq_len:
         # PQ hybrid mode - extract PQ ciphertext
-        pq_ciphertext = b[off:off+1088]
+        pq_ciphertext = b[off:off+1088]; off += 1088
+    
+    # Check for duress hash (last 32 bytes if size matches duress variant)
+    if len(b) == fs_duress_len or len(b) == pq_duress_len:
+        duress_hash = b[off:off+32]
     
     return Manifest(
         salt=salt,
@@ -479,7 +537,8 @@ def unpack_manifest(b: bytes) -> Manifest:
         k_blocks=k_blocks,
         hmac=hmac_tag,
         ephemeral_public_key=ephemeral_public_key,
-        pq_ciphertext=pq_ciphertext
+        pq_ciphertext=pq_ciphertext,
+        duress_hash=duress_hash
     )
 
 

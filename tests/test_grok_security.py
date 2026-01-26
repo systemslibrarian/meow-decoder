@@ -164,6 +164,180 @@ class TestDuressMode:
         
         # Sensitive data should be zeroed
         assert all(b == 0 for b in sensitive)
+    
+    def test_execute_emergency_response(self):
+        """Test the execute_emergency_response method."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+        
+        config = DuressConfig(wipe_resume_files=False, exit_after_wipe=False)
+        handler = DuressHandler(config)
+        
+        # Create sensitive data
+        sensitive = bytearray(b"more_secret_data")
+        
+        # Call execute_emergency_response directly
+        handler.execute_emergency_response([sensitive])
+        
+        # Should have triggered
+        assert handler._triggered == True
+        # Data should be wiped
+        assert all(b == 0 for b in sensitive)
+
+
+# ============================================================================
+# DURESS E2E TESTS (Encode → Decode with Duress)
+# ============================================================================
+
+class TestDuressE2E:
+    """End-to-end tests for duress mode encoding and decoding."""
+    
+    def test_encode_with_duress_password(self):
+        """Test encoding a file with a duress password configured."""
+        import tempfile
+        from pathlib import Path
+        from meow_decoder.encode import encode_file
+        from meow_decoder.config import EncodingConfig
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            # Create test file
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(b"Top secret data! " * 100)
+            
+            output_gif = tmpdir / "secret.gif"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=1.5,
+                fps=10
+            )
+            
+            # Generate receiver keypair for proper forward secrecy
+            receiver_private, receiver_public = generate_receiver_keypair()
+            
+            # Encode with duress password and forward secrecy
+            stats = encode_file(
+                input_file,
+                output_gif,
+                password="RealPassword123!",
+                config=config,
+                forward_secrecy=True,
+                receiver_public_key=receiver_public,  # Use receiver keypair
+                duress_password="DuressPassword456!",
+                verbose=False
+            )
+            
+            # GIF should be created
+            assert output_gif.exists()
+            assert stats['qr_frames'] > 0
+    
+    def test_decode_with_real_password_succeeds(self):
+        """Test that real password decodes successfully with forward secrecy."""
+        import tempfile
+        from pathlib import Path
+        from meow_decoder.encode import encode_file
+        from meow_decoder.decode_gif import decode_gif
+        from meow_decoder.config import EncodingConfig
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            # Create and encode test file
+            input_file = tmpdir / "secret.txt"
+            original_data = b"Top secret data! " * 100
+            input_file.write_bytes(original_data)
+            
+            output_gif = tmpdir / "secret.gif"
+            decoded_file = tmpdir / "decoded.txt"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=2.0,  # Higher redundancy for reliable decoding
+                fps=10
+            )
+            
+            # Generate receiver keypair for proper forward secrecy
+            receiver_private, receiver_public = generate_receiver_keypair()
+            
+            # Encode with duress password and forward secrecy
+            encode_file(
+                input_file,
+                output_gif,
+                password="RealPassword123!",
+                config=config,
+                forward_secrecy=True,
+                receiver_public_key=receiver_public,
+                duress_password="DuressPassword456!",
+                verbose=False
+            )
+            
+            # Decode with REAL password + receiver private key
+            decode_gif(
+                output_gif,
+                decoded_file,
+                password="RealPassword123!",
+                receiver_private_key=receiver_private,
+                verbose=False
+            )
+            
+            # Verify decoded content
+            assert decoded_file.exists()
+            decoded_data = decoded_file.read_bytes()
+            assert decoded_data == original_data
+    
+    def test_decode_with_duress_password_fails_gracefully(self):
+        """Test that duress password triggers error (appears as wrong password)."""
+        import tempfile
+        from pathlib import Path
+        from meow_decoder.encode import encode_file
+        from meow_decoder.decode_gif import decode_gif
+        from meow_decoder.config import EncodingConfig
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            # Create and encode test file
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(b"Top secret data! " * 100)
+            
+            output_gif = tmpdir / "secret.gif"
+            decoded_file = tmpdir / "decoded.txt"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=2.0,
+                fps=10
+            )
+            
+            # Generate receiver keypair for proper forward secrecy
+            receiver_private, receiver_public = generate_receiver_keypair()
+            
+            # Encode with duress password and forward secrecy
+            encode_file(
+                input_file,
+                output_gif,
+                password="RealPassword123!",
+                config=config,
+                forward_secrecy=True,
+                receiver_public_key=receiver_public,
+                duress_password="DuressPassword456!",
+                verbose=False
+            )
+            
+            # Decode with DURESS password - should fail with HMAC error
+            # (This is the expected behavior - duress makes it look like wrong password)
+            with pytest.raises(ValueError, match="HMAC verification failed"):
+                decode_gif(
+                    output_gif,
+                    decoded_file,
+                    password="DuressPassword456!",  # Duress password
+                    receiver_private_key=receiver_private,
+                    verbose=False
+                )
 
 
 # ============================================================================
