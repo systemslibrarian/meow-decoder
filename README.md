@@ -390,7 +390,7 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Forward Secrecy | X25519 ephemeral keys | ✅ Default |
 | Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
-| Coercion Resistance | Duress passwords | ✅ Optional |
+| Coercion Resistance | Duress passwords | ⚠️ Module only |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
 | Security Tests | 140+ tests, CI-enforced | ✅ |
@@ -427,22 +427,31 @@ meow-schrodinger-encode \
 
 ### Duress Mode (Panic Password)
 
+> ⚠️ **Status: Module implemented, CLI integration pending**
+
 A "distress signal" password that **appears to work normally** but secretly:
 1. Shows innocent decoy content
 2. Silently wipes all encryption keys from memory
 3. Optionally triggers secure deletion of key material
 4. Leaves no trace that a real secret existed
 
+**How it will work (when CLI is integrated):**
 ```bash
-# Set up duress password during encoding
+# During encoding - set up both passwords
 meow-encode \
     -i secret.pdf \
     -o secret.gif \
     --password "RealPassword123" \
     --duress-password "GiveThisToAttacker"
+
+# During decoding - either password "works"
+meow-decode-gif -i secret.gif -o output.pdf -p "RealPassword123"     # Real secret
+meow-decode-gif -i secret.gif -o output.pdf -p "GiveThisToAttacker"  # Decoy + wipe
 ```
 
 **If coerced:** Enter the duress password. The attacker sees decoy content, your keys are wiped, and there's no evidence of the real secret.
+
+**Current workaround:** Use Schrödinger mode for plausible deniability (fully implemented).
 
 | Feature | Schrödinger Mode | Duress Mode |
 |---------|------------------|-------------|
