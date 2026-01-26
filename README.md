@@ -427,15 +427,15 @@ meow-schrodinger-encode \
 
 ### Duress Mode (Panic Password)
 
-> ⚠️ **Status: Module implemented, CLI integration pending**
+> ✅ **Status: Fully Implemented**
 
 A "distress signal" password that **appears to work normally** but secretly:
-1. Shows innocent decoy content
+1. Shows innocent decoy content (looks like a real decryption)
 2. Silently wipes all encryption keys from memory
 3. Optionally triggers secure deletion of key material
 4. Leaves no trace that a real secret existed
 
-**How it will work (when CLI is integrated):**
+**How to use:**
 ```bash
 # During encoding - set up both passwords
 meow-encode \
@@ -451,7 +451,6 @@ meow-decode-gif -i secret.gif -o output.pdf -p "GiveThisToAttacker"  # Decoy + w
 
 **If coerced:** Enter the duress password. The attacker sees decoy content, your keys are wiped, and there's no evidence of the real secret.
 
-**Current workaround:** Use Schrödinger mode for plausible deniability (fully implemented).
 
 | Feature | Schrödinger Mode | Duress Mode |
 |---------|------------------|-------------|

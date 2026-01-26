@@ -30,43 +30,28 @@ WARNING:
     Use Schrödinger mode for cryptographic deniability.
 """
 
+
 import secrets
 import hashlib
 import time
 import os
-import gc
-from typing import Optional, Callable, Tuple
-from dataclasses import dataclass
+import shutil
+from pathlib import Path
+from typing import Optional, Callable, Tuple, Union
+from .config import DuressConfig, DuressMode
 
-
-@dataclass
-class DuressConfig:
-    """Configuration for duress mode behavior."""
-    
-    # What happens when duress password is entered
-    wipe_memory: bool = True           # Zero all keys in memory
-    wipe_resume_files: bool = True     # Delete resume state files
-    show_decoy: bool = True            # Show convincing decoy content
-    exit_after_wipe: bool = False      # Exit process after wipe (for CLI)
-    trigger_callback: Optional[Callable] = None  # Custom action (e.g., network beacon)
-    
-    # Timing equalization (prevent detection via timing)
-    min_delay_ms: int = 100            # Minimum processing delay
-    max_delay_ms: int = 500            # Maximum processing delay
-    
-    # Anti-forensics
-    overwrite_passes: int = 3          # Secure wipe passes
-    gc_aggressive: bool = True         # Force garbage collection
-
+# Maximum size for user-provided decoy files (100 MB)
+MAX_USER_DECOY_SIZE = 100 * 1024 * 1024
 
 class DuressHandler:
     """
-    Handles duress password detection and emergency response.
+    Handles duress password detection and decoy generation.
     
-    The duress password triggers a controlled "failure" that:
-    - Shows innocent content
-    - Wipes all sensitive data
-    - Leaves no trace of real secrets
+    The duress password triggers a "successful" decoding operation that:
+    - Shows innocent decoy content (message, file, or generated)
+    - Returns valid bytes to the caller
+    - Does NOT destroy or wipe anything (Decoy-Only mode)
+    - Leaves no trace in logs that duress was triggered
     """
     
     def __init__(self, config: Optional[DuressConfig] = None):
@@ -74,21 +59,15 @@ class DuressHandler:
         self.config = config or DuressConfig()
         self._duress_hash: Optional[bytes] = None
         self._real_hash: Optional[bytes] = None
-        self._triggered = False
-    
+        
     def set_passwords(self, duress_password: str, real_password: str, salt: bytes):
         """
         Set up duress and real passwords.
         
         Args:
-            duress_password: Password that triggers emergency wipe
+            duress_password: Password that triggers decoy
             real_password: Real decryption password
             salt: Salt for password hashing
-            
-        Security:
-            Both passwords are hashed identically.
-            Comparison is constant-time.
-            No way to distinguish which is which from hashes.
         """
         # Hash both passwords identically
         self._duress_hash = self._hash_password(duress_password, salt)
@@ -108,8 +87,7 @@ class DuressHandler:
     def check_password(
         self, 
         entered_password: str, 
-        salt: bytes,
-        sensitive_data: Optional[list] = None
+        salt: bytes
     ) -> Tuple[bool, bool]:
         """
         Check if entered password is duress or real.
@@ -117,190 +95,124 @@ class DuressHandler:
         Args:
             entered_password: Password entered by user
             salt: Salt for password hashing
-            sensitive_data: List of bytearrays to wipe if duress
             
         Returns:
             Tuple of (is_valid, is_duress)
             - (True, False) = Real password, proceed normally
-            - (True, True) = Duress password, show decoy and wipe
+            - (True, True) = Duress password, returns decoy
             - (False, False) = Wrong password
-            
-        Security:
-            - Constant-time comparison for both passwords
-            - Same timing regardless of which matches
-            - Duress triggers silent wipe before returning
         """
         entered_hash = self._hash_password(entered_password, salt)
         
         # Check both passwords in constant time
-        # CRITICAL: Both comparisons must happen to prevent timing leaks
         is_real = secrets.compare_digest(entered_hash, self._real_hash or b"")
         is_duress = secrets.compare_digest(entered_hash, self._duress_hash or b"")
         
-        # Add timing equalization
+        # Add minimal timing equalization
         self._equalize_timing()
         
         if is_duress:
-            # DURESS TRIGGERED - Emergency response
-            self._trigger_duress(sensitive_data)
-            return (True, True)  # Appear to succeed, but is duress
+            # DURESS TRIGGERED - Decoy response
+            return (True, True)
         
         if is_real:
             return (True, False)  # Normal operation
         
         return (False, False)  # Wrong password
     
-    def _trigger_duress(self, sensitive_data: Optional[list] = None):
-        """
-        Execute duress emergency response.
-        
-        This runs silently - no observable difference from normal operation.
-        """
-        self._triggered = True
-        
-        # 1. Wipe sensitive data from memory
-        if self.config.wipe_memory and sensitive_data:
-            for data in sensitive_data:
-                if isinstance(data, (bytearray, memoryview)):
-                    self._secure_zero(data)
-        
-        # 2. Wipe our own password hashes
-        if self._duress_hash:
-            self._duress_hash = secrets.token_bytes(32)  # Overwrite
-        if self._real_hash:
-            self._real_hash = secrets.token_bytes(32)  # Overwrite
-        
-        # 3. Delete resume files if configured
-        if self.config.wipe_resume_files:
-            self._wipe_resume_files()
-        
-        # 4. Force garbage collection
-        if self.config.gc_aggressive:
-            gc.collect()
-            gc.collect()
-            gc.collect()
-        
-        # 5. Call custom callback if set
-        if self.config.trigger_callback:
-            try:
-                self.config.trigger_callback()
-            except:
-                pass  # Silent failure - cannot alert attacker
-    
-    def _secure_zero(self, data: bytearray):
-        """Securely zero a bytearray."""
-        for _ in range(self.config.overwrite_passes):
-            for i in range(len(data)):
-                data[i] = 0
-    
-    def _wipe_resume_files(self):
-        """Wipe resume state files."""
-        from pathlib import Path
-        
-        resume_dir = Path.home() / ".cache" / "meowdecoder" / "resume"
-        
-        if resume_dir.exists():
-            for file in resume_dir.glob("*"):
-                try:
-                    # Overwrite before delete
-                    size = file.stat().st_size
-                    with open(file, 'wb') as f:
-                        for _ in range(self.config.overwrite_passes):
-                            f.seek(0)
-                            f.write(secrets.token_bytes(size))
-                            f.flush()
-                            os.fsync(f.fileno())
-                    file.unlink()
-                except:
-                    pass  # Silent failure
-    
     def _equalize_timing(self):
-        """Add random delay to equalize timing."""
+        """Add random delay to equal timing."""
+        # Minimal delay to mask processing differences
         delay_ms = secrets.randbelow(
             self.config.max_delay_ms - self.config.min_delay_ms + 1
         ) + self.config.min_delay_ms
-        
         time.sleep(delay_ms / 1000.0)
     
-    @property
-    def was_triggered(self) -> bool:
-        """Check if duress was triggered (for testing only)."""
-        return self._triggered
-    
-    def execute_emergency_response(self, sensitive_data: Optional[list] = None):
+    def get_decoy_data(self) -> Tuple[bytes, Optional[str]]:
         """
-        Execute duress emergency response directly.
+        Generate or load decoy data based on configuration.
         
-        This is called when duress is detected during decoding.
-        Wipes all sensitive data and optionally triggers callbacks.
+        Returns:
+            Tuple of (decoy_bytes, optional_output_name)
+        """
+        decoy_type = self.config.decoy_type
         
-        Args:
-            sensitive_data: List of bytearrays to wipe
+        # Option 1: Simple Message
+        if decoy_type == "message":
+            msg = self.config.decoy_message or "Decode complete."
+            return msg.encode('utf-8'), self.sanitize_filename(self.config.decoy_output_name)
             
-        Security:
-            - Wipes all provided sensitive data
-            - Wipes resume files
-            - Forces garbage collection
-            - Calls trigger callback if configured
-            - All operations are silent (no error messages)
-        """
-        self._trigger_duress(sensitive_data)
+        # Option 2: Bundled File (e.g., demo image)
+        elif decoy_type == "bundled_file":
+            # Attempt to find bundled asset
+            # Implementation assumes assets dir relative to package or known location
+            # Simple fallback to message if not found
+            asset_path = Path(__file__).parent.parent / "assets" / "demo.gif" # Example
+            if asset_path.exists():
+                with open(asset_path, "rb") as f:
+                    return f.read(), self.sanitize_filename(self.config.decoy_output_name or "demo.gif")
+            
+            # Fallback
+            return b"Error: Bundled decoy not found.", "error.txt"
+            
+        # Option 3: User File
+        elif decoy_type == "user_file":
+            if not self.config.decoy_file_path:
+                return b"Error: No user file specified.", "error.txt"
+                
+            user_path = Path(self.config.decoy_file_path)
+            
+            if not user_path.exists() or not user_path.is_file():
+                # Safe fallback, do not reveal the missing path in output content
+                return b"Operation successful.", "output.txt"
+                
+            if user_path.stat().st_size > MAX_USER_DECOY_SIZE:
+                 # Fallback for size limit
+                 return b"Decoy file too large.", "error.txt"
+                 
+            with open(user_path, "rb") as f:
+                content = f.read()
+                
+            out_name = self.config.decoy_output_name or user_path.name
+            return content, self.sanitize_filename(out_name)
+            
+        # Fallback for unknown type
+        return b"Decode complete.", "output.txt"
+
+    @staticmethod
+    def sanitize_filename(filename: Optional[str]) -> Optional[str]:
+        """Sanitize filename to prevent path traversal."""
+        if not filename:
+            return None
+        return os.path.basename(filename)
 
 
-def generate_duress_decoy() -> bytes:
+def generate_deterministic_decoy(size: int, salt: bytes) -> bytes:
     """
-    Generate convincing decoy content for duress mode.
+    Generate deterministic decoy content of specific size.
     
-    Returns content that looks like innocent personal files.
+    Uses salt to seed generation so the same prompt produces same decoy,
+    preventing suspicion from changing output.
     """
-    from .decoy_generator import generate_convincing_decoy
-    return generate_convincing_decoy(50000)  # ~50KB of innocent content
-
-
-# Convenience functions
-
-def setup_duress(duress_password: str, real_password: str, salt: bytes) -> DuressHandler:
-    """
-    Set up duress mode for an encoding/decoding session.
+    import random
+    # Use salt to seed PRNG for determinism
+    seed = int.from_bytes(hashlib.sha256(salt).digest(), 'big')
+    # Create isolated RNG instance
+    rng = random.Random(seed)
     
-    Args:
-        duress_password: Emergency password that triggers wipe
-        real_password: Real decryption password
-        salt: Encryption salt
+    # Generate convincing filler
+    # We'll generate a fake binary format that looks like compressed data
+    chunks = []
+    generated = 0
+    
+    while generated < size:
+        chunk_size = min(4096, size - generated)
+        # Generate semi-random bytes using isolated RNG
+        chunk = rng.randbytes(chunk_size)
+        chunks.append(chunk)
+        generated += len(chunk)
         
-    Returns:
-        Configured DuressHandler
-    """
-    handler = DuressHandler()
-    handler.set_passwords(duress_password, real_password, salt)
-    return handler
-
-
-def is_duress_triggered(handler: DuressHandler) -> bool:
-    """Check if duress mode was triggered."""
-    return handler.was_triggered
-
-
-# CLI integration helper
-
-def add_duress_args(parser):
-    """Add duress mode arguments to argparse parser."""
-    duress_group = parser.add_argument_group('Duress Mode (Emergency Protection)')
-    
-    duress_group.add_argument(
-        '--duress-password',
-        type=str,
-        help='Emergency password that shows decoy and wipes keys (for coercion resistance)'
-    )
-    
-    duress_group.add_argument(
-        '--duress-wipe-files',
-        action='store_true',
-        default=False,
-        help='Also wipe resume files when duress triggered'
-    )
-    
-    return parser
+    return b"".join(chunks)
 
 
 # Self-test
@@ -311,7 +223,8 @@ if __name__ == "__main__":
     # Test 1: Basic setup
     print("\n1. Testing duress setup...")
     salt = secrets.token_bytes(16)
-    handler = setup_duress("innocent123", "secret456", salt)
+    handler = DuressHandler()
+    handler.set_passwords("innocent123", "secret456", salt)
     print("   ✅ Duress handler created")
     
     # Test 2: Real password check
@@ -323,55 +236,41 @@ if __name__ == "__main__":
     
     # Test 3: Wrong password check
     print("\n3. Testing wrong password...")
-    handler2 = setup_duress("innocent123", "secret456", salt)
-    is_valid, is_duress = handler2.check_password("wrongpass", salt)
+    is_valid, is_duress = handler.check_password("wrongpass", salt)
     assert is_valid is False
     assert is_duress is False
     print("   ✅ Wrong password rejected correctly")
     
     # Test 4: Duress password check
     print("\n4. Testing duress password...")
-    handler3 = setup_duress("innocent123", "secret456", salt)
-    
-    # Create some "sensitive data" to wipe
-    sensitive = [bytearray(b"SECRET KEY DATA")]
-    
-    is_valid, is_duress = handler3.check_password("innocent123", salt, sensitive)
+    is_valid, is_duress = handler.check_password("innocent123", salt)
     assert is_valid is True  # Appears to succeed
     assert is_duress is True  # But is duress
-    assert handler3.was_triggered is True
-    assert sensitive[0] == bytearray(15)  # Data was wiped
-    print("   ✅ Duress password triggered wipe correctly")
+    print("   ✅ Duress password detected correctly")
     
     # Test 5: Timing consistency
     print("\n5. Testing timing consistency...")
     import time
     
-    handler4 = setup_duress("duress", "real", salt)
-    
     # Time real password
     start = time.time()
-    handler4.check_password("real", salt)
+    handler.check_password("secret456", salt)
     real_time = time.time() - start
-    
-    handler5 = setup_duress("duress", "real", salt)
     
     # Time duress password
     start = time.time()
-    handler5.check_password("duress", salt)
+    handler.check_password("innocent123", salt)
     duress_time = time.time() - start
-    
-    handler6 = setup_duress("duress", "real", salt)
     
     # Time wrong password
     start = time.time()
-    handler6.check_password("wrong", salt)
+    handler.check_password("wrong", salt)
     wrong_time = time.time() - start
     
     print(f"   Real password time: {real_time*1000:.1f}ms")
     print(f"   Duress password time: {duress_time*1000:.1f}ms")
     print(f"   Wrong password time: {wrong_time*1000:.1f}ms")
-    print("   ✅ Timings are similar (equalized)")
+    print("   ✅ Timings monitored (equalization active)")
     
     print("\n" + "=" * 60)
     print("🎉 All duress mode tests passed!")

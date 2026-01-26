@@ -13,7 +13,8 @@ import time
 import hashlib
 
 # Import core modules
-from .config import MeowConfig, DecodingConfig
+
+from .config import MeowConfig, DecodingConfig, DuressConfig, DuressMode
 from .crypto import (
     decrypt_to_raw, verify_manifest_hmac, unpack_manifest,
     verify_keyfile, check_duress_password
@@ -29,6 +30,7 @@ def decode_gif(
     output_path: Path,
     password: str,
     config: Optional[DecodingConfig] = None,
+    duress_config: Optional[DuressConfig] = None,
     keyfile: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
     verbose: bool = False
@@ -41,6 +43,7 @@ def decode_gif(
         output_path: Path to output file
         password: Decryption password
         config: Decoding configuration
+        duress_config: Duress configuration
         keyfile: Optional keyfile content
         receiver_private_key: Optional X25519 private key for forward secrecy (32 bytes)
         verbose: Print verbose output
@@ -50,6 +53,10 @@ def decode_gif(
     """
     if config is None:
         config = DecodingConfig()
+    
+    if duress_config is None:
+        duress_config = DuressConfig()
+
     
     start_time = time.time()
     
@@ -164,22 +171,48 @@ def decode_gif(
             
             # Import and use DuressHandler
             try:
-                from .duress_mode import DuressHandler, DuressConfig
+                from .duress_mode import DuressHandler
                 
-                handler = DuressHandler(DuressConfig(
-                    wipe_memory=True,
-                    wipe_resume_files=True,
-                    show_decoy=False,  # Let decoding "fail" naturally
-                    exit_after_wipe=False
-                ))
+                # Use passed configuration (or default if None)
+                d_config = duress_config or DuressConfig()
+                handler = DuressHandler(d_config)
                 
-                # Execute emergency response
-                handler.execute_emergency_response([])
+                # Get decoy data
+                decoy_data, filename = handler.get_decoy_data()
                 
+                # Handle PANIC mode (explicit opt-in)
+                # In new architecture, Handler generates decoy first, then we decide if we PANIC
+                if d_config.mode == DuressMode.PANIC and d_config.panic_enabled:
+                     if verbose:
+                         print("  🔥 PANIC MODE: Silent exit initiated")
+                     # Silent exit
+                     sys.exit(1)
+                
+                if decoy_data:
+                    # DECOY MODE: Write deterministic decoy and return "success"
+                    if verbose:
+                        print("  ✓ Authenticated and verified")
+                    
+                    with open(output_path, 'wb') as f:
+                        f.write(decoy_data)
+                    
+                    # Return fake success statistics to mask the duress event
+                    return {
+                        'input_frames': len(frames),
+                        'qr_codes_read': len(qr_data_list),
+                        'droplets_processed': manifest.k_blocks * 2, # Fake efficiency
+                        'blocks_decoded': manifest.k_blocks,
+                        'output_size': len(decoy_data),
+                        'efficiency': 1.0,
+                        'elapsed_time': time.time() - start_time
+                    }
+
             except ImportError:
                 pass  # Duress mode module not available
+            except SystemExit:
+                raise # Propagate panic exit
             
-            # Return fake "failed" error to not reveal duress was triggered
+            # Return fake "failed" error to not reveal duress was triggered (Silent Panic)
             raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
     # Verify HMAC
@@ -376,6 +409,12 @@ Examples:
     parser.add_argument('--aggressive', action='store_true',
                        help='Use aggressive QR preprocessing')
     
+    # Duress Handling
+    parser.add_argument('--duress-mode', choices=['decoy', 'panic'], default='decoy',
+                       help='Duress response mode: decoy (fake success) or panic (wipe/exit)')
+    parser.add_argument('--enable-panic', action='store_true',
+                       help='Explicitly enable destructive PANIC mode (required for --duress-mode panic)')
+    
     # Crypto backend selection (SECURITY: Rust is HARD DEFAULT for constant-time)
     parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
                        help='Crypto backend: python, rust, or auto (default: auto, Rust required)')
@@ -475,6 +514,14 @@ Examples:
                 traceback.print_exc()
             sys.exit(1)
     
+    # Create duress config
+    d_mode = DuressMode.PANIC if args.duress_mode == 'panic' else DuressMode.DECOY
+    duress_config = DuressConfig(
+        enabled=True,
+        mode=d_mode,
+        panic_enabled=args.enable_panic
+    )
+
     # Create decoding config
     config = DecodingConfig(
         preprocessing='aggressive' if args.aggressive else 'normal'
@@ -487,6 +534,7 @@ Examples:
             args.output,
             password,
             config=config,
+            duress_config=duress_config,
             keyfile=keyfile,
             receiver_private_key=receiver_private_key,  # Forward secrecy support
             verbose=args.verbose

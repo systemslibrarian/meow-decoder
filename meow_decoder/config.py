@@ -8,6 +8,40 @@ from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
 import json
+import enum
+
+
+class DuressMode(enum.Enum):
+    """
+    Operational mode when duress is triggered.
+    """
+    DECOY = "decoy"  # Return fake "success" data (looks normal)
+    PANIC = "panic"  # Silent wipe and clean exit (paranoid)
+
+
+@dataclass
+class DuressConfig:
+    """
+    Configuration for duress mode behavior.
+    """
+    enabled: bool = False
+    mode: DuressMode = DuressMode.DECOY
+    panic_enabled: bool = False  # Explicit opt-in for destructive panic
+    
+    # Decoy settings
+    decoy_type: str = "message"  # message, bundled_file, user_file
+    decoy_message: str = "Decode complete."
+    decoy_file_path: Optional[str] = None
+    decoy_output_name: Optional[str] = None
+    
+    # Legacy/Granular options (kept for compatibility/internal use)
+    wipe_memory: bool = False
+    wipe_resume_files: bool = False
+    exit_after_wipe: bool = False
+    
+    # Timing equalization
+    min_delay_ms: int = 100
+    max_delay_ms: int = 500
 
 
 @dataclass
@@ -123,6 +157,7 @@ class MeowConfig:
     encoding: EncodingConfig = field(default_factory=EncodingConfig)
     decoding: DecodingConfig = field(default_factory=DecodingConfig)
     crypto: CryptoConfig = field(default_factory=CryptoConfig)
+    duress: DuressConfig = field(default_factory=DuressConfig)
     paths: PathConfig = field(default_factory=PathConfig)
     
     # Global options
@@ -131,10 +166,16 @@ class MeowConfig:
     
     def save(self, path: Path):
         """Save configuration to JSON file."""
+        # Custom serialization for enums
+        duress_dict = self.duress.__dict__.copy()
+        if isinstance(duress_dict['mode'], DuressMode):
+            duress_dict['mode'] = duress_dict['mode'].value
+
         config_dict = {
             'encoding': self.encoding.__dict__,
             'decoding': self.decoding.__dict__,
             'crypto': self.crypto.__dict__,
+            'duress': duress_dict,
             'paths': {
                 'cache_dir': str(self.paths.cache_dir),
                 'resume_dir': str(self.paths.resume_dir),
@@ -158,18 +199,33 @@ class MeowConfig:
         # Load encoding config
         if 'encoding' in config_dict:
             for key, value in config_dict['encoding'].items():
-                setattr(config.encoding, key, value)
+                if hasattr(config.encoding, key):
+                   setattr(config.encoding, key, value)
         
         # Load decoding config
         if 'decoding' in config_dict:
             for key, value in config_dict['decoding'].items():
-                setattr(config.decoding, key, value)
+                if hasattr(config.decoding, key):
+                   setattr(config.decoding, key, value)
         
         # Load crypto config
         if 'crypto' in config_dict:
             for key, value in config_dict['crypto'].items():
-                setattr(config.crypto, key, value)
+                 if hasattr(config.crypto, key):
+                   setattr(config.crypto, key, value)
         
+        # Load duress config
+        if 'duress' in config_dict:
+            for key, value in config_dict['duress'].items():
+                if key == 'mode' and isinstance(value, str):
+                     try:
+                         value = DuressMode(value)
+                     except ValueError:
+                         value = DuressMode.DECOY # Fallback
+                
+                if hasattr(config.duress, key):
+                    setattr(config.duress, key, value)
+
         # Load paths
         if 'paths' in config_dict:
             config.paths = PathConfig(

@@ -70,8 +70,21 @@ def encode_file(
         config = EncodingConfig()
     
     # Duress mode requires forward secrecy (to avoid manifest size ambiguity)
-    if duress_password and not forward_secrecy:
-        raise ValueError("Duress mode requires forward secrecy (do not use --no-forward-secrecy with --duress-password)")
+    if duress_password:
+        if not forward_secrecy:
+            raise ValueError("Duress mode requires forward secrecy (do not use --no-forward-secrecy with --duress-password)")
+        
+        # Ambiguity check: Password-Only + Duress (147 bytes) vs Forward Secrecy (147 bytes)
+        # If we don't use PQ and don't use keys, we default to Password-Only mode (even if FS flag is on).
+        # This creates a 147-byte manifest which unpack_manifest misinterprets as FS mode.
+        if not use_pq and receiver_public_key is None:
+             raise ValueError(
+                 "Duress mode requires a distinct manifest format. "
+                 "Please either:\n"
+                 "  1. Provide a receiver public key for Forward Secrecy (--receiver-pubkey)\n"
+                 "  2. Enable Post-Quantum mode (--pq)\n"
+                 "Standard password-only mode creates a manifest size collision with Duress mode."
+             )
     
     # Select crypto mode based on flags
     if use_pq:
