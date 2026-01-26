@@ -31,8 +31,8 @@ class EyeRegion:
 @dataclass
 class LogoConfig:
     """Configuration for logo-eyes carrier."""
-    width: int = 1400     # Wide canvas for two big eyes side by side
-    height: int = 700
+    width: int = 1200     # Wide canvas for cat with big eyes
+    height: int = 900     # Tall enough for cat head around eyes
     background_color: Tuple[int, int, int] = (25, 25, 35)  # Dark blue-gray
     cat_color: Tuple[int, int, int] = (45, 45, 55)  # Slightly lighter
     eye_glow_color: Tuple[int, int, int] = (0, 255, 180)  # Cyan glow
@@ -61,10 +61,10 @@ class LogoEyesEncoder:
         self.config = config or LogoConfig()
         
         # Calculate eye positions (centered, horizontally spaced)
-        # Eyes are HUGE to fit readable QR codes - they ARE the main feature
-        eye_y = int(self.config.height * 0.50)  # Center vertically
-        eye_spacing = int(self.config.width * 0.25)  # Wide spacing
-        eye_radius = int(self.config.height * 0.42)  # 42% of height = ~294px
+        # Eyes are big enough for readable QR but leave room for cat head
+        eye_y = int(self.config.height * 0.45)  # Upper half for eyes
+        eye_spacing = int(self.config.width * 0.22)  # Spacing for cat face
+        eye_radius = int(self.config.height * 0.28)  # 28% of height = ~252px
         
         self.left_eye = EyeRegion(
             center_x=self.config.width // 2 - eye_spacing,
