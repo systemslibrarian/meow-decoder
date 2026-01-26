@@ -65,7 +65,57 @@ Receiver: Video → meow-decode → secret.pdf (recovered)
 
 ---
 
-## 🔐 What This Protects / Doesn't Protect
+## � How It Actually Works (Technical)
+
+### The Data Pipeline
+
+```
+File → Compress → Encrypt → Fountain Encode → QR Codes → Animated GIF
+```
+
+| Step | What Happens |
+|------|--------------|
+| **1. Compress** | Your file is compressed with zlib to reduce size |
+| **2. Encrypt** | AES-256-GCM encryption with Argon2id key derivation |
+| **3. Fountain Encode** | Encrypted data split into redundant "droplets" using Luby Transform codes |
+| **4. QR Generation** | Each droplet (~500 bytes) becomes a QR code frame |
+| **5. GIF Assembly** | Frame 0 = manifest (metadata), Frames 1+ = data droplets |
+
+### Why Fountain Codes?
+
+Fountain codes are "rateless" - you can generate infinite droplets, and you only need **~67% of them** to reconstruct the original data. This means:
+
+- 📱 Shaky phone video? No problem
+- 🔄 Missed some frames? Keep going
+- 🌫️ Blurry QR codes? Skip them, decode others
+- ♾️ GIF loops forever, giving multiple chances to capture each frame
+
+### The Optical "Air Gap"
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   SENDER    │  light  │   PHONE     │  file   │  RECEIVER   │
+│   SCREEN    │ ──────► │   CAMERA    │ ──────► │   DECODE    │
+│  (GIF plays)│         │ (records)   │         │ (extracts)  │
+└─────────────┘         └─────────────┘         └─────────────┘
+      │                                               │
+      └───────── NO NETWORK CONNECTION ───────────────┘
+```
+
+The phone is just a "dumb" optical sensor carrying photons. It never decrypts anything - all crypto happens on trusted computers at each end.
+
+### Decoding Process
+
+1. **Extract frames** from GIF or video file
+2. **Scan QR codes** from each frame
+3. **Collect droplets** (fountain codes handle missing/corrupted frames)
+4. **Reconstruct** encrypted blob when enough droplets collected
+5. **Decrypt** with your password (Argon2id → AES-256-GCM)
+6. **Decompress** → original file restored
+
+---
+
+## �🔐 What This Protects / Doesn't Protect
 
 ### ✅ DOES Protect Against
 
