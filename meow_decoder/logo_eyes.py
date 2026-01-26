@@ -31,14 +31,14 @@ class EyeRegion:
 @dataclass
 class LogoConfig:
     """Configuration for logo-eyes carrier."""
-    width: int = 800
-    height: int = 600
+    width: int = 1200
+    height: int = 800
     background_color: Tuple[int, int, int] = (25, 25, 35)  # Dark blue-gray
     cat_color: Tuple[int, int, int] = (45, 45, 55)  # Slightly lighter
     eye_glow_color: Tuple[int, int, int] = (0, 255, 180)  # Cyan glow
     brand_text: str = "MEOW"
     brand_color: Tuple[int, int, int] = (100, 100, 120)  # Subtle gray
-    animate_blink: bool = True
+    animate_blink: bool = False  # Disable blinking so QR always visible
     blink_interval: int = 30  # Frames between blinks
     visible_qr: bool = True   # Show QR codes visibly in eyes (not LSB hidden)
 
@@ -61,9 +61,10 @@ class LogoEyesEncoder:
         self.config = config or LogoConfig()
         
         # Calculate eye positions (centered, horizontally spaced)
-        eye_y = int(self.config.height * 0.42)
-        eye_spacing = int(self.config.width * 0.22)
-        eye_radius = int(min(self.config.width, self.config.height) * 0.12)
+        # Eyes are large to fit readable QR codes
+        eye_y = int(self.config.height * 0.40)
+        eye_spacing = int(self.config.width * 0.20)
+        eye_radius = int(min(self.config.width, self.config.height) * 0.18)  # Much bigger eyes
         
         self.left_eye = EyeRegion(
             center_x=self.config.width // 2 - eye_spacing,
