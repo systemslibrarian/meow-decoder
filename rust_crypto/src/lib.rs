@@ -29,7 +29,7 @@ use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
-use pqcrypto_kyber::kyber768;
+use pqcrypto_mlkem::mlkem768;
 use pqcrypto_traits::kem::{SecretKey as KemSecretKey, PublicKey as KemPublicKey, Ciphertext as KemCiphertext, SharedSecret as KemSharedSecret};
 
 // =============================================================================
@@ -77,7 +77,7 @@ fn derive_key_argon2id<'py>(
     argon2.hash_password_into(password, salt, &mut output)
         .map_err(|e| PyValueError::new_err(format!("Argon2id failed: {}", e)))?;
 
-    Ok(PyBytes::new_bound(py, &output))
+    Ok(PyBytes::new(py, &output))
 }
 
 // =============================================================================
@@ -100,7 +100,7 @@ fn derive_key_hkdf<'py>(
     hkdf.expand(info, &mut okm)
         .map_err(|e| PyValueError::new_err(format!("HKDF expand failed: {:?}", e)))?;
 
-    Ok(PyBytes::new_bound(py, &okm))
+    Ok(PyBytes::new(py, &okm))
 }
 
 /// HKDF-Extract phase only.
@@ -112,7 +112,7 @@ fn hkdf_extract<'py>(
     ikm: &[u8],
 ) -> PyResult<Bound<'py, PyBytes>> {
     let (prk, _) = Hkdf::<Sha256>::extract(salt, ikm);
-    Ok(PyBytes::new_bound(py, prk.as_slice()))
+    Ok(PyBytes::new(py, prk.as_slice()))
 }
 
 /// HKDF-Expand phase only.
@@ -130,7 +130,7 @@ fn hkdf_expand<'py>(
     hkdf.expand(info, &mut okm)
         .map_err(|e| PyValueError::new_err(format!("HKDF expand failed: {:?}", e)))?;
 
-    Ok(PyBytes::new_bound(py, &okm))
+    Ok(PyBytes::new(py, &okm))
 }
 
 // =============================================================================
@@ -189,7 +189,7 @@ fn aes_gcm_encrypt<'py>(
     let ciphertext = ciphertext
         .map_err(|_| PyValueError::new_err("Encryption failed"))?;
 
-    Ok(PyBytes::new_bound(py, &ciphertext))
+    Ok(PyBytes::new(py, &ciphertext))
 }
 
 /// Decrypt data using AES-256-GCM.
@@ -249,7 +249,7 @@ fn aes_gcm_decrypt<'py>(
     let plaintext = plaintext
         .map_err(|_| PyValueError::new_err("Decryption failed - authentication error"))?;
 
-    Ok(PyBytes::new_bound(py, &plaintext))
+    Ok(PyBytes::new(py, &plaintext))
 }
 
 // =============================================================================
@@ -269,7 +269,7 @@ fn hmac_sha256<'py>(
         .map_err(|_| PyValueError::new_err("Invalid key length"))?;
     mac.update(message);
     let result = mac.finalize();
-    Ok(PyBytes::new_bound(py, result.into_bytes().as_slice()))
+    Ok(PyBytes::new(py, result.into_bytes().as_slice()))
 }
 
 /// Verify HMAC-SHA256 in constant time.
@@ -301,7 +301,7 @@ fn sha256<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
     let mut hasher = Sha256::new();
     hasher.update(data);
     let result = hasher.finalize();
-    Ok(PyBytes::new_bound(py, result.as_slice()))
+    Ok(PyBytes::new(py, result.as_slice()))
 }
 
 // =============================================================================
@@ -322,8 +322,8 @@ fn x25519_generate_keypair<'py>(
     let public = PublicKey::from(&secret);
 
     Ok((
-        PyBytes::new_bound(py, secret.as_bytes()),
-        PyBytes::new_bound(py, public.as_bytes()),
+        PyBytes::new(py, secret.as_bytes()),
+        PyBytes::new(py, public.as_bytes()),
     ))
 }
 
@@ -361,7 +361,7 @@ fn x25519_exchange<'py>(
     // Zeroize private key copy
     priv_bytes.zeroize();
 
-    Ok(PyBytes::new_bound(py, shared.as_bytes()))
+    Ok(PyBytes::new(py, shared.as_bytes()))
 }
 
 /// Derive X25519 public key from private key.
@@ -382,7 +382,7 @@ fn x25519_public_from_private<'py>(
     // Zeroize
     priv_bytes.zeroize();
 
-    Ok(PyBytes::new_bound(py, public.as_bytes()))
+    Ok(PyBytes::new(py, public.as_bytes()))
 }
 
 // =============================================================================
@@ -404,7 +404,7 @@ fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyByt
     use rand::RngCore;
     let mut buffer = vec![0u8; size];
     rand::thread_rng().fill_bytes(&mut buffer);
-    Ok(PyBytes::new_bound(py, &buffer))
+    Ok(PyBytes::new(py, &buffer))
 }
 
 /// Get backend info.
@@ -424,11 +424,10 @@ fn backend_info() -> String {
 fn mlkem768_keygen<'py>(
     py: Python<'py>,
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-    let (pk, sk) = kyber768::keypair();
-    
+    let (pk, sk) = mlkem768::keypair();
     Ok((
-        PyBytes::new_bound(py, sk.as_bytes()),
-        PyBytes::new_bound(py, pk.as_bytes()),
+        PyBytes::new(py, sk.as_bytes()),
+        PyBytes::new(py, pk.as_bytes()),
     ))
 }
 
@@ -438,22 +437,20 @@ fn mlkem768_encapsulate<'py>(
     public_key: &[u8],
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     // Check key length
-    if public_key.len() != kyber768::public_key_bytes() {
+    if public_key.len() != mlkem768::public_key_bytes() {
         return Err(PyValueError::new_err(format!(
             "Invalid public key length: expected {}, got {}",
-            kyber768::public_key_bytes(),
+            mlkem768::public_key_bytes(),
             public_key.len()
         )));
     }
 
-    let pk = kyber768::PublicKey::from_bytes(public_key)
+    let pk = mlkem768::PublicKey::from_bytes(public_key)
         .map_err(|e| PyValueError::new_err(format!("Invalid public key: {:?}", e)))?;
-    
-    let (ss, ct) = kyber768::encapsulate(&pk);
-    
+    let (ss, ct) = mlkem768::encapsulate(&pk);
     Ok((
-        PyBytes::new_bound(py, ss.as_bytes()),
-        PyBytes::new_bound(py, ct.as_bytes()),
+        PyBytes::new(py, ss.as_bytes()),
+        PyBytes::new(py, ct.as_bytes()),
     ))
 }
 
@@ -464,30 +461,27 @@ fn mlkem768_decapsulate<'py>(
     ciphertext: &[u8],
 ) -> PyResult<Bound<'py, PyBytes>> {
     // Check lengths
-    if private_key.len() != kyber768::secret_key_bytes() {
+    if private_key.len() != mlkem768::secret_key_bytes() {
         return Err(PyValueError::new_err(format!(
             "Invalid private key length: expected {}, got {}",
-            kyber768::secret_key_bytes(),
+            mlkem768::secret_key_bytes(),
             private_key.len()
         )));
     }
-    if ciphertext.len() != kyber768::ciphertext_bytes() {
+    if ciphertext.len() != mlkem768::ciphertext_bytes() {
         return Err(PyValueError::new_err(format!(
             "Invalid ciphertext length: expected {}, got {}",
-            kyber768::ciphertext_bytes(),
+            mlkem768::ciphertext_bytes(),
             ciphertext.len()
         )));
     }
 
-    let sk = kyber768::SecretKey::from_bytes(private_key)
+    let sk = mlkem768::SecretKey::from_bytes(private_key)
         .map_err(|e| PyValueError::new_err(format!("Invalid private key: {:?}", e)))?;
-        
-    let ct = kyber768::Ciphertext::from_bytes(ciphertext)
+    let ct = mlkem768::Ciphertext::from_bytes(ciphertext)
         .map_err(|e| PyValueError::new_err(format!("Invalid ciphertext: {:?}", e)))?;
-
-    let ss = kyber768::decapsulate(&ct, &sk);
-    
-    Ok(PyBytes::new_bound(py, ss.as_bytes()))
+    let ss = mlkem768::decapsulate(&ct, &sk);
+    Ok(PyBytes::new(py, ss.as_bytes()))
 }
 
 // =============================================================================

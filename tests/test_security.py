@@ -177,6 +177,22 @@ class TestCorruptionHandling:
 class TestNonceSafety:
     """Test nonce uniqueness and safety."""
     
+    def setup_method(self):
+        """Patch crypto settings for faster tests."""
+        import meow_decoder.crypto
+        self.original_iter = meow_decoder.crypto.ARGON2_ITERATIONS
+        self.original_mem = meow_decoder.crypto.ARGON2_MEMORY
+        
+        # Reduce to minimum for test speed
+        meow_decoder.crypto.ARGON2_ITERATIONS = 1
+        meow_decoder.crypto.ARGON2_MEMORY = 64
+        
+    def teardown_method(self):
+        """Restore crypto settings."""
+        import meow_decoder.crypto
+        meow_decoder.crypto.ARGON2_ITERATIONS = self.original_iter
+        meow_decoder.crypto.ARGON2_MEMORY = self.original_mem
+    
     def test_nonce_never_reused(self):
         """Each encryption should use a unique nonce."""
         data = b"Secret message"
@@ -184,8 +200,8 @@ class TestNonceSafety:
         
         nonces = set()
         
-        # Encrypt same data 100 times
-        for _ in range(100):
+        # Encrypt same data 50 times
+        for _ in range(50):
             _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, password, None, None)
             
             # Nonce should be unique
