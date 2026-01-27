@@ -1,0 +1,47 @@
+[package]
+name = "crypto_core"
+version = "0.1.0"
+edition = "2021"
+authors = ["Meow Decoder Team"]
+description = "Formally verified cryptographic primitives for Meow-Encode"
+license = "MIT"
+repository = "https://github.com/YOUR_USERNAME/meow-decoder"
+keywords = ["cryptography", "aead", "verified", "security"]
+categories = ["cryptography", "no-std"]
+
+[dependencies]
+# AES-GCM implementation
+aes-gcm = "0.10"
+
+# Secure memory zeroization
+zeroize = { version = "1.7", features = ["derive"] }
+
+# Secure random number generation
+getrandom = "0.2"
+
+[dev-dependencies]
+# For testing
+proptest = "1.4"
+
+[features]
+# Enable Verus verification mode
+verus = []
+
+# Enable std (default)
+default = ["std"]
+std = []
+
+# No-std support for embedded
+no_std = []
+
+[profile.release]
+# Optimize for size and security
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+# Keep debug assertions for security checks
+debug-assertions = true
+overflow-checks = true

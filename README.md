@@ -651,9 +651,32 @@ pytest tests/
 # Run security tests specifically
 pytest tests/test_security.py tests/test_adversarial.py
 
+# Run property-based tests (security invariants)
+pytest tests/test_property_based.py -v --hypothesis-show-statistics
+
 # Run with coverage
 pytest --cov=meow_decoder tests/
 ```
+
+### Property-Based Testing
+
+We use **Hypothesis** for property-based testing to verify security invariants hold for all possible inputs:
+
+```bash
+# Run with detailed statistics
+pytest tests/test_property_based.py -v --hypothesis-show-statistics
+
+# Run exhaustive profile (1000 examples per test)
+pytest tests/test_property_based.py --hypothesis-profile=exhaustive
+```
+
+Key invariants tested:
+- **Encrypt/Decrypt Roundtrip**: `decrypt(encrypt(x)) == x` for all x
+- **Backend Parity**: Rust and Python backends produce identical outputs
+- **Tamper Detection**: Any bit flip in ciphertext is detected
+- **Nonce Uniqueness**: Same key never reuses nonce
+
+See [docs/SECURITY_INVARIANTS.md](docs/SECURITY_INVARIANTS.md) for the complete invariant specification.
 
 CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 

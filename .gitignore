@@ -66,3 +66,11 @@ receiver_private.pem
 receiver_public.key
 *.pem
 *.key
+
+# Formal Verification (TLA+ / ProVerif)
+formal/tla/states/
+formal/tla/*.dump
+formal/tla/*.dot
+formal/tla/*.out
+formal/proverif/*.html
+formal/proverif/output/

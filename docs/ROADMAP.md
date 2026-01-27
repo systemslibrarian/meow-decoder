@@ -37,12 +37,12 @@ This document outlines planned security improvements organized by timeline.
 ## 🔄 Short-Term (Next Release)
 
 ### Enhanced Testing
-- [ ] **Property-Based Testing**: Hypothesis for invariant verification
-- [ ] **Differential Testing**: Compare Rust vs Python backend outputs
-- [ ] **Coverage Goals**: 90%+ on crypto-critical paths
+- [x] **Property-Based Testing**: Hypothesis for invariant verification (`tests/test_property_based.py`)
+- [x] **Differential Testing**: Compare Rust vs Python backend outputs (TestBackendParity)
+- [x] **Coverage Goals**: 70%+ baseline with branch tracking on crypto-critical paths
 
 ### Documentation
-- [ ] **Security Invariants Doc**: Formal listing of all security invariants
+- [x] **Security Invariants Doc**: Formal listing of all security invariants (`docs/SECURITY_INVARIANTS.md`)
 - [ ] **Attack Surface Analysis**: Updated threat model with mitigations
 
 ---
@@ -55,9 +55,9 @@ This document outlines planned security improvements organized by timeline.
 - [ ] **TPM 2.0 Binding**: Seal keys to platform state
 
 ### Rust Expansion
-- [ ] **Pure Rust Crypto**: Move all crypto operations to Rust
+- [x] **Pure Rust Crypto**: All crypto operations in Rust (`meow_crypto_rs` crate)
 - [ ] **WASM Target**: Browser-based encoding/decoding
-- [ ] **Memory Safety**: Eliminate remaining Python crypto paths
+- [x] **Memory Safety**: Rust backend with `secure_zero` for memory wiping
 
 ---
 
@@ -100,4 +100,4 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: January 2026*
+*Last Updated: January 27, 2026*

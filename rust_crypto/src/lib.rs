@@ -398,6 +398,22 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
     a.ct_eq(b).into()
 }
 
+/// Securely zero memory - writes zeros and forces volatile write.
+/// 
+/// Note: In Rust, we use zeroize crate which provides proper memory barriers.
+/// This function is mostly for API completeness - Python bytearrays are mutable
+/// and can be zeroed in place.
+#[pyfunction]
+fn secure_zero(py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> PyResult<()> {
+    // Get mutable access to the bytearray
+    unsafe {
+        let slice = data.as_bytes_mut();
+        // Use zeroize to securely zero the memory
+        slice.zeroize();
+    }
+    Ok(())
+}
+
 /// Secure random bytes.
 #[pyfunction]
 fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyBytes>> {
@@ -516,6 +532,7 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Utilities
     m.add_function(wrap_pyfunction!(constant_time_compare, m)?)?;
+    m.add_function(wrap_pyfunction!(secure_zero, m)?)?;
     m.add_function(wrap_pyfunction!(secure_random, m)?)?;
     m.add_function(wrap_pyfunction!(backend_info, m)?)?;
 

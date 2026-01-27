@@ -1,0 +1,240 @@
+# Formal Verification Workflow
+# Runs ProVerif symbolic security analysis and TLA+ model checking
+#
+# Triggered on:
+#   - Push to main/develop that modifies formal/ directory
+#   - Pull requests that modify formal/ directory
+#   - Manual workflow dispatch
+#   - Weekly schedule (comprehensive verification)
+
+name: Formal Verification
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'formal/**'
+      - '.github/workflows/formal-verification.yml'
+  pull_request:
+    paths:
+      - 'formal/**'
+      - '.github/workflows/formal-verification.yml'
+  workflow_dispatch:
+    inputs:
+      verbose:
+        description: 'Show attack traces for failed queries'
+        required: false
+        default: 'false'
+        type: boolean
+  schedule:
+    # Weekly comprehensive verification on Sunday at 2 AM UTC
+    - cron: '0 2 * * 0'
+
+jobs:
+  proverif:
+    name: ProVerif Security Analysis
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Install ProVerif
+        run: |
+          # Install ProVerif from apt (Ubuntu 22.04+)
+          sudo apt-get update
+          sudo apt-get install -y proverif || {
+            # Fallback: Install from source
+            echo "Installing ProVerif from source..."
+            wget -q https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz
+            tar xzf proverif2.05.tar.gz
+            cd proverif2.05
+            ./build
+            sudo cp proverif proverifinter /usr/local/bin/
+          }
+          
+          proverif -version || echo "ProVerif installed"
+      
+      - name: Run ProVerif Analysis
+        id: proverif
+        run: |
+          cd formal/proverif
+          
+          echo "============================================"
+          echo "🔐 Running ProVerif Security Analysis"
+          echo "============================================"
+          echo ""
+          
+          # Run ProVerif with error capture
+          set +e
+          proverif meow_encode.pv 2>&1 | tee proverif_output.txt
+          PROVERIF_EXIT=$?
+          set -e
+          
+          # Extract verification results
+          echo ""
+          echo "============================================"
+          echo "📊 Verification Summary"
+          echo "============================================"
+          
+          # Count passed/failed queries
+          PASSED=$(grep -c "is true" proverif_output.txt || echo "0")
+          FAILED=$(grep -c "is false" proverif_output.txt || echo "0")
+          CANNOT=$(grep -c "cannot be proved" proverif_output.txt || echo "0")
+          
+          echo "✅ Verified (true): $PASSED"
+          echo "❌ Failed (false): $FAILED"
+          echo "⚠️  Could not prove: $CANNOT"
+          echo ""
+          
+          # Set output for badge
+          echo "passed=$PASSED" >> $GITHUB_OUTPUT
+          echo "failed=$FAILED" >> $GITHUB_OUTPUT
+          
+          # Check for failures
+          if [ "$FAILED" -gt 0 ] || [ "$CANNOT" -gt 0 ]; then
+            echo "⚠️  Some security properties could not be verified!"
+            echo ""
+            echo "Failed queries:"
+            grep -E "(is false|cannot be proved)" proverif_output.txt || true
+            exit 1
+          fi
+          
+          echo "✅ All security properties verified!"
+      
+      - name: Generate HTML Report
+        if: always()
+        run: |
+          cd formal/proverif
+          mkdir -p html_output
+          proverif -html html_output meow_encode.pv || true
+      
+      - name: Upload ProVerif Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: proverif-results
+          path: |
+            formal/proverif/proverif_output.txt
+            formal/proverif/html_output/
+          retention-days: 30
+      
+      - name: Comment on PR (if failed)
+        if: failure() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const output = fs.readFileSync('formal/proverif/proverif_output.txt', 'utf8');
+            
+            // Extract failed queries
+            const failedLines = output.split('\n')
+              .filter(line => line.includes('is false') || line.includes('cannot be proved'))
+              .join('\n');
+            
+            const body = `## ⚠️ ProVerif Security Analysis Failed
+            
+            The following security properties could not be verified:
+            
+            \`\`\`
+            ${failedLines}
+            \`\`\`
+            
+            This indicates a potential security issue in the protocol design.
+            Please review the changes and ensure cryptographic properties are maintained.
+            
+            See the full ProVerif output in the [workflow artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}).
+            `;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: body
+            });
+
+  tlaplus:
+    name: TLA+ Model Checking
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Download TLA+ Tools
+        run: |
+          mkdir -p ~/.tla2tools
+          wget -q -O ~/.tla2tools/tla2tools.jar \
+            https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+      
+      - name: Run TLA+ Model Checker
+        run: |
+          cd formal/tla
+          
+          echo "============================================"
+          echo "🔍 Running TLA+ Model Checking"
+          echo "============================================"
+          echo ""
+          
+          # Run TLC model checker on MeowCrypto.tla
+          java -jar ~/.tla2tools/tla2tools.jar \
+            -config MeowCrypto.cfg \
+            -workers auto \
+            -deadlock \
+            MeowCrypto.tla 2>&1 | tee tlc_output.txt
+          
+          echo ""
+          echo "============================================"
+          echo "📊 TLC Summary"
+          echo "============================================"
+          
+          if grep -q "No errors detected" tlc_output.txt; then
+            echo "✅ No invariant violations found"
+          else
+            echo "⚠️  Model checking found issues"
+            exit 1
+          fi
+      
+      - name: Upload TLA+ Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tla-results
+          path: formal/tla/tlc_output.txt
+          retention-days: 30
+
+  # Summary job to provide unified status
+  verification-summary:
+    name: Verification Summary
+    needs: [proverif, tlaplus]
+    runs-on: ubuntu-latest
+    if: always()
+    
+    steps:
+      - name: Check results
+        run: |
+          echo "============================================"
+          echo "📋 Formal Verification Summary"
+          echo "============================================"
+          echo ""
+          
+          PROVERIF_STATUS="${{ needs.proverif.result }}"
+          TLAPLUS_STATUS="${{ needs.tlaplus.result }}"
+          
+          echo "ProVerif:  $PROVERIF_STATUS"
+          echo "TLA+:      $TLAPLUS_STATUS"
+          echo ""
+          
+          if [ "$PROVERIF_STATUS" = "success" ] && [ "$TLAPLUS_STATUS" = "success" ]; then
+            echo "✅ All formal verification passed!"
+            exit 0
+          else
+            echo "⚠️  Some verification tasks failed"
+            exit 1
+          fi

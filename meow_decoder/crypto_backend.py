@@ -345,10 +345,17 @@ class RustCryptoBackend:
         return self._rs.secure_random(length)
     
     def secure_zero(self, data: bytearray) -> None:
-        # Rust does secure zeroing automatically via zeroize crate
-        # For Python bytearray, we do our best
-        for i in range(len(data)):
-            data[i] = 0
+        """
+        Securely zero memory using Rust zeroize crate.
+        
+        Uses volatile writes to prevent compiler optimization.
+        """
+        try:
+            self._rs.secure_zero(data)
+        except (TypeError, AttributeError):
+            # Fallback if Rust binding can't handle this bytearray
+            for i in range(len(data)):
+                data[i] = 0
 
 
 class CryptoBackend:

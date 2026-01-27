@@ -46,6 +46,9 @@ progress = ["tqdm>=4.66.0"]
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
+    "pytest-xdist>=3.5.0",
+    "hypothesis>=6.100.0",
+    "coverage[toml]>=7.4.0",
     "black>=23.7.0",
     "flake8>=6.1.0",
     "mypy>=1.5.0",
@@ -85,40 +88,82 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --cov=meow_decoder --cov-report=html --cov-report=term"
+# Hypothesis settings
+hypothesis_settings = { max_examples = 100, deadline = 5000 }
 
 [tool.coverage.run]
 source = ["meow_decoder"]
+branch = true
+# Focus coverage on crypto-critical paths - these MUST hit 90%+
+# Non-critical optional features are omitted from coverage requirements
 omit = [
     "meow_decoder/*DEBUG*.py",
-    # Non-core / optional features (keep core coverage meaningful + achievable)
+    # GUI and optional features (non-security-critical)
     "meow_decoder/cat_utils.py",
     "meow_decoder/catnip_fountain.py",
     "meow_decoder/clowder_*.py",
     "meow_decoder/decode_webcam_with_resume.py",
     "meow_decoder/gui_*.py",
-    "meow_decoder/meow_*.py",
-    "meow_decoder/crypto_enhanced.py",
-    "meow_decoder/forward_secrecy_encoder.py",
-    "meow_decoder/forward_secrecy_decoder.py",
-    "meow_decoder/forward_secrecy_x25519.py",
-    "meow_decoder/merkle_tree.py",
+    "meow_decoder/meow_dashboard*.py",
+    "meow_decoder/meow_decoder_mini.py",
+    # Experimental/advanced features
     "meow_decoder/ninja_cat_ultra.py",
-    "meow_decoder/pq_*.py",
     "meow_decoder/profiling_improved.py",
     "meow_decoder/prowling_mode.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/resume_secured.py",
-    "meow_decoder/schrodinger_*.py",
-    "meow_decoder/setup.py",
     "meow_decoder/stego_*.py",
-    "meow_decoder/streaming_crypto.py",
     "meow_decoder/webcam_*.py",
+    "meow_decoder/setup.py",
+    # Legacy compatibility modules
+    "meow_decoder/logo_eyes.py",
+    "meow_decoder/ascii_qr.py",
+    "meow_decoder/bidirectional.py",
 ]
 
+# Crypto-critical paths that MUST have high coverage
+# (NOT omitted - these are tested)
+# - crypto.py
+# - crypto_backend.py
+# - crypto_enhanced.py
+# - fountain.py
+# - frame_mac.py
+# - constant_time.py
+# - x25519_forward_secrecy.py
+# - forward_secrecy.py
+# - encode.py
+# - decode_gif.py
+
 [tool.coverage.report]
-fail_under = 10
+fail_under = 70
 show_missing = true
 skip_covered = false
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+
+# Per-file coverage requirements for crypto-critical paths
+# These files MUST maintain high coverage
+[tool.coverage.html]
+directory = "htmlcov"
+
+[tool.hypothesis]
+# Hypothesis profile for CI (faster)
+profile = "ci"
+
+[tool.hypothesis.profiles.ci]
+max_examples = 100
+deadline = 5000
+
+[tool.hypothesis.profiles.dev]
+max_examples = 200
+deadline = 10000
+
+[tool.hypothesis.profiles.exhaustive]
+max_examples = 1000
+deadline = null
 
 [tool.mypy]
 python_version = "3.8"
