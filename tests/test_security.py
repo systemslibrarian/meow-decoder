@@ -232,6 +232,31 @@ class TestNonceSafety:
         unique_bytes = len(set(b for nonce in nonces for b in nonce))
         assert unique_bytes >= 85, f"Nonces appear non-random (only {unique_bytes}/120 unique bytes)"
 
+    def test_nonce_reuse_detected(self, monkeypatch):
+        """Forced nonce reuse should be detected and rejected."""
+        data = b"Secret message"
+        password = "testpass123"
+
+        fixed_salt = b"\x01" * 16
+        fixed_nonce = b"\x02" * 12
+        original_token_bytes = secrets.token_bytes
+
+        def fake_token_bytes(n):
+            if n == 16:
+                return fixed_salt
+            if n == 12:
+                return fixed_nonce
+            return original_token_bytes(n)
+
+        monkeypatch.setattr(secrets, "token_bytes", fake_token_bytes)
+
+        # First encryption should succeed
+        encrypt_file_bytes(data, password, None, None)
+
+        # Second encryption with same key/nonce should raise
+        with pytest.raises(RuntimeError):
+            encrypt_file_bytes(data, password, None, None)
+
 
 class TestForwardSecrecy:
     """Test forward secrecy mode."""

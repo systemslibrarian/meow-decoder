@@ -63,17 +63,33 @@ def derive_shared_secret(
     Returns:
         32-byte shared secret for encryption
     """
+    if len(ephemeral_private) != 32:
+        raise ValueError(f"Ephemeral private key must be 32 bytes, got {len(ephemeral_private)}")
+    if len(receiver_public) != 32:
+        raise ValueError(f"Receiver public key must be 32 bytes, got {len(receiver_public)}")
+    if len(salt) != 16:
+        raise ValueError("Salt must be 16 bytes")
+
     backend = get_default_backend()
-    
+
     # Perform X25519 key exchange
     x25519_shared = backend.x25519_exchange(ephemeral_private, receiver_public)
-    
-    # Combine with password
-    password_bytes = password.encode('utf-8')
-    combined = x25519_shared + password_bytes
-    
-    # Derive final key using HKDF
-    return backend.derive_key_hkdf(combined, salt, info)
+
+    # Combine with password (use mutable buffers for best-effort zeroing)
+    password_bytes = bytearray(password.encode('utf-8'))
+    combined = bytearray(x25519_shared)
+    combined.extend(password_bytes)
+
+    try:
+        # Derive final key using HKDF
+        return backend.derive_key_hkdf(bytes(combined), salt, info)
+    finally:
+        # Best-effort zeroing of sensitive material
+        try:
+            backend.secure_zero(password_bytes)
+            backend.secure_zero(combined)
+        except Exception:
+            pass
 
 
 def serialize_public_key(public_key: bytes) -> bytes:

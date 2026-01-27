@@ -24,6 +24,44 @@ MAC_SIZE = 8
 # Domain separation for frame MACs
 FRAME_MAC_INFO = b"meow_frame_mac_v1"
 
+# Domain separation for deriving the frame MAC master key from encryption key material
+FRAME_MAC_MASTER_INFO = b"meow_frame_mac_master_v2"
+
+
+def derive_frame_master_key(master_key_material: bytes, salt: bytes) -> bytes:
+    """
+    Derive a frame MAC master key from encryption key material.
+
+    Args:
+        master_key_material: Encryption key material (32 bytes)
+        salt: Random salt (16 bytes)
+
+    Returns:
+        32-byte frame MAC master key
+
+    Security:
+        - HKDF domain separation from encryption/HMAC keys
+        - Ensures keyfile/FS-derived keys bind frame MACs
+        - Does not change frame format (MAC size unchanged)
+    """
+    # Why: HKDF domain separation prevents key reuse across encryption/HMAC/frame MACs.
+    return HKDF(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        info=FRAME_MAC_MASTER_INFO
+    ).derive(master_key_material)
+
+
+def derive_frame_master_key_legacy(password: str, salt: bytes) -> bytes:
+    """
+    Legacy frame MAC key derivation (v1 compatibility).
+
+    This preserves decode compatibility for existing files created prior to v2
+    frame MAC master key derivation.
+    """
+    return hashlib.sha256(password.encode('utf-8') + salt + b'frame_mac_key').digest()
+
 
 def derive_frame_key(master_key: bytes, frame_index: int, salt: bytes) -> bytes:
     """
@@ -85,7 +123,8 @@ def compute_frame_mac(
     mac = hmac.new(frame_key, frame_data, hashlib.sha256).digest()
     
     # Truncate to 8 bytes (64 bits)
-    # Sufficient for preventing DoS (2^64 work to forge)
+    # Why: Frame MACs are for DoS resistance (not long-term auth). 64-bit
+    # tags provide ample work factor while keeping QR payloads smaller.
     return mac[:MAC_SIZE]
 
 

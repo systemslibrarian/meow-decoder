@@ -22,7 +22,7 @@ class TestControlChannel(unittest.TestCase):
         
         # Create a StatusUpdate payload manually with counter prefix
         session_id = b'S'*8
-        counter = struct.pack('>I', 1)  # Replay protection counter
+        counter = struct.pack('>Q', 1)  # Replay protection counter
         payload = counter + struct.pack('>8sIIIIII', session_id, 1, 1, 1, 9, 0, 0)
         
         # Create the full ACK message
@@ -31,7 +31,7 @@ class TestControlChannel(unittest.TestCase):
         # Calculate HMAC
         mac = hmac.new(sender.auth_key, msg_type + payload, hashlib.sha256).digest()
         
-        # Construct message: Type(1) + MAC(32) + Counter(4) + Payload(N)
+        # Construct message: Type(1) + MAC(32) + Counter(8) + Payload(N)
         full_msg = msg_type + mac + payload
         
         # Process it
@@ -57,7 +57,7 @@ class TestReplayProtection(unittest.TestCase):
         
         # Create a COMPLETION message with counter=1
         msg_type = bytes([MessageType.COMPLETION])
-        counter = struct.pack('>I', 1)
+        counter = struct.pack('>Q', 1)
         payload = counter + b'\x00' * 8  # session_id
         
         mac = hmac.new(sender.auth_key, msg_type + payload, hashlib.sha256).digest()
@@ -88,7 +88,7 @@ class TestReplayProtection(unittest.TestCase):
         
         # Create a STATUS_UPDATE message with counter=1
         msg_type = bytes([MessageType.STATUS_UPDATE])
-        counter = struct.pack('>I', 1)
+        counter = struct.pack('>Q', 1)
         session_id = b'S' * 8
         status_payload = struct.pack('>IIIIII', 5, 5, 3, 10, 7, 0)  # frames, decoded, blocks, etc.
         payload = counter + session_id + status_payload
@@ -120,7 +120,7 @@ class TestReplayProtection(unittest.TestCase):
         
         def make_completion_msg(counter_val):
             msg_type = bytes([MessageType.COMPLETION])
-            counter = struct.pack('>I', counter_val)
+            counter = struct.pack('>Q', counter_val)
             payload = counter + b'\x00' * 8
             mac = hmac.new(sender.auth_key, msg_type + payload, hashlib.sha256).digest()
             return msg_type + mac + payload
@@ -141,6 +141,25 @@ class TestReplayProtection(unittest.TestCase):
         sender.process_ack(make_completion_msg(6))
         self.assertTrue(sender.is_complete, "Counter=6 should be accepted")
 
+    def test_legacy_4byte_counter_still_accepted(self):
+        """Legacy 4-byte counter messages should still be accepted."""
+        sender = BiDirectionalSender(
+            file_hash=b'A'*32,
+            k_blocks=10,
+            block_size=100,
+            total_frames=15,
+            password="secure_password"
+        )
+
+        msg_type = bytes([MessageType.COMPLETION])
+        legacy_counter = struct.pack('>I', 1)
+        payload = legacy_counter + b'\x00' * 8
+        mac = hmac.new(sender.auth_key, msg_type + payload, hashlib.sha256).digest()
+        full_msg = msg_type + mac + payload
+
+        sender.process_ack(full_msg)
+        self.assertTrue(sender.is_complete, "Legacy 4-byte counter should be accepted")
+
 
 class TestHMACAuthentication(unittest.TestCase):
     """Test HMAC authentication for control channel messages."""
@@ -157,7 +176,7 @@ class TestHMACAuthentication(unittest.TestCase):
         
         # Create a valid message structure but with wrong HMAC
         msg_type = bytes([MessageType.COMPLETION])
-        counter = struct.pack('>I', 1)
+        counter = struct.pack('>Q', 1)
         payload = counter + b'\x00' * 8
         
         # Use wrong key for HMAC
@@ -181,7 +200,7 @@ class TestHMACAuthentication(unittest.TestCase):
         
         # Create a valid message
         msg_type = bytes([MessageType.COMPLETION])
-        counter = struct.pack('>I', 1)
+        counter = struct.pack('>Q', 1)
         payload = counter + b'\x00' * 8
         mac = hmac.new(sender.auth_key, msg_type + payload, hashlib.sha256).digest()
         
@@ -235,9 +254,9 @@ class TestReceiverCounters(unittest.TestCase):
         # Get second status message
         msg2 = receiver.get_status_message()
         
-        # Extract counters (Type(1) + MAC(32) + Counter(4) + ...)
-        counter1 = struct.unpack('>I', msg1[33:37])[0]
-        counter2 = struct.unpack('>I', msg2[33:37])[0]
+        # Extract counters (Type(1) + MAC(32) + Counter(8) + ...)
+        counter1 = struct.unpack('>Q', msg1[33:41])[0]
+        counter2 = struct.unpack('>Q', msg2[33:41])[0]
         
         self.assertEqual(counter1, 1, "First counter should be 1")
         self.assertEqual(counter2, 2, "Second counter should be 2")
@@ -262,8 +281,8 @@ class TestReceiverCounters(unittest.TestCase):
         # Get completion message
         msg = receiver.get_completion_message()
         
-        # Extract counter (Type(1) + MAC(32) + Counter(4) + ...)
-        counter = struct.unpack('>I', msg[33:37])[0]
+        # Extract counter (Type(1) + MAC(32) + Counter(8) + ...)
+        counter = struct.unpack('>Q', msg[33:41])[0]
         
         self.assertEqual(counter, 1, "Completion counter should be 1")
 

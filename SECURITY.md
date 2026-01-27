@@ -22,11 +22,11 @@ Meow Decoder is **EXPERIMENTAL / RESEARCH-GRADE SOFTWARE** and has:
 We take security seriously. If you discover a security vulnerability, please follow responsible disclosure:
 
 ### **DO:**
-✅ Email security details to: `security@yourdomain.com` (PGP key below)  
+✅ Email security details to: `systemslibrarian@gmail.com`  
 ✅ Include detailed steps to reproduce  
 ✅ Include version information (`python3 encode.py --version`)  
 ✅ Allow us 90 days to fix before public disclosure  
-✅ Encrypt sensitive details with our PGP key  
+✅ Include any relevant logs or repro steps  
 
 ### **DON'T:**
 ❌ Post vulnerabilities publicly on GitHub Issues  
@@ -39,18 +39,6 @@ We take security seriously. If you discover a security vulnerability, please fol
 - **7 days:** Preliminary assessment
 - **30-90 days:** Fix development and testing
 - **After fix:** Public disclosure and credit
-
----
-
-## 🔐 **PGP Key for Secure Reports**
-
-```
------BEGIN PGP PUBLIC KEY BLOCK-----
-[Your PGP public key here]
------END PGP PUBLIC KEY BLOCK-----
-```
-
-**Fingerprint:** `XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX XXXX`
 
 ---
 
@@ -115,9 +103,13 @@ We thank the following security researchers for responsible disclosure:
    - AAD prevents tampering with `orig_len`, `comp_len`
 
 3. **Frame Content** ✅
-   - Per-frame MAC authentication (8-byte truncated HMAC)
-   - Prevents frame injection/substitution attacks
-   - Implementation: `frame_mac.py`
+    - Per-frame MAC authentication (8-byte truncated HMAC)
+    - **Key separation:** Frame MAC master key is derived via HKDF from the
+       encryption key (binds keyfile + forward secrecy)
+    - Legacy password-only frame MAC derivation remains accepted for
+       backward compatibility during decode
+    - Prevents frame injection/substitution attacks
+    - Implementation: `frame_mac.py`
 
 ### **What May Leak:**
 
@@ -156,6 +148,23 @@ meow-encode -i secret.pdf -o secret.gif \
 
 ## 🔐 **Control Channel Security (Bidirectional Mode)**
 
+## 🔍 **Crypto Design Decisions (Rationale)**
+
+This project favors conservative, audited primitives and explicit key separation.
+Design choices are documented inline in code, and summarized here for auditors.
+
+- **AES-256-GCM**: Standard AEAD with strong confidentiality + integrity. We do not
+   implement custom modes. All metadata integrity is bound via AAD.
+- **Argon2id**: Memory-hard KDF with high parameters to resist GPU/ASIC attacks.
+- **HKDF domain separation**: Independent subkeys are derived for encryption,
+   manifest HMAC, frame MACs, and ratcheting to prevent cross-protocol key reuse.
+- **Fail-closed behavior**: Any authentication failure aborts decoding with no
+   plaintext output. This prevents oracle behavior and partial disclosure.
+- **Forward secrecy (X25519)**: Ephemeral keys prevent future key compromise from
+   decrypting historical data.
+- **PQ hybrid mode**: PQ is used only for key encapsulation. If PQ is requested
+   but unavailable, the operation fails closed to prevent silent downgrade.
+
 ### **Authentication Architecture:**
 
 When using bidirectional mode (`--bidirectional`), the control channel uses cryptographic authentication to prevent spoofing and replay attacks.
@@ -175,7 +184,7 @@ auth_key = HKDF(
 **Message Format:**
 ```
 ┌──────────────┬────────────┬─────────────┬────────────────────┐
-│ Type (1B)    │ HMAC (32B) │ Counter (4B)│ Payload (variable) │
+│ Type (1B)    │ HMAC (32B) │ Counter (8B)│ Payload (variable) │
 └──────────────┴────────────┴─────────────┴────────────────────┘
 ```
 
@@ -192,7 +201,7 @@ auth_key = HKDF(
 replay_protected_types = [STATUS_UPDATE, COMPLETION, PAUSE, RESUME, RESEND_REQUEST]
 
 if msg_type in replay_protected_types:
-    counter = struct.unpack('>I', payload[:4])[0]  # 4-byte big-endian
+   counter = struct.unpack('>Q', payload[:8])[0]  # 8-byte big-endian
     if counter <= last_rx_counter:
         return None  # REJECT: Replay detected (silent drop)
     last_rx_counter = counter  # Accept and advance
@@ -200,11 +209,11 @@ if msg_type in replay_protected_types:
 
 | Property | Value | Security Rationale |
 |----------|-------|-------------------|
-| Counter size | 4 bytes (32-bit) | 4 billion messages before wrap |
+| Counter size | 8 bytes (64-bit) | Practically unlimited |
 | Counter window | Strictly monotonic | `counter > last_seen` required |
 | Out-of-order tolerance | **NONE** | Messages must arrive in order |
 | Late message handling | **REJECTED** | Counter ≤ last_seen → drop |
-| Wrap protection | **NONE** (4B overflow) | Session restart before 2³² msgs |
+| Wrap protection | **NONE** (theoretical) | Session restart before 2⁶⁴ msgs |
 
 **Idempotent Message Types (No Counter):**
 - `SESSION_ACK`, `FRAME_ACK` are safe to replay (no state change)
@@ -251,10 +260,13 @@ Meow Decoder implements **fail-closed** behavior for manifest integrity. Any mod
    - **HMAC mismatch → Immediate abort, no partial output**
 
 3. **Per-Frame MAC**
-   - 8-byte truncated HMAC per QR frame
-   - Derived from: `HKDF(password, manifest_salt, "frame_mac_v1")`
-   - Invalid frames silently dropped during decoding
-   - **DoS protection: Malicious frames rejected before fountain decode**
+    - 8-byte truncated HMAC per QR frame
+    - **Current derivation:** `HKDF(encryption_key, salt, "meow_frame_mac_master_v2")`
+       then per-frame HKDF with `frame_index`
+    - **Legacy compatibility:** password-only derivation accepted for
+       previously encoded files
+    - Invalid frames silently dropped during decoding
+    - **DoS protection: Malicious frames rejected before fountain decode**
 
 **Tested Attack Vectors (see `tests/test_tamper_detection.py`):**
 - ✅ Flip 1 bit in salt → Decryption fails
@@ -452,7 +464,7 @@ Actual: Unhandled exception
 Suggested Fix:
 Add validation: if block_size <= 0: raise ValueError()
 
-Contact: researcher@example.com (PGP: XXXX)
+Contact: systemslibrarian@gmail.com
 ```
 
 ### **Bad Report:**
@@ -481,7 +493,7 @@ We credit security researchers who:
 
 ## 📞 **Contact**
 
-**Security Reports:** security@yourdomain.com (PGP encouraged)  
+**Security Reports:** systemslibrarian@gmail.com  
 **General Questions:** GitHub Discussions  
 **Bug Reports:** GitHub Issues (non-security only)
 

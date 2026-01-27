@@ -207,12 +207,22 @@ def encode_file(
         print("\nGenerating QR codes with frame MACs...")
     
     # Import frame MAC module
-    from .frame_mac import pack_frame_with_mac, FrameMACStats
+    from .frame_mac import pack_frame_with_mac, FrameMACStats, derive_frame_master_key
     
-    # Derive frame MAC key from password (prevents frame injection)
-    # We use the salt as additional material for frame key derivation
-    import hashlib
-    frame_master_key = hashlib.sha256(password.encode('utf-8') + salt + b'frame_mac_key').digest()
+    # Derive frame MAC master key from the encryption key (binds keyfile + FS)
+    # HKDF domain separation ensures independence from other crypto keys
+    # Use a mutable buffer for best-effort zeroing after use
+    encryption_key_buf = bytearray(encryption_key)
+    frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), salt)
+    # Best-effort zeroization of encryption key material
+    try:
+        from .crypto_backend import get_default_backend
+        get_default_backend().secure_zero(encryption_key_buf)
+    except Exception:
+        pass
+    # Drop remaining references to key material
+    encryption_key = b""
+    del encryption_key
     
     mac_stats = FrameMACStats()
     
@@ -489,6 +499,7 @@ Examples:
     # CRITICAL: Wire --legacy-python to env var BEFORE any crypto calls
     if args.legacy_python:
         os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
+        os.environ['MEOW_LEGACY_PYTHON'] = '1'
     
     # Handle key generation (do this first, then exit)
     if args.generate_keys:

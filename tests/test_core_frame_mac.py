@@ -1,6 +1,13 @@
 import secrets
+import hashlib
 
-from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac, FrameMACStats
+from meow_decoder.frame_mac import (
+    pack_frame_with_mac,
+    unpack_frame_with_mac,
+    FrameMACStats,
+    derive_frame_master_key,
+    derive_frame_master_key_legacy
+)
 
 
 def test_frame_mac_valid_roundtrip():
@@ -36,3 +43,19 @@ def test_frame_mac_stats():
     assert s.valid_frames == 1
     assert s.invalid_frames == 1
     assert 0.0 < s.success_rate() < 1.0
+
+
+def test_frame_master_key_legacy_matches_previous_derivation():
+    password = "testpass123"
+    salt = secrets.token_bytes(16)
+
+    expected = hashlib.sha256(password.encode("utf-8") + salt + b"frame_mac_key").digest()
+    assert derive_frame_master_key_legacy(password, salt) == expected
+
+
+def test_frame_master_key_depends_on_key_material():
+    salt = secrets.token_bytes(16)
+    key_a = secrets.token_bytes(32)
+    key_b = secrets.token_bytes(32)
+
+    assert derive_frame_master_key(key_a, salt) != derive_frame_master_key(key_b, salt)

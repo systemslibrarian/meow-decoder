@@ -337,7 +337,7 @@ Total: 248 bytes
 
 **Philosophy**: Inspired by quantum mechanics and Schrödinger's cat  
 **Implementation**: Meow Decoder v5.4.0  
-**Author**: Paul Morel  
+**Author**: Paul Clark  
 
 ---
 

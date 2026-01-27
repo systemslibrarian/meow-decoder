@@ -387,8 +387,11 @@ class CryptoBackend:
         if os.environ.get("MEOW_USE_RUST", "0") == "1" or os.environ.get("MEOW_RUST", "0") == "1":
             backend = "rust"
         
-        # Check fallback environment variable
-        if os.environ.get("MEOW_ALLOW_PYTHON_FALLBACK", "0") == "1":
+        # Check fallback environment variable (explicit legacy opt-in)
+        if os.environ.get("MEOW_LEGACY_PYTHON", "0") == "1":
+            allow_python_fallback = True
+        elif os.environ.get("MEOW_ALLOW_PYTHON_FALLBACK", "0") == "1":
+            # Backward-compatible env var
             allow_python_fallback = True
         
         if backend == "auto":

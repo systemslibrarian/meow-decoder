@@ -1,9 +1,9 @@
 """
 Post-Quantum Hybrid Cryptography
-Combines X25519 (classical) + ML-KEM-768 (Kyber) for quantum resistance
+Combines X25519 (classical) + ML-KEM-1024 (Kyber) for quantum resistance
 
 Security Model:
-- Hybrid key agreement: X25519 ⊕ ML-KEM-768
+- Hybrid key agreement: X25519 ⊕ ML-KEM-1024
 - Secure even if one primitive breaks
 - Classical: Fast, well-tested
 - PQ: Future-proof against Shor's algorithm
@@ -12,7 +12,9 @@ Security Model:
 Requirements:
     pip install liboqs-python
 
-If liboqs not available, falls back to classical-only mode.
+If liboqs not available, classical-only mode is allowed only when the
+caller does not request PQ encapsulation or provide PQ ciphertext.
+If PQ is requested and unavailable, the operation fails closed.
 """
 
 import secrets
@@ -78,7 +80,7 @@ class HybridKeyPair:
         Returns:
             Tuple of (classical_public, pq_public)
             - classical_public: 32 bytes (X25519)
-            - pq_public: 1184 bytes (ML-KEM-768) or None if unavailable
+            - pq_public: 1568 bytes (ML-KEM-1024) or None if unavailable
         """
         classical = self.classical_public.public_bytes(
             encoding=serialization.Encoding.Raw,
@@ -101,7 +103,7 @@ def hybrid_encapsulate(
     
     Args:
         receiver_classical_public: Receiver's X25519 public key (32 bytes)
-        receiver_pq_public: Receiver's ML-KEM-768 public key (1184 bytes)
+        receiver_pq_public: Receiver's ML-KEM-1024 public key (1568 bytes)
                            None for classical-only mode
         
     Returns:
@@ -109,12 +111,12 @@ def hybrid_encapsulate(
                  pq_ciphertext, pq_shared_secret)
         - shared_secret: Combined hybrid secret (32 bytes)
         - ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
-        - pq_ciphertext: ML-KEM-768 encapsulation (1088 bytes) or None
+        - pq_ciphertext: ML-KEM-1024 encapsulation (1568 bytes) or None
         - pq_shared_secret: PQ component (32 bytes) or None
         
     Security:
         - Classical: ECDH with X25519
-        - PQ: KEM encapsulation with ML-KEM-768
+        - PQ: KEM encapsulation with ML-KEM-1024
         - Combined: HKDF(classical_secret || pq_secret)
         - Secure even if one primitive breaks!
     """
@@ -136,14 +138,19 @@ def hybrid_encapsulate(
     pq_ciphertext = None
     pq_shared_secret = None
     
-    if receiver_pq_public is not None and LIBOQS_AVAILABLE:
+    if receiver_pq_public is not None:
+        if not LIBOQS_AVAILABLE:
+            # Why: Fail closed to prevent silent downgrade when PQ was requested.
+            raise RuntimeError("Post-quantum requested but liboqs is unavailable")
         try:
             pq_kem = oqs.KeyEncapsulation(PQ_ALGORITHM)
             pq_ciphertext, pq_shared_secret = pq_kem.encap_secret(receiver_pq_public)
         except Exception as e:
-            print(f"⚠️  PQ encapsulation failed: {e}")
+            raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
     
     # Combine secrets with HKDF
+    # Why: HKDF provides a conservative KDF to mix classical+PQ material
+    # and enforces domain separation from other keys.
     if pq_shared_secret is not None:
         # Hybrid mode: Classical ⊕ PQ
         combined_material = classical_shared + pq_shared_secret
@@ -174,7 +181,7 @@ def hybrid_decapsulate(
     
     Args:
         ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
-        pq_ciphertext: ML-KEM-768 ciphertext (1088 bytes) or None
+        pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes) or None
         receiver_keypair: Receiver's hybrid keypair
         
     Returns:
@@ -192,11 +199,14 @@ def hybrid_decapsulate(
     # Try PQ decapsulation
     pq_shared_secret = None
     
-    if pq_ciphertext is not None and receiver_keypair.pq_kem is not None:
+    if pq_ciphertext is not None:
+        if receiver_keypair.pq_kem is None:
+            # Why: Fail closed if PQ ciphertext is present but no PQ key exists.
+            raise RuntimeError("Post-quantum ciphertext provided but receiver has no PQ key")
         try:
             pq_shared_secret = receiver_keypair.pq_kem.decap_secret(pq_ciphertext)
         except Exception as e:
-            print(f"⚠️  PQ decapsulation failed: {e}")
+            raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
     
     # Combine secrets (must match encapsulate!)
     if pq_shared_secret is not None:
@@ -232,9 +242,9 @@ def check_pq_available() -> Tuple[bool, str]:
     try:
         # Test KEM creation
         test_kem = oqs.KeyEncapsulation(PQ_ALGORITHM)
-        return True, f"ML-KEM-768 available"
+        return True, f"ML-KEM-1024 available"
     except Exception as e:
-        return False, f"ML-KEM-768 unavailable: {e}"
+        return False, f"ML-KEM-1024 unavailable: {e}"
 
 
 # Example usage
@@ -280,7 +290,7 @@ if __name__ == "__main__":
     
     # Test hybrid mode if available
     if pq_available:
-        print(f"\n2. Hybrid mode (X25519 + ML-KEM-768):")
+        print(f"\n2. Hybrid mode (X25519 + ML-KEM-1024):")
         
         receiver_hybrid = HybridKeyPair(use_pq=True)
         classical_pub_h, pq_pub_h = receiver_hybrid.export_public_keys()

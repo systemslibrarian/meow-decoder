@@ -17,7 +17,7 @@ import hashlib
 from .config import MeowConfig, DecodingConfig, DuressConfig, DuressMode
 from .crypto import (
     decrypt_to_raw, verify_manifest_hmac, unpack_manifest,
-    verify_keyfile, check_duress_password
+    verify_keyfile, check_duress_password, derive_encryption_key_for_manifest
 )
 from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
@@ -79,7 +79,12 @@ def decode_gif(
         print("\nReading QR codes with frame MAC verification...")
     
     # Import frame MAC module
-    from .frame_mac import unpack_frame_with_mac, FrameMACStats
+    from .frame_mac import (
+        unpack_frame_with_mac,
+        FrameMACStats,
+        derive_frame_master_key,
+        derive_frame_master_key_legacy
+    )
     
     # Derive frame MAC key (same as encode)
     import hashlib
@@ -231,22 +236,50 @@ def decode_gif(
     if has_frame_macs:
         if verbose:
             print("\n🔒 Frame MAC verification enabled (DoS protection)")
-        
-        frame_master_key = hashlib.sha256(password.encode('utf-8') + manifest.salt + b'frame_mac_key').digest()
-        
-        # Verify manifest frame MAC retroactively
-        manifest_valid, verified_manifest = unpack_frame_with_mac(
+
+        # Derive frame MAC master key from encryption key material (binds keyfile + FS)
+        encryption_key = derive_encryption_key_for_manifest(
+            password,
+            manifest.salt,
+            keyfile=keyfile,
+            ephemeral_public_key=manifest.ephemeral_public_key,
+            receiver_private_key=receiver_private_key
+        )
+        # Use a mutable buffer for best-effort zeroing after use
+        encryption_key_buf = bytearray(encryption_key)
+        frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), manifest.salt)
+        # Best-effort zeroization of encryption key material
+        try:
+            from .crypto_backend import get_default_backend
+            get_default_backend().secure_zero(encryption_key_buf)
+        except Exception:
+            pass
+        # Drop remaining references to key material
+        encryption_key = b""
+        del encryption_key
+
+        # Verify manifest frame MAC retroactively (v2 key derivation)
+        manifest_valid, _ = unpack_frame_with_mac(
             manifest_raw, frame_master_key, 0, manifest.salt
         )
-        
+
         if not manifest_valid:
-            print("  ⚠️  Warning: Manifest frame MAC invalid (but manifest HMAC passed)")
-            print("     This might be an old file without frame MACs")
-            has_frame_macs = False
+            # Legacy compatibility: pre-v2 files derived MAC key from password only
+            legacy_master_key = derive_frame_master_key_legacy(password, manifest.salt)
+            manifest_valid_legacy, _ = unpack_frame_with_mac(
+                manifest_raw, legacy_master_key, 0, manifest.salt
+            )
+            if manifest_valid_legacy:
+                frame_master_key = legacy_master_key
+                mac_stats.record_valid()
+                if verbose:
+                    print("  ✓ Manifest frame MAC valid (legacy derivation)")
+            else:
+                raise ValueError("Frame MAC verification failed (manifest tampered or wrong key material)")
         else:
             mac_stats.record_valid()
             if verbose:
-                print(f"  ✓ Manifest frame MAC valid")
+                print("  ✓ Manifest frame MAC valid")
     
     # Decode fountain codes
     if verbose:
@@ -433,6 +466,7 @@ Examples:
     if args.legacy_python:
         import os
         os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
+        os.environ['MEOW_LEGACY_PYTHON'] = '1'
     
     # Validate input file
     if not args.input.exists():

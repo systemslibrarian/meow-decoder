@@ -192,6 +192,8 @@ class BiDirectionalSender:
         session_salt = secrets.token_bytes(16)
         
         # Derive session authentication key using HKDF
+        # Why: HKDF domain separation prevents reusing the password-derived
+        # material across unrelated contexts, avoiding protocol confusion.
         # Salt: generated random salt
         # Info: context binding
         hkdf = HKDF(
@@ -216,7 +218,8 @@ class BiDirectionalSender:
         self.status_updates: List[StatusUpdate] = []
         self.is_complete = False
         self.is_paused = False
-        self.last_rx_counter = 0  # Replay protection counter
+        self.last_rx_counter = 0  # Replay protection counter (64-bit)
+        # Why: 64-bit counters avoid wraparound in long sessions.
     
     def get_session_start_message(self) -> bytes:
         """
@@ -281,14 +284,30 @@ class BiDirectionalSender:
             if len(payload) < 4:
                 # Missing counter - reject message
                 return None
-            counter = struct.unpack('>I', payload[:4])[0]
+            # Backward-compatible parsing: detect legacy 4-byte counters
+            # Why: Preserve decode compatibility with older control messages.
+            # Legacy sizes: COMPLETION=12 (4+8), STATUS_UPDATE=36 (4+32)
+            # New sizes:    COMPLETION=16 (8+8), STATUS_UPDATE=40 (8+32)
+            if msg_type == MessageType.COMPLETION and len(payload) in (12, 16):
+                counter_len = 8 if len(payload) == 16 else 4
+            elif msg_type == MessageType.STATUS_UPDATE and len(payload) in (36, 40):
+                counter_len = 8 if len(payload) == 40 else 4
+            elif len(payload) >= 8:
+                counter_len = 8
+            else:
+                counter_len = 4
+
+            if counter_len == 8:
+                counter = struct.unpack('>Q', payload[:8])[0]
+            else:
+                counter = struct.unpack('>I', payload[:4])[0]
             if hasattr(self, 'last_rx_counter') and counter <= self.last_rx_counter:
                 # Replay detected - reject silently
                 return None
             self.last_rx_counter = counter
             
             # Strip counter from payload for downstream processing
-            payload = payload[4:]
+            payload = payload[counter_len:]
         
         if msg_type == MessageType.COMPLETION:
             self.is_complete = True
@@ -366,7 +385,7 @@ class BiDirectionalReceiver:
         self.blocks_decoded = 0
         self.error_count = 0
         self.started_at: Optional[float] = None
-        self.tx_counter = 0  # Replay protection counter for outgoing messages
+        self.tx_counter = 0  # Replay protection counter for outgoing messages (64-bit)
     
     def process_session_start(self, data: bytes, password: str = "") -> bool:
         """
@@ -447,7 +466,7 @@ class BiDirectionalReceiver:
             include_counter: If True, prepend replay protection counter to payload
         
         Returns:
-            Signed message: Type(1) + HMAC(32) + [Counter(4)] + Payload
+            Signed message: Type(1) + HMAC(32) + [Counter(8)] + Payload
         """
         if not self.session or not self.auth_key:
             return b''
@@ -455,7 +474,7 @@ class BiDirectionalReceiver:
         # Prepend counter for replay protection if required
         if include_counter:
             self.tx_counter += 1
-            payload = struct.pack('>I', self.tx_counter) + payload
+            payload = struct.pack('>Q', self.tx_counter) + payload
             
         # Format: Type(1) + HMAC(32) + Payload
         header = bytes([msg_type])

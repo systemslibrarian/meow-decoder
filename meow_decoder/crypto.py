@@ -72,6 +72,24 @@ MIN_PASSWORD_LENGTH = 8
 # Duress password domain separation
 DURESS_HASH_PREFIX = b"duress_check_v1"
 
+# Nonce reuse guard (best-effort, per-process)
+_NONCE_REUSE_CACHE_MAX = 1024
+_nonce_reuse_cache = set()
+
+
+def _register_nonce_use(key: bytes, nonce: bytes) -> None:
+    """
+    Best-effort nonce reuse guard (per-process).
+
+    Raises RuntimeError if the same key/nonce pair is observed again.
+    """
+    digest = hashlib.sha256(key + nonce).digest()
+    if digest in _nonce_reuse_cache:
+        raise RuntimeError("Nonce reuse detected for encryption key")
+    _nonce_reuse_cache.add(digest)
+    if len(_nonce_reuse_cache) > _NONCE_REUSE_CACHE_MAX:
+        _nonce_reuse_cache.clear()
+
 
 def compute_duress_hash(password: str, salt: bytes) -> bytes:
     """
@@ -131,18 +149,18 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
     
-    # Combine password and keyfile if provided
-    secret = password.encode("utf-8")
+    # Combine password and keyfile if provided (use mutable buffer for best-effort zeroing)
+    secret = bytearray(password.encode("utf-8"))
     if keyfile:
         # Simple concatenation for base version
         # (crypto_enhanced.py uses HKDF for proper combining)
-        secret = secret + keyfile
+        secret.extend(keyfile)
     
     try:
         # Derive key using Argon2id via backend
         backend = get_default_backend()
         key = backend.derive_key_argon2id(
-            secret,
+            bytes(secret),
             salt,
             output_len=32,
             iterations=ARGON2_ITERATIONS,
@@ -153,6 +171,13 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         return key
     except Exception as e:
         raise RuntimeError(f"Key derivation failed: {e}")
+    finally:
+        # Best-effort zeroing of mutable secret material
+        try:
+            backend = get_default_backend()
+            backend.secure_zero(secret)
+        except Exception:
+            pass
 
 
 def encrypt_file_bytes(
@@ -206,7 +231,9 @@ def encrypt_file_bytes(
         sha = hashlib.sha256(raw).digest()
         
         # Generate random salt and nonce (cryptographically secure)
-        # CRITICAL: Nonce MUST be unique per encryption to prevent GCM nonce reuse
+        # Invariant: Nonce MUST be unique per key to prevent GCM nonce reuse.
+        # We enforce uniqueness by generating a fresh random salt (new key) and
+        # a fresh random 96-bit nonce per encryption.
         salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
         
@@ -255,17 +282,25 @@ def encrypt_file_bytes(
             key = derive_key(password, salt, keyfile)
         
         # Build AAD (Additional Authenticated Data) for manifest protection
-        # This prevents tampering with lengths, hashes, salt, or version
+        # Why: Binding metadata to the AEAD prevents substitution and
+        # protocol-confusion attacks against lengths/hash/version fields.
         aad = struct.pack('<QQ', len(raw), len(comp))  # orig_len, comp_len
         aad += salt  # Include salt in authentication
         aad += sha   # Include original hash in authentication
         aad += MAGIC  # Include version magic in authentication
         
         if ephemeral_public_key is not None:
+            # Why: Bind ephemeral public key to ciphertext to prevent
+            # key-substitution attacks in forward secrecy mode.
             # Include ephemeral public key in AAD for forward secrecy mode
             aad += ephemeral_public_key
         
+        # Best-effort nonce reuse guard (per-process)
+        _register_nonce_use(key, nonce)
+
         # Encrypt with AES-256-GCM using AAD
+        # Why: AEAD enforces authenticity before decryption; no partial
+        # plaintext is released on tag failure.
         # AAD is authenticated but not encrypted
         backend = get_default_backend()
         cipher = backend.aes_gcm_encrypt(key, nonce, comp, aad)  # ← AAD prevents metadata tampering!
@@ -542,6 +577,45 @@ def unpack_manifest(b: bytes) -> Manifest:
     )
 
 
+def derive_encryption_key_for_manifest(
+    password: str,
+    salt: bytes,
+    keyfile: Optional[bytes] = None,
+    ephemeral_public_key: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None
+) -> bytes:
+    """
+    Derive the encryption key for a manifest, matching encryption/decryption paths.
+
+    This helper centralizes key derivation to keep frame MAC and HMAC derivations
+    consistent and avoids subtle divergence.
+    """
+    if ephemeral_public_key is not None:
+        if receiver_private_key is None:
+            raise ValueError("Forward secrecy mode requires receiver private key")
+
+        try:
+            from meow_decoder.x25519_forward_secrecy import (
+                derive_shared_secret,
+                deserialize_public_key
+            )
+        except ImportError:
+            from .x25519_forward_secrecy import (
+                derive_shared_secret,
+                deserialize_public_key
+            )
+
+        sender_pubkey = deserialize_public_key(ephemeral_public_key)
+        return derive_shared_secret(
+            receiver_private_key,
+            sender_pubkey,
+            password,
+            salt
+        )
+
+    return derive_key(password, salt, keyfile)
+
+
 def compute_manifest_hmac(
     password: str,
     salt: bytes,
@@ -576,38 +650,19 @@ def compute_manifest_hmac(
     # Use pre-derived key if provided (encoding path)
     if encryption_key is not None:
         key = encryption_key
-    # Otherwise derive key based on encryption mode (decoding path)
-    elif ephemeral_public_key is not None:
-        # FORWARD SECRECY MODE
-        if receiver_private_key is None:
-            raise ValueError("Forward secrecy mode requires receiver private key")
-        
-        try:
-            from meow_decoder.x25519_forward_secrecy import (
-                derive_shared_secret,
-                deserialize_public_key
-            )
-        except ImportError:
-            from .x25519_forward_secrecy import (
-                derive_shared_secret,
-                deserialize_public_key
-            )
-        
-        # Deserialize sender's ephemeral public key
-        sender_pubkey = deserialize_public_key(ephemeral_public_key)
-        
-        # Derive shared secret (same as encryption)
-        key = derive_shared_secret(
-            receiver_private_key,
-            sender_pubkey,
-            password,
-            salt
-        )
     else:
-        # PASSWORD-ONLY MODE
-        key = derive_key(password, salt, keyfile)
+        # Derive key based on encryption mode (decoding path)
+        key = derive_encryption_key_for_manifest(
+            password,
+            salt,
+            keyfile=keyfile,
+            ephemeral_public_key=ephemeral_public_key,
+            receiver_private_key=receiver_private_key
+        )
     
     # Derive HMAC key from encryption key
+    # Why: Domain separation prevents reuse of the encryption key for
+    # authentication, mitigating cross-context key reuse risks.
     key_material = MANIFEST_HMAC_KEY_PREFIX + key
     
     backend = get_default_backend()
@@ -663,6 +718,7 @@ def verify_manifest_hmac(
     )
     
     # Constant-time comparison with timing equalization
+    # Why: Prevents timing side-channel leakage on authentication failures.
     try:
         from .constant_time import constant_time_compare, equalize_timing
         result = constant_time_compare(expected_hmac, manifest.hmac)

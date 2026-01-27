@@ -12,6 +12,19 @@ def test_deserialize_public_key_rejects_wrong_length():
         deserialize_public_key(b"\x00" * 31)
 
 
+def test_derive_shared_secret_rejects_wrong_lengths():
+    from meow_decoder.x25519_forward_secrecy import derive_shared_secret
+
+    with pytest.raises(ValueError):
+        derive_shared_secret(b"\x00" * 31, b"\x00" * 32, "pass", b"\x00" * 16)
+
+    with pytest.raises(ValueError):
+        derive_shared_secret(b"\x00" * 32, b"\x00" * 31, "pass", b"\x00" * 16)
+
+    with pytest.raises(ValueError):
+        derive_shared_secret(b"\x00" * 32, b"\x00" * 32, "pass", b"\x00" * 15)
+
+
 def test_save_receiver_keypair_without_password_uses_no_encryption(tmp_path: Path):
     from meow_decoder.x25519_forward_secrecy import (
         generate_receiver_keypair,
