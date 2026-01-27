@@ -261,6 +261,29 @@ You can verify it is active by checking the verbose output `meow-encode -v ...`.
 
 See [rust_crypto/README.md](rust_crypto/README.md) for full details.
 
+### ⚠️ Legacy Python Backend (Not Recommended)
+
+If the Rust backend is unavailable, you can force the legacy Python backend with `--legacy-python`:
+
+```bash
+meow-encode --legacy-python -i secret.pdf -o secret.gif -p "password"
+```
+
+**WARNING: The legacy Python backend is NOT recommended for sensitive data:**
+
+| Issue | Impact | Mitigation |
+|-------|--------|------------|
+| **Not constant-time** | Timing attacks may leak password info | Use Rust backend |
+| **No guaranteed memory zeroing** | Python GC may retain key copies in RAM | Power off after use |
+| **Memory forensics vulnerable** | RAM dump attacks may recover keys | Use encrypted swap, disable hibernation |
+
+The legacy mode exists only for:
+- Testing/development without Rust toolchain
+- Platforms where Rust compilation is unavailable
+- Debugging/troubleshooting
+
+**For any real-world sensitive use, install the Rust backend.**
+
 ---
 
 ## 🔬 Fuzzing & Security Testing
