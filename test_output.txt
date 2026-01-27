@@ -1,0 +1,29 @@
+
+🦀 Rust crypto backend detected - using constant-time operations
+============================= test session starts ==============================
+platform linux -- Python 3.12.1, pytest-9.0.1, pluggy-1.6.0 -- /usr/local/py-utils/venvs/pytest/bin/python
+cachedir: .pytest_cache
+rootdir: /workspaces/meow-decoder
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.11.0, cov-7.0.0
+collecting ... collected 593 items
+
+tests/integration/test_cli_forward_secrecy.py::test_key_generation PASSED [  0%]
+tests/integration/test_cli_forward_secrecy.py::test_encode_decode_with_fs PASSED [  0%]
+tests/integration/test_cli_forward_secrecy.py::test_password_only_mode PASSED [  0%]
+tests/integration/test_comprehensive.py::test_constant_time_operations PASSED [  0%]
+tests/integration/test_comprehensive.py::test_metadata_obfuscation PASSED [  0%]
+tests/integration/test_comprehensive.py::test_integrated_encryption PASSED [  1%]
+tests/integration/test_comprehensive.py::test_backward_compatibility PASSED [  1%]
+tests/integration/test_comprehensive.py::test_manifest_formats PASSED    [  1%]
+tests/integration/test_forward_secrecy.py::test_password_only_mode PASSED [  1%]
+tests/integration/test_forward_secrecy.py::test_forward_secrecy_mode PASSED [  1%]
+tests/integration/test_forward_secrecy.py::test_manifest_packing PASSED  [  1%]
+tests/integration/test_forward_secrecy.py::test_wrong_password PASSED    [  2%]
+tests/integration/test_fountain_fix.py::test_small_k PASSED              [  2%]
+tests/integration/test_fs_integration.py::test_key_generation PASSED     [  2%]
+tests/integration/test_fs_integration.py::test_encode_decode_programmatic PASSED [  2%]
+tests/integration/test_fs_integration.py::test_password_only_mode PASSED [  2%]
+tests/integration/test_fs_integration.py::test_manifest_packing PASSED   [  2%]
+tests/integration/test_full_roundtrip.py::test_full_roundtrip 

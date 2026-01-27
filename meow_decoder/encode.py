@@ -473,6 +473,9 @@ Examples:
                        help='Directory for generated keys (default: current directory)')
     
     # Cat modes and fun
+    parser.add_argument('--cat-mode', action='store_true',
+                       help='Use bundled cat-themed carrier GIF (demo_logo_eyes.gif). '
+                            '⚠️ COSMETIC ONLY: Does not hide QR presence from steganalysis.')
     parser.add_argument('--mode', choices=['normal', 'void'], default='normal',
                        help='Encoding mode: normal or void (paranoid stealth)')
     parser.add_argument('--fun', action='store_true',
@@ -568,6 +571,18 @@ Nothing to see here.
     # For normal operation, require input/output.
     if args.input is None or args.output is None:
         parser.error("the following arguments are required: -i/--input, -o/--output")
+    
+    # Cat mode: use bundled carrier if no custom carrier provided
+    if args.cat_mode and not args.carrier_images:
+        cat_carrier = Path(__file__).parent.parent / 'assets' / 'demo_logo_eyes.gif'
+        if cat_carrier.exists():
+            args.carrier_images = [cat_carrier]
+            if args.stego_level == 0:
+                args.stego_level = 2  # Default to subtle stego
+            print("🐱 Cat Mode activated! Using bundled cat carrier.")
+            print("   ⚠️ Note: Cosmetic camouflage only — QR still detectable under analysis.")
+        else:
+            print("⚠️ Cat Mode: Bundled carrier not found, proceeding with plain QR codes.")
     
     # Void cat mode
     if args.mode == 'void':
