@@ -347,6 +347,25 @@ meow-encode -i secret.pdf -o meow.gif -p "password" --cat-mode
 
 ⚠️ **WARNING:** Cat Mode is purely cosmetic camouflage for fun. It does NOT hide QR codes from steganalysis or forensic detection. Use `--stego-level 4` with custom carriers for serious steganography.
 
+### 🌿 Green-Region Steganography (`--stego-green`)
+
+Restricts LSB embedding to green-dominant pixels only (e.g., cat eyes, logo waves).
+
+```bash
+# Embed only in green regions of carrier image
+meow-encode -i secret.pdf -o logo.gif -p "password" \
+    --stego-level 3 --carrier assets/meow-decoder-logo.png --stego-green
+```
+
+⚠️ **IMPORTANT LIMITATIONS:**
+- **Cosmetic only** — reduces visible artifacts but does NOT defeat steganalysis
+- **Reduced capacity** — only ~10-30% of pixels are modifiable
+- **Requires `--carrier`** — must provide carrier image(s) with green regions
+- **Still detectable** — chi-square analysis will find the embedded data
+
+**Best for:** Making embedded QR codes less visually obvious in specific regions.  
+**NOT for:** Evading forensic detection or professional steganalysis.
+
 ### Photographic Cat Camouflage
 <p align="center">
   <img src="assets/demo_camouflage_photo.gif?v=3" alt="Photographic cat camouflage demo" width="750">

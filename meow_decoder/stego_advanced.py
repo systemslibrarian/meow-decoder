@@ -28,6 +28,76 @@ class StealthLevel(IntEnum):
     PARANOID = 4     # 1-bit LSB + obfuscation, minimal capacity, maximum stealth
 
 
+def create_green_mask(image: Image.Image,
+                      green_threshold: int = 160,
+                      green_dominance: float = 1.3) -> np.ndarray:
+    """
+    Create binary mask for green-dominant pixels.
+    
+    Used for ROI-restricted steganography where embedding only occurs
+    in green regions (e.g., logo eyes, waves).
+    
+    Args:
+        image: Input image (carrier)
+        green_threshold: Minimum green channel value (0-255)
+        green_dominance: G must be > max(R, B) * dominance
+        
+    Returns:
+        Boolean mask (H, W) where True = embeddable pixel
+        
+    Example:
+        # Eyes in logo: G ≈ 180-255, R/B ≈ 40-100
+        # This detects: G > 160 AND G > 1.3 * max(R, B)
+        
+    Security Note:
+        Green-region embedding is COSMETIC ONLY. It does NOT defeat
+        steganalysis tools. The reduced capacity may actually make
+        statistical detection EASIER due to concentrated modifications.
+    """
+    arr = np.array(image)
+    if len(arr.shape) == 2:
+        # Grayscale - no green dominance possible
+        return np.zeros(arr.shape, dtype=bool)
+    
+    r, g, b = arr[:,:,0], arr[:,:,1], arr[:,:,2]
+    
+    # Green must be above threshold AND dominant over red/blue
+    mask = (g >= green_threshold) & (g > np.maximum(r, b) * green_dominance)
+    
+    return mask
+
+
+def calculate_masked_capacity(mask: np.ndarray, lsb_bits: int = 2) -> dict:
+    """
+    Calculate embedding capacity with mask.
+    
+    Args:
+        mask: Boolean mask (H, W)
+        lsb_bits: Bits per channel to embed (1-3)
+    
+    Returns:
+        Dict with capacity metrics:
+        - usable_pixels: Number of embeddable pixels
+        - total_pixels: Total pixels in image
+        - percent: Percentage of image usable
+        - bytes_capacity: Maximum bytes embeddable per frame
+    """
+    total = mask.size
+    usable = int(np.sum(mask))
+    percent = (usable / total) * 100 if total > 0 else 0
+    
+    # Each pixel can hold 3 channels × lsb_bits bits
+    bytes_capacity = (usable * 3 * lsb_bits) // 8
+    
+    return {
+        'usable_pixels': usable,
+        'total_pixels': int(total),
+        'percent': percent,
+        'bytes_capacity': int(bytes_capacity),
+        'lsb_bits': lsb_bits
+    }
+
+
 @dataclass
 class StegoQuality:
     """Quality metrics for steganography."""
@@ -135,16 +205,23 @@ class AdvancedStegoEncoder:
         
         return stego_image, quality
     
-    def _embed_lsb(self, qr_array: np.ndarray, carrier_array: np.ndarray) -> np.ndarray:
+    def _embed_lsb(self, qr_array: np.ndarray, carrier_array: np.ndarray,
+                    roi_mask: Optional[np.ndarray] = None) -> np.ndarray:
         """
         Embed QR code in carrier using LSB steganography.
         
         Args:
             qr_array: QR code array (H, W, 3)
             carrier_array: Carrier array (H, W, 3)
+            roi_mask: Optional boolean mask (H, W) for ROI-restricted embedding.
+                      If provided, only True pixels are modified.
             
         Returns:
             Stego array (H, W, 3)
+            
+        Note:
+            When roi_mask is used, unmasked pixels remain unchanged.
+            This is cosmetic only - the decoder reads all pixels.
         """
         stego = carrier_array.copy()
         
@@ -155,8 +232,16 @@ class AdvancedStegoEncoder:
         # Extract top bits from QR code
         qr_bits = (qr_array >> (8 - self.lsb_bits)) & lsb_mask
         
-        # Clear LSBs in carrier and insert QR bits
-        stego = (stego & carrier_mask) | qr_bits
+        if roi_mask is not None:
+            # ROI-RESTRICTED EMBEDDING: Only modify masked pixels
+            # Expand 2D mask to 3D for RGB channels
+            mask_3d = np.stack([roi_mask, roi_mask, roi_mask], axis=2)
+            stego = np.where(mask_3d,
+                             (stego & carrier_mask) | qr_bits,
+                             stego)  # Unmasked pixels unchanged
+        else:
+            # FULL EMBEDDING (default behavior)
+            stego = (stego & carrier_mask) | qr_bits
         
         return stego
     

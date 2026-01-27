@@ -37,6 +37,7 @@ def encode_file(
     use_pq: bool = False,
     stego_level: int = 0,
     carrier_images: Optional[List[Path]] = None,
+    stego_green: bool = False,
     logo_eyes: bool = False,
     logo_eyes_hidden: bool = False,
     brand_text: Optional[str] = None,
@@ -57,6 +58,7 @@ def encode_file(
         use_pq: Enable post-quantum hybrid mode (MEOW4)
         stego_level: Steganography level (0=off, 1-4=stealth levels)
         carrier_images: Optional list of carrier image paths (your cat photos!)
+        stego_green: Restrict embedding to green-dominant pixels only (cosmetic)
         logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
         logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
         brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
@@ -295,7 +297,7 @@ def encode_file(
         if verbose:
             print(f"\n🥷 Applying steganography (level {stego_level})...")
         
-        from .stego_advanced import encode_with_stego, StealthLevel
+        from .stego_advanced import encode_with_stego, StealthLevel, create_green_mask, calculate_masked_capacity
         from PIL import Image
         
         # Map level 1-4 to StealthLevel enum
@@ -305,6 +307,7 @@ def encode_file(
         
         # Load carrier images if provided (your cat photos!)
         carriers = None
+        green_mask = None
         if carrier_images:
             carriers = []
             for img_path in carrier_images:
@@ -324,6 +327,25 @@ def encode_file(
                 carriers = carriers[:len(qr_frames)]
                 if verbose:
                     print(f"  Using {len(set(carrier_images))} custom carrier image(s)")
+                
+                # Green-region mode: create mask from first carrier
+                if stego_green:
+                    green_mask = create_green_mask(carriers[0])
+                    capacity = calculate_masked_capacity(green_mask, lsb_bits=stealth.value)
+                    
+                    if verbose:
+                        print(f"  🌿 Green-region mode enabled")
+                        print(f"     ⚠️ COSMETIC CAMOUFLAGE ONLY - does NOT defeat forensic analysis")
+                        print(f"     📊 Capacity: {capacity['percent']:.1f}% embeddable ({capacity['bytes_capacity']:,} bytes/frame)")
+                    
+                    if capacity['percent'] < 5.0:
+                        print(f"  ⚠️ WARNING: Only {capacity['percent']:.1f}% green pixels - encoding may fail!")
+                        print(f"     💡 Try a carrier image with more green regions")
+        
+        # Warn if --stego-green without carriers
+        if stego_green and not carriers:
+            if verbose:
+                print(f"  ⚠️ --stego-green requires --carrier images, ignoring flag")
         
         # Apply steganography
         try:
@@ -441,6 +463,10 @@ Examples:
                        help='Steganography level: 0=off, 1=visible, 2=subtle, 3=hidden, 4=paranoid (default: 0)')
     parser.add_argument('--carrier', '-c', type=Path, nargs='+', dest='carrier_images',
                        help='Custom carrier images (your cat photos!) for steganography. Images cycle through frames.')
+    parser.add_argument('--stego-green', action='store_true',
+                       help='Embed only in green-dominant pixels (logo eyes/waves). '
+                            '⚠️ COSMETIC ONLY: Does NOT defeat steganalysis. '
+                            'Reduces capacity to ~10-30%%. Requires --carrier. Test output visually!')
     
     # Logo-eyes mode (branded animation with data in eyes)
     parser.add_argument('--logo-eyes', action='store_true',
@@ -747,6 +773,7 @@ Nothing to see here. 😶‍🌫️
             use_pq=args.pq,
             stego_level=args.stego_level,
             carrier_images=args.carrier_images,
+            stego_green=args.stego_green,
             logo_eyes=args.logo_eyes,
             logo_eyes_hidden=args.logo_eyes_hidden,
             brand_text=args.brand_text,

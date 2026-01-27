@@ -78,7 +78,13 @@ We thank the following security researchers for responsible disclosure:
    - Limited mitigation for timing, power, EM attacks
    - **Mitigation:** Physical security, controlled environment
 
-6. **Memory Forensics**
+6. **Steganography Limitations**
+   - LSB embedding detectable by chi-square analysis, RS analysis, etc.
+   - Localized embedding (`--stego-green`) may make detection EASIER
+   - **Mitigation:** Use stego for cosmetic camouflage only, rely on AES-256-GCM for security
+   - See: "Localized Embedding" section below
+
+7. **Memory Forensics**
    - Key zeroing helps but not perfect
    - **Mitigation:** Disable swap, use encrypted RAM disk, power off after use
 
@@ -143,6 +149,45 @@ meow-encode -i secret.pdf -o secret.gif \
     --constant-rate       # Fixed timing
     --paranoid            # All obfuscation enabled
 ```
+
+---
+
+## 🌿 **Localized Embedding (Green-Region Mode)**
+
+The `--stego-green` flag restricts LSB embedding to green-dominant pixels only
+(e.g., logo eyes, wave patterns). This is available via:
+
+```bash
+meow-encode -i secret.pdf -o logo.gif \
+    --stego-level 3 \
+    --carrier logo.png \
+    --stego-green
+```
+
+### Security Properties
+
+| Property | Assessment |
+|----------|------------|
+| ✅ Visual artifacts | Reduced in non-green regions |
+| ❌ Steganalysis resistance | NOT improved (may be WORSE) |
+| ❌ Payload capacity | Reduced to ~10-30% |
+| ❌ Detection difficulty | Concentrated modifications may be EASIER to detect |
+
+### Why NOT More Secure?
+
+1. **Chi-square analysis** still detects LSB modifications in green regions
+2. **Histogram analysis** shows non-uniform distribution in embeddable areas
+3. **Concentration effect** - embedding in fewer pixels means higher modification density
+4. **Signature pattern** - consistent green-only modifications are themselves a signature
+
+### Recommendations
+
+- ✅ Use for **cosmetic camouflage** only (reduce visible QR artifacts)
+- ✅ Combine with `--stego-level 3` or `4` for best visual results
+- ❌ Do NOT rely on localized embedding for security
+- ❌ Do NOT assume forensic undetectability
+
+**The encryption (AES-256-GCM) protects your data, not the steganography.**
 
 ---
 
