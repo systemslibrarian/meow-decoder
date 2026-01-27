@@ -141,6 +141,31 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 | **Screen recording malware** | Same as shoulder surfing, automated |
 | **State-level adversaries** | No formal audit; use certified tools for classified data |
 
+---
+
+## 🧪 Formal Verification (TLA+ / ProVerif / Verus)
+
+Formal methods live in [formal/README.md](formal/README.md). Quick commands:
+
+```bash
+# ProVerif (symbolic protocol analysis)
+cd /workspaces/meow-decoder/formal/proverif
+eval $(opam env)
+proverif meow_encode.pv
+
+# TLA+ (state machine model checking)
+cd /workspaces/meow-decoder/formal/tla
+java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
+
+# Verus (Rust proofs)
+cd /workspaces/meow-decoder/crypto_core
+verus src/lib.rs
+```
+
+More details and expected results:
+- [formal/README.md](formal/README.md)
+- [formal/proverif/README.md](formal/proverif/README.md)
+
 ### 🎯 Adversary Model
 
 | Adversary | Can Meow Decoder Stop Them? |

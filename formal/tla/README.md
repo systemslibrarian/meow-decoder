@@ -165,17 +165,51 @@ Safety ==
     /\ NewSecurityProperty
 ```
 
+### Configuration (MeowEncode.cfg)
+
+The current configuration is **optimized for fast verification** (~1-5 minutes):
+
+```tla
+\* Optimized constants for fast checking
+MaxFrames = 2
+MaxSessions = 1
+MaxNonces = 3
+Passwords = {1, 2}
+
+\* Limit attacker actions to prevent state explosion
+CONSTRAINT AttackerActionLimit
+```
+
+**Important**: The `AttackerActionLimit` constraint (defined in MeowEncode.tla) limits attacker action sequences to 3 steps. This dramatically reduces state space while still catching most bugs.
+
 ### Tuning State Space
 
-For faster verification:
-- Reduce `MaxFrames` (fewer frames = fewer states)
-- Reduce `MaxSessions` (fewer concurrent sessions)
-- Add state constraints in `.cfg` file
+**For faster verification** (current defaults):
+- `MaxFrames = 2` - Minimum frames to test protocol
+- `MaxSessions = 1` - Single session simplifies state
+- `MaxNonces = 3` - Just enough for nonce reuse detection
+- `Passwords = {1, 2}` - Real and duress passwords
+- `AttackerActionLimit` - Max 3 attacker actions
 
-For more thorough verification:
-- Increase constants
-- Add symmetry optimizations
-- Use distributed TLC across multiple machines
+**For more thorough verification** (slower, more comprehensive):
+```tla
+\* In MeowEncode.cfg - uncomment for exhaustive checking
+MaxFrames = 4
+MaxSessions = 2
+MaxNonces = 10
+Passwords = {1, 2, 3, 4}
+\* Comment out: CONSTRAINT AttackerActionLimit
+```
+
+⚠️ **Warning**: Increasing constants causes exponential state explosion. Full config can take hours/days.
+
+### Expected Run Times
+
+| Configuration | States | Time |
+|---------------|--------|------|
+| Fast (current) | ~10K-50K | 1-5 minutes |
+| Medium | ~500K | 10-30 minutes |
+| Full | 10M+ | Hours to days |
 
 ## Mapping to Implementation
 

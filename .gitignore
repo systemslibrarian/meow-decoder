@@ -74,3 +74,5 @@ formal/tla/*.dot
 formal/tla/*.out
 formal/proverif/*.html
 formal/proverif/output/
+formal/proverif/proverif2.05/
+formal/proverif/proverif2.05.tar.gz

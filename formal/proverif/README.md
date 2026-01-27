@@ -17,6 +17,77 @@ ProVerif uses the Dolev-Yao attacker model to symbolically verify security prope
 ## Quick Start
 
 ```bash
+# Navigate to this directory
+cd /workspaces/meow-decoder/formal/proverif
+
+# Run ProVerif (basic analysis - 10-30 seconds)
+eval $(opam env)
+proverif meow_encode.pv
+
+# Generate HTML report in output/ directory
+proverif -html output meow_encode.pv
+```
+
+Makefile shortcuts:
+
+```bash
+make formal-proverif
+make formal-proverif-html
+```
+
+**Expected result**: All 7+ queries should show `is true` or `is false` (for secrecy).
+
+---
+
+## Installation
+
+ProVerif is **not available via apt**. Install via OPAM (OCaml package manager):
+
+```bash
+# 1. Install OPAM
+sudo apt-get install -y opam
+
+# 2. Initialize OPAM (one-time setup, takes a few minutes)
+opam init -y --disable-sandboxing
+eval $(opam env)
+
+# 3. Install ProVerif
+opam install -y proverif
+
+# 4. Verify installation
+proverif --version
+```
+
+### Alternative: Build from Source
+
+```bash
+# Install OCaml
+sudo apt-get install -y ocaml
+
+# Download and build ProVerif
+cd /workspaces/meow-decoder/formal/proverif
+curl -LO https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz
+tar xzf proverif2.05.tar.gz
+cd proverif2.05
+./build
+
+# Run (use local binary)
+./proverif ../meow_encode.pv
+```
+
+### Alternative: Docker
+
+```bash
+# Note: Official Docker image may not exist; build locally if needed
+docker run --rm -v $(pwd):/work ocaml/opam:latest \
+  bash -c "opam install -y proverif && proverif /work/meow_encode.pv"
+```
+
+---
+
+## Full Documentation
+
+```bash
 # Using the provided script
 ./run.sh                    # Basic analysis
 ./run.sh --html             # Generate HTML output in output/

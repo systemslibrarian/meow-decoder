@@ -65,8 +65,8 @@ This document outlines planned security improvements organized by timeline.
 
 ### Formal Methods
 - [ ] **Formal Verification**: Verus/Coq proofs for crypto primitives
-- [ ] **Model Checking**: TLA+ specification of protocol state machine
-- [ ] **Symbolic Analysis**: ProVerif/Tamarin for protocol security
+- [x] **Model Checking**: TLA+ specification of protocol state machine (`formal/tla/`)
+- [x] **Symbolic Analysis**: ProVerif for protocol security (`formal/proverif/`)
 
 ### Third-Party Audit
 - [ ] **Professional Audit**: Engage security firm for full review

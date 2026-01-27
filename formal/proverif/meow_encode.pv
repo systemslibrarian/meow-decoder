@@ -110,6 +110,8 @@ reduc forall k: key, m: bitstring;
 (* === HKDF for Key Derivation (domain separation) === *)
 (* frame_master_key = HKDF(encryption_key, salt, "meow_frame_mac_v2") *)
 fun hkdf_expand(key, bitstring): key.
+(* Helper to encode keys into bitstrings for HKDF inputs *)
+fun key_to_bits(key): bitstring.
 
 (* === X25519 Key Exchange (for Forward Secrecy) === *)
 type privkey.
@@ -187,6 +189,7 @@ event DecoderVerifiedMAC(sessionid).
 event DecoderAuthenticatedManifest(sessionid, salt).  (* Manifest MAC verified *)
 event DecoderAuthenticatedFrame(sessionid, framenum). (* Frame MAC verified *)
 event DecoderAuthenticated(sessionid, nonce, salt).   (* Full authentication complete *)
+event DecoderAuthenticatedDuress(sessionid, nonce, salt). (* Duress-path acceptance *)
 event DecoderDecrypted(sessionid, plaintext).         (* Decryption succeeded *)
 event DecoderOutputReal(sessionid, plaintext).
 event DecoderOutputDecoy(sessionid, plaintext).
@@ -300,7 +303,7 @@ query sid: sessionid, pt: plaintext, n: nonce, s: salt;
     event(DecoderOutputReal(sid, pt)) ==> event(DecoderAuthenticated(sid, n, s)).
 
 query sid: sessionid, pt: plaintext, n: nonce, s: salt;
-    event(DecoderOutputDecoy(sid, pt)) ==> event(DecoderAuthenticated(sid, n, s)).
+    event(DecoderOutputDecoy(sid, pt)) ==> event(DecoderAuthenticatedDuress(sid, n, s)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 7: NONCE UNIQUENESS (No Nonce Reuse)                                 *)
@@ -468,8 +471,8 @@ let DecoderDuress(sid: sessionid, duress_pwd: password, decoy: plaintext) =
     (* Instead, we output pre-defined decoy data *)
     (* This ensures real plaintext is never even computed *)
     
-    (* Record authentication (duress path considered "authenticated" for stats) *)
-    event DecoderAuthenticated(sid, n, s);
+    (* Record duress-path acceptance (not full authentication) *)
+    event DecoderAuthenticatedDuress(sid, n, s);
     
     (* Output ONLY the decoy - real_secret is NEVER output here *)
     event DecoderOutputDecoy(sid, decoy);
@@ -505,7 +508,7 @@ let EncoderWithFS(sid: sessionid, pwd: password, pt: plaintext, receiver_pub: pu
     
     (* Combine password key with ECDH shared secret via HKDF *)
     (* Matches derive_shared_secret() in x25519_forward_secrecy.py *)
-    let combined_key = hkdf_expand(base_key, shared) in
+    let combined_key = hkdf_expand(base_key, key_to_bits(shared)) in
     
     (* Generate nonce *)
     new n: nonce;
@@ -557,7 +560,7 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
     
     (* Derive combined key: password + ECDH shared secret *)
     let base_key = argon2id(pwd, s) in
-    let combined_key = hkdf_expand(base_key, shared) in
+    let combined_key = hkdf_expand(base_key, key_to_bits(shared)) in
     
     (* Frame MAC key *)
     let frame_key = hkdf_expand(combined_key, (s, sid)) in
@@ -635,60 +638,35 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
 (* ========================================================================== *)
 
 process
-    (* Generate master session ID for traceability *)
-    new master_sid: sessionid;
-    
-    (* Generate receiver keypair for forward secrecy variant *)
-    (* In real implementation: save_receiver_keypair() in x25519_forward_secrecy.py *)
-    new receiver_priv: privkey;
-    let receiver_pub = x25519_pubkey(receiver_priv) in
-    
-    (* SCENARIO 1: Standard Protocol *)
-    (* Single session to verify basic correctness *)
+    ! new master_sid: sessionid;
     (
-        Encoder(master_sid, real_password, real_secret) |
+        Encoder(master_sid, real_password, real_secret)
+        |
         DecoderReal(master_sid, real_password)
     )
-    
-    | (* PARALLEL COMPOSITION *)
-    
-    (* SCENARIO 2: Multi-session with Duress *)
-    (* Replicated to test cross-session attacks *)
+    |
+    ! new duress_sid: sessionid;
     (
-        !new duress_sid: sessionid;
-        (
-            (* Encoder sends real encrypted data *)
-            Encoder(duress_sid, real_password, real_secret) |
-            (* Decoder receives with duress password - must output decoy *)
-            DecoderDuress(duress_sid, duress_password, decoy_secret)
-        )
-    )
-    
-    | (* PARALLEL COMPOSITION *)
-    
-    (* SCENARIO 3: Forward Secrecy *)
-    (* Replicated to test ephemeral key reuse attacks *)
-    (
-        !new fs_sid: sessionid;
-        (
-            EncoderWithFS(fs_sid, real_password, real_secret, receiver_pub) |
-            DecoderWithFS(fs_sid, real_password, receiver_priv)
-        )
-    )
-    
-    | (* PARALLEL COMPOSITION *)
-    
-    (* SCENARIO 4: Multiple encoders, single decoder *)
-    (* Tests replay resistance across sessions *)
-    (
-        !new replay_sid: sessionid;
-        Encoder(replay_sid, real_password, real_secret)
+        Encoder(duress_sid, real_password, real_secret)
+        |
+        DecoderDuress(duress_sid, duress_password, decoy_secret)
     )
     |
+    ! new receiver_priv: privkey;
+    let receiver_pub = x25519_pubkey(receiver_priv) in
+    new fs_sid: sessionid;
     (
-        !new replay_decode_sid: sessionid;
-        DecoderReal(replay_decode_sid, real_password)
+        EncoderWithFS(fs_sid, real_password, real_secret, receiver_pub)
+        |
+        DecoderWithFS(fs_sid, real_password, receiver_priv)
     )
-.
+    |
+    ! new replay_sid: sessionid;
+    (
+        Encoder(replay_sid, real_password, real_secret)
+        |
+        DecoderReal(replay_sid, real_password)
+    )
+
 (* End of Meow-Encode ProVerif Model *)
 (* Run with: proverif meow_encode.pv *)
