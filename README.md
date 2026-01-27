@@ -148,6 +148,9 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 Formal methods live in [formal/README.md](formal/README.md). Quick commands:
 
 ```bash
+# One-command verification
+make verify
+
 # ProVerif (symbolic protocol analysis)
 cd /workspaces/meow-decoder/formal/proverif
 eval $(opam env)
@@ -160,11 +163,19 @@ java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
 # Verus (Rust proofs)
 cd /workspaces/meow-decoder/crypto_core
 verus src/lib.rs
+
+# Tamarin (observational equivalence, optional)
+cd /workspaces/meow-decoder/formal/tamarin
+./run.sh
 ```
 
 More details and expected results:
 - [formal/README.md](formal/README.md)
 - [formal/proverif/README.md](formal/proverif/README.md)
+- [docs/formal_methods_report.md](docs/formal_methods_report.md)
+- [docs/protocol.md](docs/protocol.md)
+
+**Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
 
 ### 🎯 Adversary Model
 

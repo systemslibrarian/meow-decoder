@@ -125,6 +125,49 @@ exiftool -all= innocent_cats.gif
 
 ---
 
+## 🎯 Attack Surface Analysis (Updated)
+
+This section enumerates **concrete attack surfaces** and the **current mitigations** implemented in the codebase.
+
+### 1) Input & Parsing
+| Surface | Risk | Mitigation | Status |
+|---|---|---|---|
+| GIF/QR decoding | Malformed frames or decode crashes | Frame MACs + redundancy; drop invalid frames ([meow_decoder/frame_mac.py](meow_decoder/frame_mac.py#L131)) | ✅ Implemented |
+| Manifest parsing | Truncated/corrupted manifest | Strict length checks + HMAC verification ([meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L132), [meow_decoder/crypto.py](meow_decoder/crypto.py#L672)) | ✅ Implemented |
+| Keyfile loading | Malformed or huge keyfile | Size checks (32B–1MB) ([meow_decoder/crypto.py](meow_decoder/crypto.py#L736)) | ✅ Implemented |
+
+### 2) Cryptographic Usage
+| Surface | Risk | Mitigation | Status |
+|---|---|---|---|
+| Nonce reuse | GCM catastrophic failure | Fresh random nonce + per‑process reuse guard ([meow_decoder/crypto.py](meow_decoder/crypto.py#L80)) | ✅ Implemented |
+| Metadata tampering | Length/hash substitution | AES‑GCM AAD binds fields; manifest HMAC ([meow_decoder/crypto.py](meow_decoder/crypto.py#L287), [meow_decoder/crypto.py](meow_decoder/crypto.py#L619)) | ✅ Implemented |
+| Frame injection | DoS or decode confusion | Per‑frame MAC (8 bytes) ([meow_decoder/frame_mac.py](meow_decoder/frame_mac.py#L131)) | ✅ Implemented |
+| Key reuse across domains | Cross‑protocol attacks | HKDF domain separation + HMAC prefixes ([meow_decoder/crypto.py](meow_decoder/crypto.py#L619)) | ✅ Implemented |
+
+### 3) Replay & Session Mixing
+| Surface | Risk | Mitigation | Status |
+|---|---|---|---|
+| Cross‑session replay | Old frames accepted | Frame MAC derives from per‑session key material ([meow_decoder/frame_mac.py](meow_decoder/frame_mac.py#L31)) | ✅ Implemented |
+| Password‑only + duress ambiguity | Manifest size collision | Duress requires FS/PQ ([meow_decoder/encode.py](meow_decoder/encode.py#L54)) | ✅ Implemented |
+
+### 4) Duress/Decoy Behavior
+| Surface | Risk | Mitigation | Status |
+|---|---|---|---|
+| Duress path leaks real data | Coercion failure | Decoy generated without decrypting real ciphertext ([meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L172)) | ✅ Implemented |
+| Duress timing oracle | Password probing | Constant‑time comparison + jitter ([meow_decoder/crypto.py](meow_decoder/crypto.py#L111), [meow_decoder/constant_time.py](meow_decoder/constant_time.py#L40)) | ✅ Implemented |
+
+### 5) Operational / Endpoint
+| Surface | Risk | Mitigation | Status |
+|---|---|---|---|
+| Compromised endpoint | Keys/plaintext exposed | Out of scope (OS hardening) | ❌ Out of scope |
+| Screen recording | Visible QR frames | Steganography (cosmetic), operational security | ⚠️ Partial |
+
+**Notes:**
+- This analysis is aligned with [docs/protocol.md](protocol.md).
+- Formal methods are summarized in [docs/formal_methods_report.md](formal_methods_report.md).
+
+---
+
 ## 🎯 **REALISTIC THREAT MODEL SCOPE**
 
 ### **Who This Tool IS Designed For:**

@@ -100,7 +100,7 @@ reduc forall k: key, n: nonce, p: plaintext, aad: bitstring;
 fun sha256(plaintext): hash.
 
 (* === HMAC-SHA256 for Manifest and Frame MACs === *)
-(* Frame MAC: HMAC(frame_key, frame_index || salt || frame_data) *)
+(* Frame MAC: HMAC(frame_key, frame_data); frame_key derived from frame_index + salt *)
 fun hmac_sha256(key, bitstring): hmac.
 
 (* HMAC verification: constant-time comparison *)
@@ -110,6 +110,10 @@ reduc forall k: key, m: bitstring;
 (* === HKDF for Key Derivation (domain separation) === *)
 (* frame_master_key = HKDF(encryption_key, salt, "meow_frame_mac_v2") *)
 fun hkdf_expand(key, bitstring): key.
+(* Manifest HMAC key derivation (models MANIFEST_HMAC_KEY_PREFIX || key) *)
+fun manifest_hmac_key(key): key.
+(* Per-frame MAC key derivation (models HKDF with frame index + salt) *)
+fun frame_key(key, framenum, salt): key.
 (* Helper to encode keys into bitstrings for HKDF inputs *)
 fun key_to_bits(key): bitstring.
 
@@ -143,9 +147,7 @@ fun make_nonce(sessionid, framenum): nonce.
 (*   - manifest_hmac: HMAC over all above fields                              *)
 (*                                                                            *)
 (* Data Frame (Frame 1+): Fountain-encoded ciphertext chunks                  *)
-(*   - session_id: unique identifier for this encoding                        *)
 (*   - frame_index: sequence number (0 = manifest)                            *)
-(*   - total_frames: expected number of frames                                *)
 (*   - ciphertext: fountain code droplet (XOR of blocks)                      *)
 (*   - frame_mac: HMAC(frame_key, frame_index || salt || ciphertext)          *)
 (* ========================================================================== *)
@@ -161,9 +163,7 @@ fun manifest(
 
 (* Data frame structure - matches frame_mac.py pack_frame_with_mac *)
 fun frame(
-    sessionid,       (* Session identifier *)
     framenum,        (* Frame index (0 = manifest, 1+ = data) *)
-    framenum,        (* Total frames expected *)
     ciphertext,      (* Encrypted data (fountain droplet) *)
     hmac             (* Frame MAC: HMAC(frame_key, idx || salt || ct) *)
 ): bitstring [data].
@@ -217,6 +217,10 @@ free real_password: password [private].
 
 (* Duress password - triggers decoy output, known to legitimate parties *)
 free duress_password: password [private].
+
+(* Public metadata lengths (visible in manifest) *)
+free orig_len: length.
+free comp_len: length.
 
 (* ========================================================================== *)
 (* SECURITY QUERIES                                                           *)
@@ -359,26 +363,25 @@ let Encoder(sid: sessionid, pwd: password, pt: plaintext) =
     
     (* Build AAD (Additional Authenticated Data) *)
     (* Matches crypto.py: aad = orig_len || comp_len || salt || sha256 || magic *)
-    let aad = (s, sid, pt_hash, MEOW3) in
+    let aad = (orig_len, comp_len, s, pt_hash, MEOW3) in
     
     (* Encrypt plaintext with AES-256-GCM *)
     let ct = aes_gcm_encrypt(k, n, pt, aad) in
     event EncoderEncrypted(sid, pt, n, s);
     
-    (* Derive frame MAC key via HKDF with domain separation *)
-    (* Matches frame_mac.py: HKDF(key, salt, "meow_frame_mac_v2") *)
-    let frame_key = hkdf_expand(k, (s, sid)) in
+    (* Derive per-frame MAC key (abstracted HKDF with frame index + salt) *)
+    let frame_key = frame_key(k, Frame1, s) in
     
     (* Create manifest with HMAC *)
     let manifest_data = (MEOW3, s, n, aad) in
-    let manifest_mac = hmac_sha256(frame_key, manifest_data) in
+    let manifest_mac = hmac_sha256(manifest_hmac_key(k), manifest_data) in
     let manifest_msg = manifest(MEOW3, s, n, aad, manifest_mac) in
     
     (* Create data frame with per-frame MAC *)
     (* Matches frame_mac.py: MAC = HMAC(key, frame_idx || salt || data) *)
-    let frame_data = (sid, Frame1, ct) in
-    let frame_mac_val = hmac_sha256(frame_key, (Frame1, s, frame_data)) in
-    let data_frame = frame(sid, Frame1, Frame1, ct, frame_mac_val) in
+        let frame_data = ct in
+        let frame_mac_val = hmac_sha256(frame_key, frame_data) in
+        let data_frame = frame(Frame1, ct, frame_mac_val) in
     
     (* Send on public channel (attacker can intercept, replay, modify) *)
     event EncoderSentFrame(sid, Frame0);
@@ -409,24 +412,21 @@ let DecoderReal(sid: sessionid, pwd: password) =
     (* Derive decryption key from password via Argon2id *)
     let k = argon2id(pwd, s) in
     
-    (* Derive frame MAC key (same derivation as encoder) *)
-    let frame_key = hkdf_expand(k, (s, sid)) in
-    
     (* Verify manifest HMAC (constant-time in implementation) *)
     let manifest_data = (MEOW3, s, n, aad) in
-    if hmac_verify(frame_key, manifest_data, manifest_mac) = true then
+    if hmac_verify(manifest_hmac_key(k), manifest_data, manifest_mac) = true then
     
     event DecoderVerifiedMAC(sid);
     
     (* Parse data frame *)
-    let frame(sid2, fnum, total, ct, frame_mac_val) = data_frame in
-    
-    (* Verify session ID matches (prevents cross-session replay) *)
-    if sid = sid2 then
-    
+    let frame(fnum, ct, frame_mac_val) = data_frame in
+
+    (* Derive per-frame MAC key (same derivation as encoder) *)
+    let frame_key = frame_key(k, fnum, s) in
+
     (* Verify frame MAC *)
-    let frame_data = (sid, fnum, ct) in
-    if hmac_verify(frame_key, (fnum, s, frame_data), frame_mac_val) = true then
+    let frame_data = ct in
+    if hmac_verify(frame_key, frame_data, frame_mac_val) = true then
     
     event DecoderReceivedFrame(sid, fnum, n, s);
     
@@ -516,24 +516,24 @@ let EncoderWithFS(sid: sessionid, pwd: password, pt: plaintext, receiver_pub: pu
     
     (* Build AAD including ephemeral public key (binds key to ciphertext) *)
     let pt_hash = sha256(pt) in
-    let aad = (s, sid, pt_hash, MEOW3, ephemeral_pub) in
+    let aad = (orig_len, comp_len, s, pt_hash, MEOW3, ephemeral_pub) in
     
     (* Encrypt with combined key *)
     let ct = aes_gcm_encrypt(combined_key, n, pt, aad) in
     event EncoderEncrypted(sid, pt, n, s);
     
     (* Frame MAC key derived from combined key *)
-    let frame_key = hkdf_expand(combined_key, (s, sid)) in
+    let frame_key = frame_key(combined_key, Frame1, s) in
     
     (* Create manifest (includes ephemeral public key in AAD) *)
     let manifest_data = (MEOW3, s, n, aad, ephemeral_pub) in
-    let manifest_mac = hmac_sha256(frame_key, manifest_data) in
+    let manifest_mac = hmac_sha256(manifest_hmac_key(combined_key), manifest_data) in
     let manifest_msg = manifest(MEOW3, s, n, aad, manifest_mac) in
     
     (* Create data frame *)
-    let frame_data = (sid, Frame1, ct) in
-    let frame_mac_val = hmac_sha256(frame_key, (Frame1, s, frame_data)) in
-    let data_frame = frame(sid, Frame1, Frame1, ct, frame_mac_val) in
+    let frame_data = ct in
+    let frame_mac_val = hmac_sha256(frame_key, frame_data) in
+    let data_frame = frame(Frame1, ct, frame_mac_val) in
     
     (* Send ephemeral public key with message *)
     out(pub, (ephemeral_pub, manifest_msg, data_frame));
@@ -562,24 +562,21 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
     let base_key = argon2id(pwd, s) in
     let combined_key = hkdf_expand(base_key, key_to_bits(shared)) in
     
-    (* Frame MAC key *)
-    let frame_key = hkdf_expand(combined_key, (s, sid)) in
-    
     (* Verify manifest MAC - includes ephemeral pubkey in authenticated data *)
     let manifest_data = (MEOW3, s, n, aad, sender_ephemeral_pub) in
-    if hmac_verify(frame_key, manifest_data, manifest_mac) = true then
+    if hmac_verify(manifest_hmac_key(combined_key), manifest_data, manifest_mac) = true then
     
     event DecoderAuthenticatedManifest(sid, s);
     
-    (* Parse data frame - use full 5-field structure *)
-    let frame(sid2, fnum, total, ct, frame_mac_val) = data_frame in
-    
-    (* Verify session ID matches *)
-    if sid = sid2 then
-    
+    (* Parse data frame *)
+    let frame(fnum, ct, frame_mac_val) = data_frame in
+
+    (* Frame MAC key *)
+    let frame_key = frame_key(combined_key, fnum, s) in
+
     (* Verify frame MAC *)
-    let frame_data = (sid, fnum, ct) in
-    if hmac_verify(frame_key, (fnum, s, frame_data), frame_mac_val) = true then
+    let frame_data = ct in
+    if hmac_verify(frame_key, frame_data, frame_mac_val) = true then
     
     event DecoderAuthenticatedFrame(sid, fnum);
     

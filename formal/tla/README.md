@@ -10,6 +10,9 @@ The TLA+ model captures the complete state machine of the Meow-Encode protocol, 
 - **Decoder States**: Idle → Receive → FrameDecode → Decrypt → OutputReal/OutputDecoy → Done
 - **Attacker Model**: Full Dolev-Yao capabilities (drop, replay, reorder, duplicate, tamper)
 
+**Alignment note:** The model abstracts cryptography and frame formats; it is aligned with
+[docs/protocol.md](../../docs/protocol.md) at the level of *state transitions* and *safety invariants*.
+
 ## Files
 
 | File | Description |
@@ -87,6 +90,9 @@ authResult = "failure" => (decoderState = "Error" /\ decoderOutput = "none")
 # Navigate to this directory
 cd formal/tla
 
+# One-command runner (recommended)
+./run.sh
+
 # Run TLC with the configuration
 java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
 
@@ -95,6 +101,11 @@ java -Xmx8g -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
 
 # Parallel model checking (4 workers)
 java -jar tla2tools.jar -workers 4 -config MeowEncode.cfg MeowEncode.tla
+```
+
+**Expected output (success):**
+```
+Model checking completed. No error has been found.
 ```
 
 #### Docker (Recommended for quick setup)

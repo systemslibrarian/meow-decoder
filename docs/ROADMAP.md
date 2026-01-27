@@ -43,7 +43,7 @@ This document outlines planned security improvements organized by timeline.
 
 ### Documentation
 - [x] **Security Invariants Doc**: Formal listing of all security invariants (`docs/SECURITY_INVARIANTS.md`)
-- [ ] **Attack Surface Analysis**: Updated threat model with mitigations
+- [x] **Attack Surface Analysis**: Updated threat model with mitigations
 
 ---
 

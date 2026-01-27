@@ -102,6 +102,10 @@ cd verus
 ./tools/build.sh
 ```
 
+**Pinned versions (recommended):**
+- Verus: latest stable from the official repo
+- Z3: version bundled by `get-z3.sh`
+
 ### Running Verification
 
 ```bash
@@ -198,6 +202,18 @@ proof fn auth_then_output(ap: AuthenticatedPlaintext)
 - ⚠️ AES-GCM implementation correctness (uses `aes-gcm` crate)
 - ⚠️ Side-channel resistance (timing, cache, etc.)
 - ⚠️ Random number generator quality (uses `getrandom`)
+
+## Assumptions & Non‑Goals
+
+**Assumptions:**
+- AES‑GCM is a secure AEAD and the `aes-gcm` crate is correct
+- OS RNG is secure and unpredictable
+- The Rust compiler and standard library behave correctly
+
+**Non‑Goals:**
+- Proving AES‑GCM itself
+- Side‑channel resistance (timing/power/EM)
+- Compromised host or malware resistance
 - ⚠️ Memory safety in unsafe blocks (none present)
 
 ### Assumptions

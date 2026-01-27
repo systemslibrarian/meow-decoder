@@ -1,7 +1,7 @@
 # 🐱 Meow Decoder - Makefile
 
 .PHONY: help install dev test lint format clean build publish \
-	formal-proverif formal-proverif-html formal-tla formal-verus formal-all
+	formal-proverif formal-proverif-html formal-tla formal-tamarin formal-verus formal-all verify
 
 help:
 	@echo "🐱 Meow Decoder - Available Commands:"
@@ -17,8 +17,10 @@ help:
 	@echo "  make formal-proverif     - Run ProVerif model"
 	@echo "  make formal-proverif-html - ProVerif HTML report"
 	@echo "  make formal-tla          - Run TLA+ model"
+	@echo "  make formal-tamarin      - Run Tamarin equivalence model"
 	@echo "  make formal-verus        - Run Verus proofs"
 	@echo "  make formal-all          - Run all formal checks"
+	@echo "  make verify              - Run full verification suite"
 	@echo ""
 	@echo "🐾 Strong cat passwords only! 😺"
 
@@ -64,9 +66,15 @@ formal-proverif-html:
 formal-tla:
 	cd formal/tla && java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
 
+formal-tamarin:
+	cd formal/tamarin && bash ./run.sh
+
 formal-verus:
 	cd crypto_core && verus src/lib.rs
 
-formal-all: formal-proverif formal-tla formal-verus
+formal-all: formal-proverif formal-tla formal-tamarin formal-verus
+
+verify:
+	bash ./scripts/verify_all.sh
 
 .DEFAULT_GOAL := help

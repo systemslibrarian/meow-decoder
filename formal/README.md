@@ -8,9 +8,21 @@ This directory contains **formal specifications and proofs** for Meow-Encode's s
 |------|---------|----------|--------|
 | **TLA+/TLC** | State machine model checking | `tla/` | ✅ Complete |
 | **ProVerif** | Symbolic protocol analysis | `proverif/` | ✅ Complete |
+| **Tamarin** | Observational equivalence (optional) | `tamarin/` | ✅ Optional |
 | **Verus** | Rust implementation proofs | `../crypto_core/` | ✅ Complete |
 
+Protocol source of truth: [docs/protocol.md](../docs/protocol.md)
+
 ## Quick Start
+
+**One-command verification:**
+
+```bash
+make verify
+```
+
+> Note: Tamarin runs only if `tamarin-prover` is installed. Local `make verify`
+> will fail if it is missing; CI skips Tamarin unless installed.
 
 ### TLA+ Model Checking (1-5 minutes)
 
@@ -48,6 +60,13 @@ proverif -html output meow_encode.pv
 
 # Option 3: Docker
 docker run --rm -v $(pwd):/work proverif/proverif proverif /work/meow_encode.pv
+```
+
+### Tamarin Equivalence (optional)
+
+```bash
+cd /workspaces/meow-decoder/formal/tamarin
+./run.sh
 ```
 
 You can also use Makefile shortcuts:

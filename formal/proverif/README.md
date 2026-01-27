@@ -6,6 +6,22 @@ This directory contains ProVerif specifications for symbolic verification of the
 
 ProVerif uses the Dolev-Yao attacker model to symbolically verify security properties. Unlike TLA+ (which models state machines), ProVerif focuses on the cryptographic protocol and proves properties like secrecy and authentication against a powerful network attacker.
 
+### Attacker Model
+- Full control of public channel (intercept, drop, replay, reorder, tamper)
+- Perfect cryptography assumption (cannot break AES‑GCM, HMAC, HKDF)
+- Cannot read private channels or secrets marked `[private]`
+
+### What is Proven
+- Secrecy of real/decoy plaintext and passwords
+- Authentication (auth‑then‑output for real decrypt path)
+- Replay resistance (session/nonce binding abstraction)
+- Duress safety (decoy output does not imply real authentication)
+
+### Not Proven
+- Observational equivalence / indistinguishability (requires a biprocess or Tamarin)
+- Side‑channel resistance
+- Implementation correctness of AES‑GCM/HMAC primitives
+
 ## Files
 
 | File | Description |
@@ -26,6 +42,16 @@ proverif meow_encode.pv
 
 # Generate HTML report in output/ directory
 proverif -html output meow_encode.pv
+```
+
+Protocol source of truth: [docs/protocol.md](../../docs/protocol.md)
+
+**Expected output (success):**
+```
+RESULT not attacker(real_secret[]) is true.
+RESULT not attacker(real_password[]) is true.
+...
+RESULT All queries proved.
 ```
 
 Makefile shortcuts:

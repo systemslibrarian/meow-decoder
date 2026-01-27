@@ -76,3 +76,7 @@ formal/proverif/*.html
 formal/proverif/output/
 formal/proverif/proverif2.05/
 formal/proverif/proverif2.05.tar.gz
+formal/proverif/proverif_output.txt
+formal/proverif/html_output/
+formal/tamarin/.tamarin/
+formal/tamarin/*.log

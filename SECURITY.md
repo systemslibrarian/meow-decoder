@@ -17,6 +17,28 @@ Meow Decoder is **EXPERIMENTAL / RESEARCH-GRADE SOFTWARE** and has:
 
 ---
 
+## 🧪 Formal Methods (What is Actually Proven)
+
+We use multiple formal methods with **conservative claims**:
+
+| Method | What it proves | Assumptions |
+|---|---|---|
+| **TLA+ (TLC)** | State‑machine safety invariants (auth‑then‑output, replay rejection, duress behavior) | Abstract crypto; bounded model checking |
+| **ProVerif** | Symbolic secrecy/authentication properties under Dolev‑Yao attacker | Perfect cryptography; symbolic model |
+| **Tamarin (optional)** | Minimal observational equivalence check (real vs decoy abstraction) | Abstract crypto; minimal model |
+| **Verus** | Crypto wrapper invariants (nonce uniqueness, auth‑then‑output, key zeroization) | AES‑GCM security, correct RNG |
+
+**Not proven:** AES‑GCM primitive correctness, side‑channel resistance, or compromised host resilience.
+
+**Reproduce:**
+```bash
+make verify
+```
+
+Report: [docs/formal_methods_report.md](docs/formal_methods_report.md)
+
+---
+
 ## 🐛 **Reporting Security Vulnerabilities**
 
 We take security seriously. If you discover a security vulnerability, please follow responsible disclosure:

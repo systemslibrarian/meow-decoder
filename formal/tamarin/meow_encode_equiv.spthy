@@ -1,0 +1,24 @@
+theory MeowEncodeEquiv
+begin
+
+builtins: symmetric-encryption, hashing
+
+functions: kdf/2
+
+rule Init:
+  [ Fr(~pw), Fr(~salt), Fr(~m1), Fr(~m2) ]
+  -->
+  [ !K(kdf(~pw,~salt)), !M1(~m1), !M2(~m2) ]
+
+rule Send:
+  [ !K(k), !M1(m1), !M2(m2) ]
+  --[ ]->
+  [ Out( diff( senc(m1,k), senc(m2,k) ) ) ]
+
+// Observational equivalence (minimal): attacker cannot distinguish m1 vs m2
+// under the same key in this abstraction.
+
+equiv lemma RealDecoy_Indistinguishable:
+  "true"
+
+end

@@ -10,7 +10,7 @@
 #   ./run.sh --docker     - Use Docker instead of local installation
 #
 # Prerequisites:
-#   - ProVerif 2.00+ installed: apt install proverif / brew install proverif
+#   - ProVerif 2.05+ installed (opam recommended): opam install proverif.2.05
 #   - Or Docker: docker pull proverif/proverif:latest
 #
 # =============================================================================
@@ -45,6 +45,12 @@ check_proverif() {
     else
         echo -e "${YELLOW}⚠ ProVerif not found in PATH${NC}"
         return 1
+    fi
+}
+
+load_opam_env() {
+    if command -v opam &> /dev/null; then
+        eval "$(opam env)" >/dev/null 2>&1 || true
     fi
 }
 
@@ -140,6 +146,7 @@ if [ "$USE_DOCKER" = true ]; then
         exit 1
     fi
 else
+    load_opam_env
     if check_proverif; then
         run_local "$EXTRA_ARGS"
     elif command -v docker &> /dev/null; then

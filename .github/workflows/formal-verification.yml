@@ -1,4 +1,82 @@
-# Formal Verification Workflow
+# Formal Methods Verification (Reproducible)
+
+name: Formal Verification
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install OCaml/Opam and ProVerif
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam ocaml make m4
+          opam init -y --disable-sandboxing
+          eval $(opam env)
+          opam install -y proverif.2.05
+          proverif -version
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run full verification (CI mode)
+        run: |
+          bash ./scripts/verify_all.sh# Formal Methods Verification (Reproducible)
+
+name: Formal Verification
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    env:
+      CI: "true"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install OCaml/Opam and ProVerif
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y opam ocaml make m4
+          opam init -y --disable-sandboxing
+          eval $(opam env)
+          opam install -y proverif.2.05
+          proverif -version
+
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Run full verification (CI mode)
+        run: |
+          ./scripts/verify_all.sh# Formal Verification Workflow
 # Runs ProVerif symbolic security analysis and TLA+ model checking
 #
 # Triggered on:
