@@ -1,0 +1,9 @@
+[flake8]
+max-line-length = 88
+extend-ignore = E203,W503
+
+# Allow e2e/verification scripts to have non-top imports and occasional unused imports.
+# Keep lint strict everywhere else.
+per-file-ignores =
+  tests/verify_*.py: E402,F401
+  verify_*.py: E402,F401
