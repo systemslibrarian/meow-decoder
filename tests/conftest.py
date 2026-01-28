@@ -2,9 +2,14 @@
 Pytest configuration for Meow Decoder tests.
 
 Rust backend is required for all tests.
+Test mode uses fast Argon2 parameters for CI speed.
 """
 
+import os
 import pytest
+
+# Enable test mode for fast Argon2 parameters BEFORE importing meow_decoder modules
+os.environ["MEOW_TEST_MODE"] = "1"
 
 
 def pytest_configure(config):

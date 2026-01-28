@@ -33,10 +33,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install atheris
-          pip install -e ".[dev]"
           # Install zbar for QR decoding
           sudo apt-get update
-          sudo apt-get install -y libzbar0
+          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt || true
+          pip install -e .
       
       - name: Create corpus directories
         run: |
