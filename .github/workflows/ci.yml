@@ -41,12 +41,17 @@ jobs:
         env:
           MEOW_TEST_MODE: "1"
 
-      - name: Run full test suite with coverage
+      - name: Run full test suite with coverage (write coverage.xml explicitly)
         run: |
           pytest \
             --cov=meow_decoder \
-            --cov-report=xml \
+            --cov-report=xml:coverage.xml \
             --cov-report=term-missing
+
+      - name: Verify coverage.xml exists (debug)
+        run: |
+          ls -lah coverage.xml
+          head -n 5 coverage.xml
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
@@ -54,3 +59,4 @@ jobs:
           files: coverage.xml
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
+          verbose: true
