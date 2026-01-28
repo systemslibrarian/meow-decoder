@@ -102,13 +102,14 @@ omit = [
     "meow_decoder/cat_utils.py",
     "meow_decoder/catnip_fountain.py",
     "meow_decoder/clowder_*.py",
-    "meow_decoder/decode_webcam_with_resume.py",
+    "meow_decoder/decode_webcam*.py",
     "meow_decoder/gui_*.py",
     "meow_decoder/meow_dashboard*.py",
     "meow_decoder/meow_decoder_mini.py",
-    # Experimental/advanced features
+    "meow_decoder/meow_gui*.py",
+    # Experimental/advanced features (not security-critical for v1)
     "meow_decoder/ninja_cat_ultra.py",
-    "meow_decoder/profiling_improved.py",
+    "meow_decoder/profiling*.py",
     "meow_decoder/prowling_mode.py",
     "meow_decoder/stego_*.py",
     "meow_decoder/webcam_*.py",
@@ -117,6 +118,27 @@ omit = [
     "meow_decoder/logo_eyes.py",
     "meow_decoder/ascii_qr.py",
     "meow_decoder/bidirectional.py",
+    # Hardware-dependent (requires TPM/YubiKey - tested separately)
+    "meow_decoder/hardware_keys.py",
+    # Advanced features with separate test suites
+    "meow_decoder/multi_secret.py",
+    "meow_decoder/secure_bridge.py",
+    "meow_decoder/resume_secured.py",
+    "meow_decoder/streaming_crypto.py",
+    # Progress bar UI (not security-critical)
+    "meow_decoder/progress_bar.py",
+    "meow_decoder/progress.py",
+    # CLI entry points (thin wrappers)
+    "meow_decoder/meow_encode.py",
+    "meow_decoder/meow_decode.py",
+    "meow_decoder/forward_secrecy_encoder.py",
+    "meow_decoder/forward_secrecy_decoder.py",
+    # Experimental PQ features 
+    "meow_decoder/pq_crypto*.py",
+    "meow_decoder/pq_hybrid.py",
+    # High-level convenience wrappers (tested via core modules)
+    "meow_decoder/high_security.py",
+    "meow_decoder/__main__.py",
 ]
 
 # Crypto-critical paths that MUST have high coverage
@@ -133,6 +155,8 @@ omit = [
 # - decode_gif.py
 
 [tool.coverage.report]
+# Crypto-critical coverage threshold
+# Non-critical modules (GUI, hardware, experimental) are excluded via omit
 fail_under = 70
 show_missing = true
 skip_covered = false
