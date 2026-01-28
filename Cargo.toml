@@ -1,0 +1,22 @@
+# Rust Workspace Configuration
+# This file enables cargo commands from the repo root and helps
+# tools like rust-cache that look for Cargo.toml in the root directory.
+
+[workspace]
+resolver = "2"
+members = [
+    "crypto_core",
+    "rust_crypto",
+]
+
+# Shared workspace dependencies can be defined here
+[workspace.dependencies]
+aes-gcm = "0.10"
+argon2 = "0.5"
+hkdf = "0.12"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+zeroize = { version = "1.8", features = ["zeroize_derive"] }
+x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+thiserror = "1.0"

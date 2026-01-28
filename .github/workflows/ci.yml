@@ -77,7 +77,7 @@ jobs:
       - name: Verify coverage.xml exists (debug)
         run: |
           ls -lah coverage.xml
-          head -n 5 coverage.xml
+          head -n 5 coverage.xml          bash scripts/push_changes.sh
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
