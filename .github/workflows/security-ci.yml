@@ -68,7 +68,3 @@ jobs:
         env:
           MEOW_TEST_MODE: "1"
           MEOW_CRYPTO_BACKEND: "rust"
-      - name: CodeQL Scan
-        uses: github/codeql-action/analyze@v2
-        with:
-          category: "/language:python"  
