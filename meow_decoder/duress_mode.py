@@ -266,6 +266,37 @@ def generate_static_decoy(salt: bytes, size: int = 1024) -> bytes:
     return generate_deterministic_decoy(size, salt)
 
 
+# Alias for backwards compatibility with tests
+generate_duress_decoy = generate_static_decoy
+
+
+def add_duress_args(parser) -> None:
+    """
+    Add duress-related command-line arguments to an argparse parser.
+    
+    Adds:
+        --duress-password: Optional duress password
+        --duress-password-prompt: Prompt for duress password interactively
+        --duress-mode: Duress response mode (decoy/panic)
+        --enable-panic: Enable destructive panic mode
+        
+    Args:
+        parser: argparse.ArgumentParser instance
+    """
+    duress_group = parser.add_argument_group('Duress Mode', 
+        'Emergency protection against coercion')
+    
+    duress_group.add_argument('--duress-password', type=str,
+        help='Duress password that triggers emergency response on decode')
+    duress_group.add_argument('--duress-password-prompt', action='store_true',
+        help='Prompt for duress password interactively (more secure)')
+    duress_group.add_argument('--duress-mode', choices=['decoy', 'panic'],
+        default='decoy',
+        help='Duress response: decoy (fake success) or panic (wipe/exit)')
+    duress_group.add_argument('--enable-panic', action='store_true',
+        help='Enable destructive PANIC mode (required for --duress-mode panic)')
+
+
 # Self-test
 if __name__ == "__main__":
     print("🚨 Duress Mode Self-Test")
