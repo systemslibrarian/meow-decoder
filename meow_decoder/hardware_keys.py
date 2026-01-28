@@ -466,6 +466,91 @@ class HardwareKeyManager:
         return key, "Software"
 
 
+class MockHardwareKeyManager(HardwareKeyManager):
+    """
+    Mock hardware manager for CI/testing without real devices.
+
+    Provides deterministic, hardware-like key derivation without
+    invoking external tools or requiring physical devices.
+    """
+
+    def __init__(
+        self,
+        verbose: bool = False,
+        use_tpm: bool = True,
+        use_yubikey: bool = True,
+        use_smartcard: bool = False,
+        use_sgx: bool = False,
+    ):
+        self._mock_use_tpm = use_tpm
+        self._mock_use_yubikey = use_yubikey
+        self._mock_use_smartcard = use_smartcard
+        self._mock_use_sgx = use_sgx
+        super().__init__(verbose=verbose)
+
+    def _detect_hardware(self) -> HardwareStatus:
+        status = HardwareStatus(
+            tpm_available=self._mock_use_tpm,
+            tpm_version="2.0-mock",
+            tpm_manufacturer="MockTPM",
+            yubikey_available=self._mock_use_yubikey,
+            yubikey_serial="MOCK-123456",
+            yubikey_version="5.0-mock",
+            smartcard_available=self._mock_use_smartcard,
+            smartcard_reader="MockReader",
+            sgx_available=self._mock_use_sgx,
+            sgx_version="mock",
+        )
+        if not status.any_hardware():
+            status.warnings.append("No mock hardware enabled.")
+        return status
+
+    def derive_key_tpm(
+        self,
+        password: str,
+        salt: bytes,
+        key_length: int = 32
+    ) -> bytes:
+        if not self.has_tpm():
+            raise RuntimeError("Mock TPM not available")
+
+        # Deterministic mock TPM secret
+        tpm_secret = hashlib.sha256(b"meow-mock-tpm-secret").digest()
+        combined = password.encode("utf-8") + salt + tpm_secret
+
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=key_length,
+            salt=salt,
+            info=b"meow_mock_tpm_key_v1"
+        )
+
+        return hkdf.derive(combined)
+
+    def derive_key_yubikey(
+        self,
+        password: str,
+        slot: int = 2,
+        key_length: int = 32
+    ) -> bytes:
+        if not self.has_yubikey():
+            raise RuntimeError("Mock YubiKey not available")
+
+        # Deterministic mock YubiKey response
+        slot_bytes = str(slot).encode("utf-8")
+        yk_secret = hashlib.sha256(b"meow-mock-yubikey" + slot_bytes).digest()
+        combined = password.encode("utf-8") + yk_secret
+
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=key_length,
+            salt=yk_secret[:16],
+            info=b"meow_mock_yubikey_key_v1"
+        )
+
+        return hkdf.derive(combined)
+
+
 def check_hardware_security() -> HardwareStatus:
     """
     Quick check of hardware security status.
