@@ -99,6 +99,8 @@ jobs:
       - name: Install AFL++
         run: |
           sudo apt-get update
+          sudo apt-get install -y afl++ || echo "AFL++ installation skipped"
+          sudo apt-get update
           sudo apt-get install -y afl++ python3-dev
       
       - name: Set up Python

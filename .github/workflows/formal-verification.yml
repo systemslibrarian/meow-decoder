@@ -43,28 +43,19 @@ jobs:
         run: |
           # Install ProVerif from apt (Ubuntu 24.04)
           sudo apt-get update
-          sudo apt-get install -y proverif || {
+          sudo apt-get install -y proverif 2>&1 || {
             # Fallback: Install from source without GTK interface
-            # (GTK interface requires lablgtk2 which is complex to install)
-            echo "Installing ProVerif from source (command-line only)..."
+            echo "::warning::Installing ProVerif from source (apt failed)..."
             sudo apt-get install -y ocaml ocaml-native-compilers ocaml-findlib
             wget -q https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz
             tar xzf proverif2.05.tar.gz
             cd proverif2.05
-            # Build without GTK interface (lablgtk2 not available on Ubuntu 24.04)
-            echo 'ocamlyacc parser.mly' > build_minimal
-            echo 'ocamllex lexer.mll' >> build_minimal
-            echo 'ocamlopt -I +str str.cmxa unix.cmxa -o proverif types.ml param.ml parser.ml lexer.ml stringmap.ml hashtbl1.ml reduction_helper.ml pitsyntax.ml piparser.ml pisyntax.ml pitypechecker.ml pievent.ml reduction_bipro.ml reduction.ml history.ml display.ml selfun.ml rules.ml facts.ml termslinks.ml weaksecr.ml pitransl.ml pitranslweak.ml main.ml 2>/dev/null || {
-              # If optimized build fails, use bytecode
-              ocamlfind ocamlc -package str -linkpkg -o proverif *.ml 2>/dev/null || true
-            }' >> build_minimal
-            # Just use the standard build script which handles dependencies
-            ./build 2>&1 || echo "Build completed (may have warnings)"
-            # Copy only proverif binary (not proverifinter which needs GTK)
-            sudo cp proverif /usr/local/bin/ 2>/dev/null || sudo cp ./proverif /usr/local/bin/ || true
+            # Build without GTK interface
+            ./build 2>&1 || echo "::warning::Build completed with warnings"
+            sudo cp proverif /usr/local/bin/ 2>/dev/null || true
           }
           
-          proverif -version || echo "ProVerif installed"
+          proverif -version 2>&1 || echo "::warning::ProVerif installed"
       
       - name: Run ProVerif Analysis
         id: proverif
