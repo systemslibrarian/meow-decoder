@@ -215,6 +215,57 @@ def generate_deterministic_decoy(size: int, salt: bytes) -> bytes:
     return b"".join(chunks)
 
 
+# Backwards compatibility wrappers for test suite
+def setup_duress(duress_password: str, real_password: str, salt: bytes) -> DuressHandler:
+    """
+    Convenience function to create and configure a DuressHandler.
+    
+    Args:
+        duress_password: Password that triggers decoy mode
+        real_password: Real decryption password
+        salt: Salt for password hashing
+        
+    Returns:
+        Configured DuressHandler instance
+    """
+    handler = DuressHandler()
+    handler.set_passwords(duress_password, real_password, salt)
+    return handler
+
+
+def is_duress_triggered(handler: DuressHandler, password: str, salt: bytes) -> bool:
+    """
+    Check if a password triggers duress mode.
+    
+    Args:
+        handler: Configured DuressHandler
+        password: Password to check
+        salt: Salt for password hashing
+        
+    Returns:
+        True if password is the duress password
+    """
+    is_valid, is_duress = handler.check_password(password, salt)
+    return is_valid and is_duress
+
+
+def generate_static_decoy(salt: bytes, size: int = 1024) -> bytes:
+    """
+    Generate deterministic decoy content.
+    
+    Alias for generate_deterministic_decoy with swapped argument order
+    for backwards compatibility.
+    
+    Args:
+        salt: Salt for deterministic generation
+        size: Size of decoy to generate
+        
+    Returns:
+        Deterministic decoy bytes
+    """
+    return generate_deterministic_decoy(size, salt)
+
+
 # Self-test
 if __name__ == "__main__":
     print("🚨 Duress Mode Self-Test")
