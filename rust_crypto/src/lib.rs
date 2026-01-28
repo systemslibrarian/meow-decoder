@@ -561,7 +561,7 @@ fn yubikey_derive_key<'py>(
 
 #[cfg(not(feature = "yubikey"))]
 #[pyfunction]
-#[pyo3(signature = (password, salt, slot="9d", pin=None))]
+#[pyo3(signature = (_password, _salt, _slot="9d", _pin=None))]
 fn yubikey_derive_key<'py>(
     _py: Python<'py>,
     _password: &[u8],
