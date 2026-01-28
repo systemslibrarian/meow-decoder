@@ -1,103 +1,12 @@
 #!/usr/bin/env python3
 """
-🧪 Final Coverage Push Tests - Target 70%
-
-Comprehensive tests for modules that still have low coverage.
-Focus on duress_mode, entropy_boost, double_ratchet, pq_signatures,
-schrodinger_encode/decode, and encode/decode CLI paths.
+Deprecated test file - tests moved to test_core_coverage.py
 """
 
-import pytest
-import secrets
-import tempfile
-import hashlib
-import struct
-import hmac
-import os
-import sys
-import time
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+def test_placeholder():
+    """Placeholder test - actual tests in test_core_coverage.py."""
+    pass
 
-# Set test mode for faster Argon2
-os.environ["MEOW_TEST_MODE"] = "1"
-
-
-# =============================================================================
-# DURESS MODE TESTS
-# =============================================================================
-
-class TestDuressModeFull:
-    """Full coverage tests for duress_mode.py."""
-    
-    def test_duress_handler_init_default(self):
-        """Test DuressHandler with default config."""
-        from meow_decoder.duress_mode import DuressHandler
-        from meow_decoder.config import DuressConfig
-        
-        config = DuressConfig()
-        handler = DuressHandler(config)
-        
-        assert handler is not None
-        assert handler._real_hash is None
-        assert handler._duress_hash is None
-    
-    def test_duress_handler_set_passwords(self):
-        """Test setting both passwords."""
-        from meow_decoder.duress_mode import DuressHandler
-        from meow_decoder.config import DuressConfig
-        
-        config = DuressConfig(enabled=True)
-        handler = DuressHandler(config)
-        
-        handler.set_passwords("real_pwd_12345678", "duress_pwd_12345678")
-        
-        assert handler._real_hash is not None
-        assert handler._duress_hash is not None
-        assert handler._real_hash != handler._duress_hash
-    
-    def test_check_password_all_types(self):
-        """Test all password types are correctly identified."""
-        from meow_decoder.duress_mode import DuressHandler, PasswordType
-        from meow_decoder.config import DuressConfig
-        
-        config = DuressConfig(enabled=True)
-        handler = DuressHandler(config)
-        handler.set_passwords("real_password", "duress_password")
-        
-        assert handler.check_password("real_password") == PasswordType.REAL
-        assert handler.check_password("duress_password") == PasswordType.DURESS
-        assert handler.check_password("wrong_password") == PasswordType.INVALID
-    
-    def test_get_decoy_data_message_type(self):
-        """Test message-type decoy data generation."""
-        from meow_decoder.duress_mode import DuressHandler
-        from meow_decoder.config import DuressConfig
-        
-        config = DuressConfig(
-            enabled=True,
-            decoy_type="message",
-            decoy_message="All is well"
-        )
-        handler = DuressHandler(config)
-        
-        data, filename = handler.get_decoy_data()
-        assert data is not None
-        assert len(data) > 0
-
-
-# =============================================================================
-# ENTROPY BOOST TESTS
-# =============================================================================
-
-class TestEntropyBoostFull:
-    """Full coverage tests for entropy_boost.py."""
-    
-    def test_entropy_pool_creation(self):
-        """Test creating entropy pool."""
-        from meow_decoder.entropy_boost import EntropyPool
-        
-        pool = EntropyPool()
         assert pool._pool == b''
     
     def test_add_system_entropy(self):
