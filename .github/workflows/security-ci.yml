@@ -67,6 +67,8 @@ jobs:
             --cov-report=term \
             --cov-fail-under=90 \
             -v
+        env:
+          MEOW_TEST_MODE: "1"
 
   # Rust backend security audit
   rust-audit:
@@ -120,6 +122,8 @@ jobs:
           
           # Show results
           mutmut results || true
+        env:
+          MEOW_TEST_MODE: "1"
 
   # Bandit static analysis for security issues
   bandit-scan:

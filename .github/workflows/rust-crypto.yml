@@ -57,6 +57,8 @@ jobs:
         run: |
           pip install -e .
           pytest tests/test_crypto_backend.py -v
+        env:
+          MEOW_TEST_MODE: "1"
       
       - name: Upload wheel
         uses: actions/upload-artifact@v4

@@ -20,12 +20,22 @@ from .crypto_backend import get_default_backend
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 
-# Argon2id parameters (ULTRA-HARDENED for maximum brute-force resistance)
-# 512 MiB memory + 20 iterations = ~5-10 seconds per attempt
-# GPU/ASIC resistance: Memory-hard makes parallel attacks impractical
-ARGON2_MEMORY = 524288      # 512 MiB (8x OWASP recommendation)
-ARGON2_ITERATIONS = 20      # 20 passes (makes offline attacks impractical)
-ARGON2_PARALLELISM = 4      # 4 threads
+# Argon2id parameters
+# Production: ULTRA-HARDENED (512 MiB, 20 iterations = ~5-10 seconds)
+# Test mode: Fast parameters (32 MiB, 1 iteration = ~0.1 seconds)
+# Set MEOW_TEST_MODE=1 environment variable for fast testing
+_TEST_MODE = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
+
+if _TEST_MODE:
+    # Fast parameters for CI/testing (still secure enough for functional tests)
+    ARGON2_MEMORY = 32768       # 32 MiB (fast)
+    ARGON2_ITERATIONS = 1       # 1 pass (fast)
+    ARGON2_PARALLELISM = 1      # 1 thread
+else:
+    # Production: Ultra-hardened for maximum brute-force resistance
+    ARGON2_MEMORY = 524288      # 512 MiB (8x OWASP recommendation)
+    ARGON2_ITERATIONS = 20      # 20 passes (makes offline attacks impractical)
+    ARGON2_PARALLELISM = 4      # 4 threads
 
 # HMAC domain separation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"

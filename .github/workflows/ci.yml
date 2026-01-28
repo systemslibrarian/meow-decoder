@@ -39,9 +39,13 @@ jobs:
 
       - name: Run all tests
         run: pytest -q
+        env:
+          MEOW_TEST_MODE: "1"
 
       - name: Run security invariant tests
         run: pytest tests/test_invariants.py -v --tb=short
+        env:
+          MEOW_TEST_MODE: "1"
 
   invariants:
     name: Security Invariants
@@ -66,3 +70,5 @@ jobs:
 
       - name: Run invariant tests (MUST NOT FAIL)
         run: pytest tests/test_invariants.py -v
+        env:
+          MEOW_TEST_MODE: "1"
