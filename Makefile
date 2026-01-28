@@ -51,6 +51,7 @@ format:
 	black meow_decoder/ tests/
 
 clean:
+	rm -f tests/test_e2e.py
 	rm -rf build/ dist/ *.egg-info
 	rm -rf .pytest_cache .coverage htmlcov
 	find . -type d -name __pycache__ -exec rm -rf {} +

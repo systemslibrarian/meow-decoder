@@ -39,23 +39,25 @@ from getpass import getpass
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from .crypto import encrypt_file_bytes
+from .crypto import encrypt_file_bytes, derive_key
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
 from .config import EncodingConfig
 from .frame_mac import pack_frame_with_mac
-from .decoy_generator import generate_convincing_decoy
+from .quantum_mixer import (
+    entangle_realities,
+)
 
 
 @dataclass
 class SchrodingerManifest:
     """
-    Manifest for Schrödinger mode v5.4.0.
+    Manifest for Schrödinger mode v5.5.0.
     
     Format (392 bytes):
         - magic: b"MEOW" (4 bytes)
-        - version: 0x06 (1 byte) - v5.4.0 Schrödinger
+        - version: 0x07 (1 byte) - v5.5.0 Schrödinger Interleaved
         - flags: 1 byte (reserved)
         - salt_a: 16 bytes
         - salt_b: 16 bytes
@@ -65,31 +67,46 @@ class SchrodingerManifest:
         - reality_b_hmac: 32 bytes (verifies password B)
         - metadata_a: 104 bytes (encrypted: orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256)
         - metadata_b: 104 bytes (encrypted: orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256)
-        - merkle_root: 32 bytes
-        - shuffle_seed: 8 bytes (for block permutation)
         - block_count: 4 bytes
         - block_size: 4 bytes
-        - reserved: 10 bytes
+        - superposition_len: 8 bytes (NEW: total length of the interleaved data)
+        - reserved: 32 bytes
         
-    Total: 4+2+16+16+12+12+32+32+104+104+32+8+4+4+10 = 392 bytes
+    Total: 4+2+16+16+12+12+32+32+104+104+4+4+8+32 = 392 bytes
     """
     magic: bytes = b"MEOW"
-    version: int = 0x06
+    version: int = 0x07
     flags: int = 0x00
-    salt_a: bytes = None
-    salt_b: bytes = None
-    nonce_a: bytes = None
-    nonce_b: bytes = None
-    reality_a_hmac: bytes = None
-    reality_b_hmac: bytes = None
-    metadata_a: bytes = None
-    metadata_b: bytes = None
-    merkle_root: bytes = None
-    shuffle_seed: bytes = None
-    block_count: int = 0
-    block_size: int = 256
-    reserved: bytes = b'\x00' * 10  # Padding to 392 bytes total
-    
+    salt_a: bytes
+    salt_b: bytes
+    nonce_a: bytes
+    nonce_b: bytes
+    reality_a_hmac: bytes
+    reality_b_hmac: bytes
+    metadata_a: bytes
+    metadata_b: bytes
+    block_count: int
+    block_size: int
+    superposition_len: int
+    reserved: bytes = b'\x00' * 32
+
+    def pack_core_for_auth(self) -> bytes:
+        """Packs all manifest fields that must be authenticated by the HMAC."""
+        # This includes ALL fields except the HMACs themselves.
+        # Any change to these fields will invalidate the HMAC.
+        core = self.magic
+        core += struct.pack('BB', self.version, self.flags)
+        core += self.salt_a
+        core += self.salt_b
+        core += self.nonce_a
+        core += self.nonce_b
+        # The HMACs are excluded as they are what we are calculating.
+        core += self.metadata_a
+        core += self.metadata_b
+        core += struct.pack('>IIQ', self.block_count, self.block_size, self.superposition_len)
+        core += self.reserved
+        return core
+
     def pack(self) -> bytes:
         """Pack manifest to bytes."""
         data = self.magic
@@ -102,12 +119,10 @@ class SchrodingerManifest:
         data += self.reality_b_hmac
         data += self.metadata_a
         data += self.metadata_b
-        data += self.merkle_root
-        data += self.shuffle_seed
-        data += struct.pack('>II', self.block_count, self.block_size)
+        data += struct.pack('>IIQ', self.block_count, self.block_size, self.superposition_len)
         data += self.reserved
         return data
-    
+
     @classmethod
     def unpack(cls, data: bytes):
         """Unpack manifest from bytes."""
@@ -119,22 +134,20 @@ class SchrodingerManifest:
         
         version, flags = struct.unpack('BB', data[4:6])
         
-        if version != 0x06:
-            raise ValueError(f"Not a Schrödinger v5.4.0 manifest (version 0x{version:02x})")
+        if version != 0x07:
+            raise ValueError(f"Not a Schrödinger v5.5.0 manifest (version 0x{version:02x})")
         
         offset = 6
-        salt_a = data[offset:offset+16]
-        salt_b = data[offset+16:offset+32]
-        nonce_a = data[offset+32:offset+44]
-        nonce_b = data[offset+44:offset+56]
-        reality_a_hmac = data[offset+56:offset+88]
-        reality_b_hmac = data[offset+88:offset+120]
-        metadata_a = data[offset+120:offset+224]  # 104 bytes
-        metadata_b = data[offset+224:offset+328]  # 104 bytes
-        merkle_root = data[offset+328:offset+360]
-        shuffle_seed = data[offset+360:offset+368]
-        block_count, block_size = struct.unpack('>II', data[offset+368:offset+376])
-        reserved = data[offset+376:offset+386]  # 10 bytes reserved
+        salt_a = data[offset:offset+16]; offset += 16
+        salt_b = data[offset:offset+16]; offset += 16
+        nonce_a = data[offset:offset+12]; offset += 12
+        nonce_b = data[offset:offset+12]; offset += 12
+        reality_a_hmac = data[offset:offset+32]; offset += 32
+        reality_b_hmac = data[offset:offset+32]; offset += 32
+        metadata_a = data[offset:offset+104]; offset += 104
+        metadata_b = data[offset:offset+104]; offset += 104
+        block_count, block_size, superposition_len = struct.unpack('>IIQ', data[offset:offset+16]); offset += 16
+        reserved = data[offset:offset+32]
         
         return cls(
             magic=data[:4],
@@ -148,81 +161,11 @@ class SchrodingerManifest:
             reality_b_hmac=reality_b_hmac,
             metadata_a=metadata_a,
             metadata_b=metadata_b,
-            merkle_root=merkle_root,
-            shuffle_seed=shuffle_seed,
             block_count=block_count,
             block_size=block_size,
+            superposition_len=superposition_len,
             reserved=reserved
         )
-
-
-def compute_merkle_root(blocks: List[bytes]) -> bytes:
-    """Compute Merkle tree root."""
-    if not blocks:
-        return hashlib.sha256(b"empty").digest()
-    
-    hashes = [hashlib.sha256(block).digest() for block in blocks]
-    
-    while len(hashes) > 1:
-        next_level = []
-        for i in range(0, len(hashes), 2):
-            if i + 1 < len(hashes):
-                combined = hashlib.sha256(hashes[i] + hashes[i+1]).digest()
-            else:
-                combined = hashes[i]
-            next_level.append(combined)
-        hashes = next_level
-    
-    return hashes[0]
-
-
-def permute_blocks(blocks: List[bytes], seed: bytes) -> List[bytes]:
-    """
-    Cryptographically permute blocks using deterministic shuffle.
-    
-    This hides the even=A, odd=B pattern while remaining reversible.
-    """
-    import random
-    
-    # Create deterministic RNG from seed
-    seed_int = int.from_bytes(seed, 'big')
-    rng = random.Random(seed_int)
-    
-    # Create index mapping
-    indices = list(range(len(blocks)))
-    rng.shuffle(indices)
-    
-    # Apply permutation
-    permuted = [blocks[i] for i in indices]
-    
-    return permuted
-
-
-def unpermute_blocks(blocks: List[bytes], seed: bytes) -> List[bytes]:
-    """
-    Reverse the permutation to get original order.
-    
-    The permute function does: permuted[i] = original[indices[i]]
-    To reverse we need: unpermuted[indices[i]] = permuted[i]
-    """
-    import random
-    
-    # Recreate same RNG
-    seed_int = int.from_bytes(seed, 'big')
-    rng = random.Random(seed_int)
-    
-    # Recreate same shuffle
-    indices = list(range(len(blocks)))
-    rng.shuffle(indices)
-    
-    # Reverse the permutation
-    # permute did: permuted[i] = original[indices[i]]
-    # so: unpermuted[indices[i]] = permuted[i]
-    unpermuted = [None] * len(blocks)
-    for i, block in enumerate(blocks):
-        unpermuted[indices[i]] = block
-    
-    return unpermuted
 
 
 def schrodinger_encode_data(
@@ -233,27 +176,25 @@ def schrodinger_encode_data(
     block_size: int = 256
 ) -> Tuple[bytes, SchrodingerManifest]:
     """
-    Encode two secrets in quantum superposition.
+    Encode two secrets by interleaving their ciphertexts.
     
     Args:
         real_data: Real secret
         decoy_data: Decoy data
         real_password: Password for real
         decoy_password: Password for decoy
-        block_size: Block size
+        block_size: Block size for fountain coding
         
     Returns:
-        (mixed_ciphertext, manifest)
+        (interleaved_ciphertext, manifest)
     """
-    # Generate salts and nonces
+    # Generate salts and nonces for metadata encryption
     salt_a = secrets.token_bytes(16)
     salt_b = secrets.token_bytes(16)
     nonce_a = secrets.token_bytes(12)
     nonce_b = secrets.token_bytes(12)
-    shuffle_seed = secrets.token_bytes(8)
-    
+
     # Encrypt both realities independently
-    # encrypt_file_bytes returns: (comp, sha, salt, nonce, cipher, ephemeral_key, encryption_key)
     comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, _, enc_key_a = encrypt_file_bytes(
         real_data, real_password, None, None, use_length_padding=True
     )
@@ -262,96 +203,77 @@ def schrodinger_encode_data(
         decoy_data, decoy_password, None, None, use_length_padding=True
     )
     
-    # Store original cipher lengths (before padding)
-    cipher_a_len = len(cipher_a)
-    cipher_b_len = len(cipher_b)
-    
-    # Pad to same length (prevents size fingerprinting)
-    max_len = max(len(cipher_a), len(cipher_b))
-    
-    if len(cipher_a) < max_len:
-        cipher_a += secrets.token_bytes(max_len - len(cipher_a))
-    if len(cipher_b) < max_len:
-        cipher_b += secrets.token_bytes(max_len - len(cipher_b))
-    
-    # Split into blocks
-    blocks_a = [cipher_a[i:i+block_size] for i in range(0, len(cipher_a), block_size)]
-    blocks_b = [cipher_b[i:i+block_size] for i in range(0, len(cipher_b), block_size)]
-    
-    # Pad last blocks
-    if blocks_a and len(blocks_a[-1]) < block_size:
-        blocks_a[-1] += secrets.token_bytes(block_size - len(blocks_a[-1]))
-    if blocks_b and len(blocks_b[-1]) < block_size:
-        blocks_b[-1] += secrets.token_bytes(block_size - len(blocks_b[-1]))
-    
-    # Ensure same number of blocks
-    while len(blocks_a) < len(blocks_b):
-        blocks_a.append(secrets.token_bytes(block_size))
-    while len(blocks_b) < len(blocks_a):
-        blocks_b.append(secrets.token_bytes(block_size))
-    
-    # Interleave: even positions = A, odd positions = B
-    interleaved = []
-    for i in range(len(blocks_a)):
-        interleaved.append(blocks_a[i])
-        interleaved.append(blocks_b[i])
-    
-    # Permute to hide pattern
-    mixed = permute_blocks(interleaved, shuffle_seed)
-    
-    # Compute Merkle root
-    merkle_root = compute_merkle_root(mixed)
-    
-    # Create encrypted metadata (stores decryption parameters)
+    # Interleave the two ciphertexts into a single superposition
+    superposition = entangle_realities(cipher_a, cipher_b)
+
+    # Split into blocks for fountain encoding
+    blocks = [superposition[i:i+block_size] for i in range(0, len(superposition), block_size)]
+    if blocks and len(blocks[-1]) < block_size:
+        # Pad the last block to ensure all blocks are the same size
+        blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))
+
+    # Create encrypted metadata payloads for each reality
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+    from cryptography.hazmat.primitives import hashes
+    import hmac
+
+    # --- Task B: Strengthened Password Hardening ---
+    # Derive master metadata keys using Argon2id (slow KDF)
+    master_meta_key_a = derive_key(real_password, salt_a)
+    master_meta_key_b = derive_key(decoy_password, salt_b)
+
+    # --- Task C: Enforce Key Separation ---
+    # Derive separate keys for encryption and HMAC using HKDF
+    hkdf_enc_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt_a, info=b"schrodinger_enc_key_v1")
+    enc_key_a = hkdf_enc_a.derive(master_meta_key_a)
+
+    hkdf_hmac_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt_a, info=b"schrodinger_hmac_key_v1")
+    hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
+
+    hkdf_enc_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt_b, info=b"schrodinger_enc_key_v1")
+    enc_key_b = hkdf_enc_b.derive(master_meta_key_b)
+
+    hkdf_hmac_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt_b, info=b"schrodinger_hmac_key_v1")
+    hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
+
+    # Pack all necessary decryption info into metadata
+    # orig_len(8) + comp_len(8) + cipher_len(8) + salt_enc(16) + nonce_enc(12) + sha(32) = 84 bytes
+    metadata_a_plain = struct.pack('>QQQ', len(real_data), len(comp_a), len(cipher_a)) + salt_enc_a + nonce_enc_a + sha_a
+    metadata_b_plain = struct.pack('>QQQ', len(decoy_data), len(comp_b), len(cipher_b)) + salt_enc_b + nonce_enc_b + sha_b
     
-    key_a = hashlib.sha256(real_password.encode() + salt_a).digest()
-    key_b = hashlib.sha256(decoy_password.encode() + salt_b).digest()
+    aesgcm_a = AESGCM(enc_key_a)
+    aesgcm_b = AESGCM(enc_key_b)
     
-    # Store ONLY what decoder needs: orig_len, comp_len, cipher_len
-    # cipher_len is the ORIGINAL cipher length before padding
-    # 8 + 8 + 8 = 24 bytes plain
-    # After AES-GCM: 24 + 16 (tag) = 40 bytes
-    # Pad to 64 bytes for fixed size
-    
-    # But we also need salt_enc and nonce_enc! Let me pack more efficiently:
-    # orig_len (8) + comp_len (8) + cipher_len (8) = 24 bytes
-    # Then concat salt_enc (16) + nonce_enc (12) + sha256 (32) separately
-    # Total: 24 + 16 + 12 + 32 = 84 bytes
-    # After encryption: 84 + 16 = 100, pad to 104
-    
-    metadata_a_plain = struct.pack('>QQQ', len(real_data), len(comp_a), cipher_a_len)
-    metadata_a_plain += salt_enc_a + nonce_enc_a + sha_a
-    
-    metadata_b_plain = struct.pack('>QQQ', len(decoy_data), len(comp_b), cipher_b_len)
-    metadata_b_plain += salt_enc_b + nonce_enc_b + sha_b
-    
-    aesgcm_a = AESGCM(key_a)
-    aesgcm_b = AESGCM(key_b)
-    
+    # Encrypt metadata. AES-GCM adds a 16-byte tag. 84 + 16 = 100 bytes.
     metadata_a_enc = aesgcm_a.encrypt(nonce_a, metadata_a_plain, None)
     metadata_b_enc = aesgcm_b.encrypt(nonce_b, metadata_b_plain, None)
     
-    # Should be 100 bytes (84 + 16 tag), pad to 104
-    if len(metadata_a_enc) < 104:
-        metadata_a_enc += b'\x00' * (104 - len(metadata_a_enc))
-    else:
-        metadata_a_enc = metadata_a_enc[:104]
-        
-    if len(metadata_b_enc) < 104:
-        metadata_b_enc += b'\x00' * (104 - len(metadata_b_enc))
-    else:
-        metadata_b_enc = metadata_b_enc[:104]
+    # Pad to a fixed size (104 bytes) to prevent metadata leakage
+    metadata_a_enc = (metadata_a_enc + b'\x00' * 104)[:104]
+    metadata_b_enc = (metadata_b_enc + b'\x00' * 104)[:104]
     
-    # Compute HMACs (for password verification)
-    import hmac
+    # --- Task A: Authentication Coverage ---
+    # Create a temporary manifest to pack the core for HMAC calculation
+    temp_manifest = SchrodingerManifest(
+        salt_a=salt_a,
+        salt_b=salt_b,
+        nonce_a=nonce_a,
+        nonce_b=nonce_b,
+        reality_a_hmac=b'\x00' * 32, # Placeholder
+        reality_b_hmac=b'\x00' * 32, # Placeholder
+        metadata_a=metadata_a_enc,
+        metadata_b=metadata_b_enc,
+        block_count=len(blocks),
+        block_size=block_size,
+        superposition_len=len(superposition)
+    )
+    manifest_core = temp_manifest.pack_core_for_auth()
+
+    hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
+    hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
     
-    manifest_core = salt_a + salt_b + nonce_a + nonce_b + merkle_root + shuffle_seed
-    
-    hmac_a = hmac.new(key_a, manifest_core, hashlib.sha256).digest()
-    hmac_b = hmac.new(key_b, manifest_core, hashlib.sha256).digest()
-    
-    # Create manifest
+    # Create the final manifest
     manifest = SchrodingerManifest(
         salt_a=salt_a,
         salt_b=salt_b,
@@ -361,16 +283,15 @@ def schrodinger_encode_data(
         reality_b_hmac=hmac_b,
         metadata_a=metadata_a_enc,
         metadata_b=metadata_b_enc,
-        merkle_root=merkle_root,
-        shuffle_seed=shuffle_seed,
-        block_count=len(mixed),
-        block_size=block_size
+        block_count=len(blocks),
+        block_size=block_size,
+        superposition_len=len(superposition)
     )
     
-    # Combine mixed blocks
-    mixed_ciphertext = b''.join(mixed)
+    # The final ciphertext is the concatenation of all blocks
+    interleaved_ciphertext = b''.join(blocks)
     
-    return mixed_ciphertext, manifest
+    return interleaved_ciphertext, manifest
 
 
 def schrodinger_encode_file(
@@ -430,7 +351,6 @@ def schrodinger_encode_file(
     if verbose:
         print(f"✅ Superposition created: {len(mixed):,} bytes")
         print(f"   Blocks: {manifest.block_count}")
-        print(f"   Merkle root: {manifest.merkle_root.hex()[:16]}...")
     
     # Fountain encode
     if verbose:
@@ -493,7 +413,6 @@ def schrodinger_encode_file(
         'blocks': manifest.block_count,
         'qr_frames': len(qr_data_list),
         'gif_size': gif_size,
-        'merkle_root': manifest.merkle_root.hex()
     }
 
 

@@ -105,3 +105,11 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 ---
 
 *Last Updated: January 27, 2026*
+
+# Update pytest configuration
+# Update coverage targets
+# Update CI pipeline
+
+# Mark old files as deprecated
+# Add migration notes
+# Remove after grace period

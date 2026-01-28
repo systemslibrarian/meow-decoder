@@ -22,6 +22,7 @@ import hashlib
 
 from meow_decoder.frame_mac import (
     derive_frame_master_key,
+    derive_frame_master_key_legacy,
     pack_frame_with_mac,
     unpack_frame_with_mac,
     FrameMACStats,
@@ -327,6 +328,29 @@ class TestEdgeCases:
         
         # Should return False, not crash
         assert valid == False
+
+
+class TestFrameMasterKeyDerivation:
+    """Tests for frame master key derivation (merged from test_core_frame_mac.py)."""
+    
+    def test_frame_master_key_legacy_matches_previous_derivation(self):
+        """Test legacy derivation matches expected hashlib computation."""
+        import hashlib
+        from meow_decoder.frame_mac import derive_frame_master_key_legacy
+        
+        password = "testpass123"
+        salt = secrets.token_bytes(16)
+        
+        expected = hashlib.sha256(password.encode("utf-8") + salt + b"frame_mac_key").digest()
+        assert derive_frame_master_key_legacy(password, salt) == expected
+    
+    def test_frame_master_key_depends_on_key_material(self):
+        """Test that different key material produces different master keys."""
+        salt = secrets.token_bytes(16)
+        key_a = secrets.token_bytes(32)
+        key_b = secrets.token_bytes(32)
+        
+        assert derive_frame_master_key(key_a, salt) != derive_frame_master_key(key_b, salt)
 
 
 if __name__ == "__main__":

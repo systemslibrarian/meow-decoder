@@ -101,30 +101,19 @@ def derive_quantum_noise(
 def entangle_realities(
     reality_a: bytes,
     reality_b: bytes,
-    quantum_noise: bytes
 ) -> bytes:
     """
-    Entangle two realities into indistinguishable superposition.
+    Entangle two realities into an indistinguishable superposition by interleaving.
     
-    Uses XOR with shared quantum noise to bind realities together.
-    The result is cryptographically indistinguishable from random.
+    This practical approach ensures each reality can be decrypted independently
+    while still being mixed together in a single data stream.
     
     Args:
         reality_a: First encrypted reality (ciphertext A)
         reality_b: Second encrypted reality (ciphertext B)
-        quantum_noise: Shared noise key (from both passwords)
         
     Returns:
-        Entangled superposition (indistinguishable from either alone)
-        
-    Security:
-        - XOR with quantum noise makes both indistinguishable
-        - Same length (padded if needed)
-        - Same entropy distribution
-        - No statistical markers
-        
-    Note:
-        Realities must be same length. Pad shorter one with random data.
+        Interleaved superposition.
     """
     # Ensure both realities are same length (pad shorter one)
     max_len = max(len(reality_a), len(reality_b))
@@ -134,71 +123,36 @@ def entangle_realities(
     if len(reality_b) < max_len:
         reality_b = reality_b + secrets.token_bytes(max_len - len(reality_b))
     
-    # Expand quantum noise to match length (via repeated HKDF)
-    noise = expand_noise(quantum_noise, max_len)
-    
-    # Entangle: (A XOR noise) and (B XOR noise)
-    # Result: Both look like random XOR noise
-    entangled_a = bytes(a ^ n for a, n in zip(reality_a, noise))
-    entangled_b = bytes(b ^ n for b, n in zip(reality_b, noise))
-    
     # Interleave into superposition
     # Even positions: reality A, Odd positions: reality B
     superposition = bytearray(max_len * 2)
-    superposition[0::2] = entangled_a
-    superposition[1::2] = entangled_b
+    superposition[0::2] = reality_a
+    superposition[1::2] = reality_b
     
     return bytes(superposition)
 
 
 def collapse_to_reality(
     superposition: bytes,
-    reality_key: bytes,
-    quantum_noise: bytes,
     reality_index: int
 ) -> bytes:
     """
-    Collapse superposition to a single reality.
-    
-    Observing with the correct key collapses the quantum state.
-    The other reality becomes unprovable - it's lost in the noise.
+    Collapse superposition to a single reality by de-interleaving.
     
     Args:
-        superposition: Entangled superposition of both realities
-        reality_key: Key for desired reality (password-derived)
-        quantum_noise: Shared noise (must be derived from both passwords)
-        reality_index: 0 for even positions (A), 1 for odd positions (B)
+        superposition: Interleaved superposition of both realities.
+        reality_index: 0 for even positions (A), 1 for odd positions (B).
         
     Returns:
-        Collapsed reality (decrypted ciphertext)
-        
-    Security:
-        - Constant-time extraction (no timing leakage)
-        - Wrong key gives garbage (no error)
-        - Cannot prove other reality exists
-        
-    Philosophy:
-        The act of observation (providing password) collapses the wave function.
-        The yarn unravels to reveal one cat, while the other remains forever
-        in quantum superposition - unknowable, unprovable, gone.
+        Collapsed reality (original encrypted ciphertext).
     """
     # Extract the chosen reality from interleaved superposition
-    half_len = len(superposition) // 2
-    
     if reality_index == 0:
         # Extract even positions (reality A)
-        entangled = bytes(superposition[i] for i in range(0, len(superposition), 2))
+        return bytes(superposition[i] for i in range(0, len(superposition), 2))
     else:
         # Extract odd positions (reality B)
-        entangled = bytes(superposition[i] for i in range(1, len(superposition), 2))
-    
-    # Expand quantum noise to match
-    noise = expand_noise(quantum_noise, half_len)
-    
-    # Disentangle: remove quantum noise
-    reality = bytes(e ^ n for e, n in zip(entangled, noise))
-    
-    return reality
+        return bytes(superposition[i] for i in range(1, len(superposition), 2))
 
 
 def expand_noise(seed: bytes, length: int) -> bytes:

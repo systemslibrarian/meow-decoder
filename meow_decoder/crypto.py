@@ -14,7 +14,7 @@ import secrets
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, secure_zero_memory
 
 
 # Magic bytes for manifest version identification
@@ -39,6 +39,7 @@ else:
 
 # HMAC domain separation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"
+KEYFILE_DOMAIN_SEP = b"meow_keyfile_separation_v2"
 
 
 @dataclass
@@ -214,18 +215,26 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
     
-    # Combine password and keyfile if provided (use mutable buffer for best-effort zeroing)
-    secret = bytearray(password.encode("utf-8"))
+    # Combine password and keyfile if provided
+    secret = password.encode("utf-8")
     if keyfile:
-        # Simple concatenation for base version
-        # (crypto_enhanced.py uses HKDF for proper combining)
-        secret.extend(keyfile)
+        # Use HKDF to properly combine password and keyfile
+        from cryptography.hazmat.primitives import hashes
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        hkdf = HKDF(
+            algorithm=hashes.SHA256(),
+            length=64,
+            salt=KEYFILE_DOMAIN_SEP,
+            info=b"password_keyfile_combine"
+        )
+        secret = hkdf.derive(secret + keyfile)
     
+    secret_buf = bytearray(secret)
     try:
         # Derive key using Argon2id via backend
         backend = get_default_backend()
         key = backend.derive_key_argon2id(
-            bytes(secret),
+            bytes(secret_buf),
             salt,
             output_len=32,
             iterations=ARGON2_ITERATIONS,
@@ -238,11 +247,7 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         raise RuntimeError(f"Key derivation failed: {e}")
     finally:
         # Best-effort zeroing of mutable secret material
-        try:
-            backend = get_default_backend()
-            backend.secure_zero(secret)
-        except Exception:
-            pass
+        secure_zero_memory(secret_buf)
 
 
 def encrypt_file_bytes(
@@ -919,12 +924,18 @@ if __name__ == "__main__":
         sha256=sha,
         block_size=512,
         k_blocks=10,
-        hmac=b'\x00' * 32  # Placeholder
+        hmac=b'\x00' * 32,  # Placeholder
+        ephemeral_public_key=None, # Test password-only mode
+        pq_ciphertext=None,
+        duress_tag=None
     )
     
     # Compute HMAC
-    packed_no_hmac = pack_manifest(manifest)[:-32]
-    manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac)
+    packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=False)
+    
+    # Derive key to compute HMAC
+    enc_key = derive_key(password, salt)
+    manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
     
     # Pack and unpack
     packed = pack_manifest(manifest)

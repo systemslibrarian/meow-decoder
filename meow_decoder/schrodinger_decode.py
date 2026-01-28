@@ -1,214 +1,157 @@
 #!/usr/bin/env python3
 """
-🐱⚛️ Schrödinger's Yarn Ball - Quantum Decoder v5.4.0
+🐱⚛️ Schrödinger's Yarn Ball - Dual Reality Decoder
 
-"And once you look… you've already chosen your reality."
-
-Collapse quantum superposition to ONE observable reality.
-
-The password you provide "observes" the quantum state and collapses it.
-You get ONE reality - the other remains forever unprovable.
-
-Architecture:
-    1. Extract QR frames from GIF
-    2. Parse Schrödinger manifest (version 0x06)
-    3. Verify password via HMAC (identifies reality A or B)
-    4. Fountain decode mixed blocks
-    5. Unpermute blocks (reverse cryptographic shuffle)
-    6. Extract reality (even or odd positions)
-    7. Decrypt with password
-    8. Write collapsed reality to file
-
-Security:
-    - Constant-time HMAC verification
-    - No password leak via error messages
-    - Cannot prove other reality exists
-    - Observation irreversibly collapses superposition
+This decoder collapses the quantum superposition based on the provided password,
+revealing one of the two hidden realities.
 """
 
-import sys
-import argparse
-import hashlib
 import struct
-import zlib
-from pathlib import Path
-from getpass import getpass
-from typing import Optional, Tuple
+import hashlib
 import hmac
+from typing import Tuple, Optional
 
-from .crypto import decrypt_to_raw, derive_key, MAGIC
-from .fountain import FountainDecoder, unpack_droplet
-from .qr_code import QRCodeReader
-from .gif_handler import GIFDecoder
-from .frame_mac import unpack_frame_with_mac
-from .schrodinger_encode import SchrodingerManifest, unpermute_blocks
-from .constant_time import constant_time_compare
+from .crypto import decrypt_to_raw, derive_key
+from .quantum_mixer import collapse_to_reality
+from .schrodinger_encode import SchrodingerManifest
 
-
-def verify_password_reality(
-    password: str,
-    manifest: SchrodingerManifest
-) -> Optional[str]:
-    """
-    Verify password and determine which reality it unlocks.
-    
-    Args:
-        password: Password to verify
-        manifest: Schrödinger manifest
-        
-    Returns:
-        'A' if password matches reality A
-        'B' if password matches reality B
-        None if password doesn't match either
-        
-    Security:
-        - Uses constant-time comparison
-        - Both HMACs checked (prevents timing attack)
-        - No early return (constant time)
-    """
-    # Manifest core data (what HMACs were computed over)
-    manifest_core = (
-        manifest.salt_a + manifest.salt_b +
-        manifest.nonce_a + manifest.nonce_b +
-        manifest.merkle_root + manifest.shuffle_seed
-    )
-    
-    # Try reality A
-    key_a = hashlib.sha256(password.encode() + manifest.salt_a).digest()
-    expected_hmac_a = hmac.new(key_a, manifest_core, hashlib.sha256).digest()
-    match_a = constant_time_compare(expected_hmac_a, manifest.reality_a_hmac)
-    
-    # Try reality B (always compute, for constant-time)
-    key_b = hashlib.sha256(password.encode() + manifest.salt_b).digest()
-    expected_hmac_b = hmac.new(key_b, manifest_core, hashlib.sha256).digest()
-    match_b = constant_time_compare(expected_hmac_b, manifest.reality_b_hmac)
-    
-    # Return result (constant-time selection)
-    if match_a:
-        return 'A'
-    elif match_b:
-        return 'B'
-    else:
-        return None
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes
+import secrets
 
 
-def extract_reality(
-    mixed_blocks: list,
-    reality: str,
-    manifest: SchrodingerManifest
-) -> bytes:
-    """
-    Extract one reality from mixed blocks.
-    
-    Args:
-        mixed_blocks: Permuted, interleaved blocks
-        reality: 'A' or 'B'
-        manifest: Manifest with shuffle seed
-        
-    Returns:
-        Ciphertext for requested reality
-        
-    Algorithm:
-        1. Unpermute blocks (reverse cryptographic shuffle)
-        2. Extract even positions (A) or odd positions (B)
-        3. Concatenate into ciphertext
-    """
-    # Unpermute to get original interleaved order
-    interleaved = unpermute_blocks(mixed_blocks, manifest.shuffle_seed)
-    
-    # Extract reality
-    if reality == 'A':
-        # Reality A is at even positions (0, 2, 4, ...)
-        reality_blocks = [interleaved[i] for i in range(0, len(interleaved), 2)]
-    else:
-        # Reality B is at odd positions (1, 3, 5, ...)
-        reality_blocks = [interleaved[i] for i in range(1, len(interleaved), 2)]
-    
-    # Concatenate
-    ciphertext = b''.join(reality_blocks)
-    
-    return ciphertext
-
-
-def decrypt_reality(
-    ciphertext: bytes,
-    password: str,
+def schrodinger_decode_data(
+    superposition: bytes,
     manifest: SchrodingerManifest,
-    reality: str
-) -> bytes:
+    password: str,
+) -> Optional[bytes]:
     """
-    Decrypt extracted reality.
-    
+    Decode one reality from the superposition based on the password.
+
     Args:
-        ciphertext: Extracted ciphertext (padded)
-        password: Password for decryption
-        manifest: Manifest with metadata
-        reality: 'A' or 'B'
-        
+        superposition: The interleaved ciphertext.
+        manifest: The Schrödinger manifest.
+        password: The password for one of the realities.
+
     Returns:
-        Decrypted plaintext
+        The decrypted data if the password is correct for either reality,
+        otherwise None.
     """
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    
-    if reality == 'A':
-        salt = manifest.salt_a
-        nonce = manifest.nonce_a
-        enc_metadata = manifest.metadata_a
-    else:
-        salt = manifest.salt_b
-        nonce = manifest.nonce_b
-        enc_metadata = manifest.metadata_b
-    
-    # Decrypt metadata
-    key = hashlib.sha256(password.encode() + salt).digest()
-    aesgcm = AESGCM(key)
-    
+    # Try to decode Reality A
     try:
-        # Remove padding if present (metadata padded to 96 bytes)
-        enc_metadata = enc_metadata.rstrip(b'\x00')
-        
-        metadata_plain = aesgcm.decrypt(nonce, enc_metadata, None)
-        
-        # Parse: orig_len (8) + comp_len (8) + cipher_len (8) + salt_enc (16) + nonce_enc (12) + sha256 (32) = 84 bytes
-        orig_len, comp_len, cipher_len = struct.unpack('>QQQ', metadata_plain[:24])
-        salt_enc = metadata_plain[24:40]
-        nonce_enc = metadata_plain[40:52]
-        sha256_expected = metadata_plain[52:84]
-        
-    except Exception as e:
-        raise ValueError(f"Failed to decrypt metadata - wrong password? {e}")
-    
-    # Trim ciphertext to actual cipher length (before padding)
-    ciphertext = ciphertext[:cipher_len]
-    
-    # Decrypt using stored encryption parameters
+        # Derive master metadata key using Argon2id
+        master_meta_key_a = derive_key(password, manifest.salt_a)
+
+        # Derive separate keys for encryption and HMAC
+        hkdf_hmac_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_hmac_key_v1")
+        hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
+
+        # Verify HMAC for Reality A
+        manifest_core = manifest.pack_core_for_auth()
+        expected_hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
+
+        if secrets.compare_digest(expected_hmac_a, manifest.reality_a_hmac):
+            # HMAC is valid, this is Reality A
+            hkdf_enc_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_enc_key_v1")
+            enc_key_a = hkdf_enc_a.derive(master_meta_key_a)
+
+            # Decrypt metadata
+            aesgcm_a = AESGCM(enc_key_a)
+            # The encrypted metadata is padded to 104 bytes, but AES-GCM includes a 16-byte tag,
+            # so the actual ciphertext is 100 bytes. We need to handle this.
+            # However, the encryptor pads with nulls *after* encryption.
+            # We need to find the actual length of the encrypted payload.
+            # A simple approach is to try decrypting and catch the error if it's too long,
+            # but a better way is to find where the padding starts.
+            # For now, let's assume the padding doesn't interfere if we pass the whole 104 bytes.
+            # The tag is appended, so the ciphertext is len(metadata_a) - 16.
+            # Let's find the end of the actual ciphertext before padding.
+            # The encryptor pads to 104, and the encrypted data is 100 bytes (84 plain + 16 tag).
+            # So the last 4 bytes are padding.
+            metadata_a_enc_unpadded = manifest.metadata_a[:100]
+            metadata_a_plain = aesgcm_a.decrypt(manifest.nonce_a, metadata_a_enc_unpadded, None)
+
+
+            # Unpack metadata
+            orig_len, comp_len, cipher_len = struct.unpack('>QQQ', metadata_a_plain[:24])
+            salt_enc = metadata_a_plain[24:40]
+            nonce_enc = metadata_a_plain[40:52]
+            sha256 = metadata_a_plain[52:84]
+
+            # Collapse superposition to get ciphertext A
+            ciphertext_a = collapse_to_reality(superposition, 0)
+            
+            # The stored cipher_len is for the *unpadded* ciphertext.
+            # We need to truncate the collapsed data to that length.
+            ciphertext_a = ciphertext_a[:cipher_len]
+
+            # Decrypt the actual file data
+            return decrypt_to_raw(
+                cipher=ciphertext_a,
+                password=password,
+                salt=salt_enc,
+                nonce=nonce_enc,
+                orig_len=orig_len,
+                comp_len=comp_len,
+                sha256=sha256,
+            )
+    except Exception:
+        # This password is not for Reality A, or data is corrupt.
+        # We'll try Reality B next.
+        pass
+
+    # Try to decode Reality B
     try:
-        # Derive key using same method as encrypt_file_bytes
-        derived_key = derive_key(password, salt_enc, None)
-        aesgcm_cipher = AESGCM(derived_key)
-        
-        # Construct AAD (must match encrypt_file_bytes)
-        aad = struct.pack('<QQ', orig_len, comp_len)
-        aad += salt_enc
-        aad += sha256_expected
-        aad += MAGIC
-        
-        # Decrypt
-        comp = aesgcm_cipher.decrypt(nonce_enc, ciphertext, aad)
-        
-        # Decompress
-        import zlib
-        raw = zlib.decompress(comp)
-        
-        # Verify hash
-        actual_hash = hashlib.sha256(raw).digest()
-        if not constant_time_compare(actual_hash, sha256_expected):
-            raise ValueError("Hash mismatch - data corrupted")
-        
-        return raw
-        
-    except Exception as e:
-        raise ValueError(f"Decryption failed: {e}")
+        # Derive master metadata key using Argon2id
+        master_meta_key_b = derive_key(password, manifest.salt_b)
+
+        # Derive separate keys for encryption and HMAC
+        hkdf_hmac_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_hmac_key_v1")
+        hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
+
+        # Verify HMAC for Reality B
+        manifest_core = manifest.pack_core_for_auth()
+        expected_hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
+
+        if secrets.compare_digest(expected_hmac_b, manifest.reality_b_hmac):
+            # HMAC is valid, this is Reality B
+            hkdf_enc_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_enc_key_v1")
+            enc_key_b = hkdf_enc_b.derive(master_meta_key_b)
+
+            # Decrypt metadata
+            aesgcm_b = AESGCM(enc_key_b)
+            metadata_b_enc_unpadded = manifest.metadata_b[:100]
+            metadata_b_plain = aesgcm_b.decrypt(manifest.nonce_b, metadata_b_enc_unpadded, None)
+
+            # Unpack metadata
+            orig_len, comp_len, cipher_len = struct.unpack('>QQQ', metadata_b_plain[:24])
+            salt_enc = metadata_b_plain[24:40]
+            nonce_enc = metadata_b_plain[40:52]
+            sha256 = metadata_b_plain[52:84]
+
+            # Collapse superposition to get ciphertext B
+            ciphertext_b = collapse_to_reality(superposition, 1)
+            
+            # Truncate to original length
+            ciphertext_b = ciphertext_b[:cipher_len]
+
+            # Decrypt the actual file data
+            return decrypt_to_raw(
+                cipher=ciphertext_b,
+                password=password,
+                salt=salt_enc,
+                nonce=nonce_enc,
+                orig_len=orig_len,
+                comp_len=comp_len,
+                sha256=sha256,
+            )
+    except Exception:
+        # This password is not for Reality B either.
+        pass
+
+    # If neither password worked
+    return None
 
 
 def schrodinger_decode_file(
