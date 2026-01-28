@@ -24,10 +24,12 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies (zbar + opencv deps)
+      - name: Install system dependencies (zbar + opencv + rust build deps)
         run: |
           sudo apt-get update
-          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
+          sudo apt-get install -y \
+            libzbar0 libgl1 libglib2.0-0 \
+            build-essential pkg-config libssl-dev
 
       - name: Install Python dependencies
         run: |
@@ -36,10 +38,32 @@ jobs:
           pip install -r requirements-dev.txt
           pip install -e .
 
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Build + install Rust crypto backend (maturin build)
+        run: |
+          python -m pip install maturin
+          cd rust_crypto
+          maturin build --release --out dist
+          ls -lah dist
+          python -m pip install --force-reinstall dist/*.whl
+          cd ..
+
+      - name: Verify Rust backend import
+        run: |
+          python - << 'EOF'
+          import meow_crypto_rs
+          print("✅ Rust backend OK")
+          EOF
+
       - name: Run invariant tests (MUST NOT FAIL)
         run: pytest tests/test_invariants.py -v
         env:
           MEOW_TEST_MODE: "1"
+          MEOW_CRYPTO_BACKEND: "rust"
 
       - name: Run full test suite with coverage (write coverage.xml explicitly)
         run: |
@@ -47,6 +71,8 @@ jobs:
             --cov=meow_decoder \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing
+        env:
+          MEOW_CRYPTO_BACKEND: "rust"
 
       - name: Verify coverage.xml exists (debug)
         run: |
