@@ -409,7 +409,7 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 /// This function is mostly for API completeness - Python bytearrays are mutable
 /// and can be zeroed in place.
 #[pyfunction]
-fn secure_zero(py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> PyResult<()> {
+fn secure_zero(_py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> PyResult<()> {
     // Get mutable access to the bytearray
     unsafe {
         let slice = data.as_bytes_mut();
@@ -562,12 +562,13 @@ fn yubikey_derive_key<'py>(
 #[cfg(not(feature = "yubikey"))]
 #[pyfunction]
 #[pyo3(signature = (password, salt, slot="9d", pin=None))]
+#[allow(unused_variables)]
 fn yubikey_derive_key<'py>(
-    _py: Python<'py>,
-    _password: &[u8],
-    _salt: &[u8],
-    _slot: &str,
-    _pin: Option<String>,
+    py: Python<'py>,
+    password: &[u8],
+    salt: &[u8],
+    slot: &str,
+    pin: Option<String>,
 ) -> PyResult<Bound<'py, PyBytes>> {
     Err(PyValueError::new_err(
         "YubiKey support not enabled in Rust backend. Rebuild with: \
