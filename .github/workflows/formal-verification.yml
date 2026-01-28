@@ -1,82 +1,4 @@
-# Formal Methods Verification (Reproducible)
-
-name: Formal Verification
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-  workflow_dispatch:
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    env:
-      CI: "true"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install OCaml/Opam and ProVerif
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y opam ocaml make m4
-          opam init -y --disable-sandboxing
-          eval $(opam env)
-          opam install -y proverif.2.05
-          proverif -version
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run full verification (CI mode)
-        run: |
-          bash ./scripts/verify_all.sh# Formal Methods Verification (Reproducible)
-
-name: Formal Verification
-
-on:
-  push:
-    branches: [main, develop]
-  pull_request:
-  workflow_dispatch:
-
-jobs:
-  verify:
-    runs-on: ubuntu-latest
-    env:
-      CI: "true"
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-
-      - name: Install OCaml/Opam and ProVerif
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y opam ocaml make m4
-          opam init -y --disable-sandboxing
-          eval $(opam env)
-          opam install -y proverif.2.05
-          proverif -version
-
-      - name: Install Rust (stable)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Run full verification (CI mode)
-        run: |
-          ./scripts/verify_all.sh# Formal Verification Workflow
+# Formal Verification Workflow
 # Runs ProVerif symbolic security analysis and TLA+ model checking
 #
 # Triggered on:
@@ -210,19 +132,11 @@ jobs:
               .filter(line => line.includes('is false') || line.includes('cannot be proved'))
               .join('\n');
             
-            const body = `## ⚠️ ProVerif Security Analysis Failed
-            
-            The following security properties could not be verified:
-            
-            \`\`\`
-            ${failedLines}
-            \`\`\`
-            
-            This indicates a potential security issue in the protocol design.
-            Please review the changes and ensure cryptographic properties are maintained.
-            
-            See the full ProVerif output in the [workflow artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}).
-            `;
+            const body = '## ⚠️ ProVerif Security Analysis Failed\n' +
+              '\nThe following security properties could not be verified:\n' +
+              '\n```\n' + failedLines + '\n```\n' +
+              '\nThis indicates a potential security issue in the protocol design.\n' +
+              'Please review the changes and ensure cryptographic properties are maintained.';
             
             github.rest.issues.createComment({
               issue_number: context.issue.number,
@@ -305,11 +219,11 @@ jobs:
           PROVERIF_STATUS="${{ needs.proverif.result }}"
           TLAPLUS_STATUS="${{ needs.tlaplus.result }}"
           
-          echo "ProVerif:  $PROVERIF_STATUS"
-          echo "TLA+:      $TLAPLUS_STATUS"
+          echo "ProVerif:  \$PROVERIF_STATUS"
+          echo "TLA+:      \$TLAPLUS_STATUS"
           echo ""
           
-          if [ "$PROVERIF_STATUS" = "success" ] && [ "$TLAPLUS_STATUS" = "success" ]; then
+          if [ "\$PROVERIF_STATUS" = "success" ] && [ "\$TLAPLUS_STATUS" = "success" ]; then
             echo "✅ All formal verification passed!"
             exit 0
           else
