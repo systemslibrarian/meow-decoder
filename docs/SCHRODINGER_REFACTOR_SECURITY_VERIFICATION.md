@@ -45,7 +45,7 @@ Here is an enumeration of all sources of randomness in the new `schrodinger_enco
 
 ### 3. Authentication Coverage
 
-**New `SchrodingerManifest` (v7, 392 bytes):**
+**New `SchrodingerManifest` (v7, 382 bytes):**
 
 *   `magic`, `version`, `flags`
 *   `salt_a`, `salt_b`, `nonce_a`, `nonce_b`

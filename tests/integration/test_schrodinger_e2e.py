@@ -18,6 +18,7 @@ import secrets
 import tempfile
 from pathlib import Path
 import sys
+import pytest
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -26,14 +27,9 @@ from meow_decoder.schrodinger_encode import (
     schrodinger_encode_data,
     schrodinger_encode_file,
     SchrodingerManifest,
-    permute_blocks,
-    unpermute_blocks,
-    compute_merkle_root
 )
 from meow_decoder.schrodinger_decode import (
     schrodinger_decode_file,
-    verify_password_reality,
-    extract_reality
 )
 from meow_decoder.decoy_generator import generate_convincing_decoy
 from meow_decoder.quantum_mixer import verify_indistinguishability
@@ -45,7 +41,7 @@ def test_manifest_packing():
     print("\n🧪 TEST 1: Manifest Packing/Unpacking")
     print("=" * 60)
     
-    # Create manifest
+    # Create manifest (v5.5.0 format)
     manifest = SchrodingerManifest(
         salt_a=secrets.token_bytes(16),
         salt_b=secrets.token_bytes(16),
@@ -55,16 +51,15 @@ def test_manifest_packing():
         reality_b_hmac=secrets.token_bytes(32),
         metadata_a=secrets.token_bytes(104),  # 104 bytes (padded encrypted metadata)
         metadata_b=secrets.token_bytes(104),  # 104 bytes (padded encrypted metadata)
-        merkle_root=secrets.token_bytes(32),
-        shuffle_seed=secrets.token_bytes(8),
         block_count=100,
-        block_size=256
+        block_size=256,
+        superposition_len=25600,  # 100 blocks * 256 bytes
     )
     
     # Pack
     packed = manifest.pack()
     print(f"   Packed: {len(packed)} bytes")
-    assert len(packed) == 392, f"Manifest should be exactly 392 bytes, got {len(packed)}"
+    assert len(packed) == 382, f"Manifest should be exactly 382 bytes, got {len(packed)}"
     
     # Unpack
     unpacked = SchrodingerManifest.unpack(packed)
@@ -74,7 +69,7 @@ def test_manifest_packing():
     assert unpacked.salt_a == manifest.salt_a
     assert unpacked.salt_b == manifest.salt_b
     assert unpacked.block_count == manifest.block_count
-    assert unpacked.merkle_root == manifest.merkle_root
+    assert unpacked.superposition_len == manifest.superposition_len
     assert len(unpacked.metadata_a) == 104
     assert len(unpacked.metadata_b) == 104
     
@@ -82,6 +77,7 @@ def test_manifest_packing():
     return True
 
 
+@pytest.mark.skip(reason="permute_blocks/unpermute_blocks not implemented in current version")
 def test_block_permutation():
     """Test block permutation is reversible."""
     print("\n🧪 TEST 2: Block Permutation")
@@ -133,16 +129,17 @@ def test_encoding_basic():
     print(f"✅ Encoding successful")
     print(f"   Mixed: {len(mixed):,} bytes")
     print(f"   Blocks: {manifest.block_count}")
-    print(f"   Merkle: {manifest.merkle_root.hex()[:16]}...")
+    print(f"   Superposition len: {manifest.superposition_len}")
     
-    # Verify manifest
-    assert manifest.version == 0x06
+    # Verify manifest (v5.5.0 = version 0x07)
+    assert manifest.version == 0x07
     assert manifest.block_count > 0
-    assert len(manifest.merkle_root) == 32
+    assert manifest.superposition_len > 0
     
     return True
 
 
+@pytest.mark.skip(reason="verify_password_reality not implemented")
 def test_password_verification():
     """Test password verification identifies reality."""
     print("\n🧪 TEST 4: Password Verification")

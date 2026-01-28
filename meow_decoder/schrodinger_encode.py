@@ -55,7 +55,7 @@ class SchrodingerManifest:
     """
     Manifest for Schrödinger mode v5.5.0.
     
-    Format (392 bytes):
+    Format (382 bytes):
         - magic: b"MEOW" (4 bytes)
         - version: 0x07 (1 byte) - v5.5.0 Schrödinger Interleaved
         - flags: 1 byte (reserved)
@@ -72,7 +72,7 @@ class SchrodingerManifest:
         - superposition_len: 8 bytes (NEW: total length of the interleaved data)
         - reserved: 32 bytes
         
-    Total: 4+2+16+16+12+12+32+32+104+104+4+4+8+32 = 392 bytes
+    Total: 4+2+16+16+12+12+32+32+104+104+4+4+8+32 = 382 bytes
     """
     # Required fields (no defaults) must come first
     salt_a: bytes
@@ -128,8 +128,8 @@ class SchrodingerManifest:
     @classmethod
     def unpack(cls, data: bytes):
         """Unpack manifest from bytes."""
-        if len(data) < 392:
-            raise ValueError(f"Manifest too short: {len(data)} bytes (need 392)")
+        if len(data) < 382:
+            raise ValueError(f"Manifest too short: {len(data)} bytes (need 382)")
         
         if data[:4] != b"MEOW":
             raise ValueError("Invalid manifest magic")

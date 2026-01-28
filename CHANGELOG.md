@@ -222,7 +222,7 @@ All notable changes to Meow Decoder.
 
 ### Fixed
 - Decoder architecture: Store encryption parameters in metadata for proper roundtrip
-- Manifest format: Updated to 392 bytes with complete encryption parameters
+- Manifest format: Updated to 382 bytes with complete encryption parameters
 - Full E2E roundtrip now works correctly (100% test success rate)
 - Cleaned up `__init__.py`: Removed main entry point imports to eliminate RuntimeWarning
 - Lightweight imports: Only config, crypto primitives, and quantum mixer at import time

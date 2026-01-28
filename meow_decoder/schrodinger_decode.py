@@ -5,11 +5,16 @@
 This decoder collapses the quantum superposition based on the provided password,
 revealing one of the two hidden realities.
 """
+from __future__ import annotations
 
+import sys
+import argparse
 import struct
 import hashlib
 import hmac
+from pathlib import Path
 from typing import Tuple, Optional
+from getpass import getpass
 
 from .crypto import decrypt_to_raw, derive_key
 from .quantum_mixer import collapse_to_reality
@@ -161,7 +166,7 @@ def schrodinger_decode_file(
     verbose: bool = False
 ) -> dict:
     """
-    Decode file from Schrödinger mode.
+    Decode file from Schrödinger mode GIF.
     
     Args:
         input_gif: Input GIF with quantum superposition
@@ -172,8 +177,14 @@ def schrodinger_decode_file(
     Returns:
         Statistics dict
     """
+    # Import heavy dependencies only when needed to avoid circular imports
+    from .gif_handler import GIFDecoder
+    from .qr_code import QRCodeReader
+    from .fountain import FountainDecoder, unpack_droplet
+    from .frame_mac import unpack_frame_with_mac, derive_frame_master_key
+    
     if verbose:
-        print("🐱⚛️  Schrödinger's Yarn Ball - Quantum Decoder v5.4.0")
+        print("🐱⚛️  Schrödinger's Yarn Ball - Quantum Decoder v5.5.0")
         print("=" * 60)
         print('"And once you look… you\'ve already chosen your reality."')
         print("=" * 60)
@@ -206,7 +217,7 @@ def schrodinger_decode_file(
     manifest_raw = qr_data_list[0]
     
     # Strip frame MAC if present (first 8 bytes)
-    if len(manifest_raw) > 256:
+    if len(manifest_raw) > 400:
         manifest_raw = manifest_raw[8:]
     
     try:
@@ -215,36 +226,21 @@ def schrodinger_decode_file(
         raise ValueError(f"Failed to parse manifest: {e}")
     
     if verbose:
-        print(f"   Version: 0x{manifest.version:02x} (Schrödinger v5.4.0)")
+        print(f"   Version: 0x{manifest.version:02x} (Schrödinger v5.5.0)")
         print(f"   Blocks: {manifest.block_count}")
         print(f"   Block size: {manifest.block_size}")
-        print(f"   Merkle root: {manifest.merkle_root.hex()[:16]}...")
+        print(f"   Superposition length: {manifest.superposition_len}")
     
-    # Verify password and determine reality
-    if verbose:
-        print(f"\n🔐 Verifying password...")
-    
-    reality = verify_password_reality(password, manifest)
-    
-    if reality is None:
-        raise ValueError("Password does not match either reality")
-    
-    if verbose:
-        print(f"   ✅ Password verified → Reality {reality}")
-        print(f"   🔮 Collapsing quantum state...")
-    
-    # Extract droplets
+    # Extract and reassemble droplets
     droplets = []
     
-    # Note: Frame MACs in Schrödinger mode use Reality A's key
-    # We skip MAC verification since manifest HMAC already authenticated
-    # Frame format: [MAC: 8 bytes][Droplet data]
-    
     for i, frame_data in enumerate(qr_data_list[1:], 1):
-        # Skip frame MAC (first 8 bytes)
-        droplet_data = frame_data[8:]
+        # Skip frame MAC (first 8 bytes) if present
+        if len(frame_data) > manifest.block_size + 20:
+            droplet_data = frame_data[8:]
+        else:
+            droplet_data = frame_data
         
-        # Unpack droplet
         try:
             droplet = unpack_droplet(droplet_data, manifest.block_size)
             droplets.append(droplet)
@@ -268,36 +264,20 @@ def schrodinger_decode_file(
             f"Decoding incomplete: {decoder.decoded_count}/{manifest.block_count} blocks"
         )
     
-    # Get original length
-    original_length = manifest.block_count * manifest.block_size
-    mixed_data = decoder.get_data(original_length)
+    # Get superposition data
+    superposition = decoder.get_data(manifest.superposition_len)
     
     if verbose:
-        print(f"   ✅ Decoded {len(mixed_data):,} bytes")
+        print(f"   ✅ Decoded {len(superposition):,} bytes of superposition")
     
-    # Split into blocks
-    mixed_blocks = [
-        mixed_data[i:i+manifest.block_size]
-        for i in range(0, len(mixed_data), manifest.block_size)
-    ]
-    
-    # Extract reality
+    # Decode using the core function
     if verbose:
-        print(f"\n⚛️  Extracting Reality {reality}...")
+        print(f"\n🔐 Verifying password and decrypting...")
     
-    ciphertext = extract_reality(mixed_blocks, reality, manifest)
+    plaintext = schrodinger_decode_data(superposition, manifest, password)
     
-    if verbose:
-        print(f"   Extracted {len(ciphertext):,} bytes")
-    
-    # Decrypt
-    if verbose:
-        print(f"\n🔓 Decrypting...")
-    
-    try:
-        plaintext = decrypt_reality(ciphertext, password, manifest, reality)
-    except Exception as e:
-        raise ValueError(f"Decryption failed: {e}")
+    if plaintext is None:
+        raise ValueError("Password does not match either reality - authentication failed")
     
     # Write output
     with open(output, 'wb') as f:
@@ -306,13 +286,12 @@ def schrodinger_decode_file(
     if verbose:
         print(f"   ✅ Decrypted {len(plaintext):,} bytes")
         print(f"\n⚛️  QUANTUM STATE COLLAPSED")
-        print(f"   Reality {reality} is now observable")
+        print(f"   Your reality is now observable")
         print(f"   The other reality remains forever unprovable")
         print(f"   Lost in the quantum foam... 🌊")
     
     return {
         'decoded_size': len(plaintext),
-        'reality': reality,
         'qr_frames': len(qr_data_list),
         'blocks': manifest.block_count
     }
@@ -321,7 +300,7 @@ def schrodinger_decode_file(
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description='🐱⚛️ Schrödinger\'s Yarn Ball Decoder v5.4.0',
+        description='🐱⚛️ Schrödinger\'s Yarn Ball Decoder v5.5.0',
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog='''
 Examples:
@@ -353,7 +332,7 @@ Examples:
         )
         
         if not args.verbose:
-            print(f"✅ Reality {stats['reality']} collapsed: {stats['decoded_size']:,} bytes")
+            print(f"✅ Quantum state collapsed: {stats['decoded_size']:,} bytes")
         
         return 0
         
