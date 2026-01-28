@@ -74,9 +74,7 @@ class SchrodingerManifest:
         
     Total: 4+2+16+16+12+12+32+32+104+104+4+4+8+32 = 392 bytes
     """
-    magic: bytes = b"MEOW"
-    version: int = 0x07
-    flags: int = 0x00
+    # Required fields (no defaults) must come first
     salt_a: bytes
     salt_b: bytes
     nonce_a: bytes
@@ -88,6 +86,10 @@ class SchrodingerManifest:
     block_count: int
     block_size: int
     superposition_len: int
+    # Fields with defaults must come last
+    magic: bytes = b"MEOW"
+    version: int = 0x07
+    flags: int = 0x00
     reserved: bytes = b'\x00' * 32
 
     def pack_core_for_auth(self) -> bytes:
