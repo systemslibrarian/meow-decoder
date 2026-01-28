@@ -276,7 +276,7 @@ pub fn aes_gcm_decrypt(
     aad: Option<&[u8]>,
 ) -> Result<Vec<u8>, CryptoError> {
     let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
-        .map_err(|e| CryptoError::DecryptionFailed)?;
+        .map_err(|_e| CryptoError::DecryptionFailed)?;
     
     let gcm_nonce = GcmNonce::from_slice(nonce.as_bytes());
     
@@ -421,11 +421,7 @@ impl X25519KeyPair {
     /// Generate new random key pair
     #[cfg(feature = "pure-crypto")]
     pub fn generate() -> Result<Self, CryptoError> {
-        let secret = EphemeralSecret::random_from_rng(OsRng);
-        let public = PublicKey::from(&secret);
-        
-        let mut secret_bytes = [0u8; X25519_KEY_SIZE];
-        // EphemeralSecret doesn't expose bytes directly, use StaticSecret instead
+        // Use StaticSecret which exposes bytes (EphemeralSecret doesn't)
         let static_secret = StaticSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&static_secret);
         

@@ -84,6 +84,7 @@ impl UniqueNonce {
     /// ```verus
     /// ensures self.used == true  // After call, nonce is marked used
     /// ```
+    #[allow(unused_mut)]
     pub fn take(mut self) -> [u8; NONCE_SIZE] {
         #[cfg(debug_assertions)]
         {
