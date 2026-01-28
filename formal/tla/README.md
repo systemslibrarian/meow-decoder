@@ -61,6 +61,24 @@ authResult = "failure" => (decoderState = "Error" /\ decoderOutput = "none")
 ```
 **Property**: There is no code path to output states without passing through authentication. The state machine enforces auth-then-output.
 
+### INV-007: UnsealRequiresMatchingPCRs
+```tla
+keyState = "unsealed" => pcrValues = ExpectedPCRs
+```
+**Property**: Hardware-sealed keys only become unsealed when platform state matches expected PCRs.
+
+### INV-008: TamperPreventsUnseal
+```tla
+pcrValues = "tampered" => keyState /= "unsealed"
+```
+**Property**: If platform state is tampered, unsealing must fail.
+
+### INV-009: NoRealOutputWithoutUnsealedKey
+```tla
+decoderState = "OutputReal" => keyState = "unsealed"
+```
+**Property**: Real plaintext output requires an unsealed key.
+
 ## Running the Model Checker
 
 ### Prerequisites

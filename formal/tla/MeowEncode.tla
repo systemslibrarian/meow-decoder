@@ -22,7 +22,8 @@ CONSTANTS
     MaxNonces,          \* Maximum nonces (for bounded model checking)
     Passwords,          \* Set of possible passwords
     DuressPasswords,    \* Subset of passwords that are duress passwords
-    RealPasswords       \* Subset of passwords that are real passwords
+    RealPasswords,      \* Subset of passwords that are real passwords
+    ExpectedPCRs        \* Expected platform PCR state
 
 ASSUME RealPasswords \intersect DuressPasswords = {}
 ASSUME RealPasswords \cup DuressPasswords \subseteq Passwords
@@ -42,6 +43,9 @@ VARIABLES
     encoderNonce,       \* Nonce used for this encryption
     encoderFrames,      \* Sequence of encoded frames
     usedNonces,         \* Set of nonces that have been used (global)
+    \* Hardware-sealed key state
+    keyState,           \* "unsealed" | "sealed" | "failed"
+    pcrValues,          \* Current PCR state
     
     \* Decoder state
     decoderState,       \* Current state of the decoder
@@ -58,6 +62,7 @@ VARIABLES
     channel             \* Frames currently in transmission
 
 vars == <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
+          keyState, pcrValues,
           decoderState, decoderSession, receivedFrames, decoderOutput, authResult,
           attackerFrames, attackerActions, channel>>
 
@@ -81,6 +86,8 @@ InSeq(val, seq) == val \in Range(seq)
 
 EncoderStates == {"Idle", "KeyDerivation", "Encrypt", "FrameEncode", "Transmit", "Done", "Error"}
 DecoderStates == {"Idle", "Receive", "FrameDecode", "Decrypt", "OutputReal", "OutputDecoy", "Done", "Error"}
+KeyStates == {"unsealed", "sealed", "failed"}
+PCRStates == {ExpectedPCRs, "tampered"}
 
 Frame == [
     sessionId: Nat,
@@ -102,6 +109,8 @@ Init ==
     /\ encoderNonce = 0
     /\ encoderFrames = <<>>
     /\ usedNonces = {}
+    /\ keyState = "unsealed"
+    /\ pcrValues = ExpectedPCRs
     /\ decoderState = "Idle"
     /\ decoderSession = 0
     /\ receivedFrames = <<>>
@@ -119,7 +128,7 @@ EncoderStartSession(password) ==
     /\ encoderState = "Idle"
     /\ encoderState' = "KeyDerivation"
     /\ encoderSession' = encoderSession + 1
-    /\ UNCHANGED <<encoderNonce, encoderFrames, usedNonces, decoderState, 
+    /\ UNCHANGED <<encoderNonce, encoderFrames, usedNonces, keyState, pcrValues, decoderState, 
                    decoderSession, receivedFrames, decoderOutput, authResult,
                    attackerFrames, attackerActions, channel>>
 
@@ -127,7 +136,7 @@ EncoderStartSession(password) ==
 EncoderDeriveKey ==
     /\ encoderState = "KeyDerivation"
     /\ encoderState' = "Encrypt"
-    /\ UNCHANGED <<encoderSession, encoderNonce, encoderFrames, usedNonces,
+    /\ UNCHANGED <<encoderSession, encoderNonce, encoderFrames, usedNonces, keyState, pcrValues,
                    decoderState, decoderSession, receivedFrames, decoderOutput, 
                    authResult, attackerFrames, attackerActions, channel>>
 
@@ -139,7 +148,7 @@ EncoderEncrypt ==
         /\ encoderNonce' = newNonce
         /\ usedNonces' = usedNonces \cup {newNonce}
         /\ encoderState' = "FrameEncode"
-    /\ UNCHANGED <<encoderSession, encoderFrames, decoderState, decoderSession,
+    /\ UNCHANGED <<encoderSession, encoderFrames, keyState, pcrValues, decoderState, decoderSession,
                    receivedFrames, decoderOutput, authResult, attackerFrames, 
                    attackerActions, channel>>
 
@@ -165,7 +174,7 @@ EncoderFrameEncode ==
        IN
         /\ encoderFrames' = <<manifestFrame>> \o [i \in 1..MaxFrames |-> dataFrames[i]]
         /\ encoderState' = "Transmit"
-    /\ UNCHANGED <<encoderSession, encoderNonce, usedNonces, decoderState,
+     /\ UNCHANGED <<encoderSession, encoderNonce, usedNonces, keyState, pcrValues, decoderState,
                    decoderSession, receivedFrames, decoderOutput, authResult,
                    attackerFrames, attackerActions, channel>>
 
@@ -175,9 +184,35 @@ EncoderTransmit ==
     /\ channel' = encoderFrames
     /\ attackerFrames' = attackerFrames \cup Range(encoderFrames)
     /\ encoderState' = "Done"
-    /\ UNCHANGED <<encoderSession, encoderNonce, encoderFrames, usedNonces,
+    /\ UNCHANGED <<encoderSession, encoderNonce, encoderFrames, usedNonces, keyState, pcrValues,
                    decoderState, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerActions>>
+
+-----------------------------------------------------------------------------
+(* Hardware-Sealed Key Actions *)
+
+SealKey ==
+    /\ keyState = "unsealed"
+    /\ keyState' = "sealed"
+    /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
+                   pcrValues, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   authResult, attackerFrames, attackerActions, channel>>
+
+UnsealKey ==
+    /\ keyState = "sealed"
+    /\ IF pcrValues = ExpectedPCRs
+       THEN keyState' = "unsealed"
+       ELSE keyState' = "failed"
+    /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
+                   pcrValues, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   authResult, attackerFrames, attackerActions, channel>>
+
+TamperPlatform ==
+    /\ keyState = "sealed"
+    /\ pcrValues' = "tampered"
+    /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
+                   keyState, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   authResult, attackerFrames, attackerActions, channel>>
 
 -----------------------------------------------------------------------------
 (* Attacker Actions - Dolev-Yao Model *)
@@ -189,7 +224,7 @@ AttackerDrop ==
         /\ channel' = SubSeq(channel, 1, i-1) \o SubSeq(channel, i+1, Len(channel))
         /\ attackerActions' = Append(attackerActions, "drop")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, 
-                   usedNonces, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker replays a previously captured frame
@@ -199,7 +234,7 @@ AttackerReplay ==
         /\ channel' = Append(channel, f)
         /\ attackerActions' = Append(attackerActions, "replay")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker reorders frames in channel
@@ -211,7 +246,7 @@ AttackerReorder ==
            IN channel' = [channel EXCEPT ![i] = channel[j], ![j] = temp]
         /\ attackerActions' = Append(attackerActions, "reorder")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker duplicates a frame
@@ -221,7 +256,7 @@ AttackerDuplicate ==
         /\ channel' = channel \o <<channel[i]>>
         /\ attackerActions' = Append(attackerActions, "duplicate")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker tampers with a frame (corrupts ciphertext or tag)
@@ -234,7 +269,7 @@ AttackerTamper ==
            IN channel' = [channel EXCEPT ![i] = tamperedFrame]
         /\ attackerActions' = Append(attackerActions, "tamper")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 -----------------------------------------------------------------------------
@@ -246,7 +281,7 @@ DecoderStartReceive ==
     /\ Len(channel) > 0
     /\ decoderState' = "Receive"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Receive a frame from channel
@@ -262,7 +297,7 @@ DecoderReceiveFrame ==
            THEN decoderSession' = frame.sessionId
            ELSE decoderSession' = decoderSession
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderState, decoderOutput, authResult,
+                   usedNonces, keyState, pcrValues, decoderState, decoderOutput, authResult,
                    attackerFrames, attackerActions>>
 
 \* Transition to frame decoding when enough frames received
@@ -271,7 +306,7 @@ DecoderStartDecode ==
     /\ Len(receivedFrames) >= MaxFrames \div 2  \* Fountain code: need ~67%
     /\ decoderState' = "FrameDecode"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Decode fountain frames (verify frame MACs first)
@@ -279,7 +314,7 @@ DecoderFrameDecode ==
     /\ decoderState = "FrameDecode"
     /\ decoderState' = "Decrypt"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Decrypt and authenticate (CRITICAL: Authentication check)
@@ -296,11 +331,12 @@ DecoderDecrypt(password) ==
         isReplay == \E i \in DOMAIN receivedFrames :
             receivedFrames[i].sessionId /= decoderSession
         \* Determine authentication result
-        authOk == allTagsValid /\ ~anyCorrupted /\ ~isReplay
+        authOk == allTagsValid /\ ~anyCorrupted /\ ~isReplay /\ keyState = "unsealed"
         \* Determine if this is a duress password
         isDuress == password \in DuressPasswords
        IN
         /\ authResult' = IF authOk THEN "success" ELSE "failure"
+                /\ keyState' = IF authOk /\ isDuress THEN "failed" ELSE keyState
         /\ IF ~authOk
            THEN 
                 /\ decoderState' = "Error"
@@ -313,8 +349,8 @@ DecoderDecrypt(password) ==
                 /\ decoderState' = "OutputReal"
                 /\ decoderOutput' = "real"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, attackerFrames,
-                   attackerActions, channel>>
+                usedNonces, pcrValues, decoderSession, receivedFrames, attackerFrames,
+                attackerActions, channel>>
 
 \* Output real plaintext (only from OutputReal state)
 DecoderOutputReal ==
@@ -322,7 +358,7 @@ DecoderOutputReal ==
     /\ decoderOutput = "real"
     /\ decoderState' = "Done"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Output decoy (only from OutputDecoy state)
@@ -331,7 +367,7 @@ DecoderOutputDecoy ==
     /\ decoderOutput = "decoy"
     /\ decoderState' = "Done"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Error handling
@@ -349,6 +385,9 @@ Next ==
     \/ EncoderEncrypt
     \/ EncoderFrameEncode
     \/ EncoderTransmit
+    \/ SealKey
+    \/ UnsealKey
+    \/ TamperPlatform
     \/ AttackerDrop
     \/ AttackerReplay
     \/ AttackerReorder
@@ -434,6 +473,24 @@ NoAuthBypass ==
     (authResult = "success")
 
 (****************************************************************************)
+(* INVARIANT 7: Unseal requires matching PCRs                              *)
+(****************************************************************************)
+UnsealRequiresMatchingPCRs ==
+    keyState = "unsealed" => pcrValues = ExpectedPCRs
+
+(****************************************************************************)
+(* INVARIANT 8: Tampered PCRs prevent unseal                                *)
+(****************************************************************************)
+TamperPreventsUnseal ==
+    pcrValues = "tampered" => keyState /= "unsealed"
+
+(****************************************************************************)
+(* INVARIANT 9: Real output requires unsealed key                           *)
+(****************************************************************************)
+NoRealOutputWithoutUnsealedKey ==
+    decoderState = "OutputReal" => keyState = "unsealed"
+
+(****************************************************************************)
 (* Combined Safety Property                                                 *)
 (****************************************************************************)
 Safety ==
@@ -443,6 +500,9 @@ Safety ==
     /\ NonceNeverReused
     /\ TamperedFramesRejected
     /\ NoAuthBypass
+    /\ UnsealRequiresMatchingPCRs
+    /\ TamperPreventsUnseal
+    /\ NoRealOutputWithoutUnsealedKey
 
 -----------------------------------------------------------------------------
 (* LIVENESS PROPERTIES (optional, for completeness) *)
@@ -459,5 +519,8 @@ THEOREM Spec => []DuressNeverOutputsReal
 THEOREM Spec => []NoOutputOnAuthFailure
 THEOREM Spec => []TamperedFramesRejected
 THEOREM Spec => []NoAuthBypass
+THEOREM Spec => []UnsealRequiresMatchingPCRs
+THEOREM Spec => []TamperPreventsUnseal
+THEOREM Spec => []NoRealOutputWithoutUnsealedKey
 
 =============================================================================
