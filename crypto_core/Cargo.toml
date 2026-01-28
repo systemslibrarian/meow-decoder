@@ -9,6 +9,12 @@ repository = "https://github.com/YOUR_USERNAME/meow-decoder"
 keywords = ["cryptography", "aead", "verified", "security", "hsm", "yubikey", "tpm"]
 categories = ["cryptography", "no-std", "hardware-support"]
 
+# Suppress warnings for Verus formal verification cfg attributes and dead code
+# Some code is only used during formal verification with Verus
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(verus_keep_ghost)'] }
+dead_code = "allow"
+
 [dependencies]
 # AES-GCM implementation (pure Rust, constant-time)
 aes-gcm = "0.10"

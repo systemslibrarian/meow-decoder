@@ -1,3 +1,9 @@
+// Crate-level lint configuration for Verus formal verification compatibility
+// Some code is only used during Verus verification, not normal builds
+#![allow(dead_code)]
+#![allow(unused_imports)]
+#![allow(unexpected_cfgs)]
+
 //! # crypto_core - Production Cryptographic Primitives
 //!
 //! This crate provides secure cryptographic operations for Meow Decoder.
