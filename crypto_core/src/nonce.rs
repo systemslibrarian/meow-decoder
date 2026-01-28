@@ -180,7 +180,8 @@ impl NonceGenerator {
 
     /// Check if generator is near exhaustion (>90% used).
     pub fn is_near_exhaustion(&self) -> bool {
-        self.count() > Self::MAX_COUNTER * 9 / 10
+        // Reordered to avoid overflow: divide first, then multiply
+        self.count() > Self::MAX_COUNTER / 10 * 9
     }
 }
 

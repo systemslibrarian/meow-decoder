@@ -44,8 +44,9 @@ jobs:
           # Install ProVerif from apt (Ubuntu 22.04+)
           sudo apt-get update
           sudo apt-get install -y proverif || {
-            # Fallback: Install from source
+            # Fallback: Install from source (requires OCaml)
             echo "Installing ProVerif from source..."
+            sudo apt-get install -y ocaml ocaml-findlib
             wget -q https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz
             tar xzf proverif2.05.tar.gz
             cd proverif2.05
@@ -174,12 +175,12 @@ jobs:
           echo "============================================"
           echo ""
           
-          # Run TLC model checker on MeowCrypto.tla
+          # Run TLC model checker on MeowEncode.tla
           java -jar ~/.tla2tools/tla2tools.jar \
-            -config MeowCrypto.cfg \
+            -config MeowEncode.cfg \
             -workers auto \
             -deadlock \
-            MeowCrypto.tla 2>&1 | tee tlc_output.txt
+            MeowEncode.tla 2>&1 | tee tlc_output.txt
           
           echo ""
           echo "============================================"

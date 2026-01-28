@@ -163,7 +163,7 @@ deadline = 10000
 
 [tool.hypothesis.profiles.exhaustive]
 max_examples = 1000
-deadline = null
+# deadline disabled for exhaustive testing (use hypothesis.settings override)
 
 [tool.mypy]
 python_version = "3.8"
