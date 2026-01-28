@@ -6,7 +6,7 @@ Centralized configuration management for all Meow Decoder operations
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, Callable
 import json
 import enum
 
@@ -33,15 +33,23 @@ class DuressConfig:
     decoy_message: str = "Decode complete."
     decoy_file_path: Optional[str] = None
     decoy_output_name: Optional[str] = None
+    show_decoy: bool = True  # Show decoy data on duress trigger
     
     # Legacy/Granular options (kept for compatibility/internal use)
-    wipe_memory: bool = False
-    wipe_resume_files: bool = False
+    wipe_memory: bool = True  # Wipe sensitive memory on duress
+    wipe_resume_files: bool = True  # Wipe resume/temp files on duress
     exit_after_wipe: bool = False
+    
+    # Security options
+    overwrite_passes: int = 3  # Number of overwrite passes for secure wipe
+    gc_aggressive: bool = True  # Force garbage collection after wipe
     
     # Timing equalization
     min_delay_ms: int = 100
     max_delay_ms: int = 500
+    
+    # Callback for custom duress handling
+    trigger_callback: Optional[Callable] = None
 
 
 @dataclass

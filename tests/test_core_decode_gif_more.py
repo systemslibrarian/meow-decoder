@@ -1,7 +1,8 @@
+import pytest
+
 import hashlib
 from pathlib import Path
 
-import pytest
 from PIL import Image
 
 import meow_decoder.decode_gif as decode_mod

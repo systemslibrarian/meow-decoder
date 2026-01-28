@@ -94,13 +94,23 @@ hypothesis_settings = { max_examples = 100, deadline = 5000 }
 [tool.coverage.run]
 source = ["meow_decoder"]
 branch = true
-# COVERAGE STRATEGY: Focus ONLY on modules with existing good coverage
-# Exclude all modules with < 40% coverage to focus on well-tested core
+# COVERAGE STRATEGY: Security-focused coverage with tiered requirements
+# 
+# TIER 1 (Crypto-Critical): 95-100% required
+#   - crypto.py, crypto_backend.py, constant_time.py
+#   - fountain.py, frame_mac.py, metadata_obfuscation.py
+#
+# TIER 2 (CLI/I/O): 90%+ required
+#   - encode.py, decode_gif.py, config.py
+#
+# TIER 3 (Advanced): Best-effort
+#   - Everything else
+#
 omit = [
     "meow_decoder/*DEBUG*.py",
     "meow_decoder/__init__.py",
     "meow_decoder/__main__.py",
-    # GUI and optional features
+    # GUI and optional features (TIER 3 - excluded)
     "meow_decoder/cat_utils.py",
     "meow_decoder/catnip_fountain.py",
     "meow_decoder/clowder_*.py",
@@ -109,43 +119,41 @@ omit = [
     "meow_decoder/meow_dashboard*.py",
     "meow_decoder/meow_decoder_mini.py",
     "meow_decoder/meow_gui*.py",
-    # Experimental/advanced features
+    # Experimental/advanced features (TIER 3)
     "meow_decoder/ninja_cat_ultra.py",
     "meow_decoder/profiling*.py",
     "meow_decoder/prowling_mode.py",
     "meow_decoder/stego_*.py",
     "meow_decoder/webcam_*.py",
     "meow_decoder/setup.py",
-    # Legacy compatibility
+    # Legacy compatibility (TIER 3)
     "meow_decoder/logo_eyes.py",
     "meow_decoder/ascii_qr.py",
     "meow_decoder/bidirectional.py",
-    # Hardware-dependent
+    # Hardware-dependent (TIER 3)
     "meow_decoder/hardware_keys.py",
-    # Advanced features
+    # Advanced features (TIER 3)
     "meow_decoder/multi_secret.py",
     "meow_decoder/secure_bridge.py",
     "meow_decoder/resume_secured.py",
     "meow_decoder/streaming_crypto.py",
-    # Progress bar UI
+    # Progress bar UI (TIER 3)
     "meow_decoder/progress_bar.py",
     "meow_decoder/progress.py",
-    # CLI wrappers
+    # CLI wrappers (TIER 3)
     "meow_decoder/meow_encode.py",
     "meow_decoder/meow_decode.py",
     "meow_decoder/forward_secrecy_encoder.py",
     "meow_decoder/forward_secrecy_decoder.py",
-    # PQ experimental
+    # PQ experimental (TIER 3)
     "meow_decoder/pq_crypto*.py",
     "meow_decoder/pq_hybrid.py",
     "meow_decoder/pq_signatures.py",
     "meow_decoder/high_security.py",
-    # ===== MODULES WITH 0% COVERAGE - EXCLUDE FOR NOW =====
-    # These need dedicated test suites but aren't blocking v1 security
+    # Advanced crypto features (TIER 3)
     "meow_decoder/crypto_enhanced.py",
     "meow_decoder/decoy_generator.py",
     "meow_decoder/double_ratchet.py",
-    "meow_decoder/duress_mode.py",
     "meow_decoder/entropy_boost.py",
     "meow_decoder/forward_secrecy.py",
     "meow_decoder/forward_secrecy_x25519.py",
@@ -155,26 +163,35 @@ omit = [
     "meow_decoder/schrodinger_encode.py",
     "meow_decoder/secure_cleanup.py",
     "meow_decoder/x25519_forward_secrecy.py",
-    # ===== LOW COVERAGE MODULES - EXCLUDE =====
-    "meow_decoder/encode.py",
-    "meow_decoder/decode_gif.py",
-    "meow_decoder/gif_handler.py",
-    "meow_decoder/qr_code.py",
-    "meow_decoder/config.py",
+    # Duress mode (tested separately in test_duress.py)
+    "meow_decoder/duress_mode.py",
+    # GIF/QR handling (TIER 2 - include for coverage)
+    # "meow_decoder/gif_handler.py",  # INCLUDED
+    # "meow_decoder/qr_code.py",      # INCLUDED
 ]
 
-# Modules INCLUDED in coverage (crypto-critical):
+# ===== TIER 1: Crypto-Critical Modules (INCLUDED) =====
+# These must achieve 95-100% coverage:
 # - crypto.py - Core encryption/decryption
 # - crypto_backend.py - Crypto primitives backend
 # - constant_time.py - Side-channel resistant operations
 # - fountain.py - Erasure coding
 # - frame_mac.py - Frame authentication
 # - metadata_obfuscation.py - Size obfuscation
+#
+# ===== TIER 2: CLI/I/O Modules (INCLUDED) =====
+# These must achieve 90%+ coverage:
+# - encode.py - Encoder
+# - decode_gif.py - Decoder
+# - config.py - Configuration
+# - gif_handler.py - GIF I/O
+# - qr_code.py - QR generation/reading
 
 [tool.coverage.report]
-# Coverage threshold - reduced while test suite is being built up
-# Target: Incrementally increase as tests are added
-fail_under = 20
+# Coverage threshold for security-focused testing
+# Start at 35% and incrementally increase as test suite matures
+# Target: 80%+ for TIER 1, 70%+ for TIER 2
+fail_under = 35
 show_missing = true
 skip_covered = false
 exclude_lines = [
@@ -183,10 +200,21 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
     "if TYPE_CHECKING:",
+    # Debug/development code paths
+    "if _TEST_MODE:",
+    "if verbose:",
+    "if args.verbose:",
 ]
 
 # Per-file coverage requirements for crypto-critical paths
 # These files MUST maintain high coverage
+# TODO: Uncomment when coverage targets are met
+# [tool.coverage.report.partial_branches]
+# crypto.py = 95
+# crypto_backend.py = 95
+# fountain.py = 95
+# frame_mac.py = 95
+
 [tool.coverage.html]
 directory = "htmlcov"
 

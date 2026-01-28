@@ -1,0 +1,1506 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="23" skipped="5" tests="634" time="472.010" timestamp="2026-01-28T19:16:01.788582+00:00" hostname="codespaces-0f4e6d"><properties><property name="hypothesis-statistics-tests/test_property_based.py::TestEncryptDecryptInvariants::test_aes_gcm_roundtrip" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEVuY3J5cHREZWNyeXB0SW52YXJpYW50czo6dGVzdF9hZXNfZ2NtX3JvdW5kdHJpcDoKCiAgLSBkdXJpbmcgZ2VuZXJhdGUgcGhhc2UgKDEuMTcgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IH4gMS0yIG1zLCBvZiB3aGljaCA8IDFtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gMjAwIHBhc3NpbmcgZXhhbXBsZXMsIDAgZmFpbGluZyBleGFtcGxlcywgMCBpbnZhbGlkIGV4YW1wbGVzCgogIC0gU3RvcHBlZCBiZWNhdXNlIHNldHRpbmdzLm1heF9leGFtcGxlcz0yMDA=" /><property name="hypothesis-statistics-tests/test_property_based.py::TestEncryptDecryptInvariants::test_file_encrypt_decrypt_roundtrip" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEVuY3J5cHREZWNyeXB0SW52YXJpYW50czo6dGVzdF9maWxlX2VuY3J5cHRfZGVjcnlwdF9yb3VuZHRyaXA6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgxLjg4IHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDMzLTQ4IG1zLCBvZiB3aGljaCB+IDAtMSBtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gNTAgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTUw" /><property name="hypothesis-statistics-tests/test_property_based.py::TestNonceUniqueness::test_nonces_never_repeat" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdE5vbmNlVW5pcXVlbmVzczo6dGVzdF9ub25jZXNfbmV2ZXJfcmVwZWF0OgoKICAtIGR1cmluZyBnZW5lcmF0ZSBwaGFzZSAoMjEuMjEgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IH4gMjE0LTgzOCBtcywgb2Ygd2hpY2ggPCAxbXMgaW4gZGF0YSBnZW5lcmF0aW9uCiAgICAtIDQxIHBhc3NpbmcgZXhhbXBsZXMsIDAgZmFpbGluZyBleGFtcGxlcywgMCBpbnZhbGlkIGV4YW1wbGVzCgogIC0gU3RvcHBlZCBiZWNhdXNlIG5vdGhpbmcgbGVmdCB0byBkbw==" /><property name="hypothesis-statistics-tests/test_property_based.py::TestTamperDetection::test_ciphertext_tampering_detected" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdFRhbXBlckRldGVjdGlvbjo6dGVzdF9jaXBoZXJ0ZXh0X3RhbXBlcmluZ19kZXRlY3RlZDoKCiAgLSBkdXJpbmcgZ2VuZXJhdGUgcGhhc2UgKDAuNDYgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IH4gMS0yIG1zLCBvZiB3aGljaCA8IDFtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gMjAwIHBhc3NpbmcgZXhhbXBsZXMsIDAgZmFpbGluZyBleGFtcGxlcywgMCBpbnZhbGlkIGV4YW1wbGVzCgogIC0gU3RvcHBlZCBiZWNhdXNlIHNldHRpbmdzLm1heF9leGFtcGxlcz0yMDA=" /><property name="hypothesis-statistics-tests/test_property_based.py::TestTamperDetection::test_aad_tampering_detected" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdFRhbXBlckRldGVjdGlvbjo6dGVzdF9hYWRfdGFtcGVyaW5nX2RldGVjdGVkOgoKICAtIGR1cmluZyBnZW5lcmF0ZSBwaGFzZSAoMC4zOSBzZWNvbmRzKToKICAgIC0gVHlwaWNhbCBydW50aW1lczogfiAxbXMsIG9mIHdoaWNoIDwgMW1zIGluIGRhdGEgZ2VuZXJhdGlvbgogICAgLSAyMDAgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTIwMA==" /><property name="hypothesis-statistics-tests/test_property_based.py::TestTamperDetection::test_hmac_tampering_detected" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdFRhbXBlckRldGVjdGlvbjo6dGVzdF9obWFjX3RhbXBlcmluZ19kZXRlY3RlZDoKCiAgLSBkdXJpbmcgZ2VuZXJhdGUgcGhhc2UgKDAuMzIgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IH4gMC0xIG1zLCBvZiB3aGljaCA8IDFtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gMjAwIHBhc3NpbmcgZXhhbXBsZXMsIDAgZmFpbGluZyBleGFtcGxlcywgMCBpbnZhbGlkIGV4YW1wbGVzCgogIC0gU3RvcHBlZCBiZWNhdXNlIHNldHRpbmdzLm1heF9leGFtcGxlcz0yMDA=" /><property name="hypothesis-statistics-tests/test_property_based.py::TestKeyDerivationInvariants::test_key_derivation_deterministic" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEtleURlcml2YXRpb25JbnZhcmlhbnRzOjp0ZXN0X2tleV9kZXJpdmF0aW9uX2RldGVybWluaXN0aWM6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgxLjA2IHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDMzLTM2IG1zLCBvZiB3aGljaCA8IDFtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gMzAgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTMw" /><property name="hypothesis-statistics-tests/test_property_based.py::TestKeyDerivationInvariants::test_different_passwords_different_keys" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEtleURlcml2YXRpb25JbnZhcmlhbnRzOjp0ZXN0X2RpZmZlcmVudF9wYXNzd29yZHNfZGlmZmVyZW50X2tleXM6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgxLjk1IHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDEtMzUgbXMsIG9mIHdoaWNoIDwgMW1zIGluIGRhdGEgZ2VuZXJhdGlvbgogICAgLSA1MCBwYXNzaW5nIGV4YW1wbGVzLCAwIGZhaWxpbmcgZXhhbXBsZXMsIDgxIGludmFsaWQgZXhhbXBsZXMKICAgIC0gRXZlbnRzOgogICAgICAqIDYxLjgzJSwgaW52YWxpZCBiZWNhdXNlOiBmYWlsZWQgdG8gc2F0aXNmeSBhc3N1bWUoKSBpbiB0ZXN0X2RpZmZlcmVudF9wYXNzd29yZHNfZGlmZmVyZW50X2tleXMgKGxpbmUgMjU1KQoKICAtIFN0b3BwZWQgYmVjYXVzZSBzZXR0aW5ncy5tYXhfZXhhbXBsZXM9NTA=" /><property name="hypothesis-statistics-tests/test_property_based.py::TestKeyDerivationInvariants::test_different_salts_different_keys" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEtleURlcml2YXRpb25JbnZhcmlhbnRzOjp0ZXN0X2RpZmZlcmVudF9zYWx0c19kaWZmZXJlbnRfa2V5czoKCiAgLSBkdXJpbmcgZ2VuZXJhdGUgcGhhc2UgKDEuOTYgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IH4gMS0zNyBtcywgb2Ygd2hpY2ggPCAxbXMgaW4gZGF0YSBnZW5lcmF0aW9uCiAgICAtIDUwIHBhc3NpbmcgZXhhbXBsZXMsIDAgZmFpbGluZyBleGFtcGxlcywgODYgaW52YWxpZCBleGFtcGxlcwogICAgLSBFdmVudHM6CiAgICAgICogNjMuMjQlLCBpbnZhbGlkIGJlY2F1c2U6IGZhaWxlZCB0byBzYXRpc2Z5IGFzc3VtZSgpIGluIHRlc3RfZGlmZmVyZW50X3NhbHRzX2RpZmZlcmVudF9rZXlzIChsaW5lIDI2OCkKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTUw" /><property name="hypothesis-statistics-tests/test_property_based.py::TestManifestInvariants::test_manifest_roundtrip" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdE1hbmlmZXN0SW52YXJpYW50czo6dGVzdF9tYW5pZmVzdF9yb3VuZHRyaXA6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgwLjM5IHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDFtcywgb2Ygd2hpY2ggPCAxbXMgaW4gZGF0YSBnZW5lcmF0aW9uCiAgICAtIDIwMCBwYXNzaW5nIGV4YW1wbGVzLCAwIGZhaWxpbmcgZXhhbXBsZXMsIDAgaW52YWxpZCBleGFtcGxlcwoKICAtIFN0b3BwZWQgYmVjYXVzZSBzZXR0aW5ncy5tYXhfZXhhbXBsZXM9MjAw" /><property name="hypothesis-statistics-tests/test_property_based.py::TestFountainCodeInvariants::test_fountain_roundtrip" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEZvdW50YWluQ29kZUludmFyaWFudHM6OnRlc3RfZm91bnRhaW5fcm91bmR0cmlwOgoKICAtIGR1cmluZyBnZW5lcmF0ZSBwaGFzZSAoMC4yMSBzZWNvbmRzKToKICAgIC0gVHlwaWNhbCBydW50aW1lczogfiAxLTIgbXMsIG9mIHdoaWNoIDwgMW1zIGluIGRhdGEgZ2VuZXJhdGlvbgogICAgLSA1MCBwYXNzaW5nIGV4YW1wbGVzLCAwIGZhaWxpbmcgZXhhbXBsZXMsIDAgaW52YWxpZCBleGFtcGxlcwoKICAtIFN0b3BwZWQgYmVjYXVzZSBzZXR0aW5ncy5tYXhfZXhhbXBsZXM9NTA=" /><property name="hypothesis-statistics-tests/test_property_based.py::TestFountainCodeInvariants::test_droplet_serialization" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdEZvdW50YWluQ29kZUludmFyaWFudHM6OnRlc3RfZHJvcGxldF9zZXJpYWxpemF0aW9uOgoKICAtIGR1cmluZyBnZW5lcmF0ZSBwaGFzZSAoMC4yMSBzZWNvbmRzKToKICAgIC0gVHlwaWNhbCBydW50aW1lczogfiAwLTEgbXMsIG9mIHdoaWNoIDwgMW1zIGluIGRhdGEgZ2VuZXJhdGlvbgogICAgLSAxMDAgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTEwMA==" /><property name="hypothesis-statistics-tests/test_property_based.py::TestConstantTimeInvariants::test_constant_time_compare_correctness" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdENvbnN0YW50VGltZUludmFyaWFudHM6OnRlc3RfY29uc3RhbnRfdGltZV9jb21wYXJlX2NvcnJlY3RuZXNzOgoKICAtIGR1cmluZyBnZW5lcmF0ZSBwaGFzZSAoMC42OCBzZWNvbmRzKToKICAgIC0gVHlwaWNhbCBydW50aW1lczogfiAwLTEgbXMsIG9mIHdoaWNoIDwgMW1zIGluIGRhdGEgZ2VuZXJhdGlvbgogICAgLSA1MDAgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugc2V0dGluZ3MubWF4X2V4YW1wbGVzPTUwMA==" /><property name="hypothesis-statistics-tests/test_property_based.py::TestConstantTimeInvariants::test_constant_time_self_compare" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdENvbnN0YW50VGltZUludmFyaWFudHM6OnRlc3RfY29uc3RhbnRfdGltZV9zZWxmX2NvbXBhcmU6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgwLjIxIHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDAtMSBtcywgb2Ygd2hpY2ggPCAxbXMgaW4gZGF0YSBnZW5lcmF0aW9uCiAgICAtIDIwMCBwYXNzaW5nIGV4YW1wbGVzLCAwIGZhaWxpbmcgZXhhbXBsZXMsIDAgaW52YWxpZCBleGFtcGxlcwoKICAtIFN0b3BwZWQgYmVjYXVzZSBzZXR0aW5ncy5tYXhfZXhhbXBsZXM9MjAw" /><property name="hypothesis-statistics-tests/test_property_based.py::TestX25519Invariants::test_x25519_shared_secret_commutative" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdFgyNTUxOUludmFyaWFudHM6OnRlc3RfeDI1NTE5X3NoYXJlZF9zZWNyZXRfY29tbXV0YXRpdmU6CgogIC0gZHVyaW5nIGdlbmVyYXRlIHBoYXNlICgwLjAwIHNlY29uZHMpOgogICAgLSBUeXBpY2FsIHJ1bnRpbWVzOiB+IDFtcywgb2Ygd2hpY2ggPCAxbXMgaW4gZGF0YSBnZW5lcmF0aW9uCiAgICAtIDEgcGFzc2luZyBleGFtcGxlcywgMCBmYWlsaW5nIGV4YW1wbGVzLCAwIGludmFsaWQgZXhhbXBsZXMKCiAgLSBTdG9wcGVkIGJlY2F1c2Ugbm90aGluZyBsZWZ0IHRvIGRv" /><property name="hypothesis-statistics-tests/test_property_based.py::TestX25519Invariants::test_x25519_public_key_derivation" value="dGVzdHMvdGVzdF9wcm9wZXJ0eV9iYXNlZC5weTo6VGVzdFgyNTUxOUludmFyaWFudHM6OnRlc3RfeDI1NTE5X3B1YmxpY19rZXlfZGVyaXZhdGlvbjoKCiAgLSBkdXJpbmcgZ2VuZXJhdGUgcGhhc2UgKDAuMDAgc2Vjb25kcyk6CiAgICAtIFR5cGljYWwgcnVudGltZXM6IDwgMW1zLCBvZiB3aGljaCA8IDFtcyBpbiBkYXRhIGdlbmVyYXRpb24KICAgIC0gMSBwYXNzaW5nIGV4YW1wbGVzLCAwIGZhaWxpbmcgZXhhbXBsZXMsIDAgaW52YWxpZCBleGFtcGxlcwoKICAtIFN0b3BwZWQgYmVjYXVzZSBub3RoaW5nIGxlZnQgdG8gZG8=" /></properties><testcase classname="" name="tests.test_backend_parity" file="tests/test_backend_parity.py" time="0.000"><skipped message="collection skipped">('/workspaces/meow-decoder/tests/test_backend_parity.py', 6, 'Skipped: Backend parity tests removed; Rust backend is mandatory.')</skipped></testcase><testcase classname="" name="tests.test_cross_backend_parity" file="tests/test_cross_backend_parity.py" time="0.000"><skipped message="collection skipped">('/workspaces/meow-decoder/tests/test_cross_backend_parity.py', 6, 'Skipped: Cross-backend parity tests removed; Rust backend is mandatory.')</skipped></testcase><testcase classname="" name="tests.test_crypto_backend" file="tests/test_crypto_backend.py" time="0.000"><skipped message="collection skipped">('/workspaces/meow-decoder/tests/test_crypto_backend.py', 5, 'Skipped: Deprecated: replaced by test_crypto_backend_rust.py.')</skipped></testcase><testcase classname="tests.integration.test_cli_forward_secrecy" name="test_key_generation" file="tests/integration/test_cli_forward_secrecy.py" line="22" time="0.353" /><testcase classname="tests.integration.test_cli_forward_secrecy" name="test_encode_decode_with_fs" file="tests/integration/test_cli_forward_secrecy.py" line="65" time="2.198" /><testcase classname="tests.integration.test_cli_forward_secrecy" name="test_password_only_mode" file="tests/integration/test_cli_forward_secrecy.py" line="151" time="1.269" /><testcase classname="tests.integration.test_comprehensive" name="test_constant_time_operations" file="tests/integration/test_comprehensive.py" line="11" time="0.003" /><testcase classname="tests.integration.test_comprehensive" name="test_metadata_obfuscation" file="tests/integration/test_comprehensive.py" line="44" time="0.001" /><testcase classname="tests.integration.test_comprehensive" name="test_integrated_encryption" file="tests/integration/test_comprehensive.py" line="82" time="0.002" /><testcase classname="tests.integration.test_comprehensive" name="test_backward_compatibility" file="tests/integration/test_comprehensive.py" line="134" time="0.036" /><testcase classname="tests.integration.test_comprehensive" name="test_manifest_formats" file="tests/integration/test_comprehensive.py" line="167" time="0.001" /><testcase classname="tests.integration.test_forward_secrecy" name="test_password_only_mode" file="tests/integration/test_forward_secrecy.py" line="23" time="0.058" /><testcase classname="tests.integration.test_forward_secrecy" name="test_forward_secrecy_mode" file="tests/integration/test_forward_secrecy.py" line="60" time="0.001" /><testcase classname="tests.integration.test_forward_secrecy" name="test_manifest_packing" file="tests/integration/test_forward_secrecy.py" line="107" time="0.001" /><testcase classname="tests.integration.test_forward_secrecy" name="test_wrong_password" file="tests/integration/test_forward_secrecy.py" line="171" time="0.001" /><testcase classname="tests.integration.test_fountain_fix" name="test_small_k" file="tests/integration/test_fountain_fix.py" line="12" time="0.006" /><testcase classname="tests.integration.test_fs_integration" name="test_key_generation" file="tests/integration/test_fs_integration.py" line="13" time="0.010" /><testcase classname="tests.integration.test_fs_integration" name="test_encode_decode_programmatic" file="tests/integration/test_fs_integration.py" line="65" time="0.001" /><testcase classname="tests.integration.test_fs_integration" name="test_password_only_mode" file="tests/integration/test_fs_integration.py" line="117" time="0.037" /><testcase classname="tests.integration.test_fs_integration" name="test_manifest_packing" file="tests/integration/test_fs_integration.py" line="155" time="0.001" /><testcase classname="tests.integration.test_full_roundtrip" name="test_full_roundtrip" file="tests/integration/test_full_roundtrip.py" line="16" time="9.619" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_manifest_packing" file="tests/integration/test_schrodinger_e2e.py" line="42" time="0.001" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_block_permutation" file="tests/integration/test_schrodinger_e2e.py" line="84" time="0.001" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_encoding_basic" file="tests/integration/test_schrodinger_e2e.py" line="113" time="0.037" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_password_verification" file="tests/integration/test_schrodinger_e2e.py" line="145" time="0.037" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_end_to_end_roundtrip" file="tests/integration/test_schrodinger_e2e.py" line="179" time="84.935" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_statistical_indistinguishability" file="tests/integration/test_schrodinger_e2e.py" line="290" time="0.037" /><testcase classname="tests.integration.test_schrodinger_e2e" name="test_forensic_resistance" file="tests/integration/test_schrodinger_e2e.py" line="332" time="0.038" /><testcase classname="tests.test_adversarial.TestFuzzing" name="test_fuzz_manifest_bytes" file="tests/test_adversarial.py" line="31" time="2.569" /><testcase classname="tests.test_adversarial.TestFuzzing" name="test_fuzz_qr_data" file="tests/test_adversarial.py" line="70" time="3.069" /><testcase classname="tests.test_adversarial.TestFuzzing" name="test_fuzz_ciphertext_bytes" file="tests/test_adversarial.py" line="98" time="0.036" /><testcase classname="tests.test_adversarial.TestFrameInjection" name="test_inject_random_frames" file="tests/test_adversarial.py" line="133" time="2.612" /><testcase classname="tests.test_adversarial.TestFrameInjection" name="test_inject_duplicate_frames" file="tests/test_adversarial.py" line="157" time="0.001" /><testcase classname="tests.test_adversarial.TestReplayAttacks" name="test_replay_entire_message" file="tests/test_adversarial.py" line="202" time="5.098" /><testcase classname="tests.test_adversarial.TestReplayAttacks" name="test_replay_with_different_password" file="tests/test_adversarial.py" line="229" time="2.851" /><testcase classname="tests.test_adversarial.TestReorderingAttacks" name="test_fountain_handles_out_of_order" file="tests/test_adversarial.py" line="248" time="0.002" /><testcase classname="tests.test_adversarial.TestManifestCorruption" name="test_corrupt_version_field" file="tests/test_adversarial.py" line="285" time="0.034" /><testcase classname="tests.test_adversarial.TestManifestCorruption" name="test_corrupt_length_fields" file="tests/test_adversarial.py" line="314" time="0.053" /><testcase classname="tests.test_adversarial.TestPartialDecryption" name="test_partial_ciphertext_fails" file="tests/test_adversarial.py" line="354" time="0.058" /><testcase classname="tests.test_adversarial.TestPartialDecryption" name="test_partial_gif_fails" file="tests/test_adversarial.py" line="380" time="2.590" /><testcase classname="tests.test_adversarial.TestEdgeCases" name="test_empty_file" file="tests/test_adversarial.py" line="407" time="0.537" /><testcase classname="tests.test_adversarial.TestEdgeCases" name="test_tiny_file" file="tests/test_adversarial.py" line="417" time="0.002" /><testcase classname="tests.test_adversarial.TestEdgeCases" name="test_very_long_password" file="tests/test_adversarial.py" line="427" time="0.041" /><testcase classname="tests.test_adversarial.TestEdgeCases" name="test_unicode_password" file="tests/test_adversarial.py" line="448" time="0.036" /><testcase classname="tests.test_control_channel_bug.TestControlChannel" name="test_payload_parsing_bug" file="tests/test_control_channel_bug.py" line="12" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReplayProtection" name="test_counter_must_increase" file="tests/test_control_channel_bug.py" line="110" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReplayProtection" name="test_legacy_4byte_counter_still_accepted" file="tests/test_control_channel_bug.py" line="143" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReplayProtection" name="test_replay_attack_rejected" file="tests/test_control_channel_bug.py" line="47" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReplayProtection" name="test_status_update_replay_rejected" file="tests/test_control_channel_bug.py" line="78" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestHMACAuthentication" name="test_empty_password_warning" file="tests/test_control_channel_bug.py" line="214" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestHMACAuthentication" name="test_invalid_hmac_rejected" file="tests/test_control_channel_bug.py" line="166" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestHMACAuthentication" name="test_tampered_payload_rejected" file="tests/test_control_channel_bug.py" line="190" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReceiverCounters" name="test_completion_includes_counter" file="tests/test_control_channel_bug.py" line="264" time="0.001" /><testcase classname="tests.test_control_channel_bug.TestReceiverCounters" name="test_status_update_includes_counter" file="tests/test_control_channel_bug.py" line="235" time="0.001" /><testcase classname="tests.test_core_cli_decode_main" name="test_decode_main_rejects_existing_output_without_force" file="tests/test_core_cli_decode_main.py" line="8" time="0.010" /><testcase classname="tests.test_core_cli_decode_main" name="test_decode_main_happy_path_calls_decode_gif" file="tests/test_core_cli_decode_main.py" line="22" time="0.003" /><testcase classname="tests.test_core_cli_decode_main" name="test_decode_main_missing_input_file_exits" file="tests/test_core_cli_decode_main.py" line="52" time="0.004" /><testcase classname="tests.test_core_cli_decode_main" name="test_decode_main_empty_password_prompt_exits" file="tests/test_core_cli_decode_main.py" line="62" time="0.005" /><testcase classname="tests.test_core_cli_decode_main" name="test_decode_main_receiver_privkey_load_error" file="tests/test_core_cli_decode_main.py" line="75" time="0.005" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_generate_keys_branch" file="tests/test_core_cli_encode_main.py" line="8" time="0.007" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_rejects_missing_input" file="tests/test_core_cli_encode_main.py" line="26" time="0.006" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_password_prompt_mismatch" file="tests/test_core_cli_encode_main.py" line="35" time="0.006" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_happy_path_calls_encode_file" file="tests/test_core_cli_encode_main.py" line="50" time="0.009" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_summon_void_cat_exits_zero" file="tests/test_core_cli_encode_main.py" line="82" time="0.005" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_receiver_pubkey_wrong_length" file="tests/test_core_cli_encode_main.py" line="89" time="0.007" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_receiver_pubkey_missing_file" file="tests/test_core_cli_encode_main.py" line="110" time="0.008" /><testcase classname="tests.test_core_cli_encode_main" name="test_encode_main_void_mode_forces_silent" file="tests/test_core_cli_encode_main.py" line="130" time="0.009" /><testcase classname="tests.test_core_constant_time" name="test_constant_time_compare_basic" file="tests/test_core_constant_time.py" line="11" time="0.004" /><testcase classname="tests.test_core_constant_time" name="test_secure_zero_memory_bytearray" file="tests/test_core_constant_time.py" line="16" time="0.005" /><testcase classname="tests.test_core_constant_time" name="test_secure_memory_context_zeros_after_exit" file="tests/test_core_constant_time.py" line="22" time="0.003" /><testcase classname="tests.test_core_constant_time" name="test_equalize_timing_does_not_raise" file="tests/test_core_constant_time.py" line="33" time="0.001" /><testcase classname="tests.test_core_constant_time" name="test_timing_safe_equal_with_delay_returns_bool_fast" file="tests/test_core_constant_time.py" line="38" time="0.004" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_basic" file="tests/test_core_coverage.py" line="35" time="0.025" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_same_password_same_key" file="tests/test_core_coverage.py" line="45" time="0.042" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_different_salt_different_key" file="tests/test_core_coverage.py" line="55" time="0.084" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_empty_password_fails" file="tests/test_core_coverage.py" line="66" time="0.008" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_short_password_fails" file="tests/test_core_coverage.py" line="74" time="0.006" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_wrong_salt_length_fails" file="tests/test_core_coverage.py" line="82" time="0.002" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_derive_key_with_keyfile" file="tests/test_core_coverage.py" line="89" time="0.152" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_encrypt_file_bytes_basic" file="tests/test_core_coverage.py" line="102" time="0.018" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_encrypt_decrypt_roundtrip" file="tests/test_core_coverage.py" line="119" time="0.035" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_decrypt_wrong_password_fails" file="tests/test_core_coverage.py" line="137" time="0.039" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_manifest_pack_unpack" file="tests/test_core_coverage.py" line="153" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_manifest_with_ephemeral_key" file="tests/test_core_coverage.py" line="182" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_compute_manifest_hmac" file="tests/test_core_coverage.py" line="205" time="0.036" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_verify_manifest_hmac" file="tests/test_core_coverage.py" line="221" time="0.070" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_verify_keyfile" file="tests/test_core_coverage.py" line="249" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_verify_keyfile_not_found" file="tests/test_core_coverage.py" line="263" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_verify_keyfile_too_small" file="tests/test_core_coverage.py" line="270" time="0.002" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_duress_hash_computation" file="tests/test_core_coverage.py" line="284" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_duress_tag_computation" file="tests/test_core_coverage.py" line="297" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_check_duress_password" file="tests/test_core_coverage.py" line="308" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoCore" name="test_nonce_reuse_detection" file="tests/test_core_coverage.py" line="323" time="0.002" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_get_default_backend" file="tests/test_core_coverage.py" line="345" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_aes_gcm_encrypt_decrypt" file="tests/test_core_coverage.py" line="352" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_hmac_sha256" file="tests/test_core_coverage.py" line="368" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_argon2id" file="tests/test_core_coverage.py" line="381" time="0.023" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_x25519_keypair" file="tests/test_core_coverage.py" line="400" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_x25519_exchange" file="tests/test_core_coverage.py" line="411" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_hkdf" file="tests/test_core_coverage.py" line="429" time="0.001" /><testcase classname="tests.test_core_coverage.TestCryptoBackend" name="test_backend_secure_zero" file="tests/test_core_coverage.py" line="443" time="0.001" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_constant_time_compare_equal" file="tests/test_core_coverage.py" line="462" time="0.001" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_constant_time_compare_not_equal" file="tests/test_core_coverage.py" line="471" time="0.001" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_secure_zero_memory" file="tests/test_core_coverage.py" line="480" time="0.001" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_secure_memory_context" file="tests/test_core_coverage.py" line="489" time="0.001" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_timing_safe_equal_with_delay" file="tests/test_core_coverage.py" line="496" time="0.008" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_equalize_timing" file="tests/test_core_coverage.py" line="506" time="0.011" /><testcase classname="tests.test_core_coverage.TestConstantTimeOps" name="test_secure_buffer_basic" file="tests/test_core_coverage.py" line="513" time="0.001" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_robust_soliton_distribution" file="tests/test_core_coverage.py" line="530" time="0.006" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_fountain_encoder_basic" file="tests/test_core_coverage.py" line="546" time="0.001" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_fountain_droplet_generation" file="tests/test_core_coverage.py" line="559" time="0.001" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_fountain_multiple_droplets" file="tests/test_core_coverage.py" line="572" time="0.002" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_fountain_decoder_basic" file="tests/test_core_coverage.py" line="583" time="0.001" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_fountain_encode_decode_roundtrip" file="tests/test_core_coverage.py" line="593" time="0.001" /><testcase classname="tests.test_core_coverage.TestFountainCodes" name="test_droplet_pack_unpack" file="tests/test_core_coverage.py" line="621" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_derive_frame_master_key" file="tests/test_core_coverage.py" line="645" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_pack_frame_with_mac" file="tests/test_core_coverage.py" line="656" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_unpack_frame_with_mac_valid" file="tests/test_core_coverage.py" line="670" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_unpack_frame_with_mac_tampered" file="tests/test_core_coverage.py" line="685" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_unpack_frame_wrong_index" file="tests/test_core_coverage.py" line="705" time="0.001" /><testcase classname="tests.test_core_coverage.TestFrameMAC" name="test_frame_mac_stats" file="tests/test_core_coverage.py" line="718" time="0.001" /><testcase classname="tests.test_core_coverage.TestMetadataObfuscation" name="test_add_length_padding" file="tests/test_core_coverage.py" line="740" time="0.001" /><testcase classname="tests.test_core_coverage.TestMetadataObfuscation" name="test_remove_length_padding" file="tests/test_core_coverage.py" line="750" time="0.001" /><testcase classname="tests.test_core_coverage.TestMetadataObfuscation" name="test_padding_roundtrip_various_sizes" file="tests/test_core_coverage.py" line="761" time="0.001" /><testcase classname="tests.test_core_coverage.TestMetadataObfuscation" name="test_padded_size_is_power_of_two" file="tests/test_core_coverage.py" line="772" time="0.001" /><testcase classname="tests.test_core_decode_gif_more" name="test_decode_gif_raises_if_no_frames" file="tests/test_core_decode_gif_more.py" line="50" time="0.002" /><testcase classname="tests.test_core_decode_gif_more" name="test_decode_gif_raises_if_no_qr_codes" file="tests/test_core_decode_gif_more.py" line="56" time="0.003" /><testcase classname="tests.test_core_decode_gif_more" name="test_decode_gif_manifest_with_frame_mac_then_disable_on_invalid" file="tests/test_core_decode_gif_more.py" line="65" time="0.021"><failure message="ValueError: Frame MAC verification failed (manifest tampered or wrong key material)">tmp_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_decode_gif_manifest_with_0')
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7a49c936c650&gt;
+
+    def test_decode_gif_manifest_with_frame_mac_then_disable_on_invalid(tmp_path: Path, monkeypatch):
+        # manifest_raw length 123 triggers "has_frame_macs" detection (115 + 8)
+        manifest_bytes = _make_manifest_bytes(cipher_len=8, block_size=8, k_blocks=1)
+        manifest_raw = b"12345678" + manifest_bytes
+    
+        frames = [Image.new("RGB", (32, 32), color=(255, 255, 255))]
+        monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _FramesOnlyGIFDecoder(frames))
+        monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceReader([[manifest_raw]]))
+    
+        # Manifest HMAC passes.
+        monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
+    
+        # Retroactive frame-MAC verification fails, disabling frame MAC mode.
+        import meow_decoder.frame_mac as frame_mac
+        monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", lambda *args, **kwargs: (False, b""))
+    
+        # Decoder will fail later due to no droplets, but we at least cover the MAC path.
+        with pytest.raises(RuntimeError, match="Decoding incomplete"):
+&gt;           decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
+
+tests/test_core_decode_gif_more.py:84: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+input_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_decode_gif_manifest_with_0/in.gif')
+output_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_decode_gif_manifest_with_0/out.bin')
+password = 'password_test'
+config = DecodingConfig(webcam_device=0, frame_skip=0, preprocessing='normal', enable_resume=True, resume_password=None, save_interval=10, enable_stego=False, aggressive_stego=False, max_memory_mb=500)
+duress_config = DuressConfig(enabled=False, mode=&lt;DuressMode.DECOY: 'decoy'&gt;, panic_enabled=False, decoy_type='message', decoy_message...utput_name=None, wipe_memory=False, wipe_resume_files=False, exit_after_wipe=False, min_delay_ms=100, max_delay_ms=500)
+keyfile = None, receiver_private_key = None, yubikey_slot = None, yubikey_pin = None
+verbose = False
+
+    def decode_gif(
+        input_path: Path,
+        output_path: Path,
+        password: str,
+        config: Optional[DecodingConfig] = None,
+        duress_config: Optional[DuressConfig] = None,
+        keyfile: Optional[bytes] = None,
+        receiver_private_key: Optional[bytes] = None,
+        yubikey_slot: Optional[str] = None,
+        yubikey_pin: Optional[str] = None,
+        verbose: bool = False
+    ) -&gt; dict:
+        """
+        Decode file from GIF.
+    
+        Args:
+            input_path: Path to input GIF
+            output_path: Path to output file
+            password: Decryption password
+            config: Decoding configuration
+            duress_config: Duress configuration
+            keyfile: Optional keyfile content
+            receiver_private_key: Optional X25519 private key for forward secrecy (32 bytes)
+            verbose: Print verbose output
+    
+        Returns:
+            Dictionary with decoding statistics
+        """
+        if config is None:
+            config = DecodingConfig()
+    
+        if duress_config is None:
+            duress_config = DuressConfig()
+    
+    
+        start_time = time.time()
+    
+        # Extract frames from GIF
+        if verbose:
+            print(f"Loading GIF: {input_path}")
+    
+        gif_decoder = GIFDecoder()
+        frames = gif_decoder.extract_frames(input_path)
+    
+        if verbose:
+            print(f"  Frames: {len(frames)}")
+            print(f"  Size: {frames[0].size if frames else 'N/A'}")
+    
+        if not frames:
+            raise ValueError("No frames found in GIF")
+    
+        # Read QR codes
+        if verbose:
+            print("\nReading QR codes with frame MAC verification...")
+    
+        # Import frame MAC module
+        from .frame_mac import (
+            unpack_frame_with_mac,
+            FrameMACStats,
+            derive_frame_master_key,
+            derive_frame_master_key_legacy
+        )
+    
+        # Derive frame MAC key (same as encode)
+        import hashlib
+    
+        # We'll derive the frame key after we get the manifest (which has the salt)
+        # For now, just read QR codes raw
+        qr_reader = QRCodeReader(preprocessing=config.preprocessing)
+        qr_data_list = []
+    
+        progress = ProgressBar(len(frames), desc="Scanning QR Codes", unit="frames", disable=not verbose)
+    
+        for i, frame in enumerate(progress(frames)):
+            qr_data = qr_reader.read_image(frame)
+    
+            if qr_data:
+                qr_data_list.extend(qr_data)
+            elif verbose:
+                # Only print warning if we're not using tqdm, or use tqdm write if available
+                # But ProgressBar doesn't expose write yet.
+                # For now, let's silence the warning to avoid breaking progress bar,
+                # or we could just count them.
+                pass
+    
+        if verbose:
+            print(f"  Total QR codes read: {len(qr_data_list)}")
+    
+        if not qr_data_list:
+            raise ValueError("No QR codes found in GIF")
+    
+        # First QR is manifest - try to unpack with MAC verification
+        if verbose:
+            print("\nParsing manifest with MAC verification...")
+    
+        # Try to parse manifest directly (it might not have MAC if it's old format)
+        manifest_raw = qr_data_list[0]
+    
+        # CRITICAL: Verify manifest frame decoded correctly from QR/GIF
+        # Expected lengths (base = 115, FS ephemeral = +32, duress = +32, frame MAC = +8):
+        #   - Password-only (no MAC): 115 bytes
+        #   - Password-only (with MAC): 123 bytes (115 + 8)
+        #   - Forward secrecy (no MAC): 147 bytes (115 + 32)
+        #   - Forward secrecy (with MAC): 155 bytes (147 + 8)
+        #   - FS + duress (no MAC): 179 bytes (147 + 32)
+        #   - FS + duress (with MAC): 187 bytes (179 + 8)
+        expected_lengths = [115, 123, 147, 155, 179, 187, 1235, 1243, 1267, 1275]
+    
+        if len(manifest_raw) not in expected_lengths:
+            raise ValueError(
+                f"Manifest QR decode corrupted or truncated!\n"
+                f"  Expected: {expected_lengths} bytes\n"
+                f"  Got: {len(manifest_raw)} bytes\n"
+                f"  This indicates GIF compression or QR decode failure.\n"
+                f"  Try: Higher QR error correction (H), disable GIF optimization, or larger box_size."
+            )
+    
+        # Check if manifest has MAC (length check)
+        # Manifest with MAC: adds 8 bytes to any base size
+        # Base sizes: 115 (password-only), 147 (FS), 179 (FS+duress), 1235 (PQ), 1267 (PQ+duress)
+        # With MAC: 123, 155, 187, 1243, 1275
+        has_frame_macs = False
+        manifest_bytes = manifest_raw
+    
+        if len(manifest_raw) in [123, 155, 187, 1243, 1275]:
+            # Might have frame MAC, but we need password to verify
+            # For now, skip MAC verification on manifest (we'll do full manifest HMAC)
+            # Just strip the potential MAC for now
+            manifest_bytes = manifest_raw[8:]  # Strip first 8 bytes (MAC)
+            has_frame_macs = True
+            if verbose:
+                print(f"  Detected frame MACs (manifest size: {len(manifest_raw)} bytes)")
+    
+        manifest = unpack_manifest(manifest_bytes)
+    
+        if verbose:
+            print(f"  Original size: {manifest.orig_len:,} bytes")
+            print(f"  Compressed size: {manifest.comp_len:,} bytes")
+            print(f"  Encrypted size: {manifest.cipher_len:,} bytes")
+            print(f"  Blocks (k): {manifest.k_blocks}")
+            print(f"  Block size: {manifest.block_size} bytes")
+            if manifest.ephemeral_public_key:
+                print(f"  ✅ Forward secrecy: Ephemeral key present")
+    
+        # Check for duress password BEFORE doing expensive HMAC verification
+        # Check for duress password BEFORE doing expensive HMAC verification
+        # Uses a fast authenticated duress tag bound to the manifest core
+        if manifest.duress_tag is not None:
+            manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
+            if check_duress_password(password, manifest.salt, manifest.duress_tag, manifest_core):
+                # DURESS PASSWORD DETECTED - trigger emergency response
+                if verbose:
+                    print("\n#x1F6A8 DURESS PASSWORD DETECTED - Emergency protocol activated")
+    
+                # Import and use DuressHandler
+                try:
+                    from .duress_mode import DuressHandler
+    
+                    # Use passed configuration (or default if None)
+                    d_config = duress_config or DuressConfig()
+                    handler = DuressHandler(d_config)
+    
+                    # Get decoy data
+                    decoy_data, filename = handler.get_decoy_data()
+    
+                    # Handle PANIC mode (explicit opt-in)
+                    # In new architecture, Handler generates decoy first, then we decide if we PANIC
+                    if d_config.mode == DuressMode.PANIC and d_config.panic_enabled:
+                         if verbose:
+                             print("  #x1F525 PANIC MODE: Silent exit initiated")
+                         # Silent exit
+                         sys.exit(1)
+    
+                    if decoy_data:
+                        # DECOY MODE: Write deterministic decoy and return "success"
+                        if verbose:
+                            print("  ✓ Authenticated and verified")
+    
+                        with open(output_path, 'wb') as f:
+                            f.write(decoy_data)
+    
+                        # Return fake success statistics to mask the duress event
+                        return {
+                            'input_frames': len(frames),
+                            'qr_codes_read': len(qr_data_list),
+                            'droplets_processed': manifest.k_blocks * 2, # Fake efficiency
+                            'blocks_decoded': manifest.k_blocks,
+                            'output_size': len(decoy_data),
+                            'efficiency': 1.0,
+                            'elapsed_time': time.time() - start_time
+                        }
+    
+                except ImportError:
+                    pass  # Duress mode module not available
+                except SystemExit:
+                    raise # Propagate panic exit
+    
+                # Return fake "failed" error to not reveal duress was triggered (Silent Panic)
+                raise ValueError("HMAC verification failed - wrong password or corrupted data")
+    
+        # Verify HMAC
+        if verbose:
+            print("\nVerifying manifest HMAC...")
+    
+        if not verify_manifest_hmac(
+            password,
+            manifest,
+            keyfile,
+            receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
+        ):
+            raise ValueError("HMAC verification failed - wrong password or corrupted data")
+    
+        if verbose:
+            print("  ✓ Manifest HMAC valid")
+    
+        # Now derive frame MAC key if we detected MACs
+        mac_stats = FrameMACStats()
+    
+        if has_frame_macs:
+            if verbose:
+                print("\n#x1F512 Frame MAC verification enabled (DoS protection)")
+    
+            # Derive frame MAC master key from encryption key material (binds keyfile + FS)
+            encryption_key = derive_encryption_key_for_manifest(
+                password,
+                manifest.salt,
+                keyfile=keyfile,
+                ephemeral_public_key=manifest.ephemeral_public_key,
+                receiver_private_key=receiver_private_key,
+                yubikey_slot=yubikey_slot,
+                yubikey_pin=yubikey_pin
+            )
+            # Use a mutable buffer for best-effort zeroing after use
+            encryption_key_buf = bytearray(encryption_key)
+            frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), manifest.salt)
+            # Best-effort zeroization of encryption key material
+            try:
+                from .crypto_backend import get_default_backend
+                get_default_backend().secure_zero(encryption_key_buf)
+            except Exception:
+                pass
+            # Drop remaining references to key material
+            encryption_key = b""
+            del encryption_key
+    
+            # Verify manifest frame MAC retroactively (v2 key derivation)
+            manifest_valid, _ = unpack_frame_with_mac(
+                manifest_raw, frame_master_key, 0, manifest.salt
+            )
+    
+            if not manifest_valid:
+                # Legacy compatibility: pre-v2 files derived MAC key from password only
+                legacy_master_key = derive_frame_master_key_legacy(password, manifest.salt)
+                manifest_valid_legacy, _ = unpack_frame_with_mac(
+                    manifest_raw, legacy_master_key, 0, manifest.salt
+                )
+                if manifest_valid_legacy:
+                    frame_master_key = legacy_master_key
+                    mac_stats.record_valid()
+                    if verbose:
+                        print("  ✓ Manifest frame MAC valid (legacy derivation)")
+                else:
+&gt;                   raise ValueError("Frame MAC verification failed (manifest tampered or wrong key material)")
+E                   ValueError: Frame MAC verification failed (manifest tampered or wrong key material)
+
+meow_decoder/decode_gif.py:293: ValueError</failure></testcase><testcase classname="tests.test_core_decode_gif_more" name="test_decode_gif_rejects_invalid_frame_macs_on_droplets" file="tests/test_core_decode_gif_more.py" line="86" time="0.024" /><testcase classname="tests.test_core_encode_decode_unit" name="test_encode_file_unit_smoke" file="tests/test_core_encode_decode_unit.py" line="61" time="0.022" /><testcase classname="tests.test_core_encode_decode_unit" name="test_decode_gif_unit_rejects_bad_manifest_length" file="tests/test_core_encode_decode_unit.py" line="76" time="0.002" /><testcase classname="tests.test_core_encode_decode_unit" name="test_decode_gif_unit_happy_path_with_stubs" file="tests/test_core_encode_decode_unit.py" line="91" time="0.002" /><testcase classname="tests.test_core_forward_secrecy_manager" name="test_forward_secrecy_per_block_keys_differ" file="tests/test_core_forward_secrecy_manager.py" line="9" time="0.001" /><testcase classname="tests.test_core_forward_secrecy_manager" name="test_forward_secrecy_encrypt_decrypt_block_roundtrip" file="tests/test_core_forward_secrecy_manager.py" line="19" time="0.001" /><testcase classname="tests.test_core_forward_secrecy_manager" name="test_forward_secrecy_extension_pack_unpack" file="tests/test_core_forward_secrecy_manager.py" line="30" time="0.001" /><testcase classname="tests.test_core_frame_mac" name="test_frame_mac_valid_roundtrip" file="tests/test_core_frame_mac.py" line="12" time="0.001" /><testcase classname="tests.test_core_frame_mac" name="test_frame_mac_tamper_detected" file="tests/test_core_frame_mac.py" line="24" time="0.001" /><testcase classname="tests.test_core_frame_mac" name="test_frame_mac_stats" file="tests/test_core_frame_mac.py" line="38" time="0.001" /><testcase classname="tests.test_core_frame_mac" name="test_frame_master_key_legacy_matches_previous_derivation" file="tests/test_core_frame_mac.py" line="47" time="0.001" /><testcase classname="tests.test_core_frame_mac" name="test_frame_master_key_depends_on_key_material" file="tests/test_core_frame_mac.py" line="55" time="0.001" /><testcase classname="tests.test_core_gif_handler" name="test_gif_create_and_extract_roundtrip" file="tests/test_core_gif_handler.py" line="8" time="0.005" /><testcase classname="tests.test_core_gif_handler" name="test_gif_decoder_rejects_missing_file" file="tests/test_core_gif_handler.py" line="28" time="0.002" /><testcase classname="tests.test_core_gif_handler_more" name="test_gif_encoder_create_gif_bytes_and_decoder_extract_bytes" file="tests/test_core_gif_handler_more.py" line="8" time="0.002" /><testcase classname="tests.test_core_gif_handler_more" name="test_gif_decoder_get_frame_and_count" file="tests/test_core_gif_handler_more.py" line="22" time="0.003" /><testcase classname="tests.test_core_gif_handler_more" name="test_gif_optimizer_optimize_gif" file="tests/test_core_gif_handler_more.py" line="39" time="0.005" /><testcase classname="tests.test_core_metadata_obfuscation" name="test_length_padding_roundtrip_various_sizes" file="tests/test_core_metadata_obfuscation.py" line="6" time="0.001" /><testcase classname="tests.test_core_metadata_obfuscation" name="test_remove_length_padding_rejects_garbage" file="tests/test_core_metadata_obfuscation.py" line="15" time="0.001" /><testcase classname="tests.test_core_metadata_obfuscation_more" name="test_round_up_to_size_class_basic" file="tests/test_core_metadata_obfuscation_more.py" line="14" time="0.001" /><testcase classname="tests.test_core_metadata_obfuscation_more" name="test_randomize_and_unshuffle_deterministic" file="tests/test_core_metadata_obfuscation_more.py" line="20" time="0.001" /><testcase classname="tests.test_core_metadata_obfuscation_more" name="test_pad_frame_count_adds_decoys" file="tests/test_core_metadata_obfuscation_more.py" line="31" time="0.001" /><testcase classname="tests.test_core_metadata_obfuscation_more" name="test_obfuscate_encoding_parameters_bounds" file="tests/test_core_metadata_obfuscation_more.py" line="40" time="0.001" /><testcase classname="tests.test_core_qr_code_generator" name="test_qr_code_generator_produces_image" file="tests/test_core_qr_code_generator.py" line="3" time="0.015" /><testcase classname="tests.test_core_qr_reader_unit" name="test_qr_reader_read_image_base85_path" file="tests/test_core_qr_reader_unit.py" line="13" time="0.001" /><testcase classname="tests.test_core_qr_reader_unit" name="test_qr_reader_fallback_raw_bytes" file="tests/test_core_qr_reader_unit.py" line="32" time="0.001" /><testcase classname="tests.test_core_qr_reader_unit" name="test_qr_reader_read_frame_aggressive" file="tests/test_core_qr_reader_unit.py" line="47" time="0.041" /><testcase classname="tests.test_core_runpy_selftests" name="test_crypto_selftest_runs" file="tests/test_core_runpy_selftests.py" line="3" time="0.200" /><testcase classname="tests.test_core_runpy_selftests" name="test_fountain_selftest_runs" file="tests/test_core_runpy_selftests.py" line="8" time="0.019" /><testcase classname="tests.test_core_runpy_selftests" name="test_config_selftest_runs" file="tests/test_core_runpy_selftests.py" line="12" time="0.010" /><testcase classname="tests.test_core_runpy_selftests" name="test_frame_mac_selftest_runs" file="tests/test_core_runpy_selftests.py" line="16" time="0.004" /><testcase classname="tests.test_core_runpy_selftests" name="test_forward_secrecy_selftest_runs" file="tests/test_core_runpy_selftests.py" line="20" time="0.004" /><testcase classname="tests.test_core_runpy_selftests" name="test_constant_time_selftest_runs" file="tests/test_core_runpy_selftests.py" line="24" time="0.229" /><testcase classname="tests.test_core_runpy_selftests" name="test_metadata_obfuscation_selftest_runs" file="tests/test_core_runpy_selftests.py" line="28" time="0.012" /><testcase classname="tests.test_core_runpy_selftests" name="test_gif_handler_selftest_runs" file="tests/test_core_runpy_selftests.py" line="32" time="7.722" /><testcase classname="tests.test_core_runpy_selftests" name="test_qr_code_selftest_runs" file="tests/test_core_runpy_selftests.py" line="36" time="0.179" /><testcase classname="tests.test_core_runpy_selftests" name="test_decoy_generator_selftest_runs" file="tests/test_core_runpy_selftests.py" line="40" time="0.022" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_x25519_public_key_serialize_roundtrip" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="20" time="0.001" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_x25519_shared_secret_matches_both_sides" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="29" time="0.001" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_x25519_save_and_load_keypair_password" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="56" time="0.004" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_x25519_generate_receiver_keys_cli_noninteractive" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="74" time="0.002" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_decoy_archive_small_has_no_photos_branch" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="81" time="0.001" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_decoy_archive_large_adds_photos_branch" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="93" time="0.006" /><testcase classname="tests.test_core_x25519_and_decoy_and_webcam" name="test_webcam_qr_reader_init_and_read_next" file="tests/test_core_x25519_and_decoy_and_webcam.py" line="101" time="0.001" /><testcase classname="tests.test_coverage.TestCryptoComprehensive" name="test_key_derivation_variations" file="tests/test_coverage.py" line="31" time="0.074" /><testcase classname="tests.test_coverage.TestCryptoComprehensive" name="test_encryption_roundtrip_variations" file="tests/test_coverage.py" line="54" time="0.205" /><testcase classname="tests.test_coverage.TestCryptoComprehensive" name="test_compression_detection" file="tests/test_coverage.py" line="83" time="0.037" /><testcase classname="tests.test_coverage.TestFountainComprehensive" name="test_various_block_sizes" file="tests/test_coverage.py" line="106" time="0.051" /><testcase classname="tests.test_coverage.TestFountainComprehensive" name="test_redundancy_levels" file="tests/test_coverage.py" line="124" time="0.007" /><testcase classname="tests.test_coverage.TestQRComprehensive" name="test_qr_error_correction_levels" file="tests/test_coverage.py" line="154" time="0.286" /><testcase classname="tests.test_coverage.TestQRComprehensive" name="test_qr_box_sizes" file="tests/test_coverage.py" line="164" time="0.095" /><testcase classname="tests.test_coverage.TestConfigComprehensive" name="test_encoding_config_defaults" file="tests/test_coverage.py" line="179" time="0.001" /><testcase classname="tests.test_coverage.TestConfigComprehensive" name="test_crypto_config_defaults" file="tests/test_coverage.py" line="188" time="0.001" /><testcase classname="tests.test_coverage.TestErrorHandling" name="test_invalid_password_length" file="tests/test_coverage.py" line="200" time="0.002" /><testcase classname="tests.test_coverage.TestErrorHandling" name="test_invalid_salt_length" file="tests/test_coverage.py" line="205" time="0.003" /><testcase classname="tests.test_coverage.TestErrorHandling" name="test_incomplete_fountain_decode" file="tests/test_coverage.py" line="210" time="0.001" /><testcase classname="tests.test_coverage_boost.TestCryptoDeepCoverage" name="test_encryption_with_keyfile" file="tests/test_coverage_boost.py" line="30" time="0.052" /><testcase classname="tests.test_coverage_boost.TestCryptoDeepCoverage" name="test_compression_edge_cases" file="tests/test_coverage_boost.py" line="62" time="0.018" /><testcase classname="tests.test_coverage_boost.TestCryptoDeepCoverage" name="test_magic_constant" file="tests/test_coverage_boost.py" line="76" time="0.001" /><testcase classname="tests.test_coverage_boost.TestCryptoDeepCoverage" name="test_derive_key_deterministic" file="tests/test_coverage_boost.py" line="82" time="0.054" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_robust_soliton_distribution" file="tests/test_coverage_boost.py" line="101" time="0.007" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_droplet_packing_unpacking" file="tests/test_coverage_boost.py" line="122" time="0.001" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_decoder_with_exact_k_droplets" file="tests/test_coverage_boost.py" line="141" time="0.001" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_decoder_with_many_redundant_droplets" file="tests/test_coverage_boost.py" line="161" time="0.002" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_fountain_with_very_small_data" file="tests/test_coverage_boost.py" line="183" time="0.001" /><testcase classname="tests.test_coverage_boost.TestFountainDeepCoverage" name="test_fountain_with_large_block_size" file="tests/test_coverage_boost.py" line="204" time="0.002" /><testcase classname="tests.test_coverage_boost.TestQRDeepCoverage" name="test_qr_with_empty_data" file="tests/test_coverage_boost.py" line="224" time="0.010" /><testcase classname="tests.test_coverage_boost.TestQRDeepCoverage" name="test_qr_with_very_large_data" file="tests/test_coverage_boost.py" line="232" time="0.569" /><testcase classname="tests.test_coverage_boost.TestQRDeepCoverage" name="test_qr_all_error_correction_levels" file="tests/test_coverage_boost.py" line="248" time="0.054" /><testcase classname="tests.test_coverage_boost.TestGIFDeepCoverage" name="test_gif_with_single_frame" file="tests/test_coverage_boost.py" line="265" time="0.005" /><testcase classname="tests.test_coverage_boost.TestGIFDeepCoverage" name="test_gif_with_many_frames" file="tests/test_coverage_boost.py" line="281" time="0.029" /><testcase classname="tests.test_coverage_boost.TestGIFDeepCoverage" name="test_gif_with_different_fps" file="tests/test_coverage_boost.py" line="299" time="0.015" /><testcase classname="tests.test_coverage_boost.TestE2EDeepCoverage" name="test_roundtrip_with_binary_data" file="tests/test_coverage_boost.py" line="316" time="3.427" /><testcase classname="tests.test_coverage_boost.TestE2EDeepCoverage" name="test_roundtrip_with_unicode_content" file="tests/test_coverage_boost.py" line="338" time="1.608" /><testcase classname="tests.test_coverage_boost.TestE2EDeepCoverage" name="test_roundtrip_with_very_long_password" file="tests/test_coverage_boost.py" line="356" time="1.805" /><testcase classname="tests.test_coverage_boost.TestE2EDeepCoverage" name="test_roundtrip_with_special_chars_password" file="tests/test_coverage_boost.py" line="374" time="1.593" /><testcase classname="tests.test_coverage_boost.TestErrorPathCoverage" name="test_decode_with_corrupted_magic" file="tests/test_coverage_boost.py" line="396" time="2.894" /><testcase classname="tests.test_coverage_boost.TestErrorPathCoverage" name="test_fountain_decoder_get_data_without_length" file="tests/test_coverage_boost.py" line="414" time="0.002" /><testcase classname="tests.test_coverage_boost.TestErrorPathCoverage" name="test_fountain_encoder_generate_many_droplets" file="tests/test_coverage_boost.py" line="426" time="0.057" /><testcase classname="tests.test_coverage_boost_v2.TestCryptoEdgeCases" name="test_decrypt_to_raw_exception" file="tests/test_coverage_boost_v2.py" line="32" time="0.007" /><testcase classname="tests.test_coverage_boost_v2.TestCryptoEdgeCases" name="test_derive_key_exception" file="tests/test_coverage_boost_v2.py" line="16" time="0.002" /><testcase classname="tests.test_coverage_boost_v2.TestCryptoEdgeCases" name="test_encrypt_file_bytes_exception" file="tests/test_coverage_boost_v2.py" line="24" time="0.001" /><testcase classname="tests.test_coverage_boost_v2.TestCryptoEdgeCases" name="test_forward_secrecy_missing_privkey" file="tests/test_coverage_boost_v2.py" line="41" time="0.001" /><testcase classname="tests.test_coverage_boost_v2.TestQRCodeEdgeCases" name="test_preprocess_normal_grayscale" file="tests/test_coverage_boost_v2.py" line="73" time="0.002" /><testcase classname="tests.test_coverage_boost_v2.TestQRCodeEdgeCases" name="test_read_image_str_data" file="tests/test_coverage_boost_v2.py" line="54" time="0.003" /><testcase classname="tests.test_coverage_boost_v2.TestQRCodeEdgeCases" name="test_webcam_init_failure" file="tests/test_coverage_boost_v2.py" line="84" time="0.003" /><testcase classname="tests.test_coverage_boost_v2.TestConfigEdgeCases" name="test_get_config_exists" file="tests/test_coverage_boost_v2.py" line="94" time="0.002" /><testcase classname="tests.test_coverage_boost_v2.TestConfigEdgeCases" name="test_get_config_exists_but_fails" file="tests/test_coverage_boost_v2.py" line="104" time="0.002" /><testcase classname="tests.test_coverage_boost_v2.TestConfigEdgeCases" name="test_save_config" file="tests/test_coverage_boost_v2.py" line="115" time="0.002" /><testcase classname="tests.test_coverage_constant_time_edge_cases" name="test_get_libc_platform_branches" file="tests/test_coverage_constant_time_edge_cases.py" line="5" time="0.001" /><testcase classname="tests.test_coverage_constant_time_edge_cases" name="test_secure_zero_memory_fallback_and_other_types" file="tests/test_coverage_constant_time_edge_cases.py" line="32" time="0.001" /><testcase classname="tests.test_coverage_constant_time_edge_cases" name="test_secure_zero_memory_ctypes_array_branch" file="tests/test_coverage_constant_time_edge_cases.py" line="46" time="0.001" /><testcase classname="tests.test_coverage_constant_time_edge_cases" name="test_secure_memory_lock_and_unlock_exceptions" file="tests/test_coverage_constant_time_edge_cases.py" line="57" time="0.001" /><testcase classname="tests.test_coverage_constant_time_edge_cases" name="test_secure_buffer_lock_exception_and_cleanup_paths" file="tests/test_coverage_constant_time_edge_cases.py" line="90" time="0.002" /><testcase classname="tests.test_coverage_decode_gif_verbose_and_macs" name="test_decode_gif_verbose_frame_macs_progress_and_success" file="tests/test_coverage_decode_gif_verbose_and_macs.py" line="6" time="0.015" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_no_args_exits" file="tests/test_coverage_encode_cli.py" line="14" time="0.010" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_generate_keys" file="tests/test_coverage_encode_cli.py" line="21" time="0.004" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_generate_keys_failure" file="tests/test_coverage_encode_cli.py" line="29" time="0.004" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_summon_void_cat" file="tests/test_coverage_encode_cli.py" line="36" time="0.005" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_void_mode" file="tests/test_coverage_encode_cli.py" line="44" time="0.009" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_no_forward_secrecy" file="tests/test_coverage_encode_cli.py" line="63" time="0.008" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_forward_secrecy_with_pubkey" file="tests/test_coverage_encode_cli.py" line="79" time="0.007" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_forward_secrecy_with_invalid_pubkey" file="tests/test_coverage_encode_cli.py" line="98" time="0.008" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_forward_secrecy_missing_pubkey_file" file="tests/test_coverage_encode_cli.py" line="110" time="0.006" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_forward_secrecy_no_key_warning" file="tests/test_coverage_encode_cli.py" line="121" time="0.039" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_catnip" file="tests/test_coverage_encode_cli.py" line="138" time="0.012" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_input_not_exists" file="tests/test_coverage_encode_cli.py" line="152" time="0.006" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_input_not_file" file="tests/test_coverage_encode_cli.py" line="158" time="0.007" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_password_prompt_mismatch" file="tests/test_coverage_encode_cli.py" line="166" time="0.009" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_password_empty" file="tests/test_coverage_encode_cli.py" line="176" time="0.009" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_wipe_source" file="tests/test_coverage_encode_cli.py" line="186" time="0.016" /><testcase classname="tests.test_coverage_encode_cli" name="test_main_encode_error" file="tests/test_coverage_encode_cli.py" line="200" time="0.006" /><testcase classname="tests.test_coverage_encode_cli" name="test_encode_file_pq_mode" file="tests/test_coverage_encode_cli.py" line="212" time="0.008" /><testcase classname="tests.test_coverage_encode_cli" name="test_encode_file_fs_with_key" file="tests/test_coverage_encode_cli.py" line="235" time="0.006" /><testcase classname="tests.test_coverage_final_70" name="test_placeholder" file="tests/test_coverage_final_70.py" line="4" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestConstantTimeEdgeCases" name="test_secure_zero_memory_empty_bytearray" file="tests/test_coverage_final_push.py" line="20" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestConstantTimeEdgeCases" name="test_secure_zero_memory_ctypes_array" file="tests/test_coverage_final_push.py" line="28" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestConstantTimeEdgeCases" name="test_secure_zero_memory_empty_ctypes_array" file="tests/test_coverage_final_push.py" line="42" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestConstantTimeEdgeCases" name="test_secure_zero_memory_unsupported_type" file="tests/test_coverage_final_push.py" line="49" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestConstantTimeEdgeCases" name="test_secure_zero_memory_memset_exception" file="tests/test_coverage_final_push.py" line="58" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestCryptoEdgeCases" name="test_decrypt_forward_secrecy_no_private_key" file="tests/test_coverage_final_push.py" line="80" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestCryptoEdgeCases" name="test_manifest_hmac_fs_mode_during_decoding" file="tests/test_coverage_final_push.py" line="98" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestDecodeGifEdgeCases" name="test_decode_missing_input" file="tests/test_coverage_final_push.py" line="130" time="0.465" /><testcase classname="tests.test_coverage_final_push.TestDecodeGifEdgeCases" name="test_decode_output_exists_no_force" file="tests/test_coverage_final_push.py" line="147" time="0.287" /><testcase classname="tests.test_coverage_final_push.TestQrCodeEdgeCases" name="test_qr_reader_empty_image" file="tests/test_coverage_final_push.py" line="177" time="0.002" /><testcase classname="tests.test_coverage_final_push.TestEncodeEdgeCases" name="test_encode_nonexistent_file" file="tests/test_coverage_final_push.py" line="195" time="0.250" /><testcase classname="tests.test_coverage_final_push.TestEncodeEdgeCases" name="test_encode_void_cat_mode" file="tests/test_coverage_final_push.py" line="212" time="0.252" /><testcase classname="tests.test_coverage_final_push.TestFountainEdgeCases" name="test_fountain_decoder_original_length_error" file="tests/test_coverage_final_push.py" line="230" time="0.001" /><testcase classname="tests.test_coverage_final_push.TestForwardSecrecyManager" name="test_fs_manager_cleanup" file="tests/test_coverage_final_push.py" line="252" time="0.001" /><testcase classname="tests.test_coverage_imports_and_main.TestMainBlocks" name="test_crypto_main" file="tests/test_coverage_imports_and_main.py" line="13" time="0.177" /><testcase classname="tests.test_coverage_imports_and_main.TestMainBlocks" name="test_qr_code_main" file="tests/test_coverage_imports_and_main.py" line="25" time="0.184" /><testcase classname="tests.test_coverage_imports_and_main.TestImportFallbacks" name="test_encrypt_padding_import_error" file="tests/test_coverage_imports_and_main.py" line="37" time="0.002" /><testcase classname="tests.test_coverage_imports_and_main.TestCryptoMainExecution" name="test_crypto_main_execution" file="tests/test_coverage_imports_and_main.py" line="70" time="0.183" /><testcase classname="tests.test_coverage_imports_and_main.TestCryptoMainExecution" name="test_forward_secrecy_main_execution" file="tests/test_coverage_imports_and_main.py" line="76" time="0.002" /><testcase classname="tests.test_coverage_imports_and_main.TestCryptoMainExecution" name="test_qr_code_main_execution" file="tests/test_coverage_imports_and_main.py" line="108" time="0.182" /><testcase classname="tests.test_coverage_imports_and_main.TestCryptoMainExecution" name="test_x25519_forward_secrecy_main_execution" file="tests/test_coverage_imports_and_main.py" line="85" time="0.009" /><testcase classname="tests.test_coverage_qr_code" name="test_qr_generator_init_modes" file="tests/test_coverage_qr_code.py" line="9" time="0.001" /><testcase classname="tests.test_coverage_qr_code" name="test_qr_reader_read_frame_fallback" file="tests/test_coverage_qr_code.py" line="25" time="0.002" /><testcase classname="tests.test_coverage_qr_code" name="test_qr_reader_read_frame_base85" file="tests/test_coverage_qr_code.py" line="42" time="0.003" /><testcase classname="tests.test_coverage_qr_code" name="test_qr_reader_read_frame_aggressive" file="tests/test_coverage_qr_code.py" line="61" time="0.002" /><testcase classname="tests.test_coverage_qr_code" name="test_private_preprocess_methods_exist" file="tests/test_coverage_qr_code.py" line="73" time="0.014" /><testcase classname="tests.test_coverage_stage2.TestDoubleRatchetCoverage" name="test_alice_bob_conversation" file="tests/test_coverage_stage2.py" line="32" time="0.002" /><testcase classname="tests.test_coverage_stage2.TestDoubleRatchetCoverage" name="test_out_of_order_messages" file="tests/test_coverage_stage2.py" line="61" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestDoubleRatchetCoverage" name="test_max_skip_dos_protection" file="tests/test_coverage_stage2.py" line="79" time="0.003" /><testcase classname="tests.test_coverage_stage2.TestDoubleRatchetCoverage" name="test_state_serialization" file="tests/test_coverage_stage2.py" line="106" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestClowderSessionCoverage" name="test_clowder_session_flow" file="tests/test_coverage_stage2.py" line="130" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestClowderSessionCoverage" name="test_clowder_unknown_peer" file="tests/test_coverage_stage2.py" line="151" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestClowderSessionCoverage" name="test_clowder_serialization" file="tests/test_coverage_stage2.py" line="160" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_duress_password_detection" file="tests/test_coverage_stage2.py" line="183" time="0.995" /><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_duress_trigger_actions" file="tests/test_coverage_stage2.py" line="207" time="0.001"><failure message="AttributeError: module 'meow_decoder.duress_mode' has no attribute 'gc'">args = (&lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d25117c0&gt;,)
+keywargs = {}
+
+    @wraps(func)
+    def patched(*args, **keywargs):
+&gt;       with self.decoration_helper(patched,
+                                    args,
+                                    keywargs) as (newargs, newkeywargs):
+
+/usr/local/python/3.12.1/lib/python3.12/unittest/mock.py:1384: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/local/python/3.12.1/lib/python3.12/contextlib.py:137: in __enter__
+    return next(self.gen)
+           ^^^^^^^^^^^^^^
+/usr/local/python/3.12.1/lib/python3.12/unittest/mock.py:1366: in decoration_helper
+    arg = exit_stack.enter_context(patching)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+/usr/local/python/3.12.1/lib/python3.12/contextlib.py:526: in enter_context
+    result = _enter(cm)
+             ^^^^^^^^^^
+/usr/local/python/3.12.1/lib/python3.12/unittest/mock.py:1439: in __enter__
+    self.target = self.getter()
+                  ^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+name = 'meow_decoder.duress_mode.gc'
+
+    def resolve_name(name):
+        """
+        Resolve a name to an object.
+    
+        It is expected that `name` will be a string in one of the following
+        formats, where W is shorthand for a valid Python identifier and dot stands
+        for a literal period in these pseudo-regexes:
+    
+        W(.W)*
+        W(.W)*:(W(.W)*)?
+    
+        The first form is intended for backward compatibility only. It assumes that
+        some part of the dotted name is a package, and the rest is an object
+        somewhere within that package, possibly nested inside other objects.
+        Because the place where the package stops and the object hierarchy starts
+        can't be inferred by inspection, repeated attempts to import must be done
+        with this form.
+    
+        In the second form, the caller makes the division point clear through the
+        provision of a single colon: the dotted name to the left of the colon is a
+        package to be imported, and the dotted name to the right is the object
+        hierarchy within that package. Only one import is needed in this form. If
+        it ends with the colon, then a module object is returned.
+    
+        The function will return an object (which might be a module), or raise one
+        of the following exceptions:
+    
+        ValueError - if `name` isn't in a recognised format
+        ImportError - if an import failed when it shouldn't have
+        AttributeError - if a failure occurred when traversing the object hierarchy
+                         within the imported package to get to the desired object.
+        """
+        global _NAME_PATTERN
+        if _NAME_PATTERN is None:
+            # Lazy import to speedup Python startup time
+            import re
+            dotted_words = r'(?!\d)(\w+)(\.(?!\d)(\w+))*'
+            _NAME_PATTERN = re.compile(f'^(?P&lt;pkg&gt;{dotted_words})'
+                                       f'(?P&lt;cln&gt;:(?P&lt;obj&gt;{dotted_words})?)?$',
+                                       re.UNICODE)
+    
+        m = _NAME_PATTERN.match(name)
+        if not m:
+            raise ValueError(f'invalid format: {name!r}')
+        gd = m.groupdict()
+        if gd.get('cln'):
+            # there is a colon - a one-step import is all that's needed
+            mod = importlib.import_module(gd['pkg'])
+            parts = gd.get('obj')
+            parts = parts.split('.') if parts else []
+        else:
+            # no colon - have to iterate to find the package boundary
+            parts = name.split('.')
+            modname = parts.pop(0)
+            # first part *must* be a module/package.
+            mod = importlib.import_module(modname)
+            while parts:
+                p = parts[0]
+                s = f'{modname}.{p}'
+                try:
+                    mod = importlib.import_module(s)
+                    parts.pop(0)
+                    modname = s
+                except ImportError:
+                    break
+        # if we reach this point, mod is the module, already imported, and
+        # parts is the list of parts in the object hierarchy to be traversed, or
+        # an empty list if just the module is wanted.
+        result = mod
+        for p in parts:
+&gt;           result = getattr(result, p)
+                     ^^^^^^^^^^^^^^^^^^
+E           AttributeError: module 'meow_decoder.duress_mode' has no attribute 'gc'
+
+/usr/local/python/3.12.1/lib/python3.12/pkgutil.py:528: AttributeError</failure></testcase><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_wipe_resume_files_real_fs" file="tests/test_coverage_stage2.py" line="242" time="0.002"><failure message="AttributeError: 'DuressHandler' object has no attribute '_wipe_resume_files'">self = &lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d2511ac0&gt;
+tmp_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_wipe_resume_files_real_fs0')
+
+    def test_wipe_resume_files_real_fs(self, tmp_path):
+        """Test actual file deletion for resume files."""
+        # Setup mock resume dir structure
+        # meow decoder expects ~/.cache/meowdecoder/resume
+        # We will mock Path.home() to return tmp_path
+    
+        mock_home = tmp_path / "home"
+        mock_home.mkdir()
+    
+        resume_dir = mock_home / ".cache" / "meowdecoder" / "resume"
+        resume_dir.mkdir(parents=True)
+    
+        secret_file = resume_dir / "state.dat"
+        secret_file.write_bytes(b"secret state")
+    
+        # Mock Path.home
+        with patch('pathlib.Path.home', return_value=mock_home):
+            handler = DuressHandler()
+    
+            # Actually call the method (no mocking of internal logic)
+&gt;           handler._wipe_resume_files()
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E           AttributeError: 'DuressHandler' object has no attribute '_wipe_resume_files'
+
+tests/test_coverage_stage2.py:263: AttributeError</failure></testcase><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_duress_same_password_error" file="tests/test_coverage_stage2.py" line="267" time="0.001" /><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_helpers_coverage" file="tests/test_coverage_stage2.py" line="273" time="0.001"><failure message="TypeError: is_duress_triggered() missing 2 required positional arguments: 'password' and 'salt'">self = &lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d2512060&gt;
+
+    def test_helpers_coverage(self):
+        """Test helper functions setup_duress, is_duress_triggered etc."""
+        salt = b"s"*16
+        h = setup_duress("duress", "real", salt)
+        assert isinstance(h, DuressHandler)
+    
+&gt;       assert not is_duress_triggered(h)
+                   ^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: is_duress_triggered() missing 2 required positional arguments: 'password' and 'salt'
+
+tests/test_coverage_stage2.py:280: TypeError</failure></testcase><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_generate_duress_decoy" file="tests/test_coverage_stage2.py" line="284" time="0.001"><failure message="TypeError: generate_static_decoy() missing 1 required positional argument: 'salt'">self = &lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d2512330&gt;
+
+    def test_generate_duress_decoy(self):
+        """Test decoy generation wrapper."""
+&gt;       d = generate_duress_decoy()
+            ^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: generate_static_decoy() missing 1 required positional argument: 'salt'
+
+tests/test_coverage_stage2.py:287: TypeError</failure></testcase><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_add_duress_args" file="tests/test_coverage_stage2.py" line="289" time="0.002"><failure message="SystemExit: 2">self = &lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d31012b0&gt;
+
+    def test_add_duress_args(self):
+        """Test argument parser helper."""
+        import argparse
+        parser = argparse.ArgumentParser()
+        add_duress_args(parser)
+        # Check if arguments were added
+&gt;       args = parser.parse_args(['--duress-password', 'test', '--duress-wipe-files'])
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/test_coverage_stage2.py:296: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+/usr/local/python/3.12.1/lib/python3.12/argparse.py:1894: in parse_args
+    self.error(msg % ' '.join(argv))
+/usr/local/python/3.12.1/lib/python3.12/argparse.py:2655: in error
+    self.exit(2, _('%(prog)s: error: %(message)s\n') % args)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = ArgumentParser(prog='pytest', usage=None, description=None, formatter_class=&lt;class 'argparse.HelpFormatter'&gt;, conflict_handler='error', add_help=True)
+status = 2, message = 'pytest: error: unrecognized arguments: --duress-wipe-files\n'
+
+    def exit(self, status=0, message=None):
+        if message:
+            self._print_message(message, _sys.stderr)
+&gt;       _sys.exit(status)
+E       SystemExit: 2
+
+/usr/local/python/3.12.1/lib/python3.12/argparse.py:2642: SystemExit</failure></testcase><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_equalize_timing" file="tests/test_coverage_stage2.py" line="299" time="0.002" /><testcase classname="tests.test_coverage_stage2.TestDuressModeCoverage" name="test_secure_zero_bytearray" file="tests/test_coverage_stage2.py" line="307" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute '_secure_zero'">self = &lt;tests.test_coverage_stage2.TestDuressModeCoverage object at 0x7a49d2511f10&gt;
+
+    def test_secure_zero_bytearray(self):
+        """Test _secure_zero method directly."""
+        h = DuressHandler()
+        data = bytearray(b"secret")
+&gt;       h._secure_zero(data)
+        ^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute '_secure_zero'
+
+tests/test_coverage_stage2.py:312: AttributeError</failure></testcase><testcase classname="tests.test_coverage_targeted_cli_paths" name="test_encode_file_covers_pq_and_fs_branches" file="tests/test_coverage_targeted_cli_paths.py" line="15" time="0.002"><failure message="TypeError: test_encode_file_covers_pq_and_fs_branches.&lt;locals&gt;.fake_encrypt_file_bytes() got an unexpected keyword argument 'yubikey_slot'">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7a49c91cf230&gt;
+tmp_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_encode_file_covers_pq_and0')
+capsys = &lt;_pytest.capture.CaptureFixture object at 0x7a49c91cefc0&gt;
+
+    def test_encode_file_covers_pq_and_fs_branches(monkeypatch, tmp_path: Path, capsys):
+        """Exercise encode_file() branches (PQ + forward secrecy) with stubs."""
+    
+        # Local import so coverage counts the module under test.
+        from meow_decoder.encode import encode_file
+        from meow_decoder.config import EncodingConfig
+    
+        # Create a tiny input file
+        inp = tmp_path / "in.bin"
+        inp.write_bytes(b"hello meow")
+        out_gif = tmp_path / "out.gif"
+    
+        # Stub QR/GIF to avoid heavy work.
+        from PIL import Image
+    
+        class DummyQRGen:
+            def __init__(self, *args, **kwargs):
+                pass
+    
+            def generate(self, payload: bytes):
+                # Return a valid PIL image for GIFEncoder.
+                return Image.new("RGB", (8, 8), color=(255, 255, 255))
+    
+        class DummyGIFEncoder:
+            def __init__(self, *args, **kwargs):
+                pass
+    
+            def create_gif(self, frames, output_path: Path, optimize: bool = True):
+                # Touch the output to keep behavior realistic.
+                output_path.write_bytes(b"GIF89a")
+                return output_path.stat().st_size
+    
+        monkeypatch.setattr("meow_decoder.encode.QRCodeGenerator", DummyQRGen)
+        monkeypatch.setattr("meow_decoder.encode.GIFEncoder", DummyGIFEncoder)
+    
+        # Stub encrypt_file_bytes to deterministically control FS/PQ branches.
+        def fake_encrypt_file_bytes(raw, password, keyfile=None, receiver_public_key=None, use_length_padding=True):
+            comp = b"C" * 16
+            sha = b"S" * 32
+            salt = b"A" * 16
+            nonce = b"B" * 12
+            cipher = b"X" * 32
+            ephemeral = (b"E" * 32) if receiver_public_key is not None else None
+            encryption_key = b"K" * 32
+            return comp, sha, salt, nonce, cipher, ephemeral, encryption_key
+    
+        monkeypatch.setattr("meow_decoder.encode.encrypt_file_bytes", fake_encrypt_file_bytes)
+    
+        # Keep droplets at zero to avoid generating lots of frames.
+        cfg = EncodingConfig(block_size=16, redundancy=0.0, fps=10)
+    
+        # 1) PQ branch
+&gt;       encode_file(
+            inp,
+            out_gif,
+            password="password_test",
+            config=cfg,
+            forward_secrecy=True,
+            receiver_public_key=None,
+            use_pq=True,
+            verbose=True,
+        )
+
+tests/test_coverage_targeted_cli_paths.py:68: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+input_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_encode_file_covers_pq_and0/in.bin')
+output_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_encode_file_covers_pq_and0/out.gif')
+password = 'password_test'
+config = EncodingConfig(block_size=16, redundancy=0.0, qr_error_correction='H', qr_box_size=14, qr_border=4, fps=10, enable_for...hardware_keys=True, enable_enhanced_entropy=True, enable_chaff_frames=False, require_rust=True, enable_profiling=False)
+keyfile = None, forward_secrecy = True, receiver_public_key = None, yubikey = False
+yubikey_slot = None, yubikey_pin = None, use_pq = True, stego_level = 0, carrier_images = None
+stego_green = False, logo_eyes = False, logo_eyes_hidden = False, brand_text = None
+duress_password = None, verbose = True
+
+    def encode_file(
+        input_path: Path,
+        output_path: Path,
+        password: str,
+        config: Optional[EncodingConfig] = None,
+        keyfile: Optional[bytes] = None,
+        forward_secrecy: bool = True,
+        receiver_public_key: Optional[bytes] = None,
+        yubikey: bool = False,
+        yubikey_slot: Optional[str] = None,
+        yubikey_pin: Optional[str] = None,
+        use_pq: bool = False,
+        stego_level: int = 0,
+        carrier_images: Optional[List[Path]] = None,
+        stego_green: bool = False,
+        logo_eyes: bool = False,
+        logo_eyes_hidden: bool = False,
+        brand_text: Optional[str] = None,
+        duress_password: Optional[str] = None,
+        verbose: bool = False
+    ) -&gt; dict:
+        """
+        Encode file into GIF.
+    
+        Args:
+            input_path: Path to input file
+            output_path: Path to output GIF
+            password: Encryption password
+            config: Encoding configuration
+            keyfile: Optional keyfile content
+            forward_secrecy: Enable forward secrecy (MEOW3, default True)
+            receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
+            use_pq: Enable post-quantum hybrid mode (MEOW4)
+            stego_level: Steganography level (0=off, 1-4=stealth levels)
+            carrier_images: Optional list of carrier image paths (your cat photos!)
+            stego_green: Restrict embedding to green-dominant pixels only (cosmetic)
+            logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
+            logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
+            brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
+            duress_password: Optional duress password (triggers emergency response on decode)
+            verbose: Print verbose output
+    
+        Returns:
+            Dictionary with encoding statistics
+        """
+        if config is None:
+            config = EncodingConfig()
+    
+        # Duress mode requires forward secrecy (to avoid manifest size ambiguity)
+        if duress_password:
+            if not forward_secrecy:
+                raise ValueError("Duress mode requires forward secrecy (do not use --no-forward-secrecy with --duress-password)")
+    
+            # Ambiguity check: Password-Only + Duress (147 bytes) vs Forward Secrecy (147 bytes)
+            # If we don't use PQ and don't use keys, we default to Password-Only mode (even if FS flag is on).
+            # This creates a 147-byte manifest which unpack_manifest misinterprets as FS mode.
+            if not use_pq and receiver_public_key is None:
+                 raise ValueError(
+                     "Duress mode requires a distinct manifest format. "
+                     "Please either:\n"
+                     "  1. Provide a receiver public key for Forward Secrecy (--receiver-pubkey)\n"
+                     "  2. Enable Post-Quantum mode (--pq)\n"
+                     "Standard password-only mode creates a manifest size collision with Duress mode."
+                 )
+    
+        # Select crypto mode based on flags
+        if use_pq:
+            manifest_version = 4  # MEOW4: Hybrid PQ
+            if verbose:
+                print("Using MEOW4 manifest (Post-Quantum Hybrid)")
+        elif forward_secrecy and receiver_public_key:
+            manifest_version = 3  # MEOW3: Forward Secrecy with X25519
+            if verbose:
+                print("Using MEOW3 manifest (Forward Secrecy + X25519)")
+        elif forward_secrecy:
+            manifest_version = 3  # MEOW3: Password-only (no ephemeral keys)
+            if verbose:
+                print("Using MEOW3 manifest (Password-Only)")
+        else:
+            manifest_version = 2  # MEOW2: Base encryption
+            if verbose:
+                print("Using MEOW2 manifest (Base Encryption)")
+    
+        start_time = time.time()
+    
+        # Read input file
+        if verbose:
+            print(f"Reading input file: {input_path}")
+    
+        with open(input_path, 'rb') as f:
+            raw_data = f.read()
+    
+        if verbose:
+            print(f"  Size: {len(raw_data):,} bytes")
+    
+        # Encrypt data with forward secrecy support
+        if verbose:
+            print("Encrypting data with length padding (metadata protection)...")
+    
+&gt;       comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
+            raw_data,
+            password,
+            keyfile,
+            receiver_public_key,
+            use_length_padding=True,
+            yubikey_slot=yubikey_slot if yubikey else None,
+            yubikey_pin=yubikey_pin if yubikey else None
+        )
+E       TypeError: test_encode_file_covers_pq_and_fs_branches.&lt;locals&gt;.fake_encrypt_file_bytes() got an unexpected keyword argument 'yubikey_slot'
+
+meow_decoder/encode.py:128: TypeError</failure></testcase><testcase classname="tests.test_coverage_targeted_cli_paths" name="test_decode_main_loads_receiver_privkey_and_keyfile" file="tests/test_coverage_targeted_cli_paths.py" line="96" time="0.005"><failure message="SystemExit: 1">def main():
+        """Main CLI entry point."""
+    
+        parser = argparse.ArgumentParser(
+            description="Meow Decoder - Decode files from GIF animations",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+    Examples:
+      # Basic decoding
+      meow-decode-gif --input secret.gif --output secret.pdf
+    
+      # With keyfile
+      meow-decode-gif --input secret.gif --keyfile key.bin --output secret.pdf
+    
+      # Aggressive preprocessing for difficult QR codes
+      meow-decode-gif --input secret.gif --aggressive --output secret.pdf
+            """
+        )
+    
+        # Required arguments
+        parser.add_argument('-i', '--input', type=Path, required=True,
+                           help='Input GIF file')
+        parser.add_argument('-o', '--output', type=Path, required=True,
+                           help='Output file')
+    
+        # Optional arguments
+        parser.add_argument('-p', '--password', type=str,
+                           help='Decryption password (prompted if not provided)')
+        parser.add_argument('-k', '--keyfile', type=Path,
+                           help='Path to keyfile')
+        parser.add_argument('--yubikey', action='store_true',
+                           help='Use YubiKey PIV for key derivation (Rust backend required)')
+        parser.add_argument('--yubikey-slot', type=str, default='9d',
+                           help='YubiKey PIV slot (default: 9d)')
+        parser.add_argument('--yubikey-pin', type=str, default=None,
+                           help='YubiKey PIN (prompted if not provided)')
+        parser.add_argument('--receiver-privkey', type=Path,
+                           help='Path to receiver X25519 private key for forward secrecy (PEM format)')
+        parser.add_argument('--receiver-privkey-password', type=str,
+                           help='Password for encrypted receiver private key')
+    
+        # Decoding parameters
+        parser.add_argument('--aggressive', action='store_true',
+                           help='Use aggressive QR preprocessing')
+    
+        # Duress Handling
+        parser.add_argument('--duress-mode', choices=['decoy', 'panic'], default='decoy',
+                           help='Duress response mode: decoy (fake success) or panic (wipe/exit)')
+        parser.add_argument('--enable-panic', action='store_true',
+                           help='Explicitly enable destructive PANIC mode (required for --duress-mode panic)')
+    
+        # Crypto backend selection
+        # Rust backend is mandatory; no Python fallback is supported.
+    
+        # Output control
+        parser.add_argument('-v', '--verbose', action='store_true',
+                           help='Verbose output')
+        parser.add_argument('--force', action='store_true',
+                           help='Overwrite output file if exists')
+    
+        args = parser.parse_args()
+    
+        # Rust backend is mandatory (no legacy Python fallback).
+    
+        # Validate input file
+        if not args.input.exists():
+            print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+            sys.exit(1)
+    
+        if not args.input.is_file():
+            print(f"Error: Input is not a file: {args.input}", file=sys.stderr)
+            sys.exit(1)
+    
+        # Check output file
+        if args.output.exists() and not args.force:
+            print(f"Error: Output file already exists: {args.output}", file=sys.stderr)
+            print("Use --force to overwrite", file=sys.stderr)
+            sys.exit(1)
+    
+        # Get password
+        if args.password:
+            password = args.password
+        else:
+            password = getpass("Enter decryption password: ")
+    
+        if not password:
+            print("Error: Password cannot be empty", file=sys.stderr)
+            sys.exit(1)
+    
+        # Load keyfile if specified
+        keyfile = None
+        if args.keyfile:
+            try:
+                keyfile = verify_keyfile(str(args.keyfile))
+                if args.verbose:
+                    print(f"Loaded keyfile: {args.keyfile} ({len(keyfile)} bytes)")
+            except (FileNotFoundError, ValueError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+    
+        # YubiKey validation
+        if args.yubikey:
+            if keyfile is not None:
+                print("Error: Cannot combine --yubikey with --keyfile", file=sys.stderr)
+                sys.exit(1)
+            if args.receiver_privkey is not None:
+                print("Error: YubiKey derivation is not supported with forward secrecy keys", file=sys.stderr)
+                sys.exit(1)
+            if args.yubikey_pin is None:
+                yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
+                args.yubikey_pin = yk_pin if yk_pin else None
+    
+        # Load receiver private key for forward secrecy if specified
+        receiver_private_key = None
+        if args.receiver_privkey:
+            try:
+                from .x25519_forward_secrecy import load_receiver_keypair
+                from cryptography.hazmat.primitives import serialization
+    
+                # Get password for private key if needed
+                privkey_password = args.receiver_privkey_password
+                if not privkey_password:
+                    privkey_password = getpass("Enter receiver private key password: ")
+    
+                # We need a dummy public key file for load_receiver_keypair
+                # So let's just load the private key directly
+                with open(args.receiver_privkey, 'rb') as f:
+                    privkey_data = f.read()
+    
+                from cryptography.hazmat.primitives.serialization import load_pem_private_key
+                from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+    
+                privkey_password_bytes = privkey_password.encode('utf-8') if privkey_password else None
+                receiver_privkey_obj = load_pem_private_key(privkey_data, password=privkey_password_bytes)
+    
+                if not isinstance(receiver_privkey_obj, X25519PrivateKey):
+                    print("Error: Loaded key is not X25519PrivateKey", file=sys.stderr)
+                    sys.exit(1)
+    
+                # Serialize to raw bytes for crypto.py
+                receiver_private_key = receiver_privkey_obj.private_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PrivateFormat.Raw,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+    
+                if args.verbose:
+                    print(f"✅ Loaded receiver private key for forward secrecy")
+                    print(f"   File: {args.receiver_privkey}")
+            except Exception as e:
+                print(f"Error loading receiver private key: {e}", file=sys.stderr)
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                sys.exit(1)
+    
+        # Create duress config
+        d_mode = DuressMode.PANIC if args.duress_mode == 'panic' else DuressMode.DECOY
+        duress_config = DuressConfig(
+            enabled=True,
+            mode=d_mode,
+            panic_enabled=args.enable_panic
+        )
+    
+        # Create decoding config
+        config = DecodingConfig(
+            preprocessing='aggressive' if args.aggressive else 'normal'
+        )
+    
+        # Decode file
+        try:
+&gt;           stats = decode_gif(
+                args.input,
+                args.output,
+                password,
+                config=config,
+                duress_config=duress_config,
+                keyfile=keyfile,
+                receiver_private_key=receiver_private_key,  # Forward secrecy support
+                yubikey_slot=args.yubikey_slot if args.yubikey else None,
+                yubikey_pin=args.yubikey_pin if args.yubikey else None,
+                verbose=args.verbose
+            )
+E           TypeError: test_decode_main_loads_receiver_privkey_and_keyfile.&lt;locals&gt;.fake_decode_gif() got an unexpected keyword argument 'duress_config'
+
+meow_decoder/decode_gif.py:594: TypeError
+
+During handling of the above exception, another exception occurred:
+
+monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7a49c91cfce0&gt;
+tmp_path = PosixPath('/tmp/pytest-of-codespace/pytest-0/test_decode_main_loads_receive0')
+
+    def test_decode_main_loads_receiver_privkey_and_keyfile(monkeypatch, tmp_path: Path):
+        """Exercise decode CLI: keyfile + receiver private key success path."""
+    
+        import meow_decoder.decode_gif as dec
+    
+        # Create dummy input GIF file so Path.exists/is_file checks pass.
+        in_gif = tmp_path / "in.gif"
+        in_gif.write_bytes(b"GIF89a")
+    
+        out_file = tmp_path / "out.bin"
+    
+        # Create a valid keyfile.
+        keyfile_path = tmp_path / "key.bin"
+        keyfile_path.write_bytes(b"K" * 64)
+    
+        # Create an encrypted X25519 private key PEM.
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
+    
+        priv = X25519PrivateKey.generate()
+        pem = priv.private_bytes(
+            encoding=serialization.Encoding.PEM,
+            format=serialization.PrivateFormat.PKCS8,
+            encryption_algorithm=serialization.BestAvailableEncryption(b"privpw"),
+        )
+    
+        priv_path = tmp_path / "receiver_private.pem"
+        priv_path.write_bytes(pem)
+    
+        called = {}
+    
+        def fake_decode_gif(input_path, output_path, password, config=None, keyfile=None, receiver_private_key=None, verbose=False):
+            called["password"] = password
+            called["keyfile_len"] = len(keyfile) if keyfile else None
+            called["receiver_private_key_len"] = len(receiver_private_key) if receiver_private_key else None
+            return {
+                "input_frames": 1,
+                "qr_codes_read": 1,
+                "droplets_processed": 0,
+                "blocks_decoded": 0,
+                "output_size": 0,
+                "efficiency": 0.0,
+                "elapsed_time": 0.01,
+            }
+    
+        monkeypatch.setattr(dec, "decode_gif", fake_decode_gif)
+    
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "meow-decode-gif",
+                "-i",
+                str(in_gif),
+                "-o",
+                str(out_file),
+                "-p",
+                "password_test",
+                "--keyfile",
+                str(keyfile_path),
+                "--receiver-privkey",
+                str(priv_path),
+                "--receiver-privkey-password",
+                "privpw",
+                "--force",
+            ],
+        )
+    
+        # Should not raise.
+&gt;       dec.main()
+
+tests/test_coverage_targeted_cli_paths.py:166: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+    def main():
+        """Main CLI entry point."""
+    
+        parser = argparse.ArgumentParser(
+            description="Meow Decoder - Decode files from GIF animations",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
+    Examples:
+      # Basic decoding
+      meow-decode-gif --input secret.gif --output secret.pdf
+    
+      # With keyfile
+      meow-decode-gif --input secret.gif --keyfile key.bin --output secret.pdf
+    
+      # Aggressive preprocessing for difficult QR codes
+      meow-decode-gif --input secret.gif --aggressive --output secret.pdf
+            """
+        )
+    
+        # Required arguments
+        parser.add_argument('-i', '--input', type=Path, required=True,
+                           help='Input GIF file')
+        parser.add_argument('-o', '--output', type=Path, required=True,
+                           help='Output file')
+    
+        # Optional arguments
+        parser.add_argument('-p', '--password', type=str,
+                           help='Decryption password (prompted if not provided)')
+        parser.add_argument('-k', '--keyfile', type=Path,
+                           help='Path to keyfile')
+        parser.add_argument('--yubikey', action='store_true',
+                           help='Use YubiKey PIV for key derivation (Rust backend required)')
+        parser.add_argument('--yubikey-slot', type=str, default='9d',
+                           help='YubiKey PIV slot (default: 9d)')
+        parser.add_argument('--yubikey-pin', type=str, default=None,
+                           help='YubiKey PIN (prompted if not provided)')
+        parser.add_argument('--receiver-privkey', type=Path,
+                           help='Path to receiver X25519 private key for forward secrecy (PEM format)')
+        parser.add_argument('--receiver-privkey-password', type=str,
+                           help='Password for encrypted receiver private key')
+    
+        # Decoding parameters
+        parser.add_argument('--aggressive', action='store_true',
+                           help='Use aggressive QR preprocessing')
+    
+        # Duress Handling
+        parser.add_argument('--duress-mode', choices=['decoy', 'panic'], default='decoy',
+                           help='Duress response mode: decoy (fake success) or panic (wipe/exit)')
+        parser.add_argument('--enable-panic', action='store_true',
+                           help='Explicitly enable destructive PANIC mode (required for --duress-mode panic)')
+    
+        # Crypto backend selection
+        # Rust backend is mandatory; no Python fallback is supported.
+    
+        # Output control
+        parser.add_argument('-v', '--verbose', action='store_true',
+                           help='Verbose output')
+        parser.add_argument('--force', action='store_true',
+                           help='Overwrite output file if exists')
+    
+        args = parser.parse_args()
+    
+        # Rust backend is mandatory (no legacy Python fallback).
+    
+        # Validate input file
+        if not args.input.exists():
+            print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+            sys.exit(1)
+    
+        if not args.input.is_file():
+            print(f"Error: Input is not a file: {args.input}", file=sys.stderr)
+            sys.exit(1)
+    
+        # Check output file
+        if args.output.exists() and not args.force:
+            print(f"Error: Output file already exists: {args.output}", file=sys.stderr)
+            print("Use --force to overwrite", file=sys.stderr)
+            sys.exit(1)
+    
+        # Get password
+        if args.password:
+            password = args.password
+        else:
+            password = getpass("Enter decryption password: ")
+    
+        if not password:
+            print("Error: Password cannot be empty", file=sys.stderr)
+            sys.exit(1)
+    
+        # Load keyfile if specified
+        keyfile = None
+        if args.keyfile:
+            try:
+                keyfile = verify_keyfile(str(args.keyfile))
+                if args.verbose:
+                    print(f"Loaded keyfile: {args.keyfile} ({len(keyfile)} bytes)")
+            except (FileNotFoundError, ValueError) as e:
+                print(f"Error: {e}", file=sys.stderr)
+                sys.exit(1)
+    
+        # YubiKey validation
+        if args.yubikey:
+            if keyfile is not None:
+                print("Error: Cannot combine --yubikey with --keyfile", file=sys.stderr)
+                sys.exit(1)
+            if args.receiver_privkey is not None:
+                print("Error: YubiKey derivation is not supported with forward secrecy keys", file=sys.stderr)
+                sys.exit(1)
+            if args.yubikey_pin is None:
+                yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
+                args.yubikey_pin = yk_pin if yk_pin else None
+    
+        # Load receiver private key for forward secrecy if specified
+        receiver_private_key = None
+        if args.receiver_privkey:
+            try:
+                from .x25519_forward_secrecy import load_receiver_keypair
+                from cryptography.hazmat.primitives import serialization
+    
+                # Get password for private key if needed
+                privkey_password = args.receiver_privkey_password
+                if not privkey_password:
+                    privkey_password = getpass("Enter receiver private key password: ")
+    
+                # We need a dummy public key file for load_receiver_keypair
+                # So let's just load the private key directly
+                with open(args.receiver_privkey, 'rb') as f:
+                    privkey_data = f.read()
+    
+                from cryptography.hazmat.primitives.serialization import load_pem_private_key
+                from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+    
+                privkey_password_bytes = privkey_password.encode('utf-8') if privkey_password else None
+                receiver_privkey_obj = load_pem_private_key(privkey_data, password=privkey_password_bytes)
+    
+                if not isinstance(receiver_privkey_obj, X25519PrivateKey):
+                    print("Error: Loaded key is not X25519PrivateKey", file=sys.stderr)
+                    sys.exit(1)
+    
+                # Serialize to raw bytes for crypto.py
+                receiver_private_key = receiver_privkey_obj.private_bytes(
+                    encoding=serialization.Encoding.Raw,
+                    format=serialization.PrivateFormat.Raw,
+                    encryption_algorithm=serialization.NoEncryption()
+                )
+    
+                if args.verbose:
+                    print(f"✅ Loaded receiver private key for forward secrecy")
+                    print(f"   File: {args.receiver_privkey}")
+            except Exception as e:
+                print(f"Error loading receiver private key: {e}", file=sys.stderr)
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                sys.exit(1)
+    
+        # Create duress config
+        d_mode = DuressMode.PANIC if args.duress_mode == 'panic' else DuressMode.DECOY
+        duress_config = DuressConfig(
+            enabled=True,
+            mode=d_mode,
+            panic_enabled=args.enable_panic
+        )
+    
+        # Create decoding config
+        config = DecodingConfig(
+            preprocessing='aggressive' if args.aggressive else 'normal'
+        )
+    
+        # Decode file
+        try:
+            stats = decode_gif(
+                args.input,
+                args.output,
+                password,
+                config=config,
+                duress_config=duress_config,
+                keyfile=keyfile,
+                receiver_private_key=receiver_private_key,  # Forward secrecy support
+                yubikey_slot=args.yubikey_slot if args.yubikey else None,
+                yubikey_pin=args.yubikey_pin if args.yubikey else None,
+                verbose=args.verbose
+            )
+    
+            # Print summary
+            if not args.verbose:
+                print(f"\n✅ Decoding complete!")
+                print(f"  Input: {stats['input_frames']} frames, {stats['qr_codes_read']} QR codes")
+                print(f"  Processed: {stats['droplets_processed']} droplets")
+                print(f"  Output: {stats['output_size']:,} bytes")
+                print(f"  Efficiency: {stats['efficiency']*100:.1f}%")
+                print(f"  Time: {stats['elapsed_time']:.2f}s")
+    
+            print(f"\nOutput saved to: {args.output}")
+    
+        except Exception as e:
+            print(f"\nError during decoding: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
+                traceback.print_exc()
+&gt;           sys.exit(1)
+E           SystemExit: 1
+
+meow_decoder/decode_gif.py:623: SystemExit</failure></testcase><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_deserialize_public_key_rejects_wrong_length" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="7" time="0.001" /><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_derive_shared_secret_rejects_wrong_lengths" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="14" time="0.001" /><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_save_receiver_keypair_without_password_uses_no_encryption" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="27" time="0.005" /><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_load_receiver_keypair_rejects_non_x25519_private_key" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="46" time="0.002" /><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_generate_receiver_keys_cli_password_prompt_mismatch" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="68" time="0.002" /><testcase classname="tests.test_coverage_x25519_forward_secrecy_edge_cases" name="test_x25519_module_main_usage_prints" file="tests/test_coverage_x25519_forward_secrecy_edge_cases.py" line="88" time="0.003" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_argon2id_vector" file="tests/test_crypto_backend_rust.py" line="60" time="0.067" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_aes_gcm_roundtrip" file="tests/test_crypto_backend_rust.py" line="85" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_aes_gcm_no_aad" file="tests/test_crypto_backend_rust.py" line="98" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_hmac_vector" file="tests/test_crypto_backend_rust.py" line="111" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_hkdf_vector" file="tests/test_crypto_backend_rust.py" line="120" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_sha256_vector" file="tests/test_crypto_backend_rust.py" line="130" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestVectorValidation" name="test_x25519_exchange_vector" file="tests/test_crypto_backend_rust.py" line="142" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestBackendAvailability" name="test_rust_backend_available" file="tests/test_crypto_backend_rust.py" line="156" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_argon2id_invalid_salt_length" file="tests/test_crypto_backend_rust.py" line="165" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_aes_gcm_invalid_key_length" file="tests/test_crypto_backend_rust.py" line="169" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_aes_gcm_invalid_nonce_length" file="tests/test_crypto_backend_rust.py" line="173" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_aes_gcm_wrong_key_fails" file="tests/test_crypto_backend_rust.py" line="178" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_hmac_verify_wrong_tag_fails" file="tests/test_crypto_backend_rust.py" line="188" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestEdgeCases" name="test_empty_data" file="tests/test_crypto_backend_rust.py" line="198" time="0.001" /><testcase classname="tests.test_crypto_backend_rust.TestPerformance" name="test_argon2id_performance" file="tests/test_crypto_backend_rust.py" line="214" time="0.037" /><testcase classname="tests.test_crypto_backend_rust.TestPerformance" name="test_aes_gcm_performance" file="tests/test_crypto_backend_rust.py" line="228" time="0.007" /><testcase classname="tests.test_double_ratchet.TestFuzzingInfrastructure" name="test_seed_corpus_generation" file="tests/test_double_ratchet.py" line="19" time="0.016" /><testcase classname="tests.test_double_ratchet.TestFuzzingInfrastructure" name="test_manifest_fuzz_target" file="tests/test_double_ratchet.py" line="46" time="0.001" /><testcase classname="tests.test_double_ratchet.TestFuzzingInfrastructure" name="test_manifest_fuzz_edge_cases" file="tests/test_double_ratchet.py" line="73" time="0.001" /><testcase classname="tests.test_double_ratchet.TestFuzzingInfrastructure" name="test_fountain_fuzz_target" file="tests/test_double_ratchet.py" line="94" time="0.001" /><testcase classname="tests.test_double_ratchet.TestFuzzingInfrastructure" name="test_fountain_fuzz_edge_cases" file="tests/test_double_ratchet.py" line="112" time="0.001" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_keypair_generation" file="tests/test_double_ratchet.py" line="135" time="0.001" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_message_header" file="tests/test_double_ratchet.py" line="147" time="0.001" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_basic_exchange" file="tests/test_double_ratchet.py" line="162" time="0.002" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_multiple_messages_same_direction" file="tests/test_double_ratchet.py" line="190" time="0.001" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_out_of_order_delivery" file="tests/test_double_ratchet.py" line="213" time="0.002" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_state_serialization" file="tests/test_double_ratchet.py" line="237" time="0.002" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_forward_secrecy" file="tests/test_double_ratchet.py" line="267" time="0.002" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_clowder_session" file="tests/test_double_ratchet.py" line="291" time="0.001" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchet" name="test_wrong_key_fails" file="tests/test_double_ratchet.py" line="321" time="0.002" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchetIntegration" name="test_long_conversation" file="tests/test_double_ratchet.py" line="343" time="0.022" /><testcase classname="tests.test_double_ratchet.TestDoubleRatchetIntegration" name="test_skipped_keys_limit" file="tests/test_double_ratchet.py" line="366" time="0.003" /><testcase classname="tests.test_duress_modes.TestDuressModes" name="test_check_password_flow" file="tests/test_duress_modes.py" line="72" time="0.606"><failure message="AttributeError: 'DuressHandler' object has no attribute 'was_triggered'">self = &lt;tests.test_duress_modes.TestDuressModes testMethod=test_check_password_flow&gt;
+
+    def test_check_password_flow(self):
+        """Test the check_password flow integration."""
+        salt = secrets.token_bytes(16)
+        handler = setup_duress("duress", "real", salt)
+    
+        # Check real
+        valid, duress = handler.check_password("real", salt)
+        self.assertTrue(valid)
+        self.assertFalse(duress)
+    
+        # Check duress
+        valid, duress = handler.check_password("duress", salt)
+        self.assertTrue(valid)
+        self.assertTrue(duress)
+&gt;       self.assertTrue(handler.was_triggered)
+                        ^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute 'was_triggered'
+
+tests/test_duress_modes.py:87: AttributeError</failure></testcase><testcase classname="tests.test_duress_modes.TestDuressModes" name="test_decoy_mode_execution" file="tests/test_duress_modes.py" line="35" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'">self = &lt;tests.test_duress_modes.TestDuressModes testMethod=test_decoy_mode_execution&gt;
+
+    def test_decoy_mode_execution(self):
+        """Test DEC0Y mode returns data."""
+        config = DuressConfig(mode=DuressMode.DECOY, panic_enabled=False)
+        handler = DuressHandler(config)
+    
+        salt = secrets.token_bytes(16)
+&gt;       result = handler.execute_emergency_response([], salt=salt)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'
+
+tests/test_duress_modes.py:42: AttributeError</failure></testcase><testcase classname="tests.test_duress_modes.TestDuressModes" name="test_panic_mode_execution_disabled" file="tests/test_duress_modes.py" line="59" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'">self = &lt;tests.test_duress_modes.TestDuressModes testMethod=test_panic_mode_execution_disabled&gt;
+
+    def test_panic_mode_execution_disabled(self):
+        """Test PANIC mode falls back (returns None but logic might vary) if disabled."""
+        # Current implementation: if panic_disabled, it falls through to DECOY logic if salt provided.
+        config = DuressConfig(mode=DuressMode.PANIC, panic_enabled=False)
+        handler = DuressHandler(config)
+    
+        salt = secrets.token_bytes(16)
+&gt;       result = handler.execute_emergency_response([], salt=salt)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'
+
+tests/test_duress_modes.py:67: AttributeError</failure></testcase><testcase classname="tests.test_duress_modes.TestDuressModes" name="test_panic_mode_execution_enabled" file="tests/test_duress_modes.py" line="51" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'">self = &lt;tests.test_duress_modes.TestDuressModes testMethod=test_panic_mode_execution_enabled&gt;
+
+    def test_panic_mode_execution_enabled(self):
+        """Test PANIC mode returns None when enabled."""
+        config = DuressConfig(mode=DuressMode.PANIC, panic_enabled=True)
+        handler = DuressHandler(config)
+    
+&gt;       result = handler.execute_emergency_response([], salt=b"any")
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'
+
+tests/test_duress_modes.py:57: AttributeError</failure></testcase><testcase classname="tests.test_duress_modes.TestDuressModes" name="test_static_decoy_determinism" file="tests/test_duress_modes.py" line="17" time="0.001" /><testcase classname="tests.test_e2e" name="test_encode_decode_roundtrip" file="tests/test_e2e.py" line="29" time="4.068" /><testcase classname="tests.test_e2e" name="test_wrong_password" file="tests/test_e2e.py" line="117" time="2.620" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_import" file="tests/test_grok_security.py" line="30" time="0.001" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_config_defaults" file="tests/test_grok_security.py" line="36" time="0.001"><failure message="AssertionError: assert False == True&#10; +  where False = DuressConfig(enabled=False, mode=&lt;DuressMode.DECOY: 'decoy'&gt;, panic_enabled=False, decoy_type='message', decoy_message='Decode complete.', decoy_file_path=None, decoy_output_name=None, wipe_memory=False, wipe_resume_files=False, exit_after_wipe=False, min_delay_ms=100, max_delay_ms=500).wipe_memory">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d2536cf0&gt;
+
+    def test_config_defaults(self):
+        """Test DuressConfig default values."""
+        from meow_decoder.duress_mode import DuressConfig
+    
+        config = DuressConfig()
+        # Check actual attribute names from implementation
+&gt;       assert config.wipe_memory == True
+E       AssertionError: assert False == True
+E        +  where False = DuressConfig(enabled=False, mode=&lt;DuressMode.DECOY: 'decoy'&gt;, panic_enabled=False, decoy_type='message', decoy_message='Decode complete.', decoy_file_path=None, decoy_output_name=None, wipe_memory=False, wipe_resume_files=False, exit_after_wipe=False, min_delay_ms=100, max_delay_ms=500).wipe_memory
+
+tests/test_grok_security.py:43: AssertionError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressMode" name="test_handler_initialization" file="tests/test_grok_security.py" line="50" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute '_triggered'">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d2537680&gt;
+
+    def test_handler_initialization(self):
+        """Test DuressHandler initialization."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+    
+        config = DuressConfig()
+        handler = DuressHandler(config)
+    
+        # Check internal state
+        assert handler._duress_hash is None
+        assert handler._real_hash is None
+&gt;       assert handler._triggered == False
+               ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute '_triggered'
+
+tests/test_grok_security.py:61: AttributeError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressMode" name="test_set_passwords" file="tests/test_grok_security.py" line="62" time="0.001" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_same_passwords_rejected" file="tests/test_grok_security.py" line="79" time="0.001" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_check_password_real" file="tests/test_grok_security.py" line="89" time="0.325" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_check_password_duress" file="tests/test_grok_security.py" line="103" time="0.102"><failure message="AttributeError: 'DuressHandler' object has no attribute '_triggered'">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d256a510&gt;
+
+    def test_check_password_duress(self):
+        """Test checking duress password triggers wipe."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+    
+        # Disable actual wipe for testing
+        config = DuressConfig(wipe_memory=False, wipe_resume_files=False)
+        handler = DuressHandler(config)
+        salt = secrets.token_bytes(16)
+        handler.set_passwords("duress_password", "real_password", salt)
+    
+        is_valid, is_duress = handler.check_password("duress_password", salt)
+    
+        assert is_valid == True
+        assert is_duress == True
+&gt;       assert handler._triggered == True
+               ^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute '_triggered'
+
+tests/test_grok_security.py:118: AttributeError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressMode" name="test_check_password_wrong" file="tests/test_grok_security.py" line="119" time="0.438" /><testcase classname="tests.test_grok_security.TestDuressMode" name="test_secure_zero" file="tests/test_grok_security.py" line="133" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute '_secure_zero'">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d256aab0&gt;
+
+    def test_secure_zero(self):
+        """Test secure memory zeroing."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+    
+        handler = DuressHandler(DuressConfig())
+    
+        # Create bytearray with data
+        data = bytearray(b"sensitive_data_here")
+        original_len = len(data)
+    
+&gt;       handler._secure_zero(data)
+        ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute '_secure_zero'
+
+tests/test_grok_security.py:144: AttributeError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressMode" name="test_duress_wipes_sensitive_data" file="tests/test_grok_security.py" line="149" time="0.001"><failure message="TypeError: DuressHandler.check_password() got an unexpected keyword argument 'sensitive_data'">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d256ad80&gt;
+
+    def test_duress_wipes_sensitive_data(self):
+        """Test that duress password wipes provided sensitive data."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+    
+        config = DuressConfig(wipe_resume_files=False)
+        handler = DuressHandler(config)
+        salt = secrets.token_bytes(16)
+        handler.set_passwords("duress_password", "real_password", salt)
+    
+        # Create sensitive data
+        sensitive = bytearray(b"secret_key_material")
+    
+        # Trigger duress with sensitive data
+&gt;       handler.check_password("duress_password", salt, sensitive_data=[sensitive])
+E       TypeError: DuressHandler.check_password() got an unexpected keyword argument 'sensitive_data'
+
+tests/test_grok_security.py:163: TypeError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressMode" name="test_execute_emergency_response" file="tests/test_grok_security.py" line="167" time="0.001"><failure message="AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'">self = &lt;tests.test_grok_security.TestDuressMode object at 0x7a49d256b050&gt;
+
+    def test_execute_emergency_response(self):
+        """Test the execute_emergency_response method."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+    
+        config = DuressConfig(wipe_resume_files=False, exit_after_wipe=False)
+        handler = DuressHandler(config)
+    
+        # Create sensitive data
+        sensitive = bytearray(b"more_secret_data")
+    
+        # Call execute_emergency_response directly
+&gt;       handler.execute_emergency_response([sensitive])
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: 'DuressHandler' object has no attribute 'execute_emergency_response'
+
+tests/test_grok_security.py:179: AttributeError</failure></testcase><testcase classname="tests.test_grok_security.TestDuressE2E" name="test_encode_with_duress_password" file="tests/test_grok_security.py" line="193" time="2.854" /><testcase classname="tests.test_grok_security.TestDuressE2E" name="test_decode_with_real_password_succeeds" file="tests/test_grok_security.py" line="235" time="4.628" /><testcase classname="tests.test_grok_security.TestDuressE2E" name="test_decode_with_duress_password_fails_gracefully" file="tests/test_grok_security.py" line="290" time="4.554"><failure message="Failed: DID NOT RAISE &lt;class 'ValueError'&gt;">self = &lt;tests.test_grok_security.TestDuressE2E object at 0x7a49d2537860&gt;
+
+    def test_decode_with_duress_password_fails_gracefully(self):
+        """Test that duress password triggers error (appears as wrong password)."""
+        import tempfile
+        from pathlib import Path
+        from meow_decoder.encode import encode_file
+        from meow_decoder.decode_gif import decode_gif
+        from meow_decoder.config import EncodingConfig
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+    
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+    
+            # Create and encode test file
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(b"Top secret data! " * 100)
+    
+            output_gif = tmpdir / "secret.gif"
+            decoded_file = tmpdir / "decoded.txt"
+    
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=2.0,
+                fps=10
+            )
+    
+            # Generate receiver keypair for proper forward secrecy
+            receiver_private, receiver_public = generate_receiver_keypair()
+    
+            # Encode with duress password and forward secrecy
+            encode_file(
+                input_file,
+                output_gif,
+                password="RealPassword123!",
+                config=config,
+                forward_secrecy=True,
+                receiver_public_key=receiver_public,
+                duress_password="DuressPassword456!",
+                verbose=False
+            )
+    
+            # Decode with DURESS password - should fail with HMAC error
+            # (This is the expected behavior - duress makes it look like wrong password)
+&gt;           with pytest.raises(ValueError, match="HMAC verification failed"):
+E           Failed: DID NOT RAISE &lt;class 'ValueError'&gt;
+
+tests/test_grok_security.py:333: Failed</failure></testcase><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_import" file="tests/test_grok_security.py" line="349" time="0.074" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_pool_initialization" file="tests/test_grok_security.py" line="354" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_add_system_entropy" file="tests/test_grok_security.py" line="364" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_add_timing_entropy" file="tests/test_grok_security.py" line="376" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_add_environment_entropy" file="tests/test_grok_security.py" line="388" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_hardware_entropy_graceful" file="tests/test_grok_security.py" line="400" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_sources_contain_bytes" file="tests/test_grok_security.py" line="412" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_entropy_quality" file="tests/test_grok_security.py" line="425" time="0.001" /><testcase classname="tests.test_grok_security.TestEntropyBoost" name="test_multiple_pools_independent" file="tests/test_grok_security.py" line="447" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_import" file="tests/test_grok_security.py" line="468" time="0.005" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_reality_dataclass" file="tests/test_grok_security.py" line="478" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_manifest_pack_unpack" file="tests/test_grok_security.py" line="489" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encoder_initialization" file="tests/test_grok_security.py" line="513" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encoder_minimum_realities" file="tests/test_grok_security.py" line="529" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encoder_maximum_realities" file="tests/test_grok_security.py" line="536" time="0.001" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encode_two_realities" file="tests/test_grok_security.py" line="545" time="0.352" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encode_decode_two_realities" file="tests/test_grok_security.py" line="568" time="0.857" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_encode_decode_three_realities" file="tests/test_grok_security.py" line="593" time="1.185" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_wrong_password_fails" file="tests/test_grok_security.py" line="615" time="0.487" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_merkle_root_integrity" file="tests/test_grok_security.py" line="633" time="0.350" /><testcase classname="tests.test_grok_security.TestMultiSecret" name="test_five_realities" file="tests/test_grok_security.py" line="649" time="2.347" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_import" file="tests/test_grok_security.py" line="673" time="0.001" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_status_initialization" file="tests/test_grok_security.py" line="679" time="0.001" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_status_any_hardware" file="tests/test_grok_security.py" line="691" time="0.001" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_status_summary" file="tests/test_grok_security.py" line="701" time="0.001" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_manager_initialization" file="tests/test_grok_security.py" line="712" time="0.018" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_manager_detect_hardware" file="tests/test_grok_security.py" line="721" time="0.004" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_has_tpm_method" file="tests/test_grok_security.py" line="730" time="0.005" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_has_yubikey_method" file="tests/test_grok_security.py" line="740" time="0.005" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_derive_key_software" file="tests/test_grok_security.py" line="749" time="0.090" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_key_derivation_deterministic" file="tests/test_grok_security.py" line="764" time="0.181" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_different_passwords_different_keys" file="tests/test_grok_security.py" line="778" time="0.165" /><testcase classname="tests.test_grok_security.TestHardwareKeys" name="test_different_salts_different_keys" file="tests/test_grok_security.py" line="791" time="0.161" /><testcase classname="tests.test_grok_security.TestSecurityIntegration" name="test_entropy_in_multi_secret" file="tests/test_grok_security.py" line="812" time="0.458" /><testcase classname="tests.test_grok_security.TestSecurityIntegration" name="test_duress_concept_with_multi_secret" file="tests/test_grok_security.py" line="836" time="0.975" /><testcase classname="tests.test_grok_security.TestSecurityIntegration" name="test_hardware_key_derivation_available" file="tests/test_grok_security.py" line="869" time="0.086" /><testcase classname="tests.test_grok_security.TestSecurityIntegration" name="test_all_modules_import" file="tests/test_grok_security.py" line="883" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_hardware_auto_prefers_yubikey" file="tests/test_hardware_mocks.py" line="11" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_hardware_auto_falls_back_to_tpm" file="tests/test_hardware_mocks.py" line="18" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_tpm_deterministic" file="tests/test_hardware_mocks.py" line="25" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_tpm_changes_with_salt" file="tests/test_hardware_mocks.py" line="33" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_yubikey_deterministic" file="tests/test_hardware_mocks.py" line="40" time="0.001" /><testcase classname="tests.test_hardware_mocks" name="test_mock_yubikey_changes_with_password" file="tests/test_hardware_mocks.py" line="47" time="0.001" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_tampered_data_rejected" file="tests/test_invariants.py" line="24" time="0.047" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_wrong_password_rejected" file="tests/test_invariants.py" line="51" time="2.582" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_nonce_never_reused" file="tests/test_invariants.py" line="70" time="1.758" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_aad_modification_rejected" file="tests/test_invariants.py" line="87" time="0.034" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_partial_data_rejected" file="tests/test_invariants.py" line="110" time="0.003" /><testcase classname="tests.test_invariants.TestCriticalInvariants" name="test_invariant_roundtrip_preserves_data" file="tests/test_invariants.py" line="137" time="20.172" /><testcase classname="tests.test_invariants.TestFailClosedBehavior" name="test_fail_closed_corrupted_manifest" file="tests/test_invariants.py" line="179" time="2.511" /><testcase classname="tests.test_invariants.TestFailClosedBehavior" name="test_fail_closed_truncated_data" file="tests/test_invariants.py" line="195" time="2.384" /><testcase classname="tests.test_invariants.TestFailClosedBehavior" name="test_fail_closed_empty_password" file="tests/test_invariants.py" line="213" time="0.001" /><testcase classname="tests.test_invariants.TestNoRegressions" name="test_no_regression_nonce_randomness" file="tests/test_invariants.py" line="224" time="0.831" /><testcase classname="tests.test_invariants.TestNoRegressions" name="test_no_regression_compression" file="tests/test_invariants.py" line="246" time="0.018" /><testcase classname="tests.test_pq_hybrid_fail_closed" name="test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable" file="tests/test_pq_hybrid_fail_closed.py" line="3" time="0.005"><failure message="ValueError: Error computing shared key.">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7a49c90a02c0&gt;
+
+    def test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable(monkeypatch):
+        from meow_decoder import pq_hybrid
+    
+        monkeypatch.setattr(pq_hybrid, "LIBOQS_AVAILABLE", False)
+        monkeypatch.setattr(pq_hybrid, "PQ_ALGORITHM", None)
+    
+        # PQ requested (receiver_pq_public provided) but liboqs unavailable
+        with pytest.raises(RuntimeError):
+&gt;           pq_hybrid.hybrid_encapsulate(
+                receiver_classical_public=b"\x00" * 32,
+                receiver_pq_public=b"\x00" * 1568,
+            )
+
+tests/test_pq_hybrid_fail_closed.py:12: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+receiver_classical_public = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+receiver_pq_public = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00...00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+
+    def hybrid_encapsulate(
+        receiver_classical_public: bytes,
+        receiver_pq_public: Optional[bytes] = None
+    ) -&gt; Tuple[bytes, bytes, Optional[bytes], Optional[bytes]]:
+        """
+        Hybrid key encapsulation.
+    
+        Args:
+            receiver_classical_public: Receiver's X25519 public key (32 bytes)
+            receiver_pq_public: Receiver's ML-KEM-1024 public key (1568 bytes)
+                               None for classical-only mode
+    
+        Returns:
+            Tuple of (shared_secret, ephemeral_classical_public,
+                     pq_ciphertext, pq_shared_secret)
+            - shared_secret: Combined hybrid secret (32 bytes)
+            - ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
+            - pq_ciphertext: ML-KEM-1024 encapsulation (1568 bytes) or None
+            - pq_shared_secret: PQ component (32 bytes) or None
+    
+        Security:
+            - Classical: ECDH with X25519
+            - PQ: KEM encapsulation with ML-KEM-1024
+            - Combined: HKDF(classical_secret || pq_secret)
+            - Secure even if one primitive breaks!
+        """
+        # Generate ephemeral classical keypair
+        ephemeral_private = X25519PrivateKey.generate()
+        ephemeral_public = ephemeral_private.public_key()
+    
+        # Classical key agreement
+        receiver_pubkey = X25519PublicKey.from_public_bytes(receiver_classical_public)
+&gt;       classical_shared = ephemeral_private.exchange(receiver_pubkey)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: Error computing shared key.
+
+meow_decoder/pq_hybrid.py:129: ValueError</failure></testcase><testcase classname="tests.test_pq_hybrid_fail_closed" name="test_hybrid_encapsulate_allows_classical_only_when_pq_not_requested" file="tests/test_pq_hybrid_fail_closed.py" line="17" time="0.002"><failure message="ValueError: Error computing shared key.">monkeypatch = &lt;_pytest.monkeypatch.MonkeyPatch object at 0x7a49c910e8a0&gt;
+
+    def test_hybrid_encapsulate_allows_classical_only_when_pq_not_requested(monkeypatch):
+        from meow_decoder import pq_hybrid
+    
+        monkeypatch.setattr(pq_hybrid, "LIBOQS_AVAILABLE", False)
+    
+        # PQ not requested (receiver_pq_public None) should not raise
+&gt;       shared_secret, ephemeral_public, pq_ct, pq_ss = pq_hybrid.hybrid_encapsulate(
+            receiver_classical_public=b"\x00" * 32,
+            receiver_pq_public=None,
+        )
+
+tests/test_pq_hybrid_fail_closed.py:24: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+receiver_classical_public = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+receiver_pq_public = None
+
+    def hybrid_encapsulate(
+        receiver_classical_public: bytes,
+        receiver_pq_public: Optional[bytes] = None
+    ) -&gt; Tuple[bytes, bytes, Optional[bytes], Optional[bytes]]:
+        """
+        Hybrid key encapsulation.
+    
+        Args:
+            receiver_classical_public: Receiver's X25519 public key (32 bytes)
+            receiver_pq_public: Receiver's ML-KEM-1024 public key (1568 bytes)
+                               None for classical-only mode
+    
+        Returns:
+            Tuple of (shared_secret, ephemeral_classical_public,
+                     pq_ciphertext, pq_shared_secret)
+            - shared_secret: Combined hybrid secret (32 bytes)
+            - ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
+            - pq_ciphertext: ML-KEM-1024 encapsulation (1568 bytes) or None
+            - pq_shared_secret: PQ component (32 bytes) or None
+    
+        Security:
+            - Classical: ECDH with X25519
+            - PQ: KEM encapsulation with ML-KEM-1024
+            - Combined: HKDF(classical_secret || pq_secret)
+            - Secure even if one primitive breaks!
+        """
+        # Generate ephemeral classical keypair
+        ephemeral_private = X25519PrivateKey.generate()
+        ephemeral_public = ephemeral_private.public_key()
+    
+        # Classical key agreement
+        receiver_pubkey = X25519PublicKey.from_public_bytes(receiver_classical_public)
+&gt;       classical_shared = ephemeral_private.exchange(receiver_pubkey)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: Error computing shared key.
+
+meow_decoder/pq_hybrid.py:129: ValueError</failure></testcase><testcase classname="tests.test_pq_hybrid_fail_closed" name="test_hybrid_decapsulate_fails_if_pq_ciphertext_without_pq_key" file="tests/test_pq_hybrid_fail_closed.py" line="34" time="0.001"><failure message="ValueError: Error computing shared key.">def test_hybrid_decapsulate_fails_if_pq_ciphertext_without_pq_key():
+        from meow_decoder.pq_hybrid import HybridKeyPair, hybrid_decapsulate
+    
+        receiver = HybridKeyPair(use_pq=False)
+    
+        with pytest.raises(RuntimeError):
+&gt;           hybrid_decapsulate(
+                ephemeral_classical_public=b"\x00" * 32,
+                pq_ciphertext=b"\x00" * 1568,
+                receiver_keypair=receiver,
+            )
+
+tests/test_pq_hybrid_fail_closed.py:41: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+ephemeral_classical_public = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+pq_ciphertext = b'\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00...00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00'
+receiver_keypair = &lt;meow_decoder.pq_hybrid.HybridKeyPair object at 0x7a49c910dc40&gt;
+
+    def hybrid_decapsulate(
+        ephemeral_classical_public: bytes,
+        pq_ciphertext: Optional[bytes],
+        receiver_keypair: HybridKeyPair
+    ) -&gt; bytes:
+        """
+        Hybrid key decapsulation.
+    
+        Args:
+            ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
+            pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes) or None
+            receiver_keypair: Receiver's hybrid keypair
+    
+        Returns:
+            Shared secret (32 bytes)
+    
+        Security:
+            - Decapsulates both classical and PQ components
+            - Combines with HKDF (same as encapsulate)
+            - Must match sender's derivation exactly
+        """
+        # Classical key agreement
+        sender_pubkey = X25519PublicKey.from_public_bytes(ephemeral_classical_public)
+&gt;       classical_shared = receiver_keypair.classical_private.exchange(sender_pubkey)
+                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       ValueError: Error computing shared key.
+
+meow_decoder/pq_hybrid.py:197: ValueError</failure></testcase><testcase classname="tests.test_property_based.TestEncryptDecryptInvariants" name="test_aes_gcm_roundtrip" file="tests/test_property_based.py" line="77" time="1.175" /><testcase classname="tests.test_property_based.TestEncryptDecryptInvariants" name="test_file_encrypt_decrypt_roundtrip" file="tests/test_property_based.py" line="89" time="2.271" /><testcase classname="tests.test_property_based.TestNonceUniqueness" name="test_nonces_never_repeat" file="tests/test_property_based.py" line="124" time="21.213" /><testcase classname="tests.test_property_based.TestTamperDetection" name="test_ciphertext_tampering_detected" file="tests/test_property_based.py" line="159" time="0.462" /><testcase classname="tests.test_property_based.TestTamperDetection" name="test_aad_tampering_detected" file="tests/test_property_based.py" line="186" time="0.399" /><testcase classname="tests.test_property_based.TestTamperDetection" name="test_hmac_tampering_detected" file="tests/test_property_based.py" line="211" time="0.327" /><testcase classname="tests.test_property_based.TestKeyDerivationInvariants" name="test_key_derivation_deterministic" file="tests/test_property_based.py" line="237" time="1.061" /><testcase classname="tests.test_property_based.TestKeyDerivationInvariants" name="test_different_passwords_different_keys" file="tests/test_property_based.py" line="248" time="1.952" /><testcase classname="tests.test_property_based.TestKeyDerivationInvariants" name="test_different_salts_different_keys" file="tests/test_property_based.py" line="261" time="1.965" /><testcase classname="tests.test_property_based.TestManifestInvariants" name="test_manifest_roundtrip" file="tests/test_property_based.py" line="282" time="0.399" /><testcase classname="tests.test_property_based.TestFountainCodeInvariants" name="test_fountain_roundtrip" file="tests/test_property_based.py" line="332" time="0.210" /><testcase classname="tests.test_property_based.TestFountainCodeInvariants" name="test_droplet_serialization" file="tests/test_property_based.py" line="363" time="0.216" /><testcase classname="tests.test_property_based.TestConstantTimeInvariants" name="test_constant_time_compare_correctness" file="tests/test_property_based.py" line="392" time="0.686" /><testcase classname="tests.test_property_based.TestConstantTimeInvariants" name="test_constant_time_self_compare" file="tests/test_property_based.py" line="407" time="0.213" /><testcase classname="tests.test_property_based.TestX25519Invariants" name="test_x25519_shared_secret_commutative" file="tests/test_property_based.py" line="425" time="0.004" /><testcase classname="tests.test_property_based.TestX25519Invariants" name="test_x25519_public_key_derivation" file="tests/test_property_based.py" line="443" time="0.005" /><testcase classname="tests.test_security.TestTamperDetection" name="test_tampered_manifest_rejected" file="tests/test_security.py" line="38" time="2.431" /><testcase classname="tests.test_security.TestTamperDetection" name="test_tampered_ciphertext_rejected" file="tests/test_security.py" line="62" time="0.037" /><testcase classname="tests.test_security.TestTamperDetection" name="test_wrong_password_fails" file="tests/test_security.py" line="88" time="2.706" /><testcase classname="tests.test_security.TestTamperDetection" name="test_aad_tampering_rejected" file="tests/test_security.py" line="103" time="0.036" /><testcase classname="tests.test_security.TestCorruptionHandling" name="test_truncated_gif_fails" file="tests/test_security.py" line="133" time="2.388" /><testcase classname="tests.test_security.TestCorruptionHandling" name="test_corrupted_qr_data_fails" file="tests/test_security.py" line="152" time="1.855" /><testcase classname="tests.test_security.TestNonceSafety" name="test_nonce_never_reused" file="tests/test_security.py" line="195" time="0.006" /><testcase classname="tests.test_security.TestNonceSafety" name="test_nonce_is_random" file="tests/test_security.py" line="210" time="0.002" /><testcase classname="tests.test_security.TestNonceSafety" name="test_nonce_reuse_detected" file="tests/test_security.py" line="234" time="0.002" /><testcase classname="tests.test_security.TestForwardSecrecy" name="test_forward_secrecy_roundtrip" file="tests/test_security.py" line="263" time="3.028" /><testcase classname="tests.test_security.TestForwardSecrecy" name="test_wrong_receiver_key_fails" file="tests/test_security.py" line="307" time="2.821" /><testcase classname="tests.test_security.TestAuthenticationCoverage" name="test_version_authenticated" file="tests/test_security.py" line="348" time="0.045" /><testcase classname="tests.test_security.TestAuthenticationCoverage" name="test_length_fields_authenticated" file="tests/test_security.py" line="378" time="0.047" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_computation" file="tests/test_security.py" line="404" time="0.001" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_pack_unpack" file="tests/test_security.py" line="431" time="0.001" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_tamper_detection" file="tests/test_security.py" line="455" time="0.001" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_wrong_size_rejected" file="tests/test_security.py" line="475" time="0.001" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_too_short_packed" file="tests/test_security.py" line="487" time="0.001" /><testcase classname="tests.test_security.TestFrameMACAuthentication" name="test_frame_mac_stats" file="tests/test_security.py" line="500" time="0.001" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_derive_key_basic" file="tests/test_security.py" line="536" time="0.057" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_derive_key_empty_password_rejected" file="tests/test_security.py" line="556" time="0.001" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_derive_key_wrong_salt_length_rejected" file="tests/test_security.py" line="565" time="0.001" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_manifest_pack_unpack" file="tests/test_security.py" line="572" time="0.001" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_manifest_with_fs_key" file="tests/test_security.py" line="597" time="0.001" /><testcase classname="tests.test_security.TestCryptoSecurityProperties" name="test_manifest_hmac_verification" file="tests/test_security.py" line="622" time="0.064" /><testcase classname="tests.test_security.TestFountainCodeSecurity" name="test_fountain_encode_decode" file="tests/test_security.py" line="668" time="0.002" /><testcase classname="tests.test_security.TestFountainCodeSecurity" name="test_fountain_redundancy" file="tests/test_security.py" line="692" time="0.002" /><testcase classname="tests.test_security.TestFountainCodeSecurity" name="test_fountain_droplet_packing" file="tests/test_security.py" line="716" time="0.001" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_derive_key_with_keyfile" file="tests/test_security.py" line="739" time="0.038" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_derive_key_empty_password_fails" file="tests/test_security.py" line="756" time="0.001" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_derive_key_wrong_salt_length" file="tests/test_security.py" line="765" time="0.001" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_encrypt_with_forward_secrecy_directly" file="tests/test_security.py" line="772" time="0.001" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_decrypt_fs_missing_private_key" file="tests/test_security.py" line="802" time="0.006" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_manifest_too_short" file="tests/test_security.py" line="816" time="0.002" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_manifest_invalid_length" file="tests/test_security.py" line="823" time="0.004" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_manifest_invalid_magic" file="tests/test_security.py" line="833" time="0.002" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_manifest_meow2_backward_compat" file="tests/test_security.py" line="843" time="0.001" /><testcase classname="tests.test_security.TestCryptoEdgeCases" name="test_pack_manifest_with_fs" file="tests/test_security.py" line="872" time="0.001" /><testcase classname="tests.test_security.TestDuressTagAuthentication" name="test_duress_tag_verifies_and_detects_tamper" file="tests/test_security.py" line="900" time="0.001" /><testcase classname="tests.test_security.TestDuressTagAuthentication" name="test_pack_manifest_invalid_ephemeral_key_length" file="tests/test_security.py" line="936" time="0.003" /><testcase classname="tests.test_security.TestDuressTagAuthentication" name="test_hmac_with_encryption_key" file="tests/test_security.py" line="956" time="0.001" /><testcase classname="tests.test_security.TestFountainEdgeCases" name="test_soliton_distribution_small_k" file="tests/test_security.py" line="981" time="0.001" /><testcase classname="tests.test_security.TestFountainEdgeCases" name="test_fountain_decoder_incomplete" file="tests/test_security.py" line="995" time="0.001" /><testcase classname="tests.test_security.TestFountainEdgeCases" name="test_fountain_decoder_no_original_length" file="tests/test_security.py" line="1007" time="0.006" /><testcase classname="tests.test_security.TestKeyfileValidation" name="test_verify_keyfile_not_found" file="tests/test_security.py" line="1029" time="0.002" /><testcase classname="tests.test_security.TestKeyfileValidation" name="test_verify_keyfile_too_small" file="tests/test_security.py" line="1036" time="0.003" /><testcase classname="tests.test_security.TestKeyfileValidation" name="test_verify_keyfile_too_large" file="tests/test_security.py" line="1046" time="0.004" /><testcase classname="tests.test_security.TestKeyfileValidation" name="test_verify_keyfile_valid" file="tests/test_security.py" line="1057" time="0.003" /><testcase classname="tests.test_security.TestPostQuantumManifest" name="test_pack_manifest_with_pq_ciphertext" file="tests/test_security.py" line="1072" time="0.001" /><testcase classname="tests.test_security.TestPostQuantumManifest" name="test_pack_manifest_pq_wrong_length" file="tests/test_security.py" line="1096" time="0.005" /><testcase classname="tests.test_security.TestPostQuantumManifest" name="test_unpack_manifest_with_pq" file="tests/test_security.py" line="1118" time="0.001" /><testcase classname="tests.test_security.TestHMACEdgeCases" name="test_compute_hmac_fs_without_receiver_key" file="tests/test_security.py" line="1148" time="0.004" /><testcase classname="tests.test_security.TestFountainDecoderEdgeCases" name="test_generate_droplets_batch" file="tests/test_security.py" line="1170" time="0.002" /><testcase classname="tests.test_security.TestFountainDecoderEdgeCases" name="test_droplet_pack_unpack" file="tests/test_security.py" line="1185" time="0.001" /><testcase classname="tests.test_security.TestSolitonDistributionEdgeCases" name="test_distribution_degree_bounds" file="tests/test_security.py" line="1204" time="0.004" /><testcase classname="tests.test_security.TestSolitonDistributionEdgeCases" name="test_distribution_precompute" file="tests/test_security.py" line="1217" time="0.001" /><testcase classname="tests.test_security.TestSolitonDistributionEdgeCases" name="test_sample_degree_edge_high_random" file="tests/test_security.py" line="1227" time="0.003" /><testcase classname="tests.test_security.TestSolitonDistributionEdgeCases" name="test_distribution_normalization_zero" file="tests/test_security.py" line="1240" time="0.001" /><testcase classname="tests.test_security.TestDecryptionEdgeCases" name="test_decrypt_no_aad_backward_compat" file="tests/test_security.py" line="1258" time="0.048" /><testcase classname="tests.test_security.TestDecryptionEdgeCases" name="test_decrypt_with_none_aad_params" file="tests/test_security.py" line="1296" time="0.050" /><testcase classname="tests.test_security.TestVerifyManifestHMACEdgeCases" name="test_verify_manifest_hmac_valid" file="tests/test_security.py" line="1334" time="0.054" /><testcase classname="tests.test_security.TestVerifyManifestHMACEdgeCases" name="test_verify_manifest_hmac_invalid" file="tests/test_security.py" line="1373" time="0.024" /><testcase classname="tests.test_security.TestVerifyManifestHMACEdgeCases" name="test_verify_manifest_hmac_fallback" file="tests/test_security.py" line="1396" time="0.067" /><testcase classname="tests.test_security.TestDeriveKeyEdgeCases" name="test_derive_key_empty_password" file="tests/test_security.py" line="1455" time="0.001" /><testcase classname="tests.test_security.TestDeriveKeyEdgeCases" name="test_derive_key_wrong_salt_length" file="tests/test_security.py" line="1463" time="0.001" /><testcase classname="tests.test_security.TestConstantTimeModule" name="test_constant_time_compare" file="tests/test_security.py" line="1474" time="0.001" /><testcase classname="tests.test_security.TestConstantTimeModule" name="test_timing_safe_with_delay" file="tests/test_security.py" line="1488" time="0.017" /><testcase classname="tests.test_security.TestConstantTimeModule" name="test_equalize_timing" file="tests/test_security.py" line="1508" time="0.051" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_generate_ephemeral_keypair" file="tests/test_security.py" line="1532" time="0.001" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_derive_shared_secret" file="tests/test_security.py" line="1542" time="0.001" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_serialize_deserialize_public_key" file="tests/test_security.py" line="1579" time="0.001" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_deserialize_invalid_key_length" file="tests/test_security.py" line="1597" time="0.002" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_save_load_keypair" file="tests/test_security.py" line="1607" time="0.002" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_keypair_without_password" file="tests/test_security.py" line="1636" time="0.002" /><testcase classname="tests.test_security.TestX25519ForwardSecrecy" name="test_different_salts_different_secrets" file="tests/test_security.py" line="1659" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_tree_creation" file="tests/test_security.py" line="1687" time="0.005" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_tree_single_chunk" file="tests/test_security.py" line="1698" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_tree_empty_chunks_fails" file="tests/test_security.py" line="1708" time="0.003" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_tree_odd_chunks" file="tests/test_security.py" line="1715" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_proof_generation" file="tests/test_security.py" line="1725" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_proof_verification" file="tests/test_security.py" line="1740" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_proof_invalid_chunk" file="tests/test_security.py" line="1753" time="0.001" /><testcase classname="tests.test_security.TestMerkleTree" name="test_merkle_trees_different_data" file="tests/test_security.py" line="1769" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_round_up_to_size_class" file="tests/test_security.py" line="1786" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_add_length_padding" file="tests/test_security.py" line="1803" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_remove_length_padding" file="tests/test_security.py" line="1816" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_padding_roundtrip_various_sizes" file="tests/test_security.py" line="1827" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_padding_hides_true_size" file="tests/test_security.py" line="1838" time="0.001" /><testcase classname="tests.test_security.TestMetadataObfuscation" name="test_very_large_size" file="tests/test_security.py" line="1851" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_per_block_key_derivation" file="tests/test_security.py" line="1870" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_block_encryption_decryption" file="tests/test_security.py" line="1896" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_ratchet_key_derivation" file="tests/test_security.py" line="1921" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_ratchet_state_serialization" file="tests/test_security.py" line="1948" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_restore_from_ratchet_state" file="tests/test_security.py" line="1969" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_no_ratchet_returns_none_state" file="tests/test_security.py" line="1995" time="0.001" /><testcase classname="tests.test_security.TestForwardSecrecyManager" name="test_wrong_key_fails_decryption" file="tests/test_security.py" line="2010" time="0.001" /><testcase classname="tests.test_security.TestSecureBuffer" name="test_secure_buffer_creation" file="tests/test_security.py" line="2040" time="0.001" /><testcase classname="tests.test_security.TestSecureBuffer" name="test_secure_buffer_context_manager" file="tests/test_security.py" line="2049" time="0.001" /><testcase classname="tests.test_security.TestSecureBuffer" name="test_secure_zero_memory" file="tests/test_security.py" line="2062" time="0.001" /><testcase classname="tests.test_security.TestSecureBuffer" name="test_secure_memory_context" file="tests/test_security.py" line="2072" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_high_security_config_defaults" file="tests/test_security.py" line="2092" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_enable_high_security_mode" file="tests/test_security.py" line="2108" time="0.015" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_generic_error_no_info_leak" file="tests/test_security.py" line="2116" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_normalize_size_to_bucket" file="tests/test_security.py" line="2128" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_normalize_size_large_data" file="tests/test_security.py" line="2140" time="0.002" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_innocuous_filename_generation" file="tests/test_security.py" line="2151" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_safety_checklist_exists" file="tests/test_security.py" line="2164" time="0.001" /><testcase classname="tests.test_security.TestHighSecurityMode" name="test_apply_high_security_to_config" file="tests/test_security.py" line="2179" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_high_security_config_defaults" file="tests/test_security.py" line="2092" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_enable_high_security_mode" file="tests/test_security.py" line="2108" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_generic_error_no_info_leak" file="tests/test_security.py" line="2116" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_normalize_size_to_bucket" file="tests/test_security.py" line="2128" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_normalize_size_large_data" file="tests/test_security.py" line="2140" time="0.002" /><testcase classname="tests.test_security.TestOppressionMode" name="test_innocuous_filename_generation" file="tests/test_security.py" line="2151" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_safety_checklist_exists" file="tests/test_security.py" line="2164" time="0.001" /><testcase classname="tests.test_security.TestOppressionMode" name="test_apply_high_security_to_config" file="tests/test_security.py" line="2179" time="0.002" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_derive_quantum_noise" file="tests/test_security.py" line="2203" time="0.001" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_entangle_realities" file="tests/test_security.py" line="2222" time="0.003" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_collapse_to_reality" file="tests/test_security.py" line="2235" time="0.003" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_verify_indistinguishability" file="tests/test_security.py" line="2255" time="0.003" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_expand_noise" file="tests/test_security.py" line="2277" time="0.001" /><testcase classname="tests.test_security.TestQuantumMixer" name="test_compute_entanglement_root" file="tests/test_security.py" line="2294" time="0.001" /><testcase classname="tests.test_security.TestSchrodingerEncode" name="test_schrodinger_manifest_pack_unpack" file="tests/test_security.py" line="2319" time="0.001" /><testcase classname="tests.test_security.TestSchrodingerEncode" name="test_schrodinger_manifest_too_short" file="tests/test_security.py" line="2346" time="0.002" /><testcase classname="tests.test_security.TestSchrodingerEncode" name="test_schrodinger_manifest_wrong_magic" file="tests/test_security.py" line="2353" time="0.003" /><testcase classname="tests.test_security.TestSchrodingerEncode" name="test_permute_unpermute_blocks" file="tests/test_security.py" line="2362" time="0.001" /><testcase classname="tests.test_security.TestSchrodingerEncode" name="test_compute_merkle_root" file="tests/test_security.py" line="2378" time="0.001" /><testcase classname="tests.test_security.TestPostQuantumCrypto" name="test_pq_hybrid_module_exists" file="tests/test_security.py" line="2400" time="0.001" /><testcase classname="tests.test_security.TestPostQuantumCrypto" name="test_pq_crypto_real_module_exists" file="tests/test_security.py" line="2408" time="0.044" /><testcase classname="tests.test_security.TestPostQuantumCrypto" name="test_pq_manifest_length" file="tests/test_security.py" line="2416" time="0.001" /><testcase classname="tests.test_security.TestStreamingCrypto" name="test_streaming_module_exists" file="tests/test_security.py" line="2448" time="0.110" /><testcase classname="tests.test_security.TestStreamingCrypto" name="test_streaming_crypto_has_expected_functions" file="tests/test_security.py" line="2456" time="0.001" /><testcase classname="tests.test_security.TestResumeSecured" name="test_resume_module_exists" file="tests/test_security.py" line="2475" time="0.006"><skipped type="pytest.skip" message="Resume secured module not available">/workspaces/meow-decoder/tests/test_security.py:2482: Resume secured module not available</skipped></testcase><testcase classname="tests.test_security.TestResumeSecured" name="test_resume_secured_has_encryption" file="tests/test_security.py" line="2483" time="0.001"><skipped type="pytest.skip" message="Resume secured module not available">/workspaces/meow-decoder/tests/test_security.py:2492: Resume secured module not available</skipped></testcase><testcase classname="tests.test_security.TestDecoyGenerator" name="test_generate_convincing_decoy" file="tests/test_security.py" line="2501" time="0.001" /><testcase classname="tests.test_security.TestDecoyGenerator" name="test_decoy_different_each_time" file="tests/test_security.py" line="2514" time="0.002" /><testcase classname="tests.test_security.TestDecoyGenerator" name="test_decoy_is_valid_zip" file="tests/test_security.py" line="2524" time="0.001" /><testcase classname="tests.test_security.TestPasswordPolicy" name="test_password_minimum_length_enforced" file="tests/test_security.py" line="2546" time="5.563" /><testcase classname="tests.test_security.TestPasswordPolicy" name="test_empty_password_rejected" file="tests/test_security.py" line="2562" time="0.001" /><testcase classname="tests.test_security.TestPasswordPolicy" name="test_password_with_spaces_allowed" file="tests/test_security.py" line="2571" time="5.648" /><testcase classname="tests.test_security.TestSecureCleanup" name="test_buffer_registration_and_zeroing" file="tests/test_security.py" line="2589" time="0.045" /><testcase classname="tests.test_security.TestSecureCleanup" name="test_context_manager_zeroes_on_exit" file="tests/test_security.py" line="2608" time="0.001" /><testcase classname="tests.test_security.TestSecureCleanup" name="test_password_context_zeroes" file="tests/test_security.py" line="2619" time="0.001" /><testcase classname="tests.test_security.TestSecureCleanup" name="test_handlers_registered" file="tests/test_security.py" line="2629" time="0.001" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_original_manifest_verifies" file="tests/test_tamper_detection.py" line="58" time="11.122" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_magic_detected" file="tests/test_tamper_detection.py" line="63" time="5.558" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_salt_detected" file="tests/test_tamper_detection.py" line="77" time="11.179" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_nonce_detected" file="tests/test_tamper_detection.py" line="93" time="11.545" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_orig_len_detected" file="tests/test_tamper_detection.py" line="106" time="11.244" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_sha256_detected" file="tests/test_tamper_detection.py" line="119" time="11.197" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_single_bit_flip_in_hmac_tag_detected" file="tests/test_tamper_detection.py" line="132" time="12.839" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_byte_swap_detected" file="tests/test_tamper_detection.py" line="145" time="11.306" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_truncation_detected" file="tests/test_tamper_detection.py" line="158" time="5.632" /><testcase classname="tests.test_tamper_detection.TestManifestTamperDetection" name="test_extension_detected" file="tests/test_tamper_detection.py" line="168" time="5.871" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_original_decryption_succeeds" file="tests/test_tamper_detection.py" line="191" time="11.242" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_single_bit_flip_in_ciphertext_fails" file="tests/test_tamper_detection.py" line="201" time="11.174" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_ciphertext_truncation_fails" file="tests/test_tamper_detection.py" line="216" time="11.203" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_ciphertext_block_swap_fails" file="tests/test_tamper_detection.py" line="228" time="11.184" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_wrong_nonce_fails" file="tests/test_tamper_detection.py" line="244" time="11.250" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_wrong_salt_fails" file="tests/test_tamper_detection.py" line="258" time="11.219" /><testcase classname="tests.test_tamper_detection.TestDecryptionFailClosed" name="test_wrong_password_fails" file="tests/test_tamper_detection.py" line="270" time="11.197" /><testcase classname="tests.test_tamper_detection.TestManifestSwapProtection" name="test_manifest_from_different_gif_fails" file="tests/test_tamper_detection.py" line="286" time="28.150" /><testcase classname="tests.test_ux_features.TestProgressStats" name="test_stats_creation" file="tests/test_ux_features.py" line="38" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressStats" name="test_elapsed_calculation" file="tests/test_ux_features.py" line="52" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressStats" name="test_eta_calculation" file="tests/test_ux_features.py" line="66" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_progress_bar_creation" file="tests/test_ux_features.py" line="88" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_mark_received" file="tests/test_ux_features.py" line="95" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_mark_received_with_bytes" file="tests/test_ux_features.py" line="108" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_progress_percentage" file="tests/test_ux_features.py" line="118" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_render_bar" file="tests/test_ux_features.py" line="127" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_render_compact" file="tests/test_ux_features.py" line="141" time="0.001" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_throughput_tracking" file="tests/test_ux_features.py" line="152" time="0.101" /><testcase classname="tests.test_ux_features.TestProgressBar" name="test_finish" file="tests/test_ux_features.py" line="163" time="0.001" /><testcase classname="tests.test_ux_features.TestFountainProgressBar" name="test_fountain_creation" file="tests/test_ux_features.py" line="186" time="0.001" /><testcase classname="tests.test_ux_features.TestFountainProgressBar" name="test_update_decoding" file="tests/test_ux_features.py" line="193" time="0.001" /><testcase classname="tests.test_ux_features.TestFountainProgressBar" name="test_fountain_stats" file="tests/test_ux_features.py" line="202" time="0.001" /><testcase classname="tests.test_ux_features.TestFountainProgressBar" name="test_completion_detection" file="tests/test_ux_features.py" line="211" time="0.001" /><testcase classname="tests.test_ux_features.TestCreateProgress" name="test_create_basic_progress" file="tests/test_ux_features.py" line="227" time="0.001" /><testcase classname="tests.test_ux_features.TestCreateProgress" name="test_create_fountain_progress" file="tests/test_ux_features.py" line="234" time="0.001" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_basic_creation" file="tests/test_ux_features.py" line="249" time="0.010" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_render_unicode" file="tests/test_ux_features.py" line="257" time="0.016" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_render_ascii" file="tests/test_ux_features.py" line="267" time="0.010" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_render_large" file="tests/test_ux_features.py" line="277" time="0.012" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_render_colored" file="tests/test_ux_features.py" line="291" time="0.015" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_invert" file="tests/test_ux_features.py" line="301" time="0.012" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_error_correction_levels" file="tests/test_ux_features.py" line="312" time="0.076" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_module_count" file="tests/test_ux_features.py" line="322" time="0.009" /><testcase classname="tests.test_ux_features.TestASCIIQRCode" name="test_render_method_dispatch" file="tests/test_ux_features.py" line="330" time="0.013" /><testcase classname="tests.test_ux_features.TestGenerateTerminalQR" name="test_basic_generation" file="tests/test_ux_features.py" line="342" time="0.010" /><testcase classname="tests.test_ux_features.TestGenerateTerminalQR" name="test_different_modes" file="tests/test_ux_features.py" line="349" time="0.041" /><testcase classname="tests.test_ux_features.TestPrintTerminalQR" name="test_print_without_title" file="tests/test_ux_features.py" line="368" time="0.010" /><testcase classname="tests.test_ux_features.TestPrintTerminalQR" name="test_print_with_title" file="tests/test_ux_features.py" line="376" time="0.011" /><testcase classname="tests.test_ux_features.TestAnimatedTerminalQR" name="test_animated_creation" file="tests/test_ux_features.py" line="389" time="0.001" /><testcase classname="tests.test_ux_features.TestAnimatedTerminalQR" name="test_frame_delay_calculation" file="tests/test_ux_features.py" line="397" time="0.001" /><testcase classname="tests.test_ux_features.TestSessionInfo" name="test_session_creation" file="tests/test_ux_features.py" line="415" time="0.001" /><testcase classname="tests.test_ux_features.TestSessionInfo" name="test_session_pack_unpack" file="tests/test_ux_features.py" line="430" time="0.001" /><testcase classname="tests.test_ux_features.TestStatusUpdate" name="test_status_creation" file="tests/test_ux_features.py" line="454" time="0.001" /><testcase classname="tests.test_ux_features.TestStatusUpdate" name="test_status_to_dict" file="tests/test_ux_features.py" line="469" time="0.001" /><testcase classname="tests.test_ux_features.TestStatusUpdate" name="test_status_compact_string" file="tests/test_ux_features.py" line="487" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalSender" name="test_sender_creation" file="tests/test_ux_features.py" line="512" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalSender" name="test_session_start_message" file="tests/test_ux_features.py" line="527" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalSender" name="test_should_continue_sending" file="tests/test_ux_features.py" line="539" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_receiver_creation" file="tests/test_ux_features.py" line="560" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_process_session_start" file="tests/test_ux_features.py" line="567" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_frame_tracking" file="tests/test_ux_features.py" line="583" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_status_update_generation" file="tests/test_ux_features.py" line="595" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_completion_detection" file="tests/test_ux_features.py" line="617" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalReceiver" name="test_feedback_qr_data" file="tests/test_ux_features.py" line="635" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalProtocol" name="test_sender_protocol" file="tests/test_ux_features.py" line="660" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalProtocol" name="test_receiver_protocol" file="tests/test_ux_features.py" line="670" time="0.001" /><testcase classname="tests.test_ux_features.TestBiDirectionalProtocol" name="test_end_to_end_protocol" file="tests/test_ux_features.py" line="676" time="0.001" /><testcase classname="tests.test_ux_features.TestConvenienceFunctions" name="test_create_sender_protocol" file="tests/test_ux_features.py" line="709" time="0.001" /><testcase classname="tests.test_ux_features.TestConvenienceFunctions" name="test_create_receiver_protocol" file="tests/test_ux_features.py" line="718" time="0.001" /><testcase classname="tests.test_ux_features.TestIntegration" name="test_progress_with_fountain_simulation" file="tests/test_ux_features.py" line="733" time="0.004" /><testcase classname="tests.test_ux_features.TestIntegration" name="test_ascii_qr_with_bidirectional_status" file="tests/test_ux_features.py" line="751" time="0.020" /></testsuite></testsuites>

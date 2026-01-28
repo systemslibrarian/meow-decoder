@@ -21,9 +21,9 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
   </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg" alt="codecov">
-  </a>
+<a href="https://codecov.io/gh/systemslibrarian/meow-decoder" > 
+ <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU"/> 
+ </a>
   <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
   </a>

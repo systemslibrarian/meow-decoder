@@ -35,9 +35,10 @@ import secrets
 import hashlib
 import time
 import os
+import gc
 import shutil
 from pathlib import Path
-from typing import Optional, Callable, Tuple, Union
+from typing import Optional, Callable, Tuple, Union, List
 from .config import DuressConfig, DuressMode
 
 # Maximum size for user-provided decoy files (100 MB)
@@ -59,6 +60,24 @@ class DuressHandler:
         self.config = config or DuressConfig()
         self._duress_hash: Optional[bytes] = None
         self._real_hash: Optional[bytes] = None
+        self._triggered: bool = False  # Track if duress was triggered
+    
+    @property
+    def was_triggered(self) -> bool:
+        """Return whether duress was triggered."""
+        return self._triggered
+    
+    def _secure_zero(self, data: bytearray) -> None:
+        """
+        Securely zero sensitive data in memory.
+        
+        Args:
+            data: Mutable bytearray to zero
+        """
+        if not isinstance(data, bytearray):
+            return
+        for i in range(len(data)):
+            data[i] = 0
         
     def set_passwords(self, duress_password: str, real_password: str, salt: bytes):
         """
@@ -87,7 +106,8 @@ class DuressHandler:
     def check_password(
         self, 
         entered_password: str, 
-        salt: bytes
+        salt: bytes,
+        sensitive_data: Optional[List[bytearray]] = None
     ) -> Tuple[bool, bool]:
         """
         Check if entered password is duress or real.
@@ -95,6 +115,7 @@ class DuressHandler:
         Args:
             entered_password: Password entered by user
             salt: Salt for password hashing
+            sensitive_data: Optional list of bytearrays to zero on duress
             
         Returns:
             Tuple of (is_valid, is_duress)
@@ -113,12 +134,75 @@ class DuressHandler:
         
         if is_duress:
             # DURESS TRIGGERED - Decoy response
+            self._triggered = True
+            
+            # Zero sensitive data if provided
+            if sensitive_data:
+                for data in sensitive_data:
+                    self._secure_zero(data)
+            
+            # Call trigger callback if configured
+            if self.config.trigger_callback:
+                self.config.trigger_callback()
+            
+            # Wipe resume files if configured
+            if self.config.wipe_resume_files:
+                self._wipe_resume_files()
+            
+            # Aggressive GC if configured (3 passes for thorough cleanup)
+            if self.config.gc_aggressive:
+                gc.collect()
+                gc.collect()
+                gc.collect()
+            
             return (True, True)
         
         if is_real:
             return (True, False)  # Normal operation
         
         return (False, False)  # Wrong password
+    
+    def execute_emergency_response(
+        self,
+        sensitive_data_list: Optional[List[bytearray]] = None,
+        salt: Optional[bytes] = None
+    ) -> Optional[bytes]:
+        """
+        Execute emergency response when duress is triggered.
+        
+        This method:
+        1. Zeros all sensitive data in memory
+        2. Optionally triggers GC
+        3. Returns decoy data (DECOY mode) or None (PANIC mode)
+        
+        Args:
+            sensitive_data_list: List of bytearrays to securely zero
+            salt: Optional salt (for deterministic decoy generation)
+            
+        Returns:
+            Decoy bytes in DECOY mode, None in PANIC mode
+        """
+        self._triggered = True
+        
+        # Zero all sensitive data
+        if sensitive_data_list:
+            for data in sensitive_data_list:
+                self._secure_zero(data)
+        
+        # Aggressive GC if configured
+        if getattr(self.config, 'gc_aggressive', False):
+            import gc
+            gc.collect()
+        
+        # PANIC mode: return None (caller should exit silently)
+        if self.config.mode == DuressMode.PANIC and self.config.panic_enabled:
+            return None
+        
+        # DECOY mode: return deterministic decoy data
+        if salt:
+            return generate_static_decoy(salt)
+        
+        return None
     
     def _equalize_timing(self):
         """Add random delay to equal timing."""
@@ -127,6 +211,42 @@ class DuressHandler:
             self.config.max_delay_ms - self.config.min_delay_ms + 1
         ) + self.config.min_delay_ms
         time.sleep(delay_ms / 1000.0)
+    
+    def _wipe_resume_files(self) -> int:
+        """
+        Securely wipe resume/temporary files.
+        
+        Wipes files in ~/.cache/meowdecoder/resume with multiple overwrite passes.
+        
+        Returns:
+            Number of files wiped
+        """
+        wiped_count = 0
+        resume_dir = Path.home() / ".cache" / "meowdecoder" / "resume"
+        
+        if not resume_dir.exists():
+            return 0
+        
+        passes = getattr(self.config, 'overwrite_passes', 3)
+        
+        for file_path in resume_dir.glob("*"):
+            if file_path.is_file():
+                try:
+                    # Multiple overwrite passes
+                    size = file_path.stat().st_size
+                    with open(file_path, 'r+b') as f:
+                        for _ in range(passes):
+                            f.seek(0)
+                            f.write(secrets.token_bytes(size))
+                            f.flush()
+                            os.fsync(f.fileno())
+                    # Delete the file
+                    file_path.unlink()
+                    wiped_count += 1
+                except Exception:
+                    pass  # Best effort
+        
+        return wiped_count
     
     def get_decoy_data(self) -> Tuple[bytes, Optional[str]]:
         """
@@ -233,18 +353,23 @@ def setup_duress(duress_password: str, real_password: str, salt: bytes) -> Dures
     return handler
 
 
-def is_duress_triggered(handler: DuressHandler, password: str, salt: bytes) -> bool:
+def is_duress_triggered(handler: DuressHandler, password: Optional[str] = None, salt: Optional[bytes] = None) -> bool:
     """
-    Check if a password triggers duress mode.
+    Check if duress mode has been triggered on a handler.
+    
+    When called with just handler, returns handler.was_triggered.
+    When called with password and salt, checks if password triggers duress.
     
     Args:
         handler: Configured DuressHandler
-        password: Password to check
-        salt: Salt for password hashing
+        password: Optional password to check
+        salt: Optional salt for password hashing
         
     Returns:
-        True if password is the duress password
+        True if duress was/is triggered
     """
+    if password is None or salt is None:
+        return handler.was_triggered
     is_valid, is_duress = handler.check_password(password, salt)
     return is_valid and is_duress
 
@@ -266,8 +391,20 @@ def generate_static_decoy(salt: bytes, size: int = 1024) -> bytes:
     return generate_deterministic_decoy(size, salt)
 
 
-# Alias for backwards compatibility with tests
-generate_duress_decoy = generate_static_decoy
+def generate_duress_decoy(salt: Optional[bytes] = None, size: int = 1024) -> bytes:
+    """
+    Generate decoy content for duress mode.
+    
+    Args:
+        salt: Optional salt for deterministic generation (random if not provided)
+        size: Size of decoy to generate
+        
+    Returns:
+        Decoy bytes
+    """
+    if salt is None:
+        salt = secrets.token_bytes(16)
+    return generate_static_decoy(salt, size)
 
 
 def add_duress_args(parser) -> None:
@@ -295,6 +432,8 @@ def add_duress_args(parser) -> None:
         help='Duress response: decoy (fake success) or panic (wipe/exit)')
     duress_group.add_argument('--enable-panic', action='store_true',
         help='Enable destructive PANIC mode (required for --duress-mode panic)')
+    duress_group.add_argument('--duress-wipe-files', action='store_true',
+        help='Wipe resume/temp files when duress is triggered')
 
 
 # Self-test
