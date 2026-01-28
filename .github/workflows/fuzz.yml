@@ -99,9 +99,14 @@ jobs:
       - name: Install AFL++
         run: |
           sudo apt-get update
-          sudo apt-get install -y afl++ || echo "AFL++ installation skipped"
-          sudo apt-get update
-          sudo apt-get install -y afl++ python3-dev
+          # Try to install AFL++ from apt, but don't fail if it's not available
+          sudo apt-get install -y python3-dev || true
+          sudo apt-get install -y afl++ || {
+            echo "::warning::AFL++ not available in apt, skipping AFL fuzzing"
+            echo "AFL_AVAILABLE=false" >> $GITHUB_ENV
+            exit 0
+          }
+          echo "AFL_AVAILABLE=true" >> $GITHUB_ENV
       
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -110,9 +115,9 @@ jobs:
       
       - name: Install dependencies
         run: |
-          pip install -e ".[dev]"
-          pip install python-afl
-          sudo apt-get install -y libzbar0
+          pip install -e ".[dev]" || pip install -e .
+          pip install python-afl || echo "::warning::python-afl installation failed"
+          sudo apt-get install -y libzbar0 || true
       
       - name: Create corpus
         run: |
@@ -121,6 +126,7 @@ jobs:
           python fuzz/seed_corpus.py --afl
       
       - name: Run AFL++ on manifest parser
+        if: env.AFL_AVAILABLE == 'true'
         run: |
           cd fuzz
           timeout ${{ github.event.inputs.fuzz_duration || '300' }}s \
@@ -129,6 +135,7 @@ jobs:
         continue-on-error: true
       
       - name: Check AFL++ results
+        if: env.AFL_AVAILABLE == 'true'
         run: |
           if [ -d "fuzz/afl-output/default/crashes" ] && [ -n "$(ls -A fuzz/afl-output/default/crashes 2>/dev/null)" ]; then
             echo "🚨 AFL++ found crashes!"
