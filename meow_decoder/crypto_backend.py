@@ -490,6 +490,18 @@ def get_default_backend() -> CryptoBackend:
     return _default_backend
 
 
+def secure_zero_memory(buffer: bytearray) -> None:
+    """
+    Securely zero a memory buffer.
+    
+    Module-level convenience function that uses the default backend.
+    
+    Args:
+        buffer: Mutable bytearray to zero
+    """
+    get_default_backend().secure_zero(buffer)
+
+
 def set_default_backend(backend: BackendType) -> None:
     """Set the default crypto backend."""
     global _default_backend
