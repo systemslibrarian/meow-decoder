@@ -6,6 +6,10 @@ A comprehensive cryptographic library for Meow-Encode providing:
 - **Pure Rust crypto** stack with X25519, Argon2id, HKDF, and post-quantum ML-KEM
 - **WASM bindings** for browser-based encoding/decoding
 
+> **Integration status:** Hardware providers are implemented in `crypto_core` but the top-level
+> Python CLI wiring is still in progress. The CLI examples below apply to the Rust core or future
+> bindings; use the library APIs directly today.
+
 ## Quick Start
 
 ```bash

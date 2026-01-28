@@ -40,6 +40,7 @@ This document outlines planned security improvements organized by timeline.
 - [x] **Property-Based Testing**: Hypothesis for invariant verification (`tests/test_property_based.py`)
 - [x] **Differential Testing**: Compare Rust vs Python backend outputs (TestBackendParity)
 - [x] **Coverage Goals**: 70%+ baseline with branch tracking on crypto-critical paths
+- [ ] **Hardware Mocks**: In-memory/mock HSM/YubiKey/TPM providers for CI without real devices
 
 ### Documentation
 - [x] **Security Invariants Doc**: Formal listing of all security invariants (`docs/SECURITY_INVARIANTS.md`)

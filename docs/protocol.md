@@ -6,6 +6,18 @@ This document **defines the protocol exactly as implemented** in the current cod
 
 ## 1) Versioning & Modes
 
+```mermaid
+flowchart TD
+  Formal[Formal Methods
+  (TLA+/ProVerif/Verus)] --> Core[Rust Crypto Core]
+  Core --> App[Python App Layer]
+  App --> HW[Hardware Providers
+  (HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR Sealing)]
+  App --> Optical[Optical Channel
+  (GIF/QR Frames)]
+  HW -. future wiring .-> App
+```
+
 ### Manifest versions
 - **MEOW2**: Password‑only (legacy compatibility)
 - **MEOW3**: Forward secrecy optional (X25519 ephemeral keys). **Default in current code**

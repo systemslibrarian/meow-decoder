@@ -427,7 +427,20 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 | 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | TPM/YubiKey support (optional) |
+| 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
+| 🌐 **WASM Target** | Planned browser bindings (not yet shipped) |
+
+---
+
+## 🔌 Hardware Security Status
+
+Hardware security primitives are implemented in the Rust core, with Python CLI wiring still in progress.
+
+- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`).
+- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`).
+- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
+
+Details and examples live in [crypto_core/README.md](crypto_core/README.md).
 
 ---
 
