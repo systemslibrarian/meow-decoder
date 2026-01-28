@@ -85,7 +85,7 @@ manifest_hmac (32 bytes)
 ### Optional fields
 - **Ephemeral X25519 public key:** +32 bytes (FS mode)
 - **PQ ciphertext (ML‑KEM‑768):** +1088 bytes (reserved; encoder does not emit currently)
-- **Duress hash:** +32 bytes (SHA‑256 of `DURESS_HASH_PREFIX || salt || duress_password`)
+- **Duress tag:** +32 bytes (HMAC‑SHA256 with key `SHA256(DURESS_HASH_PREFIX || salt || duress_password)` over manifest core)
 
 ### Sizes (current decoder expects)
 - **115 bytes**: password‑only (MEOW2 legacy)
@@ -146,8 +146,8 @@ packed_frame = mac(8 bytes) || frame_data
 
 ## 9) Duress/Decoy Semantics (Decode)
 
-- Decoder computes duress hash **before** expensive HMAC verification.
-- If duress hash matches:
+- Decoder computes duress tag **before** expensive HMAC verification.
+- If duress tag matches:
   - **Decoy mode:** returns deterministic decoy data (no real decryption attempted)
   - **Panic mode (opt‑in):** exits silently
 - Real plaintext is **never computed** in the duress path.

@@ -39,7 +39,6 @@
 ## ⚠️ Known Gaps / Limitations
 
 ### Side Channels
-- Python fallback is not constant-time and may leak via timing or GC behavior.
 - Power/EM/cache side-channel resistance is not provided.
 
 ### Endpoint Risk
@@ -65,7 +64,6 @@
 ## ✅ Actionable Mitigations
 
 - Use the Rust backend only.
-- Disable Python fallback in production workflows.
 - Use air-gapped, trusted endpoints.
 - Enable length padding / paranoid modes for metadata protection.
 - Use hardware-backed keys where available and validated.

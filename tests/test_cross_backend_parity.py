@@ -1,105 +1,13 @@
 #!/usr/bin/env python3
-"""
-🔒 Cross-Backend Parity Tests
-
-These tests verify that Python and Rust backends produce IDENTICAL outputs
-for identical inputs. This is critical for:
-- Security: Both backends must implement the same algorithms
-- Compatibility: Users can switch backends without breaking existing files
-- Confidence: Validates our Rust implementation matches spec
-
-Run with: pytest tests/test_cross_backend_parity.py -v
-
-NOTE: These tests are skipped if Rust backend is not installed.
-      Build with: cd rust_crypto && maturin develop --release
-"""
+"""Deprecated: cross-backend parity tests removed (Rust backend required)."""
 
 import pytest
-import secrets
 
-from meow_decoder.crypto_backend import (
-    PythonCryptoBackend,
-    RustCryptoBackend,
-    is_rust_available,
+pytest.skip(
+    "Cross-backend parity tests removed; Rust backend is mandatory.",
+    allow_module_level=True,
 )
-
-
-# Skip all tests if Rust is not available
-pytestmark = pytest.mark.skipif(
-    not is_rust_available(),
-    reason="Rust crypto backend not installed. Build with: cd rust_crypto && maturin develop --release"
-)
-
-
-@pytest.fixture
-def python_backend():
-    """Python crypto backend."""
-    return PythonCryptoBackend()
-
-
-@pytest.fixture
-def rust_backend():
-    """Rust crypto backend."""
-    return RustCryptoBackend()
-
-
-class TestCrossBackendParity:
-    """
-    Verify Python and Rust backends produce identical outputs.
-    
-    CRITICAL: Any mismatch here is a serious bug that could cause:
-    - Files encrypted with one backend unreadable by the other
-    - Security vulnerabilities from implementation differences
-    """
-    
-    def test_argon2id_key_derivation_parity(self, python_backend, rust_backend):
-        """
-        PARITY: Argon2id must produce identical keys on both backends.
-        
-        This is the most critical test - key derivation MUST match.
-        """
-        password = b"test_password_123!@#"
-        salt = secrets.token_bytes(16)
-        
-        # Use faster params for testing
-        memory_kib = 32768  # 32 MiB
-        iterations = 2
-        parallelism = 4
-        
-        key_python = python_backend.derive_key_argon2id(
-            password, salt, memory_kib, iterations, parallelism
-        )
-        key_rust = rust_backend.derive_key_argon2id(
-            password, salt, memory_kib, iterations, parallelism
-        )
-        
-        assert key_python == key_rust, (
-            f"Argon2id key mismatch!\n"
-            f"  Python: {key_python.hex()}\n"
-            f"  Rust:   {key_rust.hex()}\n"
-            f"This is a CRITICAL bug - files will be unreadable!"
-        )
-    
-    def test_hkdf_parity(self, python_backend, rust_backend):
-        """PARITY: HKDF-SHA256 must produce identical keys."""
-        ikm = secrets.token_bytes(32)
-        salt = secrets.token_bytes(32)
-        info = b"meow_test_context_v1"
-        
-        key_python = python_backend.derive_key_hkdf(ikm, salt, info, output_len=32)
-        key_rust = rust_backend.derive_key_hkdf(ikm, salt, info, output_len=32)
-        
-        assert key_python == key_rust, (
-            f"HKDF key mismatch!\n"
-            f"  Python: {key_python.hex()}\n"
-            f"  Rust:   {key_rust.hex()}"
-        )
-    
-    def test_hkdf_extract_parity(self, python_backend, rust_backend):
-        """PARITY: HKDF extract phase must match."""
-        salt = secrets.token_bytes(32)
-        ikm = secrets.token_bytes(64)
-        
+if False:
         prk_python = python_backend.hkdf_extract(salt, ikm)
         prk_rust = rust_backend.hkdf_extract(salt, ikm)
         

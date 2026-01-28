@@ -893,6 +893,46 @@ class TestCryptoEdgeCases:
         # Unpack and verify
         unpacked = unpack_manifest(packed)
         assert unpacked.ephemeral_public_key == b"1" * 32
+
+
+class TestDuressTagAuthentication:
+    """Tests for authenticated duress tag behavior."""
+
+    def test_duress_tag_verifies_and_detects_tamper(self):
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest_core,
+            compute_duress_tag,
+            check_duress_password,
+        )
+
+        salt = b"SALT_FOR_DURESS!"  # 16 bytes, deterministic
+        manifest = Manifest(
+            salt=salt,
+            nonce=b"DURESS_NONCE"[:12],
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=b"H" * 32,
+            block_size=512,
+            k_blocks=10,
+            hmac=b"\x00" * 32,
+            ephemeral_public_key=b"E" * 32,
+        )
+
+        manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
+        duress_tag = compute_duress_tag("duress-password", salt, manifest_core)
+        manifest.duress_tag = duress_tag
+
+        # Correct duress password matches
+        assert check_duress_password("duress-password", salt, duress_tag, manifest_core)
+
+        # Wrong password fails
+        assert not check_duress_password("wrong-password", salt, duress_tag, manifest_core)
+
+        # Tamper with manifest core should fail
+        tampered_core = manifest_core[:-1] + bytes([manifest_core[-1] ^ 0x01])
+        assert not check_duress_password("duress-password", salt, duress_tag, tampered_core)
     
     def test_pack_manifest_invalid_ephemeral_key_length(self):
         """Invalid ephemeral key length should raise ValueError."""

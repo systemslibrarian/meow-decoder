@@ -1,19 +1,18 @@
 # 🛡️ Security Policy
 
 **Project:** Meow Decoder  
-**Version:** 5.7.0  
-**Last Updated:** 2026-01-25
+**Version:** 1.0  
+**Last Updated:** 2026-01-28
 
 ---
 
-## ⚠️ **Important Security Notice**
+## ⚠️ **Security Review Status (v1.0)**
 
-Meow Decoder is **EXPERIMENTAL / RESEARCH-GRADE SOFTWARE** and has:
-- ❌ **NOT** been formally security audited
-- ❌ **NOT** been penetration tested by third parties
-- ❌ **NOT** been certified for production use
+This release is **security‑reviewed** within the scope defined in the threat model.
+It is **not** a third‑party audit. All claims are tied to tests, specs, or formal artifacts.
 
-**Use at your own risk. See [THREAT_MODEL.md](THREAT_MODEL.md) for detailed security analysis.**
+**Authoritative threat model:** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
+**Protocol specification:** [docs/PROTOCOL.md](docs/PROTOCOL.md)
 
 ---
 
@@ -78,13 +77,13 @@ We thank the following security researchers for responsible disclosure:
 
 ### **By Design:**
 
-1. **Not Audited**
-   - No formal third-party security audit
-   - **Mitigation:** Use defense in depth, don't rely solely on Meow Decoder
+1. **No Third‑Party Audit**
+   - This is an internal security review, not an external audit.
+   - **Mitigation:** Use defense in depth and independent review.
 
-2. **Python Implementation**
-   - Not constant-time guaranteed (interpreter limitations)
-   - **Mitigation:** Run on trusted hardware, avoid timing-sensitive scenarios
+2. **Python Fallback Removed**
+   - Rust backend is mandatory for constant-time and memory-zeroing guarantees
+   - **Mitigation:** Install Rust backend as required (see README)
 
 3. **Dependency Trust**
    - Relies on PyPI packages (cryptography, Pillow, etc.)

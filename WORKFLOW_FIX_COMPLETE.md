@@ -58,7 +58,7 @@ comp, sha, salt, nonce, cipher, ephemeral_pub, encryption_key = encrypt_file_byt
 **All integration tests (25 tests) now pass!** 🎉
 
 ### Remaining Failures (NOT CI/workflow related)
-These are code logic issues, not infrastructure issues:
+These are code logic issues, not infrastructure issues. **Status unverified in current branch unless tests were rerun.**
 - 8 failures in `test_coverage_boost.py` (test assertions)
 - 4 failures in `test_invariants.py` (test logic)
 - 1 failure in `test_security.py` (forward secrecy HMAC)

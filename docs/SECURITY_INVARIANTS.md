@@ -113,28 +113,19 @@ if ephemeral_public_key:
 
 ---
 
-### INV-005: Backend Parity
+### INV-005: Rust Backend Required
 
 ```
-∀ inputs I, operation O:
-    Python_Backend.O(I) == Rust_Backend.O(I)
+backend == "rust"
 ```
 
-**Description:** The Rust and Python backends MUST produce byte-for-byte identical outputs for the same inputs. This ensures interoperability and allows seamless fallback.
-
-**Covered Operations:**
-- `aes_gcm_encrypt` / `aes_gcm_decrypt`
-- `derive_key_argon2id`
-- `derive_key_hkdf`
-- `hmac_sha256` / `hmac_sha256_verify`
-- `sha256`
-- `x25519_generate_keypair` / `x25519_exchange`
+**Description:** The Rust backend is mandatory; Python fallback is disabled. This preserves constant-time guarantees and consistent memory zeroing.
 
 **Verification:**
-- `tests/test_property_based.py::TestBackendParity::*`
-- `tests/test_backend_parity.py`
+- `tests/test_crypto_backend_rust.py::TestBackendAvailability::test_rust_backend_available`
+- `tests/conftest.py` enforces Rust backend availability
 
-**Failure Impact:** Cross-platform incompatibility, decryption failures.
+**Failure Impact:** Loss of constant-time guarantees and memory zeroing (security regression).
 
 ---
 

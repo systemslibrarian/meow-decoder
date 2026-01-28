@@ -1,10 +1,10 @@
 # 🐱 Meow Decoder
 
-# ⚠️ EXPERIMENTAL PROTOTYPE – NO INDEPENDENT AUDIT – RESEARCH/TESTING USE ONLY ⚠️
+# ⚠️ SECURITY‑REVIEWED v1.0 (INTERNAL REVIEW) – NOT A THIRD‑PARTY AUDIT ⚠️
 
-> **Do NOT transfer real sensitive data. Potential side-channels, bugs, or undiscovered issues exist.**
+> This release is security‑reviewed **within a bounded threat model**. It is **not** a third‑party audit.
 >
-> **See [THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md) for assumptions/limitations.**
+> See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md) for explicit scope.
 
 <p align="center">
   <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
@@ -31,6 +31,17 @@
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
   </a>
 </p>
+
+---
+
+## 🔐 Security Review Scope (v1.0)
+
+This release is **security‑reviewed within a bounded threat model**. Claims are tied to:
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
+- [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte‑level spec)
+- [SECURITY.md](SECURITY.md) (formal methods + limitations)
+
+If your threat model includes compromised endpoints or hardware side‑channels, this tool is **out of scope**.
 
 ---
 
@@ -286,39 +297,14 @@ For maximum security and performance, Meow Decoder supports a Rust-based cryptog
 cd rust_crypto
 maturin develop --release
 cd ..
-
-# Enable via environment variable
-export MEOW_CRYPTO_BACKEND=rust
-meow-encode -i secret.pdf ...
 ```
-(Legacy aliases `MEOW_RUST=1` or `MEOW_USE_RUST=1` also work)
-
 You can verify it is active by checking the verbose output `meow-encode -v ...`.
 
 See [rust_crypto/README.md](rust_crypto/README.md) for full details.
 
-### ⚠️ Legacy Python Backend (Not Recommended)
+### ✅ Rust Backend Required
 
-If the Rust backend is unavailable, you can force the legacy Python backend with `--legacy-python`:
-
-```bash
-meow-encode --legacy-python -i secret.pdf -o secret.gif -p "password"
-```
-
-**WARNING: The legacy Python backend is NOT recommended for sensitive data:**
-
-| Issue | Impact | Mitigation |
-|-------|--------|------------|
-| **Not constant-time** | Timing attacks may leak password info | Use Rust backend |
-| **No guaranteed memory zeroing** | Python GC may retain key copies in RAM | Power off after use |
-| **Memory forensics vulnerable** | RAM dump attacks may recover keys | Use encrypted swap, disable hibernation |
-
-The legacy mode exists only for:
-- Testing/development without Rust toolchain
-- Platforms where Rust compilation is unavailable
-- Debugging/troubleshooting
-
-**For any real-world sensitive use, install the Rust backend.**
+The Rust backend is mandatory for secure operation. The Python fallback has been removed.
 
 ---
 
@@ -338,7 +324,7 @@ python3 fuzz/fuzz_manifest.py -runs=100000
 ```
 See [fuzz/README.md](fuzz/README.md) for detailed instructions on corpus generation and running specific targets.
 
-**Findings:** Initial fuzzing runs have identified no crashes or critical parsing vulnerabilities to date. Continued fuzzing is recommended for production assurance.
+**Findings:** Fuzzing results are environment‑ and time‑dependent. Do not assume “no crashes” without a recorded run log. Continued fuzzing is recommended before releases.
 
 ---
 
@@ -608,18 +594,18 @@ While inspired by these projects, Meow Decoder adds critical security features:
 
 ---
 
-## 🦀 Rust Crypto Backend (Recommended)
+## 🦀 Rust Crypto Backend (Required)
 
-For **better security guarantees**, install the Rust cryptographic backend.
+The Rust cryptographic backend is **mandatory** for secure operation.
 
 ### Why Rust Backend?
 
-| Property | Python Backend | Rust Backend |
-|----------|----------------|--------------|
-| Constant-time operations | ⚠️ Best-effort | ✅ Guaranteed (`subtle` crate) |
-| Memory zeroing | ⚠️ GC-dependent | ✅ Automatic (`zeroize` crate) |
-| Side-channel resistance | ❌ Python limitations | ✅ Audited crates |
-| Performance | Baseline | ~2x faster |
+| Property | Rust Backend |
+|----------|--------------|
+| Constant-time operations | ✅ Guaranteed (`subtle` crate) |
+| Memory zeroing | ✅ Automatic (`zeroize` crate) |
+| Side-channel resistance | ✅ Audited crates |
+| Performance | ~2x faster |
 
 ### Installation
 
@@ -642,16 +628,7 @@ python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.back
 
 ### Usage
 
-The encoder/decoder **automatically uses Rust backend** when installed.
-You can force it (or disable it) via environment variable:
-
-```bash
-# Force Rust backend
-export MEOW_CRYPTO_BACKEND=rust
-
-# Force Python backend
-export MEOW_CRYPTO_BACKEND=python
-```
+The encoder/decoder uses the Rust backend by default once installed.
 
 **Benchmarks (Typical):**
 *   **Key Derivation (Argon2id):** Rust is ~30% faster
@@ -681,7 +658,7 @@ We use AFL++ with Python bindings (atheris) to test robustness against malformed
     ```
 
 **Findings:**
-*   Initial fuzzing passes (24-hour run) found no crashes in the core parser logic.
+*   Fuzzing results are not claimed without a recorded run log.
 *   Continuous fuzzing is recommended before major releases.
 
 See [fuzz/README.md](fuzz/README.md) for details.
@@ -721,7 +698,6 @@ pytest tests/test_property_based.py --hypothesis-profile=exhaustive
 
 Key invariants tested:
 - **Encrypt/Decrypt Roundtrip**: `decrypt(encrypt(x)) == x` for all x
-- **Backend Parity**: Rust and Python backends produce identical outputs
 - **Tamper Detection**: Any bit flip in ciphertext is detected
 - **Nonce Uniqueness**: Same key never reuses nonce
 

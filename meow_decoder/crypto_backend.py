@@ -2,24 +2,15 @@
 Meow Decoder Crypto Backend - Unified Interface
 
 This module provides a unified interface to cryptographic operations,
-supporting both Python (cryptography library) and Rust (meow_crypto_rs) backends.
+requiring the Rust backend (meow_crypto_rs) for security.
 
 Usage:
     from meow_decoder.crypto_backend import CryptoBackend
     
-    # Auto-select best available backend
+    # Rust backend is required
     crypto = CryptoBackend()
-    
-    # Force specific backend
-    crypto = CryptoBackend(backend="rust")  # or "python"
-    
-    # Use crypto operations
     key = crypto.derive_key_argon2id(password, salt)
     ciphertext = crypto.aes_gcm_encrypt(key, nonce, plaintext)
-
-CLI Usage:
-    meow-encode --crypto-backend rust ...
-    meow-encode --crypto-backend python ...
 """
 
 import os
@@ -47,7 +38,7 @@ from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X
 import hashlib
 
 
-BackendType = Literal["python", "rust", "auto"]
+BackendType = Literal["rust"]
 
 
 @dataclass
@@ -72,6 +63,11 @@ class PythonCryptoBackend:
     """
     
     NAME = "python"
+
+    def __init__(self):
+        raise RuntimeError(
+            "Python crypto backend is disabled. Rust backend is required."
+        )
     
     # Default Argon2id parameters (8x OWASP minimum - ULTRA HARDENED)
     ARGON2_MEMORY = 524288      # 512 MiB
@@ -269,9 +265,8 @@ class RustCryptoBackend:
     def __init__(self):
         if not _RUST_AVAILABLE:
             raise ImportError(
-                "Rust crypto backend not available. "
-                "Install with: pip install meow_crypto_rs "
-                "or build with: cd rust_crypto && maturin develop"
+                "Rust crypto backend required. Install with: "
+                "pip install maturin && cd rust_crypto && maturin develop --release"
             )
         self._rs = _rust_backend
     
@@ -386,93 +381,43 @@ class RustCryptoBackend:
 
 class CryptoBackend:
     """
-    Unified crypto backend with automatic or manual backend selection.
+    Unified crypto backend (Rust-only).
     
     SECURITY NOTE:
-        When available, Rust backend is STRONGLY PREFERRED because:
+        Rust backend is REQUIRED because:
         - Constant-time operations (subtle crate) - prevents timing attacks
         - Automatic memory zeroing (zeroize crate) - prevents memory forensics
         - No Python GC interference - deterministic security properties
     
     Usage:
-        crypto = CryptoBackend()  # Auto-select (prefers Rust if available)
-        crypto = CryptoBackend(backend="rust")  # Force Rust (error if unavailable)
-        crypto = CryptoBackend(backend="python")  # Force Python fallback
-    
+        crypto = CryptoBackend()  # Rust backend required
+        crypto = CryptoBackend(backend="rust")  # Rust only
+
     Build Rust backend:
         cd rust_crypto && maturin develop --release
     """
     
-    def __init__(self, backend: BackendType = "auto", allow_python_fallback: bool = False):
+    def __init__(self, backend: BackendType = "rust"):
         """
         Initialize crypto backend.
         
         Args:
-            backend: "auto" (default), "rust", or "python"
-            allow_python_fallback: Allow Python fallback (requires --python-fallback CLI flag)
+            backend: "rust" only
         """
         # Check environment variable override
         env_backend = os.environ.get("MEOW_CRYPTO_BACKEND", "").lower()
-        if env_backend in ("rust", "python", "auto"):
+        if env_backend:
             backend = env_backend
-        
-        # Check explicit enable flag (legacy/convenience)
-        if os.environ.get("MEOW_USE_RUST", "0") == "1" or os.environ.get("MEOW_RUST", "0") == "1":
-            backend = "rust"
-        
-        # Check fallback environment variable (explicit legacy opt-in)
-        if os.environ.get("MEOW_LEGACY_PYTHON", "0") == "1":
-            allow_python_fallback = True
-        elif os.environ.get("MEOW_ALLOW_PYTHON_FALLBACK", "0") == "1":
-            # Backward-compatible env var
-            allow_python_fallback = True
-        
-        if backend == "auto":
-            # SECURITY: Rust is REQUIRED by default for constant-time operations
-            if _RUST_AVAILABLE:
-                self._backend = RustCryptoBackend()
-                # Rust is default and ideal - no warning needed
-            elif allow_python_fallback:
-                # User explicitly allowed Python fallback with --legacy-python flag
-                self._backend = PythonCryptoBackend()
-                import warnings
-                warnings.warn(
-                    "⚠️  SECURITY WARNING: Using Python backend (--legacy-python)\n"
-                    "Python backend is NOT constant-time and may leak secrets via timing.\n"
-                    "DO NOT USE for production/sensitive data.\n"
-                    "Build Rust backend: cd rust_crypto && maturin develop --release\n"
-                    "Or install via: pip install meow-decoder[rust]",
-                    UserWarning,
-                    stacklevel=2
-                )
-            else:
-                # FAIL-CLOSED: No Rust, no explicit fallback = abort
-                raise RuntimeError(
-                    "🔒 SECURITY: Rust crypto backend required for constant-time operations!\n"
-                    "\n"
-                    "Option 1 (RECOMMENDED): Build Rust backend\n"
-                    "  cd rust_crypto && maturin develop --release\n"
-                    "\n"
-                    "Option 2: Explicit fallback (NOT RECOMMENDED for sensitive data)\n"
-                    "  meow-encode --legacy-python ...\n"
-                    "\n"
-                    "See: https://github.com/systemslibrarian/meow-decoder#rust-backend"
-                )
-        elif backend == "rust":
-            if not _RUST_AVAILABLE:
-                raise RuntimeError(
-                    "Rust backend explicitly requested but not available.\n"
-                    "Build: cd rust_crypto && maturin develop --release"
-                )
-            self._backend = RustCryptoBackend()
-        elif backend == "python":
-            if not allow_python_fallback:
-                raise RuntimeError(
-                    "Python backend requires explicit --legacy-python flag for safety"
-                )
-            self._backend = PythonCryptoBackend()
-        else:
-            raise ValueError(f"Unknown backend: {backend}. Use 'auto', 'rust', or 'python'")
+
+        if backend != "rust":
+            raise RuntimeError("Rust crypto backend required. Python fallback is disabled.")
+        if not _RUST_AVAILABLE:
+            raise RuntimeError(
+                "Rust crypto backend required. Install with: "
+                "pip install maturin && cd rust_crypto && maturin develop --release"
+            )
+
+        self._backend = RustCryptoBackend()
     
     @property
     def name(self) -> str:
@@ -538,7 +483,7 @@ _default_backend: Optional[CryptoBackend] = None
 
 
 def get_default_backend() -> CryptoBackend:
-    """Get the default crypto backend (auto-selected)."""
+    """Get the default crypto backend (Rust-only)."""
     global _default_backend
     if _default_backend is None:
         _default_backend = CryptoBackend()
@@ -558,10 +503,7 @@ def is_rust_available() -> bool:
 
 def get_available_backends() -> list:
     """Get list of available backend names."""
-    backends = ["python"]
-    if _RUST_AVAILABLE:
-        backends.insert(0, "rust")
-    return backends
+    return ["rust"] if _RUST_AVAILABLE else []
 
 
 # Quick self-test
@@ -572,57 +514,41 @@ if __name__ == "__main__":
     print(f"\nAvailable backends: {get_available_backends()}")
     print(f"Rust available: {is_rust_available()}")
     
-    # Test Python backend
-    print("\n--- Python Backend ---")
-    py_crypto = CryptoBackend(backend="python")
-    print(f"Backend: {py_crypto.name}")
-    
+    print("\n--- Rust Backend ---")
+    rs_crypto = CryptoBackend(backend="rust")
+    print(f"Backend: {rs_crypto.name}")
+
     # Test key derivation
     password = b"test_password_123"
     salt = secrets.token_bytes(16)
-    
+
     # Use faster params for testing
-    key = py_crypto.derive_key_argon2id(password, salt, memory_kib=32768, iterations=2)
+    key = rs_crypto.derive_key_argon2id(password, salt, memory_kib=32768, iterations=2)
     print(f"Argon2id key: {key.hex()[:32]}...")
-    
+
     # Test encryption
     nonce = secrets.token_bytes(12)
     plaintext = b"Hello, Meow Decoder!"
-    ciphertext = py_crypto.aes_gcm_encrypt(key, nonce, plaintext)
-    decrypted = py_crypto.aes_gcm_decrypt(key, nonce, ciphertext)
+    ciphertext = rs_crypto.aes_gcm_encrypt(key, nonce, plaintext)
+    decrypted = rs_crypto.aes_gcm_decrypt(key, nonce, ciphertext)
     assert decrypted == plaintext, "Decryption failed!"
     print(f"AES-GCM: OK")
     
     # Test HMAC
-    tag = py_crypto.hmac_sha256(key, plaintext)
-    assert py_crypto.hmac_sha256_verify(key, plaintext, tag)
+    tag = rs_crypto.hmac_sha256(key, plaintext)
+    assert rs_crypto.hmac_sha256_verify(key, plaintext, tag)
     print(f"HMAC-SHA256: OK")
     
     # Test X25519
-    priv1, pub1 = py_crypto.x25519_generate_keypair()
-    priv2, pub2 = py_crypto.x25519_generate_keypair()
-    shared1 = py_crypto.x25519_exchange(priv1, pub2)
-    shared2 = py_crypto.x25519_exchange(priv2, pub1)
+    priv1, pub1 = rs_crypto.x25519_generate_keypair()
+    priv2, pub2 = rs_crypto.x25519_generate_keypair()
+    shared1 = rs_crypto.x25519_exchange(priv1, pub2)
+    shared2 = rs_crypto.x25519_exchange(priv2, pub1)
     assert shared1 == shared2, "X25519 exchange failed!"
     print(f"X25519: OK")
     
-    # Test Rust backend if available
-    if is_rust_available():
-        print("\n--- Rust Backend ---")
-        rs_crypto = CryptoBackend(backend="rust")
-        print(f"Backend: {rs_crypto.name}")
-        
-        # Same tests
-        key_rs = rs_crypto.derive_key_argon2id(password, salt, memory_kib=32768, iterations=2)
-        print(f"Argon2id key: {key_rs.hex()[:32]}...")
-        
-        # Keys should match!
-        if key == key_rs:
-            print("✅ Python and Rust produce identical keys!")
-        else:
-            print("⚠️  Keys differ (check parameters)")
-    else:
+    if not is_rust_available():
         print("\n⚠️  Rust backend not installed. Build with:")
         print("   cd rust_crypto && maturin develop")
-    
+
     print("\n✅ Backend test complete!")

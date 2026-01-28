@@ -55,8 +55,8 @@ class KeyHandle:
     Rust manages key lifecycle and zeroing.
     """
     _handle_id: int
-    _backend: str  # 'rust' or 'python'
-    _key_bytes: Optional[bytes] = None  # Only used for Python fallback
+    _backend: str  # 'rust'
+    _key_bytes: Optional[bytes] = None
     _zeroed: bool = False
     
     def __del__(self):
@@ -185,25 +185,17 @@ class SecureBridge:
     4. Explicit zeroing on Python side
     """
     
-    def __init__(self, prefer_rust: bool = True):
-        """
-        Initialize secure bridge.
-        
-        Args:
-            prefer_rust: Use Rust backend if available (recommended)
-        """
-        self.use_rust = prefer_rust and RUST_AVAILABLE
+    def __init__(self):
+        """Initialize secure bridge (Rust backend required)."""
+        if not RUST_AVAILABLE:
+            raise RuntimeError(
+                "Rust crypto backend required. Build with: "
+                "cd rust_crypto && maturin develop --release"
+            )
+        self.use_rust = True
         self._handles: List[KeyHandle] = []
         self._next_handle_id = 0
         self._finalized = False
-        
-        if not self.use_rust:
-            import warnings
-            warnings.warn(
-                "Rust crypto backend not available. Using Python fallback. "
-                "Memory security reduced - keys may persist in Python heap.",
-                SecurityWarning
-            )
     
     def __enter__(self):
         return self
@@ -236,41 +228,24 @@ class SecureBridge:
         handle_id = self._next_handle_id
         self._next_handle_id += 1
         
-        if self.use_rust:
-            # Password goes to Rust, key derived and stored there
-            # Key never comes back to Python
-            try:
-                # Derive key in Rust
-                key = meow_crypto_rs.derive_key_argon2id(
-                    password=password,
-                    salt=salt,
-                    memory_kib=memory_kib,
-                    iterations=iterations,
-                    parallelism=4
-                )
-                
-                # Store in Rust-backed secure memory (or our SecureMemory)
-                handle = KeyHandle(
-                    _handle_id=handle_id,
-                    _backend='rust',
-                    _key_bytes=key  # Still in Python briefly, but from Rust
-                )
-                
-                # Best-effort: try to zero the password in Python
-                self._try_zero_string(password)
-                
-            except Exception as e:
-                raise RuntimeError(f"Rust key derivation failed: {e}")
-        else:
-            # Python fallback - less secure
-            from .crypto import derive_key
-            
-            key = derive_key(password, salt)
+        try:
+            key = meow_crypto_rs.derive_key_argon2id(
+                password=password,
+                salt=salt,
+                memory_kib=memory_kib,
+                iterations=iterations,
+                parallelism=4
+            )
+
             handle = KeyHandle(
                 _handle_id=handle_id,
-                _backend='python',
+                _backend='rust',
                 _key_bytes=key
             )
+
+            self._try_zero_string(password)
+        except Exception as e:
+            raise RuntimeError(f"Rust key derivation failed: {e}")
         
         self._handles.append(handle)
         return handle
@@ -296,17 +271,15 @@ class SecureBridge:
         """
         nonce = secrets.token_bytes(12)
         
-        if self.use_rust and handle._backend == 'rust':
-            ciphertext = meow_crypto_rs.aes_gcm_encrypt(
-                key=handle._key_bytes,
-                nonce=nonce,
-                plaintext=plaintext,
-                aad=aad or b""
-            )
-        else:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            aesgcm = AESGCM(handle._key_bytes)
-            ciphertext = aesgcm.encrypt(nonce, plaintext, aad)
+        if handle._backend != 'rust':
+            raise RuntimeError("Rust backend required for SecureBridge")
+
+        ciphertext = meow_crypto_rs.aes_gcm_encrypt(
+            key=handle._key_bytes,
+            nonce=nonce,
+            plaintext=plaintext,
+            aad=aad or b""
+        )
         
         return nonce, ciphertext
     
@@ -329,17 +302,15 @@ class SecureBridge:
         Returns:
             Decrypted plaintext
         """
-        if self.use_rust and handle._backend == 'rust':
-            plaintext = meow_crypto_rs.aes_gcm_decrypt(
-                key=handle._key_bytes,
-                nonce=nonce,
-                ciphertext=ciphertext,
-                aad=aad or b""
-            )
-        else:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-            aesgcm = AESGCM(handle._key_bytes)
-            plaintext = aesgcm.decrypt(nonce, ciphertext, aad)
+        if handle._backend != 'rust':
+            raise RuntimeError("Rust backend required for SecureBridge")
+
+        plaintext = meow_crypto_rs.aes_gcm_decrypt(
+            key=handle._key_bytes,
+            nonce=nonce,
+            ciphertext=ciphertext,
+            aad=aad or b""
+        )
         
         return plaintext
     
@@ -358,15 +329,13 @@ class SecureBridge:
         Returns:
             HMAC-SHA256 tag
         """
-        if self.use_rust and handle._backend == 'rust':
-            return meow_crypto_rs.hmac_sha256(
-                key=handle._key_bytes,
-                data=data
-            )
-        else:
-            import hmac
-            import hashlib
-            return hmac.new(handle._key_bytes, data, hashlib.sha256).digest()
+        if handle._backend != 'rust':
+            raise RuntimeError("Rust backend required for SecureBridge")
+
+        return meow_crypto_rs.hmac_sha256(
+            key=handle._key_bytes,
+            data=data
+        )
     
     def verify_hmac_with_handle(
         self,
@@ -385,17 +354,14 @@ class SecureBridge:
         Returns:
             True if valid, False otherwise
         """
-        if self.use_rust and handle._backend == 'rust':
-            return meow_crypto_rs.hmac_sha256_verify(
-                key=handle._key_bytes,
-                data=data,
-                expected_tag=expected_tag
-            )
-        else:
-            import hmac
-            import hashlib
-            computed = hmac.new(handle._key_bytes, data, hashlib.sha256).digest()
-            return secrets.compare_digest(computed, expected_tag)
+        if handle._backend != 'rust':
+            raise RuntimeError("Rust backend required for SecureBridge")
+
+        return meow_crypto_rs.hmac_sha256_verify(
+            key=handle._key_bytes,
+            data=data,
+            expected_tag=expected_tag
+        )
     
     def _try_zero_string(self, s: str):
         """
@@ -444,12 +410,6 @@ class SecureBridge:
     def __del__(self):
         """Cleanup on destruction."""
         self.cleanup()
-
-
-# Security warning for Python fallback
-class SecurityWarning(UserWarning):
-    """Warning issued when security is degraded."""
-    pass
 
 
 # Convenience functions
@@ -520,9 +480,7 @@ def check_rust_backend() -> Tuple[bool, str]:
 
 # Module-level check
 if not RUST_AVAILABLE:
-    import warnings
-    warnings.warn(
-        "meow_crypto_rs not found. For maximum security, install the Rust backend: "
-        "cd rust_crypto && maturin develop --release",
-        SecurityWarning
+    raise RuntimeError(
+        "meow_crypto_rs not found. Rust backend is required: "
+        "cd rust_crypto && maturin develop --release"
     )

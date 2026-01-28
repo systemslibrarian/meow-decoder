@@ -46,9 +46,9 @@ This document is a structured audit checklist and gap report for a v1.0 security
 - **Nonce reuse guard** exists (best‑effort cache).
 
 ### ⚠️ Known/Expected Gaps (Require Verification)
-- **Rust backend requirement** not enforced globally (Python fallback still present). 
+- **Rust backend requirement** enforcement needs continuous CI validation.
 - **Schrödinger claim** (“neither secret can prove the other exists”) is unproven.
-- **Python side‑channels** (timing, memory zeroing) remain a risk if fallback enabled.
+
 
 **Required fixes are tracked in Issues section below.**
 
@@ -112,16 +112,16 @@ Primary protocol spec lives in [docs/protocol.md](protocol.md), which defines:
 ## 8) Issues Found (Actionable)
 
 ### Critical
-1) **Python fallback still available**
-   - Risk: timing side‑channels, non‑deterministic zeroing.
-   - Fix: remove fallback; require Rust backend.
+1) **Rust backend enforcement**
+   - Risk: security regression if a fallback reappears.
+   - Fix: keep Rust-only enforcement and CI checks.
 
 2) **Schrödinger mode claim unproven**
    - Risk: over‑claiming security; possible distinguishers.
    - Fix: downgrade claim or produce formal cryptographic analysis.
 
 ### High
-3) **Hardware security not fully wired to CLI**
+2) **Hardware security not fully wired to CLI**
    - Risk: security features exist but are not usable in production.
    - Fix: CLI flags + Rust backend binding + docs + tests.
 

@@ -1,9 +1,74 @@
 # 🛡️ THREAT MODEL - Meow Decoder v6.0
 
-**Date:** 2026-01-25  
-**Version:** 6.0-alpha1 (Rust Default + Security Hardening)  
-**Classification:** Production-Ready Security Tool  
-**Last Security Review:** 2026-01-25
+**Date:** 2026-01-28  
+**Version:** 6.1 (v1.0 Security‑Reviewed)  
+**Classification:** Security‑Reviewed v1.0 (claims bounded by tests/specs)  
+**Last Security Review:** 2026-01-28
+
+---
+
+## ✅ v1.0 Security‑Review Threat Model (Normative)
+
+This section is the **authoritative threat model** for the v1.0 security‑reviewed release.
+
+### Attacker Capabilities
+
+**Passive Observer**
+- Records the full GIF/QR stream.
+- Performs offline cryptanalysis and traffic analysis.
+
+**Active Adversary**
+- Drops, reorders, replays, duplicates, or injects frames (Dolev‑Yao on channel).
+- Supplies chosen input files to the encoder.
+- Tamper with manifests and droplets.
+
+**Offline Brute‑Force**
+- Attempts password guesses against captured ciphertexts.
+
+**Local Memory Inspection (Limited)**
+- Can snapshot process memory while encode/decode runs.
+- Does not control kernel/hardware (no DMA, no power/EM side‑channels).
+
+### Assets
+
+- Plaintext confidentiality.
+- Integrity of manifest and ciphertext.
+- Keys and salts.
+- Metadata obfuscation (size class, not exact size).
+- Duress/decoy behavior (optional).
+
+### Trust Boundaries
+
+- **Encoder:** trusted to generate keys, nonces, and manifest format.
+- **Decoder:** trusted to enforce auth‑then‑output.
+- **Optical channel:** fully untrusted.
+- **User environment:** assumed uncompromised OS and storage.
+
+### Non‑Goals
+
+- Compromised hosts (malware/rootkits).
+- Hardware side‑channels (power/EM/cache timing).
+- Steganography indistinguishability under forensic analysis.
+- Legal/physical coercion beyond duress/decoy behavior.
+
+### Security Objectives
+
+1. **Confidentiality:** No plaintext without correct credentials.
+2. **Integrity:** Manifest/ciphertext tampering is detected before output.
+3. **Authentication:** Invalid frames are rejected cheaply (frame MACs).
+4. **Fail‑Closed:** No partial plaintext on error.
+5. **Plausible Deniability (optional):** Duress password yields decoy data.
+
+### Verified vs Assumed
+
+- **Verified (tests/formal models):**
+   - Auth‑then‑output (no plaintext without HMAC+AEAD).
+   - Frame MAC rejection for tampered frames.
+   - Duress tag verification before expensive KDF.
+- **Assumed:**
+   - AES‑GCM security.
+   - Argon2id resistance.
+   - OS RNG quality.
 
 ---
 
