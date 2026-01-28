@@ -1,22 +1,19 @@
-"""
-Test Vectors for Crypto Backend Compatibility
-
-These test vectors ensure byte-for-byte compatibility between
-Python and Rust crypto backends.
-
-All vectors use deterministic inputs so results are reproducible.
-"""
+"""Deprecated: replaced by test_crypto_backend_rust.py (Rust-only)."""
 
 import pytest
+
+pytest.skip(
+    "Deprecated: replaced by test_crypto_backend_rust.py.",
+    allow_module_level=True,
+)
+
 import secrets
 from typing import Dict, Any
 
-# Import backends
 from meow_decoder.crypto_backend import (
-    CryptoBackend,
-    PythonCryptoBackend,
+    RustCryptoBackend,
     is_rust_available,
-    get_available_backends
+    get_available_backends,
 )
 
 
@@ -24,7 +21,6 @@ from meow_decoder.crypto_backend import (
 # FIXED TEST VECTORS (Deterministic)
 # =============================================================================
 
-# These are fixed inputs that produce known outputs
 TEST_VECTORS: Dict[str, Dict[str, Any]] = {
     "argon2id_basic": {
         "password": b"test_password_123",
@@ -33,8 +29,6 @@ TEST_VECTORS: Dict[str, Dict[str, Any]] = {
         "iterations": 2,
         "parallelism": 4,
         "output_len": 32,
-        # Expected output computed with reference implementation
-        # Note: This will be verified against Python implementation
     },
     "aes_gcm_encrypt": {
         "key": bytes.fromhex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
@@ -62,7 +56,6 @@ TEST_VECTORS: Dict[str, Dict[str, Any]] = {
         "data": b"The Meow Decoder is a cryptographic tool.",
     },
     "x25519_static": {
-        # Using static keys for reproducibility
         "alice_private": bytes.fromhex("77076d0a7318a57d3c16c17251b26645df4c2f87ebc0992ab177fba51db92c2a"),
         "bob_private": bytes.fromhex("5dab087e624a8a4b79e17f8b83800ee66f3bb1292618b6fd1c2f8b27ff88e0eb"),
     },
@@ -71,10 +64,203 @@ TEST_VECTORS: Dict[str, Dict[str, Any]] = {
 
 class TestVectorValidation:
     """Validate test vectors produce consistent results."""
+
+    def test_argon2id_vector(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["argon2id_basic"]
+
+        key1 = crypto.derive_key_argon2id(
+            vec["password"],
+            vec["salt"],
+            vec["memory_kib"],
+            vec["iterations"],
+            vec["parallelism"],
+            vec["output_len"],
+        )
+
+        key2 = crypto.derive_key_argon2id(
+            vec["password"],
+            vec["salt"],
+            vec["memory_kib"],
+            vec["iterations"],
+            vec["parallelism"],
+            vec["output_len"],
+        )
+
+        assert key1 == key2, "Argon2id should be deterministic"
+        assert len(key1) == 32, f"Key should be 32 bytes, got {len(key1)}"
+
+    def test_aes_gcm_roundtrip(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["aes_gcm_encrypt"]
+
+        ciphertext = crypto.aes_gcm_encrypt(
+            vec["key"], vec["nonce"], vec["plaintext"], vec["aad"]
+        )
+        decrypted = crypto.aes_gcm_decrypt(
+            vec["key"], vec["nonce"], ciphertext, vec["aad"]
+        )
+
+        assert decrypted == vec["plaintext"], "Decryption should recover plaintext"
+
+    def test_aes_gcm_no_aad(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["aes_gcm_no_aad"]
+
+        ciphertext = crypto.aes_gcm_encrypt(
+            vec["key"], vec["nonce"], vec["plaintext"], vec["aad"]
+        )
+        decrypted = crypto.aes_gcm_decrypt(
+            vec["key"], vec["nonce"], ciphertext, vec["aad"]
+        )
+
+        assert decrypted == vec["plaintext"]
+
+    def test_hmac_vector(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["hmac_sha256"]
+
+        tag = crypto.hmac_sha256(vec["key"], vec["message"])
+
+        assert len(tag) == 32, f"HMAC should be 32 bytes, got {len(tag)}"
+        assert crypto.hmac_sha256_verify(vec["key"], vec["message"], tag)
+
+    def test_hkdf_vector(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["hkdf_basic"]
+
+        okm = crypto.derive_key_hkdf(
+            vec["ikm"], vec["salt"], vec["info"], vec["output_len"]
+        )
+
+        assert len(okm) == vec["output_len"]
+
+    def test_sha256_vector(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["sha256"]
+
+        digest = crypto.sha256(vec["data"])
+
+        assert len(digest) == 32
+        import hashlib
+
+        expected = hashlib.sha256(vec["data"]).digest()
+        assert digest == expected
+
+    def test_x25519_exchange_vector(self):
+        crypto = RustCryptoBackend()
+        vec = TEST_VECTORS["x25519_static"]
+
+        alice_pub = crypto.x25519_public_from_private(vec["alice_private"])
+        bob_pub = crypto.x25519_public_from_private(vec["bob_private"])
+
+        shared_ab = crypto.x25519_exchange(vec["alice_private"], bob_pub)
+        shared_ba = crypto.x25519_exchange(vec["bob_private"], alice_pub)
+
+        assert shared_ab == shared_ba, "DH exchange should be symmetric"
+
+
+class TestBackendAvailability:
+    def test_rust_backend_available(self):
+        assert is_rust_available(), "Rust backend is required"
+        assert get_available_backends() == ["rust"]
+
+
+class TestEdgeCases:
+    """Test edge cases and error handling."""
+
+    def setup_method(self):
+        self.crypto = RustCryptoBackend()
+
+    def test_argon2id_invalid_salt_length(self):
+        with pytest.raises(ValueError):
+            self.crypto.derive_key_argon2id(b"password", b"short")
+
+    def test_aes_gcm_invalid_key_length(self):
+        with pytest.raises(ValueError):
+            self.crypto.aes_gcm_encrypt(b"short_key", b"12345678901", b"data")
+
+    def test_aes_gcm_invalid_nonce_length(self):
+        key = bytes(32)
+        with pytest.raises(ValueError):
+            self.crypto.aes_gcm_encrypt(key, b"short", b"data")
+
+    def test_aes_gcm_wrong_key_fails(self):
+        key1 = secrets.token_bytes(32)
+        key2 = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+
+        ct = self.crypto.aes_gcm_encrypt(key1, nonce, b"secret")
+
+        with pytest.raises(Exception):
+            self.crypto.aes_gcm_decrypt(key2, nonce, ct)
+
+    def test_hmac_verify_wrong_tag_fails(self):
+        key = secrets.token_bytes(32)
+        message = b"test message"
+
+        tag = self.crypto.hmac_sha256(key, message)
+        wrong_tag = bytes(32)
+
+        assert self.crypto.hmac_sha256_verify(key, message, tag) is True
+        assert self.crypto.hmac_sha256_verify(key, message, wrong_tag) is False
+
+    def test_empty_data(self):
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+
+        ct = self.crypto.aes_gcm_encrypt(key, nonce, b"")
+        pt = self.crypto.aes_gcm_decrypt(key, nonce, ct)
+        assert pt == b""
+
+        tag = self.crypto.hmac_sha256(key, b"")
+        assert len(tag) == 32
+
+        digest = self.crypto.sha256(b"")
+        assert len(digest) == 32
+
+
+class TestPerformance:
+    """Basic performance sanity checks."""
+
+    def test_argon2id_performance(self):
+        crypto = RustCryptoBackend()
+
+        import time
+
+        start = time.time()
+
+        crypto.derive_key_argon2id(
+            b"password", secrets.token_bytes(16), memory_kib=32768, iterations=2
+        )
+
+        elapsed = time.time() - start
+        assert elapsed < 5.0, "Argon2id should complete in reasonable time"
+
+    def test_aes_gcm_performance(self):
+        crypto = RustCryptoBackend()
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        data = secrets.token_bytes(1024 * 1024)  # 1 MB
+
+        import time
+
+        start = time.time()
+
+        ct = crypto.aes_gcm_encrypt(key, nonce, data)
+        pt = crypto.aes_gcm_decrypt(key, nonce, ct)
+
+        elapsed = time.time() - start
+        assert elapsed < 1.0, "AES-GCM 1MB should be fast"
+        assert pt == data
+
+
+class TestVectorValidation:
+    """Validate test vectors produce consistent results."""
     
     def test_argon2id_vector(self):
         """Test Argon2id produces consistent output."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["argon2id_basic"]
         
         key1 = crypto.derive_key_argon2id(
@@ -95,7 +281,7 @@ class TestVectorValidation:
     
     def test_aes_gcm_roundtrip(self):
         """Test AES-GCM encryption/decryption roundtrip."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["aes_gcm_encrypt"]
         
         ciphertext = crypto.aes_gcm_encrypt(
@@ -111,7 +297,7 @@ class TestVectorValidation:
     
     def test_aes_gcm_no_aad(self):
         """Test AES-GCM without AAD."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["aes_gcm_no_aad"]
         
         ciphertext = crypto.aes_gcm_encrypt(
@@ -127,7 +313,7 @@ class TestVectorValidation:
     
     def test_hmac_vector(self):
         """Test HMAC-SHA256 produces correct output."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["hmac_sha256"]
         
         tag = crypto.hmac_sha256(vec["key"], vec["message"])
@@ -138,7 +324,7 @@ class TestVectorValidation:
     
     def test_hkdf_vector(self):
         """Test HKDF produces correct output."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["hkdf_basic"]
         
         okm = crypto.derive_key_hkdf(
@@ -150,7 +336,7 @@ class TestVectorValidation:
     
     def test_sha256_vector(self):
         """Test SHA-256 produces correct output."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["sha256"]
         
         digest = crypto.sha256(vec["data"])
@@ -164,7 +350,7 @@ class TestVectorValidation:
     
     def test_x25519_exchange_vector(self):
         """Test X25519 key exchange with known keys."""
-        crypto = PythonCryptoBackend()
+        crypto = RustCryptoBackend()
         vec = TEST_VECTORS["x25519_static"]
         
         alice_pub = crypto.x25519_public_from_private(vec["alice_private"])
@@ -178,48 +364,9 @@ class TestVectorValidation:
 
 
 @pytest.mark.skipif(not is_rust_available(), reason="Rust backend not installed")
-class TestBackendCompatibility:
-    """
-    Test byte-for-byte compatibility between Python and Rust backends.
-    
-    These tests ensure that switching backends produces identical results.
-    """
-    
-    def setup_method(self):
-        """Initialize both backends."""
-        self.py_crypto = CryptoBackend(backend="python")
-        self.rs_crypto = CryptoBackend(backend="rust")
-    
-    def test_argon2id_compatibility(self):
-        """Argon2id should produce identical keys on both backends."""
-        vec = TEST_VECTORS["argon2id_basic"]
-        
-        py_key = self.py_crypto.derive_key_argon2id(
-            vec["password"], vec["salt"],
-            vec["memory_kib"], vec["iterations"],
-            vec["parallelism"], vec["output_len"]
-        )
-        
-        rs_key = self.rs_crypto.derive_key_argon2id(
-            vec["password"], vec["salt"],
-            vec["memory_kib"], vec["iterations"],
-            vec["parallelism"], vec["output_len"]
-        )
-        
-        assert py_key == rs_key, (
-            f"Argon2id mismatch!\n"
-            f"Python: {py_key.hex()}\n"
-            f"Rust:   {rs_key.hex()}"
-        )
-        print(f"✅ Argon2id: {py_key.hex()[:32]}...")
-    
-    def test_aes_gcm_encrypt_compatibility(self):
-        """AES-GCM encryption should be identical."""
-        vec = TEST_VECTORS["aes_gcm_encrypt"]
-        
-        py_ct = self.py_crypto.aes_gcm_encrypt(
-            vec["key"], vec["nonce"], vec["plaintext"], vec["aad"]
-        )
+class TestBackendAvailability:
+    def test_rust_backend_available(self):
+        assert "rust" in get_available_backends()
         
         rs_ct = self.rs_crypto.aes_gcm_encrypt(
             vec["key"], vec["nonce"], vec["plaintext"], vec["aad"]

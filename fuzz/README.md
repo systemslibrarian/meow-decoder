@@ -52,5 +52,5 @@ python3 fuzz/seed_corpus.py
 
 ## Findings
 
-*   **2024-01-25**: Initial 24-hour run completed. No crashes or hangs found in core parsing logic.
+*   **2024-01-25**: Historical note (unverified in current repo). Do not rely on this without a recorded run log.
 *   *Add new findings here.*

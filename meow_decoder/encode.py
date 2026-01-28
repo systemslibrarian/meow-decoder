@@ -16,7 +16,7 @@ import time
 from .config import MeowConfig, EncodingConfig
 from .crypto import (
     encrypt_file_bytes, compute_manifest_hmac, pack_manifest,
-    Manifest, verify_keyfile, compute_duress_hash
+    Manifest, verify_keyfile, compute_duress_tag, pack_manifest_core
 )
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
@@ -34,6 +34,9 @@ def encode_file(
     keyfile: Optional[bytes] = None,
     forward_secrecy: bool = True,
     receiver_public_key: Optional[bytes] = None,
+    yubikey: bool = False,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
     use_pq: bool = False,
     stego_level: int = 0,
     carrier_images: Optional[List[Path]] = None,
@@ -123,7 +126,13 @@ def encode_file(
         print("Encrypting data with length padding (metadata protection)...")
     
     comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
-        raw_data, password, keyfile, receiver_public_key, use_length_padding=True
+        raw_data,
+        password,
+        keyfile,
+        receiver_public_key,
+        use_length_padding=True,
+        yubikey_slot=yubikey_slot if yubikey else None,
+        yubikey_pin=yubikey_pin if yubikey else None
     )
     
     if verbose:
@@ -144,12 +153,13 @@ def encode_file(
         print(f"  Blocks (k): {k_blocks}")
         print(f"  Droplets: {num_droplets} ({config.redundancy:.1f}x redundancy)")
     
-    # Compute duress hash if duress password provided
-    duress_hash = None
+    # Compute duress tag if duress password provided
+    duress_tag = None
     if duress_password:
         if duress_password == password:
             raise ValueError("Duress password cannot be the same as encryption password")
-        duress_hash = compute_duress_hash(duress_password, salt)
+        # Duress tag is computed after manifest core is built (fast, tamper-evident)
+        duress_tag = None
         if verbose:
             print(f"  🚨 Duress password configured (emergency response on decode)")
     
@@ -165,27 +175,22 @@ def encode_file(
         k_blocks=k_blocks,
         hmac=b'\x00' * 32,  # Placeholder
         ephemeral_public_key=ephemeral_public_key,  # Forward secrecy support
-        duress_hash=duress_hash  # Duress password support
+        duress_tag=duress_tag  # Duress password support (authenticated)
     )
     
     # Compute HMAC (need to handle variable manifest size)
     # CRITICAL: Manifest format is: MAGIC + salt + nonce + lengths + sha256 + HMAC + ephemeral_key
     # We need to pack WITHOUT hmac field, then compute HMAC, then insert it
     
-    # Build packed manifest without HMAC
-    from .crypto import MAGIC
-    packed_no_hmac = (
-        MAGIC +
-        manifest.salt +
-        manifest.nonce +
-        struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len) +
-        struct.pack(">HI", manifest.block_size, manifest.k_blocks) +
-        manifest.sha256
-    )
-    
-    # Add ephemeral public key if present (AFTER all other fields, BEFORE HMAC)
-    if ephemeral_public_key is not None:
-        packed_no_hmac += ephemeral_public_key
+    # Build manifest core for duress tag (no HMAC, no duress tag)
+    manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
+
+    # If duress enabled, compute tag bound to manifest core
+    if duress_password:
+        manifest.duress_tag = compute_duress_tag(duress_password, salt, manifest_core)
+
+    # Build packed manifest without HMAC (includes duress tag if present)
+    packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
     
     # Compute HMAC using the encryption key directly (critical for forward secrecy!)
     manifest.hmac = compute_manifest_hmac(
@@ -435,6 +440,14 @@ Examples:
                        help='Encryption password (⚠️  WARNING: May leak in shell history/process list! Use prompt instead.)')
     parser.add_argument('-k', '--keyfile', type=Path,
                        help='Path to keyfile')
+
+    # Hardware-backed key derivation (YubiKey)
+    parser.add_argument('--yubikey', action='store_true',
+                        help='Use YubiKey PIV for key derivation (Rust backend required)')
+    parser.add_argument('--yubikey-slot', type=str, default='9d',
+                        help='YubiKey PIV slot (default: 9d)')
+    parser.add_argument('--yubikey-pin', type=str, default=None,
+                        help='YubiKey PIN (prompted if not provided)')
     
     # Encoding parameters
     parser.add_argument('--block-size', type=int, default=512,
@@ -452,11 +465,8 @@ Examples:
     parser.add_argument('--qr-border', type=int, default=4,
                        help='QR border size in boxes (default: 4)')
     
-    # Crypto backend selection (SECURITY: Rust is HARD DEFAULT for constant-time)
-    parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
-                       help='Crypto backend: python, rust, or auto (default: auto, Rust required)')
-    parser.add_argument('--legacy-python', '--python-fallback', action='store_true', dest='legacy_python',
-                       help='⚠️  LEGACY: Allow Python backend (NOT constant-time, timing attacks possible)')
+    # Crypto backend selection
+    # Rust backend is mandatory; no Python fallback is supported.
     
     # Steganography options (hide QR in images)
     parser.add_argument('--stego-level', type=int, choices=[0, 1, 2, 3, 4], default=0,
@@ -525,10 +535,7 @@ Examples:
     
     args = parser.parse_args()
     
-    # CRITICAL: Wire --legacy-python to env var BEFORE any crypto calls
-    if args.legacy_python:
-        os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
-        os.environ['MEOW_LEGACY_PYTHON'] = '1'
+    # Rust backend is mandatory (no legacy Python fallback).
     
     # Handle key generation (do this first, then exit)
     if args.generate_keys:
@@ -723,6 +730,18 @@ Nothing to see here. 😶‍🌫️
         except (FileNotFoundError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+
+    # YubiKey validation
+    if args.yubikey:
+        if keyfile is not None:
+            print("Error: Cannot combine --yubikey with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if receiver_public_key is not None:
+            print("Error: YubiKey derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        if args.yubikey_pin is None:
+            yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
+            args.yubikey_pin = yk_pin if yk_pin else None
     
     # Handle duress password
     duress_password = None
@@ -770,6 +789,9 @@ Nothing to see here. 😶‍🌫️
             keyfile=keyfile,
             forward_secrecy=args.forward_secrecy,
             receiver_public_key=receiver_public_key,  # Forward secrecy support
+            yubikey=args.yubikey,
+            yubikey_slot=args.yubikey_slot,
+            yubikey_pin=args.yubikey_pin,
             use_pq=args.pq,
             stego_level=args.stego_level,
             carrier_images=args.carrier_images,

@@ -17,7 +17,8 @@ import hashlib
 from .config import MeowConfig, DecodingConfig, DuressConfig, DuressMode
 from .crypto import (
     decrypt_to_raw, verify_manifest_hmac, unpack_manifest,
-    verify_keyfile, check_duress_password, derive_encryption_key_for_manifest
+    verify_keyfile, check_duress_password, derive_encryption_key_for_manifest,
+    pack_manifest_core
 )
 from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
@@ -33,6 +34,8 @@ def decode_gif(
     duress_config: Optional[DuressConfig] = None,
     keyfile: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -129,7 +132,7 @@ def decode_gif(
     #   - Forward secrecy (with MAC): 155 bytes (147 + 8)
     #   - FS + duress (no MAC): 179 bytes (147 + 32)
     #   - FS + duress (with MAC): 187 bytes (179 + 8)
-    expected_lengths = [115, 123, 147, 155, 179, 187]
+    expected_lengths = [115, 123, 147, 155, 179, 187, 1235, 1243, 1267, 1275]
     
     if len(manifest_raw) not in expected_lengths:
         raise ValueError(
@@ -142,12 +145,12 @@ def decode_gif(
     
     # Check if manifest has MAC (length check)
     # Manifest with MAC: adds 8 bytes to any base size
-    # Base sizes: 115 (password-only), 147 (FS), 179 (FS+duress)
-    # With MAC: 123, 155, 187
+    # Base sizes: 115 (password-only), 147 (FS), 179 (FS+duress), 1235 (PQ), 1267 (PQ+duress)
+    # With MAC: 123, 155, 187, 1243, 1275
     has_frame_macs = False
     manifest_bytes = manifest_raw
     
-    if len(manifest_raw) in [123, 155, 187]:
+    if len(manifest_raw) in [123, 155, 187, 1243, 1275]:
         # Might have frame MAC, but we need password to verify
         # For now, skip MAC verification on manifest (we'll do full manifest HMAC)
         # Just strip the potential MAC for now
@@ -168,8 +171,11 @@ def decode_gif(
             print(f"  ✅ Forward secrecy: Ephemeral key present")
     
     # Check for duress password BEFORE doing expensive HMAC verification
-    if manifest.duress_hash is not None:
-        if check_duress_password(password, manifest.salt, manifest.duress_hash):
+    # Check for duress password BEFORE doing expensive HMAC verification
+    # Uses a fast authenticated duress tag bound to the manifest core
+    if manifest.duress_tag is not None:
+        manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
+        if check_duress_password(password, manifest.salt, manifest.duress_tag, manifest_core):
             # DURESS PASSWORD DETECTED - trigger emergency response
             if verbose:
                 print("\n🚨 DURESS PASSWORD DETECTED - Emergency protocol activated")
@@ -224,7 +230,14 @@ def decode_gif(
     if verbose:
         print("\nVerifying manifest HMAC...")
     
-    if not verify_manifest_hmac(password, manifest, keyfile, receiver_private_key):
+    if not verify_manifest_hmac(
+        password,
+        manifest,
+        keyfile,
+        receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin
+    ):
         raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
     if verbose:
@@ -243,7 +256,9 @@ def decode_gif(
             manifest.salt,
             keyfile=keyfile,
             ephemeral_public_key=manifest.ephemeral_public_key,
-            receiver_private_key=receiver_private_key
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
         # Use a mutable buffer for best-effort zeroing after use
         encryption_key_buf = bytearray(encryption_key)
@@ -359,7 +374,9 @@ def decode_gif(
         raw_data = decrypt_to_raw(
             cipher, password, manifest.salt, manifest.nonce, keyfile,
             manifest.orig_len, manifest.comp_len, manifest.sha256,
-            manifest.ephemeral_public_key, receiver_private_key
+            manifest.ephemeral_public_key, receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
         
         if verbose and manifest.ephemeral_public_key:
@@ -433,6 +450,12 @@ Examples:
                        help='Decryption password (prompted if not provided)')
     parser.add_argument('-k', '--keyfile', type=Path,
                        help='Path to keyfile')
+    parser.add_argument('--yubikey', action='store_true',
+                       help='Use YubiKey PIV for key derivation (Rust backend required)')
+    parser.add_argument('--yubikey-slot', type=str, default='9d',
+                       help='YubiKey PIV slot (default: 9d)')
+    parser.add_argument('--yubikey-pin', type=str, default=None,
+                       help='YubiKey PIN (prompted if not provided)')
     parser.add_argument('--receiver-privkey', type=Path,
                        help='Path to receiver X25519 private key for forward secrecy (PEM format)')
     parser.add_argument('--receiver-privkey-password', type=str,
@@ -448,11 +471,8 @@ Examples:
     parser.add_argument('--enable-panic', action='store_true',
                        help='Explicitly enable destructive PANIC mode (required for --duress-mode panic)')
     
-    # Crypto backend selection (SECURITY: Rust is HARD DEFAULT for constant-time)
-    parser.add_argument('--crypto-backend', choices=['python', 'rust', 'auto'], default='auto',
-                       help='Crypto backend: python, rust, or auto (default: auto, Rust required)')
-    parser.add_argument('--legacy-python', '--python-fallback', action='store_true', dest='legacy_python',
-                       help='⚠️  LEGACY: Allow Python backend (NOT constant-time, timing attacks possible)')
+    # Crypto backend selection
+    # Rust backend is mandatory; no Python fallback is supported.
     
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
@@ -462,11 +482,7 @@ Examples:
     
     args = parser.parse_args()
     
-    # CRITICAL: Wire --legacy-python to env var BEFORE any crypto calls
-    if args.legacy_python:
-        import os
-        os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
-        os.environ['MEOW_LEGACY_PYTHON'] = '1'
+    # Rust backend is mandatory (no legacy Python fallback).
     
     # Validate input file
     if not args.input.exists():
@@ -503,6 +519,18 @@ Examples:
         except (FileNotFoundError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+
+    # YubiKey validation
+    if args.yubikey:
+        if keyfile is not None:
+            print("Error: Cannot combine --yubikey with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if args.receiver_privkey is not None:
+            print("Error: YubiKey derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        if args.yubikey_pin is None:
+            yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
+            args.yubikey_pin = yk_pin if yk_pin else None
     
     # Load receiver private key for forward secrecy if specified
     receiver_private_key = None
@@ -571,6 +599,8 @@ Examples:
             duress_config=duress_config,
             keyfile=keyfile,
             receiver_private_key=receiver_private_key,  # Forward secrecy support
+            yubikey_slot=args.yubikey_slot if args.yubikey else None,
+            yubikey_pin=args.yubikey_pin if args.yubikey else None,
             verbose=args.verbose
         )
         

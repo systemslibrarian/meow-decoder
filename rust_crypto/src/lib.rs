@@ -32,6 +32,11 @@ use zeroize::Zeroize;
 use pqcrypto_mlkem::mlkem768;
 use pqcrypto_traits::kem::{SecretKey as KemSecretKey, PublicKey as KemPublicKey, Ciphertext as KemCiphertext, SharedSecret as KemSharedSecret};
 
+#[cfg(feature = "yubikey")]
+use crypto_core::yubikey_piv::{
+    derive_key_with_yubikey, PivSlot, YubiKeyPin, YubiKeyProvider,
+};
+
 // =============================================================================
 // Argon2id Key Derivation
 // =============================================================================
@@ -501,6 +506,76 @@ fn mlkem768_decapsulate<'py>(
 }
 
 // =============================================================================
+// YubiKey (optional)
+// =============================================================================
+
+#[cfg(feature = "yubikey")]
+fn parse_piv_slot(slot: &str) -> Result<PivSlot, PyErr> {
+    match slot.to_ascii_lowercase().as_str() {
+        "9a" | "auth" => Ok(PivSlot::Authentication),
+        "9b" | "mgmt" => Ok(PivSlot::CardManagement),
+        "9c" | "sign" => Ok(PivSlot::DigitalSignature),
+        "9d" | "key" => Ok(PivSlot::KeyManagement),
+        "9e" | "card" => Ok(PivSlot::CardAuthentication),
+        other => Err(PyValueError::new_err(format!(
+            "Unsupported PIV slot '{}'. Use 9a, 9b, 9c, 9d, or 9e.",
+            other
+        ))),
+    }
+}
+
+#[cfg(feature = "yubikey")]
+#[pyfunction]
+#[pyo3(signature = (password, salt, slot="9d", pin=None))]
+fn yubikey_derive_key<'py>(
+    py: Python<'py>,
+    password: &[u8],
+    salt: &[u8],
+    slot: &str,
+    pin: Option<String>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    if salt.len() != 16 {
+        return Err(PyValueError::new_err(format!(
+            "Salt must be exactly 16 bytes, got {}",
+            salt.len()
+        )));
+    }
+
+    let piv_slot = parse_piv_slot(slot)?;
+    let mut yubikey = YubiKeyProvider::connect()
+        .map_err(|e| PyValueError::new_err(format!("YubiKey connection failed: {e:?}")))?;
+
+    let pin_obj = pin.as_ref().map(|p| YubiKeyPin::new(p.clone()));
+    let pin_ref = pin_obj.as_ref();
+
+    if let Some(pin) = pin_ref {
+        yubikey.verify_pin(pin)
+            .map_err(|e| PyValueError::new_err(format!("YubiKey PIN verification failed: {e:?}")))?;
+    }
+
+    let key = derive_key_with_yubikey(password, salt, &mut yubikey, piv_slot, pin_ref)
+        .map_err(|e| PyValueError::new_err(format!("YubiKey derivation failed: {e:?}")))?;
+
+    Ok(PyBytes::new(py, &key))
+}
+
+#[cfg(not(feature = "yubikey"))]
+#[pyfunction]
+#[pyo3(signature = (password, salt, slot="9d", pin=None))]
+fn yubikey_derive_key<'py>(
+    _py: Python<'py>,
+    _password: &[u8],
+    _salt: &[u8],
+    _slot: &str,
+    _pin: Option<String>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    Err(PyValueError::new_err(
+        "YubiKey support not enabled in Rust backend. Rebuild with: \
+         maturin develop --release --features yubikey"
+    ))
+}
+
+// =============================================================================
 // Python Module
 // =============================================================================
 
@@ -540,6 +615,9 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
     m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+
+    // YubiKey (optional)
+    m.add_function(wrap_pyfunction!(yubikey_derive_key, m)?)?;
 
     Ok(())
 }

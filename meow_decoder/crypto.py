@@ -8,6 +8,7 @@ This is the base version. For enhanced security features, see crypto_enhanced.py
 import os
 import struct
 import hashlib
+import hmac
 import zlib
 import secrets
 from dataclasses import dataclass
@@ -63,7 +64,7 @@ class Manifest:
     hmac: bytes
     ephemeral_public_key: Optional[bytes] = None  # Forward secrecy support
     pq_ciphertext: Optional[bytes] = None  # Post-quantum hybrid support
-    duress_hash: Optional[bytes] = None  # Duress password hash (32 bytes)
+    duress_tag: Optional[bytes] = None  # Duress authentication tag (32 bytes)
 
 
 # Minimum password length (NIST SP 800-63B recommends 8+)
@@ -93,38 +94,92 @@ def _register_nonce_use(key: bytes, nonce: bytes) -> None:
 
 def compute_duress_hash(password: str, salt: bytes) -> bytes:
     """
-    Compute duress password hash for fast constant-time comparison.
-    
-    This is NOT for key derivation - it's for quickly checking if
-    a password is the duress password before doing expensive Argon2id.
-    
+    Compute a fast duress password hash.
+
+    NOTE: This is a fast hash used as a key for duress tag verification
+    and for legacy compatibility checks. It is NOT used for encryption.
+
     Args:
         password: Duress password
         salt: Salt from manifest (16 bytes)
-        
+
     Returns:
         32-byte SHA-256 hash
     """
     return hashlib.sha256(DURESS_HASH_PREFIX + salt + password.encode('utf-8')).digest()
 
 
-def check_duress_password(entered_password: str, salt: bytes, duress_hash: bytes) -> bool:
+def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> bytes:
     """
-    Check if entered password matches duress hash (constant-time).
-    
+    Compute duress authentication tag (fast, tamper-evident).
+
+    This tag allows the decoder to safely trigger duress behavior
+    without performing expensive Argon2id derivations while still
+    preventing manifest tampering from forcing duress.
+
+    Args:
+        password: Duress password
+        salt: Salt from manifest (16 bytes)
+        manifest_core: Canonical manifest core (no HMAC, no duress tag)
+
+    Returns:
+        32-byte HMAC-SHA256 tag
+    """
+    duress_key = compute_duress_hash(password, salt)
+    return hmac.new(duress_key, manifest_core, hashlib.sha256).digest()
+
+
+def check_duress_password(
+    entered_password: str,
+    salt: bytes,
+    duress_tag: bytes,
+    manifest_core: bytes
+) -> bool:
+    """
+    Check if entered password matches duress tag (constant-time).
+
     Args:
         entered_password: Password entered by user
         salt: Salt from manifest
-        duress_hash: Expected duress hash from manifest
-        
+        duress_tag: Expected duress tag from manifest
+        manifest_core: Canonical manifest core (no HMAC, no duress tag)
+
     Returns:
         True if password is the duress password
-        
+
     Security:
         Uses secrets.compare_digest for constant-time comparison.
     """
-    computed = compute_duress_hash(entered_password, salt)
-    return secrets.compare_digest(computed, duress_hash)
+    computed = compute_duress_tag(entered_password, salt, manifest_core)
+    return secrets.compare_digest(computed, duress_tag)
+
+
+def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) -> bytes:
+    """
+    Pack canonical manifest core for authentication.
+
+    This excludes the manifest HMAC field but can optionally include
+    the duress tag for binding it to the HMAC.
+    """
+    core = (
+        MAGIC +
+        manifest.salt +
+        manifest.nonce +
+        struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len) +
+        struct.pack(">HI", manifest.block_size, manifest.k_blocks) +
+        manifest.sha256
+    )
+
+    if manifest.ephemeral_public_key is not None:
+        core += manifest.ephemeral_public_key
+
+    if manifest.pq_ciphertext is not None:
+        core += manifest.pq_ciphertext
+
+    if include_duress_tag and manifest.duress_tag is not None:
+        core += manifest.duress_tag
+
+    return core
 
 
 def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> bytes:
@@ -185,7 +240,9 @@ def encrypt_file_bytes(
     password: str,
     keyfile: Optional[bytes] = None,
     receiver_public_key: Optional[bytes] = None,
-    use_length_padding: bool = True
+    use_length_padding: bool = True,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -279,7 +336,18 @@ def encrypt_file_bytes(
             # This provides forward secrecy - private key never stored!
         else:
             # PASSWORD-ONLY MODE: Standard Argon2id derivation
-            key = derive_key(password, salt, keyfile)
+            if yubikey_slot is not None:
+                if keyfile is not None:
+                    raise ValueError("Cannot combine --yubikey with --keyfile")
+                backend = get_default_backend()
+                key = backend.derive_key_yubikey(
+                    password.encode("utf-8"),
+                    salt,
+                    slot=yubikey_slot,
+                    pin=yubikey_pin
+                )
+            else:
+                key = derive_key(password, salt, keyfile)
         
         # Build AAD (Additional Authenticated Data) for manifest protection
         # Why: Binding metadata to the AEAD prevents substitution and
@@ -320,7 +388,9 @@ def decrypt_to_raw(
     comp_len: Optional[int] = None,
     sha256: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
@@ -384,7 +454,18 @@ def decrypt_to_raw(
             )
         else:
             # PASSWORD-ONLY MODE
-            key = derive_key(password, salt, keyfile)
+            if yubikey_slot is not None:
+                if keyfile is not None:
+                    raise ValueError("Cannot combine --yubikey with --keyfile")
+                backend = get_default_backend()
+                key = backend.derive_key_yubikey(
+                    password.encode("utf-8"),
+                    salt,
+                    slot=yubikey_slot,
+                    pin=yubikey_pin
+                )
+            else:
+                key = derive_key(password, salt, keyfile)
         
         # Reconstruct AAD for verification
         # Must match exactly what was used during encryption
@@ -483,11 +564,11 @@ def pack_manifest(m: Manifest) -> bytes:
             raise ValueError(f"PQ ciphertext must be 1088 bytes, got {len(m.pq_ciphertext)}")
         base = base + m.pq_ciphertext
     
-    # Add duress hash if present (32 bytes) - ALWAYS LAST for easy detection
-    if m.duress_hash is not None:
-        if len(m.duress_hash) != 32:
-            raise ValueError(f"Duress hash must be 32 bytes, got {len(m.duress_hash)}")
-        base = base + m.duress_hash
+    # Add duress tag if present (32 bytes) - ALWAYS LAST for easy detection
+    if m.duress_tag is not None:
+        if len(m.duress_tag) != 32:
+            raise ValueError(f"Duress tag must be 32 bytes, got {len(m.duress_tag)}")
+        base = base + m.duress_tag
     
     return base
 
@@ -500,7 +581,7 @@ def unpack_manifest(b: bytes) -> Manifest:
         b: Serialized manifest bytes
         
     Returns:
-        Manifest object with optional ephemeral_public_key, pq_ciphertext, and duress_hash
+        Manifest object with optional ephemeral_public_key, pq_ciphertext, and duress_tag
         
     Raises:
         ValueError: If manifest is invalid or wrong version
@@ -509,9 +590,9 @@ def unpack_manifest(b: bytes) -> Manifest:
         Valid manifest sizes:
         - 115 bytes = password-only mode (MEOW2, legacy)
         - 147 bytes = forward secrecy mode (MEOW3)
-        - 179 bytes = forward secrecy + duress (MEOW3 + duress)
+        - 179 bytes = forward secrecy + duress (MEOW3 + duress tag)
         - 1235 bytes = PQ hybrid mode (MEOW4)
-        - 1267 bytes = PQ hybrid + duress (MEOW4 + duress)
+        - 1267 bytes = PQ hybrid + duress (MEOW4 + duress tag)
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
@@ -547,7 +628,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     # Parse optional fields based on manifest size
     ephemeral_public_key = None
     pq_ciphertext = None
-    duress_hash = None
+    duress_tag = None
     
     if len(b) >= fs_len:
         # Forward secrecy mode - extract ephemeral public key
@@ -557,9 +638,9 @@ def unpack_manifest(b: bytes) -> Manifest:
         # PQ hybrid mode - extract PQ ciphertext
         pq_ciphertext = b[off:off+1088]; off += 1088
     
-    # Check for duress hash (last 32 bytes if size matches duress variant)
+    # Check for duress tag (last 32 bytes if size matches duress variant)
     if len(b) == fs_duress_len or len(b) == pq_duress_len:
-        duress_hash = b[off:off+32]
+        duress_tag = b[off:off+32]
     
     return Manifest(
         salt=salt,
@@ -573,7 +654,7 @@ def unpack_manifest(b: bytes) -> Manifest:
         hmac=hmac_tag,
         ephemeral_public_key=ephemeral_public_key,
         pq_ciphertext=pq_ciphertext,
-        duress_hash=duress_hash
+        duress_tag=duress_tag
     )
 
 
@@ -582,7 +663,9 @@ def derive_encryption_key_for_manifest(
     salt: bytes,
     keyfile: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Derive the encryption key for a manifest, matching encryption/decryption paths.
@@ -613,6 +696,17 @@ def derive_encryption_key_for_manifest(
             salt
         )
 
+    if yubikey_slot is not None:
+        if keyfile is not None:
+            raise ValueError("Cannot combine --yubikey with --keyfile")
+        backend = get_default_backend()
+        return backend.derive_key_yubikey(
+            password.encode("utf-8"),
+            salt,
+            slot=yubikey_slot,
+            pin=yubikey_pin
+        )
+
     return derive_key(password, salt, keyfile)
 
 
@@ -623,7 +717,9 @@ def compute_manifest_hmac(
     keyfile: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
-    encryption_key: Optional[bytes] = None
+    encryption_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
@@ -657,7 +753,9 @@ def compute_manifest_hmac(
             salt,
             keyfile=keyfile,
             ephemeral_public_key=ephemeral_public_key,
-            receiver_private_key=receiver_private_key
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
     
     # Derive HMAC key from encryption key
@@ -673,7 +771,9 @@ def verify_manifest_hmac(
     password: str,
     manifest: Manifest,
     keyfile: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bool:
     """
     Verify manifest HMAC with constant-time comparison and timing equalization.
@@ -694,18 +794,7 @@ def verify_manifest_hmac(
         - Supports forward secrecy mode with X25519
     """
     # Pack manifest without HMAC
-    packed_no_hmac = (
-        MAGIC +
-        manifest.salt +
-        manifest.nonce +
-        struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len) +
-        struct.pack(">HI", manifest.block_size, manifest.k_blocks) +
-        manifest.sha256
-    )
-    
-    # Add ephemeral public key if present (FS mode)
-    if manifest.ephemeral_public_key is not None:
-        packed_no_hmac += manifest.ephemeral_public_key
+    packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
     
     # Compute expected HMAC (with forward secrecy support)
     expected_hmac = compute_manifest_hmac(
@@ -714,7 +803,9 @@ def verify_manifest_hmac(
         packed_no_hmac, 
         keyfile,
         ephemeral_public_key=manifest.ephemeral_public_key,
-        receiver_private_key=receiver_private_key
+        receiver_private_key=receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin
     )
     
     # Constant-time comparison with timing equalization

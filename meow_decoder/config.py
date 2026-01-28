@@ -71,7 +71,6 @@ class EncodingConfig:
     
     # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
     require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
-    allow_python_fallback: bool = False      # Allow Python backend with explicit flag
     
     # Performance
     enable_profiling: bool = False           # Enable performance profiling
@@ -126,7 +125,6 @@ class CryptoConfig:
     
     # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
     require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
-    allow_python_fallback: bool = False      # Allow Python backend with explicit flag
     
     # Forward secrecy
     enable_forward_secrecy: bool = True      # Enabled by default

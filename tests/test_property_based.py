@@ -13,20 +13,15 @@ Property-based testing is essential for crypto code because:
 Run with: pytest tests/test_property_based.py -v --hypothesis-show-statistics
 """
 
-import os
 import pytest
 import secrets
 from typing import Optional
-
-# Enable Python fallback for differential testing
-os.environ['MEOW_ALLOW_PYTHON_FALLBACK'] = '1'
 
 from hypothesis import given, settings, assume, example, Phase
 from hypothesis import strategies as st
 
 from meow_decoder.crypto_backend import (
-    CryptoBackend, PythonCryptoBackend, RustCryptoBackend,
-    is_rust_available
+    RustCryptoBackend,
 )
 from meow_decoder.crypto import (
     encrypt_file_bytes, decrypt_to_raw,
@@ -82,32 +77,14 @@ class TestEncryptDecryptInvariants:
     
     @given(plaintext=small_plaintexts, key=aes_keys, nonce=nonces, aad=aad_data)
     @settings(max_examples=200, deadline=None)
-    def test_aes_gcm_roundtrip_python(self, plaintext: bytes, key: bytes, nonce: bytes, aad: Optional[bytes]):
+    def test_aes_gcm_roundtrip(self, plaintext: bytes, key: bytes, nonce: bytes, aad: Optional[bytes]):
         """
         INVARIANT: decrypt(encrypt(plaintext)) == plaintext
-        
-        For any plaintext, key, nonce, and AAD combination, decryption
-        must exactly recover the original plaintext.
         """
-        backend = PythonCryptoBackend()
-        
-        ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
-        decrypted = backend.aes_gcm_decrypt(key, nonce, ciphertext, aad)
-        
-        assert decrypted == plaintext, "Roundtrip failed: decrypted != original"
-    
-    @given(plaintext=small_plaintexts, key=aes_keys, nonce=nonces, aad=aad_data)
-    @settings(max_examples=200, deadline=None)
-    def test_aes_gcm_roundtrip_rust(self, plaintext: bytes, key: bytes, nonce: bytes, aad: Optional[bytes]):
-        """Same invariant for Rust backend."""
-        if not is_rust_available():
-            pytest.skip("Rust backend not available")
-        
         backend = RustCryptoBackend()
-        
         ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
         decrypted = backend.aes_gcm_decrypt(key, nonce, ciphertext, aad)
-        
+
         assert decrypted == plaintext, "Roundtrip failed: decrypted != original"
     
     @given(plaintext=small_plaintexts, password=passwords)
@@ -139,112 +116,7 @@ class TestEncryptDecryptInvariants:
 
 
 # =============================================================================
-# INVARIANT 2: Backend Parity (Differential Testing)
-# =============================================================================
-
-class TestBackendParity:
-    """Properties that verify Rust and Python backends produce identical outputs."""
-    
-    @given(plaintext=small_plaintexts, key=aes_keys, nonce=nonces, aad=aad_data)
-    @settings(max_examples=200, deadline=None)
-    def test_aes_gcm_parity(self, plaintext: bytes, key: bytes, nonce: bytes, aad: Optional[bytes]):
-        """
-        INVARIANT: Python and Rust backends produce identical ciphertext.
-        
-        Given the same (plaintext, key, nonce, aad), both backends MUST
-        produce byte-for-byte identical ciphertext.
-        """
-        if not is_rust_available():
-            pytest.skip("Rust backend not available for parity test")
-        
-        py_backend = PythonCryptoBackend()
-        rs_backend = RustCryptoBackend()
-        
-        cipher_py = py_backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
-        cipher_rs = rs_backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
-        
-        assert cipher_py == cipher_rs, (
-            f"AES-GCM parity violation!\n"
-            f"Python: {cipher_py.hex()[:64]}...\n"
-            f"Rust:   {cipher_rs.hex()[:64]}..."
-        )
-    
-    @given(password=st.binary(min_size=8, max_size=64), salt=salts)
-    @settings(max_examples=20, deadline=None)  # Limited due to Argon2 cost
-    def test_argon2id_parity(self, password: bytes, salt: bytes):
-        """
-        INVARIANT: Argon2id key derivation is identical across backends.
-        """
-        if not is_rust_available():
-            pytest.skip("Rust backend not available")
-        
-        py_backend = PythonCryptoBackend()
-        rs_backend = RustCryptoBackend()
-        
-        # Use fast params for testing
-        key_py = py_backend.derive_key_argon2id(
-            password, salt, memory_kib=32768, iterations=2
-        )
-        key_rs = rs_backend.derive_key_argon2id(
-            password, salt, memory_kib=32768, iterations=2
-        )
-        
-        assert key_py == key_rs, "Argon2id parity violation!"
-    
-    @given(key=aes_keys, message=st.binary(min_size=1, max_size=1024))
-    @settings(max_examples=200, deadline=None)
-    def test_hmac_sha256_parity(self, key: bytes, message: bytes):
-        """
-        INVARIANT: HMAC-SHA256 is identical across backends.
-        """
-        if not is_rust_available():
-            pytest.skip("Rust backend not available")
-        
-        py_backend = PythonCryptoBackend()
-        rs_backend = RustCryptoBackend()
-        
-        tag_py = py_backend.hmac_sha256(key, message)
-        tag_rs = rs_backend.hmac_sha256(key, message)
-        
-        assert tag_py == tag_rs, "HMAC-SHA256 parity violation!"
-    
-    @given(data=st.binary(min_size=0, max_size=4096))
-    @settings(max_examples=200, deadline=None)
-    def test_sha256_parity(self, data: bytes):
-        """
-        INVARIANT: SHA-256 is identical across backends.
-        """
-        if not is_rust_available():
-            pytest.skip("Rust backend not available")
-        
-        py_backend = PythonCryptoBackend()
-        rs_backend = RustCryptoBackend()
-        
-        hash_py = py_backend.sha256(data)
-        hash_rs = rs_backend.sha256(data)
-        
-        assert hash_py == hash_rs, "SHA-256 parity violation!"
-    
-    @given(ikm=st.binary(min_size=16, max_size=64), salt=salts, info=st.binary(min_size=0, max_size=64))
-    @settings(max_examples=100, deadline=None)
-    def test_hkdf_parity(self, ikm: bytes, salt: bytes, info: bytes):
-        """
-        INVARIANT: HKDF key derivation is identical across backends.
-        """
-        if not is_rust_available():
-            pytest.skip("Rust backend not available")
-        
-        py_backend = PythonCryptoBackend()
-        rs_backend = RustCryptoBackend()
-        
-        key_py = py_backend.derive_key_hkdf(ikm, salt, info, output_len=32)
-        key_rs = rs_backend.derive_key_hkdf(ikm, salt, info, output_len=32)
-        
-        assert key_py == key_rs, "HKDF parity violation!"
-
-
-# =============================================================================
-# INVARIANT 3: Nonce Uniqueness
+# INVARIANT 2: Nonce Uniqueness
 # =============================================================================
 
 class TestNonceUniqueness:
@@ -297,7 +169,7 @@ class TestTamperDetection:
         """
         assume(len(plaintext) > 0)
         
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, None)
         
         # Pick a bit to flip
@@ -325,7 +197,7 @@ class TestTamperDetection:
         """
         assume(len(plaintext) > 0)
         
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
         
         # Tamper with AAD
@@ -344,7 +216,7 @@ class TestTamperDetection:
         """
         INVARIANT: Any message modification must cause HMAC verification to fail.
         """
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         tag = backend.hmac_sha256(key, message)
         
         # Tamper with message
@@ -526,7 +398,7 @@ class TestConstantTimeInvariants:
         
         Must return True iff a == b.
         """
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         
         result = backend.constant_time_compare(a, b)
         expected = (a == b)
@@ -539,7 +411,7 @@ class TestConstantTimeInvariants:
         """
         INVARIANT: x == x always.
         """
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         
         assert backend.constant_time_compare(data, data), "Self-compare failed!"
 
@@ -559,7 +431,7 @@ class TestX25519Invariants:
         
         Alice's shared secret with Bob == Bob's shared secret with Alice
         """
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         
         priv_a, pub_a = backend.x25519_generate_keypair()
         priv_b, pub_b = backend.x25519_generate_keypair()
@@ -575,7 +447,7 @@ class TestX25519Invariants:
         """
         INVARIANT: Public key can be derived from private key.
         """
-        backend = PythonCryptoBackend()
+        backend = RustCryptoBackend()
         
         priv, pub = backend.x25519_generate_keypair()
         derived_pub = backend.x25519_public_from_private(priv)
