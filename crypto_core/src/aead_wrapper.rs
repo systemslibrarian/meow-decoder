@@ -215,13 +215,10 @@ impl AuthenticatedPlaintext {
 /// 1. Nonces are never reused (via NonceManager)
 /// 2. Plaintext is only accessible after authentication (via AuthenticatedPlaintext)
 /// 3. Key is zeroed on drop (via ZeroizeOnDrop)
-#[derive(ZeroizeOnDrop)]
 pub struct AeadWrapper {
     /// The encryption key (zeroed on drop)
-    #[zeroize(skip)] // We handle zeroization manually for the key
     key: [u8; KEY_SIZE],
     /// Nonce manager for this key
-    #[zeroize(skip)]
     nonce_manager: NonceManager,
 }
 

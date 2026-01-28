@@ -1,38 +1,163 @@
 [package]
 name = "crypto_core"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Meow Decoder Team"]
-description = "Formally verified cryptographic primitives for Meow-Encode"
+description = "Formally verified cryptographic primitives for Meow-Encode with HSM, YubiKey, TPM support"
 license = "MIT"
 repository = "https://github.com/YOUR_USERNAME/meow-decoder"
-keywords = ["cryptography", "aead", "verified", "security"]
-categories = ["cryptography", "no-std"]
+keywords = ["cryptography", "aead", "verified", "security", "hsm", "yubikey", "tpm"]
+categories = ["cryptography", "no-std", "hardware-support"]
 
 [dependencies]
-# AES-GCM implementation
+# AES-GCM implementation (pure Rust, constant-time)
 aes-gcm = "0.10"
 
 # Secure memory zeroization
 zeroize = { version = "1.7", features = ["derive"] }
 
 # Secure random number generation
-getrandom = "0.2"
+getrandom = { version = "0.2", features = ["std"] }
+
+# ============================================
+# Core Crypto Dependencies (Pure Rust)
+# ============================================
+
+# X25519 key agreement (widely audited)
+x25519-dalek = { version = "2.0", optional = true, features = ["static_secrets"] }
+
+# Argon2id password hashing (memory-hard)
+argon2 = { version = "0.5", optional = true }
+
+# HKDF key derivation
+hkdf = { version = "0.12", optional = true }
+
+# SHA-2 family
+sha2 = { version = "0.10", optional = true }
+
+# HMAC
+hmac = { version = "0.12", optional = true }
+
+# Post-Quantum: ML-KEM (FIPS 203)
+ml-kem = { version = "0.1.0-rc", optional = true }
+
+# Post-Quantum: ML-DSA / Dilithium (FIPS 204)  
+ml-dsa = { version = "0.1.0-rc", optional = true }
+
+# Constant-time operations
+subtle = { version = "2.5", optional = true }
+
+# Random number generation traits
+rand_core = { version = "0.6", optional = true }
+
+# ============================================
+# Hardware Security Dependencies
+# ============================================
+
+# PKCS#11 / HSM support (Cryptoki binding)
+cryptoki = { version = "0.6", optional = true }
+
+# YubiKey PIV support
+yubikey = { version = "0.8", optional = true, features = ["untested"] }
+
+# TPM 2.0 support (tss-esapi)
+tss-esapi = { version = "7.5", optional = true }
+
+# FIDO2/WebAuthn support
+ctap-hid-fido2 = { version = "3.5", optional = true }
+
+# ============================================
+# WASM Support
+# ============================================
+
+# WASM bindings
+wasm-bindgen = { version = "0.2", optional = true }
+
+# WASM-compatible getrandom
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
 
 [dev-dependencies]
-# For testing
+# Property-based testing
 proptest = "1.4"
 
-[features]
-# Enable Verus verification mode
-verus = []
+# Async test runtime (for hardware tests)
+tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
 
-# Enable std (default)
-default = ["std"]
-std = []
+# Hex encoding for test vectors
+hex = "0.4"
+
+[features]
+# ============================================
+# Feature Flags (Modular Compilation)
+# ============================================
+
+# Default: std + pure crypto (no hardware deps)
+default = ["std", "pure-crypto"]
+
+# Standard library support
+std = ["getrandom/std"]
 
 # No-std support for embedded
 no_std = []
+
+# Verus formal verification mode
+verus = []
+
+# ============================================
+# Pure Rust Crypto Features
+# ============================================
+
+# Full pure-Rust crypto suite
+pure-crypto = [
+    "x25519-dalek",
+    "argon2",
+    "hkdf",
+    "sha2",
+    "hmac",
+    "subtle",
+    "rand_core",
+]
+
+# Post-quantum cryptography
+pq-crypto = [
+    "ml-kem",
+    "ml-dsa",
+    "pure-crypto",
+]
+
+# ============================================
+# Hardware Security Features
+# ============================================
+
+# HSM/PKCS#11 support
+hsm = ["cryptoki", "std"]
+
+# YubiKey PIV + FIDO2 support
+yubikey = ["dep:yubikey", "ctap-hid-fido2", "std"]
+
+# TPM 2.0 support
+tpm = ["tss-esapi", "std"]
+
+# All hardware features
+hardware-full = ["hsm", "yubikey", "tpm"]
+
+# ============================================
+# WASM Target
+# ============================================
+
+# WebAssembly compilation target
+wasm = ["wasm-bindgen", "pure-crypto"]
+
+# ============================================
+# Meta Features
+# ============================================
+
+# Everything except hardware (for cross-compilation)
+full-software = ["pure-crypto", "pq-crypto"]
+
+# Everything (requires native platform)
+full = ["full-software", "hardware-full"]
 
 [profile.release]
 # Optimize for size and security
@@ -45,3 +170,22 @@ panic = "abort"
 # Keep debug assertions for security checks
 debug-assertions = true
 overflow-checks = true
+
+[lib]
+# Enable cdylib for WASM
+crate-type = ["lib", "cdylib"]
+
+[[test]]
+name = "hsm_integration"
+path = "tests/hsm_integration.rs"
+required-features = ["hsm"]
+
+[[test]]
+name = "yubikey_integration"
+path = "tests/yubikey_integration.rs"
+required-features = ["yubikey"]
+
+[[test]]
+name = "tpm_integration"
+path = "tests/tpm_integration.rs"
+required-features = ["tpm"]

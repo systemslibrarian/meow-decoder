@@ -1,6 +1,264 @@
-# 🔐 Verus-Verified Crypto Core
+# 🔐 Meow-Encoder Crypto Core
 
-This crate provides **formally verified** cryptographic wrappers for Meow-Encode using [Verus](https://github.com/verus-lang/verus), a verification tool for Rust.
+A comprehensive cryptographic library for Meow-Encode providing:
+- **Formally verified** AEAD wrappers using [Verus](https://github.com/verus-lang/verus)
+- **Hardware security** via HSM/PKCS#11, YubiKey PIV/FIDO2, and TPM 2.0
+- **Pure Rust crypto** stack with X25519, Argon2id, HKDF, and post-quantum ML-KEM
+- **WASM bindings** for browser-based encoding/decoding
+
+## Quick Start
+
+```bash
+# Default features (core crypto only)
+cargo add crypto_core
+
+# With hardware security
+cargo add crypto_core --features hardware-full
+
+# Pure Rust + WASM (no external dependencies)
+cargo add crypto_core --features full-software
+
+# Everything
+cargo add crypto_core --features full
+```
+
+## Feature Matrix
+
+| Feature | Description | Dependencies |
+|---------|-------------|--------------|
+| `default` | Core AEAD wrapper only | `aes-gcm`, `zeroize` |
+| `hsm` | PKCS#11 hardware security modules | `cryptoki` |
+| `yubikey` | YubiKey PIV and FIDO2 | `yubikey`, `ctap-hid-fido2` |
+| `tpm` | TPM 2.0 platform binding | `tss-esapi` |
+| `pure-crypto` | Pure Rust crypto stack | `x25519-dalek`, `argon2`, etc. |
+| `pq-crypto` | Post-quantum ML-KEM/ML-DSA | `ml-kem`, `ml-dsa` |
+| `wasm` | Browser WASM bindings | `wasm-bindgen` |
+| `hardware-full` | All hardware features | `hsm` + `yubikey` + `tpm` |
+| `full-software` | Pure software crypto | `pure-crypto` + `pq-crypto` + `wasm` |
+| `full` | Everything enabled | All features |
+
+---
+
+## Hardware Security
+
+### HSM/PKCS#11 (`--hsm-provider <uri>`)
+
+Connect to any PKCS#11-compliant HSM (SoftHSM, Luna, CloudHSM, etc.):
+
+```rust
+use crypto_core::{HsmProvider, HsmUri, SecurePin, HsmKeyType};
+
+// Parse PKCS#11 URI (RFC 7512)
+let uri = HsmUri::parse("pkcs11:slot-id=0;object=meow-key;token=MyHSM")?;
+
+// Connect with PIN (zeroized on drop)
+let provider = HsmProvider::connect_with_uri(&uri, SecurePin::new("1234"))?;
+
+// Generate key in HSM (never leaves hardware)
+let key = provider.generate_key("meow-master", HsmKeyType::Aes256)?;
+
+// Encrypt/decrypt using HSM
+let ciphertext = provider.encrypt_aes_gcm(&key, &nonce, plaintext, aad)?;
+let plaintext = provider.decrypt_aes_gcm(&key, &nonce, &ciphertext, aad)?;
+```
+
+**CLI Usage:**
+```bash
+meow-encode --hsm-provider "pkcs11:token=MyHSM" -i secret.pdf -o encoded.gif
+```
+
+**Security Properties:**
+- HSM-001: Keys never leave hardware boundary
+- HSM-002: All operations require authenticated session
+- HSM-003: PINs zeroized immediately after use
+- HSM-004: Session tokens invalidated on drop
+
+### YubiKey PIV/FIDO2 (`--yubikey-slot <slot>`, `--fido2`)
+
+Use YubiKey for hardware-backed key derivation:
+
+```rust
+use crypto_core::{YubiKeyProvider, PivSlot, YubiKeyPin, Fido2Provider};
+
+// PIV mode - use existing key
+let yk = YubiKeyProvider::connect()?;
+yk.authenticate(YubiKeyPin::new("123456"))?;
+
+// Derive key from PIV slot (9a=auth, 9c=signing, 9d=keymgmt, 9e=cardauth)
+let derived_key = yk.derive_key_from_slot(PivSlot::Slot9d, &salt)?;
+
+// FIDO2 mode - use hardware attestation
+let fido2 = Fido2Provider::discover()?;
+let assertion = fido2.get_assertion("meow-encoder.example", &challenge)?;
+let derived_key = fido2.derive_key_from_assertion(&assertion, &salt)?;
+```
+
+**CLI Usage:**
+```bash
+# PIV mode
+meow-encode --yubikey-slot 9d -i secret.pdf -o encoded.gif
+
+# FIDO2 mode (touch to authenticate)
+meow-encode --fido2 -i secret.pdf -o encoded.gif
+```
+
+**Security Properties:**
+- YK-001: PIN retry counter (locks after 3 failures)
+- YK-002: Private keys never exportable
+- YK-003: Hardware attestation proves genuine YubiKey
+- YK-004: Touch requirement for high-security operations
+
+### TPM 2.0 (`--tpm-seal <pcr-mask>`)
+
+Seal keys to platform state (boot integrity):
+
+```rust
+use crypto_core::{TpmProvider, PcrSelection, SealedBlob, TpmAuth};
+
+// Connect to TPM
+let tpm = TpmProvider::connect()?;
+
+// Read current PCR values
+let pcrs = tpm.read_pcrs(&PcrSelection::from_indices(&[0, 1, 7]))?;
+
+// Seal key to PCR state (only unsealable if PCRs match)
+let sealed = tpm.seal(
+    &master_key,
+    &PcrSelection::from_indices(&[0, 1, 7]),  // Firmware, BIOS, SecureBoot
+    &TpmAuth::Password("tpm-auth".into()),
+)?;
+
+// Later: unseal (fails if PCRs changed - e.g., BIOS update)
+let key = tpm.unseal(&sealed, &TpmAuth::Password("tpm-auth".into()))?;
+
+// Derive key with TPM-mixed entropy
+let derived = tpm.derive_key(&sealed, &salt, b"meow-encoder-v1")?;
+```
+
+**CLI Usage:**
+```bash
+# Seal to boot state (PCRs 0,1,7)
+meow-encode --tpm-seal "0,1,7" -i secret.pdf -o encoded.gif
+
+# PCR ranges supported
+meow-encode --tpm-seal "0-7" -i secret.pdf -o encoded.gif
+```
+
+**Security Properties:**
+- TPM-001: Keys bound to specific PCR values
+- TPM-002: Hierarchy separation (endorsement/storage/platform)
+- TPM-003: Auth values never stored in memory longer than needed
+- TPM-004: Boot measurement chain integrity
+
+---
+
+## Pure Rust Crypto
+
+### Core Functions
+
+```rust
+use crypto_core::{
+    aes_gcm_encrypt, aes_gcm_decrypt,
+    argon2_derive, hkdf_derive, hmac_sha256, sha256,
+    SecretKey, Salt, Nonce,
+};
+
+// AES-256-GCM encryption
+let key = SecretKey::random();
+let nonce = Nonce::random();
+let ciphertext = aes_gcm_encrypt(&key, &nonce, plaintext, aad)?;
+let plaintext = aes_gcm_decrypt(&key, &nonce, &ciphertext, aad)?;
+
+// Argon2id key derivation (memory-hard)
+let password = b"correct horse battery staple";
+let salt = Salt::random();
+let derived = argon2_derive(password, &salt, 256 * 1024, 3, 4)?;  // 256 MiB, 3 iter
+
+// HKDF-SHA256 key expansion
+let prk = hkdf_derive(&ikm, &salt, b"meow-encoder-v1", 32)?;
+
+// HMAC-SHA256
+let tag = hmac_sha256(&key, &message);
+
+// SHA-256
+let hash = sha256(&data);
+```
+
+### X25519 Key Exchange
+
+```rust
+use crypto_core::{X25519KeyPair, x25519_derive_shared};
+
+// Generate ephemeral keypair
+let alice = X25519KeyPair::generate();
+let bob = X25519KeyPair::generate();
+
+// Exchange public keys and derive shared secret
+let alice_shared = x25519_derive_shared(&alice.secret, &bob.public)?;
+let bob_shared = x25519_derive_shared(&bob.secret, &alice.public)?;
+assert_eq!(alice_shared, bob_shared);  // Same shared secret!
+```
+
+### Post-Quantum Crypto (ML-KEM)
+
+```rust
+use crypto_core::pq::{MlKemKeyPair, mlkem_encapsulate, mlkem_decapsulate, hybrid_key_derive};
+
+// Generate ML-KEM-1024 keypair
+let keypair = MlKemKeyPair::generate()?;
+
+// Encapsulate (sender side)
+let (ciphertext, shared_secret) = mlkem_encapsulate(&keypair.public)?;
+
+// Decapsulate (receiver side)
+let recovered_secret = mlkem_decapsulate(&keypair.secret, &ciphertext)?;
+
+// Hybrid mode: X25519 + ML-KEM (secure if either is secure)
+let hybrid_secret = hybrid_key_derive(&x25519_shared, &mlkem_shared, &salt)?;
+```
+
+---
+
+## WASM Bindings
+
+Build for browser:
+
+```bash
+wasm-pack build --target web --features wasm
+```
+
+### JavaScript Usage
+
+```javascript
+import init, { derive_key, encrypt, decrypt, encode_data, decode_data } from './crypto_core.js';
+
+await init();
+
+// Derive key from password
+const salt = crypto.getRandomValues(new Uint8Array(16));
+const key = derive_key("my-password", salt, 256 * 1024, 3, 4);
+
+// Encrypt file
+const plaintext = new Uint8Array(fileBuffer);
+const encrypted = encrypt(key, plaintext, new Uint8Array());
+
+// Full encode (compress + encrypt + format)
+const encoded = encode_data(plaintext, "password");
+
+// Decode back
+const decoded = decode_data(encoded, "password");
+```
+
+### Wire Format (WASM)
+
+```
+┌─────────┬──────────┬──────────┬────────────┬────────────┬────────────┬─────────────┐
+│ Version │   Salt   │  Nonce   │  Orig Len  │  Comp Len  │   Hash     │  Ciphertext │
+│  1 byte │ 16 bytes │ 12 bytes │   8 bytes  │   8 bytes  │  32 bytes  │   N bytes   │
+└─────────┴──────────┴──────────┴────────────┴────────────┴────────────┴─────────────┘
+```
+
+---
 
 ## Verified Properties
 
@@ -267,3 +525,181 @@ pub fn encrypt(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, Erro
 ## License
 
 MIT License - See LICENSE file
+
+---
+
+## CLI Reference
+
+### Hardware Key Derivation Flags
+
+| Flag | Description | Example |
+|------|-------------|---------|
+| `--hsm-provider <uri>` | PKCS#11 HSM URI (RFC 7512) | `pkcs11:token=MyHSM;slot-id=0` |
+| `--hsm-pin <pin>` | HSM PIN (or prompt if omitted) | `--hsm-pin 1234` |
+| `--yubikey-slot <slot>` | YubiKey PIV slot | `9a`, `9c`, `9d`, `9e` |
+| `--yubikey-pin <pin>` | YubiKey PIN (6-8 digits) | `--yubikey-pin 123456` |
+| `--fido2` | Use FIDO2 hardware attestation | (touch required) |
+| `--tpm-seal <pcrs>` | TPM PCR mask for sealing | `0,1,7` or `0-7` |
+| `--tpm-auth <password>` | TPM authorization value | `--tpm-auth secret` |
+
+### Examples
+
+```bash
+# Basic encoding (software crypto)
+meow-encode -i secret.pdf -o encoded.gif -p "password"
+
+# HSM-backed encryption
+meow-encode --hsm-provider "pkcs11:token=SoftHSM;object=meow-key" \
+    -i secret.pdf -o encoded.gif
+
+# YubiKey PIV (Key Management slot)
+meow-encode --yubikey-slot 9d --yubikey-pin 123456 \
+    -i secret.pdf -o encoded.gif
+
+# FIDO2 hardware attestation
+meow-encode --fido2 -i secret.pdf -o encoded.gif
+
+# TPM-sealed to boot state
+meow-encode --tpm-seal "0,1,7" --tpm-auth "my-tpm-password" \
+    -i secret.pdf -o encoded.gif
+
+# Combined: HSM + Forward Secrecy + Post-Quantum
+meow-encode --hsm-provider "pkcs11:token=Luna" --pq \
+    --receiver-pubkey alice.pub \
+    -i classified.pdf -o quantum-safe.gif
+```
+
+---
+
+## Testing
+
+### Unit Tests
+
+```bash
+# Core tests (no hardware required)
+cargo test
+
+# With pure crypto
+cargo test --features pure-crypto
+
+# All software features
+cargo test --features full-software
+```
+
+### Integration Tests (Hardware)
+
+```bash
+# HSM tests with SoftHSM2
+softhsm2-util --init-token --slot 0 --label "TestHSM" --pin 1234 --so-pin 4321
+cargo test --features hsm-real -- --ignored
+
+# YubiKey tests (requires connected YubiKey)
+cargo test --features yubikey-real -- --ignored
+
+# TPM tests (requires tpm2-abrmd or swtpm)
+cargo test --features tpm-real -- --ignored
+```
+
+### CI Hardware Simulation
+
+```yaml
+# GitHub Actions example
+- name: Test with SoftHSM
+  run: |
+    sudo apt-get install -y softhsm2
+    softhsm2-util --init-token --slot 0 --label CI --pin 1234 --so-pin 4321
+    export SOFTHSM2_CONF=/etc/softhsm/softhsm2.conf
+    cargo test --features hsm-real
+
+- name: Test with swtpm
+  run: |
+    sudo apt-get install -y swtpm tpm2-tools
+    swtpm socket --tpmstate dir=tpm-state --ctrl type=tcp,port=2322 &
+    export TPM2_COMMAND_TCTI=swtpm:host=127.0.0.1,port=2322
+    cargo test --features tpm-real
+```
+
+### Miri (Undefined Behavior Detection)
+
+```bash
+cargo +nightly miri test --features pure-crypto
+```
+
+### WASM Tests
+
+```bash
+wasm-pack test --headless --firefox --features wasm
+```
+
+---
+
+## Security Audit Status
+
+| Component | Status | Auditor | Date |
+|-----------|--------|---------|------|
+| AEAD Wrapper | ✅ Formally Verified (Verus) | Internal | 2026-01 |
+| Pure Crypto | ⏳ Pending Audit | - | - |
+| HSM Integration | ⏳ Pending Audit | - | - |
+| YubiKey Integration | ⏳ Pending Audit | - | - |
+| TPM Integration | ⏳ Pending Audit | - | - |
+| WASM Bindings | ⏳ Pending Audit | - | - |
+
+**Disclosure:** Submit security issues to security@meow-encoder.example or open a GitHub Security Advisory.
+
+---
+
+## Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────────┐
+│                              crypto_core                                        │
+├─────────────────────────────────────────────────────────────────────────────────┤
+│                                                                                 │
+│  ┌─────────────────────┐     ┌─────────────────────┐     ┌────────────────────┐│
+│  │   Hardware Layer    │     │   Pure Crypto       │     │   WASM Bindings    ││
+│  │                     │     │                     │     │                    ││
+│  │  ┌───────────────┐  │     │  ┌───────────────┐  │     │  ┌──────────────┐  ││
+│  │  │  hsm.rs       │  │     │  │ AES-256-GCM   │  │     │  │ wasm.rs      │  ││
+│  │  │  (PKCS#11)    │  │     │  │ X25519        │  │     │  │              │  ││
+│  │  └───────────────┘  │     │  │ Argon2id      │  │     │  │ encrypt()    │  ││
+│  │                     │     │  │ HKDF-SHA256   │  │     │  │ decrypt()    │  ││
+│  │  ┌───────────────┐  │     │  │ HMAC-SHA256   │  │     │  │ derive_key() │  ││
+│  │  │ yubikey_piv.rs│  │     │  │ SHA-256       │  │     │  │ encode_data()│  ││
+│  │  │ (PIV/FIDO2)   │  │     │  └───────────────┘  │     │  │ decode_data()│  ││
+│  │  └───────────────┘  │     │                     │     │  └──────────────┘  ││
+│  │                     │     │  ┌───────────────┐  │     │                    ││
+│  │  ┌───────────────┐  │     │  │ Post-Quantum  │  │     └────────────────────┘│
+│  │  │  tpm.rs       │  │     │  │ ML-KEM-1024   │  │                           │
+│  │  │  (TPM 2.0)    │  │     │  │ ML-DSA-65     │  │                           │
+│  │  └───────────────┘  │     │  └───────────────┘  │                           │
+│  │                     │     │                     │                           │
+│  └─────────────────────┘     └─────────────────────┘                           │
+│                                                                                 │
+│  ┌─────────────────────────────────────────────────────────────────────────────┐│
+│  │                          Core (Verus-Verified)                              ││
+│  │                                                                             ││
+│  │  ┌─────────────────────────────────────────────────────────────────────────┐││
+│  │  │                          AeadWrapper                                    │││
+│  │  │  - AEAD-001: Nonce Uniqueness (type-state + ghost tracking)            │││
+│  │  │  - AEAD-002: Auth-Then-Output (existential type proof)                 │││
+│  │  │  - AEAD-003: Key Zeroization (ZeroizeOnDrop)                           │││
+│  │  │  - AEAD-004: No Counter Wrap (bounds check)                            │││
+│  │  └─────────────────────────────────────────────────────────────────────────┘││
+│  └─────────────────────────────────────────────────────────────────────────────┘│
+│                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Changelog
+
+See [CHANGELOG.md](../CHANGELOG.md) for version history.
+
+## Contributing
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines.
+
+## License
+
+MIT License - See [LICENSE](../LICENSE) file

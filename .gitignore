@@ -80,3 +80,4 @@ formal/proverif/proverif_output.txt
 formal/proverif/html_output/
 formal/tamarin/.tamarin/
 formal/tamarin/*.log
+crypto_core/target/
