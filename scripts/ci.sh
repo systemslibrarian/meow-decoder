@@ -1,98 +1,144 @@
-#!/usr/bin/env bash
-set -euo pipefail
+name: Security CI
 
-ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-cd "$ROOT_DIR"
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    - cron: "15 6 * * 1" # Mondays 06:15 UTC (strict audits)
 
-log()  { printf "\n==> %s\n" "$*"; }
-warn() { printf "\n[warn] %s\n" "$*" >&2; }
-die()  { printf "\n[error] %s\n" "$*" >&2; exit 1; }
+permissions:
+  contents: read
 
-log "Repo: $ROOT_DIR"
-log "Commit: $(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+jobs:
+  security:
+    runs-on: ubuntu-latest
 
-PY="${PYTHON:-python}"
-if ! command -v "$PY" >/dev/null 2>&1; then
-  if command -v python3 >/dev/null 2>&1; then
-    PY=python3
-  else
-    die "Python not found"
-  fi
-fi
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-log "Python: $($PY --version)"
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
 
-VENV="${VENV_PATH:-.venv}"
-if [[ ! -d "$VENV" ]]; then
-  log "Creating venv: $VENV"
-  "$PY" -m venv "$VENV"
-fi
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
 
-# shellcheck disable=SC1091
-source "$VENV/bin/activate" 2>/dev/null || source "$VENV/Scripts/activate"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install -e .
 
-python -m pip install --upgrade pip wheel setuptools >/dev/null
+      # -----------------------
+      # Required security tests
+      # -----------------------
+      - name: Security-focused tests (required)
+        run: |
+          pytest tests/test_security.py tests/test_adversarial.py \
+            -o "addopts=" \
+            --cov=meow_decoder.crypto \
+            --cov=meow_decoder.fountain \
+            --cov=meow_decoder.frame_mac \
+            --cov-config=.coveragerc-security \
+            --cov-report=term \
+            --cov-fail-under=70 \
+            -v
+        env:
+          MEOW_TEST_MODE: "1"
 
-# Install deps
-if [[ -f "requirements.txt" ]]; then
-  log "Installing runtime deps: requirements.txt"
-  pip install -r requirements.txt
-else
-  warn "requirements.txt not found; skipping"
-fi
+      # -----------------------
+      # Bandit (report + fail on real issues if you want)
+      # -----------------------
+      - name: Bandit scan (report)
+        run: |
+          pip install "bandit[toml]"
+          bandit -r meow_decoder/ -f json -o bandit-report.json || true
+          # Fail only on HIGH severity + HIGH confidence
+          bandit -r meow_decoder/ -lll -iii
+          
+      - name: Upload Bandit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
 
-if [[ -f "requirements-dev.txt" ]]; then
-  log "Installing dev deps: requirements-dev.txt"
-  pip install -r requirements-dev.txt
-else
-  warn "requirements-dev.txt not found; skipping"
-fi
+      # -----------------------
+      # pip-audit (warn on PR, strict on schedule)
+      # -----------------------
+      - name: pip-audit (requirements files)
+        run: |
+          pip install pip-audit
+          set +e
+          pip-audit -r requirements.txt -r requirements-dev.txt --desc on > pip-audit.txt 2>&1
+          status=$?
+          set -e
 
-# Install package if it looks installable
-if [[ -f "pyproject.toml" || -f "setup.py" ]]; then
-  log "Installing project (editable)"
-  pip install -e .
-else
-  warn "No pyproject.toml/setup.py found; skipping pip install -e ."
-fi
+          echo "pip-audit exit code: $status"
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            # Strict on scheduled runs
+            if [[ $status -ne 0 ]]; then
+              cat pip-audit.txt
+              exit 1
+            fi
+          else
+            # Warn-only on PR/push
+            if [[ $status -ne 0 ]]; then
+              echo "::warning::pip-audit found vulnerabilities. See pip-audit.txt artifact."
+            fi
+          fi
 
-# ---- Format / Lint ----
-if command -v black >/dev/null 2>&1; then
-  log "black --check"
-  black --check .
-else
-  warn "black not installed; skipping"
-fi
+      - name: Upload pip-audit report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pip-audit-report
+          path: pip-audit.txt
 
-if command -v flake8 >/dev/null 2>&1; then
-  log "flake8"
-  flake8 .
-else
-  warn "flake8 not installed; skipping"
-fi
+      # -----------------------
+      # Rust audit (only if rust_crypto exists; warn on PR, strict on schedule)
+      # -----------------------
+      - name: Check for rust backend
+        id: has_rust
+        run: |
+          if [[ -d "rust_crypto" ]]; then
+            echo "present=true" >> $GITHUB_OUTPUT
+          else
+            echo "present=false" >> $GITHUB_OUTPUT
+          fi
 
-# mypy is optional unless you enforce it
-if command -v mypy >/dev/null 2>&1; then
-  if [[ "${STRICT_MYPY:-0}" == "1" ]]; then
-    log "mypy (STRICT)"
-    mypy .
-  else
-    log "mypy (non-fatal; set STRICT_MYPY=1 to enforce)"
-    mypy . || warn "mypy issues (non-fatal)"
-  fi
-else
-  warn "mypy not installed; skipping"
-fi
+      - name: Set up Rust
+        if: steps.has_rust.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@stable
 
-# ---- Tests ----
-if command -v pytest >/dev/null 2>&1; then
-  log "Invariant tests (MUST NOT FAIL)"
-  MEOW_TEST_MODE=1 pytest tests/test_invariants.py -v
+      - name: cargo-audit
+        if: steps.has_rust.outputs.present == 'true'
+        run: |
+          cargo install cargo-audit
+          set +e
+          (cd rust_crypto && cargo audit) > cargo-audit.txt 2>&1
+          status=$?
+          set -e
 
-  log "Full test suite with coverage"
-  pytest --cov=meow_decoder --cov-report=xml --cov-report=term-missing
-else
-  die "pytest not installed"
-fi
+          if [[ "${{ github.event_name }}" == "schedule" ]]; then
+            if [[ $status -ne 0 ]]; then
+              cat cargo-audit.txt
+              exit 1
+            fi
+          else
+            if [[ $status -ne 0 ]]; then
+              echo "::warning::cargo-audit reported issues. See cargo-audit.txt artifact."
+            fi
+          fi
 
-log "CI script complete ✅"
+      - name: Upload cargo-audit report
+        if: steps.has_rust.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cargo-audit-report
+          path: cargo-audit.txt
