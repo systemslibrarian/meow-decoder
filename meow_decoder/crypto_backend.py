@@ -144,6 +144,17 @@ class PythonCryptoBackend:
             info=info
         )
         return hkdf.derive(prk)
+
+    def derive_key_yubikey(
+        self,
+        password: bytes,
+        salt: bytes,
+        slot: str = "9d",
+        pin: Optional[str] = None
+    ) -> bytes:
+        raise RuntimeError(
+            "YubiKey derivation requires the Rust backend built with the yubikey feature."
+        )
     
     def aes_gcm_encrypt(
         self,
@@ -301,6 +312,21 @@ class RustCryptoBackend:
     
     def hkdf_expand(self, prk: bytes, info: bytes, output_len: int = 32) -> bytes:
         return self._rs.hkdf_expand(prk, info, output_len)
+
+    def derive_key_yubikey(
+        self,
+        password: bytes,
+        salt: bytes,
+        slot: str = "9d",
+        pin: Optional[str] = None
+    ) -> bytes:
+        try:
+            return self._rs.yubikey_derive_key(password, salt, slot, pin)
+        except AttributeError as e:
+            raise RuntimeError(
+                "YubiKey support not enabled in Rust backend. Rebuild with: "
+                "maturin develop --release --features yubikey"
+            ) from e
     
     def aes_gcm_encrypt(
         self,
@@ -469,6 +495,9 @@ class CryptoBackend:
     
     def hkdf_expand(self, *args, **kwargs) -> bytes:
         return self._backend.hkdf_expand(*args, **kwargs)
+
+    def derive_key_yubikey(self, *args, **kwargs) -> bytes:
+        return self._backend.derive_key_yubikey(*args, **kwargs)
     
     def aes_gcm_encrypt(self, *args, **kwargs) -> bytes:
         return self._backend.aes_gcm_encrypt(*args, **kwargs)

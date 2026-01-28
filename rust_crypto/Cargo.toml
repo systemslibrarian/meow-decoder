@@ -50,6 +50,7 @@ criterion = "0.5"
 [features]
 default = []
 pq = []  # Enable post-quantum crypto
+yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
 
 [profile.release]
 lto = true

@@ -33,6 +33,8 @@ def decode_gif(
     duress_config: Optional[DuressConfig] = None,
     keyfile: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -224,7 +226,14 @@ def decode_gif(
     if verbose:
         print("\nVerifying manifest HMAC...")
     
-    if not verify_manifest_hmac(password, manifest, keyfile, receiver_private_key):
+    if not verify_manifest_hmac(
+        password,
+        manifest,
+        keyfile,
+        receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin
+    ):
         raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
     if verbose:
@@ -243,7 +252,9 @@ def decode_gif(
             manifest.salt,
             keyfile=keyfile,
             ephemeral_public_key=manifest.ephemeral_public_key,
-            receiver_private_key=receiver_private_key
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
         # Use a mutable buffer for best-effort zeroing after use
         encryption_key_buf = bytearray(encryption_key)
@@ -359,7 +370,9 @@ def decode_gif(
         raw_data = decrypt_to_raw(
             cipher, password, manifest.salt, manifest.nonce, keyfile,
             manifest.orig_len, manifest.comp_len, manifest.sha256,
-            manifest.ephemeral_public_key, receiver_private_key
+            manifest.ephemeral_public_key, receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
         
         if verbose and manifest.ephemeral_public_key:
@@ -433,6 +446,12 @@ Examples:
                        help='Decryption password (prompted if not provided)')
     parser.add_argument('-k', '--keyfile', type=Path,
                        help='Path to keyfile')
+    parser.add_argument('--yubikey', action='store_true',
+                       help='Use YubiKey PIV for key derivation (Rust backend required)')
+    parser.add_argument('--yubikey-slot', type=str, default='9d',
+                       help='YubiKey PIV slot (default: 9d)')
+    parser.add_argument('--yubikey-pin', type=str, default=None,
+                       help='YubiKey PIN (prompted if not provided)')
     parser.add_argument('--receiver-privkey', type=Path,
                        help='Path to receiver X25519 private key for forward secrecy (PEM format)')
     parser.add_argument('--receiver-privkey-password', type=str,
@@ -503,6 +522,18 @@ Examples:
         except (FileNotFoundError, ValueError) as e:
             print(f"Error: {e}", file=sys.stderr)
             sys.exit(1)
+
+    # YubiKey validation
+    if args.yubikey:
+        if keyfile is not None:
+            print("Error: Cannot combine --yubikey with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if args.receiver_privkey is not None:
+            print("Error: YubiKey derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        if args.yubikey_pin is None:
+            yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
+            args.yubikey_pin = yk_pin if yk_pin else None
     
     # Load receiver private key for forward secrecy if specified
     receiver_private_key = None
@@ -571,6 +602,8 @@ Examples:
             duress_config=duress_config,
             keyfile=keyfile,
             receiver_private_key=receiver_private_key,  # Forward secrecy support
+            yubikey_slot=args.yubikey_slot if args.yubikey else None,
+            yubikey_pin=args.yubikey_pin if args.yubikey else None,
             verbose=args.verbose
         )
         

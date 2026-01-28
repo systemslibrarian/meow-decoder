@@ -185,7 +185,9 @@ def encrypt_file_bytes(
     password: str,
     keyfile: Optional[bytes] = None,
     receiver_public_key: Optional[bytes] = None,
-    use_length_padding: bool = True
+    use_length_padding: bool = True,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -279,7 +281,18 @@ def encrypt_file_bytes(
             # This provides forward secrecy - private key never stored!
         else:
             # PASSWORD-ONLY MODE: Standard Argon2id derivation
-            key = derive_key(password, salt, keyfile)
+            if yubikey_slot is not None:
+                if keyfile is not None:
+                    raise ValueError("Cannot combine --yubikey with --keyfile")
+                backend = get_default_backend()
+                key = backend.derive_key_yubikey(
+                    password.encode("utf-8"),
+                    salt,
+                    slot=yubikey_slot,
+                    pin=yubikey_pin
+                )
+            else:
+                key = derive_key(password, salt, keyfile)
         
         # Build AAD (Additional Authenticated Data) for manifest protection
         # Why: Binding metadata to the AEAD prevents substitution and
@@ -320,7 +333,9 @@ def decrypt_to_raw(
     comp_len: Optional[int] = None,
     sha256: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
@@ -384,7 +399,18 @@ def decrypt_to_raw(
             )
         else:
             # PASSWORD-ONLY MODE
-            key = derive_key(password, salt, keyfile)
+            if yubikey_slot is not None:
+                if keyfile is not None:
+                    raise ValueError("Cannot combine --yubikey with --keyfile")
+                backend = get_default_backend()
+                key = backend.derive_key_yubikey(
+                    password.encode("utf-8"),
+                    salt,
+                    slot=yubikey_slot,
+                    pin=yubikey_pin
+                )
+            else:
+                key = derive_key(password, salt, keyfile)
         
         # Reconstruct AAD for verification
         # Must match exactly what was used during encryption
@@ -582,7 +608,9 @@ def derive_encryption_key_for_manifest(
     salt: bytes,
     keyfile: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Derive the encryption key for a manifest, matching encryption/decryption paths.
@@ -613,6 +641,17 @@ def derive_encryption_key_for_manifest(
             salt
         )
 
+    if yubikey_slot is not None:
+        if keyfile is not None:
+            raise ValueError("Cannot combine --yubikey with --keyfile")
+        backend = get_default_backend()
+        return backend.derive_key_yubikey(
+            password.encode("utf-8"),
+            salt,
+            slot=yubikey_slot,
+            pin=yubikey_pin
+        )
+
     return derive_key(password, salt, keyfile)
 
 
@@ -623,7 +662,9 @@ def compute_manifest_hmac(
     keyfile: Optional[bytes] = None,
     ephemeral_public_key: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
-    encryption_key: Optional[bytes] = None
+    encryption_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
@@ -657,7 +698,9 @@ def compute_manifest_hmac(
             salt,
             keyfile=keyfile,
             ephemeral_public_key=ephemeral_public_key,
-            receiver_private_key=receiver_private_key
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
         )
     
     # Derive HMAC key from encryption key
@@ -673,7 +716,9 @@ def verify_manifest_hmac(
     password: str,
     manifest: Manifest,
     keyfile: Optional[bytes] = None,
-    receiver_private_key: Optional[bytes] = None
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None
 ) -> bool:
     """
     Verify manifest HMAC with constant-time comparison and timing equalization.
@@ -714,7 +759,9 @@ def verify_manifest_hmac(
         packed_no_hmac, 
         keyfile,
         ephemeral_public_key=manifest.ephemeral_public_key,
-        receiver_private_key=receiver_private_key
+        receiver_private_key=receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin
     )
     
     # Constant-time comparison with timing equalization
