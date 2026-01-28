@@ -50,9 +50,12 @@ This document outlines planned security improvements organized by timeline.
 ## 🔮 Medium-Term (6-12 Months)
 
 ### Hardware Security
-- [ ] **HSM Integration**: PKCS#11 interface for hardware key storage
-- [ ] **YubiKey Support**: FIDO2/PIV for key derivation factor
-- [ ] **TPM 2.0 Binding**: Seal keys to platform state
+- [x] **HSM Integration**: PKCS#11 interface for hardware key storage
+	- Implemented in `crypto_core` (feature: `hsm`); CLI wiring pending in Python layer
+- [x] **YubiKey Support**: FIDO2/PIV for key derivation factor
+	- Implemented in `crypto_core` (feature: `yubikey`); Python auto-detect exists, full CLI wiring pending
+- [x] **TPM 2.0 Binding**: Seal keys to platform state
+	- Implemented in `crypto_core` (feature: `tpm`); Python layer currently uses TPM tooling for derivation
 
 ### Rust Expansion
 - [x] **Pure Rust Crypto**: All crypto operations in Rust (`meow_crypto_rs` crate)
