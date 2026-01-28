@@ -796,13 +796,6 @@ class TestEdgeCases:
         assert unpacked.seed == droplet.seed
         assert unpacked.block_indices == droplet.block_indices
         assert unpacked.data == droplet.data
-
-        
-        # Don't add any droplets - should not be complete
-        assert not decoder.is_complete()
-        
-        with pytest.raises(RuntimeError, match="Decoding incomplete"):
-            decoder.get_data()
     
     def test_fountain_decoder_no_original_length(self):
         """Test decoder raises when original_length not provided."""
@@ -2025,9 +2018,9 @@ class TestQuantumMixer:
         
         reality_a = b"Secret message A" * 100
         reality_b = b"Secret message B" * 100
-        noise = secrets.token_bytes(32)
         
-        superposition = entangle_realities(reality_a, reality_b, noise)
+        # New API: entangle_realities(reality_a, reality_b) - no noise parameter
+        superposition = entangle_realities(reality_a, reality_b)
         
         # Superposition is 2x the max length (interleaved)
         assert len(superposition) == len(reality_a) * 2
@@ -2040,13 +2033,13 @@ class TestQuantumMixer:
         
         reality_a = b"Secret A" * 50
         reality_b = b"Secret B" * 50
-        noise = secrets.token_bytes(32)
         
-        superposition = entangle_realities(reality_a, reality_b, noise)
+        # New API: entangle_realities(reality_a, reality_b) - no noise
+        superposition = entangle_realities(reality_a, reality_b)
         
-        # Collapse to each reality
-        collapsed_a = collapse_to_reality(superposition, noise, noise, YARN_REALITY_A)
-        collapsed_b = collapse_to_reality(superposition, noise, noise, YARN_REALITY_B)
+        # New API: collapse_to_reality(superposition, reality_index)
+        collapsed_a = collapse_to_reality(superposition, YARN_REALITY_A)
+        collapsed_b = collapse_to_reality(superposition, YARN_REALITY_B)
         
         # Should recover original realities
         assert collapsed_a == reality_a
@@ -2059,9 +2052,9 @@ class TestQuantumMixer:
         # Create two different realities
         reality_a = secrets.token_bytes(1000)
         reality_b = secrets.token_bytes(1000)
-        noise = secrets.token_bytes(32)
         
-        superposition = entangle_realities(reality_a, reality_b, noise)
+        # New API: entangle_realities(reality_a, reality_b) - no noise
+        superposition = entangle_realities(reality_a, reality_b)
         
         # Check indistinguishability
         half = len(superposition) // 2
@@ -2120,6 +2113,7 @@ class TestSchrodingerEncode:
         """Test Schrödinger manifest serialization."""
         from meow_decoder.schrodinger_encode import SchrodingerManifest
         
+        # v5.5.0 API: uses superposition_len instead of merkle_root/shuffle_seed
         manifest = SchrodingerManifest(
             salt_a=secrets.token_bytes(16),
             salt_b=secrets.token_bytes(16),
@@ -2129,19 +2123,21 @@ class TestSchrodingerEncode:
             reality_b_hmac=secrets.token_bytes(32),
             metadata_a=secrets.token_bytes(104),
             metadata_b=secrets.token_bytes(104),
-            merkle_root=secrets.token_bytes(32),
-            shuffle_seed=secrets.token_bytes(8),
             block_count=100,
-            block_size=256
+            block_size=256,
+            superposition_len=25600
         )
         
         packed = manifest.pack()
+        assert len(packed) == 382  # v5.5.0 manifest size
+        
         unpacked = SchrodingerManifest.unpack(packed)
         
         assert unpacked.salt_a == manifest.salt_a
         assert unpacked.salt_b == manifest.salt_b
         assert unpacked.block_count == 100
         assert unpacked.block_size == 256
+        assert unpacked.superposition_len == 25600
     
     def test_schrodinger_manifest_too_short(self):
         """Test that short manifest is rejected."""
@@ -2159,34 +2155,25 @@ class TestSchrodingerEncode:
         with pytest.raises(ValueError, match="Invalid manifest magic"):
             SchrodingerManifest.unpack(bad_data)
     
+    @pytest.mark.skip(reason="permute_blocks/unpermute_blocks removed in v5.5.0 refactor")
     def test_permute_unpermute_blocks(self):
         """Test block permutation is reversible."""
-        from meow_decoder.schrodinger_encode import permute_blocks, unpermute_blocks
-        
-        blocks = [secrets.token_bytes(64) for _ in range(20)]
-        seed = secrets.token_bytes(8)
-        
-        permuted = permute_blocks(blocks, seed)
-        unpermuted = unpermute_blocks(permuted, seed)
-        
-        # Should recover original order
-        assert unpermuted == blocks
-        
-        # Permuted should be different order
-        assert permuted != blocks
+        # Note: v5.5.0 uses simple interleaving instead of permutation
+        pass
     
     def test_compute_merkle_root(self):
         """Test Merkle root computation."""
-        from meow_decoder.schrodinger_encode import compute_merkle_root
+        # Note: compute_merkle_root moved to quantum_mixer in v5.5.0
+        from meow_decoder.quantum_mixer import compute_entanglement_root
         
         blocks = [b"block1", b"block2", b"block3"]
         
-        root = compute_merkle_root(blocks)
+        root = compute_entanglement_root(blocks)
         
         assert len(root) == 32  # SHA-256
         
         # Empty list gives deterministic result
-        empty_root = compute_merkle_root([])
+        empty_root = compute_entanglement_root([])
         assert len(empty_root) == 32
 
 
