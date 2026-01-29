@@ -6,14 +6,26 @@ on:
   pull_request:
     branches: ["main"]
 
+# Avoid duplicate runs when you push multiple times quickly
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   test:
+    name: Tests + Coverage (Rust backend)
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
+    timeout-minutes: 30
+
+    env:
+      # Keep these consistent across all steps
+      MEOW_TEST_MODE: "1"
+      MEOW_CRYPTO_BACKEND: "rust"
+      PIP_DISABLE_PIP_VERSION_CHECK: "1"
+      PYTHONDONTWRITEBYTECODE: "1"
 
     steps:
       - name: Checkout repository
@@ -23,27 +35,29 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
-      - name: Install system dependencies (zbar + opencv + rust build deps)
+      - name: Install system dependencies (zbar + opencv runtime + build deps)
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             libzbar0 libgl1 libglib2.0-0 \
             build-essential pkg-config libssl-dev
 
+      - name: Set up Rust toolchain
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements-dev.txt
+          pip install pytest pytest-cov
           pip install -e .
 
-      - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: stable
-
-      - name: Build + install Rust crypto backend (maturin build)
+      - name: Build + install Rust crypto backend (maturin)
         run: |
           python -m pip install maturin
           cd rust_crypto
@@ -54,32 +68,36 @@ jobs:
 
       - name: Verify Rust backend import
         run: |
-          python - << 'EOF'
+          python - << 'PY'
           import meow_crypto_rs
-          print("✅ Rust backend OK")
-          EOF
+          print("✅ Rust backend import OK")
+          PY
 
+      # Keep the invariants as a hard gate
       - name: Run invariant tests (MUST NOT FAIL)
-        run: pytest tests/test_invariants.py -v
-        env:
-          MEOW_TEST_MODE: "1"
-          MEOW_CRYPTO_BACKEND: "rust"
-
-      - name: Run full test suite with coverage (write coverage.xml explicitly)
         run: |
-          pytest \
+          pytest tests/test_invariants.py -v
+
+      - name: Run full test suite with coverage (writes coverage.xml)
+        run: |
+          pytest -v \
             --cov=meow_decoder \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing
-        env:
-          MEOW_CRYPTO_BACKEND: "rust"
 
-      - name: Verify coverage.xml exists (debug)
+      - name: Verify coverage.xml exists
         run: |
+          test -f coverage.xml
           ls -lah coverage.xml
-          head -n 5 coverage.xml          bash scripts/push_changes.sh
+          head -n 5 coverage.xml
 
+      # Upload only when secrets are available:
+      # - pushes to main
+      # - PRs from same repo (not forks)
       - name: Upload coverage to Codecov
+        if: >
+          (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+          (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
         uses: codecov/codecov-action@v5
         with:
           files: coverage.xml
