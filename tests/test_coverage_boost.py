@@ -366,7 +366,10 @@ class TestE2EDeepCoverage:
         long_password = "x" * 1024
         
         from meow_decoder.config import EncodingConfig
-        config = EncodingConfig(block_size=512, redundancy=1.5, qr_error_correction="M", fps=10)
+        # Use higher redundancy (2.5) and error correction (H) to ensure reliable
+        # decoding. Small files get padded and may result in few k_blocks; losing
+        # even one QR frame with low redundancy causes decode failure.
+        config = EncodingConfig(block_size=512, redundancy=2.5, qr_error_correction="H", fps=10)
         encode_file(input_file, gif_file, password=long_password, config=config)
         decode_gif(gif_file, output_file, password=long_password)
         

@@ -2155,12 +2155,6 @@ class TestSchrodingerEncode:
         with pytest.raises(ValueError, match="Invalid manifest magic"):
             SchrodingerManifest.unpack(bad_data)
     
-    @pytest.mark.skip(reason="permute_blocks/unpermute_blocks removed in v5.5.0 refactor")
-    def test_permute_unpermute_blocks(self):
-        """Test block permutation is reversible."""
-        # Note: v5.5.0 uses simple interleaving instead of permutation
-        pass
-    
     def test_compute_merkle_root(self):
         """Test Merkle root computation."""
         # Note: compute_merkle_root moved to quantum_mixer in v5.5.0

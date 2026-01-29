@@ -77,36 +77,6 @@ def test_manifest_packing():
     return True
 
 
-@pytest.mark.skip(reason="permute_blocks/unpermute_blocks not implemented in current version")
-def test_block_permutation():
-    """Test block permutation is reversible."""
-    print("\n🧪 TEST 2: Block Permutation")
-    print("=" * 60)
-    
-    # Create test blocks
-    blocks = [secrets.token_bytes(256) for _ in range(20)]
-    seed = secrets.token_bytes(8)
-    
-    # Permute
-    permuted = permute_blocks(blocks, seed)
-    print(f"   Permuted {len(permuted)} blocks")
-    
-    # Verify changed
-    assert permuted != blocks, "Permutation should change order"
-    
-    # Unpermute
-    unpermuted = unpermute_blocks(permuted, seed)
-    print(f"   Unpermuted {len(unpermuted)} blocks")
-    
-    # Verify recovered
-    assert len(unpermuted) == len(blocks)
-    for i, (orig, recovered) in enumerate(zip(blocks, unpermuted)):
-        assert orig == recovered, f"Block {i} not recovered"
-    
-    print("✅ Permutation is reversible")
-    return True
-
-
 def test_encoding_basic():
     """Test basic encoding."""
     print("\n🧪 TEST 3: Basic Encoding")
@@ -136,41 +106,6 @@ def test_encoding_basic():
     assert manifest.block_count > 0
     assert manifest.superposition_len > 0
     
-    return True
-
-
-@pytest.mark.skip(reason="verify_password_reality not implemented")
-def test_password_verification():
-    """Test password verification identifies reality."""
-    print("\n🧪 TEST 4: Password Verification")
-    print("=" * 60)
-    
-    real_data = b"Real secret" * 100
-    decoy_data = b"Decoy data" * 100
-    
-    real_pw = "real_password"
-    decoy_pw = "decoy_password"
-    
-    # Encode
-    mixed, manifest = schrodinger_encode_data(
-        real_data, decoy_data,
-        real_pw, decoy_pw
-    )
-    
-    # Verify passwords
-    reality_a = verify_password_reality(real_pw, manifest)
-    reality_b = verify_password_reality(decoy_pw, manifest)
-    reality_wrong = verify_password_reality("wrong_password", manifest)
-    
-    print(f"   Real password → Reality {reality_a}")
-    print(f"   Decoy password → Reality {reality_b}")
-    print(f"   Wrong password → {reality_wrong}")
-    
-    assert reality_a == 'A', "Real password should match reality A"
-    assert reality_b == 'B', "Decoy password should match reality B"
-    assert reality_wrong is None, "Wrong password should not match"
-    
-    print("✅ Password verification working")
     return True
 
 
