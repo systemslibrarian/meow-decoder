@@ -29,6 +29,26 @@ This section is the **authoritative threat model** for the v1.0 security‑revie
 - Can snapshot process memory while encode/decode runs.
 - Does not control kernel/hardware (no DMA, no power/EM side‑channels).
 
+**🔮 Quantum Harvest Adversary (Harvest-Now-Decrypt-Later)**
+- Records all GIF/QR traffic for future quantum decryption.
+- Stores encrypted payloads indefinitely (decades).
+- Assumes fault-tolerant quantum computer in 10-30 years.
+- **Mitigation:** ML-KEM-1024 + X25519 hybrid (default ON in v5.8+).
+- **Status:** ✅ PROTECTED if `--pq` or default config used.
+
+**🔬 Side-Channel Adversary (Cache/Timing)**
+- Measures CPU cache timing during crypto operations.
+- Observes memory access patterns via `/proc` or shared caches.
+- Does NOT have physical access to device (no power/EM attacks).
+- **Mitigation:** Rust `subtle` crate for constant-time ops, random jitter.
+- **Status:** ⚠️ MITIGATED (best-effort, not formally proven).
+
+**📡 Remote Timing Adversary (Network-Based)**
+- Measures response times over network to deduce passwords.
+- Performs statistical analysis over many requests.
+- **Mitigation:** Argon2id (memory-bound = noisy), timing equalization.
+- **Status:** ⚠️ MITIGATED (Python limitations, ~1-5ms jitter applied).
+
 ### Assets
 
 - Plaintext confidentiality.
@@ -230,6 +250,92 @@ This section enumerates **concrete attack surfaces** and the **current mitigatio
 **Notes:**
 - This analysis is aligned with [docs/protocol.md](protocol.md).
 - Formal methods are summarized in [docs/formal_methods_report.md](formal_methods_report.md).
+
+---
+
+## 🧮 **FORMAL COVERAGE MAP**
+
+This section maps **security claims** to **formal verification artifacts**.
+
+### 🔐 Core Security Properties
+
+| Property | Formal Method | Artifact | Coverage |
+|----------|--------------|----------|----------|
+| **Auth-then-Output** | TLA+ (TLC) | `formal/tla/meow_protocol.tla` | ✅ Verified (bounded) |
+| **Replay Rejection** | TLA+ (TLC) + ProVerif | `formal/tla/` + `formal/proverif/` | ✅ Verified (symbolic) |
+| **Nonce Uniqueness** | Verus | `crypto_core/src/verus_verified.rs` | ✅ Verified (precondition) |
+| **Key Zeroization** | Verus + Runtime | `crypto_core/src/lib.rs` + `zeroize` crate | ✅ Verified |
+| **Frame MAC Integrity** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
+| **Duress Behavior** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
+| **HW Key Isolation** | TLA+ | `formal/tla/meow_protocol.tla` (HWKeyNeverExposed) | ✅ Verified |
+
+### 🌊 Channel Security
+
+| Property | Method | Status |
+|----------|--------|--------|
+| **Dolev-Yao Secrecy** | ProVerif | ✅ Verified (`event(DecryptOK)` reachable only with key) |
+| **Dolev-Yao Authentication** | ProVerif | ✅ Verified (manifest bound to password) |
+| **Plausible Deniability** | Tamarin (observational equiv.) | ⚠️ Minimal model (abstracted crypto) |
+
+### 🔬 Side-Channel Coverage
+
+| Attack Class | Mitigation | Test Coverage | Status |
+|--------------|------------|---------------|--------|
+| **Timing (password compare)** | `secrets.compare_digest` | `tests/test_sidechannel.py` | ✅ Tested |
+| **Timing (HMAC verify)** | `secrets.compare_digest` | `tests/test_sidechannel.py` | ✅ Tested |
+| **Timing (duress check)** | Constant-time + jitter | `tests/test_sidechannel.py` | ✅ Tested |
+| **Cache timing (AES)** | Rust `aes-gcm` (bitsliced) | Assumed (crate audit) | ⚠️ Assumed |
+| **Memory leakage** | `zeroize` crate | `tests/test_sidechannel.py` | ✅ Tested |
+
+### 📋 Audit Checklist Reference
+
+For a complete pre-audit checklist, see: [SELF_AUDIT_TEMPLATE.md](SELF_AUDIT_TEMPLATE.md)
+
+---
+
+## 🕵️ **SIDE-CHANNEL ANALYSIS**
+
+### Implemented Mitigations
+
+| Side-Channel | Attack | Mitigation | Location | Effectiveness |
+|--------------|--------|-----------|----------|---------------|
+| **Timing** | Password timing oracle | `secrets.compare_digest` | `crypto.py:L111` | ✅ Strong |
+| **Timing** | HMAC verification timing | `secrets.compare_digest` | `crypto.py:L672` | ✅ Strong |
+| **Timing** | Duress detection timing | Timing equalization (1-5ms) | `constant_time.py:L125` | ⚠️ Statistical |
+| **Timing** | Frame MAC verification | Constant-time compare | `frame_mac.py:L89` | ✅ Strong |
+| **Memory** | Key residue in RAM | `SecureBytes` + `zeroize` | `crypto_enhanced.py:L65` | ⚠️ Best-effort |
+| **Memory** | Password residue | `secure_zero_memory()` | `constant_time.py:L55` | ⚠️ Python limits |
+| **Cache** | AES T-table attacks | Bitsliced AES (Rust crate) | `crypto_core/src/lib.rs` | ✅ Strong |
+| **Power/EM** | Key extraction | NOT IMPLEMENTED | — | ❌ Out of scope |
+
+### Testing Infrastructure
+
+Side-channel resistance is tested in CI via:
+
+```bash
+# Run side-channel test suite
+make sidechannel-test
+
+# Individual tests
+pytest tests/test_sidechannel.py -v
+
+# Tests include:
+# - TestConstantTimeComparison
+# - TestFrameMACTiming
+# - TestKeyDerivationTiming
+# - TestDuressTimingEqualization
+# - TestSecureMemoryZeroing
+```
+
+### Limitations (Honest Assessment)
+
+| Limitation | Reason | Mitigation Path |
+|------------|--------|----------------|
+| Python GC | Garbage collector may leave key copies | Use Rust backend exclusively |
+| OS scheduling | Thread preemption affects timing | Statistical noise |
+| PyPy JIT | Compilation affects timing | Not supported |
+| Core dumps | Memory captured if crash | Disable core dumps |
+| Swap | Keys may be written to disk | `mlock()` + encrypted swap |
 
 ---
 
