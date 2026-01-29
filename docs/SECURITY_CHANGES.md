@@ -327,6 +327,237 @@ MEOW_TEST_MODE=1 pytest tests/test_phase3_schrodinger_security.py -v
 
 ---
 
+## Phase 4: Advanced Testing Gaps ✅ COMPLETED
+
+Phase 4 addresses remaining GAP items from the security review, implementing
+comprehensive testing for timing analysis, post-quantum integration, duress mode,
+and manifest version migration.
+
+### P4-01: GAP-01 - Statistical Timing Analysis Framework (dudect)
+
+**Finding** (GAP-01, HIGH): Need automated statistical timing analysis with
+Welch's t-test methodology to detect constant-time violations.
+
+**Resolution**: Created `tests/test_phase4_dudect_timing.py` implementing
+dudect-style statistical timing analysis:
+
+**Methodology**:
+- Welch's t-test with |t| < 4.5 threshold (99.99% confidence)
+- Interleaved measurement to minimize environmental bias
+- Warm-up runs to stabilize JIT/caches
+- 100+ samples per test class
+
+**Test Classes**:
+
+**TestHMACTimingDudect**:
+- `DUDECT-01`: Valid vs invalid HMAC timing indistinguishability
+- `DUDECT-02`: Short vs long HMAC timing indistinguishability
+- `DUDECT-03`: All-zeros vs random HMAC timing
+
+**TestFrameMACTimingDudect**:
+- `DUDECT-04`: Valid vs invalid frame MAC timing
+- `DUDECT-05`: Frame index 0 vs 1000 timing
+
+**TestPasswordCompareTimingDudect**:
+- `DUDECT-06`: Correct vs incorrect password check timing
+- `DUDECT-07`: Similar vs different password timing
+
+**TestKeyDerivationTimingDudect**:
+- `DUDECT-08`: Short vs long password key derivation timing
+- `DUDECT-09`: Simple vs complex password timing
+
+**Files Created**:
+- `tests/test_phase4_dudect_timing.py` (~400 lines, 9 tests)
+
+**Status**: ✅ RESOLVED
+
+---
+
+### P4-02: GAP-02 - Post-Quantum Integration Tests
+
+**Finding** (GAP-02, HIGH): Need comprehensive tests for ML-KEM-768 + X25519 hybrid
+mode to verify proper key encapsulation and encryption.
+
+**Resolution**: Created `tests/test_phase4_pq_integration.py` with full PQ testing:
+
+**Test Classes**:
+
+**TestPQKeyGeneration**:
+- `PQ-01`: ML-KEM keypair generation returns correct sizes
+- `PQ-02`: Public/private keys are distinct
+- `PQ-03`: Key generation is non-deterministic
+
+**TestPQEncapsulation**:
+- `PQ-04`: Encapsulation produces ciphertext + shared secret
+- `PQ-05`: Decapsulation recovers identical shared secret
+- `PQ-06`: Wrong private key fails decapsulation
+
+**TestPQHybridMode**:
+- `PQ-07`: Hybrid mode combines X25519 + ML-KEM
+- `PQ-08`: Both components required for decryption
+- `PQ-09`: Hybrid shared secret differs from either component
+
+**TestPQManifestIntegration**:
+- `PQ-10`: PQ ciphertext stored correctly in manifest (1088 bytes)
+- `PQ-11`: MEOW4 manifest size is 1235 bytes
+- `PQ-12`: PQ manifest round-trips correctly
+
+**TestPQBackwardCompatibility**:
+- `PQ-13`: Non-PQ files decode without PQ library
+
+**Files Created**:
+- `tests/test_phase4_pq_integration.py` (~400 lines, 13 tests)
+
+**Status**: ✅ RESOLVED
+
+---
+
+### P4-03: GAP-05 - Duress Timing Automation
+
+**Finding** (GAP-05, MEDIUM): Duress password handling needs automated timing
+analysis to verify constant-time operation.
+
+**Resolution**: Created `tests/test_phase4_duress_timing.py` with comprehensive
+duress timing analysis:
+
+**Test Classes**:
+
+**TestDuressCheckTiming**:
+- `DURESS-01`: Duress vs real password timing indistinguishable
+- `DURESS-02`: Duress vs wrong password timing indistinguishable
+- `DURESS-03`: Multiple duress checks have consistent timing
+
+**TestDuressTagTiming**:
+- `DURESS-04`: Duress tag verification is constant-time
+- `DURESS-05`: Tag comparison timing independent of content
+
+**TestDuressDecoyTiming**:
+- `DURESS-06`: Decoy generation has consistent timing
+- `DURESS-07`: Decoy content doesn't affect timing
+
+**TestDuressEmergencyTiming**:
+- `DURESS-08`: Memory zeroing is content-independent
+- `DURESS-09`: GC triggering has bounded timing variance
+
+**TestDuressIntegrationTiming**:
+- `DURESS-10`: Full duress flow timing analysis
+
+**Files Created**:
+- `tests/test_phase4_duress_timing.py` (~400 lines, 10 tests)
+
+**Status**: ✅ RESOLVED
+
+---
+
+### P4-04: GAP-06 - Cross-Version Manifest Migration
+
+**Finding** (GAP-06, LOW): Need tests for manifest version compatibility
+(MEOW2 → MEOW3 → MEOW4) to ensure backward compatibility and prevent
+version downgrade attacks.
+
+**Resolution**: Created `tests/test_phase4_manifest_migration.py` with
+comprehensive manifest version testing:
+
+**Test Classes**:
+
+**TestManifestSizes**:
+- `MIGR-01`: Password-only manifest is 115 bytes
+- `MIGR-02`: Forward secrecy manifest is 147 bytes
+- `MIGR-03`: FS + duress manifest is 179 bytes
+- `MIGR-04`: PQ manifest is 1235 bytes
+- `MIGR-05`: PQ + duress manifest is 1267 bytes
+
+**TestManifestRoundTrip**:
+- `MIGR-06`: Password-only pack/unpack preserves fields
+- `MIGR-07`: FS manifest pack/unpack preserves fields
+- `MIGR-08`: FS + duress pack/unpack preserves fields
+- `MIGR-09`: PQ manifest pack/unpack preserves fields
+- `MIGR-10`: PQ + duress pack/unpack preserves fields
+
+**TestMagicValidation**:
+- `MIGR-11`: MEOW3 magic accepted
+- `MIGR-12`: MEOW2 magic accepted (backward compat)
+- `MIGR-13`: MEOW1 magic rejected
+- `MIGR-14`: Random magic rejected
+
+**TestSizeValidation**:
+- `MIGR-15`: Short manifest rejected
+- `MIGR-16`: Invalid size manifest rejected
+- `MIGR-17`: Truncated manifest rejected
+
+**TestFieldExtraction**:
+- `MIGR-18`: Salt extracted at correct offset
+- `MIGR-19`: Nonce extracted at correct offset
+- `MIGR-20`: Lengths extracted correctly
+- `MIGR-21`: SHA256 extracted at correct offset
+
+**TestVersionDowngrade**:
+- `MIGR-22`: Ephemeral key preserved in upgrade
+- `MIGR-23`: PQ ciphertext preserved in upgrade
+- `MIGR-24`: Duress tag preserved in upgrade
+
+**TestManifestCore**:
+- `MIGR-25`: pack_manifest_core excludes HMAC
+- `MIGR-26`: pack_manifest_core includes duress when requested
+
+**TestEdgeCases**:
+- `MIGR-27`: Maximum length values handled
+- `MIGR-28`: Minimum length values handled
+- `MIGR-29`: Zero block count handled
+- `MIGR-30`: Maximum k_blocks handled
+
+**Files Created**:
+- `tests/test_phase4_manifest_migration.py` (~500 lines, 30 tests)
+
+**Status**: ✅ RESOLVED
+
+---
+
+## Phase 4 Summary
+
+| GAP ID | Priority | Description | Test File | Tests |
+|--------|----------|-------------|-----------|-------|
+| GAP-01 | HIGH | Statistical timing (dudect) | test_phase4_dudect_timing.py | 9 |
+| GAP-02 | HIGH | PQ integration tests | test_phase4_pq_integration.py | 13 |
+| GAP-05 | MEDIUM | Duress timing automation | test_phase4_duress_timing.py | 10 |
+| GAP-06 | LOW | Cross-version migration | test_phase4_manifest_migration.py | 30 |
+
+**Total Phase 4 Tests**: 62 new tests across 4 test files
+
+---
+
+## Security Invariants Preserved
+
+All changes maintain these security invariants:
+
+1. **Auth-Then-Output**: No plaintext output without HMAC+AEAD verification
+2. **Constant-Time Comparisons**: All MAC/password comparisons use `secrets.compare_digest()`
+3. **Memory Zeroization**: Sensitive data zeroed via Rust `zeroize` crate
+4. **Nonce Uniqueness**: Per-process cache + random generation
+5. **Domain Separation**: HKDF info strings separate all derived keys
+6. **Timing-Safe Schrödinger**: Both realities always processed identically
+7. **Timing-Safe Duress**: Argon2id runs before duress check
+8. **Version Compatibility**: MEOW2/MEOW3/MEOW4 all correctly parsed
+
+---
+
+## Testing Verification
+
+Run all security tests:
+```bash
+MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py \
+    tests/test_phase2_security.py tests/test_phase3_schrodinger_security.py \
+    tests/test_phase4_dudect_timing.py tests/test_phase4_pq_integration.py \
+    tests/test_phase4_duress_timing.py tests/test_phase4_manifest_migration.py -v
+```
+
+Phase 4 tests specifically:
+```bash
+MEOW_TEST_MODE=1 pytest tests/test_phase4_*.py -v
+```
+
+---
+
 ## Document History
 
 | Version | Date | Changes |
@@ -334,6 +565,7 @@ MEOW_TEST_MODE=1 pytest tests/test_phase3_schrodinger_security.py -v
 | 1.0 | 2026-01-28 | Initial Phase 1 completion |
 | 1.1 | 2026-01-29 | Phase 2 test implementation complete |
 | 1.2 | 2026-01-29 | Phase 3 Schrödinger timing security complete |
+| 1.3 | 2026-01-29 | Phase 4 advanced testing gaps complete |
 
 ---
 
