@@ -2,6 +2,59 @@
 
 All notable changes to Meow Decoder.
 
+## [5.9.0] - 2026-01-28
+
+### Added - Life-Critical Security Hardening 🔐🛡️🔬
+
+#### Time-Lock Duress System (Anti-Coercion)
+- **New Module**: `timelock_duress.py` (~600 lines)
+- **TimeLockPuzzle**: Iterated SHA-256 hashing for delayed decryption
+  - Sequential computation (non-parallelizable)
+  - Configurable time parameters (seconds to hours)
+  - Perfect for dead drops and timed releases
+- **CountdownDuress**: Check-in based trigger
+  - Automatic key destruction if check-in missed
+  - Grace period configuration
+  - State persistence with JSON serialization
+- **DeadManSwitch**: Renewal-based trigger
+  - Requires periodic renewal to keep alive
+  - Configurable expiry intervals
+  - Emergency wipe on lapse
+- **CLI Interface**: Full command-line support for all features
+
+#### Side-Channel Test Suite
+- **New Test Module**: `tests/test_sidechannel.py` (~500 lines)
+- **TimingAnalyzer**: Statistical framework for timing measurements
+  - Coefficient of variation analysis
+  - Mean/std timing profiling
+- **TestConstantTimeComparison**: Verifies constant-time password/HMAC comparison
+- **TestFrameMACTiming**: Tests frame MAC verification consistency
+- **TestKeyDerivationTiming**: Validates Argon2id timing stability
+- **TestDuressTimingEqualization**: Ensures duress detection has no timing leak
+- **TestSecureMemoryZeroing**: Verifies secure_zero_memory() works
+- **TestNoEarlyExit**: Confirms no length-based early exit leakage
+- **TestRustBackendSideChannel**: Validates subtle/zeroize crate usage
+
+#### Enhanced Build & Security Targets
+- **Makefile Targets**:
+  - `stealth-build`: Deniable distribution (strips metadata, randomizes)
+  - `sidechannel-test`: Run side-channel timing tests
+  - `security-test`: Combined security test suite
+  - `supply-chain-audit`: pip-audit + cargo audit + cargo deny
+- **Organized Help**: New "Security" section in `make help`
+
+### Security
+- Time-lock puzzles provide coercion resistance
+- Constant-time operations verified via automated tests
+- Supply-chain security via multi-tool auditing
+- Stealth distribution mode for operational security
+
+### Tests
+- 7 new test classes for side-channel resistance
+- All existing tests continue to pass
+
+---
+
 ## [5.8.0] - 2026-01-25
 
 ### Added - State-of-the-Art Security Hardening 🔐🔮🚀

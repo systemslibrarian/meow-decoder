@@ -16,7 +16,19 @@ help:
 	@echo "  make build       - Build package"
 	@echo "  make publish     - Publish to PyPI"
 	@echo ""
-	@echo "🔬 Formal Verification:"
+	@echo "📦 Build Targets:"
+	@echo "  make build             - Build Python package"
+	@echo "  make build-rust        - Build Rust crypto_core"
+	@echo "  make build-wasm        - Build WASM bindings"
+	@echo "  make build-wasm-release - Build optimized WASM for production"
+	@echo ""
+	@echo "🔒 Security:"
+	@echo "  make security-test       - Run security test suite"
+	@echo "  make sidechannel-test    - Run side-channel tests"
+	@echo "  make supply-chain-audit  - Run supply-chain audit"
+	@echo "  make stealth-build       - Build stealth distribution"
+	@echo ""
+	@echo "�🔬 Formal Verification:"
 	@echo "  make formal-proverif       - Run ProVerif symbolic model"
 	@echo "  make formal-proverif-html  - ProVerif HTML report"
 	@echo "  make formal-tla            - Run TLA+ main model (MeowEncode)"
@@ -129,5 +141,33 @@ supply-chain-audit:
 	cd crypto_core && cargo audit
 	cd crypto_core && cargo deny check
 	@echo "✅ Supply-chain audit complete"
+
+# 🦀 Rust crypto_core build
+build-rust:
+	@echo "🦀 Building Rust crypto_core..."
+	cd crypto_core && cargo build --release --features full-software
+	@echo "✅ Rust build complete"
+
+# 🌐 WASM build (development)
+build-wasm:
+	@echo "🌐 Building WASM bindings (development)..."
+	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
+	cd crypto_core && wasm-pack build --target web --dev --features wasm
+	@echo "✅ WASM development build complete in crypto_core/pkg/"
+
+# 🌐 WASM build (production - optimized)
+build-wasm-release:
+	@echo "🌐 Building WASM bindings (production - optimized)..."
+	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
+	cd crypto_core && wasm-pack build --target web --release --features wasm
+	@echo "✅ WASM production build complete in crypto_core/pkg/"
+	@echo "📊 Package size: $$(du -h crypto_core/pkg/*.wasm | cut -f1)"
+
+# 🌐 WASM Node.js build (for server-side use)
+build-wasm-node:
+	@echo "🌐 Building WASM bindings for Node.js..."
+	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
+	cd crypto_core && wasm-pack build --target nodejs --release --features wasm
+	@echo "✅ WASM Node.js build complete in crypto_core/pkg/"
 
 .DEFAULT_GOAL := help

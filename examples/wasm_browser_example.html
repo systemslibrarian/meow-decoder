@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🐱 Meow Decoder - WASM Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        h1 { color: #00ff88; text-align: center; }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        label { display: block; margin: 10px 0 5px; color: #00ccff; }
+        input, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #333;
+            border-radius: 5px;
+            background: #1a1a2e;
+            color: #fff;
+            box-sizing: border-box;
+        }
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 10px 5px 10px 0;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled {
+            background: #555;
+            color: #999;
+            cursor: not-allowed;
+        }
+        #output {
+            background: #000;
+            padding: 15px;
+            border-radius: 5px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            min-height: 100px;
+        }
+        .status { 
+            padding: 10px; 
+            border-radius: 5px; 
+            margin: 10px 0;
+        }
+        .status.loading { background: #ff9800; color: #000; }
+        .status.ready { background: #4caf50; color: #fff; }
+        .status.error { background: #f44336; color: #fff; }
+        .cat-emoji { font-size: 3em; text-align: center; display: block; }
+    </style>
+</head>
+<body>
+    <span class="cat-emoji">🐱🔐</span>
+    <h1>Meow Decoder - WASM Demo</h1>
+    
+    <div id="wasmStatus" class="status loading">
+        ⏳ Loading WASM module...
+    </div>
+    
+    <div class="container">
+        <h2>🔑 Key Derivation</h2>
+        <label for="password">Password:</label>
+        <input type="password" id="password" placeholder="Enter your password" value="demo_password_123">
+        
+        <label for="salt">Salt (hex, 16 bytes):</label>
+        <input type="text" id="salt" placeholder="Random salt" 
+               value="0102030405060708090a0b0c0d0e0f10">
+        
+        <button id="deriveKeyBtn" disabled onclick="deriveKey()">Derive Key</button>
+        <button id="randomSaltBtn" disabled onclick="generateRandomSalt()">🎲 Random Salt</button>
+    </div>
+    
+    <div class="container">
+        <h2>🔒 Encryption</h2>
+        <label for="plaintext">Plaintext:</label>
+        <textarea id="plaintext" rows="3" placeholder="Enter message to encrypt">Hello, Meow Decoder! 🐱</textarea>
+        
+        <button id="encryptBtn" disabled onclick="encryptData()">🔐 Encrypt</button>
+    </div>
+    
+    <div class="container">
+        <h2>🔓 Decryption</h2>
+        <label for="ciphertext">Ciphertext (hex):</label>
+        <textarea id="ciphertext" rows="3" placeholder="Paste encrypted data here"></textarea>
+        
+        <label for="decryptNonce">Nonce (hex, 12 bytes):</label>
+        <input type="text" id="decryptNonce" placeholder="Nonce from encryption">
+        
+        <button id="decryptBtn" disabled onclick="decryptData()">🔓 Decrypt</button>
+    </div>
+    
+    <div class="container">
+        <h2>📋 Output</h2>
+        <div id="output">Waiting for WASM module to load...</div>
+    </div>
+
+    <script type="module">
+        // WASM module reference
+        let wasm = null;
+        let derivedKey = null;
+        
+        // Utility: hex encode/decode
+        function bytesToHex(bytes) {
+            return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
+        }
+        
+        function hexToBytes(hex) {
+            if (hex.length % 2 !== 0) throw new Error('Invalid hex string');
+            const bytes = new Uint8Array(hex.length / 2);
+            for (let i = 0; i < hex.length; i += 2) {
+                bytes[i / 2] = parseInt(hex.substr(i, 2), 16);
+            }
+            return bytes;
+        }
+        
+        // Utility: text encode/decode
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        
+        function log(msg) {
+            const output = document.getElementById('output');
+            output.textContent += new Date().toISOString().substr(11, 8) + ' | ' + msg + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        // Initialize WASM module
+        async function initWasm() {
+            const statusEl = document.getElementById('wasmStatus');
+            
+            try {
+                // Import the WASM package (built by wasm-pack)
+                // In production, this would be from 'crypto_core/pkg'
+                const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+                await wasmModule.default();  // Initialize WASM
+                wasm = wasmModule;
+                
+                // Enable buttons
+                document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+                
+                statusEl.className = 'status ready';
+                statusEl.textContent = '✅ WASM module loaded successfully!';
+                
+                log('🐱 Meow Decoder WASM initialized');
+                log('📦 Available functions: encrypt, decrypt, derive_key, random_bytes');
+                log('');
+                
+            } catch (err) {
+                statusEl.className = 'status error';
+                statusEl.textContent = `❌ Failed to load WASM: ${err.message}`;
+                log(`ERROR: ${err.message}`);
+                log('');
+                log('To build WASM module, run: make build-wasm');
+                log('Then serve this file from a web server.');
+            }
+        }
+        
+        // Generate random salt
+        window.generateRandomSalt = function() {
+            if (!wasm) return;
+            
+            try {
+                const result = wasm.random_bytes(16);
+                if (result.success) {
+                    document.getElementById('salt').value = bytesToHex(result.data);
+                    log('🎲 Generated random 16-byte salt');
+                } else {
+                    log(`ERROR: ${result.error}`);
+                }
+            } catch (err) {
+                log(`ERROR: ${err.message}`);
+            }
+        };
+        
+        // Derive key from password
+        window.deriveKey = async function() {
+            if (!wasm) return;
+            
+            const password = document.getElementById('password').value;
+            const saltHex = document.getElementById('salt').value;
+            
+            if (!password || !saltHex) {
+                log('ERROR: Password and salt are required');
+                return;
+            }
+            
+            try {
+                const salt = hexToBytes(saltHex);
+                log(`🔑 Deriving key with Argon2id...`);
+                log(`   Password length: ${password.length} chars`);
+                log(`   Salt: ${saltHex.substring(0, 16)}...`);
+                
+                const passwordBytes = encoder.encode(password);
+                const result = wasm.derive_key(passwordBytes, salt);
+                
+                if (result.success) {
+                    derivedKey = result.data;
+                    log(`✅ Key derived: ${bytesToHex(derivedKey).substring(0, 32)}...`);
+                    log(`   Key length: ${derivedKey.length} bytes (256 bits)`);
+                } else {
+                    log(`ERROR: ${result.error}`);
+                }
+            } catch (err) {
+                log(`ERROR: ${err.message}`);
+            }
+        };
+        
+        // Encrypt data
+        window.encryptData = function() {
+            if (!wasm || !derivedKey) {
+                log('ERROR: Derive key first!');
+                return;
+            }
+            
+            const plaintext = document.getElementById('plaintext').value;
+            if (!plaintext) {
+                log('ERROR: Enter plaintext to encrypt');
+                return;
+            }
+            
+            try {
+                // Generate random nonce
+                const nonceResult = wasm.random_bytes(12);
+                if (!nonceResult.success) {
+                    log(`ERROR: Failed to generate nonce: ${nonceResult.error}`);
+                    return;
+                }
+                const nonce = nonceResult.data;
+                
+                log(`🔐 Encrypting ${plaintext.length} bytes...`);
+                
+                const plaintextBytes = encoder.encode(plaintext);
+                const result = wasm.encrypt(plaintextBytes, derivedKey, nonce, null);
+                
+                if (result.success) {
+                    const ciphertextHex = bytesToHex(result.data);
+                    const nonceHex = bytesToHex(nonce);
+                    
+                    document.getElementById('ciphertext').value = ciphertextHex;
+                    document.getElementById('decryptNonce').value = nonceHex;
+                    
+                    log(`✅ Encrypted successfully`);
+                    log(`   Ciphertext: ${ciphertextHex.substring(0, 32)}... (${result.data.length} bytes)`);
+                    log(`   Nonce: ${nonceHex}`);
+                    log(`   (Nonce auto-filled in decryption section)`);
+                } else {
+                    log(`ERROR: ${result.error}`);
+                }
+            } catch (err) {
+                log(`ERROR: ${err.message}`);
+            }
+        };
+        
+        // Decrypt data
+        window.decryptData = function() {
+            if (!wasm || !derivedKey) {
+                log('ERROR: Derive key first!');
+                return;
+            }
+            
+            const ciphertextHex = document.getElementById('ciphertext').value;
+            const nonceHex = document.getElementById('decryptNonce').value;
+            
+            if (!ciphertextHex || !nonceHex) {
+                log('ERROR: Ciphertext and nonce are required');
+                return;
+            }
+            
+            try {
+                const ciphertext = hexToBytes(ciphertextHex);
+                const nonce = hexToBytes(nonceHex);
+                
+                log(`🔓 Decrypting ${ciphertext.length} bytes...`);
+                
+                const result = wasm.decrypt(ciphertext, derivedKey, nonce, null);
+                
+                if (result.success) {
+                    const plaintext = decoder.decode(result.data);
+                    log(`✅ Decrypted successfully`);
+                    log(`   Plaintext: "${plaintext}"`);
+                } else {
+                    log(`❌ Decryption failed: ${result.error}`);
+                    log(`   (Wrong password, corrupted data, or tampered ciphertext)`);
+                }
+            } catch (err) {
+                log(`ERROR: ${err.message}`);
+            }
+        };
+        
+        // Initialize on page load
+        document.getElementById('output').textContent = '';
+        initWasm();
+    </script>
+</body>
+</html>
