@@ -42,32 +42,53 @@ def schrodinger_decode_data(
     Returns:
         The decrypted data if the password is correct for either reality,
         otherwise None.
+
+    Security:
+        - TIMING-SAFE: Both Argon2id derivations run ALWAYS to prevent timing oracle
+        - TIMING-SAFE: Both HMAC verifications run ALWAYS to prevent reality detection
+        - Uses secrets.compare_digest for constant-time comparison
+        - Random delay added to mask any residual timing differences
     """
-    # Try to decode Reality A
-    try:
-        # Derive master metadata key using Argon2id
-        master_meta_key_a = derive_key(password, manifest.salt_a)
-
-        # Derive separate keys for encryption and HMAC
-        hkdf_hmac_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_hmac_key_v1")
-        hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
-
-        # Verify HMAC for Reality A
-        manifest_core = manifest.pack_core_for_auth()
-        expected_hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
-
-        if secrets.compare_digest(expected_hmac_a, manifest.reality_a_hmac):
-            # HMAC is valid, this is Reality A
+    # SECURITY (TIMING-01): Derive BOTH keys upfront to prevent timing oracle.
+    # An attacker measuring timing could distinguish which reality was accessed
+    # if we only derived one key. By deriving both always, the timing is constant
+    # regardless of which password was provided.
+    
+    # Derive master metadata keys using Argon2id (BOTH - expensive but necessary for timing)
+    master_meta_key_a = derive_key(password, manifest.salt_a)
+    master_meta_key_b = derive_key(password, manifest.salt_b)
+    
+    # Derive HMAC keys for both realities
+    hkdf_hmac_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_hmac_key_v1")
+    hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
+    
+    hkdf_hmac_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_hmac_key_v1")
+    hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
+    
+    # Compute expected HMACs for both realities
+    manifest_core = manifest.pack_core_for_auth()
+    expected_hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
+    expected_hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
+    
+    # SECURITY (TIMING-02): Check BOTH HMACs to avoid early-exit timing leak.
+    # Store results but don't branch until after both comparisons.
+    is_reality_a = secrets.compare_digest(expected_hmac_a, manifest.reality_a_hmac)
+    is_reality_b = secrets.compare_digest(expected_hmac_b, manifest.reality_b_hmac)
+    
+    # Add random delay to mask any residual timing differences (1-10ms)
+    import time
+    time.sleep(secrets.randbelow(10) / 1000.0)
+    
+    # Now branch based on which reality matched (if any)
+    if is_reality_a:
+        try:
+            # Derive encryption key for Reality A
             hkdf_enc_a = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_enc_key_v1")
             enc_key_a = hkdf_enc_a.derive(master_meta_key_a)
 
             # Decrypt metadata
             aesgcm_a = AESGCM(enc_key_a)
-            # The encoder pads the PLAINTEXT metadata to 88 bytes, then AES-GCM encrypts it.
-            # AES-GCM returns ciphertext+tag with a fixed length of 104 bytes (88 + 16).
-            # Do not truncate here, or tag verification will fail.
             metadata_a_plain = aesgcm_a.decrypt(manifest.nonce_a, manifest.metadata_a, None)
-
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack('>QQQ', metadata_a_plain[:24])
@@ -77,9 +98,6 @@ def schrodinger_decode_data(
 
             # Collapse superposition to get ciphertext A
             ciphertext_a = collapse_to_reality(superposition, 0)
-            
-            # The stored cipher_len is for the *unpadded* ciphertext.
-            # We need to truncate the collapsed data to that length.
             ciphertext_a = ciphertext_a[:cipher_len]
 
             # Decrypt the actual file data
@@ -92,26 +110,13 @@ def schrodinger_decode_data(
                 comp_len=comp_len,
                 sha256=sha256,
             )
-    except Exception:
-        # This password is not for Reality A, or data is corrupt.
-        # We'll try Reality B next.
-        pass
-
-    # Try to decode Reality B
-    try:
-        # Derive master metadata key using Argon2id
-        master_meta_key_b = derive_key(password, manifest.salt_b)
-
-        # Derive separate keys for encryption and HMAC
-        hkdf_hmac_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_hmac_key_v1")
-        hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
-
-        # Verify HMAC for Reality B
-        manifest_core = manifest.pack_core_for_auth()
-        expected_hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
-
-        if secrets.compare_digest(expected_hmac_b, manifest.reality_b_hmac):
-            # HMAC is valid, this is Reality B
+        except Exception:
+            # Decryption failed despite HMAC match - data corrupted
+            pass
+    
+    if is_reality_b:
+        try:
+            # Derive encryption key for Reality B
             hkdf_enc_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_enc_key_v1")
             enc_key_b = hkdf_enc_b.derive(master_meta_key_b)
 
@@ -127,8 +132,6 @@ def schrodinger_decode_data(
 
             # Collapse superposition to get ciphertext B
             ciphertext_b = collapse_to_reality(superposition, 1)
-            
-            # Truncate to original length
             ciphertext_b = ciphertext_b[:cipher_len]
 
             # Decrypt the actual file data
@@ -141,9 +144,9 @@ def schrodinger_decode_data(
                 comp_len=comp_len,
                 sha256=sha256,
             )
-    except Exception:
-        # This password is not for Reality B either.
-        pass
+        except Exception:
+            # Decryption failed despite HMAC match - data corrupted
+            pass
 
     # If neither password worked
     return None
