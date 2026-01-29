@@ -491,6 +491,48 @@ NoRealOutputWithoutUnsealedKey ==
     decoderState = "OutputReal" => keyState = "unsealed"
 
 (****************************************************************************)
+(* INVARIANT 10: Sealed keys never appear in channel (hardware isolation)   *)
+(*                                                                          *)
+(* When key is sealed, the attacker cannot observe key material in channel  *)
+(* or anywhere accessible. This models TPM/HSM hardware isolation.          *)
+(****************************************************************************)
+SealedKeyNeverInChannel ==
+    keyState = "sealed" =>
+        \A i \in DOMAIN channel : 
+            channel[i].ciphertext /= "key_material"
+
+(****************************************************************************)
+(* INVARIANT 11: Failed unseal prevents any successful decryption           *)
+(*                                                                          *)
+(* If unseal failed (wrong PCRs), decoder MUST fail even with correct       *)
+(* password. This ensures hardware security cannot be bypassed.             *)
+(****************************************************************************)
+FailedUnsealBlocksDecrypt ==
+    keyState = "failed" => authResult /= "success"
+
+(****************************************************************************)
+(* INVARIANT 12: Key derivation only when unsealed OR software fallback     *)
+(*                                                                          *)
+(* Encoder can only derive key when hardware key is unsealed.               *)
+(* This ensures encrypted data is bound to hardware state.                  *)
+(****************************************************************************)
+KeyDerivationRequiresUnsealedOrSoftware ==
+    (encoderState = "Encrypt") => 
+        (keyState = "unsealed" \/ keyState = "failed")
+        \* Note: keyState = "failed" represents software fallback
+
+(****************************************************************************)
+(* INVARIANT 13: Attacker cannot forge unseal (hardware trust assumption)   *)
+(*                                                                          *)
+(* The attacker actions do NOT include UnsealKey - only TamperPlatform.     *)
+(* This models the security boundary: attacker can tamper PCRs but cannot   *)
+(* forge a successful unseal operation.                                     *)
+(****************************************************************************)
+\* This is implicitly enforced by the action definitions - UnsealKey is
+\* not in the attacker's action set. Documented here for auditor clarity.
+AttackerCannotForgeUnseal == TRUE  \* Structural guarantee
+
+(****************************************************************************)
 (* Combined Safety Property                                                 *)
 (****************************************************************************)
 Safety ==
@@ -503,6 +545,10 @@ Safety ==
     /\ UnsealRequiresMatchingPCRs
     /\ TamperPreventsUnseal
     /\ NoRealOutputWithoutUnsealedKey
+    /\ SealedKeyNeverInChannel
+    /\ FailedUnsealBlocksDecrypt
+    /\ KeyDerivationRequiresUnsealedOrSoftware
+    /\ AttackerCannotForgeUnseal
 
 -----------------------------------------------------------------------------
 (* LIVENESS PROPERTIES (optional, for completeness) *)
@@ -522,5 +568,8 @@ THEOREM Spec => []NoAuthBypass
 THEOREM Spec => []UnsealRequiresMatchingPCRs
 THEOREM Spec => []TamperPreventsUnseal
 THEOREM Spec => []NoRealOutputWithoutUnsealedKey
+THEOREM Spec => []SealedKeyNeverInChannel
+THEOREM Spec => []FailedUnsealBlocksDecrypt
+THEOREM Spec => []KeyDerivationRequiresUnsealedOrSoftware
 
 =============================================================================

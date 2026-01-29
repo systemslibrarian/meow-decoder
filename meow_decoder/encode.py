@@ -457,6 +457,32 @@ Examples:
                         help='YubiKey PIV slot (default: 9d)')
     parser.add_argument('--yubikey-pin', type=str, default=None,
                         help='YubiKey PIN (prompted if not provided)')
+    parser.add_argument('--yubikey-touch', action='store_true', default=True,
+                        help='Require physical touch on YubiKey (default: true)')
+    
+    # Hardware Security Module (HSM/PKCS#11)
+    parser.add_argument('--hsm-slot', type=int, metavar='N',
+                        help='HSM PKCS#11 slot number (enables HSM mode)')
+    parser.add_argument('--hsm-pin', type=str, metavar='PIN',
+                        help='HSM user PIN (prompted if not provided)')
+    parser.add_argument('--hsm-key-label', type=str, default='meow-master',
+                        help='HSM key label for derivation (default: meow-master)')
+    parser.add_argument('--hsm-library', type=str, metavar='PATH',
+                        help='Path to PKCS#11 library (auto-detected if not specified)')
+    
+    # TPM 2.0 key sealing
+    parser.add_argument('--tpm-seal', type=str, metavar='PCRS',
+                        help='Seal key to TPM PCRs (comma-separated, e.g., 0,2,7)')
+    parser.add_argument('--tpm-derive', action='store_true',
+                        help='Use TPM for key derivation')
+    
+    # Hardware auto-detection and status
+    parser.add_argument('--hardware-auto', action='store_true',
+                        help='Automatically use best available hardware security')
+    parser.add_argument('--hardware-status', action='store_true',
+                        help='Show hardware security status and exit')
+    parser.add_argument('--no-hardware-fallback', action='store_true',
+                        help='Fail if requested hardware unavailable (no software fallback)')
     
     # Encoding parameters
     parser.add_argument('--block-size', type=int, default=512,
@@ -545,6 +571,14 @@ Examples:
     args = parser.parse_args()
     
     # Rust backend is mandatory (no legacy Python fallback).
+    
+    # Handle hardware status check (exit after display)
+    if args.hardware_status:
+        from .hardware_integration import HardwareSecurityProvider
+        provider = HardwareSecurityProvider(verbose=True)
+        caps = provider.detect_all()
+        print(caps.summary())
+        sys.exit(0)
     
     # Handle key generation (do this first, then exit)
     if args.generate_keys:

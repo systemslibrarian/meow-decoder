@@ -59,46 +59,31 @@ This document outlines planned security improvements organized by timeline.
 	- Implemented in `crypto_core` (feature: `tpm`); Python layer currently uses TPM tooling for derivation
 
 ### Rust Expansion
-- [x] **Pure Rust Crypto**: All crypto operations in Rust (`meow_crypto_rs` crate)
-- [ ] **WASM Target**: Browser-based encoding/decoding
-- [x] **Memory Safety**: Rust backend with `secure_zero` for memory wiping
 
 ---
-
-## 🎯 Long-Term (12+ Months)
-
 ### Formal Methods
 - [ ] **Formal Verification**: Verus/Coq proofs for crypto primitives
-- [x] **Model Checking**: TLA+ specification of protocol state machine (`formal/tla/`)
-- [x] **Symbolic Analysis**: ProVerif for protocol security (`formal/proverif/`)
-
 ### Third-Party Audit
 - [ ] **Professional Audit**: Engage security firm for full review
+ [ ] Rust crypto backend for true constant-time
+ [ ] Hardware security module (HSM) support
+ [ ] FIDO2/WebAuthn integration
 - [ ] **Penetration Testing**: Red team assessment
 - [ ] **CVE Process**: Establish responsible disclosure workflow
+ [ ] Formal verification of core crypto paths
+ [ ] Side-channel resistant implementation
+ [ ] Independent security audit
 
-### Certification
 - [ ] **FIPS 140-3**: Module validation (if demand exists)
 - [ ] **Common Criteria**: EAL evaluation (if demand exists)
 
 ---
 
-## 📊 Security Maturity Model
-
-| Level | Description | Status |
-|-------|-------------|--------|
 | 1 | Basic encryption (AES-GCM, Argon2id) | ✅ Complete |
 | 2 | Forward secrecy (X25519, ratcheting) | ✅ Complete |
-| 3 | Post-quantum readiness (ML-KEM, Dilithium) | ✅ Complete |
-| 4 | Constant-time implementation (Rust backend) | ✅ Complete |
-| 5 | Formal verification | 🔮 Planned |
 | 6 | Third-party audit | 🔮 Planned |
-
 ---
 
-## 🤝 Contributing
-
-Security improvements are welcome! See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
 
 For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible disclosure.
 

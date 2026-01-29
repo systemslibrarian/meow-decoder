@@ -104,4 +104,30 @@ formal-all: formal-proverif formal-tla formal-tla-fountain formal-tamarin-duress
 verify:
 	bash ./scripts/verify_all.sh
 
+# 🥷 Stealth build for deniability
+stealth-build:
+	@echo "🥷 Building stealth distribution..."
+	python scripts/stealth_build.py
+	@echo "✅ Stealth build created in dist/stealth/"
+
+# 🔬 Side-channel tests
+sidechannel-test:
+	@echo "🔬 Running side-channel tests..."
+	pytest tests/test_sidechannel.py -v --tb=short
+	@echo "✅ Side-channel tests complete"
+
+# 🔐 Security-focused tests
+security-test:
+	@echo "🔐 Running security test suite..."
+	pytest tests/test_security.py tests/test_adversarial.py tests/test_sidechannel.py -v --tb=short
+	@echo "✅ Security tests complete"
+
+# 📦 Supply-chain audit
+supply-chain-audit:
+	@echo "📦 Running supply-chain audit..."
+	pip-audit
+	cd crypto_core && cargo audit
+	cd crypto_core && cargo deny check
+	@echo "✅ Supply-chain audit complete"
+
 .DEFAULT_GOAL := help

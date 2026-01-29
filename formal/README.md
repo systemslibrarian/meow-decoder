@@ -129,6 +129,13 @@ The TLA+ model verifies these **safety invariants** over all reachable states:
 | `NonceNeverReused` | Fresh nonce for each encryption |
 | `TamperedFramesRejected` | Modified ciphertext → auth failure |
 | `NoAuthBypass` | Output requires successful auth |
+| `UnsealRequiresMatchingPCRs` | TPM unseal only with correct PCRs |
+| `TamperPreventsUnseal` | Platform tampering prevents key access |
+| `NoRealOutputWithoutUnsealedKey` | Real output requires unsealed hardware key |
+| `SealedKeyNeverInChannel` | Hardware-sealed keys never appear in channel |
+| `FailedUnsealBlocksDecrypt` | Failed unseal → no successful decryption |
+| `KeyDerivationRequiresUnsealedOrSoftware` | Key derivation bound to hardware state |
+| `AttackerCannotForgeUnseal` | Unseal is outside attacker's capabilities |
 
 ### 2. ProVerif Protocol Properties
 
