@@ -2,11 +2,49 @@
 Frame-Level MAC Authentication
 Prevents DoS attacks from malicious/random frames during decode
 
-Security Model:
-- Each QR frame has unique MAC tag
-- MAC derived from master key + frame index
-- Invalid frames rejected immediately (no decode waste)
-- Prevents frame injection attacks
+═══════════════════════════════════════════════════════════════════════════════
+SECURITY DESIGN RATIONALE: 8-byte (64-bit) Truncated HMAC-SHA256
+═══════════════════════════════════════════════════════════════════════════════
+
+PURPOSE:
+    DoS resistance - reject invalid frames BEFORE expensive fountain decoding.
+    NOT for long-term message authentication (manifest HMAC handles that).
+
+THREAT MODEL:
+    Frame MACs protect against:
+    ✓ Random corruption triggering expensive decryption attempts
+    ✓ Naive frame injection by passive observers
+    ✓ DoS attacks flooding decoder with invalid data
+
+    Frame MACs do NOT protect against:
+    ✗ Adversary with manifest key (can forge MACs anyway)
+    ✗ Long-term authentication (manifest HMAC-SHA256 handles this)
+
+SECURITY ANALYSIS:
+    • Tag collision probability: 2^(-64) ≈ 5.4 × 10^(-20) per frame
+    • Birthday bound: ~2^32 frames needed to find any collision
+    • Practical frame count: <10,000 frames per GIF (typical: 100-1000)
+    • Combined success: 10,000 × 2^(-64) ≈ 0 (negligible)
+    • Brute-force: 2^64 attempts to forge a single frame MAC
+
+WHY NOT 16-BYTE (128-BIT)?
+    • QR capacity is limited (~2953 bytes at L error correction)
+    • 8 extra bytes/frame × 1000 frames = 8KB additional overhead
+    • DoS resistance only requires work-factor, not long-term security
+    • Frame data is also protected by manifest HMAC and AES-GCM
+
+VERIFICATION PROPERTIES:
+    ✓ Constant-time comparison via secrets.compare_digest()
+    ✓ Per-frame key derivation (HKDF with frame index) prevents cross-frame attacks
+    ✓ Salt binding prevents cross-session replay
+    ✓ Domain separation from encryption keys
+
+CONCLUSION:
+    64-bit truncation is APPROPRIATE for the DoS-resistance threat model.
+    Full security is provided by the layered defense: frame MAC + manifest HMAC + AES-GCM.
+
+For full rationale, see: meow_decoder.security_warnings.get_frame_mac_rationale()
+═══════════════════════════════════════════════════════════════════════════════
 """
 
 import hmac
@@ -18,7 +56,12 @@ from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 
 
-# MAC size (8 bytes = 64 bits, sufficient for DoS prevention)
+# ═══════════════════════════════════════════════════════════════════════════════
+# SECURITY CONSTANT: Frame MAC Size
+# ═══════════════════════════════════════════════════════════════════════════════
+# 8 bytes (64 bits) - Reviewed and justified in docstring above.
+# See SECURITY_DESIGN_RATIONALE for threat model analysis.
+# Changing this value requires security review and migration plan.
 MAC_SIZE = 8
 
 # Domain separation for frame MACs

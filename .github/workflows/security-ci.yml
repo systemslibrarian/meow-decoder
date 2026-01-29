@@ -68,3 +68,63 @@ jobs:
         env:
           MEOW_TEST_MODE: "1"
           MEOW_CRYPTO_BACKEND: "rust"
+
+  # ===========================================================================
+  # CRIT-01: Verify PQ crypto is NOT in default features
+  # Post-quantum crates are experimental (v0.1.0-rc). Accidental inclusion
+  # in default features could expose users to unaudited code.
+  # See: CRYPTO_SECURITY_REVIEW.md § CRIT-01
+  # ===========================================================================
+  pq-feature-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install toml parser
+        run: pip install toml
+
+      - name: Verify pq-crypto NOT in default features
+        run: |
+          python << 'EOF'
+          import toml
+          import sys
+
+          # Parse Cargo.toml
+          cargo = toml.load("crypto_core/Cargo.toml")
+          features = cargo.get("features", {})
+          default = features.get("default", [])
+
+          # Check direct inclusion
+          if "pq-crypto" in default:
+              print("❌ SECURITY VIOLATION: pq-crypto is in default features!")
+              print("   Post-quantum crates are experimental (v0.1.0-rc).")
+              print("   Remove from default features or document the risk.")
+              sys.exit(1)
+
+          # Check transitive inclusion via meta-features
+          def get_transitive_features(feature_name, seen=None):
+              if seen is None:
+                  seen = set()
+              if feature_name in seen:
+                  return set()
+              seen.add(feature_name)
+              result = {feature_name}
+              for dep in features.get(feature_name, []):
+                  if not dep.startswith("dep:"):  # Skip dep: syntax
+                      result.update(get_transitive_features(dep, seen))
+              return result
+
+          all_default = set()
+          for f in default:
+              all_default.update(get_transitive_features(f))
+
+          if "pq-crypto" in all_default:
+              print("❌ SECURITY VIOLATION: pq-crypto is transitively enabled by default!")
+              print(f"   Transitive chain: {default} -> ... -> pq-crypto")
+              sys.exit(1)
+
+          print("✅ PQ feature gate check passed")
+          print(f"   Default features: {default}")
+          print(f"   pq-crypto: NOT in default (correct)")
+          EOF

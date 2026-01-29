@@ -44,10 +44,26 @@ sha2 = { version = "0.10", optional = true }
 # HMAC
 hmac = { version = "0.12", optional = true }
 
-# Post-Quantum: ML-KEM (FIPS 203)
+# ============================================
+# EXPERIMENTAL: Post-Quantum Cryptography
+# ============================================
+# ⚠️  SECURITY WARNING: These crates are at release-candidate (0.1.0-rc) status.
+# They implement FIPS 203 (ML-KEM) and FIPS 204 (ML-DSA) but have NOT received
+# independent security audits or formal verification. Use the `pq-crypto` feature
+# flag only for research or as defense-in-depth alongside classical crypto.
+#
+# DO NOT rely solely on PQ crypto for life-critical applications until:
+# 1. Crates reach stable 1.0 release
+# 2. Independent security audits are published
+# 3. Side-channel resistance is verified
+#
+# Track upstream: https://github.com/RustCrypto/KEMs
+#                 https://github.com/RustCrypto/signatures
+
+# Post-Quantum: ML-KEM (FIPS 203) - EXPERIMENTAL
 ml-kem = { version = "0.1.0-rc", optional = true }
 
-# Post-Quantum: ML-DSA / Dilithium (FIPS 204)  
+# Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
 ml-dsa = { version = "0.1.0-rc", optional = true }
 
 # Constant-time operations

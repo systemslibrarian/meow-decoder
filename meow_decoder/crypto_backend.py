@@ -28,14 +28,8 @@ try:
 except ImportError:
     pass
 
-# Python backend imports
-from argon2 import low_level
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF, HKDFExpand
-from cryptography.hazmat.primitives.hmac import HMAC
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-import hashlib
+# Note: Python crypto imports removed (see CRIT-03 in CRYPTO_SECURITY_REVIEW.md)
+# The Rust backend is now required for all cryptographic operations.
 
 
 BackendType = Literal["rust"]
@@ -52,202 +46,14 @@ class BackendInfo:
     details: str
 
 
-class PythonCryptoBackend:
-    """
-    Python cryptography backend using 'cryptography' and 'argon2-cffi' libraries.
-    
-    Security Notes:
-    - NOT guaranteed constant-time (Python GC, JIT)
-    - Memory zeroing is best-effort
-    - Still uses audited crypto libraries
-    """
-    
-    NAME = "python"
-
-    def __init__(self):
-        raise RuntimeError(
-            "Python crypto backend is disabled. Rust backend is required."
-        )
-    
-    # Default Argon2id parameters (8x OWASP minimum - ULTRA HARDENED)
-    ARGON2_MEMORY = 524288      # 512 MiB
-    ARGON2_ITERATIONS = 20      # 20 passes
-    ARGON2_PARALLELISM = 4      # 4 threads
-    
-    def get_info(self) -> BackendInfo:
-        return BackendInfo(
-            name="python",
-            version="cryptography + argon2-cffi",
-            constant_time=False,
-            memory_zeroing=False,
-            pq_available=False,
-            details="Python backend using cryptography library. Not constant-time."
-        )
-    
-    def derive_key_argon2id(
-        self,
-        password: bytes,
-        salt: bytes,
-        memory_kib: int = ARGON2_MEMORY,
-        iterations: int = ARGON2_ITERATIONS,
-        parallelism: int = ARGON2_PARALLELISM,
-        output_len: int = 32
-    ) -> bytes:
-        """Derive key using Argon2id."""
-        if len(salt) != 16:
-            raise ValueError(f"Salt must be 16 bytes, got {len(salt)}")
-        
-        return low_level.hash_secret_raw(
-            secret=password,
-            salt=salt,
-            time_cost=iterations,
-            memory_cost=memory_kib,
-            parallelism=parallelism,
-            hash_len=output_len,
-            type=low_level.Type.ID
-        )
-    
-    def derive_key_hkdf(
-        self,
-        ikm: bytes,
-        salt: bytes,
-        info: bytes,
-        output_len: int = 32
-    ) -> bytes:
-        """Derive key using HKDF-SHA256."""
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=output_len,
-            salt=salt if salt else None,
-            info=info
-        )
-        return hkdf.derive(ikm)
-    
-    def hkdf_extract(self, salt: bytes, ikm: bytes) -> bytes:
-        """HKDF extract phase."""
-        # Use HMAC for extract
-        if not salt:
-            salt = b'\x00' * 32
-        h = HMAC(salt, hashes.SHA256())
-        h.update(ikm)
-        return h.finalize()
-    
-    def hkdf_expand(self, prk: bytes, info: bytes, output_len: int = 32) -> bytes:
-        """HKDF expand phase."""
-        hkdf = HKDFExpand(
-            algorithm=hashes.SHA256(),
-            length=output_len,
-            info=info
-        )
-        return hkdf.derive(prk)
-
-    def derive_key_yubikey(
-        self,
-        password: bytes,
-        salt: bytes,
-        slot: str = "9d",
-        pin: Optional[str] = None
-    ) -> bytes:
-        raise RuntimeError(
-            "YubiKey derivation requires the Rust backend built with the yubikey feature."
-        )
-    
-    def aes_gcm_encrypt(
-        self,
-        key: bytes,
-        nonce: bytes,
-        plaintext: bytes,
-        aad: Optional[bytes] = None
-    ) -> bytes:
-        """Encrypt using AES-256-GCM."""
-        if len(key) != 32:
-            raise ValueError(f"Key must be 32 bytes, got {len(key)}")
-        if len(nonce) != 12:
-            raise ValueError(f"Nonce must be 12 bytes, got {len(nonce)}")
-        
-        aesgcm = AESGCM(key)
-        return aesgcm.encrypt(nonce, plaintext, aad)
-    
-    def aes_gcm_decrypt(
-        self,
-        key: bytes,
-        nonce: bytes,
-        ciphertext: bytes,
-        aad: Optional[bytes] = None
-    ) -> bytes:
-        """Decrypt using AES-256-GCM."""
-        if len(key) != 32:
-            raise ValueError(f"Key must be 32 bytes, got {len(key)}")
-        if len(nonce) != 12:
-            raise ValueError(f"Nonce must be 12 bytes, got {len(nonce)}")
-        
-        aesgcm = AESGCM(key)
-        return aesgcm.decrypt(nonce, ciphertext, aad)
-    
-    def hmac_sha256(self, key: bytes, message: bytes) -> bytes:
-        """Compute HMAC-SHA256."""
-        h = HMAC(key, hashes.SHA256())
-        h.update(message)
-        return h.finalize()
-    
-    def hmac_sha256_verify(self, key: bytes, message: bytes, tag: bytes) -> bool:
-        """Verify HMAC-SHA256 (uses constant-time comparison)."""
-        expected = self.hmac_sha256(key, message)
-        return secrets.compare_digest(expected, tag)
-    
-    def sha256(self, data: bytes) -> bytes:
-        """Compute SHA-256 hash."""
-        return hashlib.sha256(data).digest()
-    
-    def constant_time_compare(self, a: bytes, b: bytes) -> bool:
-        """Constant-time byte comparison."""
-        return secrets.compare_digest(a, b)
-    
-    def x25519_generate_keypair(self) -> Tuple[bytes, bytes]:
-        """Generate X25519 keypair. Returns (private_key, public_key)."""
-        private = X25519PrivateKey.generate()
-        public = private.public_key()
-        
-        from cryptography.hazmat.primitives import serialization
-        
-        private_bytes = private.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption()
-        )
-        public_bytes = public.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
-        
-        return private_bytes, public_bytes
-    
-    def x25519_exchange(self, private_key: bytes, public_key: bytes) -> bytes:
-        """Perform X25519 key exchange."""
-        private = X25519PrivateKey.from_private_bytes(private_key)
-        public = X25519PublicKey.from_public_bytes(public_key)
-        return private.exchange(public)
-    
-    def x25519_public_from_private(self, private_key: bytes) -> bytes:
-        """Get public key from private key."""
-        private = X25519PrivateKey.from_private_bytes(private_key)
-        public = private.public_key()
-        
-        from cryptography.hazmat.primitives import serialization
-        
-        return public.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw
-        )
-    
-    def random_bytes(self, length: int) -> bytes:
-        """Generate cryptographically secure random bytes."""
-        return secrets.token_bytes(length)
-    
-    def secure_zero(self, data: bytearray) -> None:
-        """Zero a bytearray (best-effort in Python)."""
-        for i in range(len(data)):
-            data[i] = 0
+# SECURITY NOTE (2026-01-28):
+# PythonCryptoBackend has been removed to eliminate dead code risk.
+# The Rust backend (RustCryptoBackend) is REQUIRED because:
+#   - Constant-time operations (subtle crate) - prevents timing attacks
+#   - Automatic memory zeroing (zeroize crate) - prevents memory forensics
+#   - No Python GC interference - deterministic security properties
+#
+# See CRYPTO_SECURITY_REVIEW.md § CRIT-03 for rationale.
 
 
 class RustCryptoBackend:

@@ -2,6 +2,8 @@
 Post-Quantum Hybrid Cryptography
 Combines X25519 (classical) + ML-KEM-1024 (Kyber) for quantum resistance
 
+⚠️  EXPERIMENTAL: See security_warnings.py for maturity assessment.
+
 Security Model:
 - Hybrid key agreement: X25519 ⊕ ML-KEM-1024
 - Secure even if one primitive breaks
@@ -25,12 +27,16 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives import serialization
 
+from .security_warnings import warn_pq_experimental
+
 
 # Try to import liboqs for post-quantum
 try:
     import oqs
     LIBOQS_AVAILABLE = True
     PQ_ALGORITHM = "Kyber1024"  # ML-KEM-1024 (NIST FIPS 203 - highest security)
+    # Emit warning when PQ crypto is available and will be used
+    warn_pq_experimental()
 except ImportError:
     LIBOQS_AVAILABLE = False
     PQ_ALGORITHM = None

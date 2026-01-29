@@ -2,6 +2,8 @@
 🔏 Post-Quantum Signatures for Meow Decoder
 Implements Dilithium (ML-DSA / FIPS 204) signatures for manifest authentication
 
+⚠️  EXPERIMENTAL: See security_warnings.py for maturity assessment.
+
 Features:
 - Dilithium3 signatures (NIST security level 3)
 - Graceful fallback to Ed25519 if liboqs unavailable
@@ -20,11 +22,15 @@ from dataclasses import dataclass
 from typing import Tuple, Optional, Union
 import struct
 
+from .security_warnings import warn_pq_experimental
+
 # Try to import liboqs for Dilithium
 try:
     import oqs
     HAS_LIBOQS = True
     DILITHIUM_AVAILABLE = "Dilithium3" in oqs.get_enabled_sig_mechanisms()
+    if DILITHIUM_AVAILABLE:
+        warn_pq_experimental()
 except ImportError:
     HAS_LIBOQS = False
     DILITHIUM_AVAILABLE = False

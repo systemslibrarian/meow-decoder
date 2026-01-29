@@ -166,7 +166,29 @@ def decode_gif(
         if manifest.ephemeral_public_key:
             print(f"  ✅ Forward secrecy: Ephemeral key present")
     
-    # Check for duress password BEFORE doing expensive HMAC verification.
+    # SECURITY (CRIT-04): Always run Argon2id BEFORE duress/HMAC checks to prevent timing oracle.
+    # An attacker measuring timing could distinguish duress (fast SHA-256) from real (slow Argon2id).
+    # By running Argon2id first, both paths have identical timing characteristics.
+    # See CRYPTO_SECURITY_REVIEW.md § CRIT-04 for full rationale.
+    if verbose:
+        print("\nDeriving key (timing-safe)...")
+    
+    # Always derive encryption key upfront (slow Argon2id)
+    try:
+        encryption_key = derive_encryption_key_for_manifest(
+            password,
+            manifest.salt,
+            keyfile=keyfile,
+            ephemeral_public_key=manifest.ephemeral_public_key,
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin
+        )
+    except Exception as e:
+        # Key derivation failed - could be wrong keyfile/receiver key
+        raise ValueError(f"Key derivation failed: {e}")
+    
+    # Check for duress password AFTER Argon2id to prevent timing oracle.
     # Only active when duress_config.enabled is True.
     # Uses a fast authenticated duress tag bound to the manifest core.
     if duress_config.enabled and manifest.duress_tag is not None:
@@ -246,16 +268,7 @@ def decode_gif(
         if verbose:
             print("\n🔒 Frame MAC verification enabled (DoS protection)")
 
-        # Derive frame MAC master key from encryption key material (binds keyfile + FS)
-        encryption_key = derive_encryption_key_for_manifest(
-            password,
-            manifest.salt,
-            keyfile=keyfile,
-            ephemeral_public_key=manifest.ephemeral_public_key,
-            receiver_private_key=receiver_private_key,
-            yubikey_slot=yubikey_slot,
-            yubikey_pin=yubikey_pin
-        )
+        # Use already-derived encryption key (from timing-safe derivation above)
         # Use a mutable buffer for best-effort zeroing after use
         encryption_key_buf = bytearray(encryption_key)
         frame_master_key = frame_mac.derive_frame_master_key(bytes(encryption_key_buf), manifest.salt)

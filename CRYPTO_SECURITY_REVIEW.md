@@ -53,13 +53,15 @@ Meow Decoder implements a well-designed cryptographic protocol using industry-st
 
 ### 1.3 Critical Findings
 
-| ID | Severity | Finding | Location |
-|----|----------|---------|----------|
-| **CRIT-01** | HIGH | Post-quantum libraries at v0.1.0-rc (release candidate) | `Cargo.toml:47-48` |
-| **CRIT-02** | HIGH | 8-byte truncated frame MAC insufficient for long-term authentication | `frame_mac.py:131-156` |
-| **CRIT-03** | MEDIUM | Python backend code still present (dead code attack surface) | `crypto_backend.py:175-567` |
-| **CRIT-04** | MEDIUM | Schrödinger mode HMAC uses SHA-256 fast hash for password comparison | `schrodinger_decode.py:134` |
-| **CRIT-05** | MEDIUM | `liboqs-python` commented out in requirements.txt | `requirements.txt:24` |
+| ID | Severity | Finding | Location | Status |
+|----|----------|---------|----------|--------|
+| **CRIT-01** | HIGH | Post-quantum libraries at v0.1.0-rc (release candidate) | `Cargo.toml:47-48` | ✅ CI enforces feature-gate |
+| **CRIT-02** | HIGH | 8-byte truncated frame MAC insufficient for long-term authentication | `frame_mac.py:131-156` | ✅ Documented as DoS-only |
+| **CRIT-03** | MEDIUM | Python backend code still present (dead code attack surface) | `crypto_backend.py:175-567` | ✅ Removed |
+| **CRIT-04** | MEDIUM | Schrödinger mode HMAC uses SHA-256 fast hash for password comparison | `schrodinger_decode.py:134` | ✅ Argon2id-first |
+| **CRIT-05** | MEDIUM | `liboqs-python` commented out in requirements.txt | `requirements.txt:24` | ✅ By design (optional) |
+
+**Resolution Summary**: All critical findings addressed. See `docs/SECURITY_CHANGES.md` for details.
 
 ### 1.4 Summary Statistics
 
