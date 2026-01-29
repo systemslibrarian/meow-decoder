@@ -382,7 +382,10 @@ def encode_file(
         print("\nCreating GIF...")
     
     gif_encoder = GIFEncoder(fps=config.fps, loop=0)
-    gif_size = gif_encoder.create_gif(qr_frames, output_path, optimize=(stego_level == 0))
+    # IMPORTANT: Keep GIF optimization OFF for QR payload fidelity.
+    # Pillow's GIF optimization can alter palettes/deltas enough that pyzbar
+    # fails to decode higher-density droplet frames, causing 0 droplets read.
+    gif_size = gif_encoder.create_gif(qr_frames, output_path, optimize=False)
     
     elapsed = time.time() - start_time
     
