@@ -239,21 +239,34 @@ def schrodinger_encode_data(
     hkdf_hmac_b = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt_b, info=b"schrodinger_hmac_key_v1")
     hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
 
-    # Pack all necessary decryption info into metadata
-    # orig_len(8) + comp_len(8) + cipher_len(8) + salt_enc(16) + nonce_enc(12) + sha(32) = 84 bytes
-    metadata_a_plain = struct.pack('>QQQ', len(real_data), len(comp_a), len(cipher_a)) + salt_enc_a + nonce_enc_a + sha_a
-    metadata_b_plain = struct.pack('>QQQ', len(decoy_data), len(comp_b), len(cipher_b)) + salt_enc_b + nonce_enc_b + sha_b
+    # Pack all necessary decryption info into metadata.
+    # Base plaintext layout:
+    #   orig_len(8) + comp_len(8) + cipher_len(8) + salt_enc(16) + nonce_enc(12) + sha(32) = 84 bytes
+    # We pad plaintext to 88 bytes so that AES-GCM output is fixed-size 104 bytes (88 + 16 tag).
+    metadata_a_plain = (
+        struct.pack('>QQQ', len(real_data), len(comp_a), len(cipher_a))
+        + salt_enc_a
+        + nonce_enc_a
+        + sha_a
+        + b'\x00' * 4
+    )
+    metadata_b_plain = (
+        struct.pack('>QQQ', len(decoy_data), len(comp_b), len(cipher_b))
+        + salt_enc_b
+        + nonce_enc_b
+        + sha_b
+        + b'\x00' * 4
+    )
     
     aesgcm_a = AESGCM(enc_key_a)
     aesgcm_b = AESGCM(enc_key_b)
     
-    # Encrypt metadata. AES-GCM adds a 16-byte tag. 84 + 16 = 100 bytes.
+    # Encrypt metadata. AES-GCM adds a 16-byte tag. 88 + 16 = 104 bytes.
     metadata_a_enc = aesgcm_a.encrypt(nonce_a, metadata_a_plain, None)
     metadata_b_enc = aesgcm_b.encrypt(nonce_b, metadata_b_plain, None)
-    
-    # Pad to a fixed size (104 bytes) to prevent metadata leakage
-    metadata_a_enc = (metadata_a_enc + b'\x00' * 104)[:104]
-    metadata_b_enc = (metadata_b_enc + b'\x00' * 104)[:104]
+
+    if len(metadata_a_enc) != 104 or len(metadata_b_enc) != 104:
+        raise RuntimeError("Schrödinger metadata encryption produced unexpected length")
     
     # --- Task A: Authentication Coverage ---
     # Create a temporary manifest to pack the core for HMAC calculation

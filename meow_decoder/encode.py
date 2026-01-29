@@ -73,6 +73,11 @@ def encode_file(
     """
     if config is None:
         config = EncodingConfig()
+
+    # If both passwords are provided, reject immediately. Do this before any
+    # other duress gating so callers get the most relevant error.
+    if duress_password and duress_password == password:
+        raise ValueError("Duress password cannot be the same as encryption password")
     
     # Duress mode requires forward secrecy (to avoid manifest size ambiguity)
     if duress_password:
@@ -125,15 +130,18 @@ def encode_file(
     if verbose:
         print("Encrypting data with length padding (metadata protection)...")
     
-    comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
-        raw_data,
-        password,
-        keyfile,
-        receiver_public_key,
-        use_length_padding=True,
-        yubikey_slot=yubikey_slot if yubikey else None,
-        yubikey_pin=yubikey_pin if yubikey else None
-    )
+    encrypt_kwargs = {
+        "raw": raw_data,
+        "password": password,
+        "keyfile": keyfile,
+        "receiver_public_key": receiver_public_key,
+        "use_length_padding": True,
+    }
+    if yubikey:
+        encrypt_kwargs["yubikey_slot"] = yubikey_slot
+        encrypt_kwargs["yubikey_pin"] = yubikey_pin
+
+    comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(**encrypt_kwargs)
     
     if verbose:
         print(f"  Compressed: {len(comp):,} bytes ({len(comp)/len(raw_data)*100:.1f}%)")
@@ -156,8 +164,6 @@ def encode_file(
     # Compute duress tag if duress password provided
     duress_tag = None
     if duress_password:
-        if duress_password == password:
-            raise ValueError("Duress password cannot be the same as encryption password")
         # Duress tag is computed after manifest core is built (fast, tamper-evident)
         duress_tag = None
         if verbose:
@@ -698,9 +704,20 @@ Nothing to see here. 😶‍🌫️
         sys.exit(1)
     
     # Get password
-    if args.password:
+    # Treat an empty string passed via --password as "provided" so we don't
+    # fall back to interactive prompting in non-TTY environments (e.g. CI).
+    if args.password is not None:
         password = args.password
     else:
+        # In CI/pytest or other non-interactive contexts, getpass() will fail
+        # (no /dev/tty, stdin capture). Fail closed instead of prompting.
+        if sys.stdin is None or not sys.stdin.isatty():
+            print(
+                "Error: Password must be provided via --password in non-interactive mode",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
         password = getpass("Enter encryption password: ")
         password_confirm = getpass("Confirm password: ")
         

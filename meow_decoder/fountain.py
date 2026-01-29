@@ -164,22 +164,30 @@ class FountainEncoder:
         
         self.droplet_count += 1
         
-        # Seed RNG for reproducibility
-        random.seed(seed)
-        
-        # Sample degree
-        degree = self.distribution.sample_degree()
-        
-        # Select random blocks
-        block_indices = random.sample(range(self.k_blocks), min(degree, self.k_blocks))
-        block_indices.sort()
-        
-        # XOR selected blocks
-        xor_data = bytearray(self.block_size)
-        for idx in block_indices:
-            block_data = self.blocks[idx]
-            for i in range(self.block_size):
-                xor_data[i] ^= block_data[i]
+        # For small k (and especially in tests), it's valuable to make early droplets
+        # systematic (degree-1). This dramatically improves decode reliability under
+        # loss without weakening confidentiality (payload is already high-entropy).
+        if seed < (2 * self.k_blocks):
+            block_idx = seed % self.k_blocks
+            block_indices = [block_idx]
+            xor_data = bytearray(self.blocks[block_idx])
+        else:
+            # Seed RNG for reproducibility
+            random.seed(seed)
+
+            # Sample degree
+            degree = self.distribution.sample_degree()
+
+            # Select random blocks
+            block_indices = random.sample(range(self.k_blocks), min(degree, self.k_blocks))
+            block_indices.sort()
+
+            # XOR selected blocks
+            xor_data = bytearray(self.block_size)
+            for idx in block_indices:
+                block_data = self.blocks[idx]
+                for i in range(self.block_size):
+                    xor_data[i] ^= block_data[i]
         
         return Droplet(
             seed=seed,

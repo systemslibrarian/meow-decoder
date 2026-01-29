@@ -49,7 +49,14 @@ def test_encode_file_covers_pq_and_fs_branches(monkeypatch, tmp_path: Path, caps
     monkeypatch.setattr("meow_decoder.encode.GIFEncoder", DummyGIFEncoder)
 
     # Stub encrypt_file_bytes to deterministically control FS/PQ branches.
-    def fake_encrypt_file_bytes(raw, password, keyfile=None, receiver_public_key=None, use_length_padding=True):
+    def fake_encrypt_file_bytes(
+        raw,
+        password,
+        keyfile=None,
+        receiver_public_key=None,
+        use_length_padding=True,
+        **kwargs,
+    ):
         comp = b"C" * 16
         sha = b"S" * 32
         salt = b"A" * 16
@@ -125,7 +132,19 @@ def test_decode_main_loads_receiver_privkey_and_keyfile(monkeypatch, tmp_path: P
 
     called = {}
 
-    def fake_decode_gif(input_path, output_path, password, config=None, keyfile=None, receiver_private_key=None, verbose=False):
+    def fake_decode_gif(
+        input_path,
+        output_path,
+        password,
+        config=None,
+        duress_config=None,
+        keyfile=None,
+        receiver_private_key=None,
+        yubikey_slot=None,
+        yubikey_pin=None,
+        verbose=False,
+        **kwargs,
+    ):
         called["password"] = password
         called["keyfile_len"] = len(keyfile) if keyfile else None
         called["receiver_private_key_len"] = len(receiver_private_key) if receiver_private_key else None

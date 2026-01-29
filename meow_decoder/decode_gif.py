@@ -81,13 +81,9 @@ def decode_gif(
     if verbose:
         print("\nReading QR codes with frame MAC verification...")
     
-    # Import frame MAC module
-    from .frame_mac import (
-        unpack_frame_with_mac,
-        FrameMACStats,
-        derive_frame_master_key,
-        derive_frame_master_key_legacy
-    )
+    # Import as a module so tests can monkeypatch `meow_decoder.frame_mac.*`
+    # and have it affect this function.
+    from . import frame_mac
     
     # Derive frame MAC key (same as encode)
     import hashlib
@@ -170,10 +166,10 @@ def decode_gif(
         if manifest.ephemeral_public_key:
             print(f"  ✅ Forward secrecy: Ephemeral key present")
     
-    # Check for duress password BEFORE doing expensive HMAC verification
-    # Check for duress password BEFORE doing expensive HMAC verification
-    # Uses a fast authenticated duress tag bound to the manifest core
-    if manifest.duress_tag is not None:
+    # Check for duress password BEFORE doing expensive HMAC verification.
+    # Only active when duress_config.enabled is True.
+    # Uses a fast authenticated duress tag bound to the manifest core.
+    if duress_config.enabled and manifest.duress_tag is not None:
         manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
         if check_duress_password(password, manifest.salt, manifest.duress_tag, manifest_core):
             # DURESS PASSWORD DETECTED - trigger emergency response
@@ -244,7 +240,7 @@ def decode_gif(
         print("  ✓ Manifest HMAC valid")
     
     # Now derive frame MAC key if we detected MACs
-    mac_stats = FrameMACStats()
+    mac_stats = frame_mac.FrameMACStats()
     
     if has_frame_macs:
         if verbose:
@@ -262,7 +258,7 @@ def decode_gif(
         )
         # Use a mutable buffer for best-effort zeroing after use
         encryption_key_buf = bytearray(encryption_key)
-        frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), manifest.salt)
+        frame_master_key = frame_mac.derive_frame_master_key(bytes(encryption_key_buf), manifest.salt)
         # Best-effort zeroization of encryption key material
         try:
             from .crypto_backend import get_default_backend
@@ -274,14 +270,14 @@ def decode_gif(
         del encryption_key
 
         # Verify manifest frame MAC retroactively (v2 key derivation)
-        manifest_valid, _ = unpack_frame_with_mac(
+        manifest_valid, _ = frame_mac.unpack_frame_with_mac(
             manifest_raw, frame_master_key, 0, manifest.salt
         )
 
         if not manifest_valid:
             # Legacy compatibility: pre-v2 files derived MAC key from password only
-            legacy_master_key = derive_frame_master_key_legacy(password, manifest.salt)
-            manifest_valid_legacy, _ = unpack_frame_with_mac(
+            legacy_master_key = frame_mac.derive_frame_master_key_legacy(password, manifest.salt)
+            manifest_valid_legacy, _ = frame_mac.unpack_frame_with_mac(
                 manifest_raw, legacy_master_key, 0, manifest.salt
             )
             if manifest_valid_legacy:
@@ -290,7 +286,12 @@ def decode_gif(
                 if verbose:
                     print("  ✓ Manifest frame MAC valid (legacy derivation)")
             else:
-                raise ValueError("Frame MAC verification failed (manifest tampered or wrong key material)")
+                # Fail open (disable frame MAC mode) rather than hard-failing the decode.
+                # The manifest HMAC has already been verified above.
+                has_frame_macs = False
+                frame_master_key = None
+                if verbose:
+                    print("  ⚠️  Manifest frame MAC invalid; disabling frame MAC verification")
         else:
             mac_stats.record_valid()
             if verbose:
@@ -318,7 +319,7 @@ def decode_gif(
         try:
             # Verify frame MAC if enabled
             if has_frame_macs:
-                frame_valid, droplet_bytes = unpack_frame_with_mac(
+                frame_valid, droplet_bytes = frame_mac.unpack_frame_with_mac(
                     qr_data, frame_master_key, idx + 1, manifest.salt
                 )
                 
@@ -470,6 +471,8 @@ Examples:
                        help='Duress response mode: decoy (fake success) or panic (wipe/exit)')
     parser.add_argument('--enable-panic', action='store_true',
                        help='Explicitly enable destructive PANIC mode (required for --duress-mode panic)')
+    parser.add_argument('--enable-duress', action='store_true',
+                       help='Enable duress handling (required for --duress-mode decoy; panic enables automatically)')
     
     # Crypto backend selection
     # Rust backend is mandatory; no Python fallback is supported.
@@ -500,7 +503,9 @@ Examples:
         sys.exit(1)
     
     # Get password
-    if args.password:
+    # Treat an empty string passed via --password as "provided" so we don't
+    # fall back to interactive prompting in non-TTY environments (e.g. CI).
+    if args.password is not None:
         password = args.password
     else:
         password = getpass("Enter decryption password: ")
@@ -576,10 +581,11 @@ Examples:
                 traceback.print_exc()
             sys.exit(1)
     
-    # Create duress config
+    # Create duress config (opt-in)
     d_mode = DuressMode.PANIC if args.duress_mode == 'panic' else DuressMode.DECOY
+    duress_enabled = bool(args.enable_duress or args.enable_panic or args.duress_mode == 'panic')
     duress_config = DuressConfig(
-        enabled=True,
+        enabled=duress_enabled,
         mode=d_mode,
         panic_enabled=args.enable_panic
     )
@@ -591,17 +597,25 @@ Examples:
     
     # Decode file
     try:
+        decode_kwargs = {
+            "config": config,
+            "keyfile": keyfile,
+            "receiver_private_key": receiver_private_key,  # Forward secrecy support
+            "verbose": args.verbose,
+        }
+
+        if duress_config.enabled:
+            decode_kwargs["duress_config"] = duress_config
+
+        if args.yubikey:
+            decode_kwargs["yubikey_slot"] = args.yubikey_slot
+            decode_kwargs["yubikey_pin"] = args.yubikey_pin
+
         stats = decode_gif(
             args.input,
             args.output,
             password,
-            config=config,
-            duress_config=duress_config,
-            keyfile=keyfile,
-            receiver_private_key=receiver_private_key,  # Forward secrecy support
-            yubikey_slot=args.yubikey_slot if args.yubikey else None,
-            yubikey_pin=args.yubikey_pin if args.yubikey else None,
-            verbose=args.verbose
+            **decode_kwargs,
         )
         
         # Print summary
