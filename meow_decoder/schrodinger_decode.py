@@ -63,19 +63,10 @@ def schrodinger_decode_data(
 
             # Decrypt metadata
             aesgcm_a = AESGCM(enc_key_a)
-            # The encrypted metadata is padded to 104 bytes, but AES-GCM includes a 16-byte tag,
-            # so the actual ciphertext is 100 bytes. We need to handle this.
-            # However, the encryptor pads with nulls *after* encryption.
-            # We need to find the actual length of the encrypted payload.
-            # A simple approach is to try decrypting and catch the error if it's too long,
-            # but a better way is to find where the padding starts.
-            # For now, let's assume the padding doesn't interfere if we pass the whole 104 bytes.
-            # The tag is appended, so the ciphertext is len(metadata_a) - 16.
-            # Let's find the end of the actual ciphertext before padding.
-            # The encryptor pads to 104, and the encrypted data is 100 bytes (84 plain + 16 tag).
-            # So the last 4 bytes are padding.
-            metadata_a_enc_unpadded = manifest.metadata_a[:100]
-            metadata_a_plain = aesgcm_a.decrypt(manifest.nonce_a, metadata_a_enc_unpadded, None)
+            # The encoder pads the PLAINTEXT metadata to 88 bytes, then AES-GCM encrypts it.
+            # AES-GCM returns ciphertext+tag with a fixed length of 104 bytes (88 + 16).
+            # Do not truncate here, or tag verification will fail.
+            metadata_a_plain = aesgcm_a.decrypt(manifest.nonce_a, manifest.metadata_a, None)
 
 
             # Unpack metadata
@@ -126,8 +117,7 @@ def schrodinger_decode_data(
 
             # Decrypt metadata
             aesgcm_b = AESGCM(enc_key_b)
-            metadata_b_enc_unpadded = manifest.metadata_b[:100]
-            metadata_b_plain = aesgcm_b.decrypt(manifest.nonce_b, metadata_b_enc_unpadded, None)
+            metadata_b_plain = aesgcm_b.decrypt(manifest.nonce_b, manifest.metadata_b, None)
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack('>QQQ', metadata_b_plain[:24])
