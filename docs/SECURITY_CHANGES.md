@@ -132,16 +132,45 @@ feature is enabled. This is documented in requirements.txt:
 
 ---
 
-## Phase 2: Verification & Testing (Planned)
+## Phase 2: Verification & Testing ✅ COMPLETED
 
-The following improvements are recommended for Phase 2:
+All Phase 2 security tests have been implemented in `tests/test_phase2_security.py`:
 
-| ID | Task | Priority |
-|----|------|----------|
-| P2-01 | Add timing oracle unit tests for duress path | HIGH |
-| P2-02 | Add nonce uniqueness assertion tests | MEDIUM |
-| P2-03 | Add frame MAC birthday bound adversarial test | LOW |
-| P2-04 | Document key compromise impersonation model | LOW |
+| ID | Task | Priority | Status |
+|----|------|----------|--------|
+| P2-01 | Timing oracle unit tests for duress path | HIGH | ✅ Implemented |
+| P2-02 | Nonce uniqueness assertion tests | MEDIUM | ✅ Implemented |
+| P2-03 | Frame MAC birthday bound adversarial test | LOW | ✅ Implemented |
+| P2-04 | Document key compromise impersonation model | LOW | Deferred (formal verification) |
+
+### New Test Classes Added
+
+**TestNonceUniqueness** (P2-02):
+- `test_same_key_nonce_raises_on_reuse` - Verifies nonce reuse is detected
+- `test_different_nonces_allowed` - Different nonces work correctly
+- `test_different_keys_same_nonce_allowed` - Different key contexts work
+- `test_cache_eviction_does_not_cause_false_positive` - Documents cache behavior
+
+**TestTimingOracleResistance** (P2-01):
+- `test_constant_time_compare_uses_secrets_module` - Verifies proper primitive usage
+- `test_hmac_verification_timing_consistency` - Statistical timing analysis
+- `test_frame_mac_verification_no_early_exit` - No early exit on mismatch
+
+**TestFrameMACBirthdayBound** (P2-03 / GAP-07):
+- `test_mac_uniqueness_within_session` - 1000 MACs all unique
+- `test_mac_uniqueness_across_sessions` - Cross-session uniqueness
+- `test_per_frame_key_derivation_uniqueness` - Key derivation uniqueness
+- `test_birthday_bound_adversarial` - 4096 random MAC collision test
+- `test_mac_size_is_documented` - Verify 8-byte MAC size
+
+**TestDuressTimingProtection**:
+- `test_duress_check_imports_exist` - API availability
+- `test_duress_tag_uses_constant_time_compare` - Constant-time verification
+
+**TestKeyDerivationSecurity**:
+- `test_different_salts_produce_different_keys` - Salt uniqueness
+- `test_key_derivation_deterministic` - Determinism verification
+- `test_minimum_password_length_enforced` - Password policy enforcement
 
 ---
 
@@ -159,13 +188,15 @@ All changes maintain these security invariants:
 
 ## Testing Verification
 
-All existing security tests pass after these changes:
+Run all security tests:
 ```bash
-pytest tests/test_security.py tests/test_frame_mac.py tests/test_adversarial.py -v
+MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py tests/test_phase2_security.py -v
 ```
 
-New tests added:
-- None (documentation-only changes for CRIT-02)
+Phase 2 tests specifically:
+```bash
+MEOW_TEST_MODE=1 pytest tests/test_phase2_security.py -v
+```
 
 ---
 
@@ -174,8 +205,10 @@ New tests added:
 | Version | Date | Changes |
 |---------|------|---------|
 | 1.0 | 2026-01-28 | Initial Phase 1 completion |
+| 1.1 | 2026-01-29 | Phase 2 test implementation complete |
 
 ---
 
 **Reviewed by**: Security Review Process  
-**Next Review**: Phase 2 completion
+**Next Review**: Phase 3 (Schrödinger timing, formal verification)
+
