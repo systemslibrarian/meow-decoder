@@ -570,6 +570,10 @@ Examples:
     parser.add_argument('--catnip', choices=['tuna', 'salmon', 'chicken', 'beef', 'turkey', 'fish'],
                        help='Catnip flavor for HKDF salt (pure meme, functionally harmless)')
     
+    # Retry mode
+    parser.add_argument('--nine-lives', action='store_true',
+                       help='Enable Nine Lives retry mode: automatic recovery with up to 9 attempts on error')
+    
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
@@ -586,9 +590,18 @@ Examples:
     parser.add_argument('--safety-checklist', action='store_true',
                        help='Show operational security checklist and exit')
     
+    parser.add_argument('--about', '--meow-about', action='store_true',
+                       help='Show version and build information')
+
     args = parser.parse_args()
     
     # Rust backend is mandatory (no legacy Python fallback).
+    
+    # Handle about flag (exit after display)
+    if args.about:
+        from .cat_utils import meow_about
+        print(meow_about())
+        sys.exit(0)
     
     # Handle hardware status check (exit after display)
     if args.hardware_status:
@@ -668,6 +681,12 @@ Nothing to see here.
         purr = enable_purr_mode(enabled=True)
         # Purr mode implies verbose
         args.verbose = True
+
+    # Enable verbose output for Nine Lives retry mode (so user sees retry status)
+    if args.nine_lives:
+        args.verbose = True
+        print("🐱 Nine Lives retry mode enabled (max 9 attempts on error)")
+        print("   Using all nine lives to ensure encoding success!\n")
 
     # For normal operation, require input/output.
     if args.input is None or args.output is None:
@@ -925,29 +944,68 @@ Nothing to see here. 😶‍🌫️
     
     # Encode file
     try:
-        stats = encode_file(
-            args.input,
-            args.output,
-            password,
-            config=config,
-            keyfile=keyfile,
-            forward_secrecy=args.forward_secrecy,
-            receiver_public_key=receiver_public_key,  # Forward secrecy support
-            yubikey=args.yubikey,
-            yubikey_slot=args.yubikey_slot,
-            yubikey_pin=args.yubikey_pin,
-            use_pq=args.pq,
-            stego_level=args.stego_level,
-            carrier_images=args.carrier_images,
-            stego_green=args.stego_green,
-            logo_eyes=args.logo_eyes,
-            logo_eyes_hidden=args.logo_eyes_hidden,
-            brand_text=args.brand_text,
-            duress_password=duress_password,
-            hardware_key=hardware_key,
-            hardware_salt=hardware_salt,
-            verbose=args.verbose
-        )
+        # 🐱 Nine Lives retry mode integration
+        if args.nine_lives:
+            from .cat_utils import NineLivesRetry
+            retry = NineLivesRetry(max_lives=9, verbose=True)
+            stats = None
+            for life in retry.attempt():
+                try:
+                    stats = encode_file(
+                        args.input,
+                        args.output,
+                        password,
+                        config=config,
+                        keyfile=keyfile,
+                        forward_secrecy=args.forward_secrecy,
+                        receiver_public_key=receiver_public_key,  # Forward secrecy support
+                        yubikey=args.yubikey,
+                        yubikey_slot=args.yubikey_slot,
+                        yubikey_pin=args.yubikey_pin,
+                        use_pq=args.pq,
+                        stego_level=args.stego_level,
+                        carrier_images=args.carrier_images,
+                        stego_green=args.stego_green,
+                        logo_eyes=args.logo_eyes,
+                        logo_eyes_hidden=args.logo_eyes_hidden,
+                        brand_text=args.brand_text,
+                        duress_password=duress_password,
+                        hardware_key=hardware_key,
+                        hardware_salt=hardware_salt,
+                        verbose=args.verbose
+                    )
+                    retry.success(stats)
+                    break
+                except Exception as e:
+                    retry.fail(str(e))
+            
+            if not retry.succeeded:
+                sys.exit(1)
+        else:
+            # Normal encoding without retry mode
+            stats = encode_file(
+                args.input,
+                args.output,
+                password,
+                config=config,
+                keyfile=keyfile,
+                forward_secrecy=args.forward_secrecy,
+                receiver_public_key=receiver_public_key,  # Forward secrecy support
+                yubikey=args.yubikey,
+                yubikey_slot=args.yubikey_slot,
+                yubikey_pin=args.yubikey_pin,
+                use_pq=args.pq,
+                stego_level=args.stego_level,
+                carrier_images=args.carrier_images,
+                stego_green=args.stego_green,
+                logo_eyes=args.logo_eyes,
+                logo_eyes_hidden=args.logo_eyes_hidden,
+                brand_text=args.brand_text,
+                duress_password=duress_password,
+                hardware_key=hardware_key,
+                hardware_salt=hardware_salt,
+                verbose=args.verbose
+            )
         
         # Print summary
         if not args.verbose:

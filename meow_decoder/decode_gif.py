@@ -551,9 +551,9 @@ Examples:
     )
     
     # Required arguments
-    parser.add_argument('-i', '--input', type=Path, required=True,
+    parser.add_argument('-i', '--input', type=Path, required=False,
                        help='Input GIF file')
-    parser.add_argument('-o', '--output', type=Path, required=True,
+    parser.add_argument('-o', '--output', type=Path, required=False,
                        help='Output file')
     
     # Optional arguments
@@ -617,10 +617,22 @@ Examples:
                        help='Ultra-verbose cat-themed logging with meows, facts, and cat verbs 🐱')
     parser.add_argument('--force', action='store_true',
                        help='Overwrite output file if exists')
+    parser.add_argument('--nine-lives', action='store_true',
+                           help='Enable Nine Lives retry mode: automatic recovery with up to 9 attempts on error')
     
+    
+    parser.add_argument('--about', '--meow-about', action='store_true',
+                       help='Show version and build information')
+
     args = parser.parse_args()
     
     # Rust backend is mandatory (no legacy Python fallback).
+    
+    # Handle about flag (exit after display)
+    if args.about:
+        from .cat_utils import meow_about
+        print(meow_about())
+        sys.exit(0)
     
     # Handle hardware status check (exit after display)
     if args.hardware_status:
@@ -636,6 +648,17 @@ Examples:
         purr = enable_purr_mode(enabled=True)
         # Purr mode implies verbose
         args.verbose = True
+    
+        # Enable verbose output for Nine Lives retry mode
+        if args.nine_lives:
+            args.verbose = True
+            print("🐱 Nine Lives retry mode enabled (max 9 attempts on error)")
+            print("   Using all nine lives to ensure decoding success!\n")
+    
+    # For normal operation, require input/output
+    if not args.about and not args.hardware_status:
+        if args.input is None or args.output is None:
+            parser.error("the following arguments are required: -i/--input, -o/--output")
     
     # Validate input file
     if not args.input.exists():
@@ -807,12 +830,34 @@ Examples:
             elif hardware_mode == "auto":
                 decode_kwargs["hardware_auto"] = True
 
-        stats = decode_gif(
-            args.input,
-            args.output,
-            password,
-            **decode_kwargs,
-        )
+        # 🐱 Nine Lives retry mode integration
+        if args.nine_lives:
+            from .cat_utils import NineLivesRetry
+            retry = NineLivesRetry(max_lives=9, verbose=True)
+            stats = None
+            for life in retry.attempt():
+                try:
+                    stats = decode_gif(
+                        args.input,
+                        args.output,
+                        password,
+                        **decode_kwargs,
+                    )
+                    retry.success(stats)
+                    break
+                except Exception as e:
+                    retry.fail(str(e))
+            
+            if not retry.succeeded:
+                sys.exit(1)
+        else:
+            # Normal decoding without retry mode
+            stats = decode_gif(
+                args.input,
+                args.output,
+                password,
+                **decode_kwargs,
+            )
         
         # Print summary
         if not args.verbose:
