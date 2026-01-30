@@ -103,9 +103,14 @@ rand_core = { version = "0.6", optional = true }
 # ============================================
 
 # PKCS#11 / HSM support (Cryptoki binding)
+# Note: cryptoki transitively depends on paste (unmaintained macro crate)
+# This is accepted as paste is compile-time only with no runtime security impact
 cryptoki = { version = "0.6", optional = true }
 
 # YubiKey PIV support
+# Note: yubikey transitively depends on rsa 0.9.10 (RUSTSEC-2023-0071 Marvin Attack)
+# This is accepted as we only use ECDH operations, not RSA encryption/decryption
+# The vulnerable RSA code paths are not exercised in our use case
 yubikey = { version = "0.8", optional = true, features = ["untested"] }
 
 # TPM 2.0 support (tss-esapi)

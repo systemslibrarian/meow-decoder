@@ -76,10 +76,17 @@ class TestTPMMocks:
         manager.status.tpm_available = True
         
         # Mock the TPM operations
-        with patch.object(manager, '_run_command') as mock_run:
-            # Mock successful TPM operations
-            mock_run.return_value = (True, "mock_hmac_output")
-            
+        # tpm2_createprimary returns success message, tpm2_getrandom returns hex bytes
+        mock_hex_random = secrets.token_bytes(32).hex()
+        
+        def mock_run_command(args):
+            if 'tpm2_createprimary' in args:
+                return (True, "")  # Success, no output needed
+            elif 'tpm2_getrandom' in args:
+                return (True, mock_hex_random)  # Valid hex string
+            return (False, "unknown command")
+        
+        with patch.object(manager, '_run_command', side_effect=mock_run_command):
             with patch('tempfile.mkstemp') as mock_mkstemp:
                 mock_mkstemp.return_value = (0, '/tmp/mock_ctx')
                 
@@ -107,12 +114,17 @@ class TestTPMMocks:
         password = "test_password"
         salt = secrets.token_bytes(16)
         
-        # Mock consistent HMAC output
-        mock_hmac = secrets.token_bytes(32).hex()
+        # Mock consistent HMAC output (must be same for determinism)
+        mock_hex_random = secrets.token_bytes(32).hex()
         
-        with patch.object(manager, '_run_command') as mock_run:
-            mock_run.return_value = (True, mock_hmac)
-            
+        def mock_run_command(args):
+            if 'tpm2_createprimary' in args:
+                return (True, "")  # Success
+            elif 'tpm2_getrandom' in args:
+                return (True, mock_hex_random)  # Same hex each time
+            return (False, "unknown command")
+        
+        with patch.object(manager, '_run_command', side_effect=mock_run_command):
             with patch('tempfile.mkstemp', return_value=(0, '/tmp/mock')):
                 with patch('os.close'), patch('pathlib.Path.unlink'):
                     try:

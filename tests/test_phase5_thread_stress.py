@@ -642,7 +642,7 @@ class TestNonceUniqueness:
         all_bytes = bytearray()
         
         for _ in range(100):
-            _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"data", "pass!")
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"data", "password!")
             all_bytes.extend(nonce)
         
         # Calculate entropy
@@ -664,7 +664,7 @@ class TestNonceUniqueness:
         nonces = []
         
         for _ in range(50):
-            _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"data", "pass!")
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"data", "password!")
             nonces.append(nonce)
         
         # Check first bytes aren't all the same
@@ -682,7 +682,7 @@ class TestNonceUniqueness:
         salts = []
         
         for _ in range(100):
-            _, _, salt, _, _, _, _ = encrypt_file_bytes(b"data", "pass!")
+            _, _, salt, _, _, _, _ = encrypt_file_bytes(b"data", "password!")
             salts.append(salt.hex())
         
         assert len(set(salts)) == 100, "Duplicate salts found"
@@ -694,7 +694,7 @@ class TestNonceUniqueness:
         combinations = set()
         
         for _ in range(100):
-            _, _, salt, nonce, _, _, _ = encrypt_file_bytes(b"data", "pass!")
+            _, _, salt, nonce, _, _, _ = encrypt_file_bytes(b"data", "password!")
             combo = salt.hex() + nonce.hex()
             
             assert combo not in combinations, "Duplicate salt+nonce combination"

@@ -219,7 +219,7 @@ class TestFrameMACTiming:
         salt = secrets.token_bytes(16)
         frame_data = b"Test frame data for MAC verification"
         
-        valid_frame = pack_frame_with_mac(frame_data, master_key, frame_idx=0, salt=salt)
+        valid_frame = pack_frame_with_mac(frame_data, master_key, frame_index=0, salt=salt)
         
         # Create invalid frames
         invalid_mac_first = bytearray(valid_frame)
