@@ -1,50 +1,70 @@
-"""Deprecated: replaced by test_crypto_backend_rust.py (Rust-only)."""
+#!/usr/bin/env python3
+"""
+🐱 Consolidated Crypto Backend Tests
+
+Tests for meow_decoder/crypto_backend.py
+All crypto backend tests consolidated into single file for coverage.
+
+Covers:
+- RustCryptoBackend class
+- CryptoBackend wrapper
+- BackendInfo dataclass
+- Key derivation (Argon2id, HKDF)
+- Symmetric encryption (AES-GCM)
+- Authentication (HMAC-SHA256)
+- Key exchange (X25519)
+- Hash functions (SHA-256)
+- Secure memory operations
+"""
 
 import pytest
-
-pytest.skip(
-    "Deprecated: replaced by test_crypto_backend_rust.py.",
-    allow_module_level=True,
-)
-
 import secrets
+import os
 from typing import Dict, Any
+
+# Set test mode for faster Argon2id
+os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 from meow_decoder.crypto_backend import (
     RustCryptoBackend,
+    CryptoBackend,
+    BackendInfo,
+    get_default_backend,
+    secure_zero_memory,
+    set_default_backend,
     is_rust_available,
     get_available_backends,
 )
 
 
 # =============================================================================
-# FIXED TEST VECTORS (Deterministic)
+# Test Vectors for Deterministic Testing
 # =============================================================================
 
 TEST_VECTORS: Dict[str, Dict[str, Any]] = {
     "argon2id_basic": {
         "password": b"test_password_123",
-        "salt": bytes.fromhex("000102030405060708090a0b0c0d0e0f"),
-        "memory_kib": 32768,  # 32 MiB for faster tests
-        "iterations": 2,
-        "parallelism": 4,
+        "salt": bytes.fromhex("00112233445566778899aabbccddeeff"),
+        "memory_kib": 32768,
+        "iterations": 1,
+        "parallelism": 1,
         "output_len": 32,
     },
     "aes_gcm_encrypt": {
         "key": bytes.fromhex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
         "nonce": bytes.fromhex("000102030405060708090a0b"),
-        "plaintext": b"Hello, Meow Decoder! This is a test message.",
-        "aad": b"additional authenticated data",
+        "plaintext": b"Hello, Meow Decoder!",
+        "aad": b"additional_authenticated_data",
     },
     "aes_gcm_no_aad": {
-        "key": bytes.fromhex("deadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeefdeadbeef"),
-        "nonce": bytes.fromhex("cafebabecafebabe12345678"),
-        "plaintext": b"Secret cat message!",
+        "key": bytes.fromhex("fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"),
+        "nonce": bytes.fromhex("0b0a09080706050403020100"),
+        "plaintext": b"No AAD test",
         "aad": None,
     },
     "hmac_sha256": {
-        "key": bytes.fromhex("0123456789abcdef0123456789abcdef"),
-        "message": b"The quick brown fox jumps over the lazy cat",
+        "key": bytes.fromhex("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"),
+        "message": b"HMAC test message",
     },
     "hkdf_basic": {
         "ikm": bytes.fromhex("0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"),

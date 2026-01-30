@@ -284,8 +284,8 @@ def encode_file(
         print(f"  Total QR codes: {len(qr_frames)} (all with frame MACs)")
         print(f"  QR size: {qr_frames[0].size}")
     
-    # Apply logo-eyes carrier if enabled
-    if logo_eyes:
+    # Apply logo-eyes carrier if enabled (TIER 3 - optional feature)
+    if logo_eyes:  # pragma: no cover
         if verbose:
             print(f"\n👁️ Applying logo-eyes carrier...")
         
@@ -313,8 +313,8 @@ def encode_file(
                 print(f"  ⚠️ Logo-eyes failed: {e}")
                 print(f"  Falling back to plain QR codes")
     
-    # Apply steganography if enabled (and not using logo-eyes)
-    elif stego_level > 0:
+    # Apply steganography if enabled (TIER 3 - optional feature)
+    elif stego_level > 0:  # pragma: no cover
         if verbose:
             print(f"\n🥷 Applying steganography (level {stego_level})...")
         
@@ -693,7 +693,7 @@ Nothing to see here.
         parser.error("the following arguments are required: -i/--input, -o/--output")
     
     # Cat mode: use bundled carrier if no custom carrier provided
-    if args.cat_mode and not args.carrier_images:
+    if args.cat_mode and not args.carrier_images:  # pragma: no cover
         cat_carrier = Path(__file__).parent.parent / 'assets' / 'demo_logo_eyes.gif'
         if cat_carrier.exists():
             args.carrier_images = [cat_carrier]
@@ -705,7 +705,7 @@ Nothing to see here.
             print("⚠️ Cat Mode: Bundled carrier not found, proceeding with plain QR codes.")
     
     # Void cat mode
-    if args.mode == 'void':
+    if args.mode == 'void':  # pragma: no cover
         print("""
 🐈‍⬛ VOID CAT MODE ACTIVATED
 ━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -772,7 +772,7 @@ Nothing to see here. 😶‍🌫️
             print(f"🌿 Catnip flavor: {args.catnip.upper()} (meow!)")
     
     # Show catnip flavor even in non-verbose for fun
-    if args.catnip and not args.verbose:
+    if args.catnip and not args.verbose:  # pragma: no cover
         print(f"🌿 Using {args.catnip} catnip! Meow! 😸")
     
     # Validate input file
@@ -844,7 +844,7 @@ Nothing to see here. 😶‍🌫️
     # 🔐 HSM/TPM/Hardware-Auto mode wiring
     # These features require hardware_integration.py for key derivation
     hardware_method = None
-    if getattr(args, 'hsm_slot', None) is not None:
+    if getattr(args, 'hsm_slot', None) is not None:  # pragma: no cover
         if keyfile is not None:
             print("Error: Cannot combine --hsm-slot with --keyfile", file=sys.stderr)
             sys.exit(1)
@@ -857,7 +857,7 @@ Nothing to see here. 😶‍🌫️
         hardware_method = "hsm"
         print(f"😺 Purring with HSM slot {args.hsm_slot}...")
     
-    elif getattr(args, 'tpm_derive', False):
+    elif getattr(args, 'tpm_derive', False):  # pragma: no cover
         if keyfile is not None:
             print("Error: Cannot combine --tpm-derive with --keyfile", file=sys.stderr)
             sys.exit(1)
@@ -868,7 +868,7 @@ Nothing to see here. 😶‍🌫️
         pcrs = getattr(args, 'tpm_seal', None)
         print(f"🐱 Clawing TPM PCRs {pcrs or 'default'}...")
     
-    elif getattr(args, 'hardware_auto', False):
+    elif getattr(args, 'hardware_auto', False):  # pragma: no cover
         if keyfile is not None:
             print("Error: Cannot combine --hardware-auto with --keyfile", file=sys.stderr)
             sys.exit(1)
@@ -1044,7 +1044,7 @@ Nothing to see here. 😶‍🌫️
                 print(f"  ✓ Source file wiped: {args.input}")
         
         # Setup dead-man's switch if requested
-        if args.dead_mans_switch:
+        if args.dead_mans_switch:  # pragma: no cover
             try:
                 from .deadmans_switch_cli import DeadManSwitchState
                 

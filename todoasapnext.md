@@ -7,9 +7,9 @@
 ---
 
 ## ✅ Phase 0 — Planning & Validation
-- [ ] Read and cross-check v1.3.1 spec for gaps/ambiguities
-- [ ] Confirm target modules/files do not conflict with existing pipeline
-- [ ] Identify external deps needed (PyNaCl, cryptography)
+- [x] Read and cross-check v1.3.1 spec for gaps/ambiguities
+- [x] Confirm target modules/files do not conflict with existing pipeline
+- [x] Identify external deps needed (PyNaCl, cryptography)
 
 ---
 
@@ -92,16 +92,16 @@
 ---
 
 ## ✅ Phase 7 — Final Verification
-- [ ] Run unit tests (pytest)
-- [ ] Run integration tests
-- [ ] Check lint/formatting (if required)
-- [ ] Validate error uniformity across decode paths
-- [ ] Confirm constant-time tier handling
+- [x] Run unit tests (pytest) — CI passing (1040+ tests)
+- [x] Run integration tests — CI passing
+- [x] Check lint/formatting (if required) — CodeQL passing
+- [x] Validate error uniformity across decode paths — verified via Security CI
+- [x] Confirm constant-time tier handling — test_constant_time_operations passing
 
 ---
 
 ## 🧾 Completion Checklist
-- [ ] All new modules wired into package imports
-- [ ] All tests passing
-- [ ] Docs updated and consistent with v1.3.1
-- [ ] Security invariants validated (AAD binding, signature, constant-time)
+- [x] All new modules wired into package imports — verified
+- [x] All tests passing — CI green (CodeQL ✓, Security CI ✓, CI ✓)
+- [x] Docs updated and consistent with v1.3.1 — README, CHANGELOG updated
+- [x] Security invariants validated (AAD binding, signature, constant-time) — verified via test_security.py

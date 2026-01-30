@@ -1,26 +1,32 @@
 #!/usr/bin/env python3
 """
-🔐 TIER 1: Core Cryptographic Tests
+🔐 Comprehensive Crypto Module Tests
+Consolidated from: test_crypto.py, test_coverage_90_crypto.py, test_crypto_aggressive.py
 
-Security-Critical Tests for AES-256-GCM encryption, HMAC authentication,
-and manifest integrity. These tests verify that:
+Target: 95-100% coverage of meow_decoder/crypto.py
 
-1. Encrypt → decrypt round-trips produce identical bytes
-2. Wrong key → decryption fails (no silent corruption)
-3. Modified ciphertext → authentication fails
-4. Modified authentication tag → fails
-5. Nonce reuse is detected/prevented
-6. Key length validation is enforced
-7. Crypto failures do not leak sensitive error details
+Security-critical tests for:
+- Key derivation (Argon2id)
+- AES-256-GCM encryption/decryption
+- HMAC authentication
+- Manifest integrity
+- Duress password handling
+- Tamper detection
+- Error message safety
 
 FAIL-CLOSED PRINCIPLE: Any ambiguity results in test failure.
 """
 
+import os
+import sys
 import pytest
 import secrets
 import hashlib
 import struct
 from unittest.mock import patch, MagicMock
+
+# Enable test mode for faster Argon2id
+os.environ["MEOW_TEST_MODE"] = "1"
 
 # Import from meow_decoder
 from meow_decoder.crypto import (
@@ -547,6 +553,272 @@ class TestManifestPackingUnpacking:
         """Truncated manifest must be rejected."""
         with pytest.raises(ValueError):
             unpack_manifest(b"MEOW3" + b"\x00" * 50)  # Too short
+
+
+class TestDuress:
+    """Test duress password functions."""
+    
+    def test_compute_duress_hash(self):
+        """Test duress hash computation."""
+        from meow_decoder.crypto import compute_duress_hash
+        
+        password = "DuressPassword123!"
+        salt = secrets.token_bytes(16)
+        
+        hash1 = compute_duress_hash(password, salt)
+        hash2 = compute_duress_hash(password, salt)
+        
+        assert len(hash1) == 32
+        assert hash1 == hash2
+    
+    def test_compute_duress_tag(self):
+        """Test duress tag computation."""
+        from meow_decoder.crypto import compute_duress_tag
+        
+        password = "DuressPassword123!"
+        salt = secrets.token_bytes(16)
+        manifest_core = b"manifest core data " * 10
+        
+        tag = compute_duress_tag(password, salt, manifest_core)
+        
+        assert len(tag) == 32
+    
+    def test_check_duress_password(self):
+        """Test duress password checking."""
+        from meow_decoder.crypto import compute_duress_tag, check_duress_password
+        
+        password = "DuressPassword123!"
+        salt = secrets.token_bytes(16)
+        manifest_core = b"manifest core data " * 10
+        
+        tag = compute_duress_tag(password, salt, manifest_core)
+        
+        # Correct password should match
+        assert check_duress_password(password, salt, tag, manifest_core) == True
+        
+        # Wrong password should not match
+        assert check_duress_password("WrongPassword!", salt, tag, manifest_core) == False
+    
+    def test_duress_different_passwords_different_tags(self):
+        """Different passwords produce different duress tags."""
+        from meow_decoder.crypto import compute_duress_tag
+        
+        salt = secrets.token_bytes(16)
+        manifest_core = b"manifest data " * 10
+        
+        tag1 = compute_duress_tag("Password1234567!", salt, manifest_core)
+        tag2 = compute_duress_tag("Password7654321!", salt, manifest_core)
+        
+        assert tag1 != tag2
+
+
+class TestKeyfile:
+    """Test keyfile functions."""
+    
+    def test_verify_keyfile_valid(self, tmp_path):
+        """Test valid keyfile verification."""
+        from meow_decoder.crypto import verify_keyfile
+        
+        keyfile_path = tmp_path / "keyfile.key"
+        keyfile_path.write_bytes(secrets.token_bytes(64))
+        
+        content = verify_keyfile(str(keyfile_path))
+        
+        assert len(content) == 64
+    
+    def test_verify_keyfile_not_found(self):
+        """Test missing keyfile."""
+        from meow_decoder.crypto import verify_keyfile
+        
+        with pytest.raises(FileNotFoundError):
+            verify_keyfile("/nonexistent/keyfile.key")
+    
+    def test_verify_keyfile_too_small(self, tmp_path):
+        """Test keyfile too small."""
+        from meow_decoder.crypto import verify_keyfile
+        
+        keyfile_path = tmp_path / "small.key"
+        keyfile_path.write_bytes(b"tiny")
+        
+        with pytest.raises(ValueError, match="too small"):
+            verify_keyfile(str(keyfile_path))
+    
+    def test_verify_keyfile_too_large(self, tmp_path):
+        """Test keyfile too large."""
+        from meow_decoder.crypto import verify_keyfile
+        
+        keyfile_path = tmp_path / "large.key"
+        keyfile_path.write_bytes(secrets.token_bytes(2 * 1024 * 1024))  # 2 MB
+        
+        with pytest.raises(ValueError, match="too large"):
+            verify_keyfile(str(keyfile_path))
+    
+    def test_keyfile_affects_encryption(self):
+        """Keyfile must change encryption output."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Test data for keyfile encryption"
+        password = "TestPassword123!"
+        keyfile = secrets.token_bytes(64)
+        
+        # Encrypt with keyfile
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, keyfile=keyfile)
+        
+        # Decrypt with keyfile - must work
+        decrypted = decrypt_to_raw(
+            cipher, password, salt, nonce, keyfile,
+            orig_len=len(data), comp_len=len(comp), sha256=sha
+        )
+        assert decrypted == data
+        
+        # Decrypt WITHOUT keyfile - must fail
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, password, salt, nonce,
+                orig_len=len(data), comp_len=len(comp), sha256=sha
+            )
+
+
+class TestNonceReuse:
+    """Test nonce reuse detection."""
+    
+    def test_nonce_reuse_detection(self):
+        """Test that nonce reuse is detected."""
+        from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+        
+        # Clear cache
+        _nonce_reuse_cache.clear()
+        
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        
+        # First use should be fine
+        _register_nonce_use(key, nonce)
+        
+        # Second use of same key/nonce should raise
+        with pytest.raises(RuntimeError, match="Nonce reuse"):
+            _register_nonce_use(key, nonce)
+    
+    def test_different_nonce_allowed(self):
+        """Different nonces with same key should work."""
+        from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+        
+        _nonce_reuse_cache.clear()
+        
+        key = secrets.token_bytes(32)
+        nonce1 = secrets.token_bytes(12)
+        nonce2 = secrets.token_bytes(12)
+        
+        _register_nonce_use(key, nonce1)
+        _register_nonce_use(key, nonce2)  # Should not raise
+
+
+class TestDeriveEncryptionKeyForManifest:
+    """Test derive_encryption_key_for_manifest function."""
+    
+    def test_derive_encryption_key_password_only(self):
+        """Test password-only key derivation."""
+        from meow_decoder.crypto import derive_encryption_key_for_manifest
+        
+        password = "TestPassword123!"
+        salt = secrets.token_bytes(16)
+        
+        key = derive_encryption_key_for_manifest(password, salt)
+        
+        assert len(key) == 32
+    
+    def test_derive_encryption_key_with_keyfile(self):
+        """Test key derivation with keyfile."""
+        from meow_decoder.crypto import derive_encryption_key_for_manifest
+        
+        password = "TestPassword123!"
+        salt = secrets.token_bytes(16)
+        keyfile = secrets.token_bytes(64)
+        
+        key = derive_encryption_key_for_manifest(password, salt, keyfile=keyfile)
+        
+        assert len(key) == 32
+    
+    def test_derive_encryption_key_precomputed(self):
+        """Test key derivation with precomputed key."""
+        from meow_decoder.crypto import derive_encryption_key_for_manifest
+        
+        password = "TestPassword123!"
+        salt = secrets.token_bytes(16)
+        precomputed = secrets.token_bytes(32)
+        
+        key = derive_encryption_key_for_manifest(
+            password, salt, precomputed_key=precomputed
+        )
+        
+        assert key == precomputed
+    
+    def test_precomputed_key_wrong_length_fails(self):
+        """Precomputed key with wrong length must fail."""
+        from meow_decoder.crypto import derive_encryption_key_for_manifest
+        
+        password = "TestPassword123!"
+        salt = secrets.token_bytes(16)
+        wrong_size_key = secrets.token_bytes(16)  # Should be 32
+        
+        with pytest.raises(ValueError, match="32 bytes"):
+            derive_encryption_key_for_manifest(
+                password, salt, precomputed_key=wrong_size_key
+            )
+
+
+class TestEncryptWithOptions:
+    """Test encrypt_file_bytes with various options."""
+    
+    def test_encrypt_with_length_padding_enabled(self):
+        """Test encryption with length padding enabled."""
+        password = "PaddingTest123!"
+        data = b"Padded data " * 50
+        
+        comp, sha, salt, nonce, cipher, ephemeral, key = encrypt_file_bytes(
+            data, password, use_length_padding=True
+        )
+        
+        assert len(cipher) > 0
+    
+    def test_encrypt_with_length_padding_disabled(self):
+        """Test encryption without length padding."""
+        password = "NoPaddingTest1!"
+        data = b"Unpadded data " * 50
+        
+        comp, sha, salt, nonce, cipher, ephemeral, key = encrypt_file_bytes(
+            data, password, use_length_padding=False
+        )
+        
+        assert len(cipher) > 0
+    
+    def test_encrypt_with_precomputed_key(self):
+        """Test encryption with precomputed key (hardware mode)."""
+        password = "PrecomputedKey!"
+        data = b"Hardware key data " * 50
+        precomputed_key = secrets.token_bytes(32)
+        precomputed_salt = secrets.token_bytes(16)
+        
+        comp, sha, salt, nonce, cipher, ephemeral, enc_key = encrypt_file_bytes(
+            data, password,
+            precomputed_key=precomputed_key,
+            precomputed_salt=precomputed_salt
+        )
+        
+        assert len(cipher) > 0
+        assert salt == precomputed_salt
+    
+    def test_sha256_included_in_output(self):
+        """SHA256 hash must be computed correctly."""
+        password = "SHA256TestPwd1!"
+        data = b"Test data for SHA256 verification"
+        
+        comp, sha, salt, nonce, cipher, ephemeral, key = encrypt_file_bytes(
+            data, password
+        )
+        
+        expected_sha = hashlib.sha256(data).digest()
+        assert sha == expected_sha
 
 
 if __name__ == "__main__":

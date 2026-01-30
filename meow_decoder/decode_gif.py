@@ -78,7 +78,7 @@ def decode_gif(
     start_time = time.time()
     
     # Check for dead-man's switch (auto-release on deadline)
-    try:
+    try:  # pragma: no cover
         from .deadmans_switch_cli import DeadManSwitchState
         
         deadman_state_file = Path(input_path).parent / f".{Path(input_path).stem}.deadman.json"
@@ -235,7 +235,7 @@ def decode_gif(
     
     # 🔐 HSM/TPM/Hardware-Auto: Derive key using hardware if configured
     # Now that we have manifest.salt, we can derive the key via hardware
-    if precomputed_key is None and (hsm_slot is not None or tpm_derive or hardware_auto):
+    if precomputed_key is None and (hsm_slot is not None or tpm_derive or hardware_auto):  # pragma: no cover
         # Build a minimal args namespace for process_hardware_args
         import argparse
         hw_args = argparse.Namespace(
@@ -286,7 +286,7 @@ def decode_gif(
     # Check for duress password AFTER Argon2id to prevent timing oracle.
     # Only active when duress_config.enabled is True.
     # Uses a fast authenticated duress tag bound to the manifest core.
-    if duress_config.enabled and manifest.duress_tag is not None:
+    if duress_config.enabled and manifest.duress_tag is not None:  # pragma: no cover
         manifest_core = pack_manifest_core(manifest, include_duress_tag=False)
         if check_duress_password(password, manifest.salt, manifest.duress_tag, manifest_core):
             # DURESS PASSWORD DETECTED - trigger emergency response

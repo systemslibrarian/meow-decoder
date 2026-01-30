@@ -8,16 +8,12 @@ on:
   # Allow manual trigger from Actions tab
   workflow_dispatch:
     inputs:
-      retain_days:
-        description: 'Number of days to keep workflow runs'
-        required: false
-        default: '7'
       keep_minimum_runs:
-        description: 'Minimum number of runs to keep per workflow'
+        description: 'Number of runs to keep per workflow'
         required: false
         default: '2'
 
-run-name: Cleanup workflow runs (retain ${{ github.event.inputs.retain_days || 7 }} days)
+run-name: Cleanup workflow runs (keep last ${{ github.event.inputs.keep_minimum_runs || 2 }} runs)
 
 jobs:
   cleanup:
@@ -31,7 +27,7 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: ${{ github.event.inputs.retain_days || 7 }}
+          retain_days: 0
           keep_minimum_runs: ${{ github.event.inputs.keep_minimum_runs || 2 }}
-          delete_run_by_conclusion_pattern: completed
+          delete_workflow_pattern: ""
           exclude_workflow_names: Cleanup old workflow runs
