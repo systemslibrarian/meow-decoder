@@ -6,6 +6,7 @@ Wraps tqdm with graceful fallback.
 """
 
 import sys
+import time
 from typing import Optional, Iterator, Iterable, Any
 
 try:
@@ -44,6 +45,8 @@ class ProgressBar:
         self.disable = disable
         self.n = 0
         self._tqdm = None
+        self._last_fact_time = time.time()
+        self._fact_interval = 5.0
         
         if HAS_TQDM and not disable:
             self._tqdm = tqdm(
@@ -60,6 +63,23 @@ class ProgressBar:
     def update(self, n: int = 1) -> None:
         """Update progress by n steps."""
         self.n += n
+
+        # Periodically show cat facts during long operations
+        if not self.disable:
+            now = time.time()
+            if now - self._last_fact_time >= self._fact_interval:
+                self._last_fact_time = now
+                try:
+                    from .cat_utils import get_random_cat_fact
+                    fact = get_random_cat_fact()
+                    if self._tqdm:
+                        self._tqdm.write(f"💡 {fact}")
+                    else:
+                        print(f"\n💡 {fact}")
+                        if self.desc:
+                            print(f"{self.desc}: ", end="", flush=True)
+                except Exception:
+                    pass
         
         if self._tqdm:
             self._tqdm.update(n)

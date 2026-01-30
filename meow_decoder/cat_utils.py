@@ -96,6 +96,11 @@ CAT_FACTS = [
     "🐱 The richest cat inherited $13M. Your data? Priceless. 💰",
 ]
 
+
+def get_random_cat_fact() -> str:
+    """Return a random cat fact (no printing)."""
+    return random.choice(CAT_FACTS)
+
 MOTIVATIONAL_MEOWS = [
     "💪 Your encryption is stronger than a cat's desire for a cardboard box!",
     "🏆 Purr-fect security achieved! Your secrets are safe!",
@@ -438,6 +443,24 @@ VOID CAT: All evidence consumed.
     )-^-(       Quantum Nine Lives ACTIVATED
    /     \      (Schrödinger approved ✓)
 """,
+
+    'success': r"""
+ /\_/\
+( ^.^ )   ✅ SUCCESS! The cat approves.
+ > ^ <    All secrets safely tucked in.
+""",
+
+    'failure': r"""
+ /\_/\
+( T.T )   ❌ FAILURE! The cat knocked it over.
+ > ^ <    Try again, brave human.
+""",
+
+    'warning': r"""
+ /\_/\
+( o.o )   ⚠️  WARNING! The cat looks concerned.
+ > ^ <    Proceed with caution.
+""",
 }
 
 
@@ -445,6 +468,21 @@ def print_cat_splash(cat_type: str = 'basic'):
     """Print ASCII art splash screen."""
     print(ASCII_CATS.get(cat_type, ASCII_CATS['basic']))
     print("🐾 Strong cat passwords only! 😼🔐\n")
+
+
+def print_success_cat():
+    """Print success cat ASCII art."""
+    print(ASCII_CATS['success'])
+
+
+def print_failure_cat():
+    """Print failure cat ASCII art."""
+    print(ASCII_CATS['failure'])
+
+
+def print_warning_cat():
+    """Print warning cat ASCII art."""
+    print(ASCII_CATS['warning'])
 
 
 # === 5. CAT MEME ERROR MESSAGES ===
@@ -599,6 +637,8 @@ class NineLivesRetry:
             if reason:
                 msg += f" ({reason})"
             print(msg)
+            # Sprinkle a cat fact on every failed attempt
+            print(f"💡 {get_random_cat_fact()}")
     
     def success(self, result=None):
         """Mark as succeeded."""
@@ -691,6 +731,35 @@ def summon_cat_judge(password: str) -> str:
 def cat_print(msg: str, emoji: str = "😸"):
     """Print with cat emoji prefix."""
     print(f"{emoji} {msg}")
+
+
+def meow_log(message: str, emoji: str = "🐱", file=None) -> None:
+    """Cat-themed logger with emoji prefix."""
+    output = file or sys.stderr
+    print(f"{emoji} {message}", file=output)
+
+
+def purr_encrypt(*args, **kwargs):
+    """Cat-themed alias for `encrypt_file_bytes()`."""
+    from .crypto import encrypt_file_bytes
+    return encrypt_file_bytes(*args, **kwargs)
+
+
+def hiss_decrypt(*args, **kwargs):
+    """Cat-themed alias for `decrypt_to_raw()`."""
+    from .crypto import decrypt_to_raw
+    return decrypt_to_raw(*args, **kwargs)
+
+
+def claw_verify_signature(*args, **kwargs) -> bool:
+    """Cat-themed alias for `verify_manifest_hmac()`."""
+    from .crypto import verify_manifest_hmac
+    return verify_manifest_hmac(*args, **kwargs)
+
+
+def scratch_fountain_decode(decoder, original_length: Optional[int] = None) -> bytes:
+    """Cat-themed alias for `FountainDecoder.get_data()`."""
+    return decoder.get_data(original_length=original_length)
 
 
 def meow_about() -> str:
