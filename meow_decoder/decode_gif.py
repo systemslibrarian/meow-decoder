@@ -24,6 +24,7 @@ from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
 from .gif_handler import GIFDecoder
 from .progress import ProgressBar
+from .hardware_integration import HardwareSecurityProvider, process_hardware_args
 
 
 def decode_gif(
@@ -36,6 +37,12 @@ def decode_gif(
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+    hsm_slot: Optional[int] = None,
+    hsm_pin: Optional[str] = None,
+    hsm_key_label: Optional[str] = None,
+    tpm_derive: bool = False,
+    hardware_auto: bool = False,
     verbose: bool = False
 ) -> dict:
     """
@@ -49,6 +56,13 @@ def decode_gif(
         duress_config: Duress configuration
         keyfile: Optional keyfile content
         receiver_private_key: Optional X25519 private key for forward secrecy (32 bytes)
+        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
+                        If provided, skips key derivation and uses this key
+        hsm_slot: HSM PKCS#11 slot number (enables HSM mode)
+        hsm_pin: HSM user PIN
+        hsm_key_label: HSM key label for derivation
+        tpm_derive: Use TPM for key derivation
+        hardware_auto: Automatically use best available hardware security
         verbose: Print verbose output
         
     Returns:
@@ -173,17 +187,52 @@ def decode_gif(
     if verbose:
         print("\nDeriving key (timing-safe)...")
     
-    # Always derive encryption key upfront (slow Argon2id)
-    try:
-        encryption_key = derive_encryption_key_for_manifest(
-            password,
-            manifest.salt,
-            keyfile=keyfile,
-            ephemeral_public_key=manifest.ephemeral_public_key,
-            receiver_private_key=receiver_private_key,
-            yubikey_slot=yubikey_slot,
-            yubikey_pin=yubikey_pin
+    # 🔐 HSM/TPM/Hardware-Auto: Derive key using hardware if configured
+    # Now that we have manifest.salt, we can derive the key via hardware
+    if precomputed_key is None and (hsm_slot is not None or tpm_derive or hardware_auto):
+        # Build a minimal args namespace for process_hardware_args
+        import argparse
+        hw_args = argparse.Namespace(
+            hsm_slot=hsm_slot,
+            hsm_pin=hsm_pin,
+            hsm_key_label=hsm_key_label or 'meow-master',
+            tpm_derive=tpm_derive,
+            hardware_auto=hardware_auto,
+            no_hardware_fallback=False
         )
+        try:
+            hw_key, hw_desc = process_hardware_args(hw_args, password.encode('utf-8'), manifest.salt)
+            if hw_key is not None:
+                precomputed_key = hw_key
+                if verbose:
+                    print(f"  🔐 Key derived via: {hw_desc}")
+            else:
+                if verbose:
+                    print("  ⚠️ Hardware derivation returned None, falling back to software mode")
+        except Exception as e:
+            if verbose:
+                print(f"  ⚠️ Hardware key derivation failed: {e}")
+                print("  Falling back to software derivation.")
+    
+    # Always derive encryption key upfront (slow Argon2id)
+    # For HSM/TPM mode, use precomputed key if provided
+    try:
+        if precomputed_key is not None:
+            if len(precomputed_key) != 32:
+                raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+            encryption_key = precomputed_key
+            if verbose:
+                print("  🔐 Using hardware-derived key (HSM/TPM)")
+        else:
+            encryption_key = derive_encryption_key_for_manifest(
+                password,
+                manifest.salt,
+                keyfile=keyfile,
+                ephemeral_public_key=manifest.ephemeral_public_key,
+                receiver_private_key=receiver_private_key,
+                yubikey_slot=yubikey_slot,
+                yubikey_pin=yubikey_pin
+            )
     except Exception as e:
         # Key derivation failed - could be wrong keyfile/receiver key
         raise ValueError(f"Key derivation failed: {e}")
@@ -254,7 +303,8 @@ def decode_gif(
         keyfile,
         receiver_private_key,
         yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin
+        yubikey_pin=yubikey_pin,
+        precomputed_key=precomputed_key
     ):
         raise ValueError("HMAC verification failed - wrong password or corrupted data")
     
@@ -390,7 +440,8 @@ def decode_gif(
             manifest.orig_len, manifest.comp_len, manifest.sha256,
             manifest.ephemeral_public_key, receiver_private_key,
             yubikey_slot=yubikey_slot,
-            yubikey_pin=yubikey_pin
+            yubikey_pin=yubikey_pin,
+            precomputed_key=precomputed_key
         )
         
         if verbose and manifest.ephemeral_public_key:
@@ -581,6 +632,41 @@ Examples:
             yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
             args.yubikey_pin = yk_pin if yk_pin else None
     
+    # 🔐 HSM/TPM/Hardware-Auto validation
+    hardware_mode = None
+    if getattr(args, 'hsm_slot', None) is not None:
+        if keyfile is not None:
+            print("Error: Cannot combine --hsm-slot with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if args.receiver_privkey is not None:
+            print("Error: HSM derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        # HSM PIN prompt if not provided
+        if getattr(args, 'hsm_pin', None) is None:
+            args.hsm_pin = getpass("🔐 Enter HSM PIN: ")
+        hardware_mode = "hsm"
+        print(f"😺 Purring with HSM slot {args.hsm_slot}...")
+    
+    elif getattr(args, 'tpm_derive', False):
+        if keyfile is not None:
+            print("Error: Cannot combine --tpm-derive with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if args.receiver_privkey is not None:
+            print("Error: TPM derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        hardware_mode = "tpm"
+        print(f"🐱 Clawing TPM for key derivation...")
+    
+    elif getattr(args, 'hardware_auto', False):
+        if keyfile is not None:
+            print("Error: Cannot combine --hardware-auto with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if args.receiver_privkey is not None:
+            print("Error: Hardware auto derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        hardware_mode = "auto"
+        print("😻 Auto-detecting hardware security... (YubiKey > TPM > HSM)")
+    
     # Load receiver private key for forward secrecy if specified
     receiver_private_key = None
     if args.receiver_privkey:
@@ -654,6 +740,17 @@ Examples:
         if args.yubikey:
             decode_kwargs["yubikey_slot"] = args.yubikey_slot
             decode_kwargs["yubikey_pin"] = args.yubikey_pin
+
+        # Pass hardware security args to decode_gif for key derivation after manifest extraction
+        if hardware_mode is not None:
+            if hardware_mode == "hsm":
+                decode_kwargs["hsm_slot"] = args.hsm_slot
+                decode_kwargs["hsm_pin"] = args.hsm_pin
+                decode_kwargs["hsm_key_label"] = getattr(args, 'hsm_key_label', 'meow-master')
+            elif hardware_mode == "tpm":
+                decode_kwargs["tpm_derive"] = True
+            elif hardware_mode == "auto":
+                decode_kwargs["hardware_auto"] = True
 
         stats = decode_gif(
             args.input,

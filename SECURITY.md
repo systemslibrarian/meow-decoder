@@ -63,7 +63,49 @@ We take security seriously. If you discover a security vulnerability, please fol
 
 ---
 
-## 🎖️ **Hall of Fame**
+## � **Bug Bounty Program** (Placeholder)
+
+> 🐱 "A cat's attention is not easily earned, but we pay in gratitude!" 
+
+**Current Status:** 🔄 **Seeking Funding**
+
+We are currently seeking funding to establish a formal bug bounty program. In the meantime:
+
+| Severity | Future Reward | Current Recognition |
+|----------|---------------|---------------------|
+| Critical (RCE, key extraction) | $2,000 - $5,000 | Hall of Fame + SWAG |
+| High (auth bypass, side-channel) | $500 - $2,000 | Hall of Fame + SWAG |
+| Medium (DoS, info leak) | $100 - $500 | Hall of Fame |
+| Low (minor issues) | $25 - $100 | Hall of Fame |
+
+**How to Help Us Launch a Bounty Program:**
+
+- Sponsor via GitHub Sponsors (coming soon)
+- Organization sponsorship (contact: systemslibrarian@gmail.com)
+- Open Technology Fund (OTF) grants (in progress)
+- Freedom of the Press Foundation support (in progress)
+
+**Current Rewards:**
+- 🏅 Hall of Fame recognition
+- 🐱 Meow Decoder SWAG (stickers, when available)
+- 📜 Letter of thanks / recommendation
+- 🤝 First-name credit in release notes
+
+**Scope:**
+- ✅ In scope: Core crypto (`crypto.py`, `crypto_core/`), authentication, key management
+- ✅ In scope: Protocol parsing, manifest handling, frame verification  
+- ⚠️ Partial: Steganography (known to be cosmetic only)
+- ❌ Out of scope: Social engineering, phishing, physical attacks
+
+**Rules:**
+- No testing on systems you don't own
+- No exploitation of users' data
+- Responsible disclosure (90 days)
+- One report per issue
+
+---
+
+## �🎖️ **Hall of Fame**
 
 We thank the following security researchers for responsible disclosure:
 

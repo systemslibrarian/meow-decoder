@@ -257,7 +257,9 @@ def encrypt_file_bytes(
     receiver_public_key: Optional[bytes] = None,
     use_length_padding: bool = True,
     yubikey_slot: Optional[str] = None,
-    yubikey_pin: Optional[str] = None
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+    precomputed_salt: Optional[bytes] = None
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -269,6 +271,9 @@ def encrypt_file_bytes(
         receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
                             If provided, enables forward secrecy mode
         use_length_padding: Add length padding to hide true size (default: True)
+        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
+                        If provided, skips Argon2id derivation and uses this key
+        precomputed_salt: Salt used for precomputed_key (required if precomputed_key provided)
         
     Returns:
         Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, encryption_key)
@@ -306,13 +311,24 @@ def encrypt_file_bytes(
         # Invariant: Nonce MUST be unique per key to prevent GCM nonce reuse.
         # We enforce uniqueness by generating a fresh random salt (new key) and
         # a fresh random 96-bit nonce per encryption.
-        salt = secrets.token_bytes(16)
+        # 
+        # For hardware key derivation (HSM/TPM), salt is pre-generated and passed in.
+        if precomputed_salt is not None:
+            salt = precomputed_salt
+        else:
+            salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
         
         # Determine encryption mode and derive key
         ephemeral_public_key = None
         
-        if receiver_public_key is not None:
+        # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
+        if precomputed_key is not None:
+            if len(precomputed_key) != 32:
+                raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+            key = precomputed_key
+            ephemeral_public_key = None  # Hardware mode is password-only
+        elif receiver_public_key is not None:
             # FORWARD SECRECY MODE: Use X25519 ephemeral keys
             try:
                 from meow_decoder.x25519_forward_secrecy import (
@@ -405,7 +421,8 @@ def decrypt_to_raw(
     ephemeral_public_key: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
-    yubikey_pin: Optional[str] = None
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
@@ -423,6 +440,8 @@ def decrypt_to_raw(
                              Present = forward secrecy mode
                              None = password-only mode
         receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
+        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
+                        If provided, skips key derivation and uses this key
         
     Returns:
         Decrypted and decompressed plaintext
@@ -439,7 +458,13 @@ def decrypt_to_raw(
     """
     try:
         # Determine decryption mode and derive key
-        if ephemeral_public_key is not None:
+        
+        # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
+        if precomputed_key is not None:
+            if len(precomputed_key) != 32:
+                raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+            key = precomputed_key
+        elif ephemeral_public_key is not None:
             # FORWARD SECRECY MODE
             if receiver_private_key is None:
                 raise ValueError("Forward secrecy mode requires receiver private key")
@@ -680,14 +705,33 @@ def derive_encryption_key_for_manifest(
     ephemeral_public_key: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
-    yubikey_pin: Optional[str] = None
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None
 ) -> bytes:
     """
     Derive the encryption key for a manifest, matching encryption/decryption paths.
 
     This helper centralizes key derivation to keep frame MAC and HMAC derivations
     consistent and avoids subtle divergence.
+    
+    Args:
+        password: User password
+        salt: Salt from manifest
+        keyfile: Optional keyfile content
+        ephemeral_public_key: Optional ephemeral X25519 public key (forward secrecy mode)
+        receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
+        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
+                        If provided, skips key derivation and returns this key
+    
+    Returns:
+        32-byte encryption key
     """
+    # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
+    if precomputed_key is not None:
+        if len(precomputed_key) != 32:
+            raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+        return precomputed_key
+    
     if ephemeral_public_key is not None:
         if receiver_private_key is None:
             raise ValueError("Forward secrecy mode requires receiver private key")
@@ -788,7 +832,8 @@ def verify_manifest_hmac(
     keyfile: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
-    yubikey_pin: Optional[str] = None
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None
 ) -> bool:
     """
     Verify manifest HMAC with constant-time comparison and timing equalization.
@@ -798,6 +843,8 @@ def verify_manifest_hmac(
         manifest: Manifest to verify
         keyfile: Optional keyfile content
         receiver_private_key: Receiver's X25519 private key (required if manifest has ephemeral_public_key)
+        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
+                        If provided, skips key derivation and uses this key for HMAC verification
         
     Returns:
         True if HMAC is valid
@@ -819,6 +866,7 @@ def verify_manifest_hmac(
         keyfile,
         ephemeral_public_key=manifest.ephemeral_public_key,
         receiver_private_key=receiver_private_key,
+        encryption_key=precomputed_key,  # Pass precomputed key for HMAC
         yubikey_slot=yubikey_slot,
         yubikey_pin=yubikey_pin
     )

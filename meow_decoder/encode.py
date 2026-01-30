@@ -22,6 +22,7 @@ from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
 from .progress import ProgressBar
+from .hardware_integration import HardwareSecurityProvider, process_hardware_args
 
 
 from typing import List
@@ -45,6 +46,8 @@ def encode_file(
     logo_eyes_hidden: bool = False,
     brand_text: Optional[str] = None,
     duress_password: Optional[str] = None,
+    hardware_key: Optional[bytes] = None,
+    hardware_salt: Optional[bytes] = None,
     verbose: bool = False
 ) -> dict:
     """
@@ -66,6 +69,8 @@ def encode_file(
         logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
         brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
         duress_password: Optional duress password (triggers emergency response on decode)
+        hardware_key: Optional pre-derived 32-byte key from HSM/TPM/hardware
+        hardware_salt: Salt used for hardware key derivation (required if hardware_key provided)
         verbose: Print verbose output
         
     Returns:
@@ -140,6 +145,11 @@ def encode_file(
     if yubikey:
         encrypt_kwargs["yubikey_slot"] = yubikey_slot
         encrypt_kwargs["yubikey_pin"] = yubikey_pin
+    
+    # Hardware-derived key (HSM/TPM)
+    if hardware_key is not None:
+        encrypt_kwargs["precomputed_key"] = hardware_key
+        encrypt_kwargs["precomputed_salt"] = hardware_salt
 
     comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(**encrypt_kwargs)
     
@@ -797,6 +807,43 @@ Nothing to see here. 😶‍🌫️
             yk_pin = getpass("Enter YubiKey PIN (leave blank if not required): ")
             args.yubikey_pin = yk_pin if yk_pin else None
     
+    # 🔐 HSM/TPM/Hardware-Auto mode wiring
+    # These features require hardware_integration.py for key derivation
+    hardware_method = None
+    if getattr(args, 'hsm_slot', None) is not None:
+        if keyfile is not None:
+            print("Error: Cannot combine --hsm-slot with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if receiver_public_key is not None:
+            print("Error: HSM derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        # HSM PIN prompt if not provided
+        if getattr(args, 'hsm_pin', None) is None:
+            args.hsm_pin = getpass("🔐 Enter HSM PIN: ")
+        hardware_method = "hsm"
+        print(f"😺 Purring with HSM slot {args.hsm_slot}...")
+    
+    elif getattr(args, 'tpm_derive', False):
+        if keyfile is not None:
+            print("Error: Cannot combine --tpm-derive with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if receiver_public_key is not None:
+            print("Error: TPM derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        hardware_method = "tpm"
+        pcrs = getattr(args, 'tpm_seal', None)
+        print(f"🐱 Clawing TPM PCRs {pcrs or 'default'}...")
+    
+    elif getattr(args, 'hardware_auto', False):
+        if keyfile is not None:
+            print("Error: Cannot combine --hardware-auto with --keyfile", file=sys.stderr)
+            sys.exit(1)
+        if receiver_public_key is not None:
+            print("Error: Hardware auto derivation is not supported with forward secrecy keys", file=sys.stderr)
+            sys.exit(1)
+        hardware_method = "auto"
+        print("😻 Auto-detecting hardware security... (YubiKey > TPM > HSM)")
+    
     # Handle duress password
     duress_password = None
     if args.duress_password_prompt:
@@ -822,6 +869,34 @@ Nothing to see here. 😶‍🌫️
         print("Error: Duress mode requires forward secrecy enabled", file=sys.stderr)
         print("   Do not use --no-forward-secrecy with --duress-password", file=sys.stderr)
         sys.exit(1)
+    
+    # Hardware key derivation (HSM/TPM/Auto)
+    hardware_key = None
+    hardware_salt = None
+    if hardware_method is not None:
+        import secrets as crypto_secrets
+        hardware_salt = crypto_secrets.token_bytes(16)
+        
+        try:
+            hardware_key, hw_desc = process_hardware_args(args, password.encode('utf-8'), hardware_salt)
+            
+            if hardware_key is None:
+                print(f"⚠️  Hardware derivation returned None, falling back to software mode", file=sys.stderr)
+                hardware_method = None
+                hardware_salt = None
+            else:
+                if args.verbose:
+                    print(f"  🔐 Key derived via: {hw_desc}")
+        except Exception as e:
+            print(f"Error: Hardware key derivation failed: {e}", file=sys.stderr)
+            if getattr(args, 'no_hardware_fallback', False):
+                print("   --no-hardware-fallback specified, aborting.", file=sys.stderr)
+                sys.exit(1)
+            else:
+                print("   Falling back to software derivation.", file=sys.stderr)
+                hardware_method = None
+                hardware_key = None
+                hardware_salt = None
     
     # Create encoding config
     config = EncodingConfig(
@@ -854,6 +929,8 @@ Nothing to see here. 😶‍🌫️
             logo_eyes_hidden=args.logo_eyes_hidden,
             brand_text=args.brand_text,
             duress_password=duress_password,
+            hardware_key=hardware_key,
+            hardware_salt=hardware_salt,
             verbose=args.verbose
         )
         
