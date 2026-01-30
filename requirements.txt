@@ -11,6 +11,7 @@ numpy>=1.24.0               # Numerical operations
 # Cryptography
 cryptography>=41.0.0        # AES-256-GCM, HKDF, X25519
 argon2-cffi>=23.1.0         # Argon2id key derivation
+pynacl>=1.5.0               # Ed25519↔X25519 conversion (spec v1.2+)
 
 # Optional enhancements (for security features)
 scipy>=1.11.0               # For advanced steganography (optional)

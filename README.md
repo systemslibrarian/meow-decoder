@@ -45,6 +45,53 @@ If your threat model includes compromised endpoints or hardware side‑channels,
 
 ---
 
+## 📜 Spec v1.2/v1.3.1 Reference Implementation
+
+The spec-aligned implementation lives under meow_decoder/spec_v12 and provides:
+- Unified Ed25519 identity keys (RFC 8410 conversion to X25519 for ECDH)
+- Sign‑header‑then‑encrypt‑payload with AAD binding
+- Dynamic GIF insertion/extraction (MEOW‑PAYLOAD)
+- Constant‑order multi‑tier processing
+
+v1.2 Improvements Summary:
+- Removed file_id (stateless design)
+- Enhanced AAD includes signature field (prevents stripping)
+- Recipient public key in header (early misdelivery detection)
+- Dynamic GIF insertion (no fixed offset)
+- Constant‑time multi‑tier handling
+
+Example (single‑tier):
+1) Generate keys with SoftwareBackend
+2) Call spec_v12.encode_file and spec_v12.decode_file
+
+Minimal usage:
+1) Use SoftwareBackend to create keys
+2) Encode with encode_file
+3) Decode with decode_file
+
+```python
+from meow_decoder.spec_v12 import SoftwareBackend, encode_file, decode_file
+
+sender = SoftwareBackend()
+recipient = SoftwareBackend()
+sender_sk, sender_pk = sender.generate_ed25519_keypair()
+recipient_sk, recipient_pk = recipient.generate_ed25519_keypair()
+
+gif_carrier = open("carrier.gif", "rb").read()
+encrypted_gif = encode_file(b"secret", recipient_pk, sender_sk, gif_carrier)
+plaintext = decode_file(encrypted_gif, sender_pk, recipient_sk)
+```
+
+Dependencies:
+- PyNaCl (required for Ed25519↔X25519 conversion)
+- cryptography
+
+Security notes:
+- All decryption failures must return the same error ("Decryption failed")
+- Multi‑tier decode must process all tiers in constant order
+
+---
+
 ## ⚠️ Who This Is For (And Who It Isn't)
 
 | ✅ This IS for you if... | ❌ This is NOT for you if... |
