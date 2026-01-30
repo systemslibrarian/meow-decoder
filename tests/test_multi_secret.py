@@ -722,12 +722,14 @@ class TestEdgeCases:
         
         superposition, manifest = encode_multi_secret(secrets_data)
         
-        # Corrupt the superposition
+        # Corrupt the superposition - corrupt first byte of every block
+        # to ensure we hit the actual secret's blocks (not just padding)
         corrupted = bytearray(superposition)
-        corrupted[len(corrupted) // 2] ^= 0xFF
+        for i in range(0, len(corrupted), manifest.block_size):
+            corrupted[i] ^= 0xFF
         corrupted = bytes(corrupted)
         
-        # Decryption should fail
+        # Decryption should fail due to AES-GCM auth tag mismatch
         with pytest.raises(ValueError, match="Decryption failed"):
             decode_multi_secret(corrupted, manifest, "pass1")
 

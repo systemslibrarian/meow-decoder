@@ -16,7 +16,7 @@
 | `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | ✅ DONE | 48 tests, StreamingCipher/MemoryMonitor/roundtrips (in omit list) |
 | `frame_mac.py` | `test_frame_mac.py` | ✅ DONE | 100% coverage, 27 tests, 3 stubs converted |
-| `multi_secret.py` | `test_multi_secret.py` | ⏳ TODO | N-level Schrödinger (in omit list) |
+| `multi_secret.py` | `test_multi_secret.py` | ✅ DONE | 58 tests, N-level Schrödinger encode/decode (in omit list) |
 
 ---
 
@@ -154,9 +154,4 @@
    - Keep only one canonical test file per module
 
 ---
-
-## Current Coverage Estimate
-- **Before consolidation:** ~41%
-- **Target:** 90%
-- **Gap:** Need to cover ~49% more code
 
