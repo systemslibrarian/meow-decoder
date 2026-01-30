@@ -11,9 +11,9 @@
 | Source File | Test File | Status | Notes |
 |-------------|-----------|--------|-------|
 | `crypto.py` | `test_crypto.py` | ✅ DONE | Core crypto API, AES-GCM, Argon2id, HMAC |
-| `crypto_backend.py` | `test_crypto_backend.py` | 🔄 CONSOLIDATING | Python→Rust bridge, fallback |
+| `crypto_backend.py` | `test_crypto_backend.py` | ✅ DONE | Python→Rust bridge, 872 lines consolidated |
 | `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏳ TODO | SecureBytes, streaming |
-| `constant_time.py` | `test_constant_time.py` | 🔄 CONSOLIDATING | Side-channel resistance |
+| `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | ⏳ TODO | Chunked encryption |
 | `frame_mac.py` | `test_frame_mac.py` | 🔄 CONSOLIDATING | Per-frame authentication |
 | `multi_secret.py` | `test_multi_secret.py` | ⏳ TODO | N-level Schrödinger |
@@ -123,9 +123,17 @@
 
 ## Progress Log
 
-### 2026-01-30
-- [ ] Created testtodo.md
-- [ ] Starting consolidation of test files
+### 2026-01-30 (Session 2)
+- [x] crypto_backend.py consolidation COMPLETE
+  - test_crypto_backend.py: 872 lines, 18 test classes (canonical)
+  - Stubbed: test_crypto_backend_rust.py (245 lines → deprecation stub)
+  - Stubbed: test_crypto_backend_aggressive.py (537 lines → deprecation stub)
+  - Stubbed: test_coverage_90_backend.py (518 lines → deprecation stub)
+
+### 2026-01-30 (Session 1)
+- [x] Created testtodo.md
+- [x] crypto.py consolidation COMPLETE
+- [x] Starting consolidation of test files
 - [ ] Target: One test file per source module
 
 ---
