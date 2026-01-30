@@ -166,14 +166,14 @@ omit = [
     "meow_decoder/decoy_generator.py",
     "meow_decoder/double_ratchet.py",
     "meow_decoder/entropy_boost.py",
-    "meow_decoder/forward_secrecy.py",
+    # forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
     "meow_decoder/forward_secrecy_x25519.py",
     "meow_decoder/merkle_tree.py",
     "meow_decoder/quantum_mixer.py",
     "meow_decoder/schrodinger_decode.py",
     "meow_decoder/schrodinger_encode.py",
     "meow_decoder/secure_cleanup.py",
-    "meow_decoder/x25519_forward_secrecy.py",
+    # x25519_forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
     # Duress mode (tested separately in test_duress.py)
     "meow_decoder/duress_mode.py",
     # GIF/QR handling (TIER 2 - include for coverage)

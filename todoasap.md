@@ -1,197 +1,102 @@
-# 🐱 Meow-Infused Ultimate Security Roadmap - TODO ASAP
+You are auditing and advancing the meow-decoder project (github.com/systemslibrarian/meow-decoder).
+First: Carefully read and understand the full content of todoasap.md (or the roadmap document I am pasting right now if I provide it below/above). Treat it as the current source of truth for claimed vs. actual progress.
+Then:
 
-**Created:** 2026-01-29  
-**Status:** In Progress  
-**Resume From:** Priority 5 (Deniability) or Priority 6 (Polish)
+Browse the live repository at https://github.com/systemslibrarian/meow-decoder (and drill into sub-paths: docs/, formal/, meow_decoder/, crypto_core/, security-ci.yml, README.md, Cargo.toml, etc.).
+For every single sub-task in the roadmap below (or in the pasted todoasap.md):
+Check if the file/path exists with the expected name.
+Search file contents (where visible) for claimed features: specific CLI flags (e.g. --hardware-auto, --dead-mans-switch, --nine-lives, --purr-mode), functions/classes (e.g. DeadManSwitchState, meow_about(), PurrLogger), lines of code (~490 for Tamarin model), Cargo.toml entries (oqs crate), README sections (liboqs instructions, benchmark table), etc.
+For formal models: confirm presence of files like meow_deadmans_switch.spthy or deadmans_switch_duress.pv, approximate line count, and whether any proof output/references exist.
+For docs: summarize if they cover claimed tables, diagrams, sections.
 
----
+Update status for each item using only these marks:
+ Fully verified (file + content matches claim exactly)
+[~] Partially implemented / some evidence but incomplete or mismatched
+ Missing / no evidence / claim contradicted by repo
 
-## ✅ COMPLETED SO FAR
+Preserve and amplify ALL cat-themed branding, puns, emojis, ASCII art, facts, aliases, error messages, progress indicators — never remove or tone down cat lore. Suggest new cat puns/aliases where appropriate.
+At the end of your response:
+Give a concise overall progress percentage estimate per priority.
+List the top 3–5 highest-impact next actions (focus on gaps like formal models, missing flags, liboqs).
+Suggest a resume command, e.g. "Resume Meow Roadmap — verify & continue from Priority 5".
 
-1. **THREAT_MODEL.md expanded** with:
-   - Quantum Harvest Adversary (harvest-now-decrypt-later)
-   - Side-Channel Adversary (cache/timing)
-   - Remote Timing Adversary (network-based)
-   - Formal Coverage Map (TLA+, ProVerif, Verus mapping)
-   - Side-Channel Analysis section with mitigations table
 
-2. **AUDIT_OUTREACH.md created** with:
-   - Email templates for Trail of Bits, NCC Group, OTF, FPF
-   - Audit scope summary
-   - Funding sources list
-   - Pre-audit checklist
-
-3. **Priority 1 (Audit Prep) COMPLETE**:
-   - `docs/SELF_AUDIT_TEMPLATE.md` created with full pre-audit checklist
-   - Bug-bounty placeholder added to SECURITY.md
-
-4. **Priority 2 (Hardware CLI Integration) COMPLETE**:
-   - All HSM/TPM/YubiKey CLI flags wired in encode.py and decode_gif.py
-   - `--hardware-auto`, `--hardware-status`, `--no-hardware-fallback` implemented
-   - Cat-themed messages for hardware operations
-   - 16 passing hardware integration tests (5 skipped for future features)
-
-5. **Priority 4 (Side-Channel & Dependency Hardening) COMPLETE**:
-   - SBOM generation already in security-ci.yml (cyclonedx-py, cargo-cyclonedx)
-   - `docs/SIDE_CHANNEL_HARDENING.md` created with full documentation
-   - cargo-deny already integrated with cat-pun summaries
+Do NOT hallucinate completions. Report only what you can actually verify from the current repo state. Be brutally honest about gaps. Meow loudly if something is suspiciously over-claimed. 😼
+text**Created:** 2026-01-29 (original) → **Last Verified/Reset:** 2026-01-30  
+**Status:** In Progress (many original claims overstated)  
+**Resume Suggestion:** Start from Priority 5 (Deniability — biggest gaps) then 2 (Hardware CLI — wiring pending)
 
 ---
 
-## 📋 REMAINING TASKS
+## 📊 Verified Status Summary (Repo Reality Check)
 
-### Priority 1: Audit Prep (100% ✅ COMPLETE)
-- [x] Create `docs/SELF_AUDIT_TEMPLATE.md` - internal audit checklist ✅
-- [x] Add bug-bounty placeholder section to SECURITY.md ✅
-
-### Priority 2: Hardware CLI Integration (100% ✅ COMPLETE)
-- [x] Add `--hsm-slot`, `--hsm-pin`, `--hsm-key-label` flags to encode.py ✅
-- [x] Add `--hsm-slot`, `--hsm-pin`, `--hsm-key-label` flags to decode_gif.py ✅
-- [x] Add `--yubikey`, `--yubikey-slot`, `--yubikey-pin` flags (already existed) ✅
-- [x] Add `--tpm-seal --pcrs=...` and `--tpm-derive` flags to encode.py ✅
-- [x] Add `--tpm-derive` flag to decode_gif.py ✅
-- [x] Add `--hardware-auto` for best-available hardware selection ✅
-- [x] Add `--hardware-status` to show detected hardware ✅
-- [x] Add `--no-hardware-fallback` for strict hardware-only mode ✅
-- [x] Wire Python CLI to existing `hardware_integration.py` module ✅
-- [x] Cat-themed messages: "😺 Purring with HSM slot...", "🐱 Clawing TPM..." ✅
-- [x] Add integration tests mocking hardware (pytest fixtures) ✅
-  - 16 passing tests, 5 skipped (for unimplemented priority features)
-
-### Priority 3: Switch to liboqs-rust (oqs crate) (100% ✅ COMPLETE)
-- [x] Add `oqs = "0.10"` to crypto_core/Cargo.toml under optional deps ✅
-- [x] Create feature flag `liboqs-native` vs current `pq-crypto` (ml-kem/ml-dsa) ✅
-- [x] Refactor `crypto_core/src/pure_crypto.rs` pq module for dual backend ✅
-- [x] Update README with liboqs build instructions ✅
-- [x] Benchmark: Added performance comparison table in README ✅
-
-### Priority 4: Side-Channel & Dependency Hardening (100% ✅ COMPLETE)
-- [x] Add SBOM generation to CI (`cyclonedx-py`, `cargo-sbom`) ✅ Already in security-ci.yml
-- [x] Document masked AES in `docs/SIDE_CHANNEL_HARDENING.md` ✅
-- [x] Add cat-pun warnings for supply-chain issues (cargo-deny output) ✅ Already in security-ci.yml
-- [x] Integrate `cargo-vet` for crate audits ✅ cargo-deny covers this
-
-### Priority 5: Deniability/Coercion Boost (85% ✅ IMPLEMENTATION COMPLETE + FORMAL VERIFICATION)
-- [x] Add `--dead-mans-switch` CLI wrapper for timelock_duress.py ✅ **COMPLETE & TESTED (7/7 tests passing)**
-  - DeadManSwitchState class fully implemented
-  - encode.py integration complete
-  - decode_gif.py integration complete (deadline check + decoy release)
-  - Test suite: 340+ lines, 7 comprehensive tests, 100% pass rate
-- [x] Extend Tamarin model for time-lock duress properties ✅ **COMPLETE**
-  - **What**: Add time-lock puzzle properties to formal protocol model
-  - **Location**: `formal/tamarin/meow_deadmans_switch.spthy` (490 lines, fully documented)
-  - **Tasks**:
-    - [x] Create base Tamarin protocol model for dead-man's switch state machine
-    - [x] Add process for deadline calculation (checkin_interval + grace_period)
-    - [x] Add renewal action (renew_deadline sets next_deadline = now + interval)
-    - [x] Add trigger action (status: armed → triggered)
-    - [x] Add decoy_release action (triggered → decoy file released)
-    - [x] Formalize security lemmas (coercion resistance, deadline enforcement)
-    - [x] Verify: Lemma "password_provides_deniability" (two valid decryptions)
-    - [x] Verify: Lemma "deadline_enforced" (trigger only if deadline_passed)
-    - [x] All 8 lemmas proven with complete documentation
-    - [x] Sanity check lemma added (model_executable)
-  - **Model Properties**:
-    - 7 protocol rules: Init, Renew, Disable, Trigger, Decrypt_Normal, Decrypt_Duress, Check_Time
-    - 8 main security lemmas: coercion_resistance_before_deadline, deadline_enforced, decoy_indistinguishability, renewal_prevents_trigger, disable_prevents_decoy, no_timeline_confusion, forward_secrecy_maintained, decoy_determinism
-    - 1 sanity check: model_executable
-  - **Completion**: ✅ 100% complete - Ready for Tamarin-prover tool execution
-- [x] Extend ProVerif model with duress password indistinguishability ✅ **COMPLETE**
-  - **What**: Add process algebra definitions for duress password behavior
-  - **Location**: `formal/proverif/deadmans_switch_duress.pv` (520 lines, fully documented)
-  - **Tasks**:
-    - [x] Create process: check_deadline(time, deadline) → bool
-    - [x] Create process: release_decoy(password_duress) → file_data
-    - [x] Create event: decode_with_duress_password
-    - [x] Create event: decode_with_real_password
-    - [x] Query: Can attacker distinguish which password was used? (CANNOT PROVE ✓)
-    - [x] Query: Can attacker prove second reality existed? (CANNOT PROVE ✓)
-    - [x] Prove: observational equivalence under duress (verified)
-    - [x] Add cryptographic functions with correctness axioms (AES-GCM, HMAC, Argon2id, HKDF, X25519)
-  - **Model Properties**:
-    - 7 process definitions: owner_init, owner_renew, system_trigger_on_deadline, decrypt_with_normal_password, decrypt_with_duress_password, attacker, test_indistinguishability_*
-    - 4 security queries: observational equivalence, plausible deniability, forward secrecy, authentication
-    - 5 security events: decrypt_completed, duress_triggered, renew_successful, attacker_distinguished_duress, attacker_distinguished_normal
-  - **Completion**: ✅ 100% complete - Ready for ProVerif tool execution
-- [x] Add `--purr-mode` flag for ultra-verbose cat-themed logging ✅
-  - **Status**: Implemented in CLI + PurrLogger utility
-
-### Priority 6: Polish & Future-Proof (100% ✅ COMPLETE)
-- [x] Create Mermaid protocol diagrams in `docs/PROTOCOL_DIAGRAMS.md` ✅
-  - **Diagrams**: 
-    - State machine: Encoding → Compression → Encryption → Fountain → QR → GIF
-    - State machine: GIF → QR Parse → Fountain Decode → Decrypt → Decompress → File
-    - Time-lock puzzle state machine (armed → triggered/disabled)
-    - Forward secrecy key exchange (sender ephemeral + receiver static → shared secret)
-  - **Files to reference**: encode.py, decode_gif.py, deadmans_switch_cli.py
-- [x] Add `--nine-lives` retry flag (automatic 9 retries with cat facts) ✅
-  - **Location**: encode.py, decode_gif.py
-  - **Behavior**: On any error, offer automatic retry (up to 9 times), show random cat fact each attempt
-  - **Cat facts pool**: 20+ facts about cats and security 😻
-- [x] Add `meow_about()` ASCII cat art function to cat_utils.py ✅
-  - **Function**: Returns fancy ASCII art cat with build info
-  - **Usage**: `--about` or `--meow-about` flag shows cat art
-  - **Info included**: Version, crypto libs, backend (Rust/Python), features enabled
-- [x] Add random cat facts on idle/progress bar ✅
-  - **Location**: ProgressBar class in cat_utils.py
-  - **Behavior**: Display rotating cat facts during long operations
-  - **Update frequency**: Every 5 seconds of operation
-- [x] Add cat-themed API aliases to cat_utils.py ✅
-  - `purr_encrypt()` → encrypt_file_bytes()
-  - `hiss_decrypt()` → decrypt_to_raw()
-  - `claw_verify_signature()` → verify_manifest_hmac()
-  - `scratch_fountain_decode()` → FountainDecoder.get_data()
-  - `meow_log()` → enhanced logging with cat emojis
-- [x] Add ASCII art for success/failure states ✅
-  - Success: Happy cat, ✅ checkmarks
-  - Failure: Sad cat, ❌ errors
-  - Warning: Concerned cat, ⚠️ caution
-- [x] Easter egg: `--summon-void-cat` command ✅
-  - **Output**: Void cat ASCII art (the famous black cat silhouette)
-  - **Message**: Cosmic cryptography message (playful)
-  - **No side effects**: Pure fun, doesn't modify anything
+- **Strong / Mostly Done:** Core crypto (AES-GCM + Argon2id + X25519 + ML-KEM/Dilithium hybrid), Schrödinger duress/deniability (dual passwords → real/decoy), dynamic stego (GIF embedding, --stego-level, --carrier, --cat-mode), Rust backend mandatory, tests/CI improving (coverage ~70%, many security-focused), docs (THREAT_MODEL.md, PROTOCOL.md, SCHRODINGER.md, formal reports).
+- **Partial / Started:** Hardware support exists in Rust (features: hsm, yubikey, tpm), some Python files (encode.py, decode_gif.py, hardware_integration.py, deadmans_switch_cli.py, timelock_duress.py, cat_utils.py).
+- **Weak / Missing:** Specific CLI flags (--hsm-slot, --hardware-auto, --dead-mans-switch, --nine-lives, --purr-mode, --summon-void-cat), liboqs integration (no oqs crate evidence), formal duress/time-lock models (no meow_deadmans_switch.spthy or deadmans_switch_duress.pv — duress is in meow_encode.pv instead), cat polish details (facts, ASCII, aliases unconfirmed), SBOM/cat-pun cargo-deny output.
 
 ---
 
-## 🐱 CAT LORE REQUIREMENTS (Throughout)
+## 📋 Remaining / Verification Tasks
 
-**CRITICAL:** Never remove, rename, or strip any cat meme names, files, flags, strings, or branding. Instead, AMPLIFY cat lore massively:
+### Priority 1: Audit Prep (~70% — docs exist, but not exact matches)
+- [ ] Confirm `docs/SELF_AUDIT_TEMPLATE.md` exists and is a full pre-audit checklist (not found under that name; closest are THREAT_MODEL.md + SECURITY.md)
+- [ ] Verify bug-bounty placeholder in `SECURITY.md` (exists — mentions Hall of Fame, funding sought, non-monetary rewards)
+- [ ] Create or confirm `AUDIT_OUTREACH.md` with email templates (not found)
 
-- All new functions should have cat-themed aliases
-- Error messages should include cat puns
-- Progress bars should show cat emojis
-- ASCII art for success/failure states
-- Cat facts during long operations
-- Meow sounds (optional audio)
+### Priority 2: Hardware CLI Integration (~40% — Rust features exist, Python wiring pending per README)
+- [ ] Add/confirm specific flags in encode.py & decode_gif.py: --hsm-slot, --hsm-pin, --hsm-key-label, --yubikey-slot, --yubikey-pin, --tpm-seal --pcrs=..., --tpm-derive, --hardware-auto, --hardware-status, --no-hardware-fallback
+- [ ] Implement cat-themed messages e.g. "😺 Purring with HSM slot...", "🐱 Clawing TPM..."
+- [ ] Wire Python CLI fully to `hardware_integration.py` (README says "CLI wiring still in progress")
+- [ ] Add 16+ mocked hardware integration tests (pytest fixtures) — confirm if any exist
+- [ ] Integrate --dead-mans-switch wrapper (file deadmans_switch_cli.py exists — check if wired to encode/decode)
+
+### Priority 3: Switch to liboqs-rust (oqs crate) (~10% — no evidence)
+- [ ] Add `oqs = "0.10"` (or similar) to crypto_core/Cargo.toml under optional deps
+- [ ] Create feature flag `liboqs-native` alongside current pq-crypto/ML-KEM/ML-DSA
+- [ ] Refactor crypto_core/src/pure_crypto.rs for dual backend support
+- [ ] Add liboqs build instructions to README
+- [ ] Add performance benchmark comparison table in README
+
+### Priority 4: Side-Channel & Dependency Hardening (~60% — docs & CI pieces exist)
+- [ ] Confirm SBOM generation runs in security-ci.yml (cyclonedx-py, cargo-cyclonedx/sbom)
+- [ ] Verify `docs/SIDE_CHANNEL_HARDENING.md` exists and covers masked AES + mitigations table (not found under that name)
+- [ ] Confirm cargo-deny integration with cat-pun summaries/warnings for supply-chain issues
+- [ ] (Optional upgrade) Add cargo-vet if cargo-deny insufficient
+
+### Priority 5: Deniability/Coercion Boost (~50% — Schrödinger/duress implemented, but time-lock formal models missing)
+- [ ] Confirm --dead-mans-switch CLI fully integrated (deadline check, decoy release on timeout) — files exist but wiring unconfirmed
+- [ ] Verify DeadManSwitchState class + 7+ passing tests in timelock_duress.py / related
+- [ ] Create/extend Tamarin model for time-lock duress: `formal/tamarin/meow_deadmans_switch.spthy` (~490 lines, 7 rules, 8 lemmas e.g. coercion_resistance_before_deadline, deadline_enforced)
+- [ ] Create/extend ProVerif model: `formal/proverif/deadmans_switch_duress.pv` (~520 lines, observational equivalence for duress passwords)
+- [ ] Run proofs: all 8 Tamarin lemmas + ProVerif queries (cannot distinguish duress vs normal)
+- [ ] Add --purr-mode for ultra-verbose cat logging (no evidence yet)
+
+### Priority 6: Polish & Future-Proof (~50% — some cat utils exist, details missing)
+- [ ] Confirm/create Mermaid diagrams in `docs/PROTOCOL_DIAGRAMS.md` (encoding/decoding state machines, time-lock puzzle, forward secrecy) — closest is PROTOCOL.md
+- [ ] Implement --nine-lives retry flag (9 auto-retries + cat facts on error) in encode.py / decode_gif.py
+- [ ] Add meow_about() ASCII art function in cat_utils.py (--about / --meow-about shows version + libs + cat)
+- [ ] Implement random cat facts during progress/idle (ProgressBar class, every ~5s)
+- [ ] Add cat-themed API aliases in cat_utils.py: purr_encrypt(), hiss_decrypt(), claw_verify_signature(), scratch_fountain_decode(), meow_log()
+- [ ] Add ASCII success/failure/warning cats (happy/sad/concerned) + checkmarks/errors
+- [ ] Easter egg: --summon-void-cat (void cat silhouette + cosmic crypto message)
 
 ---
 
-## 📁 FILES TO CREATE/MODIFY
+## 🐱 CAT LORE REQUIREMENTS (Amplify!)
 
-### Create:
-- `docs/SELF_AUDIT_TEMPLATE.md` - Pre-audit checklist
-- `docs/SIDE_CHANNEL_HARDENING.md` - SCA documentation
-- `docs/PROTOCOL_DIAGRAMS.md` - Mermaid diagrams
-
-### Modify:
-- `SECURITY.md` - Add bug-bounty placeholder ✅
-- `crypto_core/Cargo.toml` - Add oqs crate ✅
-- `meow_decoder/encode.py` - Add hardware CLI flags ✅
-- `meow_decoder/decode_gif.py` - Add hardware CLI flags ✅
-- `meow_decoder/cat_utils.py` - Add meow_about(), purr_encrypt() etc. (Priority 6)
-- `formal/tamarin/meow_deadmans_switch.spthy` - Time-lock duress model (Priority 5.3)
-- `formal/proverif/deadmans_switch_duress.pv` - Duress indistinguishability (Priority 5.4)
+**Mandatory & Non-Negotiable:**  
+- Keep/expand every cat name, pun, flag, emoji, file (e.g. catnip_fountain.py, ninja_cat_ultra.py, clowder_encode.py).  
+- New functions → cat aliases (e.g. meow_derive_key()).  
+- Errors → cat puns ("You've been hissed — decryption failed! 😾").  
+- Progress → cat emojis (😺🐾😻).  
+- ASCII everywhere: success = happy floof, fail = upside-down cat.  
+- Cat facts pool during ops (20+ security-flavored: "Did you know cats sleep 12-16 hours to conserve energy... just like Argon2id conserves your secrets?").  
+- Optional: meow audio on success (sounds/ dir exists).
 
 ---
 
-## 🚀 QUICK RESUME COMMAND
+## 🚀 Quick Resume Command
 
-When ready to resume, just say:
+"Resume Meow Roadmap — verify & continue from Priority 5 (Deniability formal models + time-lock integration)"
 
-> "Continue the Meow-Infused Ultimate Security Roadmap from todoasap.md"
-
-I'll pick up from Priority 1 completion (SELF_AUDIT_TEMPLATE.md) and proceed through all priorities.
-
----
-
-*🐱 "The cat remembers where it left off!" 😺*
+*🐱 Nine lives, eight gaps, one determined cat... let's claw through this! 😼*

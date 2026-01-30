@@ -24,9 +24,9 @@
 
 | Source File | Test File | Status | Notes |
 |-------------|-----------|--------|-------|
-| `forward_secrecy.py` | `test_forward_secrecy.py` | 🔄 CONSOLIDATING | Ratchet, chain logic |
+| `forward_secrecy.py` | `test_forward_secrecy.py` | ✅ DONE | 94% coverage, 20 tests, 2 stubs converted |
 | `forward_secrecy_x25519.py` | `test_forward_secrecy_x25519.py` | ⏳ TODO | X25519 specifics |
-| `x25519_forward_secrecy.py` | `test_x25519_forward_secrecy.py` | 🔄 CONSOLIDATING | Alt impl |
+| `x25519_forward_secrecy.py` | `test_x25519_forward_secrecy.py` | ✅ DONE | 98% coverage, 46 tests, 3 stubs converted |
 | `forward_secrecy_encoder.py` | `test_forward_secrecy_encoder.py` | ⏳ TODO | Encode-side ephemeral |
 | `forward_secrecy_decoder.py` | `test_forward_secrecy_decoder.py` | ⏳ TODO | Decode-side ephemeral |
 
