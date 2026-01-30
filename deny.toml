@@ -4,42 +4,29 @@
 # Run with: cargo deny check
 # CI integration: .github/workflows/security-ci.yml
 
+[graph]
+targets = []
+all-features = false
+no-default-features = false
+
 [advisories]
-# The path where the advisory database is cloned/fetched into
 db-path = "~/.cargo/advisory-db"
-
-# The url(s) of the advisory databases to use
-url = ["https://github.com/RustSec/advisory-db"]
-
-# The lint level for security vulnerabilities
-vulnerability = "deny"
-
-# The lint level for unmaintained crates
-unmaintained = "warn"
-
-# The lint level for crates that have been yanked
-yanked = "warn"
-
-# The lint level for crates with security notices
-notice = "warn"
-
-# Threshold for CVSS score that counts as a critical vulnerability
-severity-threshold = "medium"
-
-# Crates to ignore (false positives or accepted risks)
-# Document each exception with rationale
 ignore = [
-    # Example: "RUSTSEC-2020-0000",  # Reason for ignoring
+    # RUSTSEC-2023-0071: rsa 0.9.10 - Marvin Attack timing sidechannel
+    # Status: No fixed upgrade available
+    # Mitigation: Comes from yubikey dependency which we use only for ECDH key derivation,
+    # not for RSA operations. The vulnerable RSA code path is not exercised.
+    # Risk: LOW - Not using RSA encryption/decryption
+    "RUSTSEC-2023-0071",
+    
+    # RUSTSEC-2024-0436: paste 1.0.15 - unmaintained crate
+    # Status: Transitive dependency from cryptoki
+    # Mitigation: paste is a compile-time macro crate with no runtime security implications.
+    # Risk: LOW - Compile-time only, no runtime attack surface
+    "RUSTSEC-2024-0436",
 ]
 
 [licenses]
-# The lint level for crates with unlicensed dependencies
-unlicensed = "deny"
-
-# The lint level for crates whose license(s) are copyleft
-copyleft = "warn"
-
-# List of explicitly allowed licenses
 allow = [
     "MIT",
     "Apache-2.0",
@@ -49,110 +36,30 @@ allow = [
     "ISC",
     "CC0-1.0",
     "Zlib",
-    "MPL-2.0",           # Weaker copyleft, acceptable for crypto libs
-    "Unicode-DFS-2016",  # Unicode license for text handling
+    "MPL-2.0",
+    "Unicode-3.0",
 ]
-
-# List of explicitly denied licenses (strong copyleft, incompatible)
-deny = [
-    "GPL-2.0",
-    "GPL-3.0",
-    "AGPL-3.0",
-]
-
-# Blanket approval or denial for OSI-approved or FSF Free/Libre licenses
 confidence-threshold = 0.8
-
-# Private crates are allowed to use any license
 private = { ignore = true }
 
 [[licenses.clarify]]
-# Ring has a complex license situation - clarify it here
 name = "ring"
 expression = "MIT AND ISC AND OpenSSL"
-license-files = [
-    { path = "LICENSE", hash = 0xbd0eed23 }
-]
-
-[[licenses.clarify]]
-# Webpki also has complex licensing
-name = "webpki"
-expression = "ISC"
-license-files = []
+license-files = [{ path = "LICENSE", hash = 0xbd0eed23 }]
 
 [bans]
-# Lint level for when multiple versions of the same crate are detected
 multiple-versions = "warn"
-
-# Lint level for when a crate from a registry is found
 wildcards = "allow"
-
-# The graph highlighting used when creating dotgraphs for crates with multiple versions
 highlight = "all"
-
-# List of crates to deny outright (known problematic or vulnerable)
-deny = [
-    # Known vulnerable crates (add as discovered)
-    # { name = "example-crate", version = "*" },
-]
-
-# List of crates to allow (bypass bans)
-allow = [
-    # Core crypto crates we trust
-    # { name = "ring", version = "*" },
-]
-
-# Skips specific crate versions (allow multiple versions)
-skip = [
-    # Allow multiple versions temporarily during upgrade
-    # { name = "example", version = "*" },
-]
-
-# Skip tree pruning for specific crates
+deny = []
+skip = []
 skip-tree = []
 
 [sources]
-# Lint level for crates from crates.io
 unknown-registry = "deny"
-
-# Lint level for crates from git repositories
 unknown-git = "warn"
-
-# List of allowed git repositories
 allow-git = [
-    # Only allow known-good upstream repos
     "https://github.com/RustCrypto/KEMs",
     "https://github.com/RustCrypto/signatures",
     "https://github.com/RustCrypto/traits",
 ]
-
-# List of allowed registries
-allow-registry = ["https://github.com/rust-lang/crates.io-index"]
-
-# ============================================================================
-# MEOW DECODER SPECIFIC POLICIES
-# ============================================================================
-
-# Post-Quantum Crypto Status
-# The ml-kem and ml-dsa crates are at 0.1.0-rc (release candidate).
-# They are NOT yet audited. We track their audit status here.
-#
-# Status tracking:
-# - ml-kem 0.1.0-rc: UNAUDITED - Use only as defense-in-depth
-# - ml-dsa 0.1.0-rc: UNAUDITED - Use only as defense-in-depth
-#
-# When audits complete, update to stable versions and remove warnings.
-
-# Hardware Security Dependencies
-# These have more complex trust requirements:
-# - cryptoki: Wraps PKCS#11 C libraries (trust boundary at C lib)
-# - tss-esapi: Wraps TPM 2.0 stack (trust boundary at tpm2-tss)
-# - yubikey: Direct USB HID (minimal attack surface)
-
-# Supply Chain Best Practices Checklist:
-# 1. ✅ All direct dependencies pinned to specific versions
-# 2. ✅ cargo-audit runs in CI
-# 3. ✅ cargo-deny runs in CI
-# 4. ✅ SBOM generation enabled
-# 5. ⬜ Reproducible builds (in progress)
-# 6. ⬜ Signed releases (planned)

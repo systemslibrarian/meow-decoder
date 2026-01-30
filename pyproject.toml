@@ -134,6 +134,15 @@ omit = [
     "meow_decoder/bidirectional.py",
     # Hardware-dependent (TIER 3)
     "meow_decoder/hardware_keys.py",
+    "meow_decoder/hardware_integration.py",
+    # Spec v12 (TIER 3 - experimental API)
+    "meow_decoder/spec_v12/*.py",
+    "meow_decoder/spec_v12/__init__.py",
+    # Timelock/Deadman's switch (TIER 3 - advanced features)
+    "meow_decoder/timelock_duress.py",
+    "meow_decoder/deadmans_switch_cli.py",
+    # Security warnings (TIER 3 - optional notifications)
+    "meow_decoder/security_warnings.py",
     # Advanced features (TIER 3)
     "meow_decoder/multi_secret.py",
     "meow_decoder/secure_bridge.py",

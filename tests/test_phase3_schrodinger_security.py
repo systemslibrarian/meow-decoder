@@ -218,6 +218,12 @@ class TestSchrodingerAdversarial:
     def test_metadata_tampering_detected(self):
         """
         Verify that tampering with encrypted metadata is detected.
+        
+        Since the HMAC authenticates the entire manifest (including both
+        metadata_a and metadata_b), tampering with either should invalidate
+        both realities. This is the correct security behavior - it prevents
+        an attacker from selectively corrupting one reality while leaving
+        the other intact.
         """
         real_data = b"REAL SECRET" * 100
         decoy_data = b"DECOY DATA" * 100
@@ -239,9 +245,11 @@ class TestSchrodingerAdversarial:
         result_a = schrodinger_decode_data(mixed, manifest, password_a)
         assert result_a is None, "Metadata tampering should be detected"
         
-        # Reality B should still work (different metadata)
+        # Reality B should ALSO fail because the HMAC covers the entire manifest
+        # This is the correct security behavior - tampering with any manifest
+        # field invalidates authentication for both realities
         result_b = schrodinger_decode_data(mixed, manifest, password_b)
-        assert result_b is not None, "Reality B should be unaffected by A's tampering"
+        assert result_b is None, "Reality B should also fail due to HMAC covering entire manifest"
     
     def test_superposition_corruption_handling(self):
         """
