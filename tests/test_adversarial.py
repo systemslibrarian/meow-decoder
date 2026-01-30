@@ -210,8 +210,9 @@ class TestReplayAttacks:
         gif_file = tmp_path / "test.gif"
         output_file = tmp_path / "output.txt"
         
-        # Encode with higher redundancy to ensure decoding works
-        config = EncodingConfig(redundancy=2.5)
+        # Encode with high redundancy and smaller blocks for reliable CI testing.
+        # Small block_size ensures enough droplets for a small payload.
+        config = EncodingConfig(block_size=64, redundancy=3.0)
         encode_file(input_file, gif_file, password="testpass123", config=config)
         
         # Decode (first time - should work)
