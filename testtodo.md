@@ -14,9 +14,9 @@
 | `crypto_backend.py` | `test_crypto_backend.py` | ✅ DONE | Python→Rust bridge, 872 lines consolidated |
 | `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏸️ BLOCKED | Missing imports (HKDF, AESGCM, low_level) - file is broken, in omit list |
 | `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
-| `streaming_crypto.py` | `test_streaming_crypto.py` | ⏳ TODO | Chunked encryption |
+| `streaming_crypto.py` | `test_streaming_crypto.py` | ✅ DONE | 48 tests, StreamingCipher/MemoryMonitor/roundtrips (in omit list) |
 | `frame_mac.py` | `test_frame_mac.py` | ✅ DONE | 100% coverage, 27 tests, 3 stubs converted |
-| `multi_secret.py` | `test_multi_secret.py` | ⏳ TODO | N-level Schrödinger |
+| `multi_secret.py` | `test_multi_secret.py` | ⏳ TODO | N-level Schrödinger (in omit list) |
 
 ---
 
