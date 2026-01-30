@@ -66,6 +66,7 @@ all = [
 [project.scripts]
 meow-encode = "meow_decoder.encode:main"
 meow-decode-gif = "meow_decoder.decode_gif:main"
+meow-deadmans-switch = "meow_decoder.deadmans_switch_cli:main"
 # Optional scripts (uncomment if you install the gui dependencies):
 # meow-webcam = "meow_decoder.decode_webcam_with_resume:main"
 # meow-dashboard = "meow_decoder.meow_dashboard_demo:main"

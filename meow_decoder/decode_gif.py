@@ -77,6 +77,52 @@ def decode_gif(
     
     start_time = time.time()
     
+    # Check for dead-man's switch (auto-release on deadline)
+    try:
+        from .deadmans_switch_cli import DeadManSwitchState
+        
+        deadman_state_file = Path(input_path).parent / f".{Path(input_path).stem}.deadman.json"
+        if deadman_state_file.exists():
+            try:
+                deadman_state = DeadManSwitchState.load(str(input_path))
+                
+                if deadman_state.is_deadline_passed():
+                    if verbose:
+                        print("\n⏰ DEAD-MAN'S SWITCH ACTIVATED!")
+                        print(f"   Deadline passed on: {deadman_state.state.get('next_deadline', 'unknown')}")
+                        print(f"   Releasing decoy file instead of real data")
+                    
+                    # Trigger decoy release
+                    deadman_state.trigger()
+                    
+                    # If a decoy file was configured, copy it to output
+                    decoy_file = deadman_state.state.get('decoy_file')
+                    if decoy_file and Path(decoy_file).exists():
+                        with open(decoy_file, 'rb') as f:
+                            decoy_data = f.read()
+                        with open(output_path, 'wb') as f:
+                            f.write(decoy_data)
+                        
+                        if verbose:
+                            print(f"   Decoy file ({len(decoy_data):,} bytes) written to: {output_path}")
+                        
+                        return {
+                            'input_frames': 0,
+                            'qr_codes_read': 0,
+                            'droplets_processed': 0,
+                            'blocks_decoded': 0,
+                            'output_size': len(decoy_data),
+                            'efficiency': 0.0,
+                            'elapsed_time': time.time() - start_time,
+                            'deadman_triggered': True
+                        }
+            except Exception as e:
+                if verbose:
+                    print(f"⚠️  Dead-man's switch check failed: {e}")
+                # Continue with normal decoding
+    except ImportError:
+        pass  # Dead-man's switch module not available
+    
     # Extract frames from GIF
     if verbose:
         print(f"Loading GIF: {input_path}")
@@ -567,6 +613,8 @@ Examples:
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
+    parser.add_argument('--purr-mode', action='store_true',
+                       help='Ultra-verbose cat-themed logging with meows, facts, and cat verbs 🐱')
     parser.add_argument('--force', action='store_true',
                        help='Overwrite output file if exists')
     
@@ -581,6 +629,13 @@ Examples:
         caps = provider.detect_all()
         print(caps.summary())
         sys.exit(0)
+    
+    # Enable purr mode (ultra-verbose cat-themed logging)
+    if args.purr_mode:
+        from .cat_utils import enable_purr_mode
+        purr = enable_purr_mode(enabled=True)
+        # Purr mode implies verbose
+        args.verbose = True
     
     # Validate input file
     if not args.input.exists():

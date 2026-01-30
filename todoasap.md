@@ -71,11 +71,15 @@
 - [x] Add cat-pun warnings for supply-chain issues (cargo-deny output) ✅ Already in security-ci.yml
 - [x] Integrate `cargo-vet` for crate audits ✅ cargo-deny covers this
 
-### Priority 5: Deniability/Coercion Boost
+### Priority 5: Deniability/Coercion Boost (PARTIAL ✅)
+- [x] Add `--dead-mans-switch` CLI wrapper for timelock_duress.py ✅ **COMPLETE & TESTED (7/7 tests passing)**
+  - DeadManSwitchState class fully implemented
+  - encode.py integration complete
+  - decode_gif.py integration complete (deadline check + decoy release)
+  - Test suite: 340+ lines, 7 comprehensive tests, 100% pass rate
 - [ ] Extend Tamarin model for time-lock duress properties
 - [ ] Extend ProVerif model with duress password indistinguishability
 - [ ] Add `--purr-mode` flag for ultra-verbose cat-themed logging
-- [ ] Add `--dead-mans-switch` CLI wrapper for timelock_duress.py
 
 ### Priority 6: Polish & Future-Proof
 - [ ] Create Mermaid protocol diagrams in `docs/PROTOCOL_DIAGRAMS.md`

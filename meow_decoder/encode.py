@@ -547,6 +547,12 @@ Examples:
     parser.add_argument('--duress-password-prompt', action='store_true',
                        help='Prompt for duress password interactively (more secure than CLI arg)')
     
+    # Dead-man's switch (time-based auto-release)
+    parser.add_argument('--dead-mans-switch', type=str, metavar='DURATION',
+                       help='Enable dead-man\'s switch: Auto-release decoy if no check-in within DURATION (e.g., "24h", "7d", "3600s")')
+    parser.add_argument('--deadman-grace-period', type=str, default='1h',
+                       help='Grace period for check-ins before deadline (default: 1h)')
+    
     # Key generation
     parser.add_argument('--generate-keys', action='store_true',
                        help='Generate receiver keypair for forward secrecy and exit')
@@ -978,6 +984,49 @@ Nothing to see here. 😶‍🌫️
                     f.write(b'\x00' * file_size)
                 args.input.unlink()
                 print(f"  ✓ Source file wiped: {args.input}")
+        
+        # Setup dead-man's switch if requested
+        if args.dead_mans_switch:
+            try:
+                from .deadmans_switch_cli import DeadManSwitchState
+                
+                # Parse duration and grace period
+                import re
+                def parse_duration(duration_str):
+                    """Parse duration string like '24h', '7d', '3600s' to seconds."""
+                    match = re.match(r'(\d+)([hds])', duration_str.lower())
+                    if not match:
+                        raise ValueError(f"Invalid duration format: {duration_str}. Use '24h', '7d', or '3600s'")
+                    value, unit = int(match.group(1)), match.group(2)
+                    multipliers = {'h': 3600, 'd': 86400, 's': 1}
+                    return value * multipliers[unit]
+                
+                checkin_interval = parse_duration(args.dead_mans_switch)
+                grace_period = parse_duration(args.deadman_grace_period)
+                
+                # Create dead-man's switch state
+                state = DeadManSwitchState(
+                    gif_path=str(args.output),
+                    checkin_interval_seconds=checkin_interval,
+                    grace_period_seconds=grace_period,
+                    decoy_file=None  # No decoy for now - user must renew to survive
+                )
+                state.save()
+                
+                if args.verbose or args.purr_mode:
+                    hours = checkin_interval // 3600
+                    grace_hours = grace_period // 3600
+                    print(f"\n⏰ Dead-man's switch activated:")
+                    print(f"   Check-in interval: {hours}h")
+                    print(f"   Grace period: {grace_hours}h")
+                    print(f"   ⚠️  Must renew with: meow-deadmans-switch renew --gif {args.output}")
+                    print(f"   💡 Use: meow-deadmans-switch status --gif {args.output} to check status")
+            except Exception as e:
+                print(f"\n⚠️  Dead-man's switch setup failed: {e}", file=sys.stderr)
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
+                # Don't fail the entire encoding - just warn
         
         print(f"\nOutput saved to: {args.output}")
         

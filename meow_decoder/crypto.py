@@ -293,8 +293,22 @@ def encrypt_file_bytes(
         - Length padding: Rounds to size classes to hide true size
     """
     try:
+        # Optionally log via purr mode
+        logger = None
+        try:
+            from .cat_utils import get_purr_logger
+            logger = get_purr_logger()
+        except (ImportError, AttributeError):
+            pass
+        
+        if logger:
+            logger.log(f"Compressing {len(raw)} bytes with zlib", category="io")
+        
         # Compress with maximum compression
         comp = zlib.compress(raw, level=9)
+        
+        if logger:
+            logger.log(f"Compressed to {len(comp)} bytes", category="io")
         
         # Add length padding to hide true size
         if use_length_padding:
@@ -367,6 +381,9 @@ def encrypt_file_bytes(
             # This provides forward secrecy - private key never stored!
         else:
             # PASSWORD-ONLY MODE: Standard Argon2id derivation
+            if logger:
+                logger.log("Deriving encryption key from password (Argon2id)", category="crypto")
+            
             if yubikey_slot is not None:
                 if keyfile is not None:
                     raise ValueError("Cannot combine --yubikey with --keyfile")
@@ -379,6 +396,9 @@ def encrypt_file_bytes(
                 )
             else:
                 key = derive_key(password, salt, keyfile)
+            
+            if logger:
+                logger.log("✓ Key derivation complete", category="crypto")
         
         # Build AAD (Additional Authenticated Data) for manifest protection
         # Why: Binding metadata to the AEAD prevents substitution and
@@ -401,8 +421,14 @@ def encrypt_file_bytes(
         # Why: AEAD enforces authenticity before decryption; no partial
         # plaintext is released on tag failure.
         # AAD is authenticated but not encrypted
+        if logger:
+            logger.crypto_op(f"Encrypting {len(comp)} bytes with AES-256-GCM")
+        
         backend = get_default_backend()
         cipher = backend.aes_gcm_encrypt(key, nonce, comp, aad)  # ← AAD prevents metadata tampering!
+        
+        if logger:
+            logger.success(f"Encryption complete! ({len(cipher)} bytes ciphertext)")
         
         return comp, sha, salt, nonce, cipher, ephemeral_public_key, key
     except Exception as e:
@@ -457,6 +483,14 @@ def decrypt_to_raw(
         - Forward secrecy: Uses receiver's private key + sender's ephemeral public key
     """
     try:
+        # Optionally log via purr mode
+        logger = None
+        try:
+            from .cat_utils import get_purr_logger
+            logger = get_purr_logger()
+        except (ImportError, AttributeError):
+            pass
+        
         # Determine decryption mode and derive key
         
         # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
@@ -523,6 +557,9 @@ def decrypt_to_raw(
         
         # Decrypt with AES-256-GCM
         # GCM will verify AAD matches before decrypting
+        if logger:
+            logger.crypto_op(f"Decrypting {len(cipher)} bytes with AES-256-GCM")
+        
         backend = get_default_backend()
         comp = backend.aes_gcm_decrypt(key, nonce, cipher, aad)  # ← AAD verified here!
         
@@ -540,6 +577,10 @@ def decrypt_to_raw(
             pass
         
         # Decompress
+        # Try to remove padding, fall back to no padding for backward compatibility
+        if logger:
+            logger.log("Decompressing data with zlib", category="io")
+        
         raw = zlib.decompress(comp)
         
         return raw
