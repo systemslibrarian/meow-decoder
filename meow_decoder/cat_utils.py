@@ -13,11 +13,13 @@ Features (ALL implemented):
 ✅ Cat breed presets
 ✅ Password easter eggs
 ✅ Motivational meows
+✅ Purr Mode ultra-verbose logging
 """
 
 import random
 import sys
 import time
+import datetime
 from typing import Optional, Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -119,6 +121,236 @@ def maybe_print_cat_fact(elapsed: float, threshold: float = 30.0):
     """Print cat fact if operation took > threshold seconds."""
     if elapsed > threshold:
         print_random_cat_fact()
+
+
+# === 2.5 PURR MODE ULTRA-VERBOSE LOGGING ===
+
+class PurrLogger:
+    """
+    🐾 Ultra-verbose cat-themed logging for --purr-mode
+    
+    Every operation gets detailed narration with cat emojis,
+    random facts, and meows. Perfect for debugging or entertainment.
+    
+    Usage:
+        purr = PurrLogger(enabled=args.purr_mode)
+        purr.log("Initiating encryption", "hiss")
+        purr.step("Deriving key", 1, 5)  # Step 1 of 5
+        purr.success("Encryption complete!")
+    """
+    
+    # Cat action verbs for different operations
+    VERBS = {
+        "start": ["Stretching paws for", "Sharpening claws on", "Meowing about", "Preparing to pounce on"],
+        "process": ["Batting around", "Chasing", "Stalking", "Pouncing on", "Grooming"],
+        "complete": ["Caught", "Devoured", "Conquered", "Claimed", "Proudly presented"],
+        "error": ["Hissed at", "Knocked off table", "Ignored", "Swatted away", "Fled from"],
+        "wait": ["Napping during", "Staring at", "Sitting on", "Loafing through"],
+        "crypto": ["Encrypting with whiskers", "Hashing like a hairball", "Deriving like a diva cat"],
+        "network": ["Prowling through", "Sneaking past", "Lurking in"],
+        "io": ["Scratching at", "Digging into", "Burying"],
+    }
+    
+    # Cat emoji progression for steps
+    STEP_EMOJIS = ["🐱", "😺", "😸", "😻", "🐾", "🦁", "🐯", "🐆", "🐈", "🐈‍⬛"]
+    
+    def __init__(self, enabled: bool = False, show_timestamps: bool = True, file=None):
+        """
+        Initialize PurrLogger.
+        
+        Args:
+            enabled: Whether to actually print (--purr-mode flag)
+            show_timestamps: Include timestamps in output
+            file: Output file (default: sys.stderr for visibility)
+        """
+        self.enabled = enabled
+        self.show_timestamps = show_timestamps
+        self.file = file or sys.stderr
+        self.step_count = 0
+        self.start_time = time.time()
+        
+    def _timestamp(self) -> str:
+        """Get formatted timestamp."""
+        if not self.show_timestamps:
+            return ""
+        elapsed = time.time() - self.start_time
+        return f"[{elapsed:6.2f}s] "
+    
+    def _random_verb(self, category: str = "process") -> str:
+        """Get a random cat verb for the category."""
+        verbs = self.VERBS.get(category, self.VERBS["process"])
+        return random.choice(verbs)
+    
+    def _step_emoji(self, step: int = None) -> str:
+        """Get emoji for current step."""
+        idx = (step or self.step_count) % len(self.STEP_EMOJIS)
+        return self.STEP_EMOJIS[idx]
+    
+    def log(self, message: str, category: str = "process", emoji: str = None):
+        """
+        Log a cat-themed message.
+        
+        Args:
+            message: The message to log
+            category: Operation category (start, process, complete, error, wait, crypto, network, io)
+            emoji: Override emoji (optional)
+        """
+        if not self.enabled:
+            return
+            
+        e = emoji or self._step_emoji()
+        verb = self._random_verb(category)
+        ts = self._timestamp()
+        
+        print(f"{ts}{e} {verb} {message}...", file=self.file)
+    
+    def step(self, description: str, current: int, total: int, category: str = "process"):
+        """
+        Log a numbered step.
+        
+        Args:
+            description: Step description
+            current: Current step number
+            total: Total steps
+            category: Operation category
+        """
+        if not self.enabled:
+            return
+            
+        self.step_count = current
+        e = self._step_emoji(current)
+        verb = self._random_verb(category)
+        ts = self._timestamp()
+        bar = "=" * current + "-" * (total - current)
+        
+        print(f"{ts}{e} [{bar}] Step {current}/{total}: {verb} {description}", file=self.file)
+        
+        # Occasional cat fact
+        if random.random() < 0.15:  # 15% chance
+            fact = random.choice(CAT_FACTS)
+            print(f"    💡 {fact}", file=self.file)
+    
+    def success(self, message: str, show_fact: bool = True):
+        """Log success with celebration."""
+        if not self.enabled:
+            return
+            
+        ts = self._timestamp()
+        print(f"\n{ts}😻✨ PURR-FECT! {message} ✨😻", file=self.file)
+        
+        if show_fact and random.random() < 0.5:
+            meow = random.choice(MOTIVATIONAL_MEOWS)
+            print(f"    {meow}", file=self.file)
+    
+    def error(self, message: str, exception: Exception = None):
+        """Log error with cat drama."""
+        if not self.enabled:
+            return
+            
+        ts = self._timestamp()
+        verb = self._random_verb("error")
+        print(f"\n{ts}😾💢 HISS! {verb} {message}!", file=self.file)
+        
+        if exception:
+            print(f"    🐱 The cat says: {exception}", file=self.file)
+        
+        # Random sassy message
+        sass = [
+            "🙀 Did you try unplugging and replugging the cat?",
+            "😿 Even cats fail sometimes... usually on purpose.",
+            "🐈 The keyboard wasn't sat on correctly.",
+            "😼 This is why we have nine lives.",
+        ]
+        print(f"    {random.choice(sass)}", file=self.file)
+    
+    def warn(self, message: str):
+        """Log warning with concerned cat."""
+        if not self.enabled:
+            return
+            
+        ts = self._timestamp()
+        print(f"{ts}🙀 Mrrrow? {message}", file=self.file)
+    
+    def crypto_op(self, operation: str, bits: int = None, algorithm: str = None):
+        """Log crypto operation with extra flair."""
+        if not self.enabled:
+            return
+            
+        ts = self._timestamp()
+        verb = self._random_verb("crypto")
+        
+        details = []
+        if bits:
+            details.append(f"{bits}-bit")
+        if algorithm:
+            details.append(algorithm)
+        detail_str = f" ({', '.join(details)})" if details else ""
+        
+        print(f"{ts}🔐 {verb}: {operation}{detail_str}", file=self.file)
+    
+    def io_op(self, operation: str, size_bytes: int = None, path: str = None):
+        """Log I/O operation."""
+        if not self.enabled:
+            return
+            
+        ts = self._timestamp()
+        verb = self._random_verb("io")
+        
+        size_str = ""
+        if size_bytes:
+            if size_bytes > 1024*1024:
+                size_str = f" ({size_bytes/1024/1024:.1f} MB)"
+            elif size_bytes > 1024:
+                size_str = f" ({size_bytes/1024:.1f} KB)"
+            else:
+                size_str = f" ({size_bytes} bytes)"
+        
+        path_str = f" [{path}]" if path else ""
+        
+        print(f"{ts}📁 {verb}: {operation}{size_str}{path_str}", file=self.file)
+    
+    def splash(self):
+        """Print a purr-mode splash screen."""
+        if not self.enabled:
+            return
+            
+        splash = """
+╔══════════════════════════════════════════════════════════════════╗
+║  🐱 PURR MODE ACTIVATED 🐱                                       ║
+║                                                                   ║
+║  All operations will be narrated by your friendly cat assistant. ║
+║  Expect: Meows, facts, verbs, and maximum feline vibes.          ║
+║                                                                   ║
+║  😺 Let's go! The keyboard awaits your paws!                     ║
+╚══════════════════════════════════════════════════════════════════╝
+"""
+        print(splash, file=self.file)
+
+
+# Global purr logger instance (disabled by default)
+_purr_logger: Optional[PurrLogger] = None
+
+
+def get_purr_logger() -> PurrLogger:
+    """Get the global PurrLogger instance."""
+    global _purr_logger
+    if _purr_logger is None:
+        _purr_logger = PurrLogger(enabled=False)
+    return _purr_logger
+
+
+def enable_purr_mode(enabled: bool = True, show_timestamps: bool = True):
+    """Enable or disable global purr mode."""
+    global _purr_logger
+    _purr_logger = PurrLogger(enabled=enabled, show_timestamps=show_timestamps)
+    if enabled:
+        _purr_logger.splash()
+    return _purr_logger
+
+
+def purr_log(message: str, category: str = "process"):
+    """Convenience function for purr logging."""
+    get_purr_logger().log(message, category)
 
 
 # === 3. CAT PROGRESS BARS ===

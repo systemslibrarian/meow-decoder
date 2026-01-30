@@ -567,6 +567,8 @@ Examples:
     # Output control
     parser.add_argument('-v', '--verbose', action='store_true',
                        help='Verbose output')
+    parser.add_argument('--purr-mode', action='store_true',
+                       help='Ultra-verbose cat-themed logging with meows, facts, and cat verbs 🐱')
     parser.add_argument('--wipe-source', action='store_true',
                        help='Securely wipe source file after encoding')
     parser.add_argument('--summon-void-cat', action='store_true',
@@ -653,6 +655,13 @@ Nothing to see here.
             args.wipe_source = True
         except ImportError:
             print("Warning: High-security module not available, using defaults.")
+
+    # Enable purr mode (ultra-verbose cat-themed logging)
+    if args.purr_mode:
+        from .cat_utils import enable_purr_mode
+        purr = enable_purr_mode(enabled=True)
+        # Purr mode implies verbose
+        args.verbose = True
 
     # For normal operation, require input/output.
     if args.input is None or args.output is None:

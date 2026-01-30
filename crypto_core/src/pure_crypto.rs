@@ -514,14 +514,152 @@ pub fn random_key() -> Result<SecretKey, CryptoError> {
 }
 
 // ============================================================================
-// Post-Quantum Cryptography (ML-KEM / Kyber)
+// Post-Quantum Cryptography - Dual Backend Support
 // ============================================================================
+//
+// Two backends available:
+// 1. `pq-crypto` feature: Pure Rust ml-kem/ml-dsa (RustCrypto)
+// 2. `liboqs-native` feature: C library bindings (Open Quantum Safe)
+//
+// Both provide identical API via `crypto_core::pure_crypto::pq::*`
+// Use `pq-crypto` for easy builds, `liboqs-native` for production audited code.
 
-#[cfg(feature = "pq-crypto")]
+/// Check if any PQ backend is enabled
+#[cfg(any(feature = "pq-crypto", feature = "liboqs-native"))]
 pub mod pq {
     use super::*;
-    use ml_kem::{KemCore, MlKem1024};
-    use ml_dsa::{MlDsa65, SigningKey, VerifyingKey};
+
+    // ========================================================================
+    // Backend: RustCrypto ml-kem/ml-dsa (pure Rust)
+    // ========================================================================
+    #[cfg(all(feature = "pq-crypto", not(feature = "liboqs-native")))]
+    mod backend {
+        use super::*;
+        // ML-KEM 0.3.x API with getrandom feature:
+        // - Generate::generate() -> Self uses system RNG internally
+        // - Encapsulate::encapsulate() -> (Ciphertext, SharedSecret) uses system RNG
+        // - Decapsulate::decapsulate(&ct) -> SharedSecret [NOT Result]
+        // - EncodedSizeUser::from_encoded_bytes/to_encoded_bytes for serialization
+        // The getrandom feature avoids rand_core version mismatches between crates.
+        use ml_kem::{
+            DecapsulationKey1024 as DecapsulationKey,
+            EncapsulationKey1024 as EncapsulationKey,
+            EncodedSizeUser,
+        };
+        // External kem crate: Generate, Encapsulate, Decapsulate traits
+        use kem::{Decapsulate, Encapsulate, Generate};
+        #[allow(unused_imports)]
+        use ml_dsa::{MlDsa65, SigningKey, VerifyingKey};
+
+        pub const BACKEND_NAME: &str = "RustCrypto ml-kem/ml-dsa (pure Rust)";
+
+        /// Generate new ML-KEM-1024 key pair
+        /// Returns (secret_key_bytes, public_key_bytes)
+        pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+            // Generate trait method: generate() uses system RNG via getrandom feature
+            let dk = DecapsulationKey::generate();
+            let ek = dk.encapsulation_key();
+            Ok((dk.to_encoded_bytes().to_vec(), ek.to_encoded_bytes().to_vec()))
+        }
+
+        /// Encapsulate to produce ciphertext and shared secret
+        pub fn encapsulate(encapsulation_key: &[u8]) -> Result<(Vec<u8>, [u8; 32]), CryptoError> {
+            // Convert slice to Array using TryFrom
+            let ek_array: ml_kem::array::Array<u8, _> = encapsulation_key.try_into()
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid encapsulation key length".into()))?;
+            let ek = EncapsulationKey::from_encoded_bytes(&ek_array)
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid encapsulation key".into()))?;
+            
+            // Encapsulate trait: encapsulate() uses system RNG via getrandom feature
+            // Returns (Ciphertext, SharedSecret) directly - NOT a Result
+            let (ct, shared) = ek.encapsulate();
+            
+            let shared_arr: [u8; 32] = shared.as_slice().try_into()
+                .map_err(|_| CryptoError::EncryptionFailed("Invalid shared secret size".into()))?;
+            Ok((ct.to_vec(), shared_arr))
+        }
+
+        /// Decapsulate to recover shared secret
+        pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
+            // Convert slice to Array using TryFrom
+            let dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into()
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key length".into()))?;
+            let dk = DecapsulationKey::from_encoded_bytes(&dk_array)
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
+            
+            // Convert ciphertext to Array
+            let ct_array: ml_kem::array::Array<u8, _> = ciphertext.try_into()
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid ciphertext length".into()))?;
+            
+            // Decapsulate trait: decapsulate returns SharedSecret directly
+            // NOT a Result - no map_err needed
+            let shared = dk.decapsulate(&ct_array);
+            
+            let shared_arr: [u8; 32] = shared.as_slice().try_into()
+                .map_err(|_| CryptoError::DecryptionFailed)?;
+            Ok(shared_arr)
+        }
+    }
+
+    // ========================================================================
+    // Backend: liboqs (Open Quantum Safe C library)
+    // ========================================================================
+    #[cfg(feature = "liboqs-native")]
+    mod backend {
+        use super::*;
+
+        pub const BACKEND_NAME: &str = "liboqs (Open Quantum Safe)";
+
+        /// Generate new ML-KEM-1024 key pair using liboqs
+        pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
+            
+            let (public_key, secret_key) = kem.keypair()
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs keygen failed: {}", e)))?;
+            
+            Ok((secret_key.into_vec(), public_key.into_vec()))
+        }
+
+        /// Encapsulate to produce ciphertext and shared secret using liboqs
+        pub fn encapsulate(encapsulation_key: &[u8]) -> Result<(Vec<u8>, [u8; 32]), CryptoError> {
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
+            
+            let public_key = kem.public_key_from_bytes(encapsulation_key)
+                .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid public key".into()))?;
+            
+            let (ciphertext, shared_secret) = kem.encapsulate(&public_key)
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs encaps failed: {}", e)))?;
+            
+            let mut shared = [0u8; 32];
+            shared.copy_from_slice(&shared_secret.into_vec()[..32]);
+            Ok((ciphertext.into_vec(), shared))
+        }
+
+        /// Decapsulate to recover shared secret using liboqs
+        pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
+            
+            let sk = kem.secret_key_from_bytes(secret_key)
+                .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
+            
+            let ct = kem.ciphertext_from_bytes(ciphertext)
+                .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid ciphertext".into()))?;
+            
+            let shared_secret = kem.decapsulate(&sk, &ct)
+                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs decaps failed: {}", e)))?;
+            
+            let mut shared = [0u8; 32];
+            shared.copy_from_slice(&shared_secret.into_vec()[..32]);
+            Ok(shared)
+        }
+    }
+
+    // ========================================================================
+    // Unified Public API (works with either backend)
+    // ========================================================================
 
     /// ML-KEM-1024 public key size
     pub const MLKEM_PUBLIC_KEY_SIZE: usize = 1568;
@@ -532,6 +670,11 @@ pub mod pq {
     /// ML-KEM-1024 shared secret size
     pub const MLKEM_SHARED_SECRET_SIZE: usize = 32;
 
+    /// Get the active PQ backend name
+    pub fn backend_name() -> &'static str {
+        backend::BACKEND_NAME
+    }
+
     /// ML-KEM key pair
     #[derive(Zeroize, ZeroizeOnDrop)]
     pub struct MlKemKeyPair {
@@ -541,12 +684,11 @@ pub mod pq {
 
     impl MlKemKeyPair {
         /// Generate new ML-KEM-1024 key pair
+        /// 
+        /// Uses the active backend (RustCrypto or liboqs) based on feature flags.
         pub fn generate() -> Result<Self, CryptoError> {
-            let (dk, ek) = MlKem1024::generate(&mut OsRng);
-            Ok(Self {
-                secret: dk.as_bytes().to_vec(),
-                public: ek.as_bytes().to_vec(),
-            })
+            let (secret, public) = backend::generate_keypair()?;
+            Ok(Self { secret, public })
         }
 
         /// Get encapsulation key (public)
@@ -556,18 +698,7 @@ pub mod pq {
 
         /// Decapsulate to recover shared secret
         pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<[u8; MLKEM_SHARED_SECRET_SIZE], CryptoError> {
-            let dk = ml_kem::DecapsulationKey::<MlKem1024>::from_bytes(
-                self.secret.as_slice().try_into()
-                    .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?
-            );
-            
-            let ct = ml_kem::Ciphertext::<MlKem1024>::from_bytes(
-                ciphertext.try_into()
-                    .map_err(|_| CryptoError::KeyDerivationFailed("Invalid ciphertext".into()))?
-            );
-            
-            let shared = dk.decapsulate(&ct);
-            Ok(shared.into())
+            backend::decapsulate(&self.secret, ciphertext)
         }
     }
 
@@ -575,18 +706,13 @@ pub mod pq {
     pub fn mlkem_encapsulate(
         encapsulation_key: &[u8],
     ) -> Result<(Vec<u8>, [u8; MLKEM_SHARED_SECRET_SIZE]), CryptoError> {
-        let ek = ml_kem::EncapsulationKey::<MlKem1024>::from_bytes(
-            encapsulation_key.try_into()
-                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid encapsulation key".into()))?
-        );
-        
-        let (shared, ct) = ek.encapsulate(&mut OsRng);
-        Ok((ct.as_bytes().to_vec(), shared.into()))
+        backend::encapsulate(encapsulation_key)
     }
 
     /// Hybrid key derivation: X25519 + ML-KEM-1024
     ///
-    /// Secure if EITHER classical OR quantum crypto holds
+    /// Secure if EITHER classical OR quantum crypto holds.
+    /// This is the recommended usage pattern for post-quantum security.
     pub fn hybrid_key_derive(
         x25519_shared: &[u8; 32],
         mlkem_shared: &[u8; 32],
@@ -599,6 +725,16 @@ pub mod pq {
         
         // Derive final key
         hkdf_derive_key(&combined, None, info)
+    }
+
+    /// Check which PQ backend is active (for diagnostics)
+    pub fn pq_backend_info() -> String {
+        format!(
+            "🐱 Post-Quantum Backend: {}\n  ML-KEM-1024: {} byte public key, {} byte ciphertext",
+            backend_name(),
+            MLKEM_PUBLIC_KEY_SIZE,
+            MLKEM_CIPHERTEXT_SIZE
+        )
     }
 }
 

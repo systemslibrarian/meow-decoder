@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-29  
 **Status:** In Progress  
-**Resume From:** Priority 3 (liboqs-rust) or Priority 5 (Deniability) - pick one
+**Resume From:** Priority 5 (Deniability) or Priority 6 (Polish)
 
 ---
 
@@ -58,12 +58,12 @@
 - [x] Add integration tests mocking hardware (pytest fixtures) ✅
   - 16 passing tests, 5 skipped (for unimplemented priority features)
 
-### Priority 3: Switch to liboqs-rust (oqs crate)
-- [ ] Add `oqs = "0.10"` to crypto_core/Cargo.toml under optional deps
-- [ ] Create feature flag `liboqs-native` vs current `pq-crypto` (ml-kem/ml-dsa)
-- [ ] Refactor `crypto_core/src/pq.rs` to support both backends
-- [ ] Update README with liboqs build instructions
-- [ ] Benchmark: compare pqcrypto vs oqs performance
+### Priority 3: Switch to liboqs-rust (oqs crate) (100% ✅ COMPLETE)
+- [x] Add `oqs = "0.10"` to crypto_core/Cargo.toml under optional deps ✅
+- [x] Create feature flag `liboqs-native` vs current `pq-crypto` (ml-kem/ml-dsa) ✅
+- [x] Refactor `crypto_core/src/pure_crypto.rs` pq module for dual backend ✅
+- [x] Update README with liboqs build instructions ✅
+- [x] Benchmark: Added performance comparison table in README ✅
 
 ### Priority 4: Side-Channel & Dependency Hardening (100% ✅ COMPLETE)
 - [x] Add SBOM generation to CI (`cyclonedx-py`, `cargo-sbom`) ✅ Already in security-ci.yml

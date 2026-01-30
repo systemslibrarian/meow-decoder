@@ -60,11 +60,37 @@ hmac = { version = "0.12", optional = true }
 # Track upstream: https://github.com/RustCrypto/KEMs
 #                 https://github.com/RustCrypto/signatures
 
-# Post-Quantum: ML-KEM (FIPS 203) - EXPERIMENTAL
-ml-kem = { version = "0.1.0-rc", optional = true }
+# Post-Quantum: ML-KEM (FIPS 203) - EXPERIMENTAL  
+# Using 0.3.0-pre for latest API (breaking changes from 0.1.x)
+# `getrandom` feature enables system-RNG-based Generate/Encapsulate methods
+# avoiding rand_core version mismatches between ecosystem crates
+ml-kem = { version = "0.3.0-pre", optional = true, features = ["getrandom"] }
 
 # Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
-ml-dsa = { version = "0.1.0-rc", optional = true }
+# Using 0.1.0-rc.4 (latest stable-ish release)
+ml-dsa = { version = "0.1.0-rc.4", optional = true }
+
+# KEM traits for ml-kem (Generate, Encapsulate, Decapsulate)
+# Must match version expected by ml-kem (0.3.0-rc.2)
+kem = { version = "0.3.0-rc.2", optional = true }
+
+# ============================================
+# ALTERNATIVE: liboqs (Open Quantum Safe) Native Bindings
+# ============================================
+# ⚠️  liboqs requires system library installation:
+#     - Ubuntu: apt install liboqs-dev
+#     - macOS: brew install liboqs
+#     - Build from source: https://github.com/open-quantum-safe/liboqs
+#
+# liboqs provides battle-tested reference implementations from OQS project.
+# Use `liboqs-native` feature for this backend instead of `pq-crypto`.
+# Both backends provide identical API via `crypto_core::pure_crypto::pq::*`
+#
+# Comparison:
+# - ml-kem/ml-dsa: Pure Rust, easy build, experimental (0.1.0-rc)
+# - oqs: C library, requires system deps, more mature
+
+oqs = { version = "0.10", optional = true }
 
 # Constant-time operations
 subtle = { version = "2.5", optional = true }
@@ -141,10 +167,18 @@ pure-crypto = [
     "rand_core",
 ]
 
-# Post-quantum cryptography
+# Post-quantum cryptography (RustCrypto ml-kem/ml-dsa - pure Rust)
 pq-crypto = [
     "ml-kem",
     "ml-dsa",
+    "kem",
+    "pure-crypto",
+]
+
+# Post-quantum cryptography (liboqs native bindings - requires system lib)
+# ⚠️  Requires liboqs system library: apt install liboqs-dev
+liboqs-native = [
+    "oqs",
     "pure-crypto",
 ]
 
