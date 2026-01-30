@@ -222,15 +222,17 @@ class TestNonceThreadSafety:
         def encrypt_decrypt_cycle(cycle_id):
             try:
                 # Encrypt
-                _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
+                # comp is the padded compressed data - its length is needed for AAD
+                comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
                     test_data, password
                 )
                 
                 # Decrypt
+                # AAD must match exactly: orig_len and comp_len from encryption
                 decrypted = decrypt_to_raw(
                     cipher, password, salt, nonce,
                     orig_len=len(test_data),
-                    comp_len=len(cipher),  # approximation
+                    comp_len=len(comp),  # Use actual padded compressed length
                     sha256=sha
                 )
                 
