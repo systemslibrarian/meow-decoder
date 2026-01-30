@@ -10,7 +10,9 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 | File | Purpose | Key Tests |
 |------|---------|-----------|
-| `tests/test_crypto.py` | Core AES-256-GCM encryption | Roundtrip, wrong key rejection, tampering detection, auth tag manipulation, nonce handling |
+| `tests/test_crypto_enhanced.py` | Core AES-256-GCM encryption with secure memory | Roundtrip, wrong key rejection, tampering detection, SecureBytes, HMAC |
+| `tests/test_coverage_90_crypto_paths.py` | Crypto edge cases and paths | Error handling, parameter validation, edge conditions |
+| `tests/test_streaming_crypto.py` | Streaming encryption | Large file handling, streaming modes |
 | `tests/test_kdf.py` | Argon2id key derivation | Determinism, salt/password variation, keyfile integration, parameter validation |
 | `tests/test_frame_mac.py` | Frame MAC authentication | Key derivation, pack/unpack, validation, index protection, tamper detection |
 | `tests/test_encode_decode.py` | Fountain code round-trip | Lossless encoding, frame loss recovery, SHA256 verification, various sizes |
