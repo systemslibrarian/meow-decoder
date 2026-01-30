@@ -25,6 +25,7 @@ from meow_decoder.frame_mac import (
     derive_frame_master_key_legacy,
     pack_frame_with_mac,
     unpack_frame_with_mac,
+    verify_frame_mac,
     FrameMACStats,
 )
 
@@ -185,6 +186,28 @@ class TestFrameMACValidation:
         valid, _ = unpack_frame_with_mac(tampered, master_key, 0, salt)
         
         assert valid == False
+        
+    def test_verify_wrong_mac_size(self):
+        """Verification must fail immediately for wrong MAC size (covers line 200)."""
+        frame_data = b"Frame data"
+        master_key = secrets.token_bytes(32)
+        frame_index = 0
+        salt = secrets.token_bytes(16)
+        
+        # Test MAC too short (7 bytes instead of 8)
+        short_mac = b"\x00" * 7
+        result = verify_frame_mac(frame_data, short_mac, master_key, frame_index, salt)
+        assert result is False
+        
+        # Test MAC too long (10 bytes instead of 8)
+        long_mac = b"\x00" * 10
+        result2 = verify_frame_mac(frame_data, long_mac, master_key, frame_index, salt)
+        assert result2 is False
+        
+        # Correct size but wrong value should also fail (via constant-time compare)
+        correct_size_wrong_value = b"\x00" * 8
+        result3 = verify_frame_mac(frame_data, correct_size_wrong_value, master_key, frame_index, salt)
+        assert result3 is False
 
 
 class TestFrameIndexProtection:
@@ -285,6 +308,24 @@ class TestFrameMACStats:
         
         rate = stats.success_rate()
         assert rate == pytest.approx(0.0)
+        
+    def test_report_output(self):
+        """Test report() generates human-readable output (covers line 304)."""
+        stats = FrameMACStats()
+        
+        stats.record_valid()
+        stats.record_valid()
+        stats.record_invalid()
+        
+        report = stats.report()
+        
+        # report() should return a string with summary info
+        assert isinstance(report, str)
+        assert "Total frames: 3" in report
+        assert "Valid frames: 2" in report
+        assert "Invalid frames: 1" in report
+        assert "Injection attempts: 1" in report
+        assert "Success rate:" in report
 
 
 class TestEdgeCases:

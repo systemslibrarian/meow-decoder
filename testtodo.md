@@ -15,7 +15,7 @@
 | `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏳ TODO | SecureBytes, streaming |
 | `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | ⏳ TODO | Chunked encryption |
-| `frame_mac.py` | `test_frame_mac.py` | 🔄 CONSOLIDATING | Per-frame authentication |
+| `frame_mac.py` | `test_frame_mac.py` | ✅ DONE | 100% coverage, 27 tests, 3 stubs converted |
 | `multi_secret.py` | `test_multi_secret.py` | ⏳ TODO | N-level Schrödinger |
 
 ---
