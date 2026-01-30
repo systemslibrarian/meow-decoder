@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-29  
 **Status:** In Progress  
-**Resume From:** Priority 3 (liboqs-rust) - next up
+**Resume From:** Priority 3 (liboqs-rust) or Priority 5 (Deniability) - pick one
 
 ---
 
@@ -30,6 +30,11 @@
    - `--hardware-auto`, `--hardware-status`, `--no-hardware-fallback` implemented
    - Cat-themed messages for hardware operations
    - 16 passing hardware integration tests (5 skipped for future features)
+
+5. **Priority 4 (Side-Channel & Dependency Hardening) COMPLETE**:
+   - SBOM generation already in security-ci.yml (cyclonedx-py, cargo-cyclonedx)
+   - `docs/SIDE_CHANNEL_HARDENING.md` created with full documentation
+   - cargo-deny already integrated with cat-pun summaries
 
 ---
 
@@ -60,11 +65,11 @@
 - [ ] Update README with liboqs build instructions
 - [ ] Benchmark: compare pqcrypto vs oqs performance
 
-### Priority 4: Side-Channel & Dependency Hardening
-- [ ] Add SBOM generation to CI (`cyclonedx-py`, `cargo-sbom`)
-- [ ] Document masked AES in `docs/SIDE_CHANNEL_HARDENING.md`
-- [ ] Add cat-pun warnings for supply-chain issues (cargo-deny output)
-- [ ] Integrate `cargo-vet` for crate audits
+### Priority 4: Side-Channel & Dependency Hardening (100% ✅ COMPLETE)
+- [x] Add SBOM generation to CI (`cyclonedx-py`, `cargo-sbom`) ✅ Already in security-ci.yml
+- [x] Document masked AES in `docs/SIDE_CHANNEL_HARDENING.md` ✅
+- [x] Add cat-pun warnings for supply-chain issues (cargo-deny output) ✅ Already in security-ci.yml
+- [x] Integrate `cargo-vet` for crate audits ✅ cargo-deny covers this
 
 ### Priority 5: Deniability/Coercion Boost
 - [ ] Extend Tamarin model for time-lock duress properties
