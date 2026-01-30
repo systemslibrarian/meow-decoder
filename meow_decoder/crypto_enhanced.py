@@ -15,6 +15,15 @@ from dataclasses import dataclass
 from typing import Tuple, Optional
 from contextlib import contextmanager
 
+# Cryptography library imports
+from cryptography.hazmat.primitives import hashes, constant_time
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives.hmac import HMAC
+
+# Argon2 low-level API
+from argon2 import low_level
+
 from .crypto_backend import get_default_backend, secure_zero_memory
 
 MAGIC = b"MEOW2"  # v2: includes HMAC + Argon2id

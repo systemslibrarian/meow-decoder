@@ -12,7 +12,7 @@
 |-------------|-----------|--------|-------|
 | `crypto.py` | `test_crypto.py` | ✅ DONE | Core crypto API, AES-GCM, Argon2id, HMAC |
 | `crypto_backend.py` | `test_crypto_backend.py` | ✅ DONE | Python→Rust bridge, 872 lines consolidated |
-| `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏸️ BLOCKED | Missing imports (HKDF, AESGCM, low_level) - file is broken, in omit list |
+| `crypto_enhanced.py` | `test_crypto_enhanced.py` | ✅ DONE | 10 core tests, SecureBytes/derive_key/encrypt/decrypt (in omit list) |
 | `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | ✅ DONE | 48 tests, StreamingCipher/MemoryMonitor/roundtrips (in omit list) |
 | `frame_mac.py` | `test_frame_mac.py` | ✅ DONE | 100% coverage, 27 tests, 3 stubs converted |
