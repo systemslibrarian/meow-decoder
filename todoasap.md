@@ -2,7 +2,7 @@
 
 **Created:** 2026-01-29  
 **Status:** In Progress  
-**Resume From:** Priority 1 (Audit Prep) - partially complete
+**Resume From:** Priority 3 (liboqs-rust) - next up
 
 ---
 
@@ -21,15 +21,25 @@
    - Funding sources list
    - Pre-audit checklist
 
+3. **Priority 1 (Audit Prep) COMPLETE**:
+   - `docs/SELF_AUDIT_TEMPLATE.md` created with full pre-audit checklist
+   - Bug-bounty placeholder added to SECURITY.md
+
+4. **Priority 2 (Hardware CLI Integration) COMPLETE**:
+   - All HSM/TPM/YubiKey CLI flags wired in encode.py and decode_gif.py
+   - `--hardware-auto`, `--hardware-status`, `--no-hardware-fallback` implemented
+   - Cat-themed messages for hardware operations
+   - 16 passing hardware integration tests (5 skipped for future features)
+
 ---
 
 ## 📋 REMAINING TASKS
 
-### Priority 1: Audit Prep (90% done)
-- [ ] Create `docs/SELF_AUDIT_TEMPLATE.md` - internal audit checklist
-- [ ] Add bug-bounty placeholder section to SECURITY.md
+### Priority 1: Audit Prep (100% ✅ COMPLETE)
+- [x] Create `docs/SELF_AUDIT_TEMPLATE.md` - internal audit checklist ✅
+- [x] Add bug-bounty placeholder section to SECURITY.md ✅
 
-### Priority 2: Hardware CLI Integration
+### Priority 2: Hardware CLI Integration (100% ✅ COMPLETE)
 - [x] Add `--hsm-slot`, `--hsm-pin`, `--hsm-key-label` flags to encode.py ✅
 - [x] Add `--hsm-slot`, `--hsm-pin`, `--hsm-key-label` flags to decode_gif.py ✅
 - [x] Add `--yubikey`, `--yubikey-slot`, `--yubikey-pin` flags (already existed) ✅
@@ -40,7 +50,8 @@
 - [x] Add `--no-hardware-fallback` for strict hardware-only mode ✅
 - [x] Wire Python CLI to existing `hardware_integration.py` module ✅
 - [x] Cat-themed messages: "😺 Purring with HSM slot...", "🐱 Clawing TPM..." ✅
-- [ ] Add integration tests mocking hardware (pytest fixtures)
+- [x] Add integration tests mocking hardware (pytest fixtures) ✅
+  - 16 passing tests, 5 skipped (for unimplemented priority features)
 
 ### Priority 3: Switch to liboqs-rust (oqs crate)
 - [ ] Add `oqs = "0.10"` to crypto_core/Cargo.toml under optional deps
