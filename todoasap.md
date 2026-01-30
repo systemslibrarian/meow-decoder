@@ -1,8 +1,8 @@
-You are auditing and advancing the meow-decoder project (github.com/systemslibrarian/meow-decoder).
+You are auditing and advancing the meow-decoder project 
 First: Carefully read and understand the full content of todoasap.md (or the roadmap document I am pasting right now if I provide it below/above). Treat it as the current source of truth for claimed vs. actual progress.
 Then:
 
-Browse the live repository at https://github.com/systemslibrarian/meow-decoder (and drill into sub-paths: docs/, formal/, meow_decoder/, crypto_core/, security-ci.yml, README.md, Cargo.toml, etc.).
+Browse the this repository and drill into sub-paths: docs/, formal/, meow_decoder/, crypto_core/, security-ci.yml, README.md, Cargo.toml, etc.).
 For every single sub-task in the roadmap below (or in the pasted todoasap.md):
 Check if the file/path exists with the expected name.
 Search file contents (where visible) for claimed features: specific CLI flags (e.g. --hardware-auto, --dead-mans-switch, --nine-lives, --purr-mode), functions/classes (e.g. DeadManSwitchState, meow_about(), PurrLogger), lines of code (~490 for Tamarin model), Cargo.toml entries (oqs crate), README sections (liboqs instructions, benchmark table), etc.
@@ -40,7 +40,6 @@ text**Created:** 2026-01-29 (original) → **Last Verified/Reset:** 2026-01-30
 
 ### Priority 1: Audit Prep (~70% — docs exist, but not exact matches)
 - [ ] Confirm `docs/SELF_AUDIT_TEMPLATE.md` exists and is a full pre-audit checklist (not found under that name; closest are THREAT_MODEL.md + SECURITY.md)
-- [ ] Verify bug-bounty placeholder in `SECURITY.md` (exists — mentions Hall of Fame, funding sought, non-monetary rewards)
 - [ ] Create or confirm `AUDIT_OUTREACH.md` with email templates (not found)
 
 ### Priority 2: Hardware CLI Integration (~40% — Rust features exist, Python wiring pending per README)
