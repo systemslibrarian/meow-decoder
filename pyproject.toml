@@ -10,7 +10,7 @@ readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
 authors = [
-    {name = "Paul Morel", email = "paul.morel@example.com"}
+    {name = "Paul Clark", email = "systemslibrarian@gmail.com"}
 ]
 keywords = [
     "encryption", "air-gap", "qr-code", "security", 
@@ -154,8 +154,8 @@ omit = [
     # CLI wrappers (TIER 3)
     "meow_decoder/meow_encode.py",
     "meow_decoder/meow_decode.py",
-    "meow_decoder/forward_secrecy_encoder.py",
-    "meow_decoder/forward_secrecy_decoder.py",
+    # forward_secrecy_encoder.py - MOVED TO TIER 2 (tested in test_forward_secrecy_encoder.py)
+    # forward_secrecy_decoder.py - MOVED TO TIER 2 (tested in test_forward_secrecy_decoder.py)
     # PQ experimental (TIER 3)
     "meow_decoder/pq_crypto*.py",
     "meow_decoder/pq_hybrid.py",
@@ -167,7 +167,7 @@ omit = [
     "meow_decoder/double_ratchet.py",
     "meow_decoder/entropy_boost.py",
     # forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
-    "meow_decoder/forward_secrecy_x25519.py",
+    # forward_secrecy_x25519.py - MOVED TO TIER 2 (tested in test_forward_secrecy_x25519.py)
     "meow_decoder/merkle_tree.py",
     "meow_decoder/quantum_mixer.py",
     "meow_decoder/schrodinger_decode.py",

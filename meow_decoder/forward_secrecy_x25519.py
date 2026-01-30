@@ -71,15 +71,27 @@ def derive_hybrid_key(
         - Hybrid mode: HKDF(password || shared_secret)
         - Provides defense in depth (compromise one doesn't break all)
     """
+    import os
+    
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
     
     # First stage: Derive password key with Argon2id
     from argon2 import low_level
     
-    ARGON2_MEMORY = 262144  # 256 MiB (MAXIMUM SECURITY)
-    ARGON2_ITERATIONS = 10   # 10 passes
-    ARGON2_PARALLELISM = 4   # 4 threads
+    # Test mode support for fast CI/testing
+    _TEST_MODE = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
+    
+    if _TEST_MODE:
+        # Fast parameters for CI/testing (still secure enough for functional tests)
+        ARGON2_MEMORY = 32768       # 32 MiB (fast)
+        ARGON2_ITERATIONS = 1       # 1 pass (fast)
+        ARGON2_PARALLELISM = 1      # 1 thread
+    else:
+        # Production: Strong parameters
+        ARGON2_MEMORY = 262144  # 256 MiB (MAXIMUM SECURITY)
+        ARGON2_ITERATIONS = 10   # 10 passes
+        ARGON2_PARALLELISM = 4   # 4 threads
     
     password_key = low_level.hash_secret_raw(
         secret=password.encode('utf-8'),

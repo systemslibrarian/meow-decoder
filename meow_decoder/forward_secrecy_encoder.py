@@ -11,7 +11,7 @@ import secrets
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from forward_secrecy import (
+from meow_decoder.forward_secrecy import (
     ForwardSecrecyManager,
     create_forward_secrecy_encoder,
     pack_forward_secrecy_extension
@@ -223,8 +223,8 @@ def example_encode_integration():
     code_example = '''
 # In encode_improved.py:
 
-from forward_secrecy_encoder import create_secure_fountain_encoder
-from forward_secrecy import pack_forward_secrecy_extension
+from meow_decoder.forward_secrecy_encoder import create_secure_fountain_encoder
+from meow_decoder.forward_secrecy import pack_forward_secrecy_extension
 
 def encode_file(..., enable_forward_secrecy=False):
     ...

@@ -12,7 +12,7 @@
 |-------------|-----------|--------|-------|
 | `crypto.py` | `test_crypto.py` | ✅ DONE | Core crypto API, AES-GCM, Argon2id, HMAC |
 | `crypto_backend.py` | `test_crypto_backend.py` | ✅ DONE | Python→Rust bridge, 872 lines consolidated |
-| `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏳ TODO | SecureBytes, streaming |
+| `crypto_enhanced.py` | `test_crypto_enhanced.py` | ⏸️ BLOCKED | Missing imports (HKDF, AESGCM, low_level) - file is broken, in omit list |
 | `constant_time.py` | `test_constant_time.py` | ✅ DONE | 91% coverage, 53 tests, 4 stubs converted |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | ⏳ TODO | Chunked encryption |
 | `frame_mac.py` | `test_frame_mac.py` | ✅ DONE | 100% coverage, 27 tests, 3 stubs converted |
@@ -25,10 +25,10 @@
 | Source File | Test File | Status | Notes |
 |-------------|-----------|--------|-------|
 | `forward_secrecy.py` | `test_forward_secrecy.py` | ✅ DONE | 94% coverage, 20 tests, 2 stubs converted |
-| `forward_secrecy_x25519.py` | `test_forward_secrecy_x25519.py` | ⏳ TODO | X25519 specifics |
+| `forward_secrecy_x25519.py` | `test_forward_secrecy_x25519.py` | ✅ DONE | 97% coverage, 39 tests, MEOW_TEST_MODE added |
 | `x25519_forward_secrecy.py` | `test_x25519_forward_secrecy.py` | ✅ DONE | 98% coverage, 46 tests, 3 stubs converted |
-| `forward_secrecy_encoder.py` | `test_forward_secrecy_encoder.py` | ⏳ TODO | Encode-side ephemeral |
-| `forward_secrecy_decoder.py` | `test_forward_secrecy_decoder.py` | ⏳ TODO | Decode-side ephemeral |
+| `forward_secrecy_encoder.py` | `test_forward_secrecy_encoder.py` | ✅ DONE | 95% coverage, 24 tests |
+| `forward_secrecy_decoder.py` | `test_forward_secrecy_decoder.py` | ✅ DONE | 95% coverage, 28 tests |
 
 ---
 
@@ -160,11 +160,3 @@
 - **Target:** 90%
 - **Gap:** Need to cover ~49% more code
 
-## Key Files with Lowest Coverage (from coverage report)
-1. `encode.py` - 18%
-2. `constant_time.py` - 21%
-3. `decode_gif.py` - 25%
-4. `qr_code.py` - 40%
-5. `gif_handler.py` - 45%
-6. `metadata_obfuscation.py` - 52%
-7. `crypto.py` - 54%

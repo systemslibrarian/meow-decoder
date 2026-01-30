@@ -7,7 +7,7 @@ import struct
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from forward_secrecy import (
+from meow_decoder.forward_secrecy import (
     ForwardSecrecyManager,
     create_forward_secrecy_decoder,
     unpack_forward_secrecy_extension
@@ -143,7 +143,7 @@ def parse_manifest_v3_forward_secrecy(manifest_extensions: bytes) -> Tuple[bool,
     ext_data = manifest_extensions[3:3+ext_length]
     
     # Unpack using forward_secrecy module
-    from forward_secrecy import unpack_forward_secrecy_extension
+    from meow_decoder.forward_secrecy import unpack_forward_secrecy_extension
     ratchet_enabled, ratchet_interval, ratchet_state = unpack_forward_secrecy_extension(ext_data)
     
     return ratchet_enabled, ratchet_interval, ratchet_state
@@ -334,7 +334,7 @@ if __name__ == "__main__":
     # Create matching encoder for test
     # Note: decoder was created with ratchet_state_bytes=None (fresh decode)
     # So we need an encoder with the same initial state
-    from forward_secrecy import ForwardSecrecyManager
+    from meow_decoder.forward_secrecy import ForwardSecrecyManager
     
     # Create encoder with same ratchet setting
     encoder_manager = ForwardSecrecyManager(master_key, salt, enable_ratchet=True)
