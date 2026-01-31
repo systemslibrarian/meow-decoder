@@ -39,13 +39,13 @@
 - [x] ✅ `--dead-mans-switch` — encode.py lines 196-199, decode_gif.py dead-man check
 - [ ] [~] Mocked hardware integration tests — Some exist, could add more
 
-### Priority 3: liboqs-rust (oqs crate) (~85% COMPLETE ✅)
+### Priority 3: liboqs-rust (oqs crate) (~100% COMPLETE ✅)
 - [x] ✅ `oqs = { version = "0.10", optional = true }` — crypto_core/Cargo.toml line 93
 - [x] ✅ `liboqs-native` feature flag — crypto_core/Cargo.toml features section
 - [x] ✅ ML-KEM 0.3.0-pre + ML-DSA 0.1.0-rc.4 — Pure Rust PQ backend
 - [x] ✅ liboqs build instructions — crypto_core/README.md lines 260-276
 - [x] ✅ Performance benchmark table — crypto_core/README.md lines 269-274
-- [ ] [ ] Formal benchmark suite with criterion — benches/ directory not found
+- [x] ✅ Formal benchmark suite with criterion — crypto_core/benches/crypto_benchmarks.rs (346 lines)
 
 ### Priority 4: Side-Channel & Dependency Hardening (~90% COMPLETE ✅)
 - [x] ✅ `docs/SIDE_CHANNEL_HARDENING.md` — EXISTS with mitigation tables

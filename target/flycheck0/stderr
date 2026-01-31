@@ -5,8 +5,53 @@ warning: profiles for the non root package will be ignored, specify profiles at 
 package:   /workspaces/meow-decoder/rust_crypto/Cargo.toml
 workspace: /workspaces/meow-decoder/Cargo.toml
 warning: /workspaces/meow-decoder/rust_crypto/Cargo.toml: unused manifest key: tool
-   1.184977995s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="security_properties"}: cargo::core::compiler::fingerprint: fingerprint error for crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core)/Check { test: true }/TargetInner { kind: "test", name: "security_properties", benched: false, ..: with_path("/workspaces/meow-decoder/crypto_core/tests/security_properties.rs", Edition2021) }
-   1.185008993s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="security_properties"}: cargo::core::compiler::fingerprint:     err: failed to read `/workspaces/meow-decoder/target/debug/.fingerprint/crypto_core-405bf0e4c103c235/test-integration-test-security_properties`
+   0.544240040s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="security_properties"}: cargo::core::compiler::fingerprint: fingerprint error for crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core)/Check { test: true }/TargetInner { kind: "test", name: "security_properties", benched: false, ..: with_path("/workspaces/meow-decoder/crypto_core/tests/security_properties.rs", Edition2021) }
+   0.544406209s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="security_properties"}: cargo::core::compiler::fingerprint:     err: failed to read `/workspaces/meow-decoder/target/debug/.fingerprint/crypto_core-405bf0e4c103c235/test-integration-test-security_properties`
+
+Caused by:
+    No such file or directory (os error 2)
+
+Stack backtrace:
+   0: cargo_util::paths::read_bytes
+   1: cargo_util::paths::read
+   2: cargo::core::compiler::fingerprint::_compare_old_fingerprint
+   3: cargo::core::compiler::fingerprint::prepare_target
+   4: cargo::core::compiler::compile
+   5: <cargo::core::compiler::build_runner::BuildRunner>::compile
+   6: cargo::ops::cargo_compile::compile_ws
+   7: cargo::ops::cargo_compile::compile_with_exec
+   8: cargo::ops::cargo_compile::compile
+   9: cargo::commands::check::exec
+  10: <cargo::cli::Exec>::exec
+  11: cargo::main
+  12: std::sys::backtrace::__rust_begin_short_backtrace::<fn(), ()>
+  13: std::rt::lang_start::<()>::{closure#0}
+  14: core::ops::function::impls::<impl core::ops::function::FnOnce<A> for &F>::call_once
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/core/src/ops/function.rs:287:21
+  15: std::panicking::catch_unwind::do_call
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panicking.rs:581:40
+  16: std::panicking::catch_unwind
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panicking.rs:544:19
+  17: std::panic::catch_unwind
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panic.rs:359:14
+  18: std::rt::lang_start_internal::{{closure}}
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/rt.rs:175:24
+  19: std::panicking::catch_unwind::do_call
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panicking.rs:581:40
+  20: std::panicking::catch_unwind
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panicking.rs:544:19
+  21: std::panic::catch_unwind
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/panic.rs:359:14
+  22: std::rt::lang_start_internal
+             at /rustc/254b59607d4417e9dffbc307138ae5c86280fe4c/library/std/src/rt.rs:171:5
+  23: main
+  24: __libc_start_call_main
+             at ./csu/../sysdeps/nptl/libc_start_call_main.h:58:16
+  25: __libc_start_main_impl
+             at ./csu/../csu/libc-start.c:360:3
+  26: <unknown>
+   0.963909043s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="crypto_benchmarks"}: cargo::core::compiler::fingerprint: fingerprint error for crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core)/Check { test: true }/TargetInner { kind: "bench", name: "crypto_benchmarks", tested: false, ..: with_path("/workspaces/meow-decoder/crypto_core/benches/crypto_benchmarks.rs", Edition2021) }
+   0.963938167s  INFO prepare_target{force=false package_id=crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core) target="crypto_benchmarks"}: cargo::core::compiler::fingerprint:     err: failed to read `/workspaces/meow-decoder/target/debug/.fingerprint/crypto_core-9210d5b5f742cfdc/test-bench-crypto_benchmarks`
 
 Caused by:
     No such file or directory (os error 2)
@@ -51,4 +96,6 @@ Stack backtrace:
              at ./csu/../csu/libc-start.c:360:3
   26: <unknown>
     Checking crypto_core v0.2.0 (/workspaces/meow-decoder/crypto_core)
+error: could not compile `crypto_core` (bench "crypto_benchmarks") due to 5 previous errors; 2 warnings emitted
+warning: build failed, waiting for other jobs to finish...
 error: could not compile `crypto_core` (test "security_properties") due to 24 previous errors; 1 warning emitted
