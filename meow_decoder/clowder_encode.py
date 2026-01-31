@@ -31,8 +31,8 @@ import hashlib
 from typing import List, Dict, Optional
 from datetime import datetime
 
-from encode import encode_file
-from config import EncodingConfig
+from .encode import encode_file
+from .config import EncodingConfig
 
 
 class ClowderManifest:

@@ -20,7 +20,7 @@ from pyzbar.pyzbar import decode as qr_decode
 from typing import Optional, Set
 import json
 
-from decode_gif import decode_gif_streaming
+from .decode_gif import decode_gif_streaming
 from fountain import FountainDecoder
 
 

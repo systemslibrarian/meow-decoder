@@ -20,7 +20,7 @@ from getpass import getpass
 import json
 from typing import Dict
 
-from decode_gif import decode_gif
+from .decode_gif import decode_gif
 
 
 def hash_password(password: str) -> str:
