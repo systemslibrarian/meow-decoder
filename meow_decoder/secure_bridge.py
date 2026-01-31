@@ -229,12 +229,16 @@ class SecureBridge:
         self._next_handle_id += 1
         
         try:
+            # Encode password to bytes for Rust backend
+            password_bytes = password.encode('utf-8') if isinstance(password, str) else password
+            
             key = meow_crypto_rs.derive_key_argon2id(
-                password=password,
-                salt=salt,
-                memory_kib=memory_kib,
-                iterations=iterations,
-                parallelism=4
+                password_bytes,  # Positional for Rust
+                salt,
+                memory_kib,
+                iterations,
+                4,  # parallelism
+                32  # output_len: 256-bit key for AES-256
             )
 
             handle = KeyHandle(

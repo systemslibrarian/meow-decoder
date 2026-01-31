@@ -59,7 +59,7 @@
 | `decoy_generator.py` | `test_decoy_generator.py` | ✅ EXISTS | Generate plausible fakes |
 | `timelock_duress.py` | `test_timelock_duress.py` | ✅ EXISTS | Time-based unlock |
 | `metadata_obfuscation.py` | `test_metadata_obfuscation.py` | ✅ EXISTS | Length padding |
-| `secure_cleanup.py` | `test_secure_cleanup.py` | ⏳ TODO | Secure file shred |
+| `secure_cleanup.py` | `test_secure_cleanup.py` | ✅ DONE | 18 tests, secure memory zeroing |
 | `deadmans_switch_cli.py` | `test_deadmans_switch.py` | ✅ EXISTS | Dead-man's switch |
 
 ---
@@ -69,7 +69,7 @@
 | Source File | Test File | Status | Notes |
 |-------------|-----------|--------|-------|
 | `config.py` | `test_config.py` | ✅ DONE | Consolidated from test_coverage_90_config.py |
-| `security_warnings.py` | `test_security_warnings.py` | ⏳ TODO | Weak settings warnings |
+| `security_warnings.py` | `test_security_warnings.py` | ✅ DONE | 15 tests, warning emission |
 | `progress.py` | `test_progress.py` | ✅ EXISTS | Progress bar wrapper |
 | `progress_bar.py` | `test_progress.py` | ✅ EXISTS | tqdm wrapper (same file) |
 | `cat_utils.py` | `test_cat_utils.py` | ✅ DONE | Consolidated from test_coverage_90_cat_utils.py |
@@ -82,7 +82,7 @@
 |-------------|-----------|--------|-------|
 | `pq_crypto_real.py` | `test_pq_crypto_real.py` | ✅ DONE | Consolidated from test_coverage_90_pq_crypto.py |
 | `pq_hybrid.py` | `test_pq_hybrid.py` | ✅ EXISTS | Hybrid mode (2 test files) |
-| `pq_signatures.py` | `test_pq_signatures.py` | ⏳ TODO | Dilithium3 |
+| `pq_signatures.py` | `test_pq_signatures.py` | ✅ DONE | 23 tests, Ed25519+Dilithium3 (6 skip w/o liboqs) |
 | `hardware_integration.py` | `test_hardware_integration.py` | ✅ EXISTS | TPM/YubiKey |
 | `hardware_keys.py` | `test_hardware_keys.py` | ✅ EXISTS | Key storage |
 
@@ -104,7 +104,7 @@
 | `resume_secured.py` | `test_resume_secured.py` | ✅ EXISTS | Resume functionality |
 | `high_security.py` | `test_high_security.py` | ✅ EXISTS | Paranoid mode |
 | `webcam_enhanced.py` | `test_webcam_enhanced.py` | ✅ EXISTS | Camera capture |
-| `secure_bridge.py` | `test_secure_bridge.py` | ⏳ TODO | Rust bridge |
+| `secure_bridge.py` | `test_secure_bridge.py` | ✅ DONE | 25 tests, Rust crypto bridge (fixed source bugs) |
 
 ---
 
@@ -122,6 +122,15 @@
 ---
 
 ## Progress Log
+
+### 2026-01-30 (Session 3)
+- [x] Created test_secure_cleanup.py (18 tests - secure memory zeroing)
+- [x] Created test_security_warnings.py (15 tests - warning emission)
+- [x] Created test_pq_signatures.py (23 tests, 6 skip without liboqs)
+- [x] Created test_secure_bridge.py (25 tests, 2 skip for mlock perms)
+- [x] FIXED: secure_bridge.py source bugs (missing output_len, str vs bytes)
+- [x] All 81 new tests passing (8 skipped for optional features)
+- [x] All TODO items in testtodo.md now DONE
 
 ### 2026-01-30 (Session 2)
 - [x] crypto_backend.py consolidation COMPLETE

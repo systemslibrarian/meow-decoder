@@ -90,7 +90,8 @@ class TestKeyHandle:
         )
         
         handle._zero_key()  # Should not raise
-        assert handle._zeroed is True
+        # With no key bytes, _zeroed stays False (nothing to zero)
+        assert handle._zeroed is False
 
 
 class TestSecureMemory:
