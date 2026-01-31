@@ -157,7 +157,7 @@
      - `test_crypto_consolidated.py`
    - Remove duplicates, keep best coverage
 
-2. **Delete after consolidation:**
+2. **Delete after consolidation if possible without deleting any needed tests:**
    - All `test_coverage_90_*.py` files
    - All `*_aggressive.py` duplicates
    - Keep only one canonical test file per module

@@ -88,12 +88,14 @@ class ForwardSecrecyFountainEncoder:
             
         Note:
             This method assumes your FountainEncoder has:
-            - droplet() method that returns (seed, indices, xor_data)
+            - droplet() method that returns a Droplet object with seed, block_indices, data
             - Or similar interface
         """
         # Get next droplet from fountain encoder
-        # ADAPT THIS to match your FountainEncoder interface
-        seed, block_indices, xor_data = self.fountain.droplet()
+        droplet = self.fountain.droplet()
+        seed = droplet.seed
+        block_indices = droplet.block_indices
+        xor_data = droplet.data
         
         # Encrypt the XOR data with per-block keys
         encrypted_data, nonces = self._encrypt_droplet_data(

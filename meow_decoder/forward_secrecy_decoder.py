@@ -78,18 +78,15 @@ class ForwardSecrecyFountainDecoder:
             
         Returns:
             True if decoding complete, False otherwise
-            
-        Note:
-            This method assumes your FountainDecoder has:
-            - addblock() or similar method that accepts (seed, indices, xor_data)
         """
         # Decrypt the droplet data
         primary_block = block_indices[0] if block_indices else 0
         xor_data = self.fs_manager.decrypt_block(encrypted_data, nonce, primary_block)
         
-        # Pass to fountain decoder
-        # ADAPT THIS to match your FountainDecoder interface
-        return self.fountain.addblock(seed, block_indices, xor_data)
+        # Create a Droplet object and pass to fountain decoder
+        from .fountain import Droplet
+        droplet = Droplet(seed=seed, block_indices=block_indices, data=xor_data)
+        return self.fountain.add_droplet(droplet)
     
     def is_complete(self) -> bool:
         """Check if decoding is complete."""
