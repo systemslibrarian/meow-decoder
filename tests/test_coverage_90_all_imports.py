@@ -186,7 +186,8 @@ class TestDeadmansSwitchCli:
                     checkin_interval_seconds=3600,
                     grace_period_seconds=600
                 )
-                assert state.gif_path == gif_path
+                # gif_path is a Path object, convert to string for comparison
+                assert str(state.gif_path) == gif_path
             finally:
                 if os.path.exists(gif_path):
                     os.unlink(gif_path)
@@ -826,9 +827,14 @@ class TestTimelockDuress:
     def test_timelock_puzzle(self):
         """Test TimeLockPuzzle class."""
         try:
-            from meow_decoder.timelock_duress import TimeLockPuzzle
-            puzzle = TimeLockPuzzle(b"secret", iterations=100)
+            from meow_decoder.timelock_duress import TimeLockPuzzle, TimeLockConfig
+            # TimeLockPuzzle takes a TimeLockConfig, not raw parameters
+            config = TimeLockConfig()
+            config.lock_duration_seconds = 1  # Very short for testing
+            config.hash_iterations_per_second = 100
+            puzzle = TimeLockPuzzle(config)
             assert puzzle is not None
+            assert puzzle.config is not None
         except (ImportError, AttributeError):
             pytest.skip("TimeLockPuzzle not available")
 
@@ -970,11 +976,12 @@ class TestCoreFunctionality:
         chunks = [b"chunk1", b"chunk2", b"chunk3", b"chunk4"]
         tree = MerkleTree(chunks)
         
-        root = tree.get_root()
-        proof = tree.generate_proof(2)  # Proof for chunk3
+        root = tree.root_hash  # Correct attribute name
+        proof = tree.get_proof(2)  # Proof for chunk3 (correct method name)
         
         assert proof is not None
-        assert tree.verify_proof(proof, chunks[2], 2)
+        # verify_proof is a static method with signature (chunk_data, proof)
+        assert MerkleTree.verify_proof(chunks[2], proof)
     
     def test_constant_time_compare(self):
         """Test constant-time comparison."""

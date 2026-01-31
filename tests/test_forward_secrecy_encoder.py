@@ -14,14 +14,23 @@ from unittest.mock import Mock, MagicMock, patch
 from dataclasses import dataclass
 
 
+@dataclass
+class MockDroplet:
+    """Mock droplet matching real Droplet dataclass interface."""
+    seed: int
+    block_indices: list
+    data: bytes
+
+
 class MockFountainEncoder:
     """
     Test double for FountainEncoder.
     Implements droplet() interface expected by ForwardSecrecyFountainEncoder.
     
-    Note: The actual FountainEncoder returns a Droplet dataclass, but
-    forward_secrecy_encoder.py expects a tuple (seed, indices, data).
-    This mock returns a tuple as expected by the FS encoder.
+    The actual FountainEncoder.droplet() returns a Droplet dataclass with:
+    - seed: int
+    - block_indices: List[int]
+    - data: bytes
     """
     
     def __init__(self, data: bytes, k_blocks: int, block_size: int):
@@ -32,12 +41,12 @@ class MockFountainEncoder:
         self._droplet_responses = []
     
     def droplet(self):
-        """Return a droplet tuple (seed, block_indices, xor_data)."""
+        """Return a MockDroplet object matching the real Droplet interface."""
         seed = self._droplet_counter
         block_indices = [seed % self.k_blocks]
         xor_data = secrets.token_bytes(self.block_size)
         self._droplet_counter += 1
-        return seed, block_indices, xor_data
+        return MockDroplet(seed=seed, block_indices=block_indices, data=xor_data)
     
     def set_droplet_responses(self, responses: list):
         """Set custom droplet responses for testing."""
@@ -46,8 +55,9 @@ class MockFountainEncoder:
 
 class DropletAdapter:
     """
-    Adapts a real FountainEncoder to return tuples instead of Droplet objects.
-    This allows the ForwardSecrecyFountainEncoder to work with the real fountain.
+    Adapter that wraps a real FountainEncoder.
+    Since the source code expects Droplet objects with .seed, .block_indices, .data,
+    we just pass through the droplet directly (no tuple conversion).
     """
     
     def __init__(self, fountain):
@@ -57,9 +67,8 @@ class DropletAdapter:
         self.block_size = getattr(fountain, 'block_size', None)
     
     def droplet(self):
-        """Return droplet as (seed, block_indices, data) tuple."""
-        d = self._fountain.droplet()
-        return d.seed, d.block_indices, d.data
+        """Return droplet object directly (no conversion)."""
+        return self._fountain.droplet()
 
 
 # =============================================================================
@@ -303,9 +312,9 @@ class TestForwardSecrecyFountainEncoder:
         master_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
         
-        # Create mock that returns empty indices
+        # Create mock that returns MockDroplet with empty indices
         mock_fountain = Mock()
-        mock_fountain.droplet = Mock(return_value=(42, [], b"test_data"))
+        mock_fountain.droplet = Mock(return_value=MockDroplet(seed=42, block_indices=[], data=b"test_data"))
         
         encoder = ForwardSecrecyFountainEncoder(
             fountain_encoder=mock_fountain,

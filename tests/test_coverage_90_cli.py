@@ -466,6 +466,7 @@ class TestDeadManSwitchCLI:
         """Test DeadManSwitchState."""
         try:
             from meow_decoder.deadmans_switch_cli import DeadManSwitchState
+            from pathlib import Path
             
             state = DeadManSwitchState(
                 gif_path="/tmp/test.gif",
@@ -473,7 +474,8 @@ class TestDeadManSwitchCLI:
                 grace_period_seconds=300
             )
             
-            assert state.gif_path == "/tmp/test.gif"
+            # gif_path may be Path or str depending on implementation
+            assert str(state.gif_path) == "/tmp/test.gif" or state.gif_path == Path("/tmp/test.gif")
         except ImportError:
             pytest.skip("DeadManSwitchState not available")
 

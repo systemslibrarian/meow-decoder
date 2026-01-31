@@ -11,13 +11,22 @@ Coverage target: 90%+
 import pytest
 import secrets
 import struct
+from dataclasses import dataclass
 from unittest.mock import Mock, MagicMock, patch
+
+
+@dataclass
+class MockDroplet:
+    """Mock Droplet object matching the real Droplet interface."""
+    seed: int
+    block_indices: list
+    data: bytes
 
 
 class MockFountainDecoder:
     """
     Test double for FountainDecoder.
-    Implements addblock(), is_complete(), get_data() interface.
+    Implements add_droplet(), is_complete(), get_data() interface.
     """
     
     def __init__(self, k_blocks: int, block_size: int):
@@ -27,11 +36,11 @@ class MockFountainDecoder:
         self._complete = False
         self._data = b""
     
-    def addblock(self, seed: int, indices: list, xor_data: bytes) -> bool:
-        """Add a decoded block."""
-        self.blocks[seed] = {
-            'indices': indices,
-            'data': xor_data
+    def add_droplet(self, droplet) -> bool:
+        """Add a decoded droplet (matching real FountainDecoder.add_droplet())."""
+        self.blocks[droplet.seed] = {
+            'indices': droplet.block_indices,
+            'data': droplet.data
         }
         if len(self.blocks) >= self.k_blocks:
             self._complete = True
@@ -41,7 +50,7 @@ class MockFountainDecoder:
         """Check if decoding is complete."""
         return self._complete
     
-    def get_data(self) -> bytes:
+    def get_data(self, original_length: int = None) -> bytes:
         """Get decoded data."""
         if not self._complete:
             raise RuntimeError("Decoding not complete")
@@ -312,9 +321,9 @@ class TestForwardSecrecyFountainDecoder:
             salt=salt
         )
         
-        # Add blocks to mock
-        mock_fountain.addblock(0, [0], b"block_0")
-        mock_fountain.addblock(1, [1], b"block_1")
+        # Add blocks to mock using add_droplet (the correct API)
+        mock_fountain.add_droplet(MockDroplet(seed=0, block_indices=[0], data=b"block_0"))
+        mock_fountain.add_droplet(MockDroplet(seed=1, block_indices=[1], data=b"block_1"))
         
         data = decoder.get_decoded_data()
         assert data == b"block_0block_1"

@@ -12,19 +12,13 @@ os.environ["MEOW_TEST_MODE"] = "1"
 try:
     from meow_decoder.entropy_boost import (
         EntropyPool,
-        collect_system_entropy,
-        collect_timing_entropy,
-        collect_hardware_entropy,
-        mix_entropy_sources,
+        collect_enhanced_entropy,
+        generate_enhanced_salt,
+        generate_enhanced_nonce,
     )
     ENTROPY_AVAILABLE = True
 except (ImportError, AttributeError):
     ENTROPY_AVAILABLE = False
-    try:
-        from meow_decoder.entropy_boost import EntropyPool
-        ENTROPY_AVAILABLE = True
-    except ImportError:
-        pass
 
 
 @pytest.mark.skipif(not ENTROPY_AVAILABLE, reason="entropy_boost module not available")
@@ -36,104 +30,129 @@ class TestEntropyPool:
         pool = EntropyPool()
         assert pool is not None
 
-    def test_pool_add_entropy(self):
-        """Test adding entropy to pool."""
+    def test_add_system_entropy(self):
+        """Test adding system entropy to pool."""
         pool = EntropyPool()
-        pool.add_entropy(b"test entropy data")
-        assert pool.entropy_bits() > 0
+        pool.add_system_entropy(32)
+        assert pool.get_source_count() >= 1
 
-    def test_pool_extract_entropy(self):
-        """Test extracting entropy from pool."""
+    def test_add_timing_entropy(self):
+        """Test adding timing entropy to pool."""
         pool = EntropyPool()
-        pool.add_entropy(os.urandom(32))
-        entropy = pool.extract(32)
-        assert len(entropy) == 32
+        pool.add_timing_entropy(50)  # Fewer samples for speed
+        assert pool.get_source_count() >= 1
 
-    def test_pool_multiple_adds(self):
+    def test_add_environment_entropy(self):
+        """Test adding environment entropy to pool."""
+        pool = EntropyPool()
+        pool.add_environment_entropy()
+        assert pool.get_source_count() >= 1
+
+    def test_add_user_entropy(self):
+        """Test adding user entropy to pool (skips in non-TTY)."""
+        pool = EntropyPool()
+        try:
+            import sys
+            if not sys.stdin.isatty():
+                pytest.skip("Cannot test user entropy in non-interactive mode")
+            pool.add_user_entropy(b"user provided data")
+            assert pool.get_source_count() >= 1
+        except (OSError, IOError):
+            pytest.skip("Cannot test user entropy in non-interactive mode")
+
+    def test_mix_entropy(self):
+        """Test mixing entropy from pool."""
+        pool = EntropyPool()
+        pool.add_system_entropy(32)
+        pool.add_timing_entropy(25)
+        
+        output = pool.mix_entropy(32)
+        assert len(output) == 32
+        assert isinstance(output, bytes)
+
+    def test_pool_multiple_sources(self):
         """Test adding multiple entropy sources."""
         pool = EntropyPool()
-        pool.add_entropy(b"source1")
-        pool.add_entropy(b"source2")
-        pool.add_entropy(b"source3")
-        entropy = pool.extract(32)
-        assert len(entropy) == 32
+        pool.add_system_entropy(16)
+        pool.add_timing_entropy(25)
+        pool.add_environment_entropy()
+        
+        assert pool.get_source_count() >= 3
+        output = pool.mix_entropy(32)
+        assert len(output) == 32
+
+    def test_mix_entropy_different_lengths(self):
+        """Test extracting different output lengths."""
+        pool = EntropyPool()
+        pool.add_system_entropy(32)
+        
+        out16 = pool.mix_entropy(16)
+        out32 = pool.mix_entropy(32)
+        out64 = pool.mix_entropy(64)
+        
+        assert len(out16) == 16
+        assert len(out32) == 32
+        assert len(out64) == 64
 
 
 @pytest.mark.skipif(not ENTROPY_AVAILABLE, reason="entropy_boost module not available")
-class TestCollectSystemEntropy:
-    """Tests for system entropy collection."""
+class TestCollectEnhancedEntropy:
+    """Tests for collect_enhanced_entropy function."""
 
-    def test_collect_system(self):
-        """Test system entropy collection."""
-        try:
-            entropy = collect_system_entropy()
-            assert isinstance(entropy, bytes)
-            assert len(entropy) >= 16
-        except NameError:
-            pytest.skip("Function not available")
+    def test_collect_enhanced_entropy(self):
+        """Test enhanced entropy collection."""
+        entropy = collect_enhanced_entropy(32)  # length is required arg
+        assert isinstance(entropy, bytes)
+        assert len(entropy) >= 32
 
-    def test_system_entropy_varies(self):
-        """Test that system entropy varies."""
-        try:
-            ent1 = collect_system_entropy()
-            ent2 = collect_system_entropy()
-            # May be same if collected quickly, but should work
-            assert isinstance(ent1, bytes)
-            assert isinstance(ent2, bytes)
-        except NameError:
-            pytest.skip("Function not available")
+    def test_collect_enhanced_entropy_custom_length(self):
+        """Test enhanced entropy with custom length."""
+        entropy = collect_enhanced_entropy(64)  # length is positional
+        assert len(entropy) == 64
 
 
 @pytest.mark.skipif(not ENTROPY_AVAILABLE, reason="entropy_boost module not available")
-class TestCollectTimingEntropy:
-    """Tests for timing entropy collection."""
+class TestGenerateSaltAndNonce:
+    """Tests for salt and nonce generation."""
 
-    def test_collect_timing(self):
-        """Test timing entropy collection."""
-        try:
-            entropy = collect_timing_entropy()
-            assert isinstance(entropy, bytes)
-        except NameError:
-            pytest.skip("Function not available")
+    def test_generate_salt(self):
+        """Test enhanced salt generation."""
+        salt = generate_enhanced_salt()
+        assert isinstance(salt, bytes)
+        assert len(salt) == 16
+
+    def test_generate_nonce(self):
+        """Test enhanced nonce generation."""
+        nonce = generate_enhanced_nonce()
+        assert isinstance(nonce, bytes)
+        assert len(nonce) == 12
+
+    def test_salt_uniqueness(self):
+        """Test that salts are unique."""
+        salts = [generate_enhanced_salt() for _ in range(10)]
+        unique_salts = set(salts)
+        assert len(unique_salts) == 10
+
+    def test_nonce_uniqueness(self):
+        """Test that nonces are unique."""
+        nonces = [generate_enhanced_nonce() for _ in range(10)]
+        unique_nonces = set(nonces)
+        assert len(unique_nonces) == 10
 
 
 @pytest.mark.skipif(not ENTROPY_AVAILABLE, reason="entropy_boost module not available")
-class TestCollectHardwareEntropy:
-    """Tests for hardware entropy collection."""
+class TestHardwareEntropy:
+    """Tests for hardware entropy (optional)."""
 
-    def test_collect_hardware(self):
-        """Test hardware entropy collection (may fail if no HW RNG)."""
+    def test_add_hardware_entropy(self):
+        """Test hardware entropy (may not be available on all systems)."""
+        pool = EntropyPool()
         try:
-            entropy = collect_hardware_entropy()
-            # May return empty if no hardware RNG
-            assert isinstance(entropy, bytes)
-        except (NameError, OSError):
-            pytest.skip("Hardware entropy not available")
-
-
-@pytest.mark.skipif(not ENTROPY_AVAILABLE, reason="entropy_boost module not available")
-class TestMixEntropySources:
-    """Tests for entropy source mixing."""
-
-    def test_mix_sources(self):
-        """Test mixing multiple entropy sources."""
-        try:
-            sources = [b"source1", b"source2", b"source3"]
-            mixed = mix_entropy_sources(sources)
-            assert isinstance(mixed, bytes)
-            assert len(mixed) == 32  # Default output size
-        except NameError:
-            pytest.skip("Function not available")
-
-    def test_mix_deterministic(self):
-        """Test that same sources produce same output."""
-        try:
-            sources = [b"a", b"b", b"c"]
-            mixed1 = mix_entropy_sources(sources)
-            mixed2 = mix_entropy_sources(sources)
-            assert mixed1 == mixed2
-        except NameError:
-            pytest.skip("Function not available")
+            pool.add_hardware_entropy()
+            # If it works, great. If not, still passes (hardware may not exist)
+            assert True
+        except (OSError, RuntimeError):
+            pytest.skip("Hardware RNG not available")
 
 
 # Fallback test

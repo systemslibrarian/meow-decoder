@@ -350,27 +350,43 @@ class TestEntropyUtils:
     """Test entropy utilities."""
     
     def test_entropy_pool(self):
-        """Test entropy pool."""
+        """Test entropy pool with correct methods."""
         try:
             from meow_decoder.entropy_boost import EntropyPool
             
             pool = EntropyPool()
-            pool.add_entropy(secrets.token_bytes(32))
+            pool.add_system_entropy(32)
+            pool.add_timing_entropy(50)  # Fewer samples for speed
             
-            output = pool.get_entropy(32)
+            output = pool.mix_entropy(32)
             assert len(output) == 32
+            assert isinstance(output, bytes)
         except ImportError:
             pytest.skip("entropy_boost not available")
     
-    def test_timing_jitter_entropy(self):
-        """Test timing jitter entropy."""
+    def test_timing_entropy(self):
+        """Test timing entropy collection."""
         try:
-            from meow_decoder.entropy_boost import collect_timing_jitter
+            from meow_decoder.entropy_boost import EntropyPool
             
-            jitter = collect_timing_jitter()
-            assert len(jitter) > 0
+            pool = EntropyPool()
+            pool.add_timing_entropy(50)
+            
+            assert pool.get_source_count() >= 1
         except (ImportError, AttributeError):
-            pytest.skip("collect_timing_jitter not available")
+            pytest.skip("entropy_boost not available")
+    
+    def test_environment_entropy(self):
+        """Test environment entropy collection."""
+        try:
+            from meow_decoder.entropy_boost import EntropyPool
+            
+            pool = EntropyPool()
+            pool.add_environment_entropy()
+            
+            assert pool.get_source_count() >= 1
+        except (ImportError, AttributeError):
+            pytest.skip("entropy_boost not available")
 
 
 class TestErrorHandling:
