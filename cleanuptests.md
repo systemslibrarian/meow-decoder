@@ -1,21 +1,28 @@
 # Test Suite Cleanup & Consolidation Plan
 
 **Created:** 2026-01-31  
+**Last Updated:** 2026-02-01  
 **Goal:** One canonical test file per source module  
-**Status:** IN PROGRESS
+**Status:** IN PROGRESS (3/21 merges verified complete)
 
 ---
 
 ## Overview
 
-Current state: **138 test files** → Target: **~35-40 canonical test files**
+Current state: **120 test files** → Target: **~35-40 canonical test files**
+
+### Current Breakdown:
+- **Integration subdirectory:** 7 files
+- **spec_v12 subdirectory:** 1 file  
+- **Main tests/:** 112 files
+- **Files matching cleanup patterns:** 40 files
 
 ### Fragmentation Categories to Merge:
-- `test_coverage_90_*.py` (32 files) → Merge into canonical
-- `test_*_aggressive.py` (8 files) → Merge into canonical  
-- `test_phase*.py` (6 files) → Merge into canonical
-- `test_core_*.py` (10 files) → Merge into canonical
+- `test_coverage_90_*.py` (12 files) → Merge into canonical
 - `test_coverage_*.py` (misc, 8 files) → Merge into canonical
+- `test_*_aggressive.py` (6 files) → Merge into canonical  
+- `test_phase*.py` (7 files) → Merge into canonical
+- `test_core_*.py` (7 files) → Merge into canonical
 - Duplicate/overlapping files → Merge into canonical
 
 ---
@@ -308,85 +315,55 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ## 15. FILES TO DEPRECATE (after merge)
 
-### Coverage_90 files (32 total)
+### Coverage_90 files (12 total - verified 2026-02-01)
 - [ ] `test_coverage_90_all_imports.py` → `test_imports.py` (keep separate for import validation)
-- [ ] `test_coverage_90_cat_utils.py` → `test_cat_utils.py`
 - [ ] `test_coverage_90_cli.py` → `test_cli.py`
-- [ ] `test_coverage_90_config.py` → `test_config.py`
-- [ ] `test_coverage_90_crypto_paths.py` → `test_crypto.py`
-- [ ] `test_coverage_90_decode.py` → `test_decode_gif.py`
 - [ ] `test_coverage_90_deep_core.py` → `test_integration.py`
 - [ ] `test_coverage_90_deep_progress.py` → `test_progress.py`
 - [ ] `test_coverage_90_deep_security.py` → `test_security.py`
-- [ ] `test_coverage_90_duress_mode.py` → `test_duress.py`
 - [ ] `test_coverage_90_duress_paths.py` → `test_duress.py`
-- [ ] `test_coverage_90_edge_cases.py` → `test_utils.py`
-- [ ] `test_coverage_90_encode.py` → `test_encode.py`
-- [ ] `test_coverage_90_encode_decode_cli.py` → Split encode/decode
-- [ ] `test_coverage_90_fountain.py` → `test_fountain.py`
-- [ ] `test_coverage_90_fountain_paths.py` → `test_fountain.py`
-- [ ] `test_coverage_90_gif_handler.py` → `test_gif_handler.py`
-- [ ] `test_coverage_90_hardware.py` → `test_hardware.py`
-- [ ] `test_coverage_90_metadata.py` → `test_metadata.py`
 - [ ] `test_coverage_90_metadata_mac.py` → `test_frame_mac.py`
 - [ ] `test_coverage_90_metadata_paths.py` → `test_metadata.py`
-- [ ] `test_coverage_90_pq_crypto.py` → `test_pq.py`
-- [ ] `test_coverage_90_progress.py` → `test_progress.py`
 - [ ] `test_coverage_90_qr_gif.py` → `test_qr_code.py`
 - [ ] `test_coverage_90_qr_gif_paths.py` → `test_qr_code.py`
 - [ ] `test_coverage_90_qr_reader.py` → `test_qr_code.py`
-- [ ] `test_coverage_90_resume_and_misc.py` → `test_utils.py`
-- [ ] `test_coverage_90_schrodinger.py` → `test_schrodinger.py`
-- [ ] `test_coverage_90_security_advanced.py` → `test_duress.py`
-- [ ] `test_coverage_90_stego.py` → `test_stego.py`
-- [ ] `test_coverage_90_streaming.py` → `test_streaming_crypto.py`
 - [ ] `test_coverage_90_utils.py` → `test_utils.py`
 
-### Aggressive files (8 total)
+### Aggressive files (6 total - verified 2026-02-01)
 - [ ] `test_config_aggressive.py` → `test_config.py`
-- [ ] `test_decode_gif_aggressive.py` → `test_decode_gif.py`
 - [ ] `test_duress_mode_aggressive.py` → `test_duress.py`
-- [ ] `test_encode_main_aggressive.py` → `test_encode.py`
-- [ ] `test_fountain_aggressive.py` → `test_fountain.py`
 - [ ] `test_gif_handler_aggressive.py` → `test_gif_handler.py`
 - [ ] `test_merkle_tree_aggressive.py` → `test_fountain.py`
 - [ ] `test_metadata_obfuscation_aggressive.py` → `test_metadata.py`
 - [ ] `test_qr_code_aggressive.py` → `test_qr_code.py`
 
-### Phase files (6 total)
+### Phase files (7 total - verified 2026-02-01)
 - [ ] `test_phase2_security.py` → `test_security.py`
 - [ ] `test_phase3_schrodinger_security.py` → `test_schrodinger.py`
 - [ ] `test_phase4_dudect_timing.py` → `test_sidechannel.py`
 - [ ] `test_phase4_duress_timing.py` → `test_duress.py`
 - [ ] `test_phase4_manifest_migration.py` → `test_crypto.py`
-- [ ] `test_phase4_pq_integration.py` → `test_pq.py`
 - [ ] `test_phase5_hardware_mocks.py` → `test_hardware.py`
 - [ ] `test_phase5_thread_stress.py` → `test_integration.py`
 
-### Core files (10 total)
-- [ ] `test_core_cli_decode_main.py` → `test_decode_gif.py`
-- [ ] `test_core_cli_encode_main.py` → `test_encode.py`
+### Core files (7 total - verified 2026-02-01)
 - [ ] `test_core_coverage.py` → `test_integration.py`
-- [ ] `test_core_decode_gif_more.py` → `test_decode_gif.py`
 - [ ] `test_core_encode_decode_unit.py` → `test_integration.py`
 - [ ] `test_core_gif_handler.py` → `test_gif_handler.py`
 - [ ] `test_core_gif_handler_more.py` → `test_gif_handler.py`
 - [ ] `test_core_qr_code_generator.py` → `test_qr_code.py`
 - [ ] `test_core_qr_reader_unit.py` → `test_qr_code.py`
 - [ ] `test_core_runpy_selftests.py` → `test_integration.py`
-- [ ] `test_core_x25519_and_decoy_and_webcam.py` → Split 3 ways
 
-### Other coverage files (8 total)
+### Other coverage files (8 total - verified 2026-02-01)
 - [ ] `test_coverage_boost.py` → `test_integration.py`
 - [ ] `test_coverage_boost_v2.py` → `test_integration.py`
 - [ ] `test_coverage_comprehensive.py` → `test_integration.py`
-- [ ] `test_coverage_decode_gif_verbose_and_macs.py` → `test_decode_gif.py`
-- [ ] `test_coverage_encode_cli.py` → `test_encode.py`
 - [ ] `test_coverage_final_push.py` → `test_integration.py`
 - [ ] `test_coverage_imports_and_main.py` → `test_imports.py`
 - [ ] `test_coverage_qr_code.py` → `test_qr_code.py`
 - [ ] `test_coverage_stage2.py` → `test_integration.py`
-- [ ] `test_coverage_targeted_cli_paths.py` → `test_cli.py`
+- [ ] `test_core_coverage.py` → `test_integration.py`
 
 ### Integration subdir (7 total)
 - [ ] `integration/test_cli_forward_secrecy.py` → `test_forward_secrecy.py`
@@ -410,74 +387,92 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ### Phase 1: Highest Priority Merges (TOP 10)
 
-- [x] **Merge 1:** Fountain family → `test_fountain.py` ✅ DONE (2026-01-31)
-  - Sources: `test_fountain_aggressive.py`, `test_coverage_90_fountain.py`, `test_coverage_90_fountain_paths.py`, `integration/test_fountain_fix.py`, `test_catnip_fountain.py`, `test_merkle_tree_aggressive.py`
-  - [x] Read all source files
-  - [x] Merge into `test_fountain.py` (3 unique tests merged, 39 tests total)
-  - [x] Add deprecation headers to old files
-  - [x] Verify pytest passes (39 pass, 1 xfail)
+- [ ] **Merge 1:** Fountain family → `test_fountain.py` ⏳ PENDING
+  - Sources: `test_catnip_fountain.py`
+  - Note: Other files (test_fountain_aggressive.py, test_coverage_90_fountain*.py, integration/test_fountain_fix.py, test_merkle_tree_aggressive.py) do not exist
+  - [ ] Verify which source files exist
+  - [ ] Merge unique tests into `test_fountain.py`
+  - [ ] Add deprecation headers to old files
+  - [ ] Verify pytest passes
 
-- [x] **Merge 2:** QR family → `test_qr_code.py` ✅ DONE (2026-01-31)
-  - Sources: `test_qr_code_aggressive.py`, `test_coverage_90_qr_gif.py`, `test_coverage_90_qr_gif_paths.py`, `test_coverage_90_qr_reader.py`, `test_coverage_qr_code.py`, `test_core_qr_code_generator.py`, `test_core_qr_reader_unit.py`, `test_ascii_qr.py`
-  - [x] Read all source files
-  - [x] Merge into `test_qr_code.py` (5 unique tests merged, 32 tests total)
-  - [x] Add deprecation headers to old files (120 tests skipped in 8 deprecated files)
+- [ ] **Merge 2:** QR family → `test_qr_code.py` ⏳ PENDING (10 files still exist)
+  - Canonical: `test_qr_code.py`
+  - Sources to merge (verified exist):
+    - `test_qr_code_aggressive.py`
+    - `test_coverage_90_qr_gif.py`
+    - `test_coverage_90_qr_gif_paths.py`
+    - `test_coverage_90_qr_reader.py`
+    - `test_coverage_qr_code.py`
+    - `test_core_qr_code_generator.py`
+    - `test_core_qr_reader_unit.py`
+    - `test_ascii_qr.py`
+  - [ ] Read all source files
+  - [ ] Identify unique tests
+  - [ ] Merge into `test_qr_code.py`
+  - [ ] Add deprecation headers to old files
 
-- [x] **Merge 3:** GIF handler family → `test_gif_handler.py` ✅ DONE (2026-01-31)
-  - Sources: `test_gif_handler_aggressive.py`, `test_coverage_90_gif_handler.py`, `test_core_gif_handler.py`, `test_core_gif_handler_more.py`
-  - [x] Merge into `test_gif_handler.py` (3 unique tests merged, 24 tests total)
-  - [x] Add deprecation headers (30 tests skipped in 3 deprecated files)
+- [ ] **Merge 3:** GIF handler family → `test_gif_handler.py` ⏳ PENDING (4 files still exist)
+  - Canonical: `test_gif_handler.py`
+  - Sources to merge (verified exist):
+    - `test_gif_handler_aggressive.py`
+    - `test_core_gif_handler.py`
+    - `test_core_gif_handler_more.py`
+  - Note: `test_coverage_90_gif_handler.py` does not exist
+  - [ ] Read all source files
+  - [ ] Merge into `test_gif_handler.py`
+  - [ ] Add deprecation headers
 
-- [x] **Merge 4:** Forward secrecy family → Multiple canonical files ✅ DONE (2026-01-31)
-  - Strategy: Keep 4 canonical unit test files + 1 new integration file (6 source modules)
-  - Canonical files kept:
-    - `test_forward_secrecy_x25519.py` (39 tests) - covers forward_secrecy_x25519.py + x25519_forward_secrecy.py
-    - `test_forward_secrecy_decoder.py` (28 tests) - covers forward_secrecy_decoder.py
-    - `test_forward_secrecy_encoder.py` (23 tests) - covers forward_secrecy_encoder.py
-    - `test_double_ratchet.py` (16 tests) - covers double_ratchet.py
-  - [x] Created `integration/test_forward_secrecy_integration.py` (10 tests consolidated from 3 integration files)
-  - [x] Deprecated `debug_forward_secrecy.py` (1 test)
-  - [x] Deprecated `integration/test_forward_secrecy.py` (4 tests)
-  - [x] Deprecated `integration/test_cli_forward_secrecy.py` (3 tests)
-  - [x] Deprecated `integration/test_fs_integration.py` (4 tests)
-  - **Total: 116 tests passing, 12 tests skipped (deprecated)**
+- [ ] **Merge 4:** Forward secrecy family → Multiple canonical files ⏳ PENDING
+  - Strategy: Keep 4 canonical unit test files + 1 integration file
+  - Canonical files to keep:
+    - `test_forward_secrecy_x25519.py` (39 tests)
+    - `test_forward_secrecy_decoder.py` (28 tests)
+    - `test_forward_secrecy_encoder.py` (23 tests)
+    - `test_double_ratchet.py` (16 tests)
+    - `integration/test_forward_secrecy_integration.py` (exists, keep)
+  - Files to deprecate (verified exist):
+    - `debug_forward_secrecy.py` - needs deprecation header
+    - `integration/test_forward_secrecy.py` - needs deprecation header
+    - `integration/test_cli_forward_secrecy.py` - needs deprecation header
+    - `integration/test_fs_integration.py` - needs deprecation header
+  - [ ] Add deprecation headers to old files
+  - [ ] Verify pytest skips deprecated files
 
-- [ ] **Merge 5:** Duress family → `test_duress.py`
+- [ ] **Merge 5:** Duress family → `test_duress.py` ⏳ PENDING
   - Sources: ALL duress/decoy/timelock files (10+ files)
   - [ ] Create `test_duress.py` from `test_duress_mode.py`
   - [ ] Merge all others
   - [ ] Add deprecation headers
 
-- [x] **Merge 6:** Schrödinger family → `test_schrodinger.py` ✅ (166 tests, 165 pass, 1 skipped)
-  - Sources: ALL Schrödinger files (7 files)
+- [ ] **Merge 6:** Schrödinger family → `test_schrodinger.py` ⏳ PENDING (7+ files still exist)
+  - Canonical: `test_schrodinger.py`
+  - Sources to merge: `test_schrodinger_comprehensive.py`, `test_schrodinger_roundtrip.py`,
+    `test_schrodinger_security.py`, `test_phase3_schrodinger_security.py`,
+    `test_quantum_mixer.py`, `test_multi_secret.py`, `integration/test_schrodinger_e2e.py`
   - [ ] Merge into `test_schrodinger.py`
   - [ ] Add deprecation headers
 
-- [x] **Merge 7:** Encode pipeline → `test_encode.py` ✅ (84 passing, 22 skipped, 1 slow)
-  - Fixed: purr logger state pollution (autouse fixture)
-  - Fixed: @pytest.mark.slow on test_encode_large_file
-  - [x] test_encode.py: 61 pass, 1 slow
-  - [x] test_forward_secrecy_encoder.py: 23 pass
-  - [x] test_encode_decode.py: 19 skipped (already handled)
-  - [x] test_core_encode_decode_unit.py: 3 skipped (already handled)
+- [x] **Merge 7:** Encode pipeline → `test_encode.py` ✅ VERIFIED
+  - Status: Deprecation headers added to source files
+  - Canonical: `test_encode.py` (61 tests)
+  - Canonical: `test_forward_secrecy_encoder.py` (23 tests) - kept separate
+  - Deprecated (verified): `test_encode_decode.py` has deprecation header
+  - Deprecated (verified): `test_core_encode_decode_unit.py` has deprecation header
+  - **Total:** 84 passing, skipped tests in deprecated files
 
-- [x] **Merge 8:** Decode pipeline → `test_decode_gif.py` ✅ COMPLETE
-  - Sources: None of the planned merge files existed yet
-  - [x] Fixed 4 test bugs in test_decode_gif.py (missing imports, wrong monkeypatch targets)
-  - test_decode_gif.py: 45 pass, 1 skipped
-  - test_forward_secrecy_decoder.py: 28 pass (already clean)
-  - **Total:** 73 passing, 1 skipped
+- [x] **Merge 8:** Decode pipeline → `test_decode_gif.py` ✅ VERIFIED
+  - Status: Canonical files in place, sources deprecated
+  - Canonical: `test_decode_gif.py` (45+ tests)
+  - Canonical: `test_forward_secrecy_decoder.py` (28 tests) - kept separate
+  - **Total:** 73 passing
 
-- [x] **Merge 9:** PQ family → `test_pq.py` ✅ COMPLETE
-  - Sources: 4 PQ files (2 didn't exist)
-  - [x] test_pq_crypto.py renamed → test_pq.py (canonical, 27 tests)
-  - [x] test_pq_hybrid.py DELETED (identical duplicate of test_pq_crypto.py)
-  - [x] test_pq_hybrid_fail_closed.py DELETED (3 tests merged into test_pq.py as TestPQFailClosed)
-  - [x] test_phase4_pq_integration.py renamed → test_pq_integration.py (14 tests, kept separate - detailed security docs)
-  - [x] test_pq_signatures.py kept as-is (29 tests)
-  - Files that didn't exist: test_pq_crypto_real.py, test_coverage_90_pq_crypto.py
-  - **Final:** 3 files (test_pq.py, test_pq_integration.py, test_pq_signatures.py)
-  - **Total:** 37 passed, 33 skipped (all skips are liboqs not installed - intentional)
+- [x] **Merge 9:** PQ family → `test_pq.py` ✅ VERIFIED
+  - Status: Only 3 canonical files remain (verified via filesystem)
+  - Canonical: `test_pq.py` (27 tests)
+  - Canonical: `test_pq_integration.py` (14 tests)
+  - Canonical: `test_pq_signatures.py` (29 tests)
+  - Deleted: test_pq_hybrid.py, test_pq_hybrid_fail_closed.py (verified not on disk)
+  - **Total:** 70 tests (37 pass, 33 skipped - liboqs not installed)
 
 - [ ] **Merge 10:** Security family → `test_security.py`
   - Sources: ALL security/adversarial files (8 files)
@@ -549,7 +544,7 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ---
 
-### Merge 4: Forward Secrecy Family → Multiple Canonical Files ✅ DONE
+### Merge 4: Forward Secrecy Family → Multiple Canonical Files ⏳ PENDING
 
 **Strategy:** Forward Secrecy has 6 source modules, so we keep 4 canonical unit test files aligned with their modules, plus 1 consolidated integration file.
 
@@ -560,18 +555,18 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 | `forward_secrecy_decoder.py` | `test_forward_secrecy_decoder.py` | 28 | ✅ Keep |
 | `forward_secrecy_encoder.py` | `test_forward_secrecy_encoder.py` | 23 | ✅ Keep |
 | `double_ratchet.py` | `test_double_ratchet.py` | 16 | ✅ Keep |
-| Integration tests | `integration/test_forward_secrecy_integration.py` | 10 | ✅ NEW |
+| Integration tests | `integration/test_forward_secrecy_integration.py` | 10 | ⏳ CREATE |
 
-**Deprecated Files (12 tests now skipped):**
+**Files To Deprecate (NOT YET DONE - no deprecation headers added):**
 
 | File | Tests | Status |
 |------|-------|--------|
-| `debug_forward_secrecy.py` | 1 | 🗑️ Deprecated |
-| `integration/test_forward_secrecy.py` | 4 | 🗑️ Deprecated |
-| `integration/test_cli_forward_secrecy.py` | 3 | 🗑️ Deprecated |
-| `integration/test_fs_integration.py` | 4 | 🗑️ Deprecated |
+| `debug_forward_secrecy.py` | 1 | ⏳ NEEDS deprecation header |
+| `integration/test_forward_secrecy.py` | 4 | ⏳ NEEDS deprecation header |
+| `integration/test_cli_forward_secrecy.py` | 3 | ⏳ NEEDS deprecation header |
+| `integration/test_fs_integration.py` | 4 | ⏳ NEEDS deprecation header |
 
-**Total:** 116 tests passing, 12 tests skipped
+**NEXT ACTION:** Add deprecation headers to 4 files listed above, then mark this merge COMPLETE.
 
 ---
 
@@ -584,41 +579,39 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 | `tests/test_duress_mode.py` | KEEP→Rename | Canonical |
 | `tests/test_duress_mode_aggressive.py` | ~8 | Merge |
 | `tests/test_duress_modes.py` | ~6 | Merge |
-| `tests/test_coverage_90_duress_mode.py` | ~10 | Merge |
 | `tests/test_coverage_90_duress_paths.py` | ~8 | Merge |
 | `tests/test_phase4_duress_timing.py` | ~4 | Merge |
 | `tests/verify_duress_e2e.py` | ~3 | Merge |
 | `tests/test_decoy_generator.py` | ~6 | Merge |
 | `tests/test_timelock_duress.py` | ~8 | Merge |
-| `tests/test_coverage_90_security_advanced.py` | SPLIT | Timelock portion |
 | `tests/test_deadmans_switch.py` | ~5 | Merge |
+
+*Note: Files previously listed but not found: test_coverage_90_duress_mode.py, test_coverage_90_security_advanced.py*
 
 ---
 
-### Merge 6: Schrödinger Family → `test_schrodinger.py` ✅ COMPLETE
+### Merge 6: Schrödinger Family → `test_schrodinger.py` ⏳ PENDING
 
 **Canonical target:** `tests/test_schrodinger.py`
 
-**Result:** 166 tests collected (165 pass, 1 skipped)
-
-**Changes Made:**
-- Fixed test_quantum_mixer.py TestIntegration tests (padding awareness, realistic entropy threshold)
-- All files already working with MultiSecretEncoder API
+**Status:** Tests pass individually but consolidation NOT DONE - 8 source files still exist.
 
 | Source File (Path) | Tests | Status |
 |--------------------|-------|--------|
 | `tests/test_schrodinger.py` | 34 pass, 1 skip | ✅ Canonical |
-| `tests/test_schrodinger_comprehensive.py` | 20 | ✅ Pass |
-| `tests/test_schrodinger_roundtrip.py` | 1 | ✅ Pass |
-| `tests/test_schrodinger_security.py` | 6 | ✅ Pass |
-| `tests/test_phase3_schrodinger_security.py` | 13 | ✅ Pass |
-| `tests/integration/test_schrodinger_e2e.py` | 5 | ✅ Pass |
-| `tests/test_quantum_mixer.py` | 28 | ✅ Pass (fixed) |
-| `tests/test_multi_secret.py` | 58 | ✅ Pass |
+| `tests/test_schrodinger_comprehensive.py` | 20 | ⏳ Needs deprecation |
+| `tests/test_schrodinger_roundtrip.py` | 1 | ⏳ Needs deprecation |
+| `tests/test_schrodinger_security.py` | 6 | ⏳ Needs deprecation |
+| `tests/test_phase3_schrodinger_security.py` | 13 | ⏳ Needs deprecation |
+| `tests/integration/test_schrodinger_e2e.py` | 5 | ⏳ Needs deprecation |
+| `tests/test_quantum_mixer.py` | 28 | ⏳ Needs deprecation |
+| `tests/test_multi_secret.py` | 58 | ⏳ Needs deprecation |
+
+**NEXT ACTION:** Add deprecation headers to 7 source files and merge unique tests into canonical file.
 
 ---
 
-### Merge 7: Encode Pipeline → `test_encode.py` ✅ COMPLETE
+### Merge 7: Encode Pipeline → `test_encode.py` ✅ VERIFIED
 
 **Canonical target:** `tests/test_encode.py`
 
@@ -637,7 +630,7 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ---
 
-### Merge 8: Decode Pipeline → `test_decode_gif.py` ✅ COMPLETE
+### Merge 8: Decode Pipeline → `test_decode_gif.py` ✅ VERIFIED
 
 **Canonical target:** `tests/test_decode_gif.py`
 
@@ -662,7 +655,7 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ---
 
-### Merge 9: PQ Family → `test_pq.py` ✅ COMPLETE
+### Merge 9: PQ Family → `test_pq.py` ✅ VERIFIED
 
 **Status:** CONSOLIDATION COMPLETE
 
@@ -705,18 +698,18 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ### Merge 11-20: Secondary Merges (Quick Reference)
 
-| Merge | Canonical Target | Key Source Files |
-|-------|------------------|------------------|
-| **11: CLI** | `test_cli.py` | `test_cli_consolidated.py`, `test_coverage_90_cli.py`, `test_coverage_targeted_cli_paths.py` |
-| **12: Config** | `test_config.py` | `test_config_aggressive.py`, `test_coverage_90_config.py` |
-| **13: Stego** | `test_stego.py` | `test_stego_advanced.py`, `test_coverage_90_stego.py`, `test_ninja_cat.py`, `test_logo_eyes.py` |
-| **14: Hardware** | `test_hardware.py` | `test_hardware_integration.py`, `test_hardware_integration_comprehensive.py`, `test_coverage_90_hardware.py`, `test_phase5_hardware_mocks.py`, `test_hardware_keys.py`, `test_hardware_mocks.py` |
-| **15: Metadata** | `test_metadata.py` | `test_metadata_obfuscation.py`, `test_metadata_obfuscation_aggressive.py`, `test_coverage_90_metadata.py`, `test_coverage_90_metadata_paths.py` |
+| Merge | Canonical Target | Key Source Files (Verified Existing) |
+|-------|------------------|--------------------------------------|
+| **11: CLI** | `test_cli.py` | `test_coverage_90_cli.py` |
+| **12: Config** | `test_config.py` | `test_config_aggressive.py` |
+| **13: Stego** | `test_stego_advanced.py` | `test_logo_eyes.py` |
+| **14: Hardware** | `test_hardware_integration.py` | `test_hardware_integration_comprehensive.py`, `test_phase5_hardware_mocks.py`, `test_hardware_keys.py`, `test_hardware_mocks.py` |
+| **15: Metadata** | `test_metadata.py` | `test_metadata_obfuscation.py`, `test_metadata_obfuscation_aggressive.py`, `test_coverage_90_metadata_paths.py`, `test_coverage_90_metadata_mac.py` |
 | **16: Integration** | `test_integration.py` | `test_e2e.py`, `integration/test_comprehensive.py`, `integration/test_full_roundtrip.py`, `test_encode_decode.py`, `test_core_encode_decode_unit.py`, `test_fuzz_roundtrip.py` |
-| **17: Utils** | `test_utils.py` | `test_misc_utils.py`, `test_coverage_90_utils.py`, `test_coverage_90_resume_and_misc.py`, `test_coverage_90_edge_cases.py`, `test_edge_cases.py`, `test_entropy_boost.py`, `test_bidirectional.py` |
-| **18: Streaming** | `test_streaming_crypto.py` | `test_coverage_90_streaming.py`, `test_streaming.py` |
-| **19: Cat Utils** | `test_cat_utils.py` | `test_coverage_90_cat_utils.py` |
-| **20: Progress** | `test_progress.py` | `test_coverage_90_progress.py`, `test_coverage_90_deep_progress.py` |
+| **17: Utils** | `test_misc_utils.py` | `test_coverage_90_utils.py`, `test_edge_cases.py`, `test_entropy_boost.py`, `test_bidirectional.py` |
+| **18: Streaming** | `test_streaming_crypto.py` | `test_streaming.py` |
+| **19: Cat Utils** | `test_cat_utils.py` | (none - standalone) |
+| **20: Progress** | `test_progress.py` | `test_coverage_90_deep_progress.py` |
 
 ---
 
@@ -779,7 +772,7 @@ tests/
     └── test_spec_v12_core.py
 ```
 
-**Target: ~40 canonical files** (down from 138)
+**Target: ~40 canonical files** (down from 120)
 
 ---
 
@@ -797,32 +790,31 @@ Add this to the TOP of every file being merged away:
 
 ---
 
-## MERGE PRIORITY MATRIX (File Count)
+## MERGE PRIORITY MATRIX (Verified 2026-02-01)
 
-| Merge Task | # Files to Merge | Complexity | Priority |
-|------------|------------------|------------|----------|
-| **Merge 2:** QR family | 8 files | HIGH | 🔴 P1 |
-| **Merge 4:** Forward Secrecy | 11 files | HIGH | 🔴 P1 |
-| **Merge 5:** Duress family | 11 files | HIGH | 🔴 P1 |
-| **Merge 6:** Schrödinger | 8 files | MEDIUM | ✅ DONE |
-| **Merge 8:** Decode pipeline | 6 files | MEDIUM | 🔴 P1 |
-| **Merge 1:** Fountain family | 6 files | MEDIUM | 🟡 P2 |
-| **Merge 7:** Encode pipeline | 6 files | MEDIUM | 🟡 P2 |
-| **Merge 9:** PQ family | 6 files | MEDIUM | 🟡 P2 |
-| **Merge 10:** Security family | 8 files | MEDIUM | 🟡 P2 |
-| **Merge 3:** GIF handler | 4 files | LOW | 🟢 P3 |
-| **Merge 11:** CLI family | 4 files | LOW | 🟢 P3 |
-| **Merge 12:** Config family | 2 files | LOW | 🟢 P3 |
-| **Merge 13:** Stego family | 3 files | LOW | 🟢 P3 |
-| **Merge 14:** Hardware family | 5 files | LOW | 🟢 P3 |
-| **Merge 15:** Metadata family | 5 files | LOW | 🟢 P3 |
-| **Merge 16:** Integration | 8 files | MEDIUM | 🟢 P3 |
-| **Merge 17:** Utils family | 6 files | LOW | 🟢 P3 |
-| **Merge 18:** Streaming | 2 files | LOW | 🟢 P3 |
-| **Merge 19:** Cat utils | 1 file | LOW | 🟢 P3 |
-| **Merge 20:** Progress | 2 files | LOW | 🟢 P3 |
+This matrix uses numbering consistent with the MASTER MAPPING TABLE above.
 
-**Total estimated files to process:** ~106 files (remainder are canonical)
+| Merge Task | Family | # Files to Merge | Status |
+|------------|--------|------------------|--------|
+| **Tasks 1-3:** Crypto (3 small merges) | crypto_paths, streaming, frame_mac | 3 | ⏳ PENDING |
+| **Task 4:** Forward Secrecy | Keep 4 canonical + deprecate integration | 4 deprecated | ⏳ PENDING (no headers) |
+| **Task 5:** Fountain | fountain_aggressive, coverage_90 files, catnip, merkle | 5 | ⏳ PENDING |
+| **Tasks 6-7:** Encode/Decode | encode_aggressive, coverage_90 files | 6 | ✅ VERIFIED (7+8) |
+| **Tasks 8-9:** GIF/QR | gif_aggressive, qr_aggressive, coverage_90 files | 8 | ⏳ PENDING (files exist) |
+| **Task 10:** Stego | coverage_90_stego, ninja_cat, logo_eyes | 3 | ⏳ PENDING |
+| **Task 11:** Schrödinger | 5 files → test_schrodinger.py | 5 | ⏳ PENDING (files exist) |
+| **Task 12:** Duress | 7 files → test_duress.py | 7 | ⏳ PENDING |
+| **Task 13:** PQ | pq_crypto, pq_hybrid, pq_signatures | 3 | ✅ VERIFIED (merge 9) |
+| **Task 14:** Hardware | hardware_integration, hardware_keys, mocks | 5 | ⏳ PENDING |
+| **Tasks 15-17:** Config/CLI/Cat | config, cli, cat_utils merges | 5 | ⏳ PENDING |
+| **Task 18:** Metadata | metadata files | 4 | ⏳ PENDING |
+| **Task 19:** Security | adversarial, tamper, grok, phase2 | 6 | ⏳ PENDING |
+| **Tasks 20-21:** Integration/Utils | e2e, comprehensive, misc_utils | 8 | ⏳ PENDING |
+
+**Summary:**
+- ✅ VERIFIED DONE: 3 merges (Encode, Decode, PQ)
+- ⏳ PENDING: 18 merges
+- **Estimated files to process:** ~72 files → ~35-40 canonical targets
 
 ---
 
@@ -876,26 +868,30 @@ pytest tests/test_<canonical>.py -v
 
 ## PROGRESS TRACKER
 
-### ✅ Completed Merges
+### ✅ Completed Merges (Verified via Filesystem)
 | Merge | Status | Date | Notes |
 |-------|--------|------|-------|
-| Merge Task 5 (Fountain Family) | ✅ COMPLETE | 2026-02-01 | Merged test_catnip_fountain.py + test_merkle_tree_aggressive.py → test_fountain.py (787→1235 lines, 82 tests, 8 skipped for optional catnip module) |
-| Merge Task 5 Extension | ✅ COMPLETE | 2026-02-01 | Merged test_encode_decode.py → test_fountain.py (1235→1664 lines, 93 passed + 8 skipped = 101 active). Added 8 test classes (TestFountainCodeRoundTrip, TestDropletPackingUnpacking, TestDataIntegrity, TestFileSizeVariations, TestDecoderCompletion, TestBlockConfiguration, TestSHA256Verification, TestRedundancyLevels). Despite the filename, test_encode_decode.py contained FOUNTAIN roundtrip tests. |
-| Deprecated: test_core_encode_decode_unit.py | ✅ DEPRECATED | 2026-02-01 | All 3 tests skip. Content duplicated elsewhere. |
-| Merge Task 12 (Duress Family) | ✅ COMPLETE | 2026-02-01 | Canonical files passing: test_duress_mode.py (24 tests), test_decoy_generator.py (4 passed, 5 skipped), test_timelock_duress.py (18 passed, 1 skipped - rewritten with TimeLockConfig API), test_deadmans_switch.py (7 tests). Total: 53 passed, 89 skipped, 35.87% coverage. |
-| Deprecated: test_duress_mode_aggressive.py | ✅ DEPRECATED | 2026-02-01 | 41 tests skip. Overlapping functionality with test_duress_mode.py. |
-| Deprecated: test_duress_modes.py | ✅ DEPRECATED | 2026-02-01 | 5 tests skip. Covered by test_duress_mode.py. |
-| Deprecated: test_coverage_90_duress_paths.py | ✅ DEPRECATED | 2026-02-01 | 25 tests skip. Tested private methods no longer exposed. |
-| Deprecated: test_phase4_duress_timing.py | ✅ DEPRECATED | 2026-02-01 | 11 tests skip. Covered by test_duress_mode.py. |
-| Deprecated: verify_duress_e2e.py | ✅ DEPRECATED | 2026-02-01 | 1 test skip. E2E integration covered elsewhere. |
+| **Merge 7:** Encode pipeline | ✅ VERIFIED | 2026-02-01 | Deprecation headers added to test_encode_decode.py, test_core_encode_decode_unit.py. Canonical: test_encode.py |
+| **Merge 8:** Decode pipeline | ✅ VERIFIED | 2026-02-01 | Canonical files in place: test_decode_gif.py, test_forward_secrecy_decoder.py |
+| **Merge 9:** PQ family | ✅ VERIFIED | 2026-02-01 | Only 3 files remain on disk: test_pq.py, test_pq_integration.py, test_pq_signatures.py. Duplicates deleted. |
 
-### 🔄 In Progress
-| Merge | Status | Current Step |
-|-------|--------|--------------|
-| Merge Task 11 (Schrödinger) | 🔄 Starting | Next merge target |
+### ⏳ Pending Merges (Source Files Still Exist)
+| Merge | Status | Files Remaining | Notes |
+|-------|--------|-----------------|-------|
+| **Merge 1:** Fountain family | ⏳ PENDING | test_catnip_fountain.py | Need to verify if other sources exist |
+| **Merge 2:** QR family | ⏳ PENDING | 9 files on disk | test_qr_code_aggressive.py, test_coverage_*.py, test_core_qr_*.py, test_ascii_qr.py |
+| **Merge 3:** GIF handler | ⏳ PENDING | 4 files on disk | test_gif_handler_aggressive.py, test_core_gif_handler*.py |
+| **Merge 4:** Forward Secrecy | ⏳ PENDING | debug_forward_secrecy.py + 3 integration files | Need deprecation headers |
+| **Merge 5:** Duress family | ⏳ PENDING | 10+ files | Not started |
+| **Merge 6:** Schrödinger family | ⏳ PENDING | 7+ files | Not started |
+| **Merge 10:** Security family | ⏳ PENDING | 8 files | Not started |
+| **Merge 11-20:** Secondary families | ⏳ PENDING | ~40 files | Not started |
 
-### ⏳ Pending
-~18 merges remaining (Task 1-4, 6-10, 13-20; Task 11-12 complete)
+### Summary
+- **Verified Complete:** 3 merges (7, 8, 9)
+- **Pending:** 17+ merges (1-6, 10-20)
+- **Files processed:** ~15 of 120 files addressed
+- **Files remaining:** ~105 files need consolidation
 
 ---
 
@@ -934,18 +930,20 @@ Run this command to get current file count:
 find tests/ -name "test_*.py" -type f | wc -l
 ```
 
-### Breakdown by Pattern
+### Breakdown by Pattern (Verified 2026-02-01)
 
 | Pattern | Count | Action |
 |---------|-------|--------|
-| `test_coverage_90_*.py` | ~32 | Merge into canonical |
-| `test_*_aggressive.py` | ~8 | Merge into canonical |
-| `test_phase*.py` | ~7 | Merge into canonical |
-| `test_core_*.py` | ~11 | Merge into canonical |
-| `test_coverage_*.py` (other) | ~12 | Merge into canonical |
-| `integration/*.py` | ~7 | Merge into canonical |
-| Canonical files | ~35-40 | KEEP |
-| Deprecated/debug files | ~5 | Merge or delete |
+| `test_coverage_90_*.py` | 12 | Merge into canonical |
+| `test_*_aggressive.py` | 6 | Merge into canonical |
+| `test_phase*.py` | 7 | Merge into canonical |
+| `test_core_*.py` | 7 | Merge into canonical |
+| `test_coverage_*.py` (other) | 7 | Merge into canonical |
+| `integration/*.py` | 7 | Merge into canonical |
+| Canonical files | ~74 | KEEP (remainder after patterns) |
+| Deprecated/debug files | 2 | Merge or delete (debug_*, verify_*) |
+
+**Total cleanup pattern files:** 46 (12+6+7+7+7+7=46, minus some overlap)
 
 ---
 
@@ -1277,7 +1275,7 @@ Some `test_coverage_90_*.py` files have integration tests:
 
 The cleanup is complete when:
 
-- [ ] Test file count: 138 → ~35-40 (goal: 70% reduction)
+- [ ] Test file count: 120 → ~35-40 (goal: 67% reduction)
 - [ ] All tests passing: `pytest tests/ -v` → 0 failures
 - [ ] Coverage maintained: ≥ previous coverage %
 - [ ] No duplicate test names: `grep -h "def test_" tests/test_*.py | sort | uniq -d` → empty
@@ -1353,8 +1351,95 @@ tests/
     └── test_comprehensive.py
 ```
 
-**Total: ~35-40 files** (down from 138)
+**Total: ~35-40 files** (down from 120)
 
 ---
 
-**Last updated:** 2026-02-01
+## NEXT SESSION ACTION ITEMS (Priority Order)
+
+This section provides a concrete checklist for the next work session to continue the consolidation.
+
+### Immediate Priority: Complete Merge 4 (Forward Secrecy)
+
+**Status:** 4 files need deprecation headers added
+
+**Files to Process:**
+1. `tests/debug_forward_secrecy.py` → Add deprecation header
+2. `tests/integration/test_forward_secrecy.py` → Add deprecation header
+3. `tests/integration/test_cli_forward_secrecy.py` → Add deprecation header
+4. `tests/integration/test_fs_integration.py` → Add deprecation header
+
+**Commands:**
+```bash
+# Add deprecation header to each file, then verify:
+pytest tests/test_forward_secrecy_x25519.py tests/test_forward_secrecy_decoder.py tests/test_forward_secrecy_encoder.py tests/test_double_ratchet.py -v
+```
+
+### High Priority: Complete Merge 6 (Schrödinger)
+
+**Status:** 7 files need deprecation headers + unique tests merged
+
+**Files to Process:**
+1. `tests/test_schrodinger_comprehensive.py` (20 tests)
+2. `tests/test_schrodinger_roundtrip.py` (1 test)
+3. `tests/test_schrodinger_security.py` (6 tests)
+4. `tests/test_phase3_schrodinger_security.py` (13 tests)
+5. `tests/integration/test_schrodinger_e2e.py` (5 tests)
+6. `tests/test_quantum_mixer.py` (28 tests)
+7. `tests/test_multi_secret.py` (58 tests)
+
+**Canonical Target:** `tests/test_schrodinger.py`
+
+### Medium Priority: Complete Merges 1-3 (Fountain, QR, GIF)
+
+**Merge 1 - Fountain:**
+- Canonical: `tests/test_fountain.py`
+- Merge: test_catnip_fountain.py, test_merkle_tree_aggressive.py
+
+**Merge 2 - QR:**
+- Canonical: `tests/test_qr_code.py`
+- Merge: 9 files (test_qr_code_aggressive.py, test_coverage_*, test_core_qr_*, test_ascii_qr.py)
+
+**Merge 3 - GIF:**
+- Canonical: `tests/test_gif_handler.py`
+- Merge: 4 files (test_gif_handler_aggressive.py, test_core_gif_handler*.py)
+
+### Lower Priority: Merges 5, 10-20
+
+After completing merges 1-6, proceed with:
+- Merge 5: Duress family (10+ files)
+- Merge 10: Security family (8 files)
+- Merges 11-20: Secondary families (~40 files)
+
+---
+
+## GITHUB WORKFLOWS STATUS
+
+**Validated:** 2026-02-02
+
+All 7 GitHub Actions workflows have been verified:
+
+| Workflow | Status | Notes |
+|----------|--------|-------|
+| `ci.yml` | ✅ Valid YAML | Main test suite + coverage |
+| `security-ci.yml` | ✅ Valid YAML | Security tests, pip-audit, cargo-audit |
+| `fuzz.yml` | ✅ Valid YAML | Atheris + AFL++ fuzzing (weekly) |
+| `rust-crypto.yml` | ✅ Valid YAML | Multi-platform wheel builds |
+| `formal-verification.yml` | ✅ Valid YAML | ProVerif + TLA+ |
+| `codeql.yml` | ✅ Valid YAML | CodeQL security scanning |
+| `cleanup.yml` | ✅ Valid YAML | Workflow run cleanup |
+
+**Actions Versions:** All using current versions (v4/v5 where applicable)
+
+---
+
+## SESSION LOG
+
+| Date | Session | Work Completed |
+|------|---------|----------------|
+| 2026-02-01 | Initial | Created document, verified merges 7-9 |
+| 2026-02-02 | Continuation | Verified workflows, added action items |
+
+---
+
+**Last updated:** 2026-02-02 (Verified: Merges 7, 8, 9 complete; Merges 1-6, 10-20 pending; All workflows validated)
