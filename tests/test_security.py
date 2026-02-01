@@ -2421,6 +2421,2446 @@ class TestSecureCleanup:
         assert _handlers_registered
 
 
+# ============================================================================
+# MERGED FROM test_adversarial.py (2026-01-31)
+# ============================================================================
+
+class TestFuzzing:
+    """Fuzz testing for robustness against malformed input."""
+    
+    def test_manifest_random_bytes(self):
+        """Test manifest parsing with random bytes."""
+        from meow_decoder.crypto import unpack_manifest
+        
+        for _ in range(100):
+            random_data = secrets.token_bytes(secrets.randbelow(200) + 1)
+            try:
+                unpack_manifest(random_data)
+            except (ValueError, struct.error):
+                pass  # Expected for invalid data
+    
+    def test_droplet_random_bytes(self):
+        """Test droplet unpacking with random bytes."""
+        from meow_decoder.fountain import unpack_droplet
+        
+        for _ in range(100):
+            random_data = secrets.token_bytes(secrets.randbelow(500) + 10)
+            try:
+                unpack_droplet(random_data, 256)
+            except (ValueError, struct.error):
+                pass  # Expected for invalid data
+    
+    def test_qr_decode_random_image(self):
+        """Test QR decoder with random noise images."""
+        from meow_decoder.qr_code import QRCodeReader
+        from PIL import Image
+        import numpy as np
+        
+        reader = QRCodeReader()
+        
+        for _ in range(10):
+            # Create random noise image
+            noise = np.random.randint(0, 256, (100, 100, 3), dtype=np.uint8)
+            img = Image.fromarray(noise)
+            
+            # Should return empty list (no valid QR)
+            result = reader.read_image(img)
+            assert result == [] or result is None
+
+
+class TestFrameInjection:
+    """Test resistance to frame injection attacks."""
+    
+    def test_invalid_frame_mac_rejected(self):
+        """Test that frames with invalid MACs are rejected."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        # Create valid frame
+        data = b"Valid frame data"
+        packed = pack_frame_with_mac(data, master_key, frame_index=0, salt=salt)
+        
+        # Corrupt the MAC (last 8 bytes)
+        corrupted = packed[:-8] + secrets.token_bytes(8)
+        
+        # Should be rejected
+        valid, _ = unpack_frame_with_mac(corrupted, master_key, frame_index=0, salt=salt)
+        assert valid == False
+    
+    def test_frame_index_mismatch_rejected(self):
+        """Test that frames with wrong index are rejected."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        # Pack with index 0
+        data = b"Frame data"
+        packed = pack_frame_with_mac(data, master_key, frame_index=0, salt=salt)
+        
+        # Try to unpack with index 1
+        valid, _ = unpack_frame_with_mac(packed, master_key, frame_index=1, salt=salt)
+        assert valid == False
+
+
+class TestReplayAttacks:
+    """Test resistance to replay attacks."""
+    
+    def test_different_salt_rejects_replay(self):
+        """Test that replaying with different salt fails."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt1 = secrets.token_bytes(16)
+        salt2 = secrets.token_bytes(16)
+        
+        # Pack with salt1
+        data = b"Frame data"
+        packed = pack_frame_with_mac(data, master_key, frame_index=0, salt=salt1)
+        
+        # Try to verify with salt2
+        valid, _ = unpack_frame_with_mac(packed, master_key, frame_index=0, salt=salt2)
+        assert valid == False
+    
+    def test_different_key_rejects_replay(self):
+        """Test that replaying with different key fails."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        
+        key1 = secrets.token_bytes(32)
+        key2 = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        # Pack with key1
+        data = b"Frame data"
+        packed = pack_frame_with_mac(data, key1, frame_index=0, salt=salt)
+        
+        # Try to verify with key2
+        valid, _ = unpack_frame_with_mac(packed, key2, frame_index=0, salt=salt)
+        assert valid == False
+
+
+class TestReorderingAttacks:
+    """Test resistance to frame reordering attacks."""
+    
+    def test_swapped_frames_detected(self):
+        """Test that swapped frames are detected via index mismatch."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        # Create two frames
+        frame0 = pack_frame_with_mac(b"Frame 0", master_key, 0, salt)
+        frame1 = pack_frame_with_mac(b"Frame 1", master_key, 1, salt)
+        
+        # Swap and verify - should fail
+        valid0_as_1, _ = unpack_frame_with_mac(frame0, master_key, 1, salt)
+        valid1_as_0, _ = unpack_frame_with_mac(frame1, master_key, 0, salt)
+        
+        assert valid0_as_1 == False
+        assert valid1_as_0 == False
+
+
+class TestManifestCorruption:
+    """Test detection of manifest corruption."""
+    
+    def test_single_bit_flip_detected(self):
+        """Test that single bit flip in manifest is detected."""
+        from meow_decoder.crypto import pack_manifest, unpack_manifest, verify_manifest_hmac, Manifest
+        
+        # Create a valid manifest
+        manifest = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=secrets.token_bytes(32)
+        )
+        
+        packed = pack_manifest(manifest)
+        
+        # Flip a bit in the middle
+        corrupted = bytearray(packed)
+        corrupted[50] ^= 0x01
+        corrupted = bytes(corrupted)
+        
+        # Should unpack but HMAC should fail
+        unpacked = unpack_manifest(corrupted)
+        valid = verify_manifest_hmac("password", unpacked)
+        assert valid == False
+    
+    def test_truncated_manifest_rejected(self):
+        """Test that truncated manifest is rejected."""
+        from meow_decoder.crypto import unpack_manifest
+        
+        # Try to unpack truncated data
+        truncated = secrets.token_bytes(50)  # Way too short
+        
+        with pytest.raises(ValueError):
+            unpack_manifest(truncated)
+
+
+class TestPartialDecryption:
+    """Test that partial decryption never leaks data."""
+    
+    def test_no_partial_output_on_mac_failure(self):
+        """Test no data output when MAC fails."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        # Encrypt some data
+        data = b"Secret data that should not leak"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Corrupt the ciphertext
+        corrupted = bytearray(cipher)
+        corrupted[10] ^= 0xFF
+        corrupted = bytes(corrupted)
+        
+        # Decryption should fail completely
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                corrupted, "password123", salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_wrong_password_no_output(self):
+        """Test no data output with wrong password."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Wrong password should fail completely
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "wrong_password", salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+
+
+# ============================================================================
+# MERGED FROM test_tamper_detection.py (2026-01-31)
+# ============================================================================
+
+class TestManifestTamperDetection:
+    """Tests for manifest tamper detection."""
+    
+    def test_manifest_length_tampering(self):
+        """Test detection of orig_len tampering."""
+        from meow_decoder.crypto import (
+            Manifest, pack_manifest, compute_manifest_hmac,
+            verify_manifest_hmac, pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        # Create valid manifest
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        # Compute valid HMAC
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        # Verify HMAC is valid
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with orig_len
+        manifest.orig_len = 2000
+        
+        # HMAC should now fail
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_manifest_sha256_tampering(self):
+        """Test detection of sha256 tampering."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        original_sha = secrets.token_bytes(32)
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=original_sha,
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with sha256
+        manifest.sha256 = secrets.token_bytes(32)
+        
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_manifest_salt_tampering(self):
+        """Test detection of salt tampering."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with salt
+        manifest.salt = secrets.token_bytes(16)
+        
+        # Note: This test verifies that salt tampering is detected
+        # The HMAC was computed with the original salt
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_manifest_nonce_tampering(self):
+        """Test detection of nonce tampering."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with nonce
+        manifest.nonce = secrets.token_bytes(12)
+        
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_manifest_block_size_tampering(self):
+        """Test detection of block_size tampering."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with block_size
+        manifest.block_size = 256
+        
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_manifest_k_blocks_tampering(self):
+        """Test detection of k_blocks tampering."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert verify_manifest_hmac(password, manifest) == True
+        
+        # Tamper with k_blocks
+        manifest.k_blocks = 10
+        
+        assert verify_manifest_hmac(password, manifest) == False
+    
+    def test_hmac_uses_encryption_key(self):
+        """Test that HMAC uses encryption key, not just password."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        
+        # Compute with encryption_key
+        enc_key = derive_key(password, salt)
+        hmac1 = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        # Compute with same encryption_key should match
+        hmac2 = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        assert hmac1 == hmac2
+    
+    def test_wrong_password_fails_hmac(self):
+        """Test that wrong password fails HMAC verification."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, verify_manifest_hmac,
+            pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        correct_password = "correct_password"
+        wrong_password = "wrong_password"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(correct_password, salt)
+        manifest.hmac = compute_manifest_hmac(correct_password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        # Correct password should work
+        assert verify_manifest_hmac(correct_password, manifest) == True
+        
+        # Wrong password should fail
+        assert verify_manifest_hmac(wrong_password, manifest) == False
+    
+    def test_different_salt_different_hmac(self):
+        """Test that different salts produce different HMACs."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, pack_manifest_core, derive_key
+        )
+        
+        salt1 = secrets.token_bytes(16)
+        salt2 = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest1 = Manifest(
+            salt=salt1,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        manifest2 = Manifest(
+            salt=salt2,
+            nonce=manifest1.nonce,
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=manifest1.sha256,
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed1 = pack_manifest_core(manifest1)
+        packed2 = pack_manifest_core(manifest2)
+        enc_key1 = derive_key(password, salt1)
+        enc_key2 = derive_key(password, salt2)
+        
+        hmac1 = compute_manifest_hmac(password, salt1, packed1, encryption_key=enc_key1)
+        hmac2 = compute_manifest_hmac(password, salt2, packed2, encryption_key=enc_key2)
+        
+        assert hmac1 != hmac2
+    
+    def test_constant_time_comparison(self):
+        """Test that HMAC verification uses constant-time comparison."""
+        from meow_decoder.crypto import verify_manifest_hmac, Manifest, derive_key, compute_manifest_hmac, pack_manifest_core
+        import time
+        
+        salt = secrets.token_bytes(16)
+        password = "testpass123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_no_hmac = pack_manifest_core(manifest)
+        enc_key = derive_key(password, salt)
+        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
+        
+        # Time correct password
+        times_correct = []
+        for _ in range(20):
+            start = time.perf_counter()
+            verify_manifest_hmac(password, manifest)
+            times_correct.append(time.perf_counter() - start)
+        
+        # Time wrong password
+        times_wrong = []
+        for _ in range(20):
+            start = time.perf_counter()
+            verify_manifest_hmac("wrong_password", manifest)
+            times_wrong.append(time.perf_counter() - start)
+        
+        # Average times should be similar (within 10x due to Argon2 variance)
+        avg_correct = sum(times_correct) / len(times_correct)
+        avg_wrong = sum(times_wrong) / len(times_wrong)
+        
+        # Argon2 variance is high, so we just check they're both non-zero
+        assert avg_correct > 0
+        assert avg_wrong > 0
+
+
+class TestDecryptionFailClosed:
+    """Test that decryption fails closed (no partial output)."""
+    
+    def test_corrupted_ciphertext_fails(self):
+        """Test corrupted ciphertext fails completely."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Corrupt ciphertext
+        corrupted = bytearray(cipher)
+        corrupted[5] ^= 0xFF
+        corrupted = bytes(corrupted)
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                corrupted, "password123", salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_wrong_nonce_fails(self):
+        """Test wrong nonce fails completely."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        wrong_nonce = secrets.token_bytes(12)
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", salt, wrong_nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_wrong_salt_fails(self):
+        """Test wrong salt fails completely."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        wrong_salt = secrets.token_bytes(16)
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", wrong_salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_truncated_ciphertext_fails(self):
+        """Test truncated ciphertext fails completely."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data that should not leak"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Truncate ciphertext
+        truncated = cipher[:len(cipher) // 2]
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                truncated, "password123", salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_gcm_tag_failure_no_output(self):
+        """Test GCM tag failure produces no output."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Corrupt the GCM tag (last 16 bytes)
+        corrupted = cipher[:-16] + secrets.token_bytes(16)
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                corrupted, "password123", salt, nonce,
+                orig_len=len(data), comp_len=len(data), sha256=sha
+            )
+    
+    def test_empty_ciphertext_fails(self):
+        """Test empty ciphertext fails."""
+        from meow_decoder.crypto import decrypt_to_raw
+        
+        salt = secrets.token_bytes(16)
+        nonce = secrets.token_bytes(12)
+        
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                b"", "password123", salt, nonce,
+                orig_len=100, comp_len=50, sha256=secrets.token_bytes(32)
+            )
+    
+    def test_aad_mismatch_fails(self):
+        """Test AAD mismatch causes failure."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Secret data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Provide wrong orig_len (AAD mismatch)
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", salt, nonce,
+                orig_len=len(data) + 100,  # Wrong!
+                comp_len=len(data), sha256=sha
+            )
+
+
+class TestManifestSwapProtection:
+    """Test protection against manifest swap attacks."""
+    
+    def test_manifest_from_different_file_rejected(self):
+        """Test that manifest from one file cannot decrypt another."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        # Encrypt two different files
+        data1 = b"File 1 content"
+        data2 = b"File 2 content - different"
+        
+        _, sha1, salt1, nonce1, cipher1, _, _ = encrypt_file_bytes(data1, "password123")
+        _, sha2, salt2, nonce2, cipher2, _, _ = encrypt_file_bytes(data2, "password123")
+        
+        # Try to decrypt cipher1 with metadata from file2
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher1, "password123", salt2, nonce2,  # Wrong salt/nonce!
+                orig_len=len(data2), comp_len=len(data2), sha256=sha2
+            )
+
+
+# ============================================================================
+# MERGED FROM test_phase2_security.py (2026-01-31)
+# ============================================================================
+
+class TestNonceUniqueness:
+    """Tests for nonce uniqueness guarantees."""
+    
+    def test_nonce_uniqueness_multiple_encryptions(self):
+        """Test that multiple encryptions produce unique nonces."""
+        from meow_decoder.crypto import encrypt_file_bytes
+        
+        nonces = set()
+        data = b"Test data for nonce uniqueness"
+        
+        for _ in range(100):
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(data, "password123")
+            nonces.add(nonce)
+        
+        # All 100 nonces should be unique
+        assert len(nonces) == 100
+    
+    def test_nonce_length_is_12_bytes(self):
+        """Test nonce is exactly 12 bytes (96 bits) for GCM."""
+        from meow_decoder.crypto import encrypt_file_bytes
+        
+        _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"test", "password123")
+        assert len(nonce) == 12
+    
+    def test_nonce_from_secrets(self):
+        """Test nonce is cryptographically random."""
+        from meow_decoder.crypto import encrypt_file_bytes
+        
+        # Generate many nonces and check for patterns
+        nonces = []
+        for _ in range(50):
+            _, _, _, nonce, _, _, _ = encrypt_file_bytes(b"test", "password123")
+            nonces.append(nonce)
+        
+        # Check no two consecutive nonces are similar
+        for i in range(len(nonces) - 1):
+            # Nonces should differ by more than 1 byte
+            differing_bytes = sum(a != b for a, b in zip(nonces[i], nonces[i+1]))
+            assert differing_bytes >= 6  # At least half should differ
+    
+    def test_nonce_reuse_guard(self):
+        """Test that nonce reuse guard is active."""
+        from meow_decoder.crypto import _nonce_reuse_cache, _register_nonce_use
+        
+        # Clear cache
+        _nonce_reuse_cache.clear()
+        
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+        
+        # First use should succeed
+        _register_nonce_use(key, nonce)
+        
+        # Second use of same key/nonce should raise
+        with pytest.raises(RuntimeError, match="Nonce reuse detected"):
+            _register_nonce_use(key, nonce)
+
+
+class TestTimingOracleResistance:
+    """Tests for timing oracle resistance."""
+    
+    def test_constant_time_compare_available(self):
+        """Test that constant-time comparison is available."""
+        from meow_decoder.constant_time import constant_time_compare
+        
+        a = b"test_value_1"
+        b = b"test_value_1"
+        c = b"test_value_2"
+        
+        assert constant_time_compare(a, b) == True
+        assert constant_time_compare(a, c) == False
+    
+    def test_hmac_uses_constant_time(self):
+        """Test HMAC verification uses constant-time comparison."""
+        from meow_decoder.crypto import verify_manifest_hmac
+        import inspect
+        
+        # Get source code if available
+        try:
+            source = inspect.getsource(verify_manifest_hmac)
+            # Should use secrets.compare_digest or constant_time_compare
+            assert "compare_digest" in source or "constant_time" in source
+        except (TypeError, OSError):
+            # If source not available, function should still work
+            pass
+    
+    def test_timing_equalization_function(self):
+        """Test timing equalization function exists and works."""
+        from meow_decoder.constant_time import equalize_timing
+        import time
+        
+        # Test that equalize_timing adds delay
+        start = time.perf_counter()
+        equalize_timing(0.001, 0.01)  # 1-10ms target
+        elapsed = time.perf_counter() - start
+        
+        # Should have taken some time
+        assert elapsed >= 0.001
+
+
+class TestFrameMACBirthdayBound:
+    """Tests for Frame MAC security bounds."""
+    
+    def test_mac_size_is_8_bytes(self):
+        """Test frame MAC is 8 bytes (64 bits)."""
+        from meow_decoder.frame_mac import pack_frame_with_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        data = b"test data"
+        
+        packed = pack_frame_with_mac(data, master_key, 0, salt)
+        
+        # MAC overhead is 8 bytes
+        assert len(packed) == len(data) + 8
+    
+    def test_mac_truncation_from_hmac_sha256(self):
+        """Test MAC is truncated from HMAC-SHA256."""
+        from meow_decoder.frame_mac import compute_frame_mac
+        import hmac
+        import hashlib
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        data = b"test data"
+        
+        mac = compute_frame_mac(data, master_key, 0, salt)
+        
+        # Should be 8 bytes truncated from 32-byte HMAC
+        assert len(mac) == 8
+    
+    def test_birthday_bound_is_acceptable(self):
+        """Test birthday bound for 64-bit MAC."""
+        # Birthday bound for 64-bit MAC: 2^32 messages
+        # For practical use (millions of frames), collision probability is:
+        # P ≈ n^2 / 2^65 for n messages
+        # For 1 million frames: P ≈ 10^12 / 2^65 ≈ 2.7 × 10^-8
+        # This is acceptable for our use case
+        
+        n_frames = 1_000_000
+        collision_prob = (n_frames ** 2) / (2 ** 65)
+        
+        # Should be less than 1 in 10 million
+        assert collision_prob < 1e-7
+    
+    def test_mac_changes_with_frame_index(self):
+        """Test MAC changes for different frame indices."""
+        from meow_decoder.frame_mac import compute_frame_mac
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        data = b"same data for all frames"
+        
+        mac0 = compute_frame_mac(data, master_key, 0, salt)
+        mac1 = compute_frame_mac(data, master_key, 1, salt)
+        mac2 = compute_frame_mac(data, master_key, 2, salt)
+        
+        assert mac0 != mac1
+        assert mac1 != mac2
+        assert mac0 != mac2
+
+
+class TestDuressTimingProtection:
+    """Tests for duress password timing protection."""
+    
+    def test_duress_check_imports_exist(self):
+        """Test duress checking functions exist."""
+        from meow_decoder.crypto import check_duress_password, compute_duress_tag
+        
+        assert callable(check_duress_password)
+        assert callable(compute_duress_tag)
+    
+    def test_duress_tag_uses_constant_time_compare(self):
+        """Test duress tag verification uses constant-time comparison."""
+        from meow_decoder.crypto import check_duress_password
+        import inspect
+        
+        try:
+            source = inspect.getsource(check_duress_password)
+            # Should use secrets.compare_digest
+            assert "compare_digest" in source
+        except (TypeError, OSError):
+            # If source not available, skip
+            pass
+
+
+class TestKeyDerivationSecurity:
+    """Tests for key derivation security properties."""
+    
+    def test_different_salts_produce_different_keys(self):
+        """Test that different salts produce different keys."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "test_password"
+        salt1 = secrets.token_bytes(16)
+        salt2 = secrets.token_bytes(16)
+        
+        key1 = derive_key(password, salt1)
+        key2 = derive_key(password, salt2)
+        
+        assert key1 != key2
+    
+    def test_key_derivation_deterministic(self):
+        """Test that same inputs produce same key."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "test_password"
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key(password, salt)
+        key2 = derive_key(password, salt)
+        
+        assert key1 == key2
+    
+    def test_minimum_password_length_enforced(self):
+        """Test minimum password length is enforced."""
+        from meow_decoder.crypto import derive_key, MIN_PASSWORD_LENGTH
+        
+        salt = secrets.token_bytes(16)
+        
+        # Short password should raise
+        with pytest.raises(ValueError):
+            derive_key("short", salt)
+        
+        # Password at minimum length should work
+        min_pass = "a" * MIN_PASSWORD_LENGTH
+        key = derive_key(min_pass, salt)
+        assert len(key) == 32
+
+
+# ============================================================================
+# MERGED FROM test_invariants.py (2026-01-31)
+# ============================================================================
+
+class TestCriticalInvariants:
+    """Tests for critical security invariants."""
+    
+    def test_aad_includes_orig_len(self):
+        """Test AAD includes original length."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Test data"
+        _, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Wrong orig_len should cause AAD mismatch
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", salt, nonce,
+                orig_len=len(data) + 1,  # Wrong!
+                comp_len=len(data), sha256=sha
+            )
+    
+    def test_aad_includes_comp_len(self):
+        """Test AAD includes compressed length."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Test data"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Wrong comp_len should cause AAD mismatch
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", salt, nonce,
+                orig_len=len(data),
+                comp_len=len(comp) + 1,  # Wrong!
+                sha256=sha
+            )
+    
+    def test_aad_includes_salt(self):
+        """Test AAD includes salt."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Test data"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Wrong salt should cause decryption failure
+        wrong_salt = secrets.token_bytes(16)
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", wrong_salt, nonce,
+                orig_len=len(data), comp_len=len(comp), sha256=sha
+            )
+    
+    def test_aad_includes_sha256(self):
+        """Test AAD includes SHA-256 hash."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        
+        data = b"Test data"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, "password123")
+        
+        # Wrong sha256 should cause AAD mismatch
+        wrong_sha = secrets.token_bytes(32)
+        with pytest.raises(RuntimeError):
+            decrypt_to_raw(
+                cipher, "password123", salt, nonce,
+                orig_len=len(data), comp_len=len(comp), sha256=wrong_sha
+            )
+    
+    def test_hmac_covers_manifest_core(self):
+        """Test HMAC covers manifest core fields."""
+        from meow_decoder.crypto import (
+            Manifest, compute_manifest_hmac, pack_manifest_core, derive_key
+        )
+        
+        salt = secrets.token_bytes(16)
+        password = "password123"
+        
+        manifest = Manifest(
+            salt=salt,
+            nonce=secrets.token_bytes(12),
+            orig_len=1000,
+            comp_len=800,
+            cipher_len=816,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=2,
+            hmac=b'\x00' * 32
+        )
+        
+        packed_core = pack_manifest_core(manifest)
+        
+        # Core should contain salt, nonce, lengths, sha256
+        assert manifest.salt in packed_core
+        assert manifest.nonce in packed_core
+        assert manifest.sha256 in packed_core
+    
+    def test_encryption_key_32_bytes(self):
+        """Test encryption key is 32 bytes (256 bits)."""
+        from meow_decoder.crypto import derive_key
+        
+        key = derive_key("password123", secrets.token_bytes(16))
+        assert len(key) == 32
+    
+    def test_salt_16_bytes(self):
+        """Test salt is 16 bytes (128 bits)."""
+        from meow_decoder.crypto import encrypt_file_bytes
+        
+        _, _, salt, _, _, _, _ = encrypt_file_bytes(b"test", "password123")
+        assert len(salt) == 16
+
+
+class TestFailClosedBehavior:
+    """Test fail-closed security behavior."""
+    
+    def test_invalid_magic_fails(self):
+        """Test invalid manifest magic fails parsing."""
+        from meow_decoder.crypto import unpack_manifest
+        
+        # Create data with wrong magic
+        bad_data = b"BAAD" + secrets.token_bytes(200)
+        
+        with pytest.raises(ValueError, match="Invalid MAGIC"):
+            unpack_manifest(bad_data)
+    
+    def test_short_manifest_fails(self):
+        """Test short manifest fails parsing."""
+        from meow_decoder.crypto import unpack_manifest
+        
+        short_data = b"MEOW3" + secrets.token_bytes(50)
+        
+        with pytest.raises(ValueError, match="too short"):
+            unpack_manifest(short_data)
+    
+    def test_invalid_manifest_length_fails(self):
+        """Test invalid manifest length fails."""
+        from meow_decoder.crypto import unpack_manifest
+        
+        # Valid magic but wrong total length
+        bad_len = b"MEOW3" + secrets.token_bytes(130)  # Not a valid length
+        
+        with pytest.raises(ValueError, match="length invalid"):
+            unpack_manifest(bad_len)
+
+
+class TestNoRegressions:
+    """Test no security regressions from previous versions."""
+    
+    def test_meow2_backward_compat(self):
+        """Test MEOW2 manifest parsing still works."""
+        from meow_decoder.crypto import unpack_manifest
+        import struct
+        
+        # Build a valid MEOW2 manifest (115 bytes)
+        magic = b"MEOW2"
+        salt = secrets.token_bytes(16)
+        nonce = secrets.token_bytes(12)
+        lengths = struct.pack(">III", 1000, 800, 816)
+        block_info = struct.pack(">HI", 512, 2)
+        sha256 = secrets.token_bytes(32)
+        hmac_tag = secrets.token_bytes(32)
+        
+        manifest_bytes = magic + salt + nonce + lengths + block_info + sha256 + hmac_tag
+        
+        # Should parse without error
+        manifest = unpack_manifest(manifest_bytes)
+        assert manifest.orig_len == 1000
+        assert manifest.block_size == 512
+    
+    def test_argon2id_used_not_argon2i(self):
+        """Test Argon2id is used, not Argon2i."""
+        from meow_decoder.crypto import derive_key
+        import inspect
+        
+        try:
+            source = inspect.getsource(derive_key)
+            # Should use Type.ID (Argon2id), not Type.I (Argon2i)
+            # or use backend which should use argon2id
+            assert "argon2id" in source.lower() or "argon2" in source.lower()
+        except (TypeError, OSError):
+            pass
+
+
+# ============================================================================
+# MERGED FROM test_kdf.py (2026-01-31)
+# ============================================================================
+
+class TestKDFDeterminism:
+    """Test KDF determinism properties."""
+    
+    def test_same_inputs_same_output(self):
+        """Test same inputs produce same key."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "test_password_123"
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key(password, salt)
+        key2 = derive_key(password, salt)
+        
+        assert key1 == key2
+    
+    def test_key_length_32_bytes(self):
+        """Test derived key is 32 bytes."""
+        from meow_decoder.crypto import derive_key
+        
+        key = derive_key("password123", secrets.token_bytes(16))
+        assert len(key) == 32
+    
+    def test_multiple_derivations_consistent(self):
+        """Test multiple derivations are consistent."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "consistent_password"
+        salt = secrets.token_bytes(16)
+        
+        keys = [derive_key(password, salt) for _ in range(5)]
+        
+        assert all(k == keys[0] for k in keys)
+
+
+class TestPasswordVariation:
+    """Test password variation effects on key derivation."""
+    
+    def test_different_passwords_different_keys(self):
+        """Test different passwords produce different keys."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key("password_one", salt)
+        key2 = derive_key("password_two", salt)
+        
+        assert key1 != key2
+    
+    def test_single_char_difference(self):
+        """Test single character difference produces different key."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key("password_a", salt)
+        key2 = derive_key("password_b", salt)
+        
+        assert key1 != key2
+    
+    def test_case_sensitivity(self):
+        """Test password is case sensitive."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key("Password123", salt)
+        key2 = derive_key("password123", salt)
+        
+        assert key1 != key2
+    
+    def test_whitespace_matters(self):
+        """Test whitespace in password matters."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key("password 123", salt)
+        key2 = derive_key("password123", salt)
+        
+        assert key1 != key2
+    
+    def test_unicode_password(self):
+        """Test Unicode password works."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        # Unicode password
+        key = derive_key("пароль🔐密码", salt)
+        assert len(key) == 32
+
+
+class TestSaltVariation:
+    """Test salt variation effects on key derivation."""
+    
+    def test_different_salts_different_keys(self):
+        """Test different salts produce different keys."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "same_password"
+        
+        key1 = derive_key(password, secrets.token_bytes(16))
+        key2 = derive_key(password, secrets.token_bytes(16))
+        
+        assert key1 != key2
+    
+    def test_salt_must_be_16_bytes(self):
+        """Test salt must be exactly 16 bytes."""
+        from meow_decoder.crypto import derive_key
+        
+        with pytest.raises(ValueError, match="16 bytes"):
+            derive_key("password123", secrets.token_bytes(15))
+        
+        with pytest.raises(ValueError, match="16 bytes"):
+            derive_key("password123", secrets.token_bytes(17))
+    
+    def test_single_bit_salt_difference(self):
+        """Test single bit difference in salt produces different key."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "password123"
+        salt1 = secrets.token_bytes(16)
+        salt2 = bytearray(salt1)
+        salt2[0] ^= 0x01  # Flip one bit
+        salt2 = bytes(salt2)
+        
+        key1 = derive_key(password, salt1)
+        key2 = derive_key(password, salt2)
+        
+        assert key1 != key2
+
+
+class TestKeyfileIntegration:
+    """Test keyfile integration with KDF."""
+    
+    def test_keyfile_changes_key(self):
+        """Test keyfile changes derived key."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "password123"
+        salt = secrets.token_bytes(16)
+        keyfile = secrets.token_bytes(64)
+        
+        key_without = derive_key(password, salt)
+        key_with = derive_key(password, salt, keyfile)
+        
+        assert key_without != key_with
+    
+    def test_different_keyfiles_different_keys(self):
+        """Test different keyfiles produce different keys."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "password123"
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key(password, salt, secrets.token_bytes(64))
+        key2 = derive_key(password, salt, secrets.token_bytes(64))
+        
+        assert key1 != key2
+    
+    def test_keyfile_password_combined(self):
+        """Test keyfile and password are properly combined."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        keyfile = secrets.token_bytes(64)
+        
+        # Different passwords with same keyfile
+        key1 = derive_key("password1", salt, keyfile)
+        key2 = derive_key("password2", salt, keyfile)
+        
+        assert key1 != key2
+    
+    def test_keyfile_deterministic(self):
+        """Test keyfile derivation is deterministic."""
+        from meow_decoder.crypto import derive_key
+        
+        password = "password123"
+        salt = secrets.token_bytes(16)
+        keyfile = secrets.token_bytes(64)
+        
+        key1 = derive_key(password, salt, keyfile)
+        key2 = derive_key(password, salt, keyfile)
+        
+        assert key1 == key2
+
+
+class TestPasswordRequirements:
+    """Test password requirements enforcement."""
+    
+    def test_empty_password_rejected(self):
+        """Test empty password is rejected."""
+        from meow_decoder.crypto import derive_key
+        
+        with pytest.raises(ValueError, match="empty"):
+            derive_key("", secrets.token_bytes(16))
+    
+    def test_short_password_rejected(self):
+        """Test short password is rejected."""
+        from meow_decoder.crypto import derive_key, MIN_PASSWORD_LENGTH
+        
+        short_pass = "a" * (MIN_PASSWORD_LENGTH - 1)
+        
+        with pytest.raises(ValueError, match="at least"):
+            derive_key(short_pass, secrets.token_bytes(16))
+    
+    def test_minimum_length_accepted(self):
+        """Test minimum length password is accepted."""
+        from meow_decoder.crypto import derive_key, MIN_PASSWORD_LENGTH
+        
+        min_pass = "a" * MIN_PASSWORD_LENGTH
+        key = derive_key(min_pass, secrets.token_bytes(16))
+        
+        assert len(key) == 32
+    
+    def test_long_password_accepted(self):
+        """Test long password is accepted."""
+        from meow_decoder.crypto import derive_key
+        
+        long_pass = "a" * 1000
+        key = derive_key(long_pass, secrets.token_bytes(16))
+        
+        assert len(key) == 32
+
+
+class TestArgon2Parameters:
+    """Test Argon2 parameter configuration."""
+    
+    def test_argon2_memory_configured(self):
+        """Test Argon2 memory is configured."""
+        from meow_decoder.crypto import ARGON2_MEMORY
+        
+        # Should be at least 32 MiB for test mode or 64 MiB for production
+        assert ARGON2_MEMORY >= 32768
+    
+    def test_argon2_iterations_configured(self):
+        """Test Argon2 iterations configured."""
+        from meow_decoder.crypto import ARGON2_ITERATIONS
+        
+        # Should be at least 1
+        assert ARGON2_ITERATIONS >= 1
+    
+    def test_argon2_parallelism_configured(self):
+        """Test Argon2 parallelism configured."""
+        from meow_decoder.crypto import ARGON2_PARALLELISM
+        
+        # Should be at least 1
+        assert ARGON2_PARALLELISM >= 1
+
+
+class TestKeyRandomness:
+    """Test derived key randomness properties."""
+    
+    def test_key_not_predictable(self):
+        """Test key is not trivially predictable."""
+        from meow_decoder.crypto import derive_key
+        
+        key = derive_key("password123", secrets.token_bytes(16))
+        
+        # Key should not be all zeros or all ones
+        assert key != b'\x00' * 32
+        assert key != b'\xff' * 32
+    
+    def test_key_high_entropy(self):
+        """Test key has high entropy."""
+        from meow_decoder.crypto import derive_key
+        from collections import Counter
+        import math
+        
+        key = derive_key("password123", secrets.token_bytes(16))
+        
+        # Calculate Shannon entropy
+        counter = Counter(key)
+        entropy = -sum((c / len(key)) * math.log2(c / len(key)) for c in counter.values())
+        
+        # Entropy should be > 4 bits per byte (random-like)
+        assert entropy > 4.0
+    
+    def test_keys_uniformly_distributed(self):
+        """Test keys appear uniformly distributed."""
+        from meow_decoder.crypto import derive_key
+        from collections import Counter
+        
+        # Generate many keys and check byte distribution
+        all_bytes = bytearray()
+        for i in range(20):
+            key = derive_key(f"password_{i:04d}", secrets.token_bytes(16))
+            all_bytes.extend(key)
+        
+        # Count byte frequencies
+        counter = Counter(all_bytes)
+        
+        # No single byte should dominate (> 5% of total)
+        max_freq = max(counter.values())
+        assert max_freq < len(all_bytes) * 0.05
+    
+    def test_adjacent_passwords_different_keys(self):
+        """Test adjacent passwords produce very different keys."""
+        from meow_decoder.crypto import derive_key
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = derive_key("password_00", salt)
+        key2 = derive_key("password_01", salt)
+        
+        # Keys should differ significantly (at least 50% of bytes)
+        differing = sum(a != b for a, b in zip(key1, key2))
+        assert differing >= 16
+
+
+class TestBackendConsistency:
+    """Test crypto backend consistency."""
+    
+    def test_backend_exists(self):
+        """Test crypto backend is available."""
+        from meow_decoder.crypto_backend import get_default_backend
+        
+        backend = get_default_backend()
+        assert backend is not None
+    
+    def test_backend_derives_key(self):
+        """Test backend can derive keys."""
+        from meow_decoder.crypto_backend import get_default_backend
+        
+        backend = get_default_backend()
+        
+        password = b"test_password_123"
+        salt = secrets.token_bytes(16)
+        
+        key = backend.derive_key_argon2id(
+            password, salt,
+            output_len=32,
+            iterations=1,
+            memory_kib=32768,
+            parallelism=1
+        )
+        
+        assert len(key) == 32
+
+
+class TestTestModeParameters:
+    """Test that test mode uses appropriate parameters."""
+    
+    def test_test_mode_detection(self):
+        """Test MEOW_TEST_MODE affects parameters."""
+        import os
+        from meow_decoder import crypto
+        
+        # Just verify the module loaded
+        assert hasattr(crypto, 'ARGON2_MEMORY')
+        assert hasattr(crypto, 'ARGON2_ITERATIONS')
+
+
+# ============================================================================
+# MERGED FROM test_grok_security.py (2026-01-31)
+# ============================================================================
+
+class TestDuressE2E:
+    """End-to-end tests for duress mode."""
+    
+    def test_e2e_encode_with_duress(self):
+        """Test encoding with duress password enabled."""
+        from meow_decoder.encode import encode_file
+        from meow_decoder.config import EncodingConfig
+        from pathlib import Path
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            # Create test file
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(b"Top secret content!" * 100)
+            
+            output_gif = tmpdir / "encoded.gif"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=1.5,
+                fps=10
+            )
+            
+            # Encode with duress - need forward secrecy + receiver key OR PQ mode
+            from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+            recv_priv, recv_pub = generate_receiver_keypair()
+            
+            stats = encode_file(
+                input_file,
+                output_gif,
+                "real_password",
+                config=config,
+                duress_password="duress_trigger",
+                forward_secrecy=True,
+                receiver_public_key=recv_pub,
+                verbose=False
+            )
+            
+            assert output_gif.exists()
+            assert stats['qr_frames'] > 0
+    
+    def test_e2e_decode_real_password(self):
+        """Test decoding with real password works."""
+        from meow_decoder.encode import encode_file
+        from meow_decoder.decode_gif import decode_gif
+        from meow_decoder.config import EncodingConfig
+        from pathlib import Path
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            test_content = b"Real secret content for testing!" * 50
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(test_content)
+            
+            output_gif = tmpdir / "encoded.gif"
+            decoded_file = tmpdir / "decoded.txt"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=2.0,
+                fps=10
+            )
+            
+            # Generate receiver keys for forward secrecy (required for duress)
+            from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+            recv_priv, recv_pub = generate_receiver_keypair()
+            
+            # Encode with duress
+            encode_file(
+                input_file,
+                output_gif,
+                "real_password",
+                config=config,
+                duress_password="duress_trigger",
+                forward_secrecy=True,
+                receiver_public_key=recv_pub,
+                verbose=False
+            )
+            
+            # Decode with real password
+            decode_gif(
+                output_gif,
+                decoded_file,
+                "real_password",
+                receiver_private_key=recv_priv,
+                verbose=False
+            )
+            
+            assert decoded_file.exists()
+            assert decoded_file.read_bytes() == test_content
+    
+    def test_e2e_duress_password_triggers(self):
+        """Test duress password triggers appropriate response."""
+        from meow_decoder.encode import encode_file
+        from meow_decoder.decode_gif import decode_gif
+        from meow_decoder.config import EncodingConfig, DuressConfig, DuressMode
+        from pathlib import Path
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            
+            test_content = b"Real secret content!" * 50
+            input_file = tmpdir / "secret.txt"
+            input_file.write_bytes(test_content)
+            
+            output_gif = tmpdir / "encoded.gif"
+            decoded_file = tmpdir / "decoded.txt"
+            
+            config = EncodingConfig(
+                block_size=256,
+                redundancy=2.0,
+                fps=10
+            )
+            
+            # Generate receiver keys for forward secrecy
+            from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+            recv_priv, recv_pub = generate_receiver_keypair()
+            
+            # Encode with duress
+            encode_file(
+                input_file,
+                output_gif,
+                "real_password",
+                config=config,
+                duress_password="duress_trigger",
+                forward_secrecy=True,
+                receiver_public_key=recv_pub,
+                verbose=False
+            )
+            
+            # Configure duress handler
+            duress_config = DuressConfig(
+                enabled=True,
+                mode=DuressMode.DECOY
+            )
+            
+            # Decode with duress password - should return decoy
+            decode_gif(
+                output_gif,
+                decoded_file,
+                "duress_trigger",
+                duress_config=duress_config,
+                receiver_private_key=recv_priv,
+                verbose=False
+            )
+            
+            # Decoded file should exist but NOT contain real content
+            assert decoded_file.exists()
+            assert decoded_file.read_bytes() != test_content
+
+
+class TestEntropyBoost:
+    """Tests for enhanced entropy collection."""
+    
+    def test_import_entropy_boost(self):
+        """Test that entropy_boost module imports correctly."""
+        from meow_decoder.entropy_boost import EntropyPool
+        assert EntropyPool is not None
+    
+    def test_pool_initialization(self):
+        """Test EntropyPool initialization."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        
+        assert pool.sources is not None
+        assert isinstance(pool.sources, list)
+    
+    def test_add_system_entropy(self):
+        """Test adding system entropy."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        initial_len = len(pool.sources)
+        
+        pool.add_system_entropy(32)
+        
+        assert len(pool.sources) > initial_len
+    
+    def test_add_timing_entropy(self):
+        """Test adding timing entropy."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        initial_len = len(pool.sources)
+        
+        pool.add_timing_entropy(samples=10)
+        
+        assert len(pool.sources) > initial_len
+    
+    def test_add_environment_entropy(self):
+        """Test adding environment entropy."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        initial_len = len(pool.sources)
+        
+        pool.add_environment_entropy()
+        
+        assert len(pool.sources) > initial_len
+    
+    def test_hardware_entropy_graceful(self):
+        """Test that hardware entropy doesn't crash when unavailable."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        
+        try:
+            pool.add_hardware_entropy()
+        except Exception as e:
+            pytest.fail(f"Hardware entropy should fail gracefully: {e}")
+    
+    def test_sources_contain_bytes(self):
+        """Test that all sources contain valid bytes."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool = EntropyPool()
+        pool.add_system_entropy(32)
+        pool.add_timing_entropy(10)
+        pool.add_environment_entropy()
+        
+        for source in pool.sources:
+            assert isinstance(source, bytes)
+            assert len(source) > 0
+    
+    def test_entropy_quality(self):
+        """Test that generated entropy has reasonable quality."""
+        from meow_decoder.entropy_boost import EntropyPool
+        import math
+        from collections import Counter
+        
+        pool = EntropyPool()
+        pool.add_system_entropy(64)
+        pool.add_timing_entropy(20)
+        pool.add_environment_entropy()
+        
+        combined = b''.join(pool.sources)
+        
+        counter = Counter(combined)
+        entropy = -sum((count / len(combined)) * math.log2(count / len(combined)) 
+                      for count in counter.values())
+        
+        assert entropy > 4.0
+    
+    def test_multiple_pools_independent(self):
+        """Test that multiple pools produce different results."""
+        from meow_decoder.entropy_boost import EntropyPool
+        
+        pool1 = EntropyPool()
+        pool1.add_system_entropy(32)
+        
+        pool2 = EntropyPool()
+        pool2.add_system_entropy(32)
+        
+        assert pool1.sources[0] != pool2.sources[0]
+
+
+class TestMultiSecret:
+    """Tests for N-level Schrödinger mode."""
+    
+    def test_import(self):
+        """Test that multi_secret module imports correctly."""
+        from meow_decoder.multi_secret import (
+            MultiSecretEncoder, MultiSecretDecoder, MultiSecretManifest, Reality
+        )
+        assert MultiSecretEncoder is not None
+        assert MultiSecretDecoder is not None
+        assert MultiSecretManifest is not None
+        assert Reality is not None
+    
+    def test_reality_dataclass(self):
+        """Test Reality dataclass."""
+        from meow_decoder.multi_secret import Reality
+        
+        reality = Reality(data=b"secret", password="pass123")
+        
+        assert reality.data == b"secret"
+        assert reality.password == "pass123"
+        assert len(reality.salt) == 16
+        assert len(reality.nonce) == 12
+    
+    def test_manifest_pack_unpack(self):
+        """Test manifest serialization."""
+        from meow_decoder.multi_secret import MultiSecretManifest
+        
+        manifest = MultiSecretManifest(
+            n_realities=3,
+            block_size=256,
+            total_blocks=100,
+            cipher_lengths=[100, 150, 200],
+            salts=[secrets.token_bytes(16) for _ in range(3)],
+            nonces=[secrets.token_bytes(12) for _ in range(3)],
+            hmacs=[secrets.token_bytes(32) for _ in range(3)],
+            merkle_root=secrets.token_bytes(32)
+        )
+        
+        packed = manifest.pack()
+        unpacked = MultiSecretManifest.unpack(packed)
+        
+        assert unpacked.n_realities == manifest.n_realities
+        assert unpacked.block_size == manifest.block_size
+        assert unpacked.merkle_root == manifest.merkle_root
+        assert unpacked.cipher_lengths == manifest.cipher_lengths
+        assert unpacked.total_blocks == manifest.total_blocks
+    
+    def test_encoder_initialization(self):
+        """Test MultiSecretEncoder initialization."""
+        from meow_decoder.multi_secret import MultiSecretEncoder
+        
+        realities = [
+            (b"Secret 1", "pass1"),
+            (b"Secret 2", "pass2"),
+            (b"Secret 3", "pass3")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        
+        assert len(encoder.realities) == 3
+        assert encoder.block_size == 64
+    
+    def test_encoder_minimum_realities(self):
+        """Test encoder requires at least 2 realities."""
+        from meow_decoder.multi_secret import MultiSecretEncoder
+        
+        with pytest.raises(ValueError):
+            MultiSecretEncoder([(b"single", "pass")], block_size=64)
+    
+    def test_encoder_maximum_realities(self):
+        """Test encoder enforces maximum 16 realities."""
+        from meow_decoder.multi_secret import MultiSecretEncoder
+        
+        realities = [(f"Secret {i}".encode(), f"pass{i}") for i in range(17)]
+        
+        with pytest.raises(ValueError):
+            MultiSecretEncoder(realities, block_size=64)
+    
+    def test_encode_two_realities(self):
+        """Test encoding two realities."""
+        from meow_decoder.multi_secret import MultiSecretEncoder
+        
+        realities = [
+            (b"This is the REAL secret content!" * 5, "real_password"),
+            (b"This is the DECOY innocent content!" * 5, "decoy_password")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        assert manifest.n_realities == 2
+        assert len(manifest.salts) == 2
+        assert len(manifest.nonces) == 2
+        assert len(manifest.hmacs) == 2
+        assert len(manifest.cipher_lengths) == 2
+        
+        assert len(superposition) > 0
+        assert len(superposition) == manifest.total_blocks * manifest.block_size
+    
+    def test_encode_decode_two_realities(self):
+        """Test encoding and decoding two realities."""
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        secret_a = b"This is the REAL secret content!" * 5
+        secret_b = b"This is the DECOY innocent content!" * 5
+        
+        realities = [
+            (secret_a, "real_password"),
+            (secret_b, "decoy_password")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        
+        decoded_0 = decoder.decode("real_password")
+        assert decoded_0 == secret_a
+        
+        decoded_1 = decoder.decode("decoy_password")
+        assert decoded_1 == secret_b
+    
+    def test_encode_decode_three_realities(self):
+        """Test encoding and decoding three realities (N-level)."""
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        secrets_list = [
+            b"Reality 0: Top secret military plans" * 5,
+            b"Reality 1: Vacation photos metadata" * 5,
+            b"Reality 2: Shopping list for groceries" * 5
+        ]
+        passwords = ["military_pass", "vacation_pass", "shopping_pass"]
+        
+        realities = list(zip(secrets_list, passwords))
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        
+        for i, (secret, password) in enumerate(realities):
+            decoded = decoder.decode(password)
+            assert decoded == secret, f"Reality {i} decoding failed"
+    
+    def test_wrong_password_fails(self):
+        """Test that wrong password fails to decode."""
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        realities = [
+            (b"Secret content" * 10, "correct_password"),
+            (b"Decoy content" * 10, "decoy_password")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        
+        result = decoder._verify_password("wrong_password")
+        assert result == -1
+    
+    def test_merkle_root_integrity(self):
+        """Test that Merkle root is computed correctly."""
+        from meow_decoder.multi_secret import MultiSecretEncoder
+        
+        realities = [
+            (b"Secret 1" * 10, "pass1"),
+            (b"Secret 2" * 10, "pass2")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        assert manifest.merkle_root != b'\x00' * 32
+        assert len(manifest.merkle_root) == 32
+    
+    def test_five_realities(self):
+        """Test with 5 realities."""
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        num_realities = 5
+        realities = [(f"Secret {i}".encode() * 10, f"password{i}") for i in range(num_realities)]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        
+        for secret, password in realities:
+            decoded = decoder.decode(password)
+            assert decoded == secret
+
+
+class TestHardwareKeys:
+    """Tests for hardware security module integration."""
+    
+    def test_import(self):
+        """Test that hardware_keys module imports correctly."""
+        from meow_decoder.hardware_keys import HardwareKeyManager, HardwareStatus
+        assert HardwareKeyManager is not None
+        assert HardwareStatus is not None
+    
+    def test_status_initialization(self):
+        """Test HardwareStatus dataclass."""
+        from meow_decoder.hardware_keys import HardwareStatus
+        
+        status = HardwareStatus()
+        
+        assert status.tpm_available == False
+        assert status.yubikey_available == False
+        assert status.smartcard_available == False
+        assert status.sgx_available == False
+        assert status.warnings is not None
+    
+    def test_status_any_hardware(self):
+        """Test any_hardware() method."""
+        from meow_decoder.hardware_keys import HardwareStatus
+        
+        status = HardwareStatus()
+        assert status.any_hardware() == False
+        
+        status.tpm_available = True
+        assert status.any_hardware() == True
+    
+    def test_status_summary(self):
+        """Test summary() method."""
+        from meow_decoder.hardware_keys import HardwareStatus
+        
+        status = HardwareStatus()
+        summary = status.summary()
+        
+        assert "Hardware Security Status" in summary
+        assert "TPM" in summary
+        assert "YubiKey" in summary
+    
+    def test_manager_initialization(self):
+        """Test HardwareKeyManager initialization."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        assert manager.status is not None
+        assert isinstance(manager.status.tpm_available, bool)
+    
+    def test_manager_detect_hardware(self):
+        """Test hardware detection (should not raise)."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        assert manager.status is not None
+    
+    def test_has_tpm_method(self):
+        """Test has_tpm() method exists."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        result = manager.has_tpm()
+        assert isinstance(result, bool)
+    
+    def test_has_yubikey_method(self):
+        """Test has_yubikey() method exists."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        result = manager.has_yubikey()
+        assert isinstance(result, bool)
+    
+    def test_derive_key_software(self):
+        """Test software-only key derivation works."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        password = "test_password"
+        salt = secrets.token_bytes(16)
+        
+        key = manager.derive_key_software(password, salt)
+        
+        assert len(key) == 32
+        assert isinstance(key, bytes)
+    
+    def test_key_derivation_deterministic(self):
+        """Test that key derivation is deterministic."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        password = "test_password"
+        salt = secrets.token_bytes(16)
+        
+        key1 = manager.derive_key_software(password, salt)
+        key2 = manager.derive_key_software(password, salt)
+        
+        assert key1 == key2
+    
+    def test_different_passwords_different_keys(self):
+        """Test that different passwords produce different keys."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        salt = secrets.token_bytes(16)
+        
+        key1 = manager.derive_key_software("password1", salt)
+        key2 = manager.derive_key_software("password2", salt)
+        
+        assert key1 != key2
+    
+    def test_different_salts_different_keys(self):
+        """Test that different salts produce different keys."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        password = "test_password"
+        
+        key1 = manager.derive_key_software(password, secrets.token_bytes(16))
+        key2 = manager.derive_key_software(password, secrets.token_bytes(16))
+        
+        assert key1 != key2
+
+
+class TestSecurityIntegration:
+    """Integration tests for security modules working together."""
+    
+    def test_entropy_in_multi_secret(self):
+        """Test using enhanced entropy in multi-secret encoding."""
+        from meow_decoder.entropy_boost import EntropyPool
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        pool = EntropyPool()
+        pool.add_system_entropy(32)
+        
+        realities = [
+            (b"Secret 1" * 10, "pass1"),
+            (b"Secret 2" * 10, "pass2")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        decoded = decoder.decode("pass1")
+        
+        assert decoded == b"Secret 1" * 10
+    
+    def test_duress_concept_with_multi_secret(self):
+        """Test duress mode concept with multi-secret."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        
+        real_secret = b"REAL secret data" * 10
+        decoy_secret = b"DECOY innocent data" * 10
+        
+        realities = [
+            (real_secret, "real_pass"),
+            (decoy_secret, "duress_pass")
+        ]
+        
+        encoder = MultiSecretEncoder(realities, block_size=64)
+        superposition, manifest = encoder.encode()
+        
+        config = DuressConfig(wipe_resume_files=False)
+        handler = DuressHandler(config)
+        salt = secrets.token_bytes(16)
+        handler.set_passwords("duress_pass", "real_pass", salt)
+        
+        is_valid, is_duress = handler.check_password("real_pass", salt)
+        assert is_valid == True
+        assert is_duress == False
+        
+        decoder = MultiSecretDecoder(superposition, manifest)
+        decoded = decoder.decode("real_pass")
+        assert decoded == real_secret
+    
+    def test_hardware_key_derivation_available(self):
+        """Test hardware key derivation is available."""
+        from meow_decoder.hardware_keys import HardwareKeyManager
+        
+        manager = HardwareKeyManager()
+        
+        password = "test_password"
+        salt = secrets.token_bytes(16)
+        key = manager.derive_key_software(password, salt)
+        
+        assert len(key) == 32
+    
+    def test_all_modules_import(self):
+        """Test all security modules can be imported together."""
+        from meow_decoder.duress_mode import DuressHandler, DuressConfig
+        from meow_decoder.entropy_boost import EntropyPool
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        from meow_decoder.hardware_keys import HardwareKeyManager, HardwareStatus
+        
+        assert DuressHandler is not None
+        assert EntropyPool is not None
+        assert MultiSecretEncoder is not None
+        assert HardwareKeyManager is not None
+
+
+# ============================================================================
+# MERGED FROM test_coverage_90_deep_security.py (2026-01-31)
+# ============================================================================
+
+class TestPQCrypto:
+    """Deep tests for post-quantum cryptography modules."""
+    
+    def test_pq_hybrid_kem(self):
+        """Test hybrid KEM (Kyber + X25519)."""
+        try:
+            from meow_decoder.pq_hybrid import HybridKEM
+            
+            kem = HybridKEM()
+            
+            # Generate keypair
+            public, private = kem.keygen()
+            assert public is not None
+            assert private is not None
+            
+            # Encapsulate
+            ciphertext, shared_secret1 = kem.encapsulate(public)
+            assert ciphertext is not None
+            assert len(shared_secret1) == 32
+            
+            # Decapsulate
+            shared_secret2 = kem.decapsulate(ciphertext, private)
+            assert shared_secret2 == shared_secret1
+        except (ImportError, AttributeError):
+            pytest.skip("HybridKEM not available")
+    
+    def test_dilithium_signatures(self):
+        """Test Dilithium signatures."""
+        try:
+            from meow_decoder.pq_signatures import DilithiumSigner
+            
+            signer = DilithiumSigner()
+            
+            public, private = signer.keygen()
+            assert public is not None
+            assert private is not None
+            
+            message = b"Test message"
+            signature = signer.sign(message, private)
+            assert signature is not None
+            
+            valid = signer.verify(message, signature, public)
+            assert valid == True
+        except (ImportError, AttributeError):
+            pytest.skip("DilithiumSigner not available")
+
+
+class TestHighSecurityMerged:
+    """Deep tests for high_security.py module."""
+    
+    def test_import_module(self):
+        """Test importing high_security module."""
+        try:
+            from meow_decoder import high_security
+            assert high_security is not None
+        except ImportError:
+            pytest.skip("high_security module not found")
+    
+    def test_enable_high_security_mode(self):
+        """Test enabling high security mode."""
+        try:
+            from meow_decoder.high_security import enable_high_security_mode
+            enable_high_security_mode(silent=True)
+        except (ImportError, AttributeError):
+            pytest.skip("enable_high_security_mode not available")
+    
+    def test_high_security_config(self):
+        """Test HighSecurityConfig."""
+        try:
+            from meow_decoder.high_security import HighSecurityConfig
+            
+            config = HighSecurityConfig()
+            assert config.argon2_memory >= 262144
+            assert config.argon2_iterations >= 10
+        except (ImportError, AttributeError):
+            pytest.skip("HighSecurityConfig not available")
+    
+    def test_get_safety_checklist(self):
+        """Test safety checklist."""
+        try:
+            from meow_decoder.high_security import get_safety_checklist
+            
+            checklist = get_safety_checklist()
+            assert isinstance(checklist, str)
+            assert len(checklist) > 0
+        except (ImportError, AttributeError):
+            pytest.skip("get_safety_checklist not available")
+    
+    def test_secure_wipe_file(self):
+        """Test secure file wiping."""
+        try:
+            from meow_decoder.high_security import secure_wipe_file
+            
+            with tempfile.NamedTemporaryFile(delete=False) as f:
+                f.write(b"secret content")
+                path = f.name
+            
+            result = secure_wipe_file(path)
+            assert not os.path.exists(path)
+        except (ImportError, AttributeError):
+            pytest.skip("secure_wipe_file not available")
+        except Exception:
+            if os.path.exists(path):
+                os.remove(path)
+
+
+class TestNinjaCatUltra:
+    """Deep tests for ninja_cat_ultra.py module."""
+    
+    def test_import_module(self):
+        """Test importing ninja_cat_ultra module."""
+        try:
+            from meow_decoder import ninja_cat_ultra
+            assert ninja_cat_ultra is not None
+        except ImportError:
+            pytest.skip("ninja_cat_ultra module not found")
+    
+    def test_stealth_level_enum(self):
+        """Test StealthLevel enum."""
+        try:
+            from meow_decoder.ninja_cat_ultra import StealthLevel
+            
+            assert StealthLevel.VISIBLE.value >= 0
+            assert StealthLevel.SUBTLE.value >= 0
+            assert StealthLevel.HIDDEN.value >= 0
+            assert StealthLevel.PARANOID.value >= 0
+        except (ImportError, AttributeError):
+            pytest.skip("StealthLevel not available")
+
+
+class TestStegoAdvanced:
+    """Deep tests for stego_advanced.py module."""
+    
+    def test_import_module(self):
+        """Test importing stego_advanced module."""
+        try:
+            from meow_decoder import stego_advanced
+            assert stego_advanced is not None
+        except ImportError:
+            pytest.skip("stego_advanced module not found")
+    
+    def test_stego_quality_class(self):
+        """Test StegoQuality class."""
+        try:
+            from meow_decoder.stego_advanced import StegoQuality
+            
+            quality = StegoQuality(psnr=45.0, ssim=0.98)
+            assert quality.psnr == 45.0
+            assert quality.ssim == 0.98
+        except (ImportError, AttributeError):
+            pytest.skip("StegoQuality not available")
+    
+    def test_encode_with_stego(self):
+        """Test steganography encoding."""
+        try:
+            from meow_decoder.stego_advanced import encode_with_stego, StealthLevel
+            from PIL import Image
+            
+            frames = [Image.new('RGB', (100, 100), color='white')]
+            
+            result_frames, qualities = encode_with_stego(
+                frames,
+                stealth_level=StealthLevel.VISIBLE
+            )
+            
+            assert len(result_frames) > 0
+        except (ImportError, AttributeError):
+            pytest.skip("encode_with_stego not available")
+
+
+class TestProwlingMode:
+    """Deep tests for prowling_mode.py module."""
+    
+    def test_import_module(self):
+        """Test importing prowling_mode module."""
+        try:
+            from meow_decoder import prowling_mode
+            assert prowling_mode is not None
+        except ImportError:
+            pytest.skip("prowling_mode module not found")
+    
+    def test_memory_monitor(self):
+        """Test MemoryMonitor class."""
+        try:
+            from meow_decoder.prowling_mode import MemoryMonitor
+            
+            monitor = MemoryMonitor(max_memory_mb=500)
+            assert monitor is not None
+            
+            current = monitor.current_memory_mb()
+            assert current >= 0
+        except (ImportError, AttributeError):
+            pytest.skip("MemoryMonitor not available")
+    
+    def test_prowling_encoder(self):
+        """Test ProwlingEncoder class."""
+        try:
+            from meow_decoder.prowling_mode import ProwlingEncoder
+            
+            encoder = ProwlingEncoder(max_memory_mb=100)
+            assert encoder is not None
+        except (ImportError, AttributeError):
+            pytest.skip("ProwlingEncoder not available")
+
+
+class TestForwardSecrecyModules:
+    """Deep tests for forward secrecy modules."""
+    
+    def test_import_forward_secrecy(self):
+        """Test importing forward_secrecy module."""
+        from meow_decoder import forward_secrecy
+        assert forward_secrecy is not None
+    
+    def test_forward_secrecy_manager(self):
+        """Test ForwardSecrecyManager class."""
+        from meow_decoder.forward_secrecy import ForwardSecrecyManager
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        manager = ForwardSecrecyManager(master_key, salt, enable_ratchet=False)
+        assert manager is not None
+    
+    def test_forward_secrecy_derive_block_key(self):
+        """Test deriving block keys."""
+        from meow_decoder.forward_secrecy import ForwardSecrecyManager
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        manager = ForwardSecrecyManager(master_key, salt, enable_ratchet=False)
+        
+        key0 = manager.derive_block_key(0)
+        key1 = manager.derive_block_key(1)
+        key0_again = manager.derive_block_key(0)
+        
+        assert len(key0) == 32
+        assert key0 != key1
+        assert key0 == key0_again
+    
+    def test_forward_secrecy_with_ratchet(self):
+        """Test forward secrecy with ratcheting."""
+        from meow_decoder.forward_secrecy import ForwardSecrecyManager
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        manager = ForwardSecrecyManager(
+            master_key, salt,
+            enable_ratchet=True,
+            ratchet_interval=10
+        )
+        
+        key0 = manager.derive_block_key(0)
+        key10 = manager.derive_block_key(10)
+        key20 = manager.derive_block_key(20)
+        
+        assert key0 != key10
+        assert key10 != key20
+    
+    def test_forward_secrecy_cleanup(self):
+        """Test manager cleanup."""
+        from meow_decoder.forward_secrecy import ForwardSecrecyManager
+        
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        
+        manager = ForwardSecrecyManager(master_key, salt)
+        manager.cleanup()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
 

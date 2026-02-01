@@ -1,4 +1,9 @@
 #!/usr/bin/env python3
+# ============================================================================
+# DEPRECATED: This file has been merged into test_security.py (2026-01-31)
+# This file is kept for reference only. Run tests from test_security.py
+# To skip: pytest --ignore=tests/test_coverage_90_deep_security.py
+# ============================================================================
 """
 🧪 Deep Coverage Tests - Security & Crypto Modules
 Aggressive testing for 90% coverage target.
