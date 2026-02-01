@@ -1,5 +1,13 @@
+"""
+⚠️ DEPRECATED: Tests consolidated into test_qr_code.py
+This file will be removed after verification that all unique tests are migrated.
+"""
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_qr_code.py
+pytestmark = pytest.mark.skip(reason="Consolidated into test_qr_code.py")
+
 import numpy as np
 from PIL import Image
 from unittest.mock import patch, MagicMock

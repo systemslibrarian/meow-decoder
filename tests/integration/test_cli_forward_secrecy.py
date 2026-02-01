@@ -2,7 +2,13 @@
 """
 End-to-End CLI Test for Forward Secrecy
 Tests the complete encode/decode flow with X25519 ephemeral keys
+
+DEPRECATED: Merged into test_forward_secrecy_integration.py
+This file is kept for reference but tests are skipped.
 """
+
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_forward_secrecy_integration.py")
 
 import sys
 import os

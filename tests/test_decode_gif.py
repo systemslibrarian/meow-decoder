@@ -10,6 +10,7 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
+from PIL import Image
 
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -1445,6 +1446,117 @@ class TestDecodeGifFrameMACLegacyFallbackFailure:
             decode_gif(gif_file, output_file, "TestPassword123!", verbose=True)
         except (RuntimeError, ValueError):
             pass  # Expected to fail
+
+
+# =============================================================================
+# MERGED FROM: test_core_encode_decode_unit.py (decode portions)
+# Date: 2026-02-01
+# Purpose: Unit tests with mocked QR/GIF for fast isolation testing
+# =============================================================================
+
+class _DummyGIFDecoder:
+    """Mock GIF decoder for unit testing."""
+    def extract_frames(self, input_path: Path):
+        # Two frames is enough: manifest + one droplet
+        return [Image.new("RGB", (64, 64), color=(0, 0, 0)), Image.new("RGB", (64, 64), color=(0, 0, 0))]
+
+
+class _DummyQRCodeReader:
+    """Mock QR reader for unit testing."""
+    def __init__(self, *args, **kwargs):
+        self._calls = 0
+
+    def read_image(self, frame):
+        self._calls += 1
+        return []
+
+
+class _DummyFountainDecoder:
+    """Mock fountain decoder for unit testing."""
+    def __init__(self, *args, **kwargs):
+        self.decoded_count = 1
+        self.k_blocks = 1
+
+    def add_droplet(self, droplet):
+        return True
+
+    def is_complete(self):
+        return True
+
+    def get_data(self, original_length: int):
+        return b"dummy-cipher"[:original_length]
+
+
+class TestDecodeGifUnitWithMocks:
+    """Unit tests with mocked QR/GIF for fast isolation testing."""
+    
+    def test_decode_gif_unit_rejects_bad_manifest_length(self, tmp_path, monkeypatch):
+        """Exercise manifest length fail-closed path."""
+        import meow_decoder.decode_gif as decode_mod
+        
+        monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder())
+
+        class _BadReader(_DummyQRCodeReader):
+            def read_image(self, frame):
+                # First QR = manifest with invalid length
+                return [b"X" * 50]
+
+        monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _BadReader())
+
+        with pytest.raises(ValueError):
+            decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password_test", verbose=False)
+
+    def test_decode_gif_unit_happy_path_with_stubs(self, tmp_path, monkeypatch):
+        """Test decode with full stub coverage for fast unit testing."""
+        import meow_decoder.decode_gif as decode_mod
+        from meow_decoder.crypto import Manifest, pack_manifest
+        from meow_decoder.fountain import Droplet, pack_droplet
+        import hashlib
+        
+        # Create a valid MEOW3 manifest bytes.
+        plaintext = b"plaintext"
+        sha = hashlib.sha256(plaintext).digest()
+
+        manifest = Manifest(
+            salt=b"S" * 16,
+            nonce=b"N" * 12,
+            orig_len=len(plaintext),
+            comp_len=1,
+            cipher_len=len(b"dummy-cipher"),
+            sha256=sha,
+            block_size=8,
+            k_blocks=1,
+            hmac=b"\x00" * 32,
+            ephemeral_public_key=None,
+        )
+        manifest_bytes = pack_manifest(manifest)
+
+        droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * manifest.block_size)
+        droplet_bytes = pack_droplet(droplet)
+
+        monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder())
+
+        class _Reader(_DummyQRCodeReader):
+            def read_image(self, frame):
+                # Called once per frame. First frame returns manifest, second returns droplet.
+                self._calls += 1
+                if self._calls == 1:
+                    return [manifest_bytes]
+                if self._calls == 2:
+                    return [droplet_bytes]
+                return []
+
+        monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _Reader())
+
+        monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
+        monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
+        monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
+
+        out_path = tmp_path / "out.bin"
+        stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password_test", verbose=False)
+
+        assert out_path.read_bytes() == plaintext
+        assert stats["output_size"] == len(plaintext)
 
 
 if __name__ == "__main__":

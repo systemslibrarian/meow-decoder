@@ -2,9 +2,16 @@
 """
 🧪 Test Suite: ascii_qr.py
 Tests ASCII QR code generation for terminal display.
+
+⚠️ DEPRECATED: Tests consolidated into test_qr_code.py
+This file will be removed after verification that all unique tests are migrated.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_qr_code.py
+pytestmark = pytest.mark.skip(reason="Consolidated into test_qr_code.py")
+
 import os
 os.environ["MEOW_TEST_MODE"] = "1"
 

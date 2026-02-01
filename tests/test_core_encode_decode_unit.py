@@ -1,3 +1,22 @@
+"""
+⚠️ DEPRECATED: This file has been merged into canonical test files.
+
+Encode tests → test_encode.py (TestEncodeUnitWithMocks)
+Decode tests → test_decode_gif.py (TestDecodeGifUnitWithMocks)
+
+This file is kept for reference only. All tests are skipped.
+Delete after verification of merged tests.
+
+Original purpose: Unit tests with mocked QR/GIF for isolation testing.
+Merged on: 2026-02-01
+"""
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_encode.py and test_decode_gif.py")
+
+# ============================================================================
+# ORIGINAL CODE BELOW (kept for reference)
+# ============================================================================
+
 import hashlib
 from pathlib import Path
 

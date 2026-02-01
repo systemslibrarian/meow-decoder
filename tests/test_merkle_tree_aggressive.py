@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED - MERGED INTO test_fountain.py ⚠️
+
+This file has been merged into test_fountain.py as part of test consolidation.
+See: tests/test_fountain.py
+
+Original description:
 🧪 Aggressive Tests for merkle_tree.py
 Target: 95%+ coverage of MerkleTree and MerkleProof classes
 
@@ -7,6 +13,8 @@ Tests tree construction, proof generation, and verification.
 """
 
 import pytest
+pytest.skip("DEPRECATED: Tests merged into test_fountain.py", allow_module_level=True)
+
 import hashlib
 import secrets
 from typing import List

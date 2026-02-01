@@ -410,28 +410,37 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ### Phase 1: Highest Priority Merges (TOP 10)
 
-- [ ] **Merge 1:** Fountain family → `test_fountain.py`
+- [x] **Merge 1:** Fountain family → `test_fountain.py` ✅ DONE (2026-01-31)
   - Sources: `test_fountain_aggressive.py`, `test_coverage_90_fountain.py`, `test_coverage_90_fountain_paths.py`, `integration/test_fountain_fix.py`, `test_catnip_fountain.py`, `test_merkle_tree_aggressive.py`
-  - [ ] Read all source files
-  - [ ] Merge into `test_fountain.py`
-  - [ ] Add deprecation headers to old files
-  - [ ] Verify pytest passes
+  - [x] Read all source files
+  - [x] Merge into `test_fountain.py` (3 unique tests merged, 39 tests total)
+  - [x] Add deprecation headers to old files
+  - [x] Verify pytest passes (39 pass, 1 xfail)
 
-- [ ] **Merge 2:** QR family → `test_qr_code.py`
+- [x] **Merge 2:** QR family → `test_qr_code.py` ✅ DONE (2026-01-31)
   - Sources: `test_qr_code_aggressive.py`, `test_coverage_90_qr_gif.py`, `test_coverage_90_qr_gif_paths.py`, `test_coverage_90_qr_reader.py`, `test_coverage_qr_code.py`, `test_core_qr_code_generator.py`, `test_core_qr_reader_unit.py`, `test_ascii_qr.py`
-  - [ ] Read all source files
-  - [ ] Merge into `test_qr_code.py`
-  - [ ] Add deprecation headers to old files
+  - [x] Read all source files
+  - [x] Merge into `test_qr_code.py` (5 unique tests merged, 32 tests total)
+  - [x] Add deprecation headers to old files (120 tests skipped in 8 deprecated files)
 
-- [ ] **Merge 3:** GIF handler family → `test_gif_handler.py`
+- [x] **Merge 3:** GIF handler family → `test_gif_handler.py` ✅ DONE (2026-01-31)
   - Sources: `test_gif_handler_aggressive.py`, `test_coverage_90_gif_handler.py`, `test_core_gif_handler.py`, `test_core_gif_handler_more.py`
-  - [ ] Merge into `test_gif_handler.py`
-  - [ ] Add deprecation headers
+  - [x] Merge into `test_gif_handler.py` (3 unique tests merged, 24 tests total)
+  - [x] Add deprecation headers (30 tests skipped in 3 deprecated files)
 
-- [ ] **Merge 4:** Forward secrecy family → `test_forward_secrecy.py`
-  - Sources: ALL forward secrecy files (8+ files)
-  - [ ] Merge all into `test_forward_secrecy.py`
-  - [ ] Add deprecation headers
+- [x] **Merge 4:** Forward secrecy family → Multiple canonical files ✅ DONE (2026-01-31)
+  - Strategy: Keep 4 canonical unit test files + 1 new integration file (6 source modules)
+  - Canonical files kept:
+    - `test_forward_secrecy_x25519.py` (39 tests) - covers forward_secrecy_x25519.py + x25519_forward_secrecy.py
+    - `test_forward_secrecy_decoder.py` (28 tests) - covers forward_secrecy_decoder.py
+    - `test_forward_secrecy_encoder.py` (23 tests) - covers forward_secrecy_encoder.py
+    - `test_double_ratchet.py` (16 tests) - covers double_ratchet.py
+  - [x] Created `integration/test_forward_secrecy_integration.py` (10 tests consolidated from 3 integration files)
+  - [x] Deprecated `debug_forward_secrecy.py` (1 test)
+  - [x] Deprecated `integration/test_forward_secrecy.py` (4 tests)
+  - [x] Deprecated `integration/test_cli_forward_secrecy.py` (3 tests)
+  - [x] Deprecated `integration/test_fs_integration.py` (4 tests)
+  - **Total: 116 tests passing, 12 tests skipped (deprecated)**
 
 - [ ] **Merge 5:** Duress family → `test_duress.py`
   - Sources: ALL duress/decoy/timelock files (10+ files)
@@ -530,23 +539,29 @@ Current state: **138 test files** → Target: **~35-40 canonical test files**
 
 ---
 
-### Merge 4: Forward Secrecy Family → `test_forward_secrecy.py`
+### Merge 4: Forward Secrecy Family → Multiple Canonical Files ✅ DONE
 
-**Canonical target:** `tests/test_forward_secrecy.py`
+**Strategy:** Forward Secrecy has 6 source modules, so we keep 4 canonical unit test files aligned with their modules, plus 1 consolidated integration file.
 
-| Source File (Path) | Est. Tests | Priority |
-|--------------------|------------|----------|
-| `tests/test_forward_secrecy.py` | KEEP | Canonical |
-| `tests/test_forward_secrecy_x25519.py` | ~8 | Merge |
-| `tests/test_x25519_forward_secrecy.py` | ~6 | Merge |
-| `tests/test_forward_secrecy_encoder.py` | ~5 | Merge |
-| `tests/test_forward_secrecy_decoder.py` | ~5 | Merge |
-| `tests/test_double_ratchet.py` | ~12 | Merge |
-| `tests/debug_forward_secrecy.py` | ~3 | Merge |
-| `tests/integration/test_forward_secrecy.py` | ~8 | Merge |
-| `tests/integration/test_fs_integration.py` | ~6 | Merge |
-| `tests/integration/test_cli_forward_secrecy.py` | ~4 | Merge |
-| `tests/test_core_x25519_and_decoy_and_webcam.py` | SPLIT | X25519 portion only |
+| Source Module | Canonical Test File | Tests | Status |
+|---------------|---------------------|-------|--------|
+| `forward_secrecy_x25519.py` | `test_forward_secrecy_x25519.py` | 39 | ✅ Keep |
+| `x25519_forward_secrecy.py` | `test_forward_secrecy_x25519.py` | (included) | ✅ Keep |
+| `forward_secrecy_decoder.py` | `test_forward_secrecy_decoder.py` | 28 | ✅ Keep |
+| `forward_secrecy_encoder.py` | `test_forward_secrecy_encoder.py` | 23 | ✅ Keep |
+| `double_ratchet.py` | `test_double_ratchet.py` | 16 | ✅ Keep |
+| Integration tests | `integration/test_forward_secrecy_integration.py` | 10 | ✅ NEW |
+
+**Deprecated Files (12 tests now skipped):**
+
+| File | Tests | Status |
+|------|-------|--------|
+| `debug_forward_secrecy.py` | 1 | 🗑️ Deprecated |
+| `integration/test_forward_secrecy.py` | 4 | 🗑️ Deprecated |
+| `integration/test_cli_forward_secrecy.py` | 3 | 🗑️ Deprecated |
+| `integration/test_fs_integration.py` | 4 | 🗑️ Deprecated |
+
+**Total:** 116 tests passing, 12 tests skipped
 
 ---
 
@@ -829,15 +844,17 @@ pytest tests/test_<canonical>.py -v
 ### ✅ Completed Merges
 | Merge | Status | Date | Notes |
 |-------|--------|------|-------|
-| — | — | — | None yet |
+| Merge Task 5 (Fountain Family) | ✅ COMPLETE | 2026-02-01 | Merged test_catnip_fountain.py + test_merkle_tree_aggressive.py → test_fountain.py (787→1235 lines, 82 tests, 8 skipped for optional catnip module) |
+| Merge Task 5 Extension | ✅ COMPLETE | 2026-02-01 | Merged test_encode_decode.py → test_fountain.py (1235→1664 lines, 93 passed + 8 skipped = 101 active). Added 8 test classes (TestFountainCodeRoundTrip, TestDropletPackingUnpacking, TestDataIntegrity, TestFileSizeVariations, TestDecoderCompletion, TestBlockConfiguration, TestSHA256Verification, TestRedundancyLevels). Despite the filename, test_encode_decode.py contained FOUNTAIN roundtrip tests. |
+| Deprecated: test_core_encode_decode_unit.py | ✅ DEPRECATED | 2026-02-01 | All 3 tests skip. Content duplicated elsewhere. |
 
 ### 🔄 In Progress
 | Merge | Status | Current Step |
 |-------|--------|--------------|
-| — | — | — |
+| Merge Task 6 (Encode) | 🔄 Evaluating | Most source files don't exist; test_core_encode_decode_unit.py deprecated |
 
 ### ⏳ Pending
-All 20 merges pending
+~19 merges remaining (Task 1-4, 6-20)
 
 ---
 

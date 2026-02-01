@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 Simple test for forward secrecy CLI integration
+
+DEPRECATED: Merged into test_forward_secrecy_integration.py
+This file is kept for reference but tests are skipped.
 """
+
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_forward_secrecy_integration.py")
 
 import sys
 import os

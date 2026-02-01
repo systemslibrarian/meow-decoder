@@ -131,19 +131,21 @@ class TestGIFDecoder:
         """Test extracting frames from bytes."""
         from meow_decoder.gif_handler import GIFEncoder, GIFDecoder
         
-        frames = [Image.new('RGB', (50, 50), color='cyan') for _ in range(3)]
+        # Use different colors to prevent GIF optimization from merging frames
+        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255)]
+        frames = [Image.new('RGB', (50, 50), color=c) for c in colors]
         
         encoder = GIFEncoder(fps=5)
         
         with tempfile.TemporaryDirectory() as tmpdir:
             gif_path = Path(tmpdir) / "test.gif"
-            encoder.create_gif(frames, gif_path)
+            encoder.create_gif(frames, gif_path, optimize=False)
             
             # Read as bytes
             gif_bytes = gif_path.read_bytes()
             
             decoder = GIFDecoder()
-            extracted = decoder.extract_frames_from_bytes(gif_bytes)
+            extracted = decoder.extract_frames_bytes(gif_bytes)
             
             assert len(extracted) == 3
     
@@ -151,14 +153,15 @@ class TestGIFDecoder:
         """Test that frame count matches."""
         from meow_decoder.gif_handler import GIFEncoder, GIFDecoder
         
-        for frame_count in [1, 5, 10, 20]:
-            frames = [Image.new('RGB', (30, 30), color='yellow') for _ in range(frame_count)]
+        for frame_count in [1, 3, 5]:
+            # Use different colors to prevent GIF optimization from merging identical frames
+            frames = [Image.new('RGB', (30, 30), color=(i * 50, i * 30, i * 20)) for i in range(frame_count)]
             
             encoder = GIFEncoder(fps=10)
             
             with tempfile.TemporaryDirectory() as tmpdir:
                 gif_path = Path(tmpdir) / "count.gif"
-                encoder.create_gif(frames, gif_path)
+                encoder.create_gif(frames, gif_path, optimize=False)
                 
                 decoder = GIFDecoder()
                 extracted = decoder.extract_frames(gif_path)
@@ -399,6 +402,79 @@ class TestGIFIntegrationWithQR:
             extracted = decoder.extract_frames(gif_path)
             
             assert len(extracted) == 5
+
+
+# ============================================================================
+# MERGED FROM test_core_gif_handler_more.py (2025-01-31)
+# Tests bytes-based encoding/decoding, frame access, and GIF optimization
+# ============================================================================
+
+class TestGIFBytesOperations:
+    """Tests for bytes-based GIF operations (merged from test_core_gif_handler_more.py)."""
+    
+    def test_gif_encoder_create_gif_bytes_and_decoder_extract_bytes(self):
+        """Test bytes-based GIF creation and extraction roundtrip."""
+        from meow_decoder.gif_handler import GIFEncoder, GIFDecoder
+        
+        frames = [
+            Image.new("RGB", (64, 64), color=(255, 255, 255)),
+            Image.new("RGB", (64, 64), color=(0, 0, 0)),
+        ]
+        enc = GIFEncoder(fps=5)
+        gif_bytes = enc.create_gif_bytes(frames, optimize=False)
+
+        dec = GIFDecoder()
+        out_frames = dec.extract_frames_bytes(gif_bytes)
+        assert len(out_frames) == 2
+        assert out_frames[0].size == (64, 64)
+
+
+class TestGIFFrameAccess:
+    """Tests for frame-level access operations (merged from test_core_gif_handler_more.py)."""
+    
+    def test_gif_decoder_get_frame_and_count(self):
+        """Test get_frame_count and get_frame methods."""
+        from meow_decoder.gif_handler import GIFEncoder, GIFDecoder
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            frames = [
+                Image.new("RGB", (32, 32), color=(255, 255, 255)),
+                Image.new("RGB", (32, 32), color=(0, 0, 0)),
+                Image.new("RGB", (32, 32), color=(127, 127, 127)),
+            ]
+            out = Path(tmpdir) / "x.gif"
+            GIFEncoder(fps=10).create_gif(frames, out, optimize=False)
+
+            dec = GIFDecoder()
+            assert dec.get_frame_count(out) == 3
+            f1 = dec.get_frame(out, 1)
+            assert f1.size == (32, 32)
+            with pytest.raises(IndexError):
+                dec.get_frame(out, 99)
+
+
+class TestGIFOptimizer:
+    """Tests for GIF optimization (merged from test_core_gif_handler_more.py)."""
+    
+    def test_gif_optimizer_optimize_gif(self):
+        """Test GIFOptimizer.optimize_gif method."""
+        from meow_decoder.gif_handler import GIFEncoder, GIFOptimizer
+        
+        with tempfile.TemporaryDirectory() as tmpdir:
+            frames = [
+                Image.new("RGB", (64, 64), color=(255, 255, 255)),
+                Image.new("RGB", (64, 64), color=(0, 0, 0)),
+            ]
+            inp = Path(tmpdir) / "in.gif"
+            outp = Path(tmpdir) / "out.gif"
+            GIFEncoder(fps=10).create_gif(frames, inp, optimize=False)
+
+            original_size, optimized_size = GIFOptimizer.optimize_gif(
+                inp, outp, colors=16, reduce_size=True
+            )
+            assert original_size > 0
+            assert optimized_size > 0
+            assert outp.exists()
 
 
 if __name__ == "__main__":

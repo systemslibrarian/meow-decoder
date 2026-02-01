@@ -2,9 +2,15 @@
 """
 🐱 Comprehensive Coverage Tests for QR Code Reader - Target: 90%+
 Tests qr_code.py reader and generator paths.
+
+⚠️ DEPRECATED: Tests consolidated into test_qr_code.py
+This file will be removed after verification that all unique tests are migrated.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_qr_code.py
+pytestmark = pytest.mark.skip(reason="Consolidated into test_qr_code.py")
 import sys
 import tempfile
 from pathlib import Path

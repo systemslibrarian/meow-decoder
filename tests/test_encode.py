@@ -10,6 +10,7 @@ import os
 import sys
 from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
+from PIL import Image
 
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -1642,6 +1643,53 @@ class TestEncodeDuressRequiresForwardSecrecy:
         
         captured = capsys.readouterr()
         assert "forward secrecy" in captured.err.lower()
+
+
+# =============================================================================
+# MERGED FROM: test_core_encode_decode_unit.py (encode portions)
+# Date: 2026-02-01
+# Purpose: Unit test with mocked QR/GIF for fast isolation testing
+# =============================================================================
+
+class _DummyQRCodeGenerator:
+    """Mock QR generator for unit testing."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def generate(self, payload: bytes):
+        # Return a deterministic image (payload isn't used).
+        return Image.new("RGB", (64, 64), color=(255, 255, 255))
+
+
+class _DummyGIFEncoder:
+    """Mock GIF encoder for unit testing."""
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def create_gif(self, frames, output_path: Path, optimize: bool = True):
+        # Minimal placeholder write so downstream tests see a file.
+        output_path.write_bytes(b"GIF89a")
+        return output_path.stat().st_size
+
+
+class TestEncodeUnitWithMocks:
+    """Unit tests with mocked QR/GIF for fast isolation testing."""
+    
+    def test_encode_file_unit_smoke(self, tmp_path, monkeypatch):
+        """Patch out QR/GIF heavy bits but still run the core orchestration."""
+        from meow_decoder import encode as encode_mod
+        
+        monkeypatch.setattr(encode_mod, "QRCodeGenerator", _DummyQRCodeGenerator)
+        monkeypatch.setattr(encode_mod, "GIFEncoder", _DummyGIFEncoder)
+
+        input_path = tmp_path / "in.bin"
+        input_path.write_bytes(b"hello" * 10)
+        out_gif = tmp_path / "out.gif"
+
+        stats = encode_mod.encode_file(input_path, out_gif, password="password_test123", verbose=False)
+        assert out_gif.exists()
+        assert stats["output_size"] > 0
+        assert stats["qr_frames"] >= 1
 
 
 if __name__ == "__main__":

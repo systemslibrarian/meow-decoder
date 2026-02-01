@@ -2,9 +2,15 @@
 """
 🐱 AGGRESSIVE Coverage Tests for qr_code.py
 Target: Boost qr_code.py from 40% to 90%+
+
+⚠️ DEPRECATED: Tests consolidated into test_qr_code.py
+This file will be removed after verification that all unique tests are migrated.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_qr_code.py
+pytestmark = pytest.mark.skip(reason="Consolidated into test_qr_code.py")
 import sys
 import os
 from pathlib import Path

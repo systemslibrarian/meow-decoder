@@ -2,11 +2,23 @@
 """
 Standalone Forward Secrecy Debug Test
 Run this to see exactly what's happening during HMAC computation
+
+DEPRECATED: Debug test - functionality now covered by:
+- tests/test_forward_secrecy_x25519.py (unit tests for X25519)
+- tests/test_forward_secrecy_encoder.py (encoder tests)
+- tests/test_forward_secrecy_decoder.py (decoder tests)
+- tests/integration/test_forward_secrecy_integration.py (E2E tests)
+
+All tests in this file are skipped. See test_forward_secrecy_*.py for active tests.
 """
 
+import pytest
 import sys
 import tempfile
 from pathlib import Path
+
+# Skip all tests in this deprecated file
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Debug test - covered by test_forward_secrecy_*.py and integration tests")
 
 # Add debug flag
 sys.argv.append('--debug')

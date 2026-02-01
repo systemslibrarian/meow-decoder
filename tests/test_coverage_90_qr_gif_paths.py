@@ -2,9 +2,15 @@
 """
 🐱 Comprehensive Coverage Tests for QR and GIF paths - Target: 90%+
 Tests qr_code.py and gif_handler.py paths that haven't been covered yet.
+
+⚠️ DEPRECATED: Tests consolidated into test_qr_code.py and test_gif_handler.py
+This file will be removed after verification that all unique tests are migrated.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_qr_code.py and test_gif_handler.py
+pytestmark = pytest.mark.skip(reason="Consolidated into test_qr_code.py")
 import secrets
 import sys
 import tempfile

@@ -1,5 +1,31 @@
 #!/usr/bin/env python3
 """
+==============================================================================
+⚠️  DEPRECATED - DO NOT ADD NEW TESTS HERE ⚠️
+==============================================================================
+
+This file has been MERGED into test_fountain.py as of 2026-02-01.
+
+Reason: This file contained fountain code round-trip tests that belong
+with other fountain tests.
+
+All 19 tests (8 classes) have been migrated:
+  - TestFountainCodeRoundTrip → test_fountain.py
+  - TestDropletPackingUnpacking → test_fountain.py
+  - TestDataIntegrity → test_fountain.py
+  - TestFileSizeVariations → test_fountain.py
+  - TestDecoderCompletion → test_fountain.py
+  - TestBlockConfiguration → test_fountain.py
+  - TestSHA256Verification → test_fountain.py
+  - TestRedundancyLevels → test_fountain.py
+
+Canonical fountain test file: tests/test_fountain.py
+
+This file is kept only for git history and to prevent accidental re-creation.
+All tests below are skipped.
+==============================================================================
+
+Original description:
 🔐 TIER 1: Encode/Decode Round-Trip Tests
 
 Security-Critical Tests for the complete encode → decode pipeline.
@@ -16,6 +42,10 @@ FAIL-CLOSED PRINCIPLE: Any data loss or corruption results in test failure.
 """
 
 import pytest
+
+# Mark entire module as skipped
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_fountain.py on 2026-02-01")
+
 import secrets
 import hashlib
 import tempfile

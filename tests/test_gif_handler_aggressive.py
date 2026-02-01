@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
-"""
-🐱 AGGRESSIVE Coverage Tests for gif_handler.py
-Target: Boost gif_handler.py from 45% to 90%+
+"""DEPRECATED: Tests merged into tests/test_gif_handler.py
+
+This file is kept for reference during the transition period.
+Run the canonical tests with: pytest tests/test_gif_handler.py
 """
 
 import pytest
+
+# Skip all tests in this module - they have been merged
+pytestmark = pytest.mark.skip(reason="Tests merged into tests/test_gif_handler.py")
+
 import sys
 import os
 import tempfile
