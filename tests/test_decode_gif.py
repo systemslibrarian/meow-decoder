@@ -1147,6 +1147,9 @@ class TestDecodeGifManifestMACDetection:
         monkeypatch.setattr("meow_decoder.decode_gif.GIFDecoder", MockGIFDecoder)
         monkeypatch.setattr("meow_decoder.decode_gif.QRCodeReader", MockQRCodeReader)
         
+        # Import decode_gif locally (after monkeypatching)
+        from meow_decoder.decode_gif import decode_gif
+        
         # Should fail at manifest unpacking/verification but exercise the non-MAC path
         with pytest.raises((ValueError, RuntimeError)):
             decode_gif(input_gif, output_file, "TestPassword123!", verbose=True)
@@ -1237,6 +1240,9 @@ class TestDecodeGifDropletRejectionVerbose:
             
             output_file = tmp_path / "output.txt"
             
+            # Import decode_gif for testing
+            from meow_decoder.decode_gif import decode_gif
+            
             # Decode with verbose to see rejection messages
             try:
                 decode_gif(corrupted_gif, output_file, "TestPassword123!", verbose=True)
@@ -1271,7 +1277,8 @@ class TestDecodeGifYubiKeyPINPrompt:
                 return "123456"
             return "TestPassword123!"
         
-        monkeypatch.setattr("getpass.getpass", mock_getpass)
+        # Patch where getpass is used, not where it's defined
+        monkeypatch.setattr("meow_decoder.decode_gif.getpass", mock_getpass)
         
         # Mock sys.argv for CLI
         test_args = [
@@ -1318,7 +1325,8 @@ class TestDecodeGifHSMPINPrompt:
                 return "hsm-pin"
             return "TestPassword123!"
         
-        monkeypatch.setattr("getpass.getpass", mock_getpass)
+        # Patch where getpass is used, not where it's defined
+        monkeypatch.setattr("meow_decoder.decode_gif.getpass", mock_getpass)
         
         # Mock sys.argv for CLI
         test_args = [

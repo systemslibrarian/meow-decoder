@@ -3,6 +3,11 @@
 Phase 4 Security Tests: Automated Duress Timing Analysis
 =========================================================
 
+DEPRECATED: This file is deprecated as of Merge 5 consolidation.
+Timing tests have been consolidated into:
+- test_sidechannel.py (comprehensive timing/side-channel tests)
+- test_duress_mode.py (duress-specific timing via DuressConfig)
+
 Addresses GAP-05 from CRYPTO_SECURITY_REVIEW.md:
 "Duress timing analysis not automated"
 
@@ -27,6 +32,11 @@ Test Categories:
 3. Full decode path timing analysis
 4. Statistical analysis with Welch's t-test
 """
+
+import pytest
+
+# Skip entire file - deprecated in favor of canonical test files
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Timing tests consolidated into test_sidechannel.py (Merge 5)")
 
 import os
 import time

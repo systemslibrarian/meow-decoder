@@ -16,6 +16,23 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
+@pytest.fixture(autouse=True)
+def reset_purr_logger():
+    """Reset global purr logger after each test to prevent state pollution.
+    
+    The purr logger is a global singleton that can hold stale file handles
+    if a test enables purr mode. This fixture ensures a fresh logger for
+    each test.
+    """
+    yield
+    # Reset the global purr logger after each test
+    try:
+        import meow_decoder.cat_utils as cat_utils
+        cat_utils._purr_logger = None
+    except (ImportError, AttributeError):
+        pass
+
+
 class TestEncodeFileFunctionPaths:
     """Test encode_file function with all parameter combinations."""
     
@@ -433,8 +450,9 @@ class TestEncodeEdgeCases:
                 verbose=False
             )
     
+    @pytest.mark.slow
     def test_encode_large_file(self, tmp_path):
-        """Test encoding a larger file."""
+        """Test encoding a larger file (slow - 50KB random data + QR generation)."""
         from meow_decoder.encode import encode_file
         from meow_decoder.config import EncodingConfig
         import os

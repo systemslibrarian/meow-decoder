@@ -358,29 +358,37 @@ class TestMultiSecret:
             pytest.skip("multi_secret not available")
     
     def test_multi_secret_encoder(self):
-        """Test multi-secret encoder."""
+        """Test multi-secret encoder initialization with realities."""
         try:
             from meow_decoder.multi_secret import MultiSecretEncoder
             
-            encoder = MultiSecretEncoder(block_size=256)
+            # New API: realities must be passed at initialization
+            realities = [
+                (b"Secret A", "password_a"),
+                (b"Secret B", "password_b"),
+            ]
+            encoder = MultiSecretEncoder(realities=realities, block_size=256)
             
             assert encoder is not None
             assert encoder.block_size == 256
+            assert len(encoder.realities) == 2
         except ImportError:
             pytest.skip("MultiSecretEncoder not available")
     
     def test_add_secrets(self):
-        """Test adding multiple secrets."""
+        """Test multi-secret encoder with multiple secrets."""
         try:
             from meow_decoder.multi_secret import MultiSecretEncoder
             
-            encoder = MultiSecretEncoder(block_size=256)
+            # New API: all secrets passed at initialization
+            realities = [
+                (b"Secret 1", "password1"),
+                (b"Secret 2", "password2"),
+                (b"Secret 3", "password3"),
+            ]
+            encoder = MultiSecretEncoder(realities=realities, block_size=256)
             
-            encoder.add_secret(b"Secret 1", "password1")
-            encoder.add_secret(b"Secret 2", "password2")
-            encoder.add_secret(b"Secret 3", "password3")
-            
-            assert len(encoder.secrets) == 3
+            assert len(encoder.realities) == 3
         except ImportError:
             pytest.skip("MultiSecretEncoder not available")
 

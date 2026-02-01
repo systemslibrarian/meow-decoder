@@ -1,9 +1,18 @@
+"""
+DEPRECATED: This file is deprecated as of Merge 5 consolidation.
+E2E duress tests are now in:
+- test_duress_mode.py (includes integration scenarios)
+- test_e2e.py (general encode/decode e2e)
+"""
 
 import os
 import sys
 import shutil
 import pytest
 from pathlib import Path
+
+# Skip entire file - deprecated in favor of canonical test files
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into canonical duress test files (Merge 5)")
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))

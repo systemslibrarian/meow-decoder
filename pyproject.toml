@@ -92,6 +92,9 @@ python_functions = ["test_*"]
 addopts = "-v --cov=meow_decoder --cov-report=html --cov-report=term"
 # Hypothesis settings
 hypothesis_settings = { max_examples = 100, deadline = 5000 }
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+]
 
 [tool.coverage.run]
 source = ["meow_decoder"]
