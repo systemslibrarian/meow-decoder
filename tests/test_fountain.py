@@ -522,5 +522,265 @@ class TestDropletDataclass:
         assert d1 != d3
 
 
+# ============================================================================
+# MERGED FROM: test_fountain_aggressive.py, test_coverage_90_fountain_paths.py
+# ============================================================================
+
+
+class TestUnpackDroplet:
+    """Test unpack_droplet function (from test_fountain_aggressive.py)."""
+    
+    def test_basic_unpack(self):
+        """Test basic unpacking."""
+        from meow_decoder.fountain import Droplet, pack_droplet, unpack_droplet
+        
+        original = Droplet(
+            seed=42,
+            block_indices=[1, 2],
+            data=b"0123456789"
+        )
+        
+        packed = pack_droplet(original)
+        unpacked = unpack_droplet(packed, block_size=10)
+        
+        assert unpacked.seed == original.seed
+        assert unpacked.block_indices == original.block_indices
+        assert unpacked.data == original.data
+    
+    def test_roundtrip(self):
+        """Test pack/unpack roundtrip."""
+        from meow_decoder.fountain import Droplet, pack_droplet, unpack_droplet
+        
+        block_size = 20
+        data = b"a" * block_size
+        
+        original = Droplet(
+            seed=999,
+            block_indices=[0, 5, 10],
+            data=data
+        )
+        
+        packed = pack_droplet(original)
+        unpacked = unpack_droplet(packed, block_size)
+        
+        assert unpacked.seed == original.seed
+        assert unpacked.block_indices == original.block_indices
+        assert unpacked.data == original.data
+
+
+class TestEdgeCases:
+    """Test edge cases (from test_fountain_aggressive.py)."""
+    
+    def test_single_block(self):
+        """Test with single block."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        original = b"Single block"
+        k_blocks = 1
+        block_size = 20
+        
+        encoder = FountainEncoder(original, k_blocks, block_size)
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        while not decoder.is_complete():
+            droplet = encoder.droplet()
+            decoder.add_droplet(droplet)
+        
+        result = decoder.get_data(len(original))
+        assert result == original
+    
+    def test_empty_data_padded(self):
+        """Test empty data gets padded."""
+        from meow_decoder.fountain import FountainEncoder
+        
+        encoder = FountainEncoder(b"", k_blocks=1, block_size=10)
+        
+        assert len(encoder.data) == 10
+    
+    def test_many_blocks(self):
+        """Test with many blocks."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        original = b"M" * 500
+        k_blocks = 50
+        block_size = 10
+        
+        encoder = FountainEncoder(original, k_blocks, block_size)
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        while not decoder.is_complete():
+            droplet = encoder.droplet()
+            decoder.add_droplet(droplet)
+        
+        result = decoder.get_data(len(original))
+        assert result == original
+
+
+class TestSystematicDroplets:
+    """Test systematic droplet generation (from test_fountain_aggressive.py)."""
+    
+    def test_early_seeds_systematic(self):
+        """Test early seeds produce systematic (degree-1) droplets."""
+        from meow_decoder.fountain import FountainEncoder
+        
+        data = b"a" * 100
+        k_blocks = 10
+        block_size = 10
+        
+        encoder = FountainEncoder(data, k_blocks, block_size)
+        
+        # First 2*k droplets should be degree 1
+        for i in range(2 * k_blocks):
+            droplet = encoder.droplet(seed=i)
+            assert len(droplet.block_indices) == 1
+
+
+class TestDropletReduction:
+    """Test droplet reduction in decoder (from test_coverage_90_fountain_paths.py)."""
+    
+    def test_reduce_droplet(self):
+        """Test reducing droplet with decoded blocks."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder, Droplet
+        
+        data = b"Reduction test data" * 50
+        k_blocks = 10
+        block_size = 100
+        
+        encoder = FountainEncoder(data, k_blocks=k_blocks, block_size=block_size)
+        decoder = FountainDecoder(k_blocks=k_blocks, block_size=block_size)
+        
+        # First decode block 0
+        droplet0 = encoder.droplet(seed=0)
+        decoder.add_droplet(droplet0)
+        
+        assert decoder.decoded[0] is True
+        
+        # Create a droplet that includes block 0
+        # It should get reduced
+        droplet = Droplet(
+            seed=999,
+            block_indices=[0, 1, 2],
+            data=b'\x00' * block_size
+        )
+        
+        reduced = decoder._reduce_droplet(droplet)
+        
+        # Block 0 should be removed
+        assert 0 not in reduced.block_indices
+
+
+class TestFountainIntegration:
+    """Integration tests for fountain codes (from test_coverage_90_fountain_paths.py)."""
+    
+    def test_encode_decode_large_data(self):
+        """Test with larger data."""
+        import secrets
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = secrets.token_bytes(10000)  # 10KB
+        k_blocks = 50
+        block_size = 200
+        
+        encoder = FountainEncoder(data, k_blocks=k_blocks, block_size=block_size)
+        decoder = FountainDecoder(k_blocks=k_blocks, block_size=block_size)
+        
+        # Decode
+        for _ in range(k_blocks * 3):
+            droplet = encoder.droplet()
+            decoder.add_droplet(droplet)
+            if decoder.is_complete():
+                break
+        
+        assert decoder.is_complete()
+        
+        decoded = decoder.get_data(len(data))
+        assert decoded == data
+    
+    def test_decode_with_redundancy(self):
+        """Test that redundancy helps with decoding."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = b"Redundancy test data" * 100
+        k_blocks = 20
+        block_size = 100
+        
+        encoder = FountainEncoder(data, k_blocks=k_blocks, block_size=block_size)
+        decoder = FountainDecoder(k_blocks=k_blocks, block_size=block_size)
+        
+        # Need approximately k * 1.5 droplets
+        droplets_needed = 0
+        
+        for _ in range(k_blocks * 3):
+            droplet = encoder.droplet()
+            decoder.add_droplet(droplet)
+            droplets_needed += 1
+            
+            if decoder.is_complete():
+                break
+        
+        assert decoder.is_complete()
+        
+        # Should need less than 2x overhead
+        assert droplets_needed < k_blocks * 2
+    
+    def test_decode_with_loss(self):
+        """Test decoding with simulated frame loss."""
+        import random
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = b"Frame loss simulation test" * 50
+        k_blocks = 15
+        block_size = 100
+        
+        encoder = FountainEncoder(data, k_blocks=k_blocks, block_size=block_size)
+        decoder = FountainDecoder(k_blocks=k_blocks, block_size=block_size)
+        
+        random.seed(42)
+        
+        # Simulate 30% loss
+        droplets_sent = 0
+        for _ in range(k_blocks * 3):
+            droplet = encoder.droplet()
+            droplets_sent += 1
+            
+            # Skip 30% of droplets (loss)
+            if random.random() < 0.3:
+                continue
+            
+            decoder.add_droplet(droplet)
+            
+            if decoder.is_complete():
+                break
+        
+        assert decoder.is_complete()
+
+
+class TestSmallK:
+    """Test edge case with small k values (from integration/test_fountain_fix.py)."""
+    
+    def test_small_k(self):
+        """Test encoding with small k."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = b"Hello, this is a test!" * 10
+        k = 2
+        block_size = 128
+        
+        encoder = FountainEncoder(data, k, block_size)
+        
+        droplets = encoder.generate_droplets(10)
+        
+        decoder = FountainDecoder(k, block_size)
+        
+        for droplet in droplets:
+            decoder.add_droplet(droplet)
+            if decoder.is_complete():
+                break
+        
+        if decoder.is_complete():
+            result = decoder.get_data(len(data))
+            assert result == data
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
