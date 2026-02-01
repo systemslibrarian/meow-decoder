@@ -7,6 +7,9 @@
 """
 🔥 Adversarial Test Suite - Attack Simulation
 
+⚠️ DEPRECATED: Tests consolidated into test_security.py
+This file will be removed after verification that all unique tests are migrated.
+
 Tests that simulate real attacks:
 1. Fuzzing (random input mutation)
 2. Frame injection (malicious frames)
@@ -19,6 +22,10 @@ These tests PROVE the security model works under attack.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_security.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_security.py")
+
 import secrets
 import tempfile
 from pathlib import Path

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_cli.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 Comprehensive Coverage Tests for CLI modules - Target: 90%+
 Tests command-line interface entry points and argument parsing.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_cli.py")
 import secrets
 import tempfile
 import sys

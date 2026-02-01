@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_integration.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🎯 Coverage Boost Tests - Target 90%
 
 Comprehensive tests for all major code paths in core modules.
 These tests target untested branches and edge cases.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_integration.py")
 import secrets
 import tempfile
 from pathlib import Path

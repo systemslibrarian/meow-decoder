@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_metadata.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 Comprehensive Coverage Tests for metadata_obfuscation.py - Target: 90%+
 Tests all metadata obfuscation paths.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_metadata.py")
 import secrets
 import sys
 from pathlib import Path

@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_misc_utils.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 Comprehensive Coverage Tests for utility modules - Target: 90%+
 Tests various utility functions and helpers across the codebase.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_misc_utils.py")
 import secrets
 import tempfile
 import sys

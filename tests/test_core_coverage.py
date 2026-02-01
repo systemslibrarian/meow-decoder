@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_crypto.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧪 Core Coverage Tests - Focus on NON-EXCLUDED modules
 
 These tests target ONLY modules that are NOT excluded in pyproject.toml:
@@ -10,8 +13,8 @@ These tests target ONLY modules that are NOT excluded in pyproject.toml:
 - frame_mac.py
 - metadata_obfuscation.py
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_crypto.py")
 import secrets
 import tempfile
 import hashlib

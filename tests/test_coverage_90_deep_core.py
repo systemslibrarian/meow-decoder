@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_crypto.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧪 Deep Coverage Tests - Core Crypto & Encode/Decode
 Target: 90% coverage for encode.py, decode_gif.py, crypto.py
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_crypto.py")
 import tempfile
 import secrets
 import hashlib

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_duress_mode.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧪 Test Suite: timelock_duress.py
 Tests time-lock puzzles and duress triggers for anti-coercion features.
 
@@ -10,8 +13,8 @@ API Pattern:
     - CountdownDuress(config: TimeLockConfig, state_path: Path) - Check-in based trigger
     - DeadManSwitch(config: TimeLockConfig, state_path: Path) - Renewal-based trigger
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_duress_mode.py")
 import os
 import time
 import tempfile

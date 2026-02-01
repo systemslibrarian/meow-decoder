@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_schrodinger.py
+
 🐱⚛️ Schrödinger's Yarn Ball - Comprehensive E2E Tests v5.4.0
 
 Tests the complete encode/decode pipeline for quantum superposition.
@@ -13,6 +15,11 @@ Test Categories:
     6. Statistical Indistinguishability
     7. Forensic Resistance
 """
+
+import pytest
+
+# Skip all tests in this module - consolidated into test_schrodinger.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_schrodinger.py")
 
 import secrets
 import tempfile

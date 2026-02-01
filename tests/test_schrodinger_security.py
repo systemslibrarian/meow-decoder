@@ -1,7 +1,15 @@
 """
 🧪 Security Tests for Schrödinger Mode
 Verifies cryptographic safety, tamper-resistance, and key separation.
+
+⚠️ DEPRECATED: Tests consolidated into test_schrodinger.py
+This file will be removed after verification that all unique tests are migrated.
+Canonical tests: tests/test_schrodinger.py
 """
+
+import pytest
+
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_schrodinger.py")
 
 import struct
 import tempfile

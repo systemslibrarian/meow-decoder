@@ -2,9 +2,15 @@
 """
 🐱 Comprehensive Coverage Tests for Streaming modules - Target: 90%+
 Tests prowling_mode.py, streaming_crypto.py, clowder_*.py modules.
+
+⚠️ DEPRECATED: Tests consolidated into test_streaming_crypto.py
+This file will be removed after verification that all unique tests are migrated.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_streaming_crypto.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_streaming_crypto.py")
 import secrets
 import tempfile
 import io

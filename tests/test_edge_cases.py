@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_misc_utils.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 Comprehensive Coverage Tests for edge cases - Target: 90%+
 Tests error paths, boundary conditions, and unusual inputs.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_misc_utils.py")
 import secrets
 import tempfile
 import sys

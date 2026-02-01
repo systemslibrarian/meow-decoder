@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_schrodinger.py
+
 🧪 Tests for multi_secret.py - N-Secret Schrödinger Mode
 
 Tests cover:
@@ -13,6 +15,9 @@ Tests cover:
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_schrodinger.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_schrodinger.py")
 import secrets
 import hashlib
 import struct

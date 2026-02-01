@@ -2,6 +2,9 @@
 """
 🐱 Comprehensive Hardware Integration Mock Tests
 
+⚠️ DEPRECATED: Tests consolidated into test_hardware_integration.py
+This file will be removed after verification that all unique tests are migrated.
+
 Tests all hardware security paths with mocked fixtures:
 - YubiKey PIV (ECDH key derivation)
 - TPM 2.0 (sealed key unsealing)
@@ -12,6 +15,10 @@ These tests run in CI without real hardware.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_hardware_integration.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_hardware_integration.py")
+
 import hashlib
 import secrets
 from unittest.mock import Mock, patch, MagicMock

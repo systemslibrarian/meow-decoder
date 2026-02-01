@@ -1,10 +1,15 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_schrodinger.py
+
 🧪 Test Suite: quantum_mixer.py
 Tests the Schrödinger's Yarn Ball cryptographic mixing primitives.
 """
 
 import pytest
+
+# Skip all tests in this module - consolidated into test_schrodinger.py
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_schrodinger.py")
 import secrets
 import hashlib
 from unittest.mock import patch, MagicMock

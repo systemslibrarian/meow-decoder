@@ -1,3 +1,12 @@
+"""
+⚠️ DEPRECATED: Tests consolidated into test_imports.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
+Runpy self-tests for module __main__ blocks.
+"""
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_imports.py")
+
 import runpy
 
 

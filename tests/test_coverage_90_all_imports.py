@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_imports.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 ALL MODULES IMPORT TEST - Coverage Boost
 Forces all meow_decoder modules to be imported and tracked by coverage.py
 
 This single file imports EVERY module in meow_decoder to ensure they're
 all tracked by the coverage report. Each module gets basic smoke tests.
 """
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_imports.py")
 
 import pytest
 import sys

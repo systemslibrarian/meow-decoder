@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_duress_mode.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧪 Test Suite: decoy_generator.py
 Tests automatic decoy file generation for plausible deniability.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_duress_mode.py")
 import os
 os.environ["MEOW_TEST_MODE"] = "1"
 

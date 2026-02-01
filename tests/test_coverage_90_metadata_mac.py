@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_metadata.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 Comprehensive Coverage Tests for metadata_obfuscation.py and frame_mac.py - Target: 90%+
 Tests metadata padding/obfuscation and per-frame MAC authentication.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_metadata.py")
 import secrets
 import struct
 import sys

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_hardware_integration.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🔌 Phase 5: Hardware Security Module Mock Tests (GAP-03)
 
 Tests hardware key integration using mocks since actual hardware
@@ -18,8 +21,8 @@ Security Properties Verified:
 - Different hardware paths produce different keys
 - Error handling doesn't leak information
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_hardware_integration.py")
 import secrets
 import hashlib
 import os

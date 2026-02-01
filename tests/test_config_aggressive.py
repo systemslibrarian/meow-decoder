@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_config.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🐱 AGGRESSIVE Coverage Tests for config.py
 Target: Boost config.py from 55% to 90%+
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_config.py")
 import sys
 import os
 import json

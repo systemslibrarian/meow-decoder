@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_sidechannel.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 Phase 4 Security Tests: Dudect-Style Statistical Timing Analysis
 ================================================================
 
@@ -24,6 +27,8 @@ Test Categories:
 2. DERIVE operations (key derivation timing independence)
 3. CRYPTO operations (encrypt/decrypt timing patterns)
 """
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_sidechannel.py")
 
 import os
 import time

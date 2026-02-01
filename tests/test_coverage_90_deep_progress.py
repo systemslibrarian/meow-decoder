@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_progress.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧪 Deep Coverage Tests - Progress & UI Modules
 Aggressive testing for 90% coverage target.
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_progress.py")
 import tempfile
 import time
 from pathlib import Path

@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_encode.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 Phase 4 Security Tests: Cross-Version Manifest Migration
 =========================================================
 
@@ -26,6 +29,8 @@ Test Categories:
 4. Field extraction accuracy
 5. Error handling for malformed manifests
 """
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_encode.py")
 
 import os
 import struct

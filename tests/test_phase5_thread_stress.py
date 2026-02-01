@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 """
+⚠️ DEPRECATED: Tests consolidated into test_integration.py
+Do not add new tests here. This file will be removed in a future cleanup.
+
 🧵 Phase 5: Thread Safety and Large File Stress Tests
 
 Tests concurrent encoding thread safety (especially nonce reuse prevention)
@@ -16,8 +19,8 @@ Security Properties Verified:
 - Memory usage bounded for large files
 - No key material left in memory after operations
 """
-
 import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_integration.py")
 import secrets
 import threading
 import time

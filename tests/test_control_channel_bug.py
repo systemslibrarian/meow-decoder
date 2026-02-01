@@ -1,3 +1,9 @@
+"""
+⚠️ DEPRECATED: Tests consolidated into test_security.py
+Do not add new tests here. This file will be removed in a future cleanup.
+"""
+import pytest
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_security.py")
 
 import unittest
 import secrets

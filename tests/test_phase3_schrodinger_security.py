@@ -8,9 +8,16 @@ Tests added as part of security hardening Phase 3:
 3. Adversarial testing for Schrödinger mode (GAP-04)
 
 Reference: CRYPTO_SECURITY_REVIEW.md § 9, docs/SECURITY_CHANGES.md
+
+⚠️ DEPRECATED: Tests consolidated into test_schrodinger.py and test_sidechannel.py
+This file will be removed after verification that all unique tests are migrated.
+Canonical tests: tests/test_schrodinger.py, tests/test_sidechannel.py
 """
 
 import pytest
+
+pytestmark = pytest.mark.skip(reason="DEPRECATED: Merged into test_schrodinger.py and test_sidechannel.py")
+
 import secrets
 import time
 import statistics
