@@ -1659,5 +1659,259 @@ class TestRedundancyLevels:
         assert recovered == data
 
 
+class TestEdgeCasesForFullCoverage:
+    """Tests targeting specific uncovered lines/branches for 100% coverage."""
+    
+    def test_distribution_fallback_when_total_zero(self):
+        """
+        Test line 94: mu = rho fallback when normalization fails.
+        
+        This covers the edge case where the distribution total is <= 0,
+        which shouldn't happen in practice but must be handled.
+        We patch builtins.sum to force the fallback condition.
+        """
+        from meow_decoder.fountain import RobustSolitonDistribution
+        from unittest.mock import patch
+        import builtins
+        
+        original_sum = builtins.sum
+        sum_call_count = [0]
+        
+        def patched_sum(iterable, *args, **kwargs):
+            sum_call_count[0] += 1
+            result = original_sum(iterable, *args, **kwargs)
+            # The _compute_distribution method calls sum(mu) once
+            # We want to return 0 for that specific call to trigger line 94
+            # After the distribution builds rho and tau, it sums mu
+            # This is typically the second or third call during __init__
+            # Return 0 on call 2 to trigger the fallback
+            if sum_call_count[0] == 1:
+                return 0  # Force mu total to be 0 -> fallback to rho
+            return result
+        
+        with patch.object(builtins, 'sum', patched_sum):
+            dist = RobustSolitonDistribution(k=10)
+        
+        # Distribution should be valid (fell back to rho)
+        # Using original_sum to avoid our patched version
+        total = original_sum(dist.distribution)
+        assert total > 0, f"Fallback should produce valid distribution, got sum={total}"
+        
+        # Should be able to sample
+        degree = dist.sample_degree()
+        assert 1 <= degree <= 10
+        
+    def test_sample_degree_returns_1_at_loop_end(self):
+        """
+        Test line 114: return 1 at end of sample_degree loop.
+        
+        This covers the edge case where random value r >= cumulative sum
+        at the end of the distribution loop.
+        """
+        from meow_decoder.fountain import RobustSolitonDistribution
+        from unittest.mock import patch
+        
+        dist = RobustSolitonDistribution(k=10)
+        
+        # Patch random.random to return a value >= 1.0 (which exceeds any cumulative)
+        # The distribution sums to 1.0, so r=1.0 means loop completes without returning
+        with patch('meow_decoder.fountain.random.random', return_value=1.0):
+            degree = dist.sample_degree()
+            # Should return 1 as fallback at line 114
+            assert degree == 1, f"Expected degree 1 as fallback, got {degree}"
+        
+        # Also test with value just below 1.0 - should still work normally
+        with patch('meow_decoder.fountain.random.random', return_value=0.5):
+            degree = dist.sample_degree()
+            assert degree >= 1, f"Expected valid degree, got {degree}"
+    
+    def test_get_data_raises_when_original_length_not_provided(self):
+        """
+        Test line 375: ValueError when original_length is None everywhere.
+        
+        Decoder created without original_length, get_data called without it.
+        """
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = b"Test data for coverage"
+        k_blocks = 3
+        block_size = 16
+        
+        padded_size = k_blocks * block_size
+        padded_data = data + b"\x00" * (padded_size - len(data))
+        
+        encoder = FountainEncoder(padded_data, k_blocks, block_size)
+        
+        # Create decoder WITHOUT original_length
+        decoder = FountainDecoder(k_blocks, block_size)  # No original_length!
+        
+        # Feed enough droplets to complete
+        for i in range(k_blocks * 3):
+            droplet = encoder.droplet(i)
+            decoder.add_droplet(droplet)
+            if decoder.is_complete():
+                break
+        
+        assert decoder.is_complete()
+        
+        # Now try to get data WITHOUT providing original_length
+        with pytest.raises(ValueError, match="original_length must be provided"):
+            decoder.get_data()  # No original_length arg - triggers line 375
+    
+    def test_get_data_uses_stored_original_length(self):
+        """
+        Test that get_data uses stored original_length from __init__.
+        """
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+        
+        data = b"Test data"
+        k_blocks = 2
+        block_size = 16
+        
+        padded_size = k_blocks * block_size
+        padded_data = data + b"\x00" * (padded_size - len(data))
+        
+        encoder = FountainEncoder(padded_data, k_blocks, block_size)
+        
+        # Create decoder WITH original_length in __init__
+        decoder = FountainDecoder(k_blocks, block_size, original_length=len(data))
+        
+        for i in range(k_blocks * 3):
+            droplet = encoder.droplet(i)
+            decoder.add_droplet(droplet)
+            if decoder.is_complete():
+                break
+        
+        # get_data() with no arg should use stored length
+        recovered = decoder.get_data()  # No arg, uses self.original_length
+        assert recovered == data
+    
+    def test_process_pending_early_exit_no_progress(self):
+        """
+        Test branch 314->exit: _process_pending exits immediately when no progress.
+        
+        This tests the case where belief propagation makes no progress 
+        in a single iteration.
+        """
+        from meow_decoder.fountain import FountainDecoder, Droplet
+        
+        k_blocks = 4
+        block_size = 8
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        # Add a high-degree droplet that can't be decoded yet
+        # (no blocks solved, so it stays pending)
+        high_degree_droplet = Droplet(
+            seed=999,
+            block_indices=[0, 1, 2, 3],  # All 4 blocks
+            data=b"\x00" * block_size
+        )
+        
+        decoder.add_droplet(high_degree_droplet)
+        
+        # The droplet should be in pending list (no progress made)
+        assert len(decoder.pending_droplets) == 1
+        assert decoder.decoded_count == 0
+        
+        # Manually call _process_pending - should exit immediately
+        # since no degree-1 droplets exist
+        decoder._process_pending()
+        
+        # Still no progress
+        assert decoder.decoded_count == 0
+        assert len(decoder.pending_droplets) == 1
+    
+    def test_add_droplet_reduces_degree_correctly(self):
+        """
+        Test that adding droplets with already-decoded blocks reduces degree.
+        """
+        from meow_decoder.fountain import FountainDecoder, Droplet
+        
+        k_blocks = 4
+        block_size = 8
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        # First: add a degree-1 droplet for block 0
+        block0_data = b"BLOCK000"
+        droplet1 = Droplet(seed=1, block_indices=[0], data=block0_data)
+        decoder.add_droplet(droplet1)
+        
+        assert decoder.decoded_count == 1
+        assert decoder.blocks[0] == block0_data
+        
+        # Now add a degree-2 droplet involving block 0 and block 1
+        block1_data = b"BLOCK111"
+        combined_data = bytes(a ^ b for a, b in zip(block0_data, block1_data))
+        
+        droplet2 = Droplet(seed=2, block_indices=[0, 1], data=combined_data)
+        decoder.add_droplet(droplet2)
+        
+        # Should have decoded block 1 via reduction
+        assert decoder.decoded_count == 2
+        assert decoder.blocks[1] == block1_data
+    
+    def test_redundant_droplet_all_blocks_decoded(self):
+        """
+        Test that completely redundant droplets (all blocks already decoded)
+        are properly skipped.
+        """
+        from meow_decoder.fountain import FountainDecoder, Droplet
+        
+        k_blocks = 2
+        block_size = 8
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        # Decode all blocks
+        block0 = b"AAAAAAAA"
+        block1 = b"BBBBBBBB"
+        
+        decoder.add_droplet(Droplet(seed=1, block_indices=[0], data=block0))
+        decoder.add_droplet(Droplet(seed=2, block_indices=[1], data=block1))
+        
+        assert decoder.is_complete()
+        
+        # Now add a redundant droplet
+        redundant = Droplet(
+            seed=3, 
+            block_indices=[0, 1], 
+            data=bytes(a ^ b for a, b in zip(block0, block1))
+        )
+        result = decoder.add_droplet(redundant)
+        
+        # Should return True (complete) and not crash
+        assert result is True
+        assert decoder.decoded_count == 2  # No change
+
+    def test_decode_block_already_decoded_skips(self):
+        """
+        Test branch 314->exit: _decode_block skips when block already decoded.
+        
+        This covers the case where we attempt to decode a block that 
+        has already been decoded (e.g., from duplicate droplets).
+        """
+        from meow_decoder.fountain import FountainDecoder, Droplet
+        
+        k_blocks = 2
+        block_size = 8
+        decoder = FountainDecoder(k_blocks, block_size)
+        
+        # Decode block 0 first
+        block0_data = b"BLOCK_00"
+        decoder._decode_block(0, block0_data)
+        
+        assert decoder.decoded[0] is True
+        assert decoder.decoded_count == 1
+        assert decoder.blocks[0] == block0_data
+        
+        # Now try to decode it again with different data
+        # Should skip (branch 314->exit)
+        different_data = b"DIFF_DAT"
+        decoder._decode_block(0, different_data)
+        
+        # Should NOT have changed anything
+        assert decoder.decoded_count == 1  # Still 1
+        assert decoder.blocks[0] == block0_data  # Original data preserved
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
