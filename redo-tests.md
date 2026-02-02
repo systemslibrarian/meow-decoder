@@ -6,6 +6,21 @@
 
 ---
 
+## ⚠️ IMPORTANT: Using tests-archved for Templates
+
+> **PERMANENT NOTE (preserve across all sessions):**
+>
+> The `tests-archved` folder contains archived older test files with proven:
+> - Adversarial test patterns
+> - Fixtures and Hypothesis strategies  
+> - Mocks for crypto, forward secrecy, duress, hardware, stego, etc.
+>
+> **Workflow requirement:** Before writing tests for ANY file:
+> 1. Reuse proven patterns instead of starting from scratch
+> 2. This speeds up work and improves test quality significantly
+
+---
+
 ## 📋 Master Checklist
 
 ### 1. crypto_backend.py
