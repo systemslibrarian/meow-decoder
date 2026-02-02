@@ -630,12 +630,12 @@ class TestCryptoBackend:
     def test_crypto_backend_init_rust_unavailable(self):
         """Test CryptoBackend raises RuntimeError when Rust unavailable."""
         from meow_decoder import crypto_backend
-        
+
         original = crypto_backend._RUST_AVAILABLE
         try:
             crypto_backend._RUST_AVAILABLE = False
-            
-            with pytest.raises(RuntimeError, match="Rust backend.*not available"):
+
+            with pytest.raises(RuntimeError, match="Rust crypto backend required"):
                 crypto_backend.CryptoBackend(backend="rust")
         finally:
             crypto_backend._RUST_AVAILABLE = original
@@ -917,10 +917,13 @@ class TestModuleFunctions:
         
         original = crypto_backend._default_backend
         try:
-            new_backend = crypto_backend.CryptoBackend(backend="rust")
-            crypto_backend.set_default_backend(new_backend)
+            # set_default_backend takes a backend type string, not a CryptoBackend
+            crypto_backend.set_default_backend("rust")
             
-            assert crypto_backend.get_default_backend() is new_backend
+            # Verify backend was set (it creates a new CryptoBackend internally)
+            backend = crypto_backend.get_default_backend()
+            assert backend is not None
+            assert isinstance(backend, crypto_backend.CryptoBackend)
         finally:
             crypto_backend._default_backend = original
     
@@ -981,8 +984,8 @@ class TestModuleFunctions:
         crypto_backend.secure_zero_memory(buffer)
         assert len(buffer) == 0
     
-    def test_secure_zero_memory_fallback_on_type_error(self):
-        """Test secure_zero_memory falls back on TypeError."""
+    def test_secure_zero_memory_propagates_type_error(self):
+        """Test secure_zero_memory propagates TypeError from backend."""
         from meow_decoder import crypto_backend
         
         if not crypto_backend._RUST_AVAILABLE:
@@ -997,16 +1000,14 @@ class TestModuleFunctions:
             crypto_backend._default_backend = MagicMock()
             crypto_backend._default_backend.secure_zero = fake.secure_zero
             
-            # Should fall back to manual zeroing
-            crypto_backend.secure_zero_memory(buffer)
-            
-            # Buffer should still be zeroed via fallback
-            assert all(b == 0 for b in buffer)
+            # Should propagate the TypeError (no fallback in current implementation)
+            with pytest.raises(TypeError, match="Cannot zero this type"):
+                crypto_backend.secure_zero_memory(buffer)
         finally:
             crypto_backend._default_backend = original_backend
     
-    def test_secure_zero_memory_fallback_on_attribute_error(self):
-        """Test secure_zero_memory falls back on AttributeError."""
+    def test_secure_zero_memory_propagates_attribute_error(self):
+        """Test secure_zero_memory propagates AttributeError from backend."""
         from meow_decoder import crypto_backend
         
         if not crypto_backend._RUST_AVAILABLE:
@@ -1020,9 +1021,9 @@ class TestModuleFunctions:
             crypto_backend._default_backend = MagicMock()
             crypto_backend._default_backend.secure_zero = fake.secure_zero
             
-            crypto_backend.secure_zero_memory(buffer)
-            
-            assert all(b == 0 for b in buffer)
+            # Should propagate the AttributeError (no fallback in current implementation)
+            with pytest.raises(AttributeError, match="secure_zero not available"):
+                crypto_backend.secure_zero_memory(buffer)
         finally:
             crypto_backend._default_backend = original_backend
 
@@ -1467,7 +1468,9 @@ class TestImportability:
         assert 'name' in field_names
         assert 'version' in field_names
         assert 'constant_time' in field_names
-        assert 'hardware_accelerated' in field_names
+        assert 'memory_zeroing' in field_names
+        assert 'pq_available' in field_names
+        assert 'details' in field_names
 
 
 class TestBackendType:
