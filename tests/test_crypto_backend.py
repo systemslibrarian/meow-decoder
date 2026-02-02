@@ -1498,6 +1498,522 @@ class TestBackendType:
 
 
 # =============================================================================
+# TEST CLASS: Complete Delegation Coverage
+# Tests specifically targeting uncovered delegation paths
+# =============================================================================
+
+class TestDelegationCoverage:
+    """Tests to ensure 100% coverage of CryptoBackend delegation methods."""
+    
+    def test_wrapper_get_info_returns_backend_info(self):
+        """Test CryptoBackend.get_info returns BackendInfo (line 231)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        info = wrapper.get_info()
+        
+        assert isinstance(info, crypto_backend.BackendInfo)
+        assert info.name == "rust"
+        assert info.constant_time is True
+        assert info.memory_zeroing is True
+    
+    def test_wrapper_derive_key_argon2id_delegation(self):
+        """Test CryptoBackend.derive_key_argon2id delegation (line 235)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        # Test with explicit kwargs
+        key = wrapper.derive_key_argon2id(
+            password=b"test_password_for_argon2id",
+            salt=secrets.token_bytes(16),
+            memory_kib=32768,
+            iterations=1,
+            parallelism=1,
+            output_len=32
+        )
+        
+        assert isinstance(key, bytes)
+        assert len(key) == 32
+    
+    def test_wrapper_hkdf_extract_delegation(self):
+        """Test CryptoBackend.hkdf_extract delegation (line 245)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        salt = secrets.token_bytes(32)
+        ikm = b"input keying material for extract"
+        
+        prk = wrapper.hkdf_extract(salt, ikm)
+        
+        assert isinstance(prk, bytes)
+        assert len(prk) == 32
+    
+    def test_wrapper_hkdf_expand_delegation(self):
+        """Test CryptoBackend.hkdf_expand delegation (line 248)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        # First get a PRK via extract
+        salt = secrets.token_bytes(32)
+        ikm = b"input keying material"
+        prk = wrapper.hkdf_extract(salt, ikm)
+        
+        # Now expand it
+        info = b"context info for expand"
+        okm = wrapper.hkdf_expand(prk, info, 64)
+        
+        assert isinstance(okm, bytes)
+        assert len(okm) == 64
+    
+    def test_wrapper_derive_key_yubikey_raises_runtime_error(self):
+        """Test CryptoBackend.derive_key_yubikey delegation raises RuntimeError (line 251)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        # YubiKey typically not available in test environment
+        # Should raise RuntimeError about YubiKey support
+        with pytest.raises((RuntimeError, AttributeError)):
+            wrapper.derive_key_yubikey(
+                password=b"password",
+                salt=secrets.token_bytes(16),
+                slot="9d",
+                pin="123456"
+            )
+    
+    def test_wrapper_hmac_sha256_verify_delegation(self):
+        """Test CryptoBackend.hmac_sha256_verify delegation (line 263)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        key = secrets.token_bytes(32)
+        message = b"message to authenticate"
+        
+        # First compute MAC
+        mac = wrapper.hmac_sha256(key, message)
+        
+        # Then verify it - should return True
+        result = wrapper.hmac_sha256_verify(key, message, mac)
+        assert result is True
+        
+        # Verify wrong MAC returns False
+        wrong_mac = secrets.token_bytes(32)
+        result_wrong = wrapper.hmac_sha256_verify(key, message, wrong_mac)
+        assert result_wrong is False
+    
+    def test_wrapper_sha256_delegation(self):
+        """Test CryptoBackend.sha256 delegation (line 266)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        data = b"data to hash with sha256"
+        digest = wrapper.sha256(data)
+        
+        assert isinstance(digest, bytes)
+        assert len(digest) == 32
+        
+        # Verify determinism
+        digest2 = wrapper.sha256(data)
+        assert digest == digest2
+    
+    def test_wrapper_constant_time_compare_delegation(self):
+        """Test CryptoBackend.constant_time_compare delegation (line 269)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        a = b"identical_bytes_here"
+        b = b"identical_bytes_here"
+        c = b"different_bytes_here"
+        
+        # Equal comparison
+        assert wrapper.constant_time_compare(a, b) is True
+        
+        # Unequal comparison
+        assert wrapper.constant_time_compare(a, c) is False
+        
+        # Different length comparison
+        assert wrapper.constant_time_compare(a, b"short") is False
+    
+    def test_wrapper_x25519_public_from_private_delegation(self):
+        """Test CryptoBackend.x25519_public_from_private delegation (line 278)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        # Generate a keypair
+        private_key, expected_public = wrapper.x25519_generate_keypair()
+        
+        # Derive public from private
+        derived_public = wrapper.x25519_public_from_private(private_key)
+        
+        assert isinstance(derived_public, bytes)
+        assert len(derived_public) == 32
+        assert derived_public == expected_public
+    
+    def test_wrapper_random_bytes_delegation(self):
+        """Test CryptoBackend.random_bytes delegation (line 281)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        wrapper = crypto_backend.CryptoBackend(backend="rust")
+        
+        rand1 = wrapper.random_bytes(32)
+        rand2 = wrapper.random_bytes(32)
+        
+        assert isinstance(rand1, bytes)
+        assert len(rand1) == 32
+        assert rand1 != rand2  # Cryptographic randomness
+
+
+# =============================================================================
+# TEST CLASS: RustCryptoBackend Method Returns
+# Tests specifically targeting uncovered RustCryptoBackend return lines
+# =============================================================================
+
+class TestRustBackendReturns:
+    """Tests to ensure 100% coverage of RustCryptoBackend return statements."""
+    
+    def test_rust_hmac_sha256_verify_return_true(self):
+        """Test RustCryptoBackend.hmac_sha256_verify returns True (line 154)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        key = secrets.token_bytes(32)
+        message = b"message to verify"
+        mac = backend.hmac_sha256(key, message)
+        
+        result = backend.hmac_sha256_verify(key, message, mac)
+        assert result is True
+    
+    def test_rust_hmac_sha256_verify_return_false(self):
+        """Test RustCryptoBackend.hmac_sha256_verify returns False (line 154)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        key = secrets.token_bytes(32)
+        message = b"message to verify"
+        wrong_mac = secrets.token_bytes(32)
+        
+        result = backend.hmac_sha256_verify(key, message, wrong_mac)
+        assert result is False
+    
+    def test_rust_sha256_return(self):
+        """Test RustCryptoBackend.sha256 return value (line 157)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        data = b"data for sha256 return test"
+        result = backend.sha256(data)
+        
+        assert isinstance(result, bytes)
+        assert len(result) == 32
+    
+    def test_rust_constant_time_compare_return_true(self):
+        """Test RustCryptoBackend.constant_time_compare returns True (line 160)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        a = b"identical_data_here"
+        b = b"identical_data_here"
+        
+        result = backend.constant_time_compare(a, b)
+        assert result is True
+    
+    def test_rust_constant_time_compare_return_false(self):
+        """Test RustCryptoBackend.constant_time_compare returns False (line 160)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        a = b"first_data_value"
+        b = b"second_data_value"
+        
+        result = backend.constant_time_compare(a, b)
+        assert result is False
+    
+    def test_rust_x25519_public_from_private_return(self):
+        """Test RustCryptoBackend.x25519_public_from_private return (line 169)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        private_key, expected_public = backend.x25519_generate_keypair()
+        result = backend.x25519_public_from_private(private_key)
+        
+        assert isinstance(result, bytes)
+        assert len(result) == 32
+        assert result == expected_public
+    
+    def test_rust_random_bytes_return(self):
+        """Test RustCryptoBackend.random_bytes return (line 172)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        result = backend.random_bytes(16)
+        
+        assert isinstance(result, bytes)
+        assert len(result) == 16
+    
+    def test_rust_get_info_return(self):
+        """Test RustCryptoBackend.get_info return (line 80)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        result = backend.get_info()
+        
+        assert isinstance(result, crypto_backend.BackendInfo)
+        assert result.name == "rust"
+        assert result.constant_time is True
+    
+    def test_rust_hkdf_extract_return(self):
+        """Test RustCryptoBackend.hkdf_extract return (line 112)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        salt = secrets.token_bytes(32)
+        ikm = b"input keying material"
+        
+        result = backend.hkdf_extract(salt, ikm)
+        
+        assert isinstance(result, bytes)
+        assert len(result) == 32
+    
+    def test_rust_hkdf_expand_return(self):
+        """Test RustCryptoBackend.hkdf_expand return (line 115)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        backend = crypto_backend.RustCryptoBackend()
+        
+        salt = secrets.token_bytes(32)
+        ikm = b"input keying material"
+        info = b"context info"
+        
+        prk = backend.hkdf_extract(salt, ikm)
+        result = backend.hkdf_expand(prk, info, 48)
+        
+        assert isinstance(result, bytes)
+        assert len(result) == 48
+
+
+# =============================================================================
+# TEST CLASS: Module-Level Function Coverage
+# Tests specifically targeting uncovered module-level functions
+# =============================================================================
+
+class TestModuleFunctionsCoverage:
+    """Tests to ensure 100% coverage of module-level functions."""
+    
+    def test_set_default_backend_rust(self):
+        """Test set_default_backend with 'rust' (line 314)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        original = crypto_backend._default_backend
+        try:
+            crypto_backend._default_backend = None
+            
+            crypto_backend.set_default_backend("rust")
+            
+            assert crypto_backend._default_backend is not None
+            assert isinstance(crypto_backend._default_backend, crypto_backend.CryptoBackend)
+        finally:
+            crypto_backend._default_backend = original
+    
+    def test_is_rust_available_returns_bool(self):
+        """Test is_rust_available returns boolean (line 319)."""
+        from meow_decoder import crypto_backend
+        
+        result = crypto_backend.is_rust_available()
+        
+        assert isinstance(result, bool)
+    
+    def test_is_rust_available_reflects_state(self):
+        """Test is_rust_available returns correct state (line 319)."""
+        from meow_decoder import crypto_backend
+        
+        original = crypto_backend._RUST_AVAILABLE
+        
+        # Test when True
+        crypto_backend._RUST_AVAILABLE = True
+        assert crypto_backend.is_rust_available() is True
+        
+        # Test when False
+        crypto_backend._RUST_AVAILABLE = False
+        assert crypto_backend.is_rust_available() is False
+        
+        # Restore
+        crypto_backend._RUST_AVAILABLE = original
+    
+    def test_get_available_backends_returns_list(self):
+        """Test get_available_backends returns list (line 324)."""
+        from meow_decoder import crypto_backend
+        
+        result = crypto_backend.get_available_backends()
+        
+        assert isinstance(result, list)
+    
+    def test_get_available_backends_with_rust_available(self):
+        """Test get_available_backends when Rust available (line 324)."""
+        from meow_decoder import crypto_backend
+        
+        original = crypto_backend._RUST_AVAILABLE
+        try:
+            crypto_backend._RUST_AVAILABLE = True
+            
+            result = crypto_backend.get_available_backends()
+            
+            assert result == ["rust"]
+        finally:
+            crypto_backend._RUST_AVAILABLE = original
+    
+    def test_get_available_backends_without_rust(self):
+        """Test get_available_backends when Rust unavailable (line 324)."""
+        from meow_decoder import crypto_backend
+        
+        original = crypto_backend._RUST_AVAILABLE
+        try:
+            crypto_backend._RUST_AVAILABLE = False
+            
+            result = crypto_backend.get_available_backends()
+            
+            assert result == []
+        finally:
+            crypto_backend._RUST_AVAILABLE = original
+
+
+# =============================================================================
+# TEST CLASS: Environment Variable Override Coverage
+# =============================================================================
+
+class TestEnvOverrideCoverage:
+    """Tests for MEOW_CRYPTO_BACKEND environment variable handling."""
+    
+    def test_env_override_to_rust(self, monkeypatch):
+        """Test env override to 'rust' backend (line 216)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        monkeypatch.setenv("MEOW_CRYPTO_BACKEND", "rust")
+        
+        # Create new backend - should use env var
+        backend = crypto_backend.CryptoBackend()
+        
+        assert backend is not None
+        assert backend.name == "rust"
+    
+    def test_env_override_invalid_raises_error(self, monkeypatch):
+        """Test env override with invalid value raises RuntimeError (line 219)."""
+        from meow_decoder import crypto_backend
+        
+        monkeypatch.setenv("MEOW_CRYPTO_BACKEND", "invalid_backend_name")
+        
+        with pytest.raises(RuntimeError, match="Rust crypto backend required"):
+            crypto_backend.CryptoBackend()
+    
+    def test_env_override_empty_uses_default(self, monkeypatch):
+        """Test empty env var uses default."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        monkeypatch.setenv("MEOW_CRYPTO_BACKEND", "")
+        
+        # Empty string should not override
+        backend = crypto_backend.CryptoBackend()
+        assert backend is not None
+        assert backend.name == "rust"
+    
+    def test_env_override_case_insensitive(self, monkeypatch):
+        """Test env override is case-insensitive (line 216)."""
+        from meow_decoder import crypto_backend
+        
+        if not crypto_backend._RUST_AVAILABLE:
+            pytest.skip("Rust backend not available")
+        
+        monkeypatch.setenv("MEOW_CRYPTO_BACKEND", "RUST")
+        
+        backend = crypto_backend.CryptoBackend()
+        assert backend is not None
+        assert backend.name == "rust"
+
+
+# =============================================================================
 # RUN TESTS DIRECTLY
 # =============================================================================
 
