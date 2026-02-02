@@ -23,8 +23,8 @@ _RUST_AVAILABLE = False
 _rust_backend = None
 
 try:
-    import meow_crypto_rs as _rust_backend
-    _RUST_AVAILABLE = True
+    import meow_crypto_rs as _rust_backend  # pragma: no cover (module-level import)
+    _RUST_AVAILABLE = True  # pragma: no cover (executes before coverage starts)
 except ImportError:
     pass
 

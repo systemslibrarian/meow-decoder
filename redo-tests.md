@@ -1,8 +1,8 @@
 # 🐱 Meow Decoder Test Engineering Progress
 
 **Last Updated:** 2026-02-02  
-**Overall Status:** 1/23 files complete  
-**Current File:** crypto.py  
+**Overall Status:** 2/23 files complete  
+**Current File:** crypto_enhanced.py (next)  
 
 ---
 
@@ -28,20 +28,20 @@
 - [x] Review existing tests: Template from _test_crypto_backend.py (if exists)
 - [x] Analyze gaps: Rust FFI boundaries, panic handling, fallback paths
 - [x] Create new tests: Mock Rust errors, invalid bindings, parity checks
-- [x] Verify coverage: **98% statement, 100% branch** (3 lines uncoverable: import fallback + YubiKey hardware)
+- [x] Verify coverage: **99%** (100% achievable - lines 28-29 are module-level imports marked `pragma: no cover`)
+- [x] Pass all tests: **105 tests, all passing**
+- [x] Gitflow: Working on main
+
+### 2. crypto.py ✅ COMPLETE
+- [x] Fetch/review code
+- [x] Review existing tests: Template from _test_crypto.py
+- [x] Analyze gaps: Nonce reuse, tag failures, key derivation branches
+- [x] Create new tests: AEAD tamper, truncation attacks
+- [x] Verify coverage: **97%** (165 tests)
 - [x] Pass all tests: **All passing**
-- [ ] Gitflow: Branch/PR/merge (optional - working on main)
+- [x] Gitflow: Working on main
 
-### 2. crypto.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_crypto.py
-- [ ] Analyze gaps: Nonce reuse, tag failures, key derivation branches
-- [ ] Create new tests: AEAD tamper, truncation attacks
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
-
-### 3. crypto_enhanced.py
+### 3. crypto_enhanced.py ⬅️ NEXT
 - [ ] Fetch/review code
 - [ ] Review existing tests: Template from _test_crypto_enhanced.py
 - [ ] Analyze gaps: Enhanced AAD, hybrid mode branches
@@ -236,7 +236,8 @@
 
 | File | Coverage | Key Tests Added | Branch/PR |
 |------|----------|-----------------|-----------|
-| (none yet) | - | - | - |
+| crypto_backend.py | **99%** | 105 tests - Rust FFI, delegation, env override, module functions | main |
+| crypto.py | **97%** | 165 tests - AEAD, KDF, manifest, HMAC, forward secrecy, duress | main |
 
 ---
 
@@ -247,7 +248,7 @@ To resume this work:
 2. Say "Resume from redo-tests.md"
 3. Agent will continue from the next unchecked file
 
-**Next file to start:** crypto_backend.py
+**Next file to start:** crypto_enhanced.py
 
 ---
 
