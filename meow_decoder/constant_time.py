@@ -281,7 +281,7 @@ class SecureBuffer:
 
 
 # Example usage
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Constant-Time Operations Test")
     print("=" * 50)
     

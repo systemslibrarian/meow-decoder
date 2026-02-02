@@ -51,13 +51,15 @@
 - [x] Gitflow: Working on main
 
 ### 4. constant_time.py ⬅️ NEXT
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_constant_time.py
-- [ ] Analyze gaps: Timing comparison branches, variable-length inputs
-- [ ] Create new tests: Dudect-style mocks, side-channel simulations
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
+### 4. constant_time.py ⬅️ IN PROGRESS
+- [x] Fetch/review code
+- [x] Review existing tests: Template from tests-archved/test_constant_time.py
+- [x] Analyze gaps: Timing comparison branches, mlock/munlock paths, platform detection
+- [x] Create new tests: deterministic delay mocks, secure buffer edge cases
+- [ ] Verify coverage: 95–100% (pytest import cancels in runner)
+- [ ] Pass all tests (manual checks passed; pytest runner cancelled)
+	- Manual checks exercised secure_zero_memory, secure_memory, mlock/munlock error paths, SecureBuffer, _get_libc branches.
+- [x] Gitflow: Working on main
 
 ### 5. secure_cleanup.py
 - [ ] Fetch/review code
