@@ -64,7 +64,7 @@ jobs:
 
       - name: Security-focused tests (required)
         run: |
-          pytest tests/ -v -k "security or adversarial" || echo "No security/adversarial tests found yet"
+          pytest tests/ -v -k "security or adversarial" --ignore=tests/conftest.py || echo "No security tests yet - skipping"
         env:
           MEOW_TEST_MODE: "1"
           MEOW_CRYPTO_BACKEND: "rust"

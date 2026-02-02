@@ -203,7 +203,7 @@ omit = [
 
 [tool.coverage.report]
 # Coverage threshold for security-focused testing
-# Starting fresh with new test suite - threshold set to 0 temporarily
+# Starting fresh - threshold disabled until test suite is rebuilt
 # Target: 80%+ for TIER 1, 70%+ for TIER 2
 fail_under = 0
 show_missing = true
