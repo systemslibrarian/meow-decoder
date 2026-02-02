@@ -417,7 +417,7 @@ def create_forward_secrecy_decoder(
 
 
 # Example usage and testing
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Testing Forward Secrecy Implementation...\n")
     
     # Test 1: Basic per-block key derivation

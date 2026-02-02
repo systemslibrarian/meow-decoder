@@ -191,7 +191,7 @@ def secure_password_context(password: str):
 
 
 # Self-test
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("🧪 Testing Secure Cleanup Module")
     print("=" * 50)
     

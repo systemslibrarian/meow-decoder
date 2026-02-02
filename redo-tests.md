@@ -1,8 +1,8 @@
 # 🐱 Meow Decoder Test Engineering Progress
 
 **Last Updated:** 2026-02-02  
-**Overall Status:** 3/23 files complete  
-**Current File:** constant_time.py (next)  
+**Overall Status:** 7/23 files complete  
+**Current File:** double_ratchet.py (rerun)  
 
 ---
 
@@ -50,52 +50,50 @@
 - [x] Pass all tests: **All 84 passing**
 - [x] Gitflow: Working on main
 
-### 4. constant_time.py ⬅️ NEXT
-### 4. constant_time.py ⬅️ IN PROGRESS
+### 4. constant_time.py ✅ COMPLETE
 - [x] Fetch/review code
 - [x] Review existing tests: Template from tests-archved/test_constant_time.py
 - [x] Analyze gaps: Timing comparison branches, mlock/munlock paths, platform detection
 - [x] Create new tests: deterministic delay mocks, secure buffer edge cases
-- [ ] Verify coverage: 95–100% (pytest import cancels in runner)
-- [ ] Pass all tests (manual checks passed; pytest runner cancelled)
-	- Manual checks exercised secure_zero_memory, secure_memory, mlock/munlock error paths, SecureBuffer, _get_libc branches.
+- [x] Verify coverage: **96%** (from user run)
+- [x] Pass all tests: **pytest run succeeded for tests/test_constant_time.py**
 - [x] Gitflow: Working on main
 
-### 5. secure_cleanup.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_secure_cleanup.py
-- [ ] Analyze gaps: Overwrite failures, memory leak paths
-- [ ] Create new tests: Mock os.unlink errors, zeroization verification
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
+### 5. secure_cleanup.py ✅ COMPLETE
+- [x] Fetch/review code
+- [x] Review existing tests: tests-archved/test_security.py (secure cleanup section)
+- [x] Analyze gaps: signal handler paths, memoryview zeroing, handler idempotence
+- [x] Create new tests: handler registration, signal path, memoryview zeroing
+- [x] Verify coverage: **95%** (from user run)
+- [x] Pass all tests: **pytest run succeeded for tests/test_secure_cleanup.py**
+- [x] Gitflow: Working on main
 
-### 6. forward_secrecy.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_forward_secrecy.py
-- [ ] Analyze gaps: Ratchet compromise branches
-- [ ] Create new tests: Old-key attacks, session fuzzing
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
+### 6. forward_secrecy.py ✅ COMPLETE
+- [x] Fetch/review code
+- [x] Review existing tests: tests-archved/test_forward_secrecy.py
+- [x] Analyze gaps: ratchet state restore, extension packing, key save/load
+- [x] Create new tests: X25519 key derivation, extension unpack, edge cases
+- [x] Verify coverage: **99%** (from user run)
+- [x] Pass all tests: **pytest run succeeded for tests/test_forward_secrecy.py**
+- [x] Gitflow: Working on main
 
-### 7. x25519_forward_secrecy.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_x25519_forward_secrecy.py
-- [ ] Analyze gaps: Curve validation, ephemeral key branches
-- [ ] Create new tests: Invalid points, key mismatch
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
+### 7. x25519_forward_secrecy.py ✅ COMPLETE
+- [x] Fetch/review code
+- [x] Review existing tests: tests-archved/test_x25519_forward_secrecy.py
+- [x] Analyze gaps: CLI key generation, invalid key lengths
+- [x] Create new tests: keypair save/load, CLI path, edge passwords
+- [x] Verify coverage: **100%** (from user run)
+- [x] Pass all tests: **pytest run succeeded for tests/test_x25519_forward_secrecy.py**
+- [x] Gitflow: Working on main
 
-### 8. double_ratchet.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_double_ratchet.py
-- [ ] Analyze gaps: Ratchet steps, message reorder/loss
-- [ ] Create new tests: Fuzz sequences, recovery from compromise
+### 8. double_ratchet.py ⬅️ IN PROGRESS
+- [x] Fetch/review code
+- [x] Review existing tests: tests-archved/test_double_ratchet.py
+- [x] Analyze gaps: out-of-order delivery, skipped key limits
+- [x] Create new tests: clowder session, long conversation, wrong key failure
 - [ ] Verify coverage: 95–100%
 - [ ] Pass all tests
-- [ ] Gitflow: Branch/PR/merge
+- [x] Gitflow: Working on main
 
 ### 9. pq_crypto_real.py
 - [ ] Fetch/review code

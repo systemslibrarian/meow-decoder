@@ -259,7 +259,7 @@ def generate_receiver_keys_cli(output_dir: str = ".", password: Optional[str] = 
     print(f"📤 Share {public_file} with senders.")
 
 
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     import sys
     
     if len(sys.argv) > 1 and sys.argv[1] == "generate":

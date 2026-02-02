@@ -56,104 +56,87 @@ MAX_SKIP = 1000
 
 
 class RatchetError(Exception):
-    """Error during ratchet operations."""
-    pass
+    """Errors raised by the double ratchet implementation."""
 
 
 @dataclass
 class KeyPair:
-    """X25519 key pair for DH ratchet."""
+    """X25519 keypair container."""
     private: X25519PrivateKey
     public: X25519PublicKey
-    
+
     @classmethod
     def generate(cls) -> 'KeyPair':
-        """Generate new key pair."""
+        """Generate a new X25519 keypair."""
         private = X25519PrivateKey.generate()
         public = private.public_key()
         return cls(private=private, public=public)
-    
+
     def public_bytes(self) -> bytes:
-        """Get public key as bytes."""
+        """Serialize public key to raw bytes."""
         return self.public.public_bytes(
             encoding=serialization.Encoding.Raw,
             format=serialization.PublicFormat.Raw
         )
-    
+
     @staticmethod
-    def public_from_bytes(data: bytes) -> X25519PublicKey:
-        """Load public key from bytes."""
-        return X25519PublicKey.from_public_bytes(data)
+    def public_from_bytes(public_bytes: bytes) -> X25519PublicKey:
+        """Load a public key from raw bytes."""
+        if len(public_bytes) != 32:
+            raise ValueError("Public key must be 32 bytes")
+        return X25519PublicKey.from_public_bytes(public_bytes)
 
 
 @dataclass
 class MessageHeader:
-    """
-    Header for encrypted messages.
-    
-    Format (40 bytes):
-        - dh_public: 32 bytes (sender's current DH public key)
-        - pn: 4 bytes (previous chain length)
-        - n: 4 bytes (message number in current chain)
-    """
-    dh_public: bytes  # 32 bytes
-    pn: int           # Previous chain length
-    n: int            # Message number
-    
+    """Message header for double ratchet messages."""
+    dh_public: bytes
+    pn: int
+    n: int
+
     def pack(self) -> bytes:
-        """Pack header to bytes."""
-        return self.dh_public + struct.pack(">II", self.pn, self.n)
-    
+        """Serialize header to bytes."""
+        if len(self.dh_public) != 32:
+            raise ValueError("DH public key must be 32 bytes")
+        return struct.pack(">32sII", self.dh_public, self.pn, self.n)
+
     @classmethod
     def unpack(cls, data: bytes) -> 'MessageHeader':
-        """Unpack header from bytes."""
+        """Deserialize header from bytes."""
         if len(data) < 40:
-            raise ValueError(f"Header too short: {len(data)} bytes")
-        
-        dh_public = data[:32]
-        pn, n = struct.unpack(">II", data[32:40])
-        
+            raise ValueError("Header too short")
+        dh_public, pn, n = struct.unpack(">32sII", data[:40])
         return cls(dh_public=dh_public, pn=pn, n=n)
 
 
 @dataclass
 class RatchetState:
-    """
-    Complete state for double ratchet session.
-    
-    Includes:
-        - DH ratchet key pair
-        - Remote DH public key
-        - Root chain key
-        - Sending and receiving chain keys
-        - Message counters
-        - Skipped message keys (for out-of-order delivery)
-    """
+    """State for the double ratchet protocol."""
     # DH Ratchet
     dh_keypair: Optional[KeyPair] = None
     dh_remote_public: Optional[bytes] = None
-    
+
     # Root chain
     root_key: Optional[bytes] = None  # 32 bytes
-    
+
     # Sending chain
     send_chain_key: Optional[bytes] = None  # 32 bytes
     send_n: int = 0  # Message number
-    
+
     # Receiving chain
     recv_chain_key: Optional[bytes] = None  # 32 bytes
     recv_n: int = 0  # Message number
-    
+
     # Previous sending chain length (for header)
     previous_send_n: int = 0
-    
+
     # Skipped message keys: {(dh_public, n): message_key}
     skipped_keys: Dict[Tuple[bytes, int], bytes] = field(default_factory=dict)
-    
+
     def serialize(self) -> bytes:
         """Serialize state for storage (encrypted)."""
         data = bytearray()
-        
+
         # DH keypair (private key)
         if self.dh_keypair:
             privkey_bytes = self.dh_keypair.private.private_bytes(
@@ -165,37 +148,37 @@ class RatchetState:
             data += privkey_bytes  # 32 bytes
         else:
             data += struct.pack(">B", 0)
-        
+
         # Remote public
         if self.dh_remote_public:
             data += struct.pack(">B", 1)
             data += self.dh_remote_public  # 32 bytes
         else:
             data += struct.pack(">B", 0)
-        
+
         # Keys and counters
         data += self.root_key or (b"\x00" * 32)
         data += self.send_chain_key or (b"\x00" * 32)
         data += self.recv_chain_key or (b"\x00" * 32)
         data += struct.pack(">III", self.send_n, self.recv_n, self.previous_send_n)
-        
+
         # Skipped keys (limited to prevent DoS)
         skipped_count = min(len(self.skipped_keys), MAX_SKIP)
         data += struct.pack(">H", skipped_count)
-        
+
         for (dh_pub, n), key in list(self.skipped_keys.items())[:skipped_count]:
             data += dh_pub  # 32 bytes
             data += struct.pack(">I", n)
             data += key  # 32 bytes
-        
+
         return bytes(data)
-    
+
     @classmethod
     def deserialize(cls, data: bytes) -> 'RatchetState':
         """Deserialize state from bytes."""
         state = cls()
         offset = 0
-        
+
         # DH keypair
         has_keypair = struct.unpack(">B", data[offset:offset+1])[0]
         offset += 1
@@ -204,14 +187,14 @@ class RatchetState:
             offset += 32
             privkey = X25519PrivateKey.from_private_bytes(privkey_bytes)
             state.dh_keypair = KeyPair(private=privkey, public=privkey.public_key())
-        
+
         # Remote public
         has_remote = struct.unpack(">B", data[offset:offset+1])[0]
         offset += 1
         if has_remote:
             state.dh_remote_public = data[offset:offset+32]
             offset += 32
-        
+
         # Keys
         state.root_key = data[offset:offset+32]
         offset += 32
@@ -219,17 +202,17 @@ class RatchetState:
         offset += 32
         state.recv_chain_key = data[offset:offset+32]
         offset += 32
-        
+
         # Counters
         state.send_n, state.recv_n, state.previous_send_n = struct.unpack(
             ">III", data[offset:offset+12]
         )
         offset += 12
-        
+
         # Skipped keys
         skipped_count = struct.unpack(">H", data[offset:offset+2])[0]
         offset += 2
-        
+
         for _ in range(skipped_count):
             dh_pub = data[offset:offset+32]
             offset += 32
@@ -238,7 +221,7 @@ class RatchetState:
             key = data[offset:offset+32]
             offset += 32
             state.skipped_keys[(dh_pub, n)] = key
-        
+
         return state
 
 
@@ -589,8 +572,7 @@ class ClowderSession:
         self.sessions[peer_id] = DoubleRatchet(state)
 
 
-# Testing
-if __name__ == "__main__":
+def _self_test():  # pragma: no cover
     print("🔐 Double Ratchet Protocol Test")
     print("=" * 60)
     
@@ -704,3 +686,8 @@ if __name__ == "__main__":
     print("  • Future Secrecy: Healing after DH ratchet step")
     print("  • Out-of-Order: Handles missed/reordered messages")
     print("  • State Persistence: Serialize/restore works correctly")
+
+
+# Testing
+if __name__ == "__main__":  # pragma: no cover
+    _self_test()
