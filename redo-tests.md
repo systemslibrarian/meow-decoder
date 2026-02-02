@@ -1,8 +1,8 @@
 # 🐱 Meow Decoder Test Engineering Progress
 
 **Last Updated:** 2026-02-02  
-**Overall Status:** 7/23 files complete  
-**Current File:** double_ratchet.py (rerun)  
+**Overall Status:** 8/23 files complete  
+**Current File:** stego_advanced.py (next target)  
 
 ---
 
@@ -91,107 +91,107 @@
 - [x] Review existing tests: tests-archved/test_double_ratchet.py
 - [x] Analyze gaps: out-of-order delivery, skipped key limits
 - [x] Create new tests: clowder session, long conversation, wrong key failure
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [ ] Verify coverage: 95–100% (coverage run reported no-data-collected)
+- [x] Pass all tests (pytest tests/test_double_ratchet.py)
 - [x] Gitflow: Working on main
 
 ### 9. pq_crypto_real.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_pq.py
-- [ ] Analyze gaps: ML-KEM/Dilithium param branches
-- [ ] Create new tests: Invalid params, forgery attempts
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_phase4_pq_integration.py / test_pq_hybrid_fail_closed.py
+- [x] Analyze gaps: liboqs unavailable paths, pack/unpack, invalid variants
+- [x] Create new tests: classical-only roundtrip, stubbed PQ, pack/unpack, bad version
+- [ ] Verify coverage: 95–100% (coverage run reported no-data-collected)
+- [x] Pass all tests (pytest tests/test_pq_crypto_real.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 10. pq_hybrid.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_pq_integration.py
-- [ ] Analyze gaps: Hybrid fallback, classical attacks
-- [ ] Create new tests: Fallback triggers, combined failures
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_phase4_pq_integration.py / test_pq_hybrid_fail_closed.py
+- [x] Analyze gaps: PQ unavailable branches, KEM errors, check_pq_available
+- [x] Create new tests: classical-only roundtrip, fail-closed, stubbed PQ
+- [ ] Verify coverage: 95–100% (coverage run reported no-data-collected)
+- [x] Pass all tests (pytest tests/test_pq_hybrid.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 11. pq_signatures.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_pq_signatures.py
-- [ ] Analyze gaps: Dilithium verify branches
-- [ ] Create new tests: Tampered sigs, key size edges
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_phase4_pq_integration.py
+- [x] Analyze gaps: Ed25519 fallback, load/save, hybrid verify branches
+- [x] Create new tests: pack/unpack, encrypted key loading, stubbed Dilithium
+- [ ] Verify coverage: 95–100% (coverage run reported no-data-collected)
+- [x] Pass all tests (pytest tests/test_pq_signatures.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 12. duress_mode.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_duress_mode.py
-- [ ] Analyze gaps: Duress trigger paths, decoy branches
-- [ ] Create new tests: Password distinction, wipe failures
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_duress_modes.py / test_duress_mode_aggressive.py
+- [x] Analyze gaps: user_file branches, wipe_resume_files, callbacks
+- [x] Create new tests: decoy types, encrypted flow, sanitize, wipe resume
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_duress_mode.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 13. timelock_duress.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_timelock_duress.py
-- [ ] Analyze gaps: Deadline branches, time-based races
-- [ ] Create new tests: Freezegun jumps, grace period edges
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_deadmans_switch.py
+- [x] Analyze gaps: countdown/deadman status, puzzle resume, long secret
+- [x] Create new tests: resume, deterministic decoy, time jumps
+- [ ] Verify coverage: 95–100% (coverage run reported no-data-collected)
+- [x] Pass all tests (pytest tests/test_timelock_duress.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 14. encode.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_encode.py
-- [ ] Analyze gaps: Input validation, compression branches
-- [ ] Create new tests: Malformed files, large inputs
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_core_cli_encode_main.py / test_core_encode_decode_unit.py
+- [x] Analyze gaps: CLI branches, receiver pubkey errors, QR/GIF stubs
+- [x] Create new tests: CLI branches + encode_file smoke with stubs
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_encode.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 15. meow_encode.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_encode_decode.py
-- [ ] Analyze gaps: Cat-themed flag branches
-- [ ] Create new tests: Flag combos, error paths
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_core_cli_encode_main.py
+- [x] Analyze gaps: legacy imports, catnip errors, shred-source
+- [x] Create new tests: CLI branches + hiss_file smoke with stubs
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_meow_encode.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 16. spec_v12/encode.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_core_encode_decode_unit.py
-- [ ] Analyze gaps: v1.2 unified key branches
-- [ ] Create new tests: v1.2 roundtrips
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_core_encode_decode_unit.py
+- [x] Analyze gaps: invalid recipient pk, embed path, key length checks
+- [x] Create new tests: encode marker, invalid pk length, private key length
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_spec_v12_encode.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 17. decode_gif.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_decode_gif.py
-- [ ] Analyze gaps: Corrupted frames, incomplete GIFs
-- [ ] Create new tests: Fuzz GIFs, decode failures
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_core_encode_decode_unit.py
+- [x] Analyze gaps: no frames, no QR, bad manifest size, happy path
+- [x] Create new tests: stubbed GIF/QR reader decode paths
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_decode_gif.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 18. spec_v12/decode.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_core_encode_decode_unit.py
-- [ ] Analyze gaps: v1.2 verify branches
-- [ ] Create new tests: Version mismatches, sig tampers
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_core_encode_decode_unit.py
+- [x] Analyze gaps: version mismatch, recipient mismatch, signature failure
+- [x] Create new tests: roundtrip, invalid payload, unsupported version
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_spec_v12_decode.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 19. frame_mac.py
-- [ ] Fetch/review code
-- [ ] Review existing tests: Template from _test_frame_mac.py
-- [ ] Analyze gaps: MAC computation branches
-- [ ] Create new tests: Tamper detection, invalid tags
-- [ ] Verify coverage: 95–100%
-- [ ] Pass all tests
+- [x] Fetch/review code
+- [x] Review existing tests: Template from test_frame_mac.py
+- [x] Analyze gaps: derive keys, invalid tags, stats
+- [x] Create new tests: verify/pack/unpack, stats report
+- [ ] Verify coverage: 95–100% (module coverage run pending)
+- [x] Pass all tests (pytest tests/test_frame_mac.py)
 - [ ] Gitflow: Branch/PR/merge
 
 ### 20. stego_advanced.py
@@ -238,6 +238,11 @@
 |------|----------|-----------------|-----------|
 | crypto_backend.py | **99%** | 105 tests - Rust FFI, delegation, env override, module functions | main |
 | crypto.py | **97%** | 165 tests - AEAD, KDF, manifest, HMAC, forward secrecy, duress | main |
+| crypto_enhanced.py | **~97%** | 84 tests - SecureBytes, streaming, keyfile validation | main |
+| constant_time.py | **96%** | Timing compare, secure buffers, platform branches | main |
+| secure_cleanup.py | **95%** | Signal handlers, memoryview zeroing, idempotence | main |
+| forward_secrecy.py | **99%** | Ratchet state, extension pack/unpack, key paths | main |
+| x25519_forward_secrecy.py | **100%** | Keypair save/load, CLI paths, invalid lengths | main |
 
 ---
 
@@ -248,7 +253,7 @@ To resume this work:
 2. Say "Resume from redo-tests.md"
 3. Agent will continue from the next unchecked file
 
-**Next file to start:** crypto_enhanced.py
+**Next file to start:** pq_crypto_real.py (after finishing double_ratchet.py)
 
 ---
 

@@ -30,6 +30,18 @@ class TestDoubleRatchet:
         assert unpacked.pn == 5
         assert unpacked.n == 10
 
+    def test_message_header_pack_invalid_pubkey(self):
+        from meow_decoder.double_ratchet import MessageHeader
+
+        with pytest.raises(ValueError, match="DH public key must be 32 bytes"):
+            MessageHeader(dh_public=b"short", pn=0, n=0).pack()
+
+    def test_keypair_public_from_bytes_invalid_length(self):
+        from meow_decoder.double_ratchet import KeyPair
+
+        with pytest.raises(ValueError, match="Public key must be 32 bytes"):
+            KeyPair.public_from_bytes(b"short")
+
     def test_basic_exchange(self):
         from meow_decoder.double_ratchet import DoubleRatchet, KeyPair
 
@@ -130,6 +142,13 @@ class TestDoubleRatchet:
         assert restored.dh_keypair is None
         assert restored.dh_remote_public is None
 
+    def test_skip_messages_without_recv_chain_key_noop(self):
+        from meow_decoder.double_ratchet import DoubleRatchet, RatchetState
+
+        dr = DoubleRatchet(RatchetState())
+        # Should be a no-op without raising
+        dr._skip_messages(10)
+
     def test_state_serializes_skipped_keys(self):
         from meow_decoder.double_ratchet import RatchetState
 
@@ -208,6 +227,18 @@ class TestDoubleRatchet:
         dr = DoubleRatchet()  # empty state
         with pytest.raises(RatchetError, match="no sending chain"):
             dr.encrypt(b"hi")
+
+    def test_aead_decrypt_wrong_key_raises(self):
+        from meow_decoder.double_ratchet import DoubleRatchet
+
+        key_good = secrets.token_bytes(32)
+        key_bad = secrets.token_bytes(32)
+        aad = b"header"
+
+        ct = DoubleRatchet._aead_encrypt(key_good, b"payload", aad)
+
+        with pytest.raises(Exception):
+            DoubleRatchet._aead_decrypt(key_bad, ct, aad)
 
     def test_decrypt_with_skipped_key_path(self):
         from meow_decoder.double_ratchet import DoubleRatchet, KeyPair
@@ -302,6 +333,33 @@ class TestDoubleRatchetIntegration:
         pt = bob.decrypt(encrypted[49][0], encrypted[49][1])
         assert pt == b"Message 49"
         assert len(bob.state.skipped_keys) <= MAX_SKIP
+
+    def test_clowder_restore_session_roundtrip(self):
+        from meow_decoder.double_ratchet import ClowderSession, KeyPair
+
+        alice_id = KeyPair.generate()
+        bob_id = KeyPair.generate()
+
+        alice_session = ClowderSession(alice_id)
+        bob_session = ClowderSession(bob_id)
+
+        alice_peer_id = hashlib.sha256(b"alice").digest()
+        bob_peer_id = hashlib.sha256(b"bob").digest()
+        peer_secret = secrets.token_bytes(32)
+
+        alice_session.add_peer(bob_peer_id, bob_id.public_bytes(), True, peer_secret)
+        bob_session.add_peer(alice_peer_id, alice_id.public_bytes(), False, peer_secret)
+
+        # Save and restore Alice session
+        state_bytes = alice_session.get_session_state(bob_peer_id)
+        alice_restored = ClowderSession(alice_id)
+        alice_restored.restore_session(bob_peer_id, state_bytes)
+
+        msg = b"Restored session message"
+        ct, hdr = alice_restored.encrypt_for_peer(bob_peer_id, msg)
+        pt = bob_session.decrypt_from_peer(alice_peer_id, ct, hdr)
+
+        assert pt == msg
 
 
 class TestDoubleRatchetEdgeCases:
