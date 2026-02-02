@@ -21,6 +21,11 @@ import secrets
 from meow_decoder.metadata_obfuscation import (
     add_length_padding,
     remove_length_padding,
+    round_up_to_size_class,
+    randomize_frame_order,
+    unshuffle_frames,
+    pad_frame_count,
+    obfuscate_encoding_parameters,
 )
 
 
@@ -112,6 +117,62 @@ class TestPaddingHidesTrueSize:
             assert recovered == data
 
 
+    class TestSizeClassRounding:
+        """Test size class rounding."""
+
+        def test_round_up_to_size_class_small(self):
+            assert round_up_to_size_class(1) >= 1
+            assert round_up_to_size_class(1024) == 1024
+
+        def test_round_up_to_size_class_large(self):
+            # Larger than max class should round to 64MB multiple
+            size = 200_000_000
+            rounded = round_up_to_size_class(size)
+            assert rounded % 67_108_864 == 0
+            assert rounded >= size
+
+
+    class TestFrameOrderObfuscation:
+        """Test frame order randomization and unshuffle."""
+
+        def test_randomize_deterministic_with_seed(self):
+            frames = [f"frame-{i}".encode() for i in range(10)]
+            seed = b"\x01" * 32
+
+            shuffled1, idx1 = randomize_frame_order(frames, seed)
+            shuffled2, idx2 = randomize_frame_order(frames, seed)
+
+            assert shuffled1 == shuffled2
+            assert idx1 == idx2
+            assert unshuffle_frames(shuffled1, idx1) == frames
+
+
+    class TestFrameCountPadding:
+        """Test padding to fixed frame count."""
+
+        def test_pad_frame_count_noop(self):
+            frames = [b"a", b"b"]
+            assert pad_frame_count(frames, 2) == frames
+
+        def test_pad_frame_count_adds_decoys(self):
+            frames = [b"a", b"b", b"c"]
+            padded = pad_frame_count(frames, 5)
+            assert len(padded) == 5
+            assert padded[:3] == frames
+            # Decoys should be same length as real frames
+            assert all(len(x) == len(frames[0]) for x in padded[3:])
+
+
+    class TestEncodingParameterObfuscation:
+        """Test obfuscation bounds for encoding parameters."""
+
+        def test_obfuscate_encoding_parameters_bounds(self):
+            block, redun, fps = obfuscate_encoding_parameters(64, 1.0, 1)
+            assert block >= 64
+            assert redun >= 1.0
+            assert fps >= 1
+
+
 class TestPaddingStorageFormat:
     """Test padding storage format details."""
     
@@ -169,6 +230,11 @@ class TestPaddingCorruption:
         except (ValueError, Exception):
             # Also acceptable - detected as invalid
             pass
+
+    def test_too_short_padding_raises(self):
+        """Too-short padded data should raise."""
+        with pytest.raises(ValueError):
+            remove_length_padding(b"short")
 
 
 class TestPaddingEdgeCases:
@@ -285,6 +351,13 @@ class TestAdvancedMetadataObfuscation:
         assert shuffled1 == shuffled2
         assert idx1 == idx2
         assert unshuffle_frames(shuffled1, idx1) == frames
+
+    def test_randomize_without_seed(self):
+        frames = [b"a", b"b", b"c"]
+        shuffled, idx = randomize_frame_order(frames)
+        assert len(shuffled) == len(frames)
+        assert sorted(idx) == list(range(len(frames)))
+        assert unshuffle_frames(shuffled, idx) == frames
     
     def test_pad_frame_count_adds_decoys(self):
         """Test that frame padding adds decoy frames."""

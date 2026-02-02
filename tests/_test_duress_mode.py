@@ -258,6 +258,145 @@ class TestDuressManifest:
         assert unpacked.duress_tag == duress_tag
 
 
+class TestDuressHandlerAdvanced:
+    """Additional coverage for duress handler branches."""
+
+    def test_set_passwords_same_raises(self):
+        from meow_decoder.duress_mode import DuressHandler
+
+        handler = DuressHandler()
+        salt = secrets.token_bytes(16)
+        with pytest.raises(ValueError, match="cannot be the same"):
+            handler.set_passwords("same", "same", salt)
+
+    def test_check_password_paths(self, monkeypatch):
+        from meow_decoder.duress_mode import DuressHandler
+        from meow_decoder.config import DuressConfig
+
+        config = DuressConfig()
+        called = {"cb": False, "wipe": False}
+
+        def cb():
+            called["cb"] = True
+
+        config.trigger_callback = cb
+        config.wipe_resume_files = True
+        handler = DuressHandler(config)
+        salt = secrets.token_bytes(16)
+        handler.set_passwords("duress", "real", salt)
+
+        monkeypatch.setattr(handler, "_wipe_resume_files", lambda: called.__setitem__("wipe", True))
+        monkeypatch.setattr(handler, "_equalize_timing", lambda: None)
+
+        is_valid, is_duress = handler.check_password("real", salt)
+        assert is_valid is True and is_duress is False
+
+        is_valid, is_duress = handler.check_password("wrong", salt)
+        assert is_valid is False and is_duress is False
+
+        sensitive = bytearray(b"secret")
+        is_valid, is_duress = handler.check_password("duress", salt, [sensitive])
+        assert is_valid is True and is_duress is True
+        assert sensitive == b"\x00" * len(sensitive)
+        assert called["cb"] is True
+        assert called["wipe"] is True
+
+    def test_execute_emergency_response_panic(self):
+        from meow_decoder.duress_mode import DuressHandler
+        from meow_decoder.config import DuressConfig, DuressMode
+
+        config = DuressConfig(mode=DuressMode.PANIC, panic_enabled=True)
+        handler = DuressHandler(config)
+
+        data = bytearray(b"secret")
+        result = handler.execute_emergency_response([data])
+        assert result is None
+        assert data == b"\x00" * len(data)
+
+    def test_execute_emergency_response_decoy(self):
+        from meow_decoder.duress_mode import DuressHandler, generate_static_decoy
+        from meow_decoder.config import DuressConfig
+
+        handler = DuressHandler(DuressConfig())
+        salt = b"\x01" * 16
+        result = handler.execute_emergency_response(salt=salt)
+        assert result == generate_static_decoy(salt)
+
+    def test_get_decoy_data_user_file(self, tmp_path, monkeypatch):
+        from meow_decoder.duress_mode import DuressHandler
+        from meow_decoder.config import DuressConfig
+        from pathlib import Path
+
+        config = DuressConfig(decoy_type="user_file")
+        handler = DuressHandler(config)
+
+        # Missing path
+        data, name = handler.get_decoy_data()
+        assert name == "error.txt"
+
+        # Existing file
+        file_path = tmp_path / "decoy.bin"
+        file_path.write_bytes(b"abc")
+        config.decoy_file_path = str(file_path)
+        data, name = handler.get_decoy_data()
+        assert data == b"abc"
+        assert name == "decoy.bin"
+
+        # Too large file (simulate)
+        class FakeStat:
+            st_size = 200 * 1024 * 1024
+            st_mode = 0o100644
+
+        original_stat = Path.stat
+
+        def patched_stat(self, *args, **kwargs):
+            if self == file_path:
+                return FakeStat()
+            return original_stat(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "stat", patched_stat)
+        data, name = handler.get_decoy_data()
+        assert data == b"Decoy file too large."
+        assert name == "error.txt"
+
+    def test_get_decoy_data_bundled_fallback(self, monkeypatch):
+        from meow_decoder.duress_mode import DuressHandler
+        from meow_decoder.config import DuressConfig
+
+        config = DuressConfig(decoy_type="bundled_file")
+        handler = DuressHandler(config)
+
+        monkeypatch.setattr("pathlib.Path.exists", lambda self: False)
+        data, name = handler.get_decoy_data()
+        assert data.startswith(b"Error:")
+        assert name == "error.txt"
+
+    def test_sanitize_filename(self):
+        from meow_decoder.duress_mode import DuressHandler
+
+        assert DuressHandler.sanitize_filename("../path.txt") == "path.txt"
+        assert DuressHandler.sanitize_filename(None) is None
+
+    def test_generate_decoys(self):
+        from meow_decoder.duress_mode import generate_deterministic_decoy, generate_duress_decoy
+
+        salt = b"\x02" * 16
+        d1 = generate_deterministic_decoy(64, salt)
+        d2 = generate_deterministic_decoy(64, salt)
+        assert d1 == d2
+
+        decoy = generate_duress_decoy(size=32)
+        assert len(decoy) == 32
+
+    def test_setup_duress_and_is_duress_triggered(self):
+        from meow_decoder.duress_mode import setup_duress, is_duress_triggered
+
+        salt = secrets.token_bytes(16)
+        handler = setup_duress("duress", "real", salt)
+        assert is_duress_triggered(handler) is False
+        assert is_duress_triggered(handler, "duress", salt) is True
+
+
 class TestPackManifestCore:
     """Test pack_manifest_core function."""
     

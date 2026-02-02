@@ -80,8 +80,8 @@ class TestStegoAdvanced:
             
             assert mask is not None
             # Mask should have same dimensions
-            if hasattr(mask, 'size'):
-                assert mask.size == img.size
+            if hasattr(mask, 'shape'):
+                assert mask.shape == (50, 50)
         except ImportError:
             pytest.skip("create_green_mask not available")
     
@@ -407,6 +407,69 @@ class TestStegoAnimation:
             assert len(result) >= len(frames)
         except ImportError:
             pytest.skip("encode_with_stego not available")
+
+
+class TestStegoAdvancedCoverage:
+    """Additional coverage for stego_advanced internals."""
+
+    @pytest.mark.skipif(not PIL_AVAILABLE, reason="PIL not available")
+    def test_embed_extract_roundtrip(self):
+        import numpy as np
+        from meow_decoder.stego_advanced import AdvancedStegoEncoder, AdvancedStegoDecoder, StealthLevel
+
+        qr = Image.new('RGB', (16, 16), color=(255, 0, 0))
+        carrier = Image.new('RGB', (16, 16), color=(10, 20, 30))
+
+        enc = AdvancedStegoEncoder(stealth_level=StealthLevel.SUBTLE)
+        stego, _ = enc.embed_frame(qr, carrier)
+
+        dec = AdvancedStegoDecoder(lsb_bits=enc.lsb_bits)
+        extracted = dec.extract_frame(stego)
+
+        qr_array = np.array(qr)
+        expected = ((qr_array >> (8 - enc.lsb_bits)) & ((1 << enc.lsb_bits) - 1)) << (8 - enc.lsb_bits)
+        assert np.array_equal(np.array(extracted), expected)
+
+    @pytest.mark.skipif(not PIL_AVAILABLE, reason="PIL not available")
+    def test_embed_roi_mask_changes_only_masked(self):
+        import numpy as np
+        from meow_decoder.stego_advanced import AdvancedStegoEncoder, StealthLevel
+
+        qr = Image.new('RGB', (8, 8), color=(255, 255, 255))
+        carrier = Image.new('RGB', (8, 8), color=(0, 0, 0))
+
+        enc = AdvancedStegoEncoder(stealth_level=StealthLevel.HIDDEN)
+        qr_arr = np.array(qr)
+        carrier_arr = np.array(carrier)
+
+        mask = np.zeros((8, 8), dtype=bool)
+        mask[0, 0] = True
+
+        stego_arr = enc._embed_lsb(qr_arr, carrier_arr, roi_mask=mask)
+        assert np.any(stego_arr[0, 0] != carrier_arr[0, 0])
+        assert np.all(stego_arr[1:, 1:] == carrier_arr[1:, 1:])
+
+    @pytest.mark.skipif(not PIL_AVAILABLE, reason="PIL not available")
+    def test_quality_threshold_failure(self):
+        from meow_decoder.stego_advanced import AdvancedStegoEncoder, StealthLevel
+
+        qr = Image.new('RGB', (8, 8), color=(255, 255, 255))
+        carrier = Image.new('RGB', (8, 8), color=(0, 0, 0))
+
+        enc = AdvancedStegoEncoder(stealth_level=StealthLevel.VISIBLE, quality_threshold=1000.0)
+        with pytest.raises(ValueError):
+            enc.embed_frame(qr, carrier)
+
+    @pytest.mark.skipif(not PIL_AVAILABLE, reason="PIL not available")
+    def test_decoder_aggressive_preprocess_binary(self):
+        import numpy as np
+        from meow_decoder.stego_advanced import AdvancedStegoDecoder
+
+        img = Image.new('RGB', (8, 8), color=(50, 100, 150))
+        dec = AdvancedStegoDecoder(lsb_bits=2, aggressive=True)
+        extracted = dec.extract_frame(img)
+        arr = np.array(extracted)
+        assert set(np.unique(arr).tolist()).issubset({0, 255})
 
 
 if __name__ == "__main__":

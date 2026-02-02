@@ -2812,3 +2812,265 @@ class TestCryptoBackwardCompatibility:
         
         with pytest.raises(ValueError, match="Invalid MAGIC"):
             unpack_manifest(manifest_bytes)
+
+
+class TestCryptoCoverageFinishers:
+    """Pinpoint tests to hit rare branches in meow_decoder.crypto."""
+
+    def test_decrypt_handles_missing_cat_utils_import(self):
+        """Hit decrypt_to_raw's (ImportError, AttributeError) logger fallback."""
+        import builtins
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        test_data = b"decrypt logger import fallback"
+        password = "TestPassword123!"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
+            test_data, password, use_length_padding=False
+        )
+
+        original_import = builtins.__import__
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            # Force the relative import `from .cat_utils import get_purr_logger` to fail.
+            if (
+                globals
+                and globals.get("__name__") == "meow_decoder.crypto"
+                and level == 1
+                and name == "cat_utils"
+            ):
+                raise ImportError("forced for coverage")
+            return original_import(name, globals, locals, fromlist, level)
+
+        builtins.__import__ = guarded_import
+        try:
+            out = decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(test_data),
+                comp_len=len(comp),
+                sha256=sha,
+            )
+            assert out == test_data
+        finally:
+            builtins.__import__ = original_import
+
+    def test_forward_secrecy_decrypt_uses_relative_import_fallback(self):
+        """Hit decrypt_to_raw's ImportError fallback for x25519_forward_secrecy."""
+        import builtins
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+        from meow_decoder.x25519_forward_secrecy import generate_receiver_keypair
+
+        test_data = b"fs decrypt import fallback"
+        password = "TestPassword123!"
+        receiver_private, receiver_public = generate_receiver_keypair()
+
+        comp, sha, salt, nonce, cipher, ephemeral_public_key, _ = encrypt_file_bytes(
+            test_data,
+            password,
+            receiver_public_key=receiver_public,
+            use_length_padding=False,
+        )
+
+        assert ephemeral_public_key is not None
+        assert len(ephemeral_public_key) == 32
+
+        original_import = builtins.__import__
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            # Force absolute import `from meow_decoder.x25519_forward_secrecy import ...` to fail,
+            # so the code takes the relative-import fallback.
+            if (
+                globals
+                and globals.get("__name__") == "meow_decoder.crypto"
+                and level == 0
+                and name == "meow_decoder.x25519_forward_secrecy"
+            ):
+                raise ImportError("forced for coverage")
+            return original_import(name, globals, locals, fromlist, level)
+
+        builtins.__import__ = guarded_import
+        try:
+            out = decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(test_data),
+                comp_len=len(comp),
+                sha256=sha,
+                ephemeral_public_key=ephemeral_public_key,
+                receiver_private_key=receiver_private,
+            )
+            assert out == test_data
+        finally:
+            builtins.__import__ = original_import
+
+    def test_encrypt_length_padding_import_fallback(self):
+        """Hit encrypt_file_bytes ImportError fallback for metadata_obfuscation."""
+        import builtins
+        import sys
+        import types
+
+        from meow_decoder.crypto import encrypt_file_bytes
+
+        # Provide a top-level metadata_obfuscation module for the fallback import path.
+        fake = types.ModuleType("metadata_obfuscation")
+        fake.called_add = False
+
+        def add_length_padding(data: bytes) -> bytes:
+            fake.called_add = True
+            return data
+
+        def remove_length_padding(data: bytes) -> bytes:
+            return data
+
+        fake.add_length_padding = add_length_padding
+        fake.remove_length_padding = remove_length_padding
+
+        original_import = builtins.__import__
+        previous = sys.modules.get("metadata_obfuscation")
+        sys.modules["metadata_obfuscation"] = fake
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            # Force `from .metadata_obfuscation import add_length_padding` to fail
+            # so the fallback `from metadata_obfuscation import add_length_padding` is used.
+            if (
+                globals
+                and globals.get("__name__") == "meow_decoder.crypto"
+                and level == 1
+                and name == "metadata_obfuscation"
+            ):
+                raise ImportError("forced for coverage")
+            return original_import(name, globals, locals, fromlist, level)
+
+        builtins.__import__ = guarded_import
+        try:
+            encrypt_file_bytes(
+                b"padding fallback" * 50,
+                "TestPassword123!",
+                use_length_padding=True,
+            )
+            assert fake.called_add is True
+        finally:
+            builtins.__import__ = original_import
+            if previous is None:
+                sys.modules.pop("metadata_obfuscation", None)
+            else:
+                sys.modules["metadata_obfuscation"] = previous
+
+    def test_decrypt_padding_removal_import_fallback(self):
+        """Hit decrypt_to_raw ImportError fallback for remove_length_padding."""
+        import builtins
+        import sys
+        import types
+
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        test_data = b"padding removal fallback"
+        password = "TestPassword123!"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
+            test_data, password, use_length_padding=False
+        )
+
+        fake = types.ModuleType("metadata_obfuscation")
+        fake.called_remove = False
+
+        def remove_length_padding(data: bytes) -> bytes:
+            fake.called_remove = True
+            return data
+
+        def add_length_padding(data: bytes) -> bytes:
+            return data
+
+        fake.remove_length_padding = remove_length_padding
+        fake.add_length_padding = add_length_padding
+
+        original_import = builtins.__import__
+        previous = sys.modules.get("metadata_obfuscation")
+        sys.modules["metadata_obfuscation"] = fake
+
+        def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+            # Force `from .metadata_obfuscation import remove_length_padding` to fail
+            # so the absolute-import fallback is used.
+            if (
+                globals
+                and globals.get("__name__") == "meow_decoder.crypto"
+                and level == 1
+                and name == "metadata_obfuscation"
+            ):
+                raise ImportError("forced for coverage")
+            return original_import(name, globals, locals, fromlist, level)
+
+        builtins.__import__ = guarded_import
+        try:
+            out = decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(test_data),
+                comp_len=len(comp),
+                sha256=sha,
+            )
+            assert out == test_data
+            assert fake.called_remove is True
+        finally:
+            builtins.__import__ = original_import
+            if previous is None:
+                sys.modules.pop("metadata_obfuscation", None)
+            else:
+                sys.modules["metadata_obfuscation"] = previous
+
+    def test_decrypt_padding_removal_value_error_is_ignored(self, monkeypatch):
+        """Hit decrypt_to_raw's ValueError path when padding removal fails."""
+        import types
+
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        test_data = b"padding removal error" * 10
+        password = "TestPassword123!"
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
+            test_data, password, use_length_padding=False
+        )
+
+        # Patch the *package* module so the relative import succeeds, but removal raises.
+        import meow_decoder.metadata_obfuscation as real_mod
+
+        def boom(_data: bytes) -> bytes:
+            raise ValueError("forced")
+
+        monkeypatch.setattr(real_mod, "remove_length_padding", boom)
+
+        out = decrypt_to_raw(
+            cipher,
+            password,
+            salt,
+            nonce,
+            orig_len=len(test_data),
+            comp_len=len(comp),
+            sha256=sha,
+        )
+        assert out == test_data
+
+    def test_decrypt_backward_compat_aad_none_roundtrip(self):
+        """Hit decrypt_to_raw's aad=None compatibility path by crafting an old-style ciphertext."""
+        import zlib
+        from meow_decoder.crypto import decrypt_to_raw, derive_key
+        from meow_decoder.crypto_backend import get_default_backend
+
+        raw = b"old-style no-aad ciphertext" * 5
+        password = "TestPassword123!"
+
+        salt = secrets.token_bytes(16)
+        nonce = secrets.token_bytes(12)
+        key = derive_key(password, salt)
+
+        comp = zlib.compress(raw, level=9)
+        backend = get_default_backend()
+        cipher = backend.aes_gcm_encrypt(key, nonce, comp, aad=None)
+
+        # No orig_len/comp_len/sha256 provided => aad=None branch.
+        out = decrypt_to_raw(cipher, password, salt, nonce)
+        assert out == raw

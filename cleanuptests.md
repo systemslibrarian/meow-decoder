@@ -1,29 +1,33 @@
 # Test Suite Cleanup & Consolidation Plan
 
 **Created:** 2026-01-31  
-**Last Updated:** 2026-02-01  
+**Last Updated:** 2026-02-02  
 **Goal:** One canonical test file per source module  
-**Status:** IN PROGRESS (3/21 merges verified complete)
+**Status:** IN PROGRESS
 
 ---
 
 ## Overview
 
-Current state: **120 test files** → Target: **~35-40 canonical test files**
+Current state: **116 test files** → Target: **~35-40 canonical test files**
 
 ### Current Breakdown:
 - **Integration subdirectory:** 7 files
 - **spec_v12 subdirectory:** 1 file  
-- **Main tests/:** 112 files
+- **Main tests/:** 108 files
 - **Files matching cleanup patterns:** 40 files
 
 ### Fragmentation Categories to Merge:
 - `test_coverage_90_*.py` (12 files) → Merge into canonical
-- `test_coverage_*.py` (misc, 8 files) → Merge into canonical
+- `test_coverage_*.py` (misc, 7 files) → Merge into canonical
 - `test_*_aggressive.py` (6 files) → Merge into canonical  
 - `test_phase*.py` (7 files) → Merge into canonical
 - `test_core_*.py` (7 files) → Merge into canonical
 - Duplicate/overlapping files → Merge into canonical
+
+### Recent Updates (2026-02-02)
+- `tests/test_crypto.py` now drives `meow_decoder/crypto.py` to 100% coverage (module-scoped run).
+- `tests/test_coverage_90_crypto_paths.py` is no longer present (already merged/removed).
 
 ---
 
@@ -43,21 +47,19 @@ Current state: **120 test files** → Target: **~35-40 canonical test files**
 | Source File | Current Test Files | Canonical Target | Action |
 |-------------|-------------------|------------------|--------|
 | `crypto.py` | `test_crypto.py` | `test_crypto.py` | ✅ Keep |
-| | `test_coverage_90_crypto_paths.py` | `test_crypto.py` | ➡️ Merge |
 | `crypto_backend.py` | `test_crypto_backend.py` | `test_crypto_backend.py` | ✅ Keep |
 | `crypto_enhanced.py` | `test_crypto_enhanced.py` | `test_crypto_enhanced.py` | ✅ Keep |
 | `constant_time.py` | `test_constant_time.py` | `test_constant_time.py` | ✅ Keep |
 | | `test_sidechannel.py` | `test_sidechannel.py` | ⏸️ Keep separate (specialized) |
 | `streaming_crypto.py` | `test_streaming_crypto.py` | `test_streaming_crypto.py` | ✅ Keep |
-| | `test_coverage_90_streaming.py` | `test_streaming_crypto.py` | ➡️ Merge |
 | | `test_streaming.py` | `test_streaming_crypto.py` | ➡️ Merge |
 | `frame_mac.py` | `test_frame_mac.py` | `test_frame_mac.py` | ✅ Keep |
 | | `test_coverage_90_metadata_mac.py` | `test_frame_mac.py` | ➡️ Merge |
 | `secure_bridge.py` | `test_secure_bridge.py` | `test_secure_bridge.py` | ✅ Keep |
 | `secure_cleanup.py` | `test_secure_cleanup.py` | `test_secure_cleanup.py` | ✅ Keep |
 
-**Merge Task 1:** `test_coverage_90_crypto_paths.py` → `test_crypto.py`  
-**Merge Task 2:** `test_coverage_90_streaming.py` + `test_streaming.py` → `test_streaming_crypto.py`  
+**Merge Task 1:** ✅ Completed (`test_coverage_90_crypto_paths.py` no longer present)  
+**Merge Task 2:** `test_streaming.py` → `test_streaming_crypto.py`  
 **Merge Task 3:** `test_coverage_90_metadata_mac.py` → `test_frame_mac.py`
 
 ---
