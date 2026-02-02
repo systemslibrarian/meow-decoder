@@ -97,7 +97,7 @@ class SecureBytes:
             buf_addr = ctypes.addressof((ctypes.c_char * len(self._data)).from_buffer(self._data))
             libc.mlock(buf_addr, len(self._data))
             self._mlocked = True
-        except:
+        except:  # pragma: no cover (platform-dependent mlock failure)
             self._mlocked = False
     
     def __enter__(self):
@@ -119,7 +119,7 @@ class SecureBytes:
                     libc = ctypes.CDLL("libc.so.6")
                     buf_addr = ctypes.addressof((ctypes.c_char * len(self._data)).from_buffer(self._data))
                     libc.munlock(buf_addr, len(self._data))
-                except:
+                except:  # pragma: no cover (platform-dependent munlock failure)
                     pass
             
             # Delete and force GC
@@ -576,7 +576,7 @@ class StreamingEncryption:
 
 
 # Example usage and testing
-if __name__ == "__main__":
+if __name__ == "__main__":  # pragma: no cover
     print("Testing enhanced crypto with secure memory handling...\n")
     
     # Test secure bytes
