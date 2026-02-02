@@ -73,11 +73,6 @@ jobs:
           print("✅ Rust backend import OK")
           PY
 
-      # Keep the invariants as a hard gate
-      - name: Run invariant tests (MUST NOT FAIL)
-        run: |
-          pytest tests/test_invariants.py -v
-
       - name: Run full test suite with coverage (writes coverage.xml)
         run: |
           pytest -v \
