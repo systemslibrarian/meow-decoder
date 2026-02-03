@@ -1,21 +1,25 @@
 [run]
-# Only measure coverage on security-critical modules
+# Measure coverage on the full security-critical package
+# (includes crypto.py, crypto_DEBUG.py, crypto_backend.py, forward_secrecy*.py,
+#  fountain.py, frame_mac.py, gif_handler.py, qr_code.py, metadata_obfuscation.py, etc.)
 source = meow_decoder
-include = 
-    */crypto.py
-    */fountain.py
-    */frame_mac.py
+
+# Optional: If you later want to exclude specific non-core files, add an omit section like this:
+# omit =
+#     meow_decoder/*_demo.py
+#     meow_decoder/*_cli.py
+#     meow_decoder/profiling_*.py
 
 [report]
 exclude_lines =
     pragma: no cover
-    if __name__ == .__main__.:
+    if __name__ == .__main__:
     def main
     raise NotImplementedError
     raise AssertionError
     if TYPE_CHECKING:
     # Test mode fast path
     if _TEST_MODE
+
 # Lowered threshold for CI - security tests don't cover all code paths
 fail_under = 70
-
