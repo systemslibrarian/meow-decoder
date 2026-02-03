@@ -339,7 +339,7 @@ def stream_encrypt_file(input_path: str,
         Tuple of (nonce, original_size, compressed_size, sha256)
     """
     # Derive key
-    from crypto_enhanced import derive_key
+    from meow_decoder.crypto import derive_key
     key = derive_key(password, salt)
     
     # Create streaming cipher
@@ -382,7 +382,7 @@ def stream_decrypt_file(input_path: str,
         Total bytes written
     """
     # Derive key
-    from crypto_enhanced import derive_key
+    from meow_decoder.crypto import derive_key
     key = derive_key(password, salt)
     
     # Create streaming cipher with same nonce
