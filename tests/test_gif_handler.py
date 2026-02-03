@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""Coverage tests for gif_handler.py (target 95%+)."""
+
+from pathlib import Path
+
+import pytest
+from PIL import Image
+
+from meow_decoder.gif_handler import GIFEncoder, GIFDecoder, GIFOptimizer
+
+
+def _make_frame(color, size=(64, 64)):
+    return Image.new("RGB", size, color)
+
+
+def test_gif_encoder_create_gif_and_decoder_roundtrip(tmp_path):
+    frames = [_make_frame("red"), _make_frame("blue")]
+    output = tmp_path / "out.gif"
+
+    encoder = GIFEncoder(fps=2, loop=0)
+    size = encoder.create_gif(frames, output, optimize=False)
+
+    assert size > 0
+    assert output.exists()
+
+    decoder = GIFDecoder()
+    extracted = decoder.extract_frames(output)
+    assert len(extracted) == 2
+
+    assert decoder.get_frame_count(output) == 2
+    frame1 = decoder.get_frame(output, 1)
+    assert frame1.size == frames[0].size
+
+
+def test_gif_encoder_empty_frames_raises(tmp_path):
+    encoder = GIFEncoder(fps=2)
+    with pytest.raises(ValueError):
+        encoder.create_gif([], tmp_path / "empty.gif")
+
+
+def test_gif_encoder_create_gif_bytes_roundtrip():
+    frames = [_make_frame("green", (32, 32)), _make_frame("yellow", (32, 32))]
+    encoder = GIFEncoder(fps=5)
+    data = encoder.create_gif_bytes(frames, optimize=False)
+
+    assert data[:3] == b"GIF"
+
+    decoder = GIFDecoder()
+    extracted = decoder.extract_frames_bytes(data)
+    assert len(extracted) == 2
+
+
+def test_gif_decoder_get_frame_out_of_range(tmp_path):
+    frames = [_make_frame("black")]
+    output = tmp_path / "single.gif"
+    encoder = GIFEncoder(fps=1)
+    encoder.create_gif(frames, output)
+
+    decoder = GIFDecoder()
+    with pytest.raises(IndexError):
+        decoder.get_frame(output, 1)
+
+
+def test_gif_optimizer_optimizes(tmp_path):
+    frames = [_make_frame("white", (64, 64)), _make_frame("gray", (64, 64))]
+    input_path = tmp_path / "input.gif"
+    output_path = tmp_path / "optimized.gif"
+
+    GIFEncoder(fps=2).create_gif(frames, input_path)
+
+    original_size, optimized_size = GIFOptimizer.optimize_gif(
+        input_path, output_path, colors=64, reduce_size=True
+    )
+
+    assert original_size > 0
+    assert optimized_size > 0
+    assert output_path.exists()
