@@ -15,12 +15,15 @@
 | merkle_tree.py | test_merkle_tree_comprehensive.py | ~93% | Feb 3 |
 | multi_secret.py | test_multi_secret_comprehensive.py | ~90% | Feb 3 |
 | profiling_improved.py | test_profiling_improved_comprehensive.py | ~78% | Feb 3 |
+| ninja_cat_ultra.py | test_ninja_cat_ultra_comprehensive.py | ~80% | Feb 3 |
+| prowling_mode.py | test_prowling_mode_comprehensive.py | ~80% | Feb 3 |
+| decoy_generator.py | test_decoy_generator_comprehensive.py | ~85% | Feb 3 |
 
 ## 🔄 In Progress
 
 | File | Status | Target Coverage |
 |------|--------|-----------------|
-| ninja_cat_ultra.py | Next up | 75-85% |
+| high_security.py | Next up | 80-90% |
 
 ## 📋 Remaining Files
 
@@ -30,9 +33,9 @@
 
 ### Medium Priority
 - [ ] profiling_improved.py → 70-80%
-- [ ] ninja_cat_ultra.py → 75-85%
-- [ ] prowling_mode.py → 75-85%
-- [ ] decoy_generator.py → 80-90%
+- [x] ninja_cat_ultra.py → 75-85% ✅
+- [x] prowling_mode.py → 75-85% ✅
+- [x] decoy_generator.py → 80-90% ✅
 - [ ] high_security.py → 80-90%
 - [ ] security_warnings.py → 70-80%
 
@@ -54,9 +57,9 @@
 
 ## 📊 Summary
 
-- **Completed:** 8 files
+- **Completed:** 12 files
 - **In Progress:** 1 file
-- **Remaining:** 16 files
+- **Remaining:** 15 files
 - **Total Tests Written:** ~370+ tests
 
 ---

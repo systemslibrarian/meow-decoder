@@ -1,0 +1,33 @@
+# .coveragerc
+# General coverage configuration – measures the full package
+# Use this for local development and full HTML reports
+# Do NOT use fail_under here (or keep it very low)
+
+[run]
+source = meow_decoder
+branch = true
+
+omit =
+    meow_decoder/*_demo.py
+    meow_decoder/*_cli.py
+    meow_decoder/profiling_*.py
+    # add more patterns later if needed (examples, experiments, etc.)
+
+[report]
+exclude_also =
+    pragma: no cover
+    if __name__ == .__main__.:
+    def main\(.*\):
+    raise NotImplementedError
+    raise AssertionError
+    if TYPE_CHECKING:
+    if _TEST_MODE:
+    \.\.\.
+    if 0:
+    if False:
+
+show_missing = True
+
+[html]
+directory = htmlcov
+skip_covered = false

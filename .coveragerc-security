@@ -1,5 +1,14 @@
 # .coveragerc-security
-# Only the true security-critical modules — enforce meaningful coverage here
+# Enforces coverage ONLY on the true security-critical modules.
+# Use this in CI to gate merges / releases — do NOT apply to the full codebase.
+#
+# Recommended CI usage:
+#   coverage run -m pytest
+#   coverage report --rcfile=.coveragerc-security --fail-under=52
+#   coverage xml --rcfile=.coveragerc-security -o coverage.xml
+#
+# or with pytest-cov:
+#   pytest --cov-config=.coveragerc-security --cov-fail-under=52 --cov-report=xml
 
 [run]
 source =
@@ -15,12 +24,9 @@ source =
     meow_decoder/pq_hybrid.py
     meow_decoder/pq_crypto_real.py
     meow_decoder/pq_signatures.py
-    # ──────────────────────────────────────────────
-    # Strongly consider adding these too (deniability cluster):
     meow_decoder/duress_mode.py
     meow_decoder/stego_advanced.py
     meow_decoder/timelock_duress.py
-    # meow_decoder/crypto_enhanced.py     # ← only if it has real security logic
 
 branch = true
 
@@ -40,5 +46,7 @@ exclude_also =
 show_missing = True
 sort = Miss
 
-# Starting realistic threshold — raise gradually
-fail_under = 52               # Adjust up every ~10–15% improvement 
+fail_under = 52
+
+[xml]
+output = coverage.xml
