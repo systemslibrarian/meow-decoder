@@ -1,7 +1,7 @@
 ref# 🐱 Meow Decoder Test Engineering Progress
 
-**Last Updated:** 2026-02-02  
-**Overall Status:** 23/23 modules tested (coverage complete via isolated runs; gitflow pending)  
+**Last Updated:** 2026-02-03  
+**Overall Status:** 23/23 modules tested (decode_gif now 100%; gitflow pending; several modules still weak)  
 **Current File:** COMPLETE (gitflow steps pending)  
 
 ---
@@ -172,7 +172,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from test_core_encode_decode_unit.py
 - [x] Analyze gaps: no frames, no QR, bad manifest size, happy path
 - [x] Create new tests: stubbed GIF/QR reader decode paths
-- [x] Verify coverage: **25%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **100%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_decode_gif.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -252,7 +252,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 | encode.py | **53%** | CLI branches + encode_file smoke with stubs | pending |
 | meow_encode.py | **75%** | CLI branches + hiss_file stubs | pending |
 | spec_v12/encode.py | **91%** | Invalid pk length + encode marker | pending |
-| decode_gif.py | **25%** | Stubbed GIF/QR reader paths | pending |
+| decode_gif.py | **100%** | Full decode + CLI branches + MAC paths + error handling | pending |
 | spec_v12/decode.py | **90%** | Roundtrip + invalid payload + version mismatch | pending |
 | frame_mac.py | **65%** | Pack/unpack + verify + stats | pending |
 | stego_advanced.py | **62%** | Malformed carriers + detection resistance | pending |
