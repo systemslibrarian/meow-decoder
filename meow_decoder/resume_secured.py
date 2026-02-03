@@ -520,10 +520,10 @@ class AutoSaveDecoder:
         self,
         decoder: FountainDecoder,
         manifest: Manifest,
-        password: Optional[str] = None,
         resume_manager: ResumeManager,
+        password: Optional[str] = None,
         session_id: Optional[str] = None,
-        auto_save_interval: int = None,
+        auto_save_interval: Optional[int] = None,
         save_interval: Optional[int] = None,
         input_source: str = "webcam",
         seed: int = 42069

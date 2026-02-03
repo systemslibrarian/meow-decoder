@@ -70,9 +70,12 @@ class CatNapDistribution:
         deep_sleep = [0.0] * (self.num_posts + 1)
         R = self.c * np.log(self.num_posts / self.delta) * np.sqrt(self.num_posts)
         
-        for d in range(1, int(self.num_posts / R) + 1):
+        # Calculate spike index, clamped to valid range [1, num_posts]
+        spike_index = max(1, min(int(self.num_posts / R) if R > 0 else self.num_posts, self.num_posts))
+        
+        for d in range(1, spike_index + 1):
             deep_sleep[d] = R / (d * self.num_posts)
-        deep_sleep[int(self.num_posts / R)] += R * np.log(R / self.delta) / self.num_posts
+        deep_sleep[spike_index] += R * np.log(R / self.delta) / self.num_posts
         
         # Combine nap schedules
         nap_schedule = [light_naps[d] + deep_sleep[d] for d in range(self.num_posts + 1)]
