@@ -147,30 +147,30 @@ class EntropyPool:
             # Try to get raw keystroke timing
             import tty
             import termios
-            
+
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
-            
+
             try:
                 tty.setraw(fd)
-                
+
                 while True:
                     t1 = time.time_ns()
                     char = sys.stdin.read(1)
                     t2 = time.time_ns()
-                    
+
                     if char in ('\r', '\n'):
                         break
-                    
+
                     chars.append(char)
                     timings.append(t2 - t1)
-                    
+
                     print('*', end='', flush=True)
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
                 print()  # Newline after input
-                
-        except (ImportError, termios.error, AttributeError):
+
+        except Exception:
             # Fallback for Windows or non-TTY
             user_input = input()
             chars = list(user_input)
@@ -263,15 +263,39 @@ class EntropyPool:
         # Add final timing
         combined += struct.pack('>Q', time.time_ns())
         
+        if output_length == 0:
+            return b""
+
         # Use HKDF to extract and expand
-        hkdf = HKDF(
+        max_len = 255 * hashes.SHA256().digest_size
+        salt = secrets.token_bytes(32)
+
+        if output_length <= max_len:
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=output_length,
+                salt=salt,
+                info=b"meow_entropy_boost_v1"
+            )
+            return hkdf.derive(combined)
+
+        # For large outputs, derive a seed and expand
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
+
+        seed_hkdf = HKDF(
             algorithm=hashes.SHA256(),
-            length=output_length,
-            salt=secrets.token_bytes(32),  # Fresh salt
+            length=32,
+            salt=salt,
             info=b"meow_entropy_boost_v1"
         )
-        
-        return hkdf.derive(combined)
+        seed = seed_hkdf.derive(combined)
+
+        expander = HKDFExpand(
+            algorithm=hashes.SHA256(),
+            length=output_length,
+            info=b"meow_entropy_boost_v1"
+        )
+        return expander.derive(seed)
     
     def get_source_count(self) -> int:
         """Return number of entropy sources collected."""

@@ -79,6 +79,9 @@ class KeyHandle:
             except Exception:
                 pass
             self._zeroed = True
+        elif not self._zeroed:
+            # No key bytes available, still mark as zeroed
+            self._zeroed = True
 
 
 class SecureMemory:
@@ -95,7 +98,10 @@ class SecureMemory:
         
         # Try to allocate via ctypes
         try:
-            self._buffer = (ctypes.c_char * size)()
+            candidate = (ctypes.c_char * size)()
+            if not isinstance(candidate, ctypes.Array):
+                raise TypeError("ctypes buffer allocation failed")
+            self._buffer = candidate
             self._try_mlock()
         except Exception:
             # Fallback to bytearray

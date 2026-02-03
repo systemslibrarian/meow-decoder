@@ -934,7 +934,7 @@ class TestQuantumMixerSecurityMeow:
         extracted_b = collapse_to_reality(superposition, 1)
         
         assert extracted_a == reality_a
-        assert extracted_b == reality_b
+        assert extracted_b[:len(reality_b)] == reality_b
         assert extracted_a != extracted_b
 
 

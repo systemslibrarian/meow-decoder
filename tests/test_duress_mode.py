@@ -9,6 +9,7 @@ from pathlib import Path
 
 import pytest
 import secrets
+import gc
 
 from meow_decoder.config import DuressConfig, DuressMode
 from meow_decoder.duress_mode import (

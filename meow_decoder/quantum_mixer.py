@@ -289,10 +289,13 @@ def verify_indistinguishability(
     
     # Compare distributions (KL divergence approximation)
     all_bytes = set(prob_a.keys()) | set(prob_b.keys())
-    max_diff = max(
-        abs(prob_a.get(b, 0) - prob_b.get(b, 0))
-        for b in all_bytes
-    )
+    if not all_bytes:
+        max_diff = 0.0
+    else:
+        max_diff = max(
+            abs(prob_a.get(b, 0) - prob_b.get(b, 0))
+            for b in all_bytes
+        )
     
     results['max_freq_diff'] = max_diff
     results['freq_pass'] = max_diff < threshold

@@ -136,7 +136,7 @@ def check_for_existing_session(
             print(f"{Fore.GREEN}✓ Resuming from saved session...{Style.RESET_ALL}\n")
             
             # Restore decoder
-            decoder, _, droplets_seen = resume_manager.restore_decoder(state)
+            decoder, _, droplets_seen = resume_manager.restore_decoder(state, return_tuple=True)
             return decoder, droplets_seen
         else:
             print(f"{Fore.YELLOW}Starting fresh decode (old session kept for later)...{Style.RESET_ALL}\n")

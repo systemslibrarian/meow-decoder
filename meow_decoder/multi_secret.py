@@ -406,6 +406,25 @@ class MultiSecretDecoder:
         """Compute HMAC for verification."""
         import hmac as hmac_module
         return hmac_module.new(key, data, hashlib.sha256).digest()
+
+    def _compute_merkle_root(self, blocks: List[bytes]) -> bytes:
+        """Compute Merkle root of blocks (same as encoder)."""
+        if not blocks:
+            return hashlib.sha256(b"empty").digest()
+
+        hashes = [hashlib.sha256(b).digest() for b in blocks]
+
+        while len(hashes) > 1:
+            next_level = []
+            for i in range(0, len(hashes), 2):
+                if i + 1 < len(hashes):
+                    combined = hashlib.sha256(hashes[i] + hashes[i + 1]).digest()
+                else:
+                    combined = hashes[i]
+                next_level.append(combined)
+            hashes = next_level
+
+        return hashes[0]
     
     def _unshuffle(self, blocks: List[bytes]) -> List[bytes]:
         """Reverse the cryptographic shuffle."""
@@ -450,6 +469,11 @@ class MultiSecretDecoder:
         
         n = self.manifest.n_realities
         
+        # Verify integrity of the shuffled superposition
+        computed_root = self._compute_merkle_root(self.blocks)
+        if computed_root != self.manifest.merkle_root:
+            raise ValueError("Decryption failed: integrity check failed")
+
         # Unshuffle blocks
         unshuffled = self._unshuffle(self.blocks)
         

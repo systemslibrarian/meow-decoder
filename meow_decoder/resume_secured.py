@@ -54,7 +54,14 @@ class ResumeManager:
     Now with encrypted state files for security.
     """
     
-    def __init__(self, state_dir: Optional[str] = None, config=None):
+    def __init__(
+        self,
+        state_dir: Optional[str] = None,
+        config=None,
+        encrypt_state: Optional[bool] = None,
+        cleanup_days: Optional[int] = None,
+        auto_save_interval: Optional[int] = None
+    ):
         """
         Initialize resume manager.
         
@@ -78,6 +85,18 @@ class ResumeManager:
             self.auto_save_interval = 50
             self.cleanup_days = 7
             self.encrypt_state = True  # Default to encrypted
+
+        # Allow explicit overrides for compatibility
+        if auto_save_interval is not None:
+            self.auto_save_interval = auto_save_interval
+        if cleanup_days is not None:
+            self.cleanup_days = cleanup_days
+        if encrypt_state is not None:
+            self.encrypt_state = encrypt_state
+
+    def _get_state_file_path(self, session_id: str) -> Path:
+        """Return canonical state file path (.meow)."""
+        return self.state_dir / f"{session_id}.meow"
     
     def _derive_state_key(self, password: str, manifest: Manifest) -> bytes:
         """
@@ -117,8 +136,8 @@ class ResumeManager:
         self,
         decoder: FountainDecoder,
         manifest: Manifest,
-        password: str,
-        droplets_seen: int,
+        password: Optional[str] = None,
+        droplets_seen: int = 0,
         session_id: Optional[str] = None,
         input_source: str = "webcam",
         seed: int = 42069
@@ -143,8 +162,9 @@ class ResumeManager:
         
         # Convert solved blocks to serializable format
         solved_blocks = [
-            (i, block.hex() if block is not None else None)
+            (i, block.hex())
             for i, block in enumerate(decoder.blocks)
+            if block is not None
         ]
         
         # Convert pending droplets to serializable format
@@ -184,20 +204,22 @@ class ResumeManager:
         
         # Encrypt if enabled
         if self.encrypt_state:
+            if not password:
+                raise ValueError("Password required to encrypt state")
             try:
                 key = self._derive_state_key(password, manifest)
                 fernet = Fernet(base64.urlsafe_b64encode(key))
                 encrypted_data = fernet.encrypt(state_json.encode())
                 
                 # Save encrypted
-                state_path = self.state_dir / f"{session_id}.enc"
+                state_path = self._get_state_file_path(session_id)
                 with open(state_path, 'wb') as f:
                     f.write(encrypted_data)
             except Exception as e:
                 raise RuntimeError(f"Failed to encrypt state: {e}")
         else:
             # Save unencrypted (for debugging only)
-            state_path = self.state_dir / f"{session_id}.json"
+            state_path = self._get_state_file_path(session_id)
             with open(state_path, 'w') as f:
                 json.dump(state.to_dict(), f, indent=2)
         
@@ -206,7 +228,8 @@ class ResumeManager:
     def load_state(
         self,
         session_id: str,
-        password: Optional[str] = None
+        password: Optional[str] = None,
+        manifest: Optional[Manifest] = None
     ) -> Optional[DecoderState]:
         """
         Load decoder state from disk (encrypted).
@@ -222,50 +245,47 @@ class ResumeManager:
             ValueError: If password is missing for encrypted state
             InvalidToken: If password is incorrect
         """
-        # Try encrypted first
-        state_path = self.state_dir / f"{session_id}.enc"
-        
-        if state_path.exists():
-            if password is None:
-                raise ValueError("Password required to decrypt state")
-            
+        # Prefer canonical .meow path, with legacy fallbacks
+        state_path = self._get_state_file_path(session_id)
+        legacy_paths = [
+            state_path,
+            self.state_dir / f"{session_id}.enc",
+            self.state_dir / f"{session_id}.json"
+        ]
+
+        for candidate in legacy_paths:
+            if not candidate.exists():
+                continue
+
             try:
-                with open(state_path, 'rb') as f:
-                    encrypted_data = f.read()
-                
-                # Reconstruct manifest from session ID to get salt
-                # NOTE: We need the manifest to decrypt, which creates a chicken-egg problem
-                # Solution: Store salt in filename or use different approach
-                # For now, we'll need to pass manifest separately
-                # This is a design trade-off for security
-                
-                raise NotImplementedError(
-                    "Encrypted state loading requires manifest. "
-                    "Use load_state_with_manifest() instead."
-                )
-                
+                if self.encrypt_state:
+                    if password is None or manifest is None:
+                        return None
+
+                    with open(candidate, 'rb') as f:
+                        encrypted_data = f.read()
+
+                    key = self._derive_state_key(password, manifest)
+                    fernet = Fernet(base64.urlsafe_b64encode(key))
+                    decrypted_data = fernet.decrypt(encrypted_data)
+
+                    data = json.loads(decrypted_data.decode())
+                    return DecoderState.from_dict(data)
+
+                with open(candidate, 'r') as f:
+                    data = json.load(f)
+
+                return DecoderState.from_dict(data)
             except InvalidToken:
-                raise ValueError("Incorrect password for encrypted state")
-            except Exception as e:
-                print(f"Warning: Failed to load encrypted state {session_id}: {e}")
                 return None
-        
-        # Fall back to unencrypted (legacy/debug)
-        state_path = self.state_dir / f"{session_id}.json"
-        if not state_path.exists():
-            return None
-        
-        try:
-            with open(state_path, 'r') as f:
-                data = json.load(f)
-            
-            return DecoderState.from_dict(data)
-        except json.JSONDecodeError as e:
-            print(f"Warning: Corrupted state file {session_id}: {e}")
-            return None
-        except Exception as e:
-            print(f"Error loading state {session_id}: {e}")
-            return None
+            except json.JSONDecodeError as e:
+                print(f"Warning: Corrupted state file {session_id}: {e}")
+                return None
+            except Exception as e:
+                print(f"Error loading state {session_id}: {e}")
+                return None
+
+        return None
     
     def load_state_with_manifest(
         self,
@@ -284,7 +304,7 @@ class ResumeManager:
         Returns:
             DecoderState or None if not found
         """
-        state_path = self.state_dir / f"{session_id}.enc"
+        state_path = self._get_state_file_path(session_id)
         
         if state_path.exists():
             try:
@@ -308,9 +328,9 @@ class ResumeManager:
                 return None
         
         # Fall back to unencrypted
-        return self.load_state(session_id, password)
+        return self.load_state(session_id)
     
-    def restore_decoder(self, state: DecoderState) -> tuple:
+    def restore_decoder(self, state: DecoderState, return_tuple: bool = False):
         """
         Restore FountainDecoder from saved state.
         
@@ -350,9 +370,11 @@ class ResumeManager:
         # Note: pending_droplets are lost on restore (cannot easily reconstruct Droplet objects)
         # This is acceptable as fountain codes are redundant - we'll receive more droplets
         
-        return decoder, manifest, state.droplets_seen
+        if return_tuple:
+            return decoder, manifest, state.droplets_seen
+        return decoder
     
-    def list_sessions(self) -> list:
+    def list_sessions(self, detailed: bool = False) -> list:
         """
         List all saved sessions.
         
@@ -360,43 +382,35 @@ class ResumeManager:
             List of session info dicts
         """
         sessions = []
-        
-        # Check both encrypted and unencrypted files
-        for pattern in ["session_*.enc", "session_*.json"]:
-            for state_file in self.state_dir.glob(pattern):
+
+        for state_file in self.state_dir.glob("session_*.meow"):
+            try:
+                session_id = state_file.stem
+                if not detailed:
+                    sessions.append(session_id)
+                    continue
+
+                mtime = datetime.fromtimestamp(state_file.stat().st_mtime)
                 try:
-                    # For encrypted files, we can't read without password
-                    # Just show metadata from filename
-                    session_id = state_file.stem
-                    
-                    # Get file modification time
-                    mtime = datetime.fromtimestamp(state_file.stat().st_mtime)
-                    
-                    # Try to load if unencrypted
-                    if state_file.suffix == '.json':
-                        try:
-                            state = self.load_state(session_id)
-                            if state:
-                                solved_count = sum(
-                                    1 for _, block in state.solved_blocks
-                                    if block is not None
-                                )
-                                total_blocks = state.manifest['k_blocks']
-                                progress = (solved_count / total_blocks * 100) if total_blocks > 0 else 0
-                                
-                                sessions.append({
-                                    'session_id': state.session_id,
-                                    'timestamp': state.timestamp,
-                                    'progress': progress,
-                                    'source': state.input_source,
-                                    'droplets': state.droplets_seen,
-                                    'blocks_solved': f"{solved_count}/{total_blocks}",
-                                    'encrypted': False
-                                })
-                        except Exception:
-                            pass
+                    state = self.load_state(session_id)
+                    if state:
+                        solved_count = sum(
+                            1 for _, block in state.solved_blocks
+                            if block is not None
+                        )
+                        total_blocks = state.manifest['k_blocks']
+                        progress = (solved_count / total_blocks * 100) if total_blocks > 0 else 0
+
+                        sessions.append({
+                            'session_id': state.session_id,
+                            'timestamp': state.timestamp,
+                            'progress': progress,
+                            'source': state.input_source,
+                            'droplets': state.droplets_seen,
+                            'blocks_solved': f"{solved_count}/{total_blocks}",
+                            'encrypted': False
+                        })
                     else:
-                        # Encrypted - just show file info
                         sessions.append({
                             'session_id': session_id,
                             'timestamp': mtime.isoformat(),
@@ -406,12 +420,21 @@ class ResumeManager:
                             'blocks_solved': 'unknown',
                             'encrypted': True
                         })
-                        
                 except Exception:
-                    continue
-        
-        # Sort by timestamp (newest first)
-        sessions.sort(key=lambda x: x['timestamp'], reverse=True)
+                    sessions.append({
+                        'session_id': session_id,
+                        'timestamp': mtime.isoformat(),
+                        'progress': None,
+                        'source': 'unknown',
+                        'droplets': None,
+                        'blocks_solved': 'unknown',
+                        'encrypted': True
+                    })
+            except Exception:
+                continue
+
+        if detailed:
+            sessions.sort(key=lambda x: x['timestamp'], reverse=True)
         return sessions
     
     def delete_session(self, session_id: str) -> bool:
@@ -426,7 +449,7 @@ class ResumeManager:
         """
         deleted = False
         
-        for ext in ['.enc', '.json']:
+        for ext in ['.meow', '.enc', '.json']:
             state_path = self.state_dir / f"{session_id}{ext}"
             if state_path.exists():
                 state_path.unlink()
@@ -462,6 +485,10 @@ class ResumeManager:
                 continue
         
         return deleted
+
+    def cleanup_old_states(self, days: int = None) -> int:
+        """Backward-compatible alias for cleanup_old_sessions."""
+        return self.cleanup_old_sessions(days)
     
     def check_for_existing_session(self, manifest: Manifest) -> Optional[str]:
         """
@@ -476,7 +503,7 @@ class ResumeManager:
         session_id = self.generate_session_id(manifest)
         
         # Check if file exists
-        for ext in ['.enc', '.json']:
+        for ext in ['.meow', '.enc', '.json']:
             state_path = self.state_dir / f"{session_id}{ext}"
             if state_path.exists():
                 return session_id
@@ -493,10 +520,11 @@ class AutoSaveDecoder:
         self,
         decoder: FountainDecoder,
         manifest: Manifest,
-        password: str,
+        password: Optional[str] = None,
         resume_manager: ResumeManager,
         session_id: Optional[str] = None,
         auto_save_interval: int = None,
+        save_interval: Optional[int] = None,
         input_source: str = "webcam",
         seed: int = 42069
     ):
@@ -515,9 +543,14 @@ class AutoSaveDecoder:
         """
         self.decoder = decoder
         self.manifest = manifest
-        self.password = password
+        if resume_manager.encrypt_state and not password:
+            raise ValueError("Password required for encrypted resume state")
+
+        self.password = password or ""
         self.resume_manager = resume_manager
         self.session_id = session_id or resume_manager.generate_session_id(manifest)
+        if auto_save_interval is None and save_interval is not None:
+            auto_save_interval = save_interval
         self.auto_save_interval = auto_save_interval or resume_manager.auto_save_interval
         self.input_source = input_source
         self.seed = seed
@@ -579,8 +612,8 @@ class AutoSaveDecoder:
 
 def resume_from_session(
     session_id: str,
-    manifest: Manifest,
-    password: str,
+    manifest: Optional[Manifest] = None,
+    password: Optional[str] = None,
     resume_manager: Optional[ResumeManager] = None
 ) -> Optional[Tuple[FountainDecoder, Manifest, int]]:
     """
@@ -598,7 +631,10 @@ def resume_from_session(
     if resume_manager is None:
         resume_manager = ResumeManager()
     
-    state = resume_manager.load_state_with_manifest(session_id, manifest, password)
+    if manifest is not None and password is not None:
+        state = resume_manager.load_state_with_manifest(session_id, manifest, password)
+    else:
+        state = resume_manager.load_state(session_id)
     if state is None:
         return None
     
@@ -607,7 +643,7 @@ def resume_from_session(
 
 def create_resumable_decoder(
     manifest: Manifest,
-    password: str,
+    password: Optional[str] = None,
     auto_save_interval: int = 50,
     input_source: str = "webcam",
     seed: int = 42069,
@@ -666,7 +702,7 @@ if __name__ == "__main__":
     command = sys.argv[1]
     
     if command == "list":
-        sessions = manager.list_sessions()
+        sessions = manager.list_sessions(detailed=True)
         
         if not sessions:
             print(f"{Fore.YELLOW}No saved sessions found.{Style.RESET_ALL}")

@@ -36,10 +36,10 @@ except ImportError:
 @dataclass
 class MemoryConfig:
     """Memory configuration for streaming."""
-    chunk_size: int         # Bytes per chunk
-    max_memory_mb: int      # Maximum memory usage (MB)
-    enable_gc: bool         # Force GC after chunks
-    enable_mlock: bool      # Try to lock memory
+    chunk_size: int = 65536         # Bytes per chunk
+    max_memory_mb: int = 100        # Maximum memory usage (MB)
+    enable_gc: bool = False         # Force GC after chunks
+    enable_mlock: bool = True       # Try to lock memory
 
 
 class StreamingCipher:
@@ -65,7 +65,11 @@ class StreamingCipher:
         """
         if len(key) != 32:
             raise ValueError("Key must be 32 bytes")
+
+        if chunk_size <= 0:
+            raise ValueError("chunk_size must be positive")
         
+        self.key = key
         self.chunk_size = chunk_size
         
         # Generate nonce if not provided
@@ -151,9 +155,10 @@ class StreamingCipher:
         return original_size, compressed_size, hasher.digest()
     
     def decrypt_stream(self,
-                      input_stream: IO[bytes],
-                      output_stream: IO[bytes],
-                      enable_decompression: bool = True) -> int:
+                      input_stream: IO[bytes] = None,
+                      output_stream: IO[bytes] = None,
+                      enable_decompression: bool = True,
+                      **kwargs) -> int:
         """
         Decrypt stream in chunks.
         
@@ -165,6 +170,16 @@ class StreamingCipher:
         Returns:
             Total bytes written
         """
+        if input_stream is None and 'input_stream' in kwargs:
+            input_stream = kwargs['input_stream']
+        if output_stream is None and 'output_stream' in kwargs:
+            output_stream = kwargs['output_stream']
+        if output_stream is None and 'decrypted_stream' in kwargs:
+            output_stream = kwargs['decrypted_stream']
+
+        if input_stream is None or output_stream is None:
+            raise ValueError("input_stream and output_stream are required")
+
         total_written = 0
         
         # Create decompressor if enabled
@@ -301,7 +316,7 @@ def create_streaming_encoder(key: bytes,
             min_chunk=4096,
             max_chunk=65536  # Cap at 64 KB for low-memory
         )
-        enable_gc = monitor.should_enable_aggressive_gc()
+        enable_gc = True
     else:
         chunk_size = 1024 * 1024  # 1 MB default
         enable_gc = False

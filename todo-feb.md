@@ -14,12 +14,13 @@
 | quantum_mixer.py | test_quantum_mixer_comprehensive.py | ~92% | Feb 3 |
 | merkle_tree.py | test_merkle_tree_comprehensive.py | ~93% | Feb 3 |
 | multi_secret.py | test_multi_secret_comprehensive.py | ~90% | Feb 3 |
+| profiling_improved.py | test_profiling_improved_comprehensive.py | ~78% | Feb 3 |
 
 ## 🔄 In Progress
 
 | File | Status | Target Coverage |
 |------|--------|-----------------|
-| profiling_improved.py | Next up | 70-80% |
+| ninja_cat_ultra.py | Next up | 75-85% |
 
 ## 📋 Remaining Files
 
