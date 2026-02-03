@@ -624,6 +624,8 @@ class TestCryptoBackend:
         """Test CryptoBackend raises RuntimeError for non-rust backend."""
         from meow_decoder import crypto_backend
         
+        os.environ.pop("MEOW_CRYPTO_BACKEND", None)
+
         with pytest.raises(RuntimeError, match="Rust crypto backend required"):
             crypto_backend.CryptoBackend(backend="nonexistent")
     

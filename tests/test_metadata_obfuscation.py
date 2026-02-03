@@ -2,6 +2,7 @@
 
 import secrets
 import pytest
+import runpy
 
 from meow_decoder.metadata_obfuscation import (
     SIZE_CLASSES,
@@ -47,6 +48,7 @@ class TestPaddingValidation:
         assert round_up_to_size_class(0) == SIZE_CLASSES[0]
         assert round_up_to_size_class(SIZE_CLASSES[0]) == SIZE_CLASSES[0]
         assert round_up_to_size_class(SIZE_CLASSES[0] + 1) == SIZE_CLASSES[1]
+        assert round_up_to_size_class(SIZE_CLASSES[-1] + 1) % (64 * 1024 * 1024) == 0
 
     def test_padded_size_at_least_original(self):
         data = secrets.token_bytes(1234)
@@ -60,6 +62,12 @@ class TestPaddingValidation:
         corrupted = padded[:-8] + (len(padded) + 10).to_bytes(8, "little")
         with pytest.raises(ValueError):
             remove_length_padding(corrupted)
+
+    def test_padding_len_negative_advances_size_class(self):
+        size = SIZE_CLASSES[0] - 4
+        data = secrets.token_bytes(size)
+        padded = add_length_padding(data)
+        assert len(padded) >= size + 8
 
     def test_too_short_raises(self):
         with pytest.raises(ValueError):
@@ -93,6 +101,13 @@ class TestFrameObfuscation:
         padded = pad_frame_count(frames, 2)
         assert padded == frames
 
+    def test_randomize_frame_order_default_seed(self, monkeypatch):
+        frames = [b"A", b"B", b"C"]
+        monkeypatch.setattr("meow_decoder.metadata_obfuscation.secrets.token_bytes", lambda n: b"\x02" * 32)
+        shuffled, indices = randomize_frame_order(frames)
+        assert sorted(indices) == list(range(len(frames)))
+        assert unshuffle_frames(shuffled, indices) == frames
+
 
 class TestParameterObfuscation:
     def test_obfuscate_bounds(self):
@@ -101,3 +116,23 @@ class TestParameterObfuscation:
             assert block_size >= 64
             assert redundancy >= 1.0
             assert fps >= 1
+
+    def test_obfuscate_clamps_to_minimums(self, monkeypatch):
+        calls = iter([0, 0, 0])
+
+        def _randbelow(_):
+            return next(calls)
+
+        monkeypatch.setattr("meow_decoder.metadata_obfuscation.secrets.randbelow", _randbelow)
+        block_size, redundancy, fps = obfuscate_encoding_parameters(32, 0.5, 0)
+        assert block_size == 64
+        assert redundancy == 1.0
+        assert fps == 1
+
+
+def test_module_main_runs(monkeypatch, capsys):
+    monkeypatch.setattr("meow_decoder.metadata_obfuscation.secrets.token_bytes", lambda n: b"x")
+    monkeypatch.setattr("meow_decoder.metadata_obfuscation.secrets.randbelow", lambda n: 1)
+    runpy.run_module("meow_decoder.metadata_obfuscation", run_name="__main__")
+    out = capsys.readouterr().out
+    assert "Metadata Obfuscation Test" in out

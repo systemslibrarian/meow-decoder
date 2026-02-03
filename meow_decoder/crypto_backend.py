@@ -123,7 +123,7 @@ class RustCryptoBackend:
     ) -> bytes:
         try:
             return self._rs.yubikey_derive_key(password, salt, slot, pin)
-        except AttributeError as e:
+        except (AttributeError, ValueError) as e:
             raise RuntimeError(
                 "YubiKey support not enabled in Rust backend. Rebuild with: "
                 "maturin develop --release --features yubikey"
