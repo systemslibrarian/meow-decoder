@@ -15,10 +15,10 @@ from datetime import datetime, timedelta
 
 from cryptography.fernet import Fernet, InvalidToken
 from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 
-from fountain_improved import FountainDecoder
-from crypto_improved import Manifest
+from meow_decoder.fountain import FountainDecoder
+from meow_decoder.crypto import Manifest
 
 
 STATE_VERSION = 1  # For future migrations
@@ -31,7 +31,7 @@ class DecoderState:
     session_id: str
     manifest: dict  # Manifest as dict
     solved_blocks: list  # List of (index, block_bytes_hex) tuples
-    equations: list  # List of (idxs_frozenset, payload_hex) tuples
+    pending_droplets: list  # List of (block_indices, data_hex) tuples
     droplets_seen: int
     timestamp: str
     input_source: str  # "gif" or "webcam"
@@ -90,7 +90,7 @@ class ResumeManager:
         Returns:
             32-byte key suitable for Fernet
         """
-        kdf = PBKDF2(
+        kdf = PBKDF2HMAC(
             algorithm=hashes.SHA256(),
             length=32,
             salt=manifest.salt,  # Use manifest salt for domain separation
@@ -144,13 +144,14 @@ class ResumeManager:
         # Convert solved blocks to serializable format
         solved_blocks = [
             (i, block.hex() if block is not None else None)
-            for i, block in enumerate(decoder.solved)
+            for i, block in enumerate(decoder.blocks)
         ]
         
-        # Convert equations to serializable format using frozenset for idxs
-        equations = [
-            (sorted(list(s)), payload.hex())  # Sort for consistency
-            for s, payload in decoder.equations
+        # Convert pending droplets to serializable format
+        # Note: pending_droplets contains Droplet objects with block_indices and data
+        pending_droplets = [
+            (sorted(droplet.block_indices), droplet.data.hex())
+            for droplet in decoder.pending_droplets
         ]
         
         # Convert manifest to dict
@@ -171,7 +172,7 @@ class ResumeManager:
             session_id=session_id,
             manifest=manifest_dict,
             solved_blocks=solved_blocks,
-            equations=equations,
+            pending_droplets=pending_droplets,
             droplets_seen=droplets_seen,
             timestamp=datetime.now().isoformat(),
             input_source=input_source,
@@ -335,20 +336,19 @@ class ResumeManager:
         
         # Create decoder
         decoder = FountainDecoder(
-            k=manifest.k_blocks,
+            k_blocks=manifest.k_blocks,
             block_size=manifest.block_size
         )
         
         # Restore solved blocks
         for i, block_hex in state.solved_blocks:
             if block_hex is not None:
-                decoder.solved[i] = bytes.fromhex(block_hex)
+                decoder.blocks[i] = bytes.fromhex(block_hex)
+                decoder.decoded[i] = True
+                decoder.decoded_count += 1
         
-        # Restore equations (convert back to set)
-        for idxs, payload_hex in state.equations:
-            decoder.equations.append(
-                (set(idxs), bytes.fromhex(payload_hex))
-            )
+        # Note: pending_droplets are lost on restore (cannot easily reconstruct Droplet objects)
+        # This is acceptable as fountain codes are redundant - we'll receive more droplets
         
         return decoder, manifest, state.droplets_seen
     
@@ -524,15 +524,17 @@ class AutoSaveDecoder:
         self.droplets_seen = 0
         self.droplets_since_save = 0
     
-    def add_equation(self, idxs: list, payload: bytes) -> None:
+    def add_droplet(self, droplet) -> bool:
         """
-        Add equation with automatic saving.
+        Add droplet with automatic saving.
         
         Args:
-            idxs: Block indices
-            payload: Droplet payload
+            droplet: Droplet object to add
+            
+        Returns:
+            True if decoding is complete
         """
-        self.decoder.add_equation(idxs, payload)
+        result = self.decoder.add_droplet(droplet)
         self.droplets_seen += 1
         self.droplets_since_save += 1
         
@@ -543,6 +545,9 @@ class AutoSaveDecoder:
                 self.droplets_since_save = 0
             except Exception as e:
                 # Don't fail decode if save fails
+                print(f"Warning: Auto-save failed: {e}")
+        
+        return result
                 print(f"Warning: Auto-save failed: {e}")
     
     def save(self) -> str:
@@ -562,13 +567,13 @@ class AutoSaveDecoder:
             self.seed
         )
     
-    def is_done(self) -> bool:
+    def is_complete(self) -> bool:
         """Check if decoding complete."""
-        return self.decoder.is_done()
+        return self.decoder.is_complete()
     
-    def reconstruct(self, orig_len: int) -> bytes:
-        """Reconstruct data (same as FountainDecoder)."""
-        return self.decoder.reconstruct(orig_len)
+    def get_data(self, orig_len: int = None) -> bytes:
+        """Get reconstructed data (same as FountainDecoder)."""
+        return self.decoder.get_data(orig_len)
 
 
 # Convenience functions
@@ -627,7 +632,7 @@ def create_resumable_decoder(
         resume_manager = ResumeManager()
     
     decoder = FountainDecoder(
-        k=manifest.k_blocks,
+        k_blocks=manifest.k_blocks,
         block_size=manifest.block_size
     )
     

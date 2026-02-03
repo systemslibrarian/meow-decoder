@@ -199,3 +199,157 @@ def test_webcam_reader_init_fails_when_closed(monkeypatch):
 
     with pytest.raises(RuntimeError):
         WebcamQRReader(device=0)
+
+
+def test_webcam_reader_read_next_returns_none_on_read_failure(monkeypatch):
+    """Test that read_next returns None when cap.read() fails (line 285)."""
+
+    class DummyCap:
+        def isOpened(self):
+            return True
+
+        def read(self):
+            # Always fail - covers line 284-285
+            return False, None
+
+        def release(self):
+            pass
+
+    dummy = DummyCap()
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: dummy)
+
+    reader = WebcamQRReader(device=0, preprocessing="normal", frame_skip=0)
+    # Now read_next should return None because cap.read() returns (False, None)
+    result = reader.read_next()
+    assert result is None
+
+
+def test_webcam_reader_read_next_loops_when_no_qr_found(monkeypatch):
+    """Test that read_next loops when no QR code found (line 295 partial branch)."""
+
+    class DummyCap:
+        def __init__(self):
+            self.call_count = 0
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            self.call_count += 1
+            return True, np.zeros((10, 10, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    dummy = DummyCap()
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: dummy)
+
+    reader = WebcamQRReader(device=0, preprocessing="normal", frame_skip=0)
+
+    read_frame_calls = [0]
+
+    def fake_read_frame(frame):
+        read_frame_calls[0] += 1
+        if read_frame_calls[0] < 3:
+            # Return empty list first 2 times - covers loop continuation
+            return []
+        # Return result on 3rd call
+        return [b"found"]
+
+    monkeypatch.setattr(reader.reader, "read_frame", fake_read_frame)
+
+    result = reader.read_next()
+    assert result is not None
+    assert result[0] == b"found"
+    # Verify we looped at least twice before finding QR
+    assert read_frame_calls[0] >= 3
+
+
+def test_webcam_reader_read_continuous_loops_when_result_none(monkeypatch):
+    """Test read_continuous loops when read_next returns None (line 313 partial branch)."""
+
+    class DummyCap:
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((10, 10, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    dummy = DummyCap()
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: dummy)
+
+    reader = WebcamQRReader(device=0, preprocessing="normal", frame_skip=0)
+
+    call_count = [0]
+    collected = []
+
+    def fake_read_next():
+        call_count[0] += 1
+        if call_count[0] <= 2:
+            # Return None first 2 times - covers loop continuation at line 313
+            return None
+        if call_count[0] == 3:
+            # Return valid result
+            return b"data", np.zeros((10, 10, 3), dtype=np.uint8)
+        # After max_frames, return None to stop
+        return None
+
+    monkeypatch.setattr(reader, "read_next", fake_read_next)
+
+    def callback(data, frame):
+        collected.append(data)
+
+    reader.read_continuous(callback, max_frames=1)
+    assert collected == [b"data"]
+    # Verify we went through the loop multiple times
+    assert call_count[0] >= 3
+
+
+def test_webcam_reader_release_when_cap_is_none(monkeypatch):
+    """Test release() handles self.cap being None (line 320 partial branch)."""
+
+    class DummyCap:
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((10, 10, 3), dtype=np.uint8)
+
+        def release(self):
+            pass
+
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: DummyCap())
+
+    reader = WebcamQRReader(device=0, preprocessing="normal", frame_skip=0)
+    # Manually set cap to None to test the branch
+    reader.cap = None
+    # Should not raise, just early return
+    reader.release()
+    # Success if no exception
+
+
+def test_webcam_reader_del_calls_release(monkeypatch):
+    """Test __del__ calls release for cleanup."""
+
+    class DummyCap:
+        def __init__(self):
+            self.released = False
+
+        def isOpened(self):
+            return True
+
+        def read(self):
+            return True, np.zeros((10, 10, 3), dtype=np.uint8)
+
+        def release(self):
+            self.released = True
+
+    dummy = DummyCap()
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: dummy)
+
+    reader = WebcamQRReader(device=0, preprocessing="normal", frame_skip=0)
+    reader.__del__()
+    assert dummy.released is True

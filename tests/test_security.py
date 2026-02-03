@@ -292,7 +292,8 @@ class TestAuthenticationFailures:
         """Empty password should be rejected."""
         data = b"Secret message"
         
-        with pytest.raises(ValueError, match="cannot be empty"):
+        # encrypt_file_bytes wraps ValueError in RuntimeError
+        with pytest.raises(RuntimeError, match="cannot be empty"):
             encrypt_file_bytes(data, "", None, None)
 
 
