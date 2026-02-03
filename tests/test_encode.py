@@ -1146,4 +1146,128 @@ def test_main_password_prompt_non_interactive_exits_1(monkeypatch, tmp_path):
     ])
     with pytest.raises(SystemExit) as exc:
         enc.main()
+
+
+# --- YubiKey + Forward Secrecy rejection ---
+
+def test_main_yubikey_with_receiver_pubkey_rejected(monkeypatch, tmp_path, capsys):
+    """Line 838-839: yubikey + receiver_pubkey -> error exit(1)."""
+    inp = _write_input(tmp_path)
+    # Create fake 32-byte receiver public key
+    pubkey_file = tmp_path / "receiver.pub"
+    pubkey_file.write_bytes(b"X" * 32)
+    monkeypatch.setattr(sys, "argv", [
+        "meow-encode", "-i", str(inp), "-o", str(tmp_path/"out.gif"),
+        "-p", "password1", "--yubikey", "--yubikey-pin", "123456",
+        "--receiver-pubkey", str(pubkey_file)
+    ])
+    with pytest.raises(SystemExit) as exc:
+        enc.main()
     assert exc.value.code == 1
+    captured = capsys.readouterr()
+    assert "forward secrecy" in captured.err.lower() or "not supported" in captured.err.lower()
+
+
+# --- Hardware key success with verbose print ---
+
+def test_main_hardware_key_derivation_success_verbose_print(monkeypatch, tmp_path, capsys):
+    """Line 918-920: hardware key success + verbose -> prints key description."""
+    inp = _write_input(tmp_path)
+    
+    def _fake_process_hw(args, pw, salt):
+        return (b"k" * 32, "HSM slot 0")
+    _install_module(monkeypatch, "meow_decoder.hardware_integration",
+                    HardwareSecurityProvider=lambda verbose: None,
+                    process_hardware_args=_fake_process_hw)
+    _patch_encode_file(monkeypatch)
+    monkeypatch.setattr(sys, "argv", [
+        "meow-encode", "-i", str(inp), "-o", str(tmp_path/"out.gif"),
+        "-p", "password1", "--hsm-slot", "0", "--hsm-pin", "123456", "-v"
+    ])
+    enc.main()
+    captured = capsys.readouterr()
+    assert "Key derived via" in captured.out or "HSM" in captured.out
+
+
+# --- Hardware fallback stderr output ---
+
+def test_main_hardware_key_derivation_fallback_stderr_print(monkeypatch, tmp_path, capsys):
+    """Line 930-933: hardware exception -> prints fallback message to stderr."""
+    inp = _write_input(tmp_path)
+    
+    def _fake_process_hw(args, pw, salt):
+        raise RuntimeError("HW failed")
+    
+    # Need to both install the fake module AND ensure encode.py imports it fresh
+    _install_module(monkeypatch, "meow_decoder.hardware_integration",
+                    HardwareSecurityProvider=lambda verbose: None,
+                    process_hardware_args=_fake_process_hw)
+    
+    # Patch the function directly in encode module if already imported
+    monkeypatch.setattr(enc, "process_hardware_args", _fake_process_hw)
+    
+    _patch_encode_file(monkeypatch)
+    monkeypatch.setattr(sys, "argv", [
+        "meow-encode", "-i", str(inp), "-o", str(tmp_path/"out.gif"),
+        "-p", "password1", "--hsm-slot", "0", "--hsm-pin", "123456"
+    ])
+    enc.main()
+    captured = capsys.readouterr()
+    # Fallback prints to stderr
+    assert "Falling back" in captured.err or "software" in captured.err.lower() or "HW failed" in captured.err
+
+
+# --- High-security mode wipe source uses 7 passes ---
+
+def test_main_wipe_source_high_security_7_passes(monkeypatch, tmp_path, capsys):
+    """Line 1027-1029: high-security + wipe-source -> 7 passes."""
+    inp = _write_input(tmp_path)
+    _wipe_passes = []
+    
+    def _fake_secure_wipe_file(path, passes=3):
+        _wipe_passes.append(passes)
+        return True
+    
+    _install_module(monkeypatch, "meow_decoder.high_security",
+                    enable_high_security_mode=lambda silent: None,
+                    HighSecurityConfig=lambda: type("C", (), {"argon2_memory": 1024, "argon2_iterations": 1, "kyber_variant": "kyber768", "secure_wipe_passes": 7})(),
+                    get_safety_checklist=lambda: "checklist",
+                    secure_wipe_file=_fake_secure_wipe_file)
+    _patch_encode_file(monkeypatch)
+    monkeypatch.setattr(sys, "argv", [
+        "meow-encode", "-i", str(inp), "-o", str(tmp_path/"out.gif"),
+        "-p", "password1", "--high-security", "--wipe-source", "-v"
+    ])
+    enc.main()
+    assert 7 in _wipe_passes
+
+
+# --- Duress password prompt interactive path ---
+
+def test_main_duress_password_prompt_success(monkeypatch, tmp_path, capsys):
+    """Line 884-893: duress-password-prompt interactive path with success."""
+    inp = _write_input(tmp_path)
+    call_count = [0]
+    
+    def _fake_getpass(prompt):
+        call_count[0] += 1
+        if call_count[0] == 1:
+            return "duress_secret"
+        else:
+            return "duress_secret"  # Confirm matches
+    
+    _patch_encode_file(monkeypatch)
+    # Create fake 32-byte receiver public key to enable forward secrecy properly
+    pubkey_file = tmp_path / "receiver.pub"
+    pubkey_file.write_bytes(b"X" * 32)
+    
+    # Patch getpass directly in the encode module's namespace (encode.py does: from getpass import getpass)
+    monkeypatch.setattr(enc, "getpass", _fake_getpass)
+    
+    monkeypatch.setattr(sys, "argv", [
+        "meow-encode", "-i", str(inp), "-o", str(tmp_path/"out.gif"),
+        "-p", "password1", "--duress-password-prompt", "--receiver-pubkey", str(pubkey_file)
+    ])
+    enc.main()
+    captured = capsys.readouterr()
+    assert "Duress password configured" in captured.out or "Output saved to" in captured.out

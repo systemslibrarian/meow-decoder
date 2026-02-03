@@ -9,25 +9,34 @@ on:
   workflow_dispatch:
     inputs:
       keep_minimum_runs:
-        description: 'Number of runs to keep per workflow'
+        description: 'Number of most recent runs to keep per workflow'
         required: false
-        default: '2'
+        default: '5'  # ← Changed default to 5 (more reasonable)
+      retain_days:
+        description: 'Delete runs older than this many days (0 = delete all except kept)'
+        required: false
+        default: '30'  # ← Added & default to 30 days
 
-run-name: Cleanup workflow runs (keep last ${{ github.event.inputs.keep_minimum_runs || 2 }} runs)
+run-name: Cleanup workflow runs (keep last ${{ inputs.keep_minimum_runs || 5 }}, older than ${{ inputs.retain_days || 30 }} days)
 
 jobs:
   cleanup:
     runs-on: ubuntu-latest
     permissions:
-      actions: write
+      actions: write   # Required for deletion
 
     steps:
-      - name: Delete old workflow runs
+      - name: Delete old workflow runs (dry-run first for safety)
         uses: Mattraks/delete-workflow-runs@v2
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: 0
-          keep_minimum_runs: ${{ github.event.inputs.keep_minimum_runs || 2 }}
-          delete_workflow_pattern: ""
-          exclude_workflow_names: Cleanup old workflow runs
+          retain_days: ${{ github.event.inputs.retain_days || 30 }}   # ← Use input or default
+          keep_minimum_runs: ${{ github.event.inputs.keep_minimum_runs || 5 }}
+          delete_workflow_pattern: ""   # empty = all workflows
+          exclude_workflow_names: "Cleanup old workflow runs"  # self-exclude
+          dry_run: true   # ← Added: preview only first time
+          verbose: true   # Helps see what would be deleted
+
+      # After verifying dry-run output in logs, remove/comment dry_run: true
+      # and re-run manually to actually delete old runs.
