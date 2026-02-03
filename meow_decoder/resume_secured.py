@@ -548,7 +548,6 @@ class AutoSaveDecoder:
                 print(f"Warning: Auto-save failed: {e}")
         
         return result
-                print(f"Warning: Auto-save failed: {e}")
     
     def save(self) -> str:
         """
