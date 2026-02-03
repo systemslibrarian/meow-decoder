@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Tests for meow_decoder.frame_mac."""
 
+import runpy
 import secrets
 
 from meow_decoder import frame_mac
@@ -45,6 +46,10 @@ def test_compute_verify_mac():
     assert frame_mac.verify_frame_mac(data, mac + b"x", master, 0, salt) is False
 
 
+def test_verify_frame_mac_bad_length():
+    assert frame_mac.verify_frame_mac(b"data", b"", b"k" * 32, 0, b"s" * 16) is False
+
+
 def test_pack_unpack_frame_with_mac():
     master = secrets.token_bytes(32)
     salt = secrets.token_bytes(16)
@@ -56,6 +61,11 @@ def test_pack_unpack_frame_with_mac():
     assert out == data
 
     valid, out = frame_mac.unpack_frame_with_mac(packed, master, 6, salt)
+    assert valid is False
+    assert out == b""
+
+    tampered = packed[:frame_mac.MAC_SIZE] + b"TAMPER" + packed[frame_mac.MAC_SIZE+6:]
+    valid, out = frame_mac.unpack_frame_with_mac(tampered, master, 5, salt)
     assert valid is False
     assert out == b""
 
@@ -77,3 +87,10 @@ def test_frame_mac_stats():
     assert stats.invalid_frames == 1
     assert stats.injection_attempts == 1
     assert "Success rate" in stats.report()
+
+    stats.record_valid()
+    assert stats.success_rate() == 2 / 3
+
+
+def test_frame_mac_main_runs():
+    runpy.run_module("meow_decoder.frame_mac", run_name="__main__")

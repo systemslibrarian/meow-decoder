@@ -109,7 +109,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from test_phase4_pq_integration.py / test_pq_hybrid_fail_closed.py
 - [x] Analyze gaps: PQ unavailable branches, KEM errors, check_pq_available
 - [x] Create new tests: classical-only roundtrip, fail-closed, stubbed PQ
-- [x] Verify coverage: **62%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **97%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_pq_hybrid.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -190,7 +190,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from test_frame_mac.py
 - [x] Analyze gaps: derive keys, invalid tags, stats
 - [x] Create new tests: verify/pack/unpack, stats report
-- [x] Verify coverage: **65%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **100%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_frame_mac.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -199,7 +199,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from _test_stego_advanced.py
 - [x] Analyze gaps: Embedding/extraction branches
 - [x] Create new tests: Malformed carriers, detection resistance
-- [x] Verify coverage: **62%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **97%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_stego_advanced.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -208,7 +208,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from _test_metadata_obfuscation.py
 - [x] Analyze gaps: Obfuscation/reveal branches
 - [x] Create new tests: Forensic recovery mocks
-- [x] Verify coverage: **56%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **100%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_metadata_obfuscation.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -217,7 +217,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from _test_hardware_integration.py
 - [x] Analyze gaps: HSM/TPM fallback branches
 - [x] Create new tests: Mock hardware failures, pin errors
-- [x] Verify coverage: **39%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **98%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_hardware_integration.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -226,7 +226,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 - [x] Review existing tests: Template from _test_hardware_keys.py
 - [x] Analyze gaps: Key derive/seal branches
 - [x] Create new tests: PCR mismatches, slot errors
-- [x] Verify coverage: **59%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
+- [x] Verify coverage: **98%** (isolated run with COVERAGE_RCFILE=/dev/null, addopts cleared)
 - [x] Pass all tests (pytest tests/test_hardware_keys.py)
 - [ ] Gitflow: Branch/PR/merge
 
@@ -245,7 +245,7 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 | x25519_forward_secrecy.py | **100%** | Keypair save/load, CLI paths, invalid lengths | main |
 | double_ratchet.py | **100%** | Clowder session, long conversation, out-of-order | main |
 | pq_crypto_real.py | **71%** | Classical-only + stubbed PQ + pack/unpack | pending |
-| pq_hybrid.py | **62%** | Classical-only + fail-closed + stubbed PQ | pending |
+| pq_hybrid.py | **97%** | PQ available + __main__ + error paths | pending |
 | pq_signatures.py | **69%** | Ed25519 fallback + pack/unpack + stubbed Dilithium | pending |
 | duress_mode.py | **69%** | Decoy types + wipe resume + callbacks | pending |
 | timelock_duress.py | **61%** | Resume + time jumps + deterministic decoy | pending |
@@ -254,11 +254,11 @@ ref# 🐱 Meow Decoder Test Engineering Progress
 | spec_v12/encode.py | **91%** | Invalid pk length + encode marker | pending |
 | decode_gif.py | **100%** | Full decode + CLI branches + MAC paths + error handling | pending |
 | spec_v12/decode.py | **90%** | Roundtrip + invalid payload + version mismatch | pending |
-| frame_mac.py | **65%** | Pack/unpack + verify + stats | pending |
-| stego_advanced.py | **62%** | Malformed carriers + detection resistance | pending |
-| metadata_obfuscation.py | **56%** | Obfuscation/reveal branches | pending |
-| hardware_integration.py | **39%** | HSM/TPM fallback + pin errors | pending |
-| hardware_keys.py | **59%** | PCR mismatches + slot errors | pending |
+| frame_mac.py | **100%** | Pack/unpack + verify + stats + __main__ | pending |
+| stego_advanced.py | **97%** | Carrier/obfuscation + aggressive decode + __main__ | pending |
+| metadata_obfuscation.py | **100%** | Obfuscation/reveal + size class + __main__ | pending |
+| hardware_integration.py | **98%** | HSM/TPM/YubiKey fallbacks + CLI paths | pending |
+| hardware_keys.py | **98%** | TPM/YubiKey/SGX branches + __main__ | pending |
 
 ---
 

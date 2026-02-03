@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Tests for meow_decoder.stego_advanced."""
 
+import sys
+import types
+import runpy
 import numpy as np
 from PIL import Image
 
@@ -68,6 +71,32 @@ def test_embed_frame_and_quality():
     assert quality.lsb_bits == 2
 
 
+def test_embed_frame_paranoid_obfuscation():
+    qr = _image((255, 255, 255))
+    enc = AdvancedStegoEncoder(
+        stealth_level=StealthLevel.PARANOID,
+        enable_obfuscation=True,
+        quality_threshold=0.0,
+    )
+
+    stego, quality = enc.embed_frame(qr)
+    assert stego.size == qr.size
+    assert quality.stealth_level == StealthLevel.PARANOID
+
+
+def test_embed_frame_quality_threshold_fails():
+    qr = _image((255, 255, 255))
+    carrier = _image((0, 0, 0))
+    enc = AdvancedStegoEncoder(stealth_level=StealthLevel.VISIBLE, quality_threshold=1e6)
+
+    try:
+        enc.embed_frame(qr, carrier)
+    except ValueError as exc:
+        assert "Quality below threshold" in str(exc)
+    else:
+        assert False, "Expected ValueError for strict threshold"
+
+
 def test_embed_lsb_with_roi_mask():
     enc = AdvancedStegoEncoder(stealth_level=StealthLevel.SUBTLE, quality_threshold=0.0)
 
@@ -82,6 +111,37 @@ def test_embed_lsb_with_roi_mask():
     assert (stego[1, 0] == carrier[1, 0]).all()
 
 
+def test_generate_carriers_static_and_animated():
+    enc_static = AdvancedStegoEncoder(enable_animation=False)
+    static = enc_static._generate_carrier((2, 2), 0)
+    assert static.size == (2, 2)
+
+    enc_anim = AdvancedStegoEncoder(enable_animation=True)
+    animated = enc_anim._generate_carrier((2, 2), 1)
+    assert animated.size == (2, 2)
+
+
+def test_apply_obfuscation_with_scipy(monkeypatch):
+    enc = AdvancedStegoEncoder(stealth_level=StealthLevel.PARANOID, enable_obfuscation=True)
+    data = np.zeros((2, 2, 3), dtype=np.uint8)
+
+    fake_scipy = types.SimpleNamespace()
+    fake_scipy.ndimage = types.SimpleNamespace(gaussian_filter=lambda arr, sigma: arr)
+    monkeypatch.setitem(sys.modules, "scipy", fake_scipy)
+    monkeypatch.setitem(sys.modules, "scipy.ndimage", fake_scipy.ndimage)
+
+    obfuscated = enc._apply_obfuscation(data)
+    assert obfuscated.shape == data.shape
+
+
+def test_calculate_quality_zero_mse():
+    enc = AdvancedStegoEncoder(stealth_level=StealthLevel.SUBTLE, quality_threshold=0.0)
+    carrier = np.zeros((2, 2, 3), dtype=np.uint8)
+    quality = enc._calculate_quality(carrier, carrier.copy())
+    assert quality.psnr == float("inf")
+    assert quality.passed_threshold is True
+
+
 def test_encode_decode_with_stego_roundtrip():
     qr_frames = [_image((255, 255, 255)), _image((0, 0, 0))]
 
@@ -94,6 +154,15 @@ def test_encode_decode_with_stego_roundtrip():
     assert extracted[0].size == qr_frames[0].size
 
 
+def test_encode_with_stego_carrier_shorter_list():
+    qr_frames = [_image((255, 255, 255)), _image((0, 0, 0))]
+    carriers = [_image((10, 10, 10))]
+
+    stego_frames, qualities = encode_with_stego(qr_frames, carriers=carriers)
+    assert len(stego_frames) == 2
+    assert len(qualities) == 2
+
+
 def test_advanced_decoder_extract():
     qr = _image((255, 0, 0))
     enc = AdvancedStegoEncoder(stealth_level=StealthLevel.SUBTLE, quality_threshold=0.0)
@@ -103,3 +172,30 @@ def test_advanced_decoder_extract():
     extracted = dec.extract_frame(stego)
 
     assert extracted.size == qr.size
+
+
+def test_decoder_aggressive_preprocess_with_scipy(monkeypatch):
+    dec = AdvancedStegoDecoder(lsb_bits=2, aggressive=True)
+    arr = np.ones((2, 2, 3), dtype=np.uint8) * 128
+
+    fake_scipy = types.SimpleNamespace()
+    fake_scipy.ndimage = types.SimpleNamespace(median_filter=lambda a, size: a)
+    monkeypatch.setitem(sys.modules, "scipy", fake_scipy)
+    monkeypatch.setitem(sys.modules, "scipy.ndimage", fake_scipy.ndimage)
+
+    processed = dec._aggressive_preprocess(arr.copy())
+    assert processed.shape == arr.shape
+
+
+def test_decode_with_stego_non_aggressive():
+    frames = [_image((255, 255, 255))]
+    decoded = decode_with_stego(frames, lsb_bits=1, aggressive=False)
+    assert len(decoded) == 1
+
+
+def test_stego_advanced_main_runs(monkeypatch):
+    def fake_randint(low, high=None, size=None, dtype=None):
+        return np.zeros((2, 2, 3), dtype=np.uint8)
+
+    monkeypatch.setattr(np.random, "randint", fake_randint)
+    runpy.run_module("meow_decoder.stego_advanced", run_name="__main__")
