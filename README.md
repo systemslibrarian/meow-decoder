@@ -231,7 +231,6 @@ More details and expected results:
 - [formal/README.md](formal/README.md)
 - [formal/proverif/README.md](formal/proverif/README.md)
 - [docs/formal_methods_report.md](docs/formal_methods_report.md)
-- [docs/protocol.md](docs/protocol.md)
 
 **Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
 
