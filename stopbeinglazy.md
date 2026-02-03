@@ -1,54 +1,29 @@
-# stopbeinglazy.md
+stopbeinglazy.md
 
-**Date/Time:** February 03, 2026 07:15 AM EST
+Current date/time: February 03, 2026 08:25 AM EST
+Current file: encode.py
+Batch: Batch 3
 
-## Current File Being Attacked
-- meow_decoder/encode.py
+Tests added (17):
+1. test_encode_file_verbose_meow2_manifest_print — MEOW2 verbose branch in encode_file.
+2. test_encode_file_verbose_meow4_manifest_print — MEOW4 verbose branch in encode_file.
+3. test_encode_file_verbose_forward_secrecy_pubkey_print — MEOW3 FS verbose branch.
+4. test_main_safety_checklist_import_error_exits_zero — safety checklist ImportError path.
+5. test_main_high_security_import_error_warning — high-security ImportError warning path.
+6. test_main_cat_judge_runs — cat_utils summon path.
+7. test_main_keyfile_loads_verbose — keyfile load success with verbose.
+8. test_main_keyfile_not_found_exit — keyfile FileNotFoundError exit path.
+9. test_main_duress_prompt_empty_skips — duress prompt empty path.
+10. test_main_hsm_pin_prompted — HSM pin prompt branch.
+11. test_main_tpm_derive_sets_method — TPM derive branch.
+12. test_main_hardware_auto_none_key_fallback — hardware auto returns None key path.
+13. test_main_hardware_auto_success_verbose_prints — hardware auto success verbose print.
+14. test_main_encode_file_exception_verbose_traceback — encode_file exception verbose path.
+15. test_encode_file_secure_zero_exception_swallowed — secure_zero exception in encode_file.
+16. test_encode_file_uses_verbose_password_only_message — MEOW3 password-only verbose path.
+17. test_main_duress_password_cli_requires_forward_secrecy — duress CLI + no-fs error.
 
-## Batch
-- Batch 1
-- Batch 2 (completed)
-
-## Tests Added (16)
-1. `test_encode_file_duress_same_password_rejected` — reject duress=password; covers duress validation branch.
-2. `test_encode_file_duress_requires_forward_secrecy` — duress + no FS rejected; covers error path.
-3. `test_encode_file_duress_requires_pubkey_or_pq` — duress ambiguity guard; covers multi-line ValueError.
-4. `test_encode_file_forward_secrecy_with_pubkey` — forward secrecy + pubkey + verbose; covers manifest/QR/GIF pipeline.
-5. `test_encode_file_hardware_precomputed_key_passed` — precomputed key/salt passed into encrypt; covers hardware branch.
-6. `test_encode_file_yubikey_kwargs_passed` — yubikey args propagated; covers yubikey path in encode_file.
-7. `test_encode_file_manifest_hmac_uses_encryption_key` — HMAC uses encryption key; covers HMAC call path.
-8. `test_encode_file_secure_zero_fails_gracefully` — secure_zero failure swallowed; covers exception path.
-9. `test_main_about_exits_zero` — `--about` branch; covers early exit.
-10. `test_main_hardware_status_exits_zero` — `--hardware-status` branch; covers provider detection/summary path.
-11. `test_main_safety_checklist_import_error_exits_zero` — ImportError path; covers safety checklist fallback.
-12. `test_main_noninteractive_requires_password` — non-TTY without `--password` fails closed.
-13. `test_main_keyfile_validation_error` — verify_keyfile ValueError path; exit 1.
-14. `test_main_yubikey_keyfile_conflict` — `--yubikey` + keyfile conflict; exit 1.
-15. `test_main_duress_prompt_mismatch` — duress prompt mismatch; exit 1.
-16. `test_main_hardware_derivation_failure_no_fallback` — hardware derivation failure with no fallback; exit 1.
-17. `test_main_nine_lives_failure_exits` — Nine Lives retry fails; exit 1.
-
-## Tests Added (Batch 2)
-1. `test_encode_file_duress_tag_is_computed` — duress tag computed/bound; covers duress tag path.
-2. `test_main_cat_mode_sets_carrier_and_stego_level` — cat mode carrier injection + stego default.
-3. `test_main_purr_mode_forces_verbose` — purr mode forces verbose and passes through.
-4. `test_main_yubikey_pin_prompted` — yubikey PIN prompt path with getpass.
-5. `test_main_hardware_auto_success_passes_keys` — hardware auto derivation passes key/salt.
-6. `test_main_receiver_pubkey_success` — forward secrecy pubkey load success path.
-7. `test_main_duress_password_cli_passed` — duress password CLI passes through.
-8. `test_main_void_mode_sets_stego_level` — void mode forces stego level + silent verbose.
-9. `test_main_high_security_wipe_source` — high-security enables wipe and uses secure wipe.
-
-## Coverage Delta Estimate
-- encode.py: +55–75 statements / several branches → from ~55% to ~73–80% (estimate)
-- Overall repo: +2–4% (estimate)
-
-## Overall Repo % Estimate After This Batch
-- ✅ 96% overall coverage (pytest --cov=meow_decoder)
-
-## Next Planned File
-- Run coverage; if still <95%, target remaining gaps (likely qr_code.py or smaller modules).
-
-## Blockers / Notes
-- None. Heavy dependencies bypassed via stubs/mocks.
-- Some hardware branches marked `pragma: no cover` may not move coverage.
+Coverage delta estimate: +45–65 statements, +12–18 branches → encode.py ~80–88% → ~92–97%.
+Overall repo % estimate after this batch: ~92–94% → ~95–97%.
+Next planned file (after encode.py hits ~98–100%): qr_code.py.
+Blockers/notes: remaining encode.py misses likely in deadman switch + logo_eyes args; fix if still present.
