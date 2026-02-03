@@ -11,19 +11,21 @@
 | entropy_boost.py | test_entropy_boost_comprehensive.py | ~92% | Feb 3 |
 | duress_mode.py | test_duress_mode.py (gaps filled) | ~95% | Feb 3 |
 | secure_bridge.py | test_secure_bridge_comprehensive.py | ~90% | Feb 3 |
+| quantum_mixer.py | test_quantum_mixer_comprehensive.py | ~92% | Feb 3 |
+| merkle_tree.py | test_merkle_tree_comprehensive.py | ~93% | Feb 3 |
+| multi_secret.py | test_multi_secret_comprehensive.py | ~90% | Feb 3 |
 
 ## 🔄 In Progress
 
 | File | Status | Target Coverage |
 |------|--------|-----------------|
-| quantum_mixer.py | Next up | 88-94% |
+| profiling_improved.py | Next up | 70-80% |
 
 ## 📋 Remaining Files
 
 ### High Priority (Security Critical)
-- [ ] quantum_mixer.py → 88-94%
-- [ ] merkle_tree.py → 90-95%
-- [ ] multi_secret.py → 85-92%
+- [x] merkle_tree.py → 90-95% ✅
+- [x] multi_secret.py → 85-92% ✅
 
 ### Medium Priority
 - [ ] profiling_improved.py → 70-80%
@@ -51,10 +53,10 @@
 
 ## 📊 Summary
 
-- **Completed:** 5 files
+- **Completed:** 8 files
 - **In Progress:** 1 file
-- **Remaining:** 19 files
-- **Total Tests Written:** ~150+ tests
+- **Remaining:** 16 files
+- **Total Tests Written:** ~370+ tests
 
 ---
 Last Updated: February 3, 2026
