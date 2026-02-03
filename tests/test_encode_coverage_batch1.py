@@ -332,6 +332,7 @@ def test_main_hardware_status_exits_zero(monkeypatch):
 
 def test_main_safety_checklist_import_error_exits_zero(monkeypatch):
     real_import = __import__
+    import builtins
 
     def _fake_import(name, *args, **kwargs):
         if name == "meow_decoder.high_security":
@@ -339,7 +340,7 @@ def test_main_safety_checklist_import_error_exits_zero(monkeypatch):
         return real_import(name, *args, **kwargs)
 
     monkeypatch.setattr(sys, "argv", ["meow-encode", "--safety-checklist"])
-    monkeypatch.setattr(__builtins__, "__import__", _fake_import)
+    monkeypatch.setattr(builtins, "__import__", _fake_import)
 
     with pytest.raises(SystemExit) as exc:
         enc.main()

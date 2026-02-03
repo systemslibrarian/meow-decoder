@@ -75,3 +75,39 @@ def test_gif_optimizer_optimizes(tmp_path):
     assert original_size > 0
     assert optimized_size > 0
     assert output_path.exists()
+
+
+def test_gif_encoder_resizes_and_converts(tmp_path):
+    frames = [
+        Image.new("L", (32, 32), color=128),
+        Image.new("RGB", (64, 64), color="blue"),
+    ]
+    output = tmp_path / "out.gif"
+
+    encoder = GIFEncoder(fps=2)
+    size = encoder.create_gif(frames, output, optimize=False)
+
+    assert size > 0
+    assert output.exists()
+
+
+def test_gif_encoder_create_gif_bytes_resizes_and_converts():
+    frames = [
+        Image.new("L", (16, 16), color=200),
+        Image.new("RGB", (32, 32), color="red"),
+    ]
+    encoder = GIFEncoder(fps=5)
+    data = encoder.create_gif_bytes(frames, optimize=True)
+
+    assert data[:3] == b"GIF"
+
+
+def test_gif_optimizer_get_gif_info(tmp_path):
+    frames = [_make_frame("white", (32, 32))]
+    input_path = tmp_path / "input.gif"
+
+    GIFEncoder(fps=3).create_gif(frames, input_path)
+    info = GIFOptimizer.get_gif_info(input_path)
+
+    assert info["frames"] == 1
+    assert info["size"] == (32, 32)

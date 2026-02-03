@@ -20,6 +20,11 @@ def test_qr_generator_generate_and_batch():
     assert len(batch) == 3
 
 
+def test_qr_generator_invalid_error_correction_defaults_to_m():
+    gen = QRCodeGenerator(error_correction="Z")
+    assert gen.error_correction == qr_code.qrcode.constants.ERROR_CORRECT_M
+
+
 def test_qr_reader_read_image_base85(monkeypatch):
     payload = b"hello"
     encoded = base64.b85encode(payload)
@@ -53,6 +58,23 @@ def test_qr_reader_read_image_fallback_raw(monkeypatch):
     assert results == [raw]
 
 
+def test_qr_reader_read_image_aggressive_str_fallback(monkeypatch):
+    import base64
+
+    class DummyObj:
+        def __init__(self, data):
+            self.data = data
+
+    monkeypatch.setattr(base64, "b85decode", lambda _s: (_ for _ in ()).throw(ValueError("bad")))
+    monkeypatch.setattr(qr_code.pyzbar, "decode", lambda img: [DummyObj("not-base85")])
+
+    reader = QRCodeReader(preprocessing="aggressive")
+    img = Image.new("RGB", (10, 10), "white")
+    results = reader.read_image(img)
+
+    assert results == [b"not-base85"]
+
+
 def test_qr_reader_read_frame_base85(monkeypatch):
     payload = b"frame"
     encoded = base64.b85encode(payload)
@@ -65,6 +87,23 @@ def test_qr_reader_read_frame_base85(monkeypatch):
 
     reader = QRCodeReader(preprocessing="normal")
     frame = np.zeros((10, 10, 3), dtype=np.uint8)
+    results = reader.read_frame(frame)
+
+    assert results == [payload]
+
+
+def test_qr_reader_read_frame_grayscale(monkeypatch):
+    payload = b"gray"
+    encoded = base64.b85encode(payload)
+
+    class DummyObj:
+        def __init__(self, data):
+            self.data = data
+
+    monkeypatch.setattr(qr_code.pyzbar, "decode", lambda img: [DummyObj(encoded)])
+
+    reader = QRCodeReader(preprocessing="aggressive")
+    frame = np.zeros((10, 10), dtype=np.uint8)
     results = reader.read_frame(frame)
 
     assert results == [payload]
@@ -146,3 +185,17 @@ def test_webcam_reader_read_continuous(monkeypatch):
 
     reader.read_continuous(callback, max_frames=2)
     assert results == [b"payload", b"payload"]
+
+
+def test_webcam_reader_init_fails_when_closed(monkeypatch):
+    class DummyCap:
+        def isOpened(self):
+            return False
+
+        def release(self):
+            return None
+
+    monkeypatch.setattr(qr_code.cv2, "VideoCapture", lambda device: DummyCap())
+
+    with pytest.raises(RuntimeError):
+        WebcamQRReader(device=0)

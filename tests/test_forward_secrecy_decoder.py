@@ -8,6 +8,7 @@ from meow_decoder.forward_secrecy_decoder import (
     ForwardSecrecyFountainDecoder,
     create_secure_fountain_decoder,
     parse_manifest_v3_forward_secrecy,
+    example_decode_integration,
 )
 
 
@@ -57,6 +58,34 @@ def test_forward_secrecy_decoder_process_secure_droplet():
     manager.cleanup()
 
 
+def test_forward_secrecy_decoder_empty_indices_uses_zero(monkeypatch):
+    master_key = secrets.token_bytes(32)
+    salt = secrets.token_bytes(16)
+
+    decoder = ForwardSecrecyFountainDecoder(
+        MockFountainDecoder(1, 8), master_key=master_key, salt=salt
+    )
+
+    seen = {"block": None}
+
+    def _fake_decrypt(encrypted, nonce, block_id):
+        seen["block"] = block_id
+        return b"data"
+
+    monkeypatch.setattr(decoder.fs_manager, "decrypt_block", _fake_decrypt)
+
+    decoder.process_secure_droplet(
+        encrypted_data=b"cipher",
+        nonce=b"n" * 12,
+        block_indices=[],
+        seed=1,
+    )
+
+    assert seen["block"] == 0
+    assert decoder.get_decoded_data() == b"decoded_data"
+    decoder.cleanup()
+
+
 def test_parse_manifest_v3_forward_secrecy_paths():
     assert parse_manifest_v3_forward_secrecy(b"") == (False, 100, None)
     assert parse_manifest_v3_forward_secrecy(b"\x02\x00\x00") == (False, 100, None)
@@ -93,3 +122,7 @@ def test_create_secure_fountain_decoder_toggle():
         enable_forward_secrecy=True,
     )
     assert isinstance(wrapped, ForwardSecrecyFountainDecoder)
+
+
+def test_example_decode_integration_runs():
+    example_decode_integration()
