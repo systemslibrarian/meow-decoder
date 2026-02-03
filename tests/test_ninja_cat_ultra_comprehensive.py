@@ -109,6 +109,11 @@ class TestNinjaTransforms:
         assert result is sample_frame
         assert calls == {"noise": 1, "hue": 1, "rot": 1}
 
+    def test_calculate_psnr_identical_frames_is_inf(self, sample_frame):
+        encoder = NinjaCatUltra(NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE))
+        psnr = encoder.calculate_psnr(sample_frame, sample_frame)
+        assert psnr == float("inf")
+
 
 class TestNinjaDummyFrames:
     """Dummy frame behavior."""
@@ -118,6 +123,53 @@ class TestNinjaDummyFrames:
         dummy = encoder.create_dummy_frame((8, 8), seed=123)
         assert dummy.size == (8, 8)
         assert dummy.mode == "RGB"
+
+    def test_inject_dummy_frames_disabled(self, sample_frames):
+        config = NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE, enable_dummy_frames=False)
+        encoder = NinjaCatUltra(config)
+        out = encoder.inject_dummy_frames(sample_frames)
+        assert out == sample_frames
+
+    def test_inject_dummy_frames_frequency(self, sample_frames):
+        config = NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE, dummy_frequency=2)
+        encoder = NinjaCatUltra(config)
+        out = encoder.inject_dummy_frames(sample_frames)
+        # 5 frames -> dummy after frames 1,3,5 => +2 dummies (after indices 1,3)
+        assert len(out) == len(sample_frames) + 2
+
+
+class TestNinjaAutoAdjust:
+    def test_auto_adjust_disabled_returns_current(self, sample_frames, sample_frame):
+        config = NinjaConfig(stealth_level=NinjaCatLevel.SUBTLE, auto_adjust=False)
+        encoder = NinjaCatUltra(config)
+        level = encoder.auto_adjust_stealth(sample_frames, [sample_frame] * len(sample_frames))
+        assert level == NinjaCatLevel.SUBTLE
+
+    def test_auto_adjust_upgrades_to_ultra(self, sample_frames, sample_frame, monkeypatch):
+        config = NinjaConfig(stealth_level=NinjaCatLevel.SUBTLE, auto_adjust=True)
+        encoder = NinjaCatUltra(config)
+        monkeypatch.setattr(encoder, "calculate_psnr", lambda *_a, **_k: 55.0)
+        level = encoder.auto_adjust_stealth(sample_frames, [sample_frame] * len(sample_frames))
+        assert level == NinjaCatLevel.ULTRA
+
+    def test_auto_adjust_upgrades_to_paranoid(self, sample_frames, sample_frame, monkeypatch):
+        config = NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE, auto_adjust=True)
+        encoder = NinjaCatUltra(config)
+        monkeypatch.setattr(encoder, "calculate_psnr", lambda *_a, **_k: 46.0)
+        level = encoder.auto_adjust_stealth(sample_frames, [sample_frame] * len(sample_frames))
+        assert level == NinjaCatLevel.PARANOID
+
+
+class TestNinjaProcessFrames:
+    def test_process_frames_no_dummy_no_auto_adjust(self, sample_frames):
+        config = NinjaConfig(
+            stealth_level=NinjaCatLevel.VISIBLE,
+            enable_dummy_frames=False,
+            auto_adjust=False,
+        )
+        encoder = NinjaCatUltra(config)
+        processed = encoder.process_frames(sample_frames)
+        assert len(processed) == len(sample_frames)
 
     def test_inject_dummy_frames_disabled(self, sample_frames):
         config = NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE, enable_dummy_frames=False)

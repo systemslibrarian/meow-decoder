@@ -55,6 +55,12 @@ def test_normalize_size_no_padding_for_large_input():
     assert padded == data
 
 
+def test_normalize_size_exact_bucket_no_padding():
+    data = b"a" * 1024
+    padded = high_security.normalize_size(data, size_classes=[128, 1024])
+    assert padded == data
+
+
 def test_apply_high_security_to_config_updates_settings():
     config = MeowConfig()
     updated = high_security.apply_high_security_to_config(config)
@@ -79,9 +85,22 @@ def test_generate_innocuous_filename_format():
     assert any(year in name for year in ["2024", "2025", "2026"])
 
 
+def test_get_high_security_config_aliases():
+    cfg = high_security.get_high_security_config()
+    alias = high_security.get_oppression_config()
+    assert isinstance(cfg, high_security.HighSecurityConfig)
+    assert isinstance(alias, high_security.HighSecurityConfig)
+
+
 def test_get_safety_checklist_contains_header():
     checklist = high_security.get_safety_checklist()
     assert "SAFETY CHECKLIST" in checklist
+
+
+def test_apply_oppression_alias():
+    config = MeowConfig()
+    updated = high_security.apply_oppression_to_config(config)
+    assert updated.encoding.enable_stego is True
 
 
 def test_secure_wipe_file_deletes(tmp_path):
@@ -92,3 +111,48 @@ def test_secure_wipe_file_deletes(tmp_path):
     result = high_security.secure_wipe_file(target, passes=1)
     assert result is True
     assert not target.exists()
+
+
+def test_secure_wipe_file_missing_returns_true(tmp_path):
+    target = tmp_path / "missing.txt"
+    assert high_security.secure_wipe_file(target, passes=1) is True
+
+
+def test_secure_wipe_memory_handles_memoryerror(monkeypatch):
+    calls = []
+
+    monkeypatch.setattr(high_security.gc, "collect", lambda: calls.append(1))
+    monkeypatch.setattr(high_security, "bytearray", lambda *_a, **_k: (_ for _ in ()).throw(MemoryError()))
+
+    high_security.secure_wipe_memory()
+    assert len(calls) >= 3
+
+
+def test_is_oppression_mode_alias(monkeypatch):
+    high_security._HIGH_SECURITY_MODE_ACTIVE = False
+    monkeypatch.setenv("MEOW_HIGH_SECURITY_MODE", "1")
+    assert high_security.is_oppression_mode() is True
+
+
+def test_secure_wipe_file_failure_returns_false(monkeypatch, tmp_path):
+    target = tmp_path / "secret.txt"
+    target.write_bytes(b"top secret")
+
+    def _boom(*_args, **_kwargs):
+        raise OSError("fail")
+
+    monkeypatch.setattr(high_security, "open", _boom)
+    assert high_security.secure_wipe_file(target, passes=1) is False
+
+
+def test_is_high_security_mode_env_var(monkeypatch):
+    high_security._HIGH_SECURITY_MODE_ACTIVE = False
+    monkeypatch.setenv("MEOW_HIGH_SECURITY_MODE", "1")
+    assert high_security.is_high_security_mode() is True
+
+
+def test_paranoid_mode_alias_sets_active(monkeypatch):
+    high_security._HIGH_SECURITY_MODE_ACTIVE = False
+    monkeypatch.delenv("MEOW_HIGH_SECURITY_MODE", raising=False)
+    high_security.paranoid_mode()
+    assert high_security.is_high_security_mode() is True

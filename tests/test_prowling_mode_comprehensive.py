@@ -73,6 +73,46 @@ class TestMemoryProwler:
         prowler.force_gc()
         assert len(calls) == 1
 
+    def test_get_current_ram_handles_psutil_errors(self, monkeypatch, prowling_config):
+        import meow_decoder.prowling_mode as pm
+
+        class _AccessDenied(Exception):
+            pass
+
+        access_denied = getattr(getattr(pm, "psutil", None), "AccessDenied", _AccessDenied)
+
+        class DummyProcess:
+            def memory_info(self):
+                raise access_denied()
+
+        monkeypatch.setattr(pm, "HAS_PSUTIL", True)
+        monkeypatch.setattr(
+            pm,
+            "psutil",
+            type("P", (), {"Process": lambda: DummyProcess(), "AccessDenied": access_denied}),
+        )
+        prowler = MemoryProwler(prowling_config)
+        assert prowler.get_current_ram_mb() is None
+
+    def test_get_available_ram_handles_psutil_errors(self, monkeypatch, prowling_config):
+        import meow_decoder.prowling_mode as pm
+
+        class _Error(Exception):
+            pass
+
+        error_type = getattr(getattr(pm, "psutil", None), "Error", _Error)
+
+        class DummyPsutil:
+            Error = error_type
+
+            def virtual_memory(self):
+                raise error_type()
+
+        monkeypatch.setattr(pm, "HAS_PSUTIL", True)
+        monkeypatch.setattr(pm, "psutil", DummyPsutil())
+        prowler = MemoryProwler(prowling_config)
+        assert prowler.get_available_ram_mb() is None
+
 
 class TestDiskBasedKibbleCollector:
     """Disk-based collector behavior tests."""
@@ -105,6 +145,25 @@ class TestDiskBasedKibbleCollector:
         # Now solve post 1 via pending processing
         assert 1 in collector.solved_posts
 
+    def test_collect_kibble_fully_reduced_discards(self, collector):
+        collector.write_post_to_disk(0, b"\x01" * 8)
+        data = b"\x01" * 8
+        done = collector.collect_kibble_streaming(seed=1, post_indices=[0], data=data)
+        assert done is False
+
+    def test_pending_kibbles_cap_and_gc(self, collector, monkeypatch):
+        collector.pending_kibbles = [([0, 1], b"x" * 8) for _ in range(1000)]
+        gc_calls = []
+
+        monkeypatch.setattr(collector.prowler, "force_gc", lambda: gc_calls.append(1))
+        collector.collect_kibble_streaming(seed=2, post_indices=[1, 2], data=b"y" * 8)
+        assert len(collector.pending_kibbles) == 1000
+
+        # Trigger periodic GC when length % 100 == 0
+        collector.pending_kibbles = [([0, 1], b"z" * 8) for _ in range(99)]
+        collector.collect_kibble_streaming(seed=3, post_indices=[1, 2], data=b"y" * 8)
+        assert gc_calls
+
     def test_pending_kibbles_processed(self, collector):
         # Add a pending kibble that can be solved after post 0 is found
         data = b"\x05" * 8
@@ -127,6 +186,14 @@ class TestDiskBasedKibbleCollector:
         assert data == b"A" * 8 + b"B" * 8 + b"C" * 8
         assert not collector.temp_file.exists()
 
+    def test_get_reconstructed_data_handles_cleanup_errors(self, collector, monkeypatch):
+        collector.write_post_to_disk(0, b"A" * 8)
+        collector.write_post_to_disk(1, b"B" * 8)
+        collector.write_post_to_disk(2, b"C" * 8)
+        monkeypatch.setattr(collector.temp_file, "unlink", lambda: (_ for _ in ()).throw(OSError("fail")))
+        data = collector.get_reconstructed_data(original_length=24)
+        assert data.startswith(b"A" * 8)
+
     def test_get_stats_fields(self, collector, monkeypatch):
         monkeypatch.setattr(collector.prowler, "get_current_ram_mb", lambda: 42)
         stats = collector.get_stats()
@@ -142,3 +209,7 @@ class TestProwlingFactory:
         assert isinstance(decoder, DiskBasedKibbleCollector)
         captured = capsys.readouterr()
         assert "Prowling Mode Activated" in captured.out
+
+    def test_create_prowling_decoder_caps_block_size(self):
+        decoder = create_prowling_decoder(num_posts=2, post_size=1024, max_ram_mb=64)
+        assert decoder.config.block_size == 256

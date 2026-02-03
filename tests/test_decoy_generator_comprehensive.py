@@ -67,6 +67,22 @@ def test_generate_decoy_archive_is_valid_zip_and_contains_expected_files():
         assert has_photos
 
 
+def test_generate_decoy_archive_small_target_adds_no_photos():
+    # Target size small enough to skip adding photos
+    archive = DecoyGenerator.generate_decoy_archive(1000)
+    with zipfile.ZipFile(io.BytesIO(archive), "r") as zf:
+        names = set(zf.namelist())
+        assert "The_Feline_Manifesto.pdf" in names
+        assert "shopping_list.txt" in names
+        assert "notes.txt" in names
+        assert not any(name.startswith("vacation_photos/") for name in names)
+
+
+def test_generate_vacation_photos_caps_count():
+    photos = DecoyGenerator.generate_vacation_photos(999)
+    assert len(photos) <= len(DecoyGenerator.PHOTO_NAMES)
+
+
 def test_generate_convincing_decoy_default_size_range():
     decoy = generate_convincing_decoy()
     assert isinstance(decoy, bytes)
