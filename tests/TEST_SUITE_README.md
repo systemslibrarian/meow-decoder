@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document summarizes the security-focused test suite created for Meow Decoder v1.0.
+This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
 ## Test Files Created
 
@@ -30,6 +30,26 @@ This document summarizes the security-focused test suite created for Meow Decode
 | File | Purpose | Key Tests |
 |------|---------|-----------|
 | `tests/test_fuzz_roundtrip.py` | Property-based testing | Hypothesis-powered random input testing, boundary conditions |
+
+### February 2026 Coverage Expansion (Completed)
+
+Additional comprehensive suites added to close remaining gaps and complete todo-feb.md:
+
+- `tests/test_decoy_generator_comprehensive.py`
+- `tests/test_high_security_comprehensive.py`
+- `tests/test_security_warnings_comprehensive.py`
+- `tests/test_cat_utils_comprehensive.py`
+- `tests/test_progress_modules_comprehensive.py`
+- `tests/test_ascii_qr_comprehensive.py`
+- `tests/test_bidirectional_comprehensive.py`
+- `tests/test_clowder_comprehensive.py`
+- `tests/test_schrodinger_comprehensive.py`
+- `tests/test_catnip_fountain_comprehensive.py`
+- `tests/test_debug_modules_comprehensive.py`
+- `tests/test_logo_and_gui_comprehensive.py`
+- `tests/test_dashboard_gui_comprehensive.py`
+- `tests/test_deadmans_switch_cli_comprehensive.py`
+- `tests/test_webcam_modules_comprehensive.py`
 
 ## Security Principles Applied
 
@@ -73,6 +93,8 @@ fail_under = 35  # Incrementally increase to 80%+
 | TIER 1 | crypto.py, crypto_backend.py, fountain.py, frame_mac.py, constant_time.py | 95-100% | Critical |
 | TIER 2 | encode.py, decode_gif.py, config.py, qr_code.py, gif_handler.py | 90%+ | High |
 | TIER 3 | Everything else | Best-effort | Low |
+
+**Status:** todo-feb.md completed (26 files, 0 remaining).
 
 ## Running Tests
 

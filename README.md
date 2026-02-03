@@ -359,6 +359,8 @@ The Rust backend is mandatory for secure operation. The Python fallback has been
 
 This project uses **AFL++** (via `atheris`) for continuous fuzzing of critical components to detect crashes and edge cases.
 
+For the full test inventory and coverage tracking, see [tests/TEST_SUITE_README.md](tests/TEST_SUITE_README.md).
+
 ### Fuzz Targets
 - **Manifest Parsing**: Tests against malformed binary structures
 - **Crypto Operations**: Tests error handling in key derivation/decryption
@@ -526,7 +528,7 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Coercion Resistance | Duress passwords | ⚠️ Module only |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
-| Security Tests | 140+ tests, CI-enforced | ✅ |
+| Security Tests | 370+ tests, CI-enforced | ✅ |
 
 **Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 

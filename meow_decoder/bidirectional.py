@@ -620,7 +620,7 @@ class BiDirectionalProtocol:
             return {
                 'session_id': self.sender.session.session_id.hex(),
                 'frames_sent': self.sender.frames_sent,
-                'is_complete': self.sender.bytes_complete,
+                'is_complete': self.sender.is_complete,
                 'is_paused': self.sender.is_paused,
                 'status_updates': len(self.sender.status_updates),
             }

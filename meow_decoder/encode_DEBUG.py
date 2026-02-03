@@ -6,6 +6,7 @@ Encodes files into GIF animations with QR codes
 
 import sys
 import argparse
+import struct
 from pathlib import Path
 from getpass import getpass
 from typing import Optional
@@ -15,7 +16,7 @@ import time
 from .config import MeowConfig, EncodingConfig
 from .crypto import (
     encrypt_file_bytes, compute_manifest_hmac, pack_manifest,
-    Manifest, verify_keyfile
+    Manifest, verify_keyfile, MAGIC
 )
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
