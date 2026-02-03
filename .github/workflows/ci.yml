@@ -66,11 +66,12 @@ jobs:
         run: |
           python -c "import meow_crypto_rs; print('Rust backend imported successfully')"
 
-      - name: Run full test suite with coverage (security-focused)
+      - name: Run full test suite with coverage
         run: |
           pytest -v \
             --cov=meow_decoder \
-            --cov-config=.coveragerc-security \
+            --cov=crypto_core \
+            --cov-config=.coveragerc \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
             --cov-fail-under=0 \
@@ -78,7 +79,7 @@ jobs:
 
       - name: Show coverage summary (debug)
         run: |
-          coverage report --rcfile=.coveragerc-security || echo "No coverage data collected"
+          coverage report --rcfile=.coveragerc || echo "No coverage data collected"
           echo ""
           echo "Coverage data file exists? $(ls -l .coverage 2>/dev/null || echo 'No .coverage file')"
 
@@ -104,3 +105,4 @@ jobs:
           fail_ci_if_error: false
           verbose: true
           name: python-coverage
+          flags: python

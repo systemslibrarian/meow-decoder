@@ -74,7 +74,9 @@ Once collapsed, you cannot "un-collapse" or prove the other reality existed.
 
 ## Architecture
 
-### v5.4.0 Implementation Status
+### v1.0 Implementation Status
+
+> **Note:** Internal dev labels (v5.x) are historical. The public release is v1.0.
 
 **✅ Implemented (Core):**
 - Quantum noise derivation (requires both passwords)
@@ -304,7 +306,7 @@ Total: 248 bytes
 
 ## Future Work
 
-### v5.4.1 Roadmap
+### Post v1.0 Roadmap
 
 1. **Solve decoder architecture** (Priority 1)
    - Choose practical approach (see options above)
@@ -336,7 +338,7 @@ Total: 248 bytes
 ## Credits
 
 **Philosophy**: Inspired by quantum mechanics and Schrödinger's cat  
-**Implementation**: Meow Decoder v5.4.0  
+**Implementation**: Meow Decoder v1.0  
 **Author**: Paul Clark  
 
 ---

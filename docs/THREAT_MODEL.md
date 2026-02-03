@@ -1,7 +1,7 @@
-# 🛡️ THREAT MODEL - Meow Decoder v6.0
+# 🛡️ THREAT MODEL - Meow Decoder v1.0
 
 **Date:** 2026-01-28  
-**Version:** 6.1 (v1.0 Security‑Reviewed)  
+**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Classification:** Security‑Reviewed v1.0 (claims bounded by tests/specs)  
 **Last Security Review:** 2026-01-28
 
@@ -33,7 +33,7 @@ This section is the **authoritative threat model** for the v1.0 security‑revie
 - Records all GIF/QR traffic for future quantum decryption.
 - Stores encrypted payloads indefinitely (decades).
 - Assumes fault-tolerant quantum computer in 10-30 years.
-- **Mitigation:** ML-KEM-1024 + X25519 hybrid (default ON in v5.8+).
+- **Mitigation:** ML-KEM-1024 + X25519 hybrid (default ON in v1.0).
 - **Status:** ✅ PROTECTED if `--pq` or default config used.
 
 **🔬 Side-Channel Adversary (Cache/Timing)**
@@ -374,7 +374,7 @@ These protections are based on well-understood cryptographic primitives with no 
 | Iterations | **20 passes** | ~5-10 seconds per attempt |
 | **Status** | ✅ **ULTRA** | 10^18+ attempts infeasible |
 
-**Brute-Force Mathematics (v5.8):**
+**Brute-Force Mathematics (v1.0):**
 
 | Scenario | Cost per Attempt | Attempts/Sec | Years to Crack 20-char Password |
 |----------|------------------|--------------|----------------------------------|
@@ -733,12 +733,10 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ## 🔮 **FUTURE ROADMAP FOR STRONGER SECURITY**
 
-### v5.5 (Planned):
+### Post v1.0 (Planned):
 - [ ] Rust crypto backend for true constant-time
 - [ ] Hardware security module (HSM) support
 - [ ] FIDO2/WebAuthn integration
-
-### v6.0 (Future):
 - [ ] Formal verification of core crypto paths
 - [ ] Side-channel resistant implementation
 - [ ] Independent security audit
@@ -752,7 +750,7 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ## ✅ **BOTTOM LINE**
 
-**Meow Decoder v5.4 provides:**
+**Meow Decoder v1.0 provides:**
 
 | Category | Assessment |
 |----------|------------|
@@ -769,6 +767,6 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ---
 
-**Document Version:** 5.4.0  
+**Document Version:** 1.0.0  
 **Last Updated:** 2026-01-25  
 **Security Contact:** Open a GitHub issue with [SECURITY] tag

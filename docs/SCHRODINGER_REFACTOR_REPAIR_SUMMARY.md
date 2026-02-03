@@ -1,7 +1,7 @@
 # 🐱⚛️ Schrödinger Refactor Repair - Complete Summary
 
 **Date:** 2026-01-28  
-**Version:** v5.5.0  
+**Version:** 1.0.0 (references internal dev label v5.5.0)  
 **Status:** ✅ Complete
 
 ---
@@ -9,6 +9,8 @@
 ## Overview
 
 This document summarizes the repair work done on the Schrödinger mode after the "Gemini refactor" that introduced breaking changes to the dual-reality encoder/decoder.
+
+> **Note:** Internal development labels (v5.x) are historical. The public release is v1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW).
 
 ---
 

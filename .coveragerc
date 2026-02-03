@@ -1,33 +1,136 @@
 # .coveragerc
-# General coverage configuration – measures the full package
-# Use this for local development and full HTML reports
-# Do NOT use fail_under here (or keep it very low)
+# Coverage.py configuration for Meow Decoder
+# Configures which source files Codecov monitors for coverage
+#
+# Primary Python package: meow_decoder/
+# All .py files under meow_decoder/ are monitored including:
+#   __init__.py, ascii_qr.py, bidirectional.py, cat_utils.py, catnip_fountain.py,
+#   clowder_decode.py, clowder_encode.py, config.py, constant_time.py, crypto.py,
+#   crypto_backend.py, crypto_enhanced.py, crypto_DEBUG.py, deadmans_switch_cli.py,
+#   decode_gif.py, decode_webcam_with_resume.py, decoy_generator.py, double_ratchet.py,
+#   duress_mode.py, encode.py, encode_DEBUG.py, entropy_boost.py, forward_secrecy.py,
+#   forward_secrecy_decoder.py, forward_secrecy_encoder.py, forward_secrecy_x25519.py,
+#   fountain.py, frame_mac.py, gif_handler.py, gui_logo_example.py, hardware_integration.py,
+#   hardware_keys.py, high_security.py, logo_eyes.py, meow_dashboard_demo.py,
+#   meow_encode.py, meow_gui_enhanced.py, merkle_tree.py, metadata_obfuscation.py,
+#   multi_secret.py, ninja_cat_ultra.py, pq_crypto_real.py, pq_hybrid.py, pq_signatures.py,
+#   profiling_improved.py, progress.py, progress_bar.py, prowling_mode.py, qr_code.py,
+#   quantum_mixer.py, resume_secured.py, schrodinger_decode.py, schrodinger_encode.py,
+#   secure_bridge.py, secure_cleanup.py, security_warnings.py, stego_advanced.py,
+#   streaming_crypto.py, timelock_duress.py, webcam_enhanced.py, x25519_forward_secrecy.py
+#
+# Subdirectory: meow_decoder/spec_v12/ (all .py files)
+# Crypto wrappers: crypto_core/ (Python-facing wrappers)
 
 [run]
-source = meow_decoder
-branch = true
+# Source directories to measure coverage for
+source =
+    meow_decoder
+    crypto_core
 
+# Include branch coverage
+branch = True
+
+# Parallel mode for combining coverage from multiple test runs
+parallel = True
+
+# Omit files from coverage measurement
 omit =
-    meow_decoder/*_demo.py
-    meow_decoder/*_cli.py
-    meow_decoder/profiling_*.py
-    # add more patterns later if needed (examples, experiments, etc.)
+    # Test directories
+    tests/*
+    tests-archved/*
+    fuzz/*
+    
+    # Examples and documentation
+    examples/*
+    docs/*
+    scripts/*
+    
+    # Assets and non-code
+    assets/*
+    sounds/*
+    mobile/*
+    htmlcov/*
+    
+    # Build artifacts
+    */target/*
+    */__pycache__/*
+    *.pyc
+    
+    # Virtual environments
+    .venv/*
+    venv/*
+    env/*
+
+[paths]
+# Source path mappings for combining coverage from different environments
+source =
+    meow_decoder/
+    */meow_decoder/
+    crypto_core/
+    */crypto_core/
 
 [report]
+# Exclude lines from coverage reporting
 exclude_also =
+    # Standard pragma
     pragma: no cover
+    
+    # Main blocks
     if __name__ == .__main__.:
     def main\(.*\):
+    
+    # Defensive code
     raise NotImplementedError
     raise AssertionError
+    
+    # Type checking blocks
     if TYPE_CHECKING:
+    
+    # Test mode conditionals
     if _TEST_MODE:
+    
+    # Ellipsis (abstract methods)
     \.\.\.
+    
+    # Dead code guards
     if 0:
     if False:
+    
+    # Debug/repr methods
+    def __repr__
+    if self\.debug
+    
+    # Platform-specific code guards
+    if sys.platform
+    if platform.system
 
+# Ignore source files that can't be found
+ignore_errors = True
+
+# Show missing lines in report
 show_missing = True
 
+# Precision for coverage percentage
+precision = 2
+
+# Sort report by coverage percentage (ascending)
+sort = Cover
+
 [html]
+# HTML report output directory
 directory = htmlcov
-skip_covered = false
+
+# Title for HTML report
+title = Meow Decoder Coverage Report
+
+# Include all files (don't skip covered)
+skip_covered = False
+
+[xml]
+# XML report output file (for Codecov upload)
+output = coverage.xml
+
+[json]
+# JSON report output file
+output = coverage.json

@@ -1,0 +1,146 @@
+# Codecov Configuration for Meow Decoder
+# https://docs.codecov.com/docs/codecovyml-reference
+
+codecov:
+  require_ci_to_pass: yes
+  notify:
+    wait_for_ci: yes
+
+coverage:
+  precision: 2
+  round: down
+  range: "70...100"
+  
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 1%
+        informational: false
+    patch:
+      default:
+        target: auto
+        threshold: 1%
+        informational: false
+
+# Flags for different coverage types
+flags:
+  python:
+    paths:
+      - meow_decoder/
+      - crypto_core/
+    carryforward: true
+  
+  # Separate flag for Rust coverage (via tarpaulin)
+  rust:
+    paths:
+      - rust_crypto/src/
+      - crypto_core/src/
+    carryforward: true
+
+# Parser settings
+parsers:
+  gcov:
+    branch_detection:
+      conditional: yes
+      loop: yes
+      method: no
+      macro: no
+
+# Ignore paths (not monitored for coverage)
+ignore:
+  - "tests/**/*"
+  - "tests-archved/**/*"
+  - "fuzz/**/*"
+  - "examples/**/*"
+  - "docs/**/*"
+  - "scripts/**/*"
+  - "assets/**/*"
+  - "sounds/**/*"
+  - "mobile/**/*"
+  - "htmlcov/**/*"
+  - "formal/**/*"
+  - "**/target/**/*"
+  - "**/__pycache__/**/*"
+  - "*.pyc"
+  - ".venv/**/*"
+  - "venv/**/*"
+
+# Comment settings for PR comments
+comment:
+  layout: "reach,diff,flags,files"
+  behavior: default
+  require_changes: false
+  require_base: false
+  require_head: true
+
+# Component mapping for detailed coverage reporting
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+  individual_components:
+    - component_id: crypto_core
+      name: Crypto Core
+      paths:
+        - meow_decoder/crypto.py
+        - meow_decoder/crypto_backend.py
+        - meow_decoder/crypto_enhanced.py
+        - meow_decoder/constant_time.py
+        - meow_decoder/x25519_forward_secrecy.py
+        - meow_decoder/forward_secrecy*.py
+        - meow_decoder/pq_*.py
+        - crypto_core/**/*.py
+    
+    - component_id: encoding
+      name: Encoding Pipeline
+      paths:
+        - meow_decoder/encode.py
+        - meow_decoder/fountain.py
+        - meow_decoder/qr_code.py
+        - meow_decoder/gif_handler.py
+        - meow_decoder/frame_mac.py
+        - meow_decoder/merkle_tree.py
+    
+    - component_id: decoding
+      name: Decoding Pipeline
+      paths:
+        - meow_decoder/decode_gif.py
+        - meow_decoder/decode_webcam*.py
+        - meow_decoder/resume_secured.py
+        - meow_decoder/prowling_mode.py
+    
+    - component_id: schrodinger
+      name: Schrödinger Mode
+      paths:
+        - meow_decoder/schrodinger_*.py
+        - meow_decoder/quantum_mixer.py
+        - meow_decoder/multi_secret.py
+        - meow_decoder/decoy_generator.py
+    
+    - component_id: security
+      name: Security Features
+      paths:
+        - meow_decoder/duress_mode.py
+        - meow_decoder/high_security.py
+        - meow_decoder/security_warnings.py
+        - meow_decoder/timelock_duress.py
+        - meow_decoder/secure_*.py
+        - meow_decoder/hardware_*.py
+        - meow_decoder/entropy_boost.py
+    
+    - component_id: steganography
+      name: Steganography
+      paths:
+        - meow_decoder/ninja_cat_ultra.py
+        - meow_decoder/stego_advanced.py
+        - meow_decoder/logo_eyes.py
+    
+    - component_id: streaming
+      name: Streaming & Clowder
+      paths:
+        - meow_decoder/clowder_*.py
+        - meow_decoder/streaming_crypto.py
+        - meow_decoder/double_ratchet.py
+        - meow_decoder/bidirectional.py

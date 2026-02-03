@@ -69,7 +69,7 @@ warning: declaration uses 'sorry': erasure_tolerance
 
 **CI note:** Tamarin and Lean are skipped in CI unless installed; local `make formal-all` expects them.
 
-## 📁 New Files Added (v5.8.0+)
+## 📁 New Files Added (v1.0 Release)
 
 ### Lean 4 Proofs (`formal/lean/`)
 - `FountainCodes.lean` - LT fountain code correctness (~270 lines)

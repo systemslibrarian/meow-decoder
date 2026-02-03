@@ -1,6 +1,6 @@
 # 🔒 Security Invariants - Meow Decoder
 
-**Version:** 6.0  
+**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Last Updated:** 2026-01-25  
 **Classification:** Security-Critical Documentation
 

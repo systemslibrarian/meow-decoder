@@ -1,4 +1,4 @@
-# 🐱 Protocol Diagrams - Meow Decoder v5.9
+# 🐱 Protocol Diagrams - Meow Decoder v1.0
 
 **Mermaid visualizations of Meow Decoder data flows and state machines**
 
@@ -410,6 +410,6 @@ graph LR
 ---
 
 **Last Updated**: 2026-01-29  
-**Version**: 5.9.0  
+**Version**: 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Visualization**: Mermaid diagrams (6 flows, state machines, and verification chain)
 

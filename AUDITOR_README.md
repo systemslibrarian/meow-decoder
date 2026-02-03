@@ -3,7 +3,7 @@
 ## Executive Summary
 
 **Project:** Meow Decoder - Optical Air-Gap File Transfer System  
-**Version:** 6.0 (Security-Reviewed v1.0)  
+**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Language:** Python 3.10+ / Rust 1.70+  
 **Crypto Primitives:** AES-256-GCM, Argon2id, X25519, ML-KEM-768/1024, Ed25519, Dilithium3, HMAC-SHA256  
 **Lines of Code:** ~12,000 Python, ~3,000 Rust  

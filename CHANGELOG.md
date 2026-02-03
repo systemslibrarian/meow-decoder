@@ -2,7 +2,23 @@
 
 All notable changes to Meow Decoder.
 
-## [5.9.0] - 2026-01-28
+> **Version Note:** The public release is **v1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)**.
+> The version numbers below (5.x, 6.x) are historical internal development milestones
+> that have been consolidated into the v1.0 public release.
+
+## [1.0.0] - 2026-01-28 (Public Release)
+
+**This release consolidates all internal development milestones (v5.x, v6.x) into the
+first public release: v1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW).**
+
+All features, security hardening, and tests from internal versions 5.0.0 through 5.9.0
+are included in this release.
+
+---
+
+## Historical Internal Development Milestones
+
+### [5.9.0] - 2026-01-28
 
 ### Added - Life-Critical Security Hardening 🔐🛡️🔬
 

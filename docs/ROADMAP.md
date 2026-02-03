@@ -1,12 +1,12 @@
 # 🛡️ Security Roadmap
 
-**Meow Decoder - Security Enhancement Roadmap**
+**Meow Decoder v1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)**
 
-This document outlines planned security improvements organized by timeline.
+This document outlines security improvements. Internal milestone labels (v5.x) are historical.
 
 ---
 
-## ✅ Completed (v5.8.0)
+## ✅ Completed (v1.0 Release)
 
 ### Crypto Hardening
 - [x] **Argon2id Ultra-Hardened**: 512 MiB memory, 20 iterations (~5-10s per attempt)
