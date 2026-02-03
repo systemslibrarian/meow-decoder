@@ -55,6 +55,12 @@ def test_normalize_size_no_padding_for_large_input():
     assert padded == data
 
 
+def test_normalize_size_default_classes():
+    data = b"a" * 10
+    padded = high_security.normalize_size(data)
+    assert len(padded) == 64 * 1024
+
+
 def test_normalize_size_exact_bucket_no_padding():
     data = b"a" * 1024
     padded = high_security.normalize_size(data, size_classes=[128, 1024])

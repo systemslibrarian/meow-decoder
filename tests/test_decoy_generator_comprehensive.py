@@ -1,6 +1,7 @@
 import io
 import zipfile
 import runpy
+import secrets
 
 from meow_decoder.decoy_generator import DecoyGenerator, generate_convincing_decoy
 
@@ -23,6 +24,33 @@ def test_generate_shopping_list_structure_and_item_count():
         if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))
     ]
     assert 5 <= len(items) <= len(DecoyGenerator.SHOPPING_ITEMS)
+
+
+def test_generate_shopping_list_min_items(monkeypatch):
+    class DummyRand:
+        def sample(self, items, k):
+            return list(items)[:k]
+
+    monkeypatch.setattr(secrets, "SystemRandom", lambda: DummyRand())
+    monkeypatch.setattr(secrets, "randbelow", lambda n: 0)
+
+    content = DecoyGenerator.generate_shopping_list()
+    items = [line for line in content.splitlines() if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))]
+    assert len(items) == 5
+
+
+def test_generate_shopping_list_max_items(monkeypatch):
+    class DummyRand:
+        def sample(self, items, k):
+            return list(items)[:k]
+
+    monkeypatch.setattr(secrets, "SystemRandom", lambda: DummyRand())
+    max_offset = len(DecoyGenerator.SHOPPING_ITEMS) - 6
+    monkeypatch.setattr(secrets, "randbelow", lambda n: max_offset)
+
+    content = DecoyGenerator.generate_shopping_list()
+    items = [line for line in content.splitlines() if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))]
+    assert len(items) == len(DecoyGenerator.SHOPPING_ITEMS) - 1
 
 
 def test_generate_fake_image_size_and_markers():
@@ -49,6 +77,7 @@ def test_generate_notes_file_contains_expected_sections():
     assert content.startswith("Personal Notes")
     assert "Things to remember:" in content
     assert "Random thoughts:" in content
+    assert DecoyGenerator.CAT_LOREM.strip().splitlines()[0] in content
 
 
 def test_generate_decoy_archive_is_valid_zip_and_contains_expected_files():

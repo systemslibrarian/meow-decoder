@@ -122,6 +122,13 @@ class TestDiskBasedKibbleCollector:
         size = collector.temp_file.stat().st_size
         assert size == collector.num_posts * collector.post_size
 
+    def test_custom_temp_file_used(self, tmp_path):
+        custom = tmp_path / "custom_blocks.meow"
+        config = ProwlingConfig(temp_file=custom, max_ram_mb=10, block_size=8)
+        collector = DiskBasedKibbleCollector(num_posts=2, post_size=8, config=config)
+        assert collector.temp_file == custom
+        assert custom.exists()
+
     def test_write_and_read_post(self, collector):
         data = b"ABCDEFGH"
         collector.write_post_to_disk(1, data)

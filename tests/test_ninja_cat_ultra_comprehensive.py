@@ -47,6 +47,22 @@ class TestNinjaCatInit:
         assert encoder.config.stealth_level == NinjaCatLevel.SUBTLE
         assert encoder.config.enable_dummy_frames is False
 
+    def test_show_warning_banner_prints(self, capsys):
+        encoder = NinjaCatUltra(NinjaConfig(stealth_level=NinjaCatLevel.VISIBLE))
+        encoder.show_warning_banner()
+        captured = capsys.readouterr()
+        assert "STEALTH RECOMMENDATIONS" in captured.out
+
+
+class TestNinjaFactory:
+    def test_create_ninja_encoder_disable_tricks(self):
+        encoder = create_ninja_encoder(stealth_level=2, enable_all_tricks=False)
+        assert encoder.config.stealth_level == NinjaCatLevel.SUBTLE
+        assert encoder.config.enable_dynamic_noise is False
+        assert encoder.config.enable_hue_jitter is False
+        assert encoder.config.enable_micro_rotation is False
+        assert encoder.config.enable_dummy_frames is False
+
 
 class TestNinjaTransforms:
     """Transform behavior tests."""
