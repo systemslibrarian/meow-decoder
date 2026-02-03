@@ -69,6 +69,7 @@ jobs:
       - name: Run full test suite with coverage (security-focused)
         run: |
           pytest -v \
+            --cov=meow_decoder \
             --cov-config=.coveragerc-security \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \

@@ -25,6 +25,7 @@ import zlib
 from unittest.mock import patch, MagicMock
 from collections import Counter
 import math
+import runpy
 
 # Set test mode for faster Argon2 (if applicable)
 os.environ.setdefault("MEOW_TEST_MODE", "1")
@@ -197,6 +198,10 @@ class TestMultiSecretManifestMeow:
         assert manifest.nonces == []
         assert manifest.hmacs == []
         assert len(manifest.merkle_root) == 32
+
+
+def test_multi_secret_module_main_runs():
+    runpy.run_module("meow_decoder.multi_secret", run_name="__main__")
 
     def test_manifest_pack_unpack_roundtrip_meow(self, sample_manifest):
         """Test manifest serialization roundtrip."""

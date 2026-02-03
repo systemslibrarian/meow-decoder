@@ -4,6 +4,7 @@
 import os
 
 import pytest
+import runpy
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
 from cryptography.hazmat.primitives import serialization
 
@@ -105,3 +106,7 @@ def test_decrypt_requires_receiver_key(monkeypatch):
         decrypt_with_forward_secrecy(
             cipher, "password", salt, nonce, ephemeral_pub, None, orig_len=len(plaintext)
         )
+
+
+def test_module_main_runs():
+    runpy.run_module("meow_decoder.forward_secrecy_x25519", run_name="__main__")

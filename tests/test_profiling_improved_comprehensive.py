@@ -13,6 +13,7 @@ import tempfile
 import os
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+import runpy
 
 from meow_decoder.profiling_improved import (
     TimingData,
@@ -199,6 +200,10 @@ class TestProfilerMeow:
                 time.sleep(0.001)
         
         assert fresh_profiler.timings["test_op"].call_count == 5
+
+
+def test_profiling_improved_module_main_runs():
+    runpy.run_module("meow_decoder.profiling_improved", run_name="__main__")
     
     def test_profile_function_decorator_meow(self, fresh_profiler):
         """Test profile_function decorator."""

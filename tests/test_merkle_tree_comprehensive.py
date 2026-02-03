@@ -19,6 +19,7 @@ import secrets
 import math
 from typing import List
 from unittest.mock import patch, MagicMock
+import runpy
 
 from meow_decoder.merkle_tree import (
     MerkleProof,
@@ -234,6 +235,10 @@ class TestMerkleTreeHashingMeow:
         
         assert result == expected
         assert len(result) == 32
+
+
+def test_merkle_tree_module_main_runs():
+    runpy.run_module("meow_decoder.merkle_tree", run_name="__main__")
     
     def test_hash_method_empty_data_meow(self):
         """Test _hash with empty data - silent meow."""

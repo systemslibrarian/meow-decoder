@@ -1,5 +1,6 @@
 import io
 import zipfile
+import runpy
 
 from meow_decoder.decoy_generator import DecoyGenerator, generate_convincing_decoy
 
@@ -70,3 +71,7 @@ def test_generate_convincing_decoy_default_size_range():
     decoy = generate_convincing_decoy()
     assert isinstance(decoy, bytes)
     assert 40000 <= len(decoy) <= 200000
+
+
+def test_decoy_generator_module_main_runs():
+    runpy.run_module("meow_decoder.decoy_generator", run_name="__main__")
