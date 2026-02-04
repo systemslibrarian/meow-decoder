@@ -26,13 +26,13 @@
 # Source directories to measure coverage for
 source =
     meow_decoder
-    crypto_core
 
 # Include branch coverage
 branch = True
 
-# Parallel mode for combining coverage from multiple test runs
-parallel = True
+# Parallel mode disabled to simplify report generation
+# Enable only if running tests in parallel with pytest-xdist
+parallel = False
 
 # Omit files from coverage measurement
 omit =
@@ -66,8 +66,6 @@ omit =
 source =
     meow_decoder/
     */meow_decoder/
-    crypto_core/
-    */crypto_core/
 
 [report]
 # Exclude lines from coverage reporting

@@ -70,12 +70,16 @@ jobs:
         run: |
           pytest -v \
             --cov=meow_decoder \
-            --cov=crypto_core \
             --cov-config=.coveragerc \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
-            --cov-fail-under=0 \
-            || true
+            --cov-fail-under=0
+          
+          # Verify coverage file was generated
+          if [ ! -f coverage.xml ]; then
+            echo "Warning: coverage.xml not generated, generating from .coverage database"
+            coverage xml -o coverage.xml --rcfile=.coveragerc || true
+          fi
 
       - name: Show coverage summary (debug)
         run: |
