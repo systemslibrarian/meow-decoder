@@ -55,7 +55,7 @@ jobs:
       - name: Install and test
         run: |
           pip install rust_crypto/dist/*.whl
-          pip install pytest pytest-cov cryptography argon2-cffi
+          pip install pytest pytest-cov cryptography argon2-cffi hypothesis
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Run compatibility tests
@@ -106,7 +106,7 @@ jobs:
         if: matrix.target == 'aarch64-apple-darwin'
         run: |
           pip install rust_crypto/dist/*.whl
-          pip install pytest pytest-cov cryptography argon2-cffi
+          pip install pytest pytest-cov cryptography argon2-cffi hypothesis
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Upload wheel
@@ -147,7 +147,7 @@ jobs:
       - name: Install and test
         run: |
           pip install (Get-ChildItem rust_crypto/dist/*.whl).FullName
-          pip install pytest pytest-cov cryptography argon2-cffi
+          pip install pytest pytest-cov cryptography argon2-cffi hypothesis
           python -c "import meow_crypto_rs; print(f'Rust backend loaded')"
         shell: pwsh
       
