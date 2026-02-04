@@ -51,6 +51,7 @@ criterion = "0.5"
 default = []
 pq = []  # Enable post-quantum crypto
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
+python-tests = []  # Enable tests that require Python bindings
 
 [profile.release]
 lto = true
