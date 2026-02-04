@@ -98,7 +98,7 @@ jobs:
           maturin build --release --target ${{ matrix.target }} --out dist
       
       - name: Install and test (native only)
-        if: matrix.target == 'x86_64-apple-darwin'
+        if: matrix.target == 'aarch64-apple-darwin'
         run: |
           pip install rust_crypto/dist/*.whl
           pip install pytest pytest-cov cryptography argon2-cffi
