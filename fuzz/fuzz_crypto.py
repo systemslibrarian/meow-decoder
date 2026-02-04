@@ -8,18 +8,33 @@ We're looking for crashes, not cryptanalysis.
 """
 
 import sys
-import atheris
 
-# Instrument modules before importing
-with atheris.instrument_imports():
+try:
+    import atheris
+except ImportError:  # pragma: no cover - only used in fuzzing environments
+    atheris = None
+
+
+def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    
+
     from meow_decoder.crypto import (
         derive_key, decrypt_to_raw, unpack_manifest,
         verify_manifest_hmac, Manifest
     )
     import secrets
+
+    return derive_key, decrypt_to_raw, unpack_manifest, verify_manifest_hmac, Manifest, secrets
+
+
+if atheris is not None:
+    # Instrument modules before importing
+    with atheris.instrument_imports():
+        derive_key, decrypt_to_raw, unpack_manifest, verify_manifest_hmac, Manifest, secrets = _setup_imports()
+else:
+    derive_key, decrypt_to_raw, unpack_manifest, verify_manifest_hmac, Manifest, secrets = _setup_imports()
 
 
 def fuzz_derive_key(data: bytes):
@@ -123,6 +138,9 @@ def fuzz_hmac_verify(data: bytes):
 
 
 def main():
+    if atheris is None:
+        raise RuntimeError("atheris is required to run fuzz targets")
+
     def combined_fuzz(data: bytes):
         # Run all fuzzers
         fuzz_derive_key(data)

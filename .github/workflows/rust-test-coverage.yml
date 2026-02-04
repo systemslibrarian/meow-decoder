@@ -1,0 +1,68 @@
+name: Rust Tests & Coverage
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:  # Allows manual trigger from GitHub UI
+
+jobs:
+  test-and-coverage:
+    name: Test + Tarpaulin Coverage (Ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Useful if you need git history for anything
+
+      - name: Install Rust stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+
+      - name: Cache Cargo dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            rust_crypto
+            crypto_core
+          # If you have a workspace root Cargo.toml, it will cache the whole thing automatically
+
+      - name: Install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin
+
+      - name: Run tests with coverage (rust_crypto)
+        run: |
+          cargo tarpaulin \
+            --all-features \
+            --out Lcov \
+            --output-dir . \
+            --timeout 300
+        working-directory: ./rust_crypto
+
+      - name: Run tests with coverage (crypto_core)
+        run: |
+          cargo tarpaulin \
+            --all-features \
+            --out Lcov \
+            --output-dir . \
+            --timeout 300
+        working-directory: ./crypto_core
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./rust_crypto/lcov.info,./crypto_core/lcov.info
+          flags: rust
+          name: rust-coverage
+          fail_ci_if_error: false
+
+      - name: Run regular tests (without coverage, for faster feedback)
+        if: always()
+        run: |
+          cd rust_crypto && cargo test --all-features
+          cd ../crypto_core && cargo test --all-features

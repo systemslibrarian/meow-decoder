@@ -5,14 +5,28 @@ Uses Atheris (Google's Python fuzzing engine).
 """
 
 import sys
-import atheris
 
-# Instrument modules before importing
-with atheris.instrument_imports():
+try:
+    import atheris
+except ImportError:  # pragma: no cover - only used in fuzzing environments
+    atheris = None
+
+
+def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
-    
+
     from meow_decoder.crypto import unpack_manifest, Manifest
+    return unpack_manifest, Manifest
+
+
+if atheris is not None:
+    # Instrument modules before importing
+    with atheris.instrument_imports():
+        unpack_manifest, Manifest = _setup_imports()
+else:
+    unpack_manifest, Manifest = _setup_imports()
 
 
 def fuzz_unpack_manifest(data: bytes):
@@ -58,6 +72,9 @@ def fuzz_unpack_manifest(data: bytes):
 
 
 def main():
+    if atheris is None:
+        raise RuntimeError("atheris is required to run fuzz targets")
+
     # Setup fuzzing
     atheris.Setup(sys.argv, fuzz_unpack_manifest)
     atheris.Fuzz()

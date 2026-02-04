@@ -622,3 +622,130 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     Ok(())
 }
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+// NOTE: Integration tests with Python bindings are in tests/comprehensive_tests.rs
+// The tests below require Python linking and are disabled by default.
+// Run with: maturin develop && python -c "import meow_crypto_rs; ..."
+// Or use: cargo test --test comprehensive_tests (76 pure Rust tests)
+
+#[cfg(all(test, feature = "python-tests"))]
+mod tests {
+    use super::*;
+    use pyo3::Python;
+    use pyo3::types::PyByteArray;
+
+    #[test]
+    fn test_argon2id_derive_and_invalid_salt() {
+        Python::with_gil(|py| {
+            let salt = [0u8; 16];
+            let key = derive_key_argon2id(py, b"password", &salt, 1024, 1, 1, 32).unwrap();
+            assert_eq!(key.as_bytes().len(), 32);
+
+            let err = derive_key_argon2id(py, b"password", b"short", 1024, 1, 1, 32)
+                .err()
+                .expect("expected error for invalid salt");
+            assert!(err.to_string().contains("Salt must be exactly 16 bytes"));
+        });
+    }
+
+    #[test]
+    fn test_hkdf_extract_expand() {
+        Python::with_gil(|py| {
+            let prk = hkdf_extract(py, Some(b"salt"), b"ikm").unwrap();
+            let okm = hkdf_expand(py, prk.as_bytes(), b"info", 42).unwrap();
+            assert_eq!(okm.as_bytes().len(), 42);
+
+            let okm2 = derive_key_hkdf(py, b"ikm", Some(b"salt"), b"info", 42).unwrap();
+            assert_eq!(okm.as_bytes(), okm2.as_bytes());
+        });
+    }
+
+    #[test]
+    fn test_aes_gcm_roundtrip() {
+        Python::with_gil(|py| {
+            let key = [0x11u8; 32];
+            let nonce = [0x22u8; 12];
+            let plaintext = b"meow secret";
+            let aad = b"aad";
+
+            let cipher = aes_gcm_encrypt(py, &key, &nonce, plaintext, Some(aad)).unwrap();
+            let decrypted = aes_gcm_decrypt(py, &key, &nonce, cipher.as_bytes(), Some(aad)).unwrap();
+            assert_eq!(decrypted.as_bytes(), plaintext);
+
+            let bad = aes_gcm_decrypt(py, &key, &nonce, cipher.as_bytes(), Some(b"bad"));
+            assert!(bad.is_err());
+        });
+    }
+
+    #[test]
+    fn test_hmac_sha256_verify() {
+        Python::with_gil(|py| {
+            let key = b"key";
+            let message = b"message";
+            let tag = hmac_sha256(py, key, message).unwrap();
+            assert!(hmac_sha256_verify(key, message, tag.as_bytes()).unwrap());
+
+            let mut bad = tag.as_bytes().to_vec();
+            bad[0] ^= 0xFF;
+            assert!(!hmac_sha256_verify(key, message, &bad).unwrap());
+        });
+    }
+
+    #[test]
+    fn test_sha256_and_constant_time_compare() {
+        Python::with_gil(|py| {
+            let digest = sha256(py, b"abc").unwrap();
+            assert_eq!(digest.as_bytes().len(), 32);
+        });
+
+        assert!(constant_time_compare(b"abc", b"abc"));
+        assert!(!constant_time_compare(b"abc", b"abd"));
+        assert!(!constant_time_compare(b"abc", b"abcd"));
+    }
+
+    #[test]
+    fn test_x25519_key_exchange_and_public() {
+        Python::with_gil(|py| {
+            let (priv_a, pub_a) = x25519_generate_keypair(py).unwrap();
+            let (priv_b, pub_b) = x25519_generate_keypair(py).unwrap();
+
+            let shared_a = x25519_exchange(py, priv_a.as_bytes(), pub_b.as_bytes()).unwrap();
+            let shared_b = x25519_exchange(py, priv_b.as_bytes(), pub_a.as_bytes()).unwrap();
+            assert_eq!(shared_a.as_bytes(), shared_b.as_bytes());
+
+            let derived_pub = x25519_public_from_private(py, priv_a.as_bytes()).unwrap();
+            assert_eq!(derived_pub.as_bytes(), pub_a.as_bytes());
+        });
+    }
+
+    #[test]
+    fn test_secure_zero_and_random() {
+        Python::with_gil(|py| {
+            let ba = PyByteArray::new(py, b"secret");
+            secure_zero(py, &ba).unwrap();
+            // SAFETY: We have exclusive access to ba and don't modify it during this check
+            assert_eq!(unsafe { ba.as_bytes() }, b"\x00\x00\x00\x00\x00\x00");
+
+            let rnd = secure_random(py, 24).unwrap();
+            // SAFETY: We have exclusive access to rnd and don't modify it during this check
+            assert_eq!(unsafe { rnd.as_bytes() }.len(), 24);
+        });
+    }
+
+    #[test]
+    fn test_backend_info_and_mlkem() {
+        let info = backend_info();
+        assert!(info.contains("meow_crypto_rs"));
+
+        Python::with_gil(|py| {
+            let (sk, pk) = mlkem768_keygen(py).unwrap();
+            let (ss1, ct) = mlkem768_encapsulate(py, pk.as_bytes()).unwrap();
+            let ss2 = mlkem768_decapsulate(py, sk.as_bytes(), ct.as_bytes()).unwrap();
+            assert_eq!(ss1.as_bytes(), ss2.as_bytes());
+        });
+    }
+}

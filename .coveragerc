@@ -39,7 +39,6 @@ omit =
     # Test directories
     tests/*
     tests-archved/*
-    fuzz/*
     
     # Examples and documentation
     examples/*
