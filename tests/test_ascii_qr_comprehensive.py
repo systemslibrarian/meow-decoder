@@ -24,7 +24,7 @@ def test_generate_terminal_qr_returns_string():
 
 
 def test_print_terminal_qr_success(monkeypatch, capsys):
-    monkeypatch.setattr(ascii_qr.shutil, "get_terminal_size", lambda: (200, 200))
+    monkeypatch.setattr(ascii_qr.shutil, "get_terminal_size", lambda fallback=None: (200, 200))
     ascii_qr.print_terminal_qr("data", mode="unicode", title="Test")
     out = capsys.readouterr().out
     assert "Test" in out
@@ -32,7 +32,7 @@ def test_print_terminal_qr_success(monkeypatch, capsys):
 
 
 def test_print_terminal_qr_too_small(monkeypatch):
-    monkeypatch.setattr(ascii_qr.shutil, "get_terminal_size", lambda: (10, 5))
+    monkeypatch.setattr(ascii_qr.shutil, "get_terminal_size", lambda fallback=None: (10, 5))
     try:
         ascii_qr.print_terminal_qr("data", mode="large")
         assert False, "Expected ValueError for small terminal"
