@@ -1252,6 +1252,7 @@ dependencies = [
  "hmac",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
+ "proptest",
  "pyo3",
  "rand 0.8.5",
  "rand_core 0.6.4",

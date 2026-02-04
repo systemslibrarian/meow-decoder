@@ -273,7 +273,7 @@ impl YubiKeyProvider {
 
     /// List available YubiKeys
     pub fn list_devices() -> Result<Vec<YubiKeyInfo>, YubiKeyError> {
-        let readers = yubikey::reader::Context::open()
+        let mut readers = yubikey::reader::Context::open()
             .map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?;
         
         let mut devices = Vec::new();
