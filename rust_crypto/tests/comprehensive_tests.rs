@@ -49,7 +49,9 @@ mod argon2id_tests {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
         let mut output = vec![0u8; 32];
-        argon2.hash_password_into(password, &salt, &mut output).unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut output)
+            .unwrap();
 
         assert_eq!(output.len(), 32);
         // Key should not be all zeros
@@ -67,8 +69,12 @@ mod argon2id_tests {
         let mut output1 = vec![0u8; 32];
         let mut output2 = vec![0u8; 32];
 
-        argon2.hash_password_into(password, &salt, &mut output1).unwrap();
-        argon2.hash_password_into(password, &salt, &mut output2).unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut output1)
+            .unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut output2)
+            .unwrap();
 
         assert_eq!(output1, output2, "Same inputs should produce same outputs");
     }
@@ -82,10 +88,17 @@ mod argon2id_tests {
         let mut key1 = vec![0u8; 32];
         let mut key2 = vec![0u8; 32];
 
-        argon2.hash_password_into(b"password1", &salt, &mut key1).unwrap();
-        argon2.hash_password_into(b"password2", &salt, &mut key2).unwrap();
+        argon2
+            .hash_password_into(b"password1", &salt, &mut key1)
+            .unwrap();
+        argon2
+            .hash_password_into(b"password2", &salt, &mut key2)
+            .unwrap();
 
-        assert_ne!(key1, key2, "Different passwords should produce different keys");
+        assert_ne!(
+            key1, key2,
+            "Different passwords should produce different keys"
+        );
     }
 
     #[test]
@@ -97,8 +110,12 @@ mod argon2id_tests {
         let mut key1 = vec![0u8; 32];
         let mut key2 = vec![0u8; 32];
 
-        argon2.hash_password_into(password, &[0x11u8; 16], &mut key1).unwrap();
-        argon2.hash_password_into(password, &[0x22u8; 16], &mut key2).unwrap();
+        argon2
+            .hash_password_into(password, &[0x11u8; 16], &mut key1)
+            .unwrap();
+        argon2
+            .hash_password_into(password, &[0x22u8; 16], &mut key2)
+            .unwrap();
 
         assert_ne!(key1, key2, "Different salts should produce different keys");
     }
@@ -112,7 +129,9 @@ mod argon2id_tests {
             let params = Params::new(1024, 1, 1, Some(output_len)).unwrap();
             let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
             let mut output = vec![0u8; output_len];
-            argon2.hash_password_into(password, &salt, &mut output).unwrap();
+            argon2
+                .hash_password_into(password, &salt, &mut output)
+                .unwrap();
             assert_eq!(output.len(), output_len);
         }
     }
@@ -137,7 +156,9 @@ mod argon2id_tests {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
         let mut output = vec![0u8; 32];
-        argon2.hash_password_into(password, &salt, &mut output).unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut output)
+            .unwrap();
         assert_eq!(output.len(), 32);
     }
 
@@ -149,7 +170,9 @@ mod argon2id_tests {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
         let mut output = vec![0u8; 32];
-        argon2.hash_password_into(&password, &salt, &mut output).unwrap();
+        argon2
+            .hash_password_into(&password, &salt, &mut output)
+            .unwrap();
         assert_eq!(output.len(), 32);
     }
 
@@ -162,7 +185,9 @@ mod argon2id_tests {
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
 
         let mut output = vec![0u8; 32];
-        argon2.hash_password_into(password, &salt, &mut output).unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut output)
+            .unwrap();
         assert_eq!(output.len(), 32);
     }
 }
@@ -324,11 +349,23 @@ mod aes_gcm_tests {
         let nonce_arr = Nonce::from_slice(&nonce);
 
         let ciphertext = cipher
-            .encrypt(nonce_arr, Payload { msg: plaintext, aad })
+            .encrypt(
+                nonce_arr,
+                Payload {
+                    msg: plaintext,
+                    aad,
+                },
+            )
             .unwrap();
 
         let decrypted = cipher
-            .decrypt(nonce_arr, Payload { msg: &ciphertext, aad })
+            .decrypt(
+                nonce_arr,
+                Payload {
+                    msg: &ciphertext,
+                    aad,
+                },
+            )
             .unwrap();
 
         assert_eq!(decrypted, plaintext);
@@ -346,7 +383,13 @@ mod aes_gcm_tests {
         let nonce_arr = Nonce::from_slice(&nonce);
 
         let ciphertext = cipher
-            .encrypt(nonce_arr, Payload { msg: plaintext, aad })
+            .encrypt(
+                nonce_arr,
+                Payload {
+                    msg: plaintext,
+                    aad,
+                },
+            )
             .unwrap();
 
         let result = cipher.decrypt(
@@ -411,7 +454,10 @@ mod aes_gcm_tests {
         ciphertext[0] ^= 0xFF;
 
         let result = cipher.decrypt(nonce_arr, ciphertext.as_ref());
-        assert!(result.is_err(), "Decryption should fail with tampered ciphertext");
+        assert!(
+            result.is_err(),
+            "Decryption should fail with tampered ciphertext"
+        );
     }
 
     #[test]
@@ -477,7 +523,10 @@ mod aes_gcm_tests {
             .encrypt(Nonce::from_slice(&[0x02u8; 12]), plaintext.as_ref())
             .unwrap();
 
-        assert_ne!(ct1, ct2, "Different nonces should produce different ciphertexts");
+        assert_ne!(
+            ct1, ct2,
+            "Different nonces should produce different ciphertexts"
+        );
     }
 
     #[test]
@@ -492,7 +541,10 @@ mod aes_gcm_tests {
         let ct1 = cipher.encrypt(nonce_arr, plaintext.as_ref()).unwrap();
         let ct2 = cipher.encrypt(nonce_arr, plaintext.as_ref()).unwrap();
 
-        assert_eq!(ct1, ct2, "Same key/nonce/plaintext should produce same ciphertext");
+        assert_eq!(
+            ct1, ct2,
+            "Same key/nonce/plaintext should produce same ciphertext"
+        );
     }
 }
 
@@ -652,7 +704,9 @@ mod sha256_tests {
         hasher.update(b"abc");
         let hash = hasher.finalize();
 
-        let expected = hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad").unwrap();
+        let expected =
+            hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+                .unwrap();
         assert_eq!(hash.as_slice(), expected.as_slice());
     }
 
@@ -662,7 +716,9 @@ mod sha256_tests {
         hasher.update(b"");
         let hash = hasher.finalize();
 
-        let expected = hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855").unwrap();
+        let expected =
+            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+                .unwrap();
         assert_eq!(hash.as_slice(), expected.as_slice());
     }
 
@@ -1059,7 +1115,9 @@ mod integration_tests {
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
         let mut key = vec![0u8; 32];
-        argon2.hash_password_into(password, &salt, &mut key).unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut key)
+            .unwrap();
 
         // 2. Generate nonce
         let mut nonce = [0u8; 12];
@@ -1138,7 +1196,8 @@ mod integration_tests {
         let mut hmac_key = [0u8; 32];
         let mut frame_key = [0u8; 32];
 
-        hk.expand(b"meow_encryption_v1", &mut encryption_key).unwrap();
+        hk.expand(b"meow_encryption_v1", &mut encryption_key)
+            .unwrap();
         hk.expand(b"meow_hmac_v1", &mut hmac_key).unwrap();
         hk.expand(b"meow_frame_mac_v1", &mut frame_key).unwrap();
 
@@ -1159,18 +1218,36 @@ mod integration_tests {
         // Encrypt with file size as AAD
         let aad1 = b"filesize:1024";
         let ct = cipher
-            .encrypt(Nonce::from_slice(&nonce), Payload { msg: plaintext, aad: aad1 })
+            .encrypt(
+                Nonce::from_slice(&nonce),
+                Payload {
+                    msg: plaintext,
+                    aad: aad1,
+                },
+            )
             .unwrap();
 
         // Decryption with correct AAD works
         let dec = cipher
-            .decrypt(Nonce::from_slice(&nonce), Payload { msg: &ct, aad: aad1 })
+            .decrypt(
+                Nonce::from_slice(&nonce),
+                Payload {
+                    msg: &ct,
+                    aad: aad1,
+                },
+            )
             .unwrap();
         assert_eq!(dec, plaintext);
 
         // Decryption with wrong AAD fails (file size tampered)
         let aad2 = b"filesize:2048";
-        let result = cipher.decrypt(Nonce::from_slice(&nonce), Payload { msg: &ct, aad: aad2 });
+        let result = cipher.decrypt(
+            Nonce::from_slice(&nonce),
+            Payload {
+                msg: &ct,
+                aad: aad2,
+            },
+        );
         assert!(result.is_err());
     }
 }
@@ -1197,7 +1274,9 @@ mod edge_cases {
         assert_eq!(ct.len(), 16);
 
         // Decrypt
-        let pt = cipher.decrypt(Nonce::from_slice(&nonce), ct.as_ref()).unwrap();
+        let pt = cipher
+            .decrypt(Nonce::from_slice(&nonce), ct.as_ref())
+            .unwrap();
         assert!(pt.is_empty());
     }
 
@@ -1213,7 +1292,9 @@ mod edge_cases {
         let ct = cipher
             .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
             .unwrap();
-        let pt = cipher.decrypt(Nonce::from_slice(&nonce), ct.as_ref()).unwrap();
+        let pt = cipher
+            .decrypt(Nonce::from_slice(&nonce), ct.as_ref())
+            .unwrap();
 
         assert_eq!(pt, plaintext);
     }
@@ -1229,7 +1310,9 @@ mod edge_cases {
         let ct = cipher
             .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
             .unwrap();
-        let pt = cipher.decrypt(Nonce::from_slice(&nonce), ct.as_ref()).unwrap();
+        let pt = cipher
+            .decrypt(Nonce::from_slice(&nonce), ct.as_ref())
+            .unwrap();
 
         assert_eq!(pt.as_slice(), plaintext);
     }

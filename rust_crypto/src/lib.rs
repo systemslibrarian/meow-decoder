@@ -13,29 +13,30 @@
 //!
 //! All implementations use audited crates and constant-time operations.
 
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
-use pyo3::exceptions::PyValueError;
 
 use aes_gcm::{
     aead::{Aead, KeyInit as AeadKeyInit},
     Aes256Gcm, Nonce,
 };
-use argon2::{Argon2, Algorithm, Params, Version};
+use argon2::{Algorithm, Argon2, Params, Version};
 use hkdf::Hkdf;
 use hmac::{Hmac, Mac as HmacMac};
-use sha2::{Sha256, Digest};
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
 use pqcrypto_mlkem::mlkem768;
-use pqcrypto_traits::kem::{SecretKey as KemSecretKey, PublicKey as KemPublicKey, Ciphertext as KemCiphertext, SharedSecret as KemSharedSecret};
+use pqcrypto_traits::kem::{
+    Ciphertext as KemCiphertext, PublicKey as KemPublicKey, SecretKey as KemSecretKey,
+    SharedSecret as KemSharedSecret,
+};
 
 #[cfg(feature = "yubikey")]
-use crypto_core::yubikey_piv::{
-    derive_key_with_yubikey, PivSlot, YubiKeyPin, YubiKeyProvider,
-};
+use crypto_core::yubikey_piv::{derive_key_with_yubikey, PivSlot, YubiKeyPin, YubiKeyProvider};
 
 // =============================================================================
 // Argon2id Key Derivation
@@ -79,7 +80,8 @@ fn derive_key_argon2id<'py>(
 
     // Derive key
     let mut output = vec![0u8; output_len];
-    argon2.hash_password_into(password, salt, &mut output)
+    argon2
+        .hash_password_into(password, salt, &mut output)
         .map_err(|e| PyValueError::new_err(format!("Argon2id failed: {}", e)))?;
 
     Ok(PyBytes::new(py, &output))
@@ -100,7 +102,7 @@ fn derive_key_hkdf<'py>(
     output_len: usize,
 ) -> PyResult<Bound<'py, PyBytes>> {
     let hkdf = Hkdf::<Sha256>::new(salt, ikm);
-    
+
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| PyValueError::new_err(format!("HKDF expand failed: {:?}", e)))?;
@@ -128,9 +130,9 @@ fn hkdf_expand<'py>(
     info: &[u8],
     output_len: usize,
 ) -> PyResult<Bound<'py, PyBytes>> {
-    let hkdf = Hkdf::<Sha256>::from_prk(prk)
-        .map_err(|_| PyValueError::new_err("Invalid PRK length"))?;
-    
+    let hkdf =
+        Hkdf::<Sha256>::from_prk(prk).map_err(|_| PyValueError::new_err("Invalid PRK length"))?;
+
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| PyValueError::new_err(format!("HKDF expand failed: {:?}", e)))?;
@@ -178,21 +180,26 @@ fn aes_gcm_encrypt<'py>(
     }
 
     // Create cipher
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| PyValueError::new_err("Invalid key"))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|_| PyValueError::new_err("Invalid key"))?;
 
     let nonce_arr = Nonce::from_slice(nonce);
 
     // Encrypt with AAD if provided
     let ciphertext = if let Some(aad_data) = aad {
         use aes_gcm::aead::Payload;
-        cipher.encrypt(nonce_arr, Payload { msg: plaintext, aad: aad_data })
+        cipher.encrypt(
+            nonce_arr,
+            Payload {
+                msg: plaintext,
+                aad: aad_data,
+            },
+        )
     } else {
         cipher.encrypt(nonce_arr, plaintext)
     };
 
-    let ciphertext = ciphertext
-        .map_err(|_| PyValueError::new_err("Encryption failed"))?;
+    let ciphertext = ciphertext.map_err(|_| PyValueError::new_err("Encryption failed"))?;
 
     Ok(PyBytes::new(py, &ciphertext))
 }
@@ -238,21 +245,27 @@ fn aes_gcm_decrypt<'py>(
     }
 
     // Create cipher
-    let cipher = Aes256Gcm::new_from_slice(key)
-        .map_err(|_| PyValueError::new_err("Invalid key"))?;
+    let cipher =
+        Aes256Gcm::new_from_slice(key).map_err(|_| PyValueError::new_err("Invalid key"))?;
 
     let nonce_arr = Nonce::from_slice(nonce);
 
     // Decrypt with AAD if provided
     let plaintext = if let Some(aad_data) = aad {
         use aes_gcm::aead::Payload;
-        cipher.decrypt(nonce_arr, Payload { msg: ciphertext, aad: aad_data })
+        cipher.decrypt(
+            nonce_arr,
+            Payload {
+                msg: ciphertext,
+                aad: aad_data,
+            },
+        )
     } else {
         cipher.decrypt(nonce_arr, ciphertext)
     };
 
-    let plaintext = plaintext
-        .map_err(|_| PyValueError::new_err("Decryption failed - authentication error"))?;
+    let plaintext =
+        plaintext.map_err(|_| PyValueError::new_err("Decryption failed - authentication error"))?;
 
     Ok(PyBytes::new(py, &plaintext))
 }
@@ -265,11 +278,7 @@ type HmacSha256 = Hmac<Sha256>;
 
 /// Compute HMAC-SHA256.
 #[pyfunction]
-fn hmac_sha256<'py>(
-    py: Python<'py>,
-    key: &[u8],
-    message: &[u8],
-) -> PyResult<Bound<'py, PyBytes>> {
+fn hmac_sha256<'py>(py: Python<'py>, key: &[u8], message: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
     let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
         .map_err(|_| PyValueError::new_err("Invalid key length"))?;
     mac.update(message);
@@ -279,20 +288,16 @@ fn hmac_sha256<'py>(
 
 /// Verify HMAC-SHA256 in constant time.
 #[pyfunction]
-fn hmac_sha256_verify(
-    key: &[u8],
-    message: &[u8],
-    expected_tag: &[u8],
-) -> PyResult<bool> {
+fn hmac_sha256_verify(key: &[u8], message: &[u8], expected_tag: &[u8]) -> PyResult<bool> {
     let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
         .map_err(|_| PyValueError::new_err("Invalid key length"))?;
     mac.update(message);
     let result = mac.finalize();
-    
+
     // Constant-time comparison
     let computed = result.into_bytes();
     let is_valid = computed.as_slice().ct_eq(expected_tag);
-    
+
     Ok(is_valid.into())
 }
 
@@ -322,7 +327,7 @@ fn x25519_generate_keypair<'py>(
     py: Python<'py>,
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     use rand::rngs::OsRng;
-    
+
     let secret = StaticSecret::random_from_rng(OsRng);
     let public = PublicKey::from(&secret);
 
@@ -356,7 +361,7 @@ fn x25519_exchange<'py>(
     let mut priv_bytes = [0u8; 32];
     priv_bytes.copy_from_slice(private_key);
     let secret = StaticSecret::from(priv_bytes);
-    
+
     let mut pub_bytes = [0u8; 32];
     pub_bytes.copy_from_slice(peer_public_key);
     let public = PublicKey::from(pub_bytes);
@@ -404,7 +409,7 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 }
 
 /// Securely zero memory - writes zeros and forces volatile write.
-/// 
+///
 /// Note: In Rust, we use zeroize crate which provides proper memory barriers.
 /// This function is mostly for API completeness - Python bytearrays are mutable
 /// and can be zeroed in place.
@@ -431,10 +436,7 @@ fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyByt
 /// Get backend info.
 #[pyfunction]
 fn backend_info() -> String {
-    format!(
-        "meow_crypto_rs v{} (Rust)",
-        env!("CARGO_PKG_VERSION")
-    )
+    format!("meow_crypto_rs v{} (Rust)", env!("CARGO_PKG_VERSION"))
 }
 
 // =============================================================================
@@ -442,9 +444,7 @@ fn backend_info() -> String {
 // =============================================================================
 
 #[pyfunction]
-fn mlkem768_keygen<'py>(
-    py: Python<'py>,
-) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+fn mlkem768_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let (pk, sk) = mlkem768::keypair();
     Ok((
         PyBytes::new(py, sk.as_bytes()),
@@ -549,8 +549,9 @@ fn yubikey_derive_key<'py>(
     let pin_ref = pin_obj.as_ref();
 
     if let Some(pin) = pin_ref {
-        yubikey.verify_pin(pin)
-            .map_err(|e| PyValueError::new_err(format!("YubiKey PIN verification failed: {e:?}")))?;
+        yubikey.verify_pin(pin).map_err(|e| {
+            PyValueError::new_err(format!("YubiKey PIN verification failed: {e:?}"))
+        })?;
     }
 
     let key = derive_key_with_yubikey(password, salt, &mut yubikey, piv_slot, pin_ref)
@@ -572,7 +573,7 @@ fn yubikey_derive_key<'py>(
 ) -> PyResult<Bound<'py, PyBytes>> {
     Err(PyValueError::new_err(
         "YubiKey support not enabled in Rust backend. Rebuild with: \
-         maturin develop --release --features yubikey"
+         maturin develop --release --features yubikey",
     ))
 }
 
@@ -635,8 +636,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 #[cfg(all(test, feature = "python-tests"))]
 mod tests {
     use super::*;
-    use pyo3::Python;
     use pyo3::types::PyByteArray;
+    use pyo3::Python;
 
     #[test]
     fn test_argon2id_derive_and_invalid_salt() {
@@ -673,7 +674,8 @@ mod tests {
             let aad = b"aad";
 
             let cipher = aes_gcm_encrypt(py, &key, &nonce, plaintext, Some(aad)).unwrap();
-            let decrypted = aes_gcm_decrypt(py, &key, &nonce, cipher.as_bytes(), Some(aad)).unwrap();
+            let decrypted =
+                aes_gcm_decrypt(py, &key, &nonce, cipher.as_bytes(), Some(aad)).unwrap();
             assert_eq!(decrypted.as_bytes(), plaintext);
 
             let bad = aes_gcm_decrypt(py, &key, &nonce, cipher.as_bytes(), Some(b"bad"));
