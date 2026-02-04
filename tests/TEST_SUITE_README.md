@@ -32,6 +32,24 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `tests/test_fuzz_targets.py` | **Comprehensive fuzz harness testing (821 lines, 85 tests)** | Manifest parsing boundaries, crypto edge cases, fountain code robustness, AFL++ integration, corpus generation, integration & error handling |
 | `tests/test_fuzz_roundtrip.py` | Property-based testing | Hypothesis-powered random input testing, boundary conditions |
 
+### Rust Crypto Backend Tests (rust_crypto/)
+
+The Rust crypto backend (`meow_crypto_rs`) includes **128 tests** across three suites:
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `rust_crypto/tests/comprehensive_tests.rs` | 76 | Core crypto operations: Argon2id, AES-GCM, HKDF, HMAC, X25519, ML-KEM, constant-time, integration |
+| `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization verification, failure modes, boundary conditions |
+| `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
+
+**Run Rust tests:**
+```bash
+cargo test -p meow_crypto_rs              # All 128 tests
+cargo test --test comprehensive_tests     # Core functionality
+cargo test --test additional_security_tests  # Security edge cases
+cargo test --test proptest_crypto         # Property-based fuzzing
+```
+
 ### February 2026 Coverage Expansion (Completed)
 
 Additional comprehensive suites added to close remaining gaps and complete todo-feb.md:
@@ -100,6 +118,7 @@ fail_under = 35  # Incrementally increase to 80%+
 ## Running Tests
 
 ```bash
+# ============ Python Tests ============
 # Run all tests with coverage
 pytest tests/ -v --cov=meow_decoder --cov-report=term-missing
 
@@ -117,6 +136,15 @@ pytest tests/test_fuzz_targets.py -v
 
 # Run all fuzz/property tests
 pytest tests/test_fuzz_targets.py tests/test_fuzz_roundtrip.py -v
+
+# ============ Rust Crypto Tests ============
+# Run all 128 Rust crypto tests
+cargo test -p meow_crypto_rs
+
+# Run individual Rust test suites
+cargo test --test comprehensive_tests         # 76 core tests
+cargo test --test additional_security_tests   # 29 security tests
+cargo test --test proptest_crypto             # 23 property tests
 ```
 
 ## Test Categories
