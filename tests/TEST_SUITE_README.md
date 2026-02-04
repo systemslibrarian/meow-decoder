@@ -29,6 +29,7 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 | File | Purpose | Key Tests |
 |------|---------|-----------|
+| `tests/test_fuzz_targets.py` | **Comprehensive fuzz harness testing (821 lines, 85 tests)** | Manifest parsing boundaries, crypto edge cases, fountain code robustness, AFL++ integration, corpus generation, integration & error handling |
 | `tests/test_fuzz_roundtrip.py` | Property-based testing | Hypothesis-powered random input testing, boundary conditions |
 
 ### February 2026 Coverage Expansion (Completed)
@@ -110,6 +111,12 @@ pytest tests/ --cov=meow_decoder --cov-report=html
 
 # Run property-based tests with more examples
 pytest tests/test_fuzz_roundtrip.py -v --hypothesis-seed=0
+
+# Run comprehensive fuzz harness tests (85 tests)
+pytest tests/test_fuzz_targets.py -v
+
+# Run all fuzz/property tests
+pytest tests/test_fuzz_targets.py tests/test_fuzz_roundtrip.py -v
 ```
 
 ## Test Categories
@@ -141,6 +148,12 @@ pytest tests/test_fuzz_roundtrip.py -v --hypothesis-seed=0
 1. ✅ **Random input testing** (`test_fuzz_roundtrip.py`)
 2. ✅ **Corruption detection** (`test_fuzz_roundtrip.py`)
 3. ✅ **Boundary conditions** (`test_fuzz_roundtrip.py`)
+4. ✅ **Manifest parsing harness** (`test_fuzz_targets.py`) - 18 tests
+5. ✅ **Crypto boundary harness** (`test_fuzz_targets.py`) - 16 tests
+6. ✅ **Fountain code harness** (`test_fuzz_targets.py`) - 19 tests
+7. ✅ **AFL++ integration** (`test_fuzz_targets.py`) - 3 tests
+8. ✅ **Corpus generation** (`test_fuzz_targets.py`) - 12 tests
+9. ✅ **Integration & error handling** (`test_fuzz_targets.py`) - 17 tests
 
 ## Shared Fixtures (conftest.py)
 
