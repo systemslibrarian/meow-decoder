@@ -163,7 +163,7 @@ impl PivSlot {
 pub enum YubiKeyType {
     /// RSA 2048-bit
     Rsa2048,
-    /// RSA 4096-bit (YubiKey 5 only)
+    /// RSA 4096-bit (NOT supported in PIV - use for FIDO2 only)
     Rsa4096,
     /// ECC P-256
     EcP256,
@@ -178,7 +178,9 @@ impl YubiKeyType {
     fn to_algorithm_id(&self) -> Result<AlgorithmId, YubiKeyError> {
         match self {
             YubiKeyType::Rsa2048 => Ok(AlgorithmId::Rsa2048),
-            YubiKeyType::Rsa4096 => Ok(AlgorithmId::Rsa4096),
+            YubiKeyType::Rsa4096 => Err(YubiKeyError::NotSupported(
+                "RSA 4096 not supported in PIV (max 2048-bit)".into()
+            )),
             YubiKeyType::EcP256 => Ok(AlgorithmId::EccP256),
             YubiKeyType::EcP384 => Ok(AlgorithmId::EccP384),
             YubiKeyType::Ed25519 => Err(YubiKeyError::NotSupported(
