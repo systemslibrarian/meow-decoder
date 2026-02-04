@@ -31,6 +31,11 @@ jobs:
             crypto_core
           # If you have a workspace root Cargo.toml, it will cache the whole thing automatically
 
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libpcsclite-dev pkg-config
+        
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
