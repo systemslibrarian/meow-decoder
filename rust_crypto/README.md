@@ -94,6 +94,35 @@ The Rust backend provides significant speedups over the pure Python implementati
 | HMAC-SHA256 | 0.1ms | 0.02ms | 5x |
 | X25519 | 0.8ms | 0.1ms | 8x |
 
+## Testing
+
+The crate includes comprehensive test coverage with **128 tests** across three test suites:
+
+```bash
+# Run all tests
+cargo test -p meow_crypto_rs
+
+# Run individual test suites
+cargo test --test comprehensive_tests    # 76 tests - Core functionality
+cargo test --test additional_security_tests  # 29 tests - Security edge cases
+cargo test --test proptest_crypto        # 23 tests - Property-based fuzzing
+```
+
+### Test Categories
+
+| Suite | Tests | Coverage |
+|-------|-------|----------|
+| **comprehensive_tests** | 76 | Core crypto operations, integration flows |
+| **additional_security_tests** | 29 | Zeroization, failure modes, edge cases |
+| **proptest_crypto** | 23 | Property-based testing with random inputs |
+
+### Security Tests
+
+- **Zeroization verification** - Ensures sensitive data is zeroed after use
+- **Constant-time operations** - Tests for timing attack resistance
+- **Failure mode handling** - Invalid inputs rejected correctly
+- **Boundary conditions** - Edge cases like empty inputs, max sizes
+
 ## Building Wheels
 
 ```bash
