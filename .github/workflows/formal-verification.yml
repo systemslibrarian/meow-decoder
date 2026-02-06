@@ -301,11 +301,11 @@ jobs:
           PROVERIF_STATUS="${{ needs.proverif.result }}"
           TLAPLUS_STATUS="${{ needs.tlaplus.result }}"
           
-          echo "ProVerif:  \$PROVERIF_STATUS"
-          echo "TLA+:      \$TLAPLUS_STATUS"
+          echo "ProVerif:  $PROVERIF_STATUS"
+          echo "TLA+:      $TLAPLUS_STATUS"
           echo ""
           
-          if [ "\$PROVERIF_STATUS" = "success" ] && [ "\$TLAPLUS_STATUS" = "success" ]; then
+          if [ "$PROVERIF_STATUS" = "success" ] && [ "$TLAPLUS_STATUS" = "success" ]; then
             echo "✅ All formal verification passed!"
             exit 0
           else
