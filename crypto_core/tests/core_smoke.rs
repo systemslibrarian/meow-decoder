@@ -1,7 +1,6 @@
 use crypto_core::{
-    security_level, SecurityLevel, VERSION,
-    AeadWrapper, AeadError, NonceGenerator, NonceTracker, Nonce,
-    AssociatedData, AadError, AeadKey, KeyError,
+    security_level, AadError, AeadError, AeadKey, AeadWrapper, AssociatedData, KeyError, Nonce,
+    NonceGenerator, NonceTracker, SecurityLevel, VERSION,
 };
 
 #[test]
@@ -13,7 +12,10 @@ fn test_metadata_and_security_level() {
 #[test]
 fn test_aead_wrapper_errors() {
     let bad_key = [0u8; 31];
-    assert!(matches!(AeadWrapper::new(&bad_key), Err(AeadError::InvalidKey)));
+    assert!(matches!(
+        AeadWrapper::new(&bad_key),
+        Err(AeadError::InvalidKey)
+    ));
 
     let key = [0x11u8; 32];
     let wrapper = AeadWrapper::new(&key).unwrap();
@@ -31,12 +33,18 @@ fn test_nonce_tracking() {
     let mut tracker = NonceTracker::new();
     assert!(tracker.check_and_mark(&nonce).is_ok());
     assert!(tracker.was_seen(&nonce));
-    assert!(matches!(tracker.check_and_mark(&nonce), Err(crypto_core::NonceError::AlreadyUsed)));
+    assert!(matches!(
+        tracker.check_and_mark(&nonce),
+        Err(crypto_core::NonceError::AlreadyUsed)
+    ));
 }
 
 #[test]
 fn test_nonce_from_bytes_error() {
-    assert!(matches!(Nonce::from_bytes(&[0u8; 11]), Err(crypto_core::NonceError::InvalidLength { .. })));
+    assert!(matches!(
+        Nonce::from_bytes(&[0u8; 11]),
+        Err(crypto_core::NonceError::InvalidLength { .. })
+    ));
 }
 
 #[test]
@@ -52,5 +60,8 @@ fn test_aead_key_and_aad_validation() {
     assert_eq!(aad.as_bytes(), &[1, 2, 3]);
 
     let too_long = vec![0u8; AssociatedData::MAX_LEN + 1];
-    assert!(matches!(AssociatedData::new(too_long), Err(AadError::TooLong { .. })));
+    assert!(matches!(
+        AssociatedData::new(too_long),
+        Err(AadError::TooLong { .. })
+    ));
 }

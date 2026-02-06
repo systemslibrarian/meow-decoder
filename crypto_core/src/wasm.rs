@@ -32,11 +32,10 @@ use wasm_bindgen::prelude::*;
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 use {
     crate::pure_crypto::{
-        aes_gcm_encrypt, aes_gcm_decrypt, argon2_derive, hkdf_derive,
-        hmac_sha256, sha256, random_bytes, constant_time_eq,
-        SecretKey, Nonce, Salt, Argon2Params,
+        aes_gcm_decrypt, aes_gcm_encrypt, argon2_derive, constant_time_eq, hkdf_derive,
+        hmac_sha256, random_bytes, sha256, Argon2Params, Nonce, Salt, SecretKey,
     },
-    js_sys::{Uint8Array, Promise},
+    js_sys::{Promise, Uint8Array},
     wasm_bindgen_futures::future_to_promise,
 };
 
@@ -89,29 +88,28 @@ impl WasmResult {
 /// WasmResult containing ciphertext || tag
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 #[wasm_bindgen]
-pub fn encrypt(
-    plaintext: &[u8],
-    key: &[u8],
-    nonce: &[u8],
-    aad: Option<Box<[u8]>>,
-) -> WasmResult {
+pub fn encrypt(plaintext: &[u8], key: &[u8], nonce: &[u8], aad: Option<Box<[u8]>>) -> WasmResult {
     // Validate inputs
     let key = match SecretKey::from_bytes(key) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid key: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid key: {:?}", e)),
+            }
+        }
     };
 
     let nonce = match Nonce::from_bytes(nonce) {
         Ok(n) => n,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid nonce: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid nonce: {:?}", e)),
+            }
+        }
     };
 
     // Encrypt
@@ -143,28 +141,27 @@ pub fn encrypt(
 /// WasmResult containing plaintext
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 #[wasm_bindgen]
-pub fn decrypt(
-    ciphertext: &[u8],
-    key: &[u8],
-    nonce: &[u8],
-    aad: Option<Box<[u8]>>,
-) -> WasmResult {
+pub fn decrypt(ciphertext: &[u8], key: &[u8], nonce: &[u8], aad: Option<Box<[u8]>>) -> WasmResult {
     let key = match SecretKey::from_bytes(key) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid key: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid key: {:?}", e)),
+            }
+        }
     };
 
     let nonce = match Nonce::from_bytes(nonce) {
         Ok(n) => n,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid nonce: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid nonce: {:?}", e)),
+            }
+        }
     };
 
     match aes_gcm_decrypt(&key, &nonce, ciphertext, aad.as_deref()) {
@@ -212,11 +209,13 @@ pub fn derive_key(
 ) -> WasmResult {
     let salt = match Salt::from_bytes(salt) {
         Ok(s) => s,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid salt: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid salt: {:?}", e)),
+            }
+        }
     };
 
     // Browser-friendly defaults
@@ -392,11 +391,7 @@ pub fn version() -> String {
 /// JSON-encoded manifest + encrypted blocks
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 #[wasm_bindgen]
-pub fn encode_data(
-    data: &[u8],
-    password: &str,
-    block_size: Option<u32>,
-) -> WasmResult {
+pub fn encode_data(data: &[u8], password: &str, block_size: Option<u32>) -> WasmResult {
     use flate2::write::ZlibEncoder;
     use flate2::Compression;
     use std::io::Write;
@@ -411,21 +406,25 @@ pub fn encode_data(
     // 2. Generate salt and nonce
     let salt_bytes = match random_bytes(16) {
         Ok(s) => s,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Salt generation failed: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Salt generation failed: {:?}", e)),
+            }
+        }
     };
     let salt = Salt::from_bytes(&salt_bytes).unwrap();
 
     let nonce_bytes = match random_bytes(12) {
         Ok(n) => n,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Nonce generation failed: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Nonce generation failed: {:?}", e)),
+            }
+        }
     };
     let nonce = Nonce::from_bytes(&nonce_bytes).unwrap();
 
@@ -437,11 +436,13 @@ pub fn encode_data(
     };
     let key = match argon2_derive(password.as_bytes(), &salt, Some(params)) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
+        }
     };
 
     // 4. Compute data hash
@@ -458,11 +459,13 @@ pub fn encode_data(
     // 6. Encrypt
     let ciphertext = match aes_gcm_encrypt(&key, &nonce, &compressed, Some(&aad)) {
         Ok(c) => c,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Encryption failed: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Encryption failed: {:?}", e)),
+            }
+        }
     };
 
     // 7. Build output packet
@@ -495,10 +498,7 @@ pub fn encode_data(
 /// Original plaintext data
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 #[wasm_bindgen]
-pub fn decode_data(
-    encoded: &[u8],
-    password: &str,
-) -> WasmResult {
+pub fn decode_data(encoded: &[u8], password: &str) -> WasmResult {
     use flate2::read::ZlibDecoder;
     use std::io::Read;
 
@@ -540,11 +540,13 @@ pub fn decode_data(
     };
     let key = match argon2_derive(password.as_bytes(), &salt, Some(params)) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
-        },
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
+        }
     };
 
     // Rebuild AAD
@@ -558,11 +560,13 @@ pub fn decode_data(
     // Decrypt
     let compressed = match aes_gcm_decrypt(&key, &nonce, ciphertext, Some(&aad)) {
         Ok(c) => c,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Decryption failed (wrong password or corrupted data)".into()),
-        },
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Decryption failed (wrong password or corrupted data)".into()),
+            }
+        }
     };
 
     // Decompress

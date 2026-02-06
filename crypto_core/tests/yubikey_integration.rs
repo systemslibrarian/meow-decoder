@@ -53,7 +53,7 @@ mod mock {
         assert_eq!(PivSlot::from_str("82"), Some(PivSlot::Retired(1)));
         assert_eq!(PivSlot::from_str("auth"), Some(PivSlot::Authentication));
         assert_eq!(PivSlot::from_str("sign"), Some(PivSlot::Signature));
-        
+
         assert_eq!(PivSlot::from_str("invalid"), None);
         assert_eq!(PivSlot::from_str("99"), None);
     }
@@ -67,18 +67,21 @@ mod mock {
         assert!(is_valid_piv_pin("12345678"));
 
         // Invalid PINs
-        assert!(!is_valid_piv_pin("12345"));     // Too short
+        assert!(!is_valid_piv_pin("12345")); // Too short
         assert!(!is_valid_piv_pin("123456789")); // Too long
-        assert!(!is_valid_piv_pin("abcdef"));    // Not numeric
-        assert!(!is_valid_piv_pin("12345a"));    // Contains letter
-        assert!(!is_valid_piv_pin(""));          // Empty
+        assert!(!is_valid_piv_pin("abcdef")); // Not numeric
+        assert!(!is_valid_piv_pin("12345a")); // Contains letter
+        assert!(!is_valid_piv_pin("")); // Empty
     }
 
     /// Test YubiKey type detection
     #[test]
     fn test_yubikey_type_detection() {
         assert_eq!(YubiKeyType::from_version(5, 2, 4), YubiKeyType::YubiKey5);
-        assert_eq!(YubiKeyType::from_version(5, 4, 0), YubiKeyType::YubiKey5Fips);
+        assert_eq!(
+            YubiKeyType::from_version(5, 4, 0),
+            YubiKeyType::YubiKey5Fips
+        );
         assert_eq!(YubiKeyType::from_version(4, 3, 0), YubiKeyType::YubiKey4);
         assert_eq!(YubiKeyType::from_version(3, 0, 0), YubiKeyType::Unknown);
     }
@@ -99,7 +102,7 @@ mod mock {
     #[test]
     fn test_fido2_credential_id() {
         let cred_id = CredentialId::new(&[0xDE, 0xAD, 0xBE, 0xEF]);
-        
+
         assert_eq!(cred_id.len(), 4);
         assert_eq!(cred_id.as_bytes(), &[0xDE, 0xAD, 0xBE, 0xEF]);
         assert_eq!(cred_id.to_base64(), "3q2+7w==");
@@ -110,7 +113,7 @@ mod mock {
     fn test_fido2_challenge() {
         let challenge = Challenge::random(32);
         assert_eq!(challenge.len(), 32);
-        
+
         let challenge_from_bytes = Challenge::from_bytes(&[0u8; 32]);
         assert_eq!(challenge_from_bytes.len(), 32);
     }
@@ -212,7 +215,7 @@ mod mock {
         }
 
         fn to_base64(&self) -> String {
-            use base64::{Engine as _, engine::general_purpose::STANDARD};
+            use base64::{engine::general_purpose::STANDARD, Engine as _};
             STANDARD.encode(&self.0)
         }
     }
@@ -241,38 +244,39 @@ mod mock {
                 pub const STANDARD: GeneralPurpose = GeneralPurpose;
             }
         }
-        
+
         pub trait Engine {
             fn encode(&self, data: &[u8]) -> String;
         }
-        
+
         impl Engine for engine::general_purpose::GeneralPurpose {
             fn encode(&self, data: &[u8]) -> String {
                 // Simple base64 encoding for test
-                const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+                const CHARS: &[u8] =
+                    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
                 let mut result = String::new();
-                
+
                 for chunk in data.chunks(3) {
                     let b0 = chunk[0] as usize;
                     let b1 = chunk.get(1).copied().unwrap_or(0) as usize;
                     let b2 = chunk.get(2).copied().unwrap_or(0) as usize;
-                    
+
                     result.push(CHARS[b0 >> 2] as char);
                     result.push(CHARS[((b0 & 0x03) << 4) | (b1 >> 4)] as char);
-                    
+
                     if chunk.len() > 1 {
                         result.push(CHARS[((b1 & 0x0f) << 2) | (b2 >> 6)] as char);
                     } else {
                         result.push('=');
                     }
-                    
+
                     if chunk.len() > 2 {
                         result.push(CHARS[b2 & 0x3f] as char);
                     } else {
                         result.push('=');
                     }
                 }
-                
+
                 result
             }
         }
@@ -285,9 +289,7 @@ mod mock {
 
 #[cfg(feature = "yubikey-real")]
 mod real {
-    use crypto_core::yubikey_piv::{
-        YubiKeyProvider, PivSlot, YubiKeyPin, Fido2Provider,
-    };
+    use crypto_core::yubikey_piv::{Fido2Provider, PivSlot, YubiKeyPin, YubiKeyProvider};
 
     /// Get test YubiKey PIN from environment
     fn get_test_pin() -> Option<String> {
@@ -297,16 +299,16 @@ mod real {
     #[test]
     fn test_yubikey_detect() {
         let devices = YubiKeyProvider::list_devices();
-        
+
         if devices.is_empty() {
             eprintln!("No YubiKey detected, skipping hardware tests");
             return;
         }
 
         for device in &devices {
-            println!("Found YubiKey: serial={}, version={}.{}.{}",
-                device.serial,
-                device.version.0, device.version.1, device.version.2
+            println!(
+                "Found YubiKey: serial={}, version={}.{}.{}",
+                device.serial, device.version.0, device.version.1, device.version.2
             );
         }
     }
@@ -350,7 +352,7 @@ mod real {
 
         // Sign data with slot 9c (Signature)
         let data = b"Test data for signing";
-        
+
         match provider.sign(PivSlot::Signature, data) {
             Ok(signature) => {
                 println!("Signature: {} bytes", signature.len());
@@ -365,7 +367,7 @@ mod real {
     #[test]
     fn test_fido2_discovery() {
         let devices = Fido2Provider::discover();
-        
+
         if devices.is_empty() {
             eprintln!("No FIDO2 authenticators found");
             return;
@@ -397,14 +399,17 @@ mod security_properties {
 
         impl PinState {
             fn new() -> Self {
-                Self { attempts_remaining: 3, locked: false }
+                Self {
+                    attempts_remaining: 3,
+                    locked: false,
+                }
             }
 
             fn verify_pin(&mut self, correct: bool) -> bool {
                 if self.locked {
                     return false;
                 }
-                
+
                 if correct {
                     self.attempts_remaining = 3;
                     true
@@ -422,7 +427,7 @@ mod security_properties {
         assert!(!state.verify_pin(false)); // 2 remaining
         assert!(!state.verify_pin(false)); // 1 remaining
         assert!(!state.verify_pin(false)); // 0 remaining, locked
-        assert!(!state.verify_pin(true));  // Locked, even correct PIN fails
+        assert!(!state.verify_pin(true)); // Locked, even correct PIN fails
         assert!(state.locked);
     }
 
@@ -436,7 +441,7 @@ mod security_properties {
             fn decrypt(&self, data: &[u8]) -> Vec<u8>;
             // Note: No get_private_key() method exists
         }
-        
+
         // Existence of trait without extraction method is the property
     }
 

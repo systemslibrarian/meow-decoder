@@ -36,7 +36,7 @@ use tss_esapi::{
     },
     attributes::{ObjectAttributesBuilder, SessionAttributesBuilder},
     constants::{
-        tss::{TPM2_ALG_SHA256, TPM2_ALG_AES, TPM2_ALG_CFB, TPM2_ALG_RSA, TPM2_ALG_ECC},
+        tss::{TPM2_ALG_AES, TPM2_ALG_CFB, TPM2_ALG_ECC, TPM2_ALG_RSA, TPM2_ALG_SHA256},
         SessionType,
     },
     handles::{KeyHandle, PcrHandle, TpmHandle},
@@ -47,9 +47,9 @@ use tss_esapi::{
         session_handles::AuthSession,
     },
     structures::{
-        Auth, CreatePrimaryKeyResult, Digest, DigestList, HashScheme,
-        MaxBuffer, PcrSelectionListBuilder, PcrSlot, Public, PublicBuilder,
-        RsaScheme, SymmetricCipherParameters, SymmetricDefinitionObject,
+        Auth, CreatePrimaryKeyResult, Digest, DigestList, HashScheme, MaxBuffer,
+        PcrSelectionListBuilder, PcrSlot, Public, PublicBuilder, RsaScheme,
+        SymmetricCipherParameters, SymmetricDefinitionObject,
     },
     tcti_ldr::TctiNameConf,
     Context, Tcti,
@@ -195,7 +195,7 @@ impl SealedBlob {
     /// Serialize for storage
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut result = Vec::new();
-        
+
         // Format: [private_len:4][private][public_len:4][public][pcr_len:4][pcr]
         result.extend_from_slice(&(self.private.len() as u32).to_le_bytes());
         result.extend_from_slice(&self.private);
@@ -203,7 +203,7 @@ impl SealedBlob {
         result.extend_from_slice(&self.public);
         result.extend_from_slice(&(self.pcr_selection.len() as u32).to_le_bytes());
         result.extend_from_slice(&self.pcr_selection);
-        
+
         result
     }
 
@@ -212,36 +212,30 @@ impl SealedBlob {
         if data.len() < 12 {
             return Err(TpmError::UnsealFailed("Data too short".into()));
         }
-        
+
         let mut offset = 0;
-        
-        let private_len = u32::from_le_bytes(
-            data[offset..offset+4].try_into().unwrap()
-        ) as usize;
+
+        let private_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
-        
+
         if data.len() < offset + private_len + 8 {
             return Err(TpmError::UnsealFailed("Invalid blob format".into()));
         }
-        
-        let private = data[offset..offset+private_len].to_vec();
+
+        let private = data[offset..offset + private_len].to_vec();
         offset += private_len;
-        
-        let public_len = u32::from_le_bytes(
-            data[offset..offset+4].try_into().unwrap()
-        ) as usize;
+
+        let public_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
-        
-        let public = data[offset..offset+public_len].to_vec();
+
+        let public = data[offset..offset + public_len].to_vec();
         offset += public_len;
-        
-        let pcr_len = u32::from_le_bytes(
-            data[offset..offset+4].try_into().unwrap()
-        ) as usize;
+
+        let pcr_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
         offset += 4;
-        
-        let pcr_selection = data[offset..offset+pcr_len].to_vec();
-        
+
+        let pcr_selection = data[offset..offset + pcr_len].to_vec();
+
         Ok(Self {
             private,
             public,
@@ -290,28 +284,28 @@ impl TpmProvider {
         if let Ok(ctx) = Self::connect_tcti("device:/dev/tpmrm0") {
             return Ok(ctx);
         }
-        
+
         // Try direct device
         if let Ok(ctx) = Self::connect_tcti("device:/dev/tpm0") {
             return Ok(ctx);
         }
-        
+
         // Try access broker daemon
         if let Ok(ctx) = Self::connect_tcti("tabrmd:") {
             return Ok(ctx);
         }
-        
+
         Err(TpmError::NotFound)
     }
 
     /// Connect to TPM with specific TCTI
     pub fn connect_tcti(tcti: &str) -> Result<Self, TpmError> {
-        let tcti_conf = TctiNameConf::from_environment_variable()
-            .unwrap_or_else(|_| tcti.try_into().unwrap());
-        
-        let context = Context::new(tcti_conf)
-            .map_err(|e| TpmError::CommunicationFailed(e.to_string()))?;
-        
+        let tcti_conf =
+            TctiNameConf::from_environment_variable().unwrap_or_else(|_| tcti.try_into().unwrap());
+
+        let context =
+            Context::new(tcti_conf).map_err(|e| TpmError::CommunicationFailed(e.to_string()))?;
+
         Ok(Self { context })
     }
 
@@ -325,18 +319,22 @@ impl TpmProvider {
             // TPM2_GetRandom has size limit, batch if needed
             let mut result = Vec::with_capacity(length);
             let mut remaining = length;
-            
+
             while remaining > 0 {
                 let chunk_size = remaining.min(64);
-                let random = self.context.get_random(chunk_size)
+                let random = self
+                    .context
+                    .get_random(chunk_size)
                     .map_err(|e| TpmError::RandomFailed(e.to_string()))?;
                 result.extend_from_slice(&random);
                 remaining -= chunk_size;
             }
-            
+
             Ok(result)
         } else {
-            let random = self.context.get_random(length)
+            let random = self
+                .context
+                .get_random(length)
                 .map_err(|e| TpmError::RandomFailed(e.to_string()))?;
             Ok(random.to_vec())
         }
@@ -345,19 +343,20 @@ impl TpmProvider {
     /// Read current PCR values
     pub fn read_pcrs(&mut self, selection: &PcrSelection) -> Result<Vec<(u8, [u8; 32])>, TpmError> {
         let mut results = Vec::new();
-        
+
         for &pcr in selection.pcrs() {
-            let pcr_slot = PcrSlot::try_from(pcr)
-                .map_err(|_| TpmError::InvalidPcr(pcr))?;
-            
+            let pcr_slot = PcrSlot::try_from(pcr).map_err(|_| TpmError::InvalidPcr(pcr))?;
+
             let selection_list = PcrSelectionListBuilder::new()
                 .with_selection(HashingAlgorithm::Sha256, &[pcr_slot])
                 .build()
                 .map_err(|e| TpmError::CommunicationFailed(e.to_string()))?;
-            
-            let (_, _, digests) = self.context.pcr_read(selection_list)
+
+            let (_, _, digests) = self
+                .context
+                .pcr_read(selection_list)
                 .map_err(|e| TpmError::CommunicationFailed(e.to_string()))?;
-            
+
             if let Some(digest) = digests.value().first() {
                 let mut value = [0u8; 32];
                 let bytes = digest.as_bytes();
@@ -366,7 +365,7 @@ impl TpmProvider {
                 results.push((pcr, value));
             }
         }
-        
+
         Ok(results)
     }
 
@@ -390,20 +389,22 @@ impl TpmProvider {
         auth: Option<&TpmAuth>,
     ) -> Result<SealedBlob, TpmError> {
         // Create sealing object under storage hierarchy
-        let auth_value = auth.map(|a| Auth::from_bytes(&a.auth).unwrap())
+        let auth_value = auth
+            .map(|a| Auth::from_bytes(&a.auth).unwrap())
             .unwrap_or(Auth::default());
-        
+
         // Build PCR policy digest
-        let pcr_slots: Vec<PcrSlot> = pcr_selection.pcrs()
+        let pcr_slots: Vec<PcrSlot> = pcr_selection
+            .pcrs()
             .iter()
             .map(|&p| PcrSlot::try_from(p).unwrap())
             .collect();
-        
+
         let pcr_list = PcrSelectionListBuilder::new()
             .with_selection(HashingAlgorithm::Sha256, &pcr_slots)
             .build()
             .map_err(|e| TpmError::SealFailed(e.to_string()))?;
-        
+
         // Create sealed object
         let public = PublicBuilder::new()
             .with_public_algorithm(PublicAlgorithm::KeyedHash)
@@ -411,35 +412,43 @@ impl TpmProvider {
             .with_keyed_hash_parameters(HashScheme::Null)
             .build()
             .map_err(|e| TpmError::SealFailed(e.to_string()))?;
-        
-        let max_buffer = MaxBuffer::from_bytes(data)
-            .map_err(|e| TpmError::SealFailed(e.to_string()))?;
-        
+
+        let max_buffer =
+            MaxBuffer::from_bytes(data).map_err(|e| TpmError::SealFailed(e.to_string()))?;
+
         // Use owner hierarchy for sealing
-        let primary_key = self.context.create_primary(
-            Hierarchy::Owner,
-            self.create_primary_template()?,
-            Some(auth_value.clone()),
-            None,
-            None,
-            None,
-        ).map_err(|e| TpmError::SealFailed(e.to_string()))?;
-        
-        let (private, public_part) = self.context.create(
-            primary_key.key_handle,
-            public,
-            Some(auth_value),
-            Some(max_buffer),
-            None,
-            None,
-        ).map_err(|e| TpmError::SealFailed(e.to_string()))?;
-        
+        let primary_key = self
+            .context
+            .create_primary(
+                Hierarchy::Owner,
+                self.create_primary_template()?,
+                Some(auth_value.clone()),
+                None,
+                None,
+                None,
+            )
+            .map_err(|e| TpmError::SealFailed(e.to_string()))?;
+
+        let (private, public_part) = self
+            .context
+            .create(
+                primary_key.key_handle,
+                public,
+                Some(auth_value),
+                Some(max_buffer),
+                None,
+                None,
+            )
+            .map_err(|e| TpmError::SealFailed(e.to_string()))?;
+
         // Clean up primary key
-        self.context.flush_context(primary_key.key_handle.into()).ok();
-        
+        self.context
+            .flush_context(primary_key.key_handle.into())
+            .ok();
+
         // Serialize PCR selection
         let pcr_bytes: Vec<u8> = pcr_selection.pcrs().to_vec();
-        
+
         Ok(SealedBlob {
             private: private.as_bytes().to_vec(),
             public: public_part.as_bytes().to_vec(),
@@ -458,46 +467,50 @@ impl TpmProvider {
         blob: &SealedBlob,
         auth: Option<&TpmAuth>,
     ) -> Result<Vec<u8>, TpmError> {
-        let auth_value = auth.map(|a| Auth::from_bytes(&a.auth).unwrap())
+        let auth_value = auth
+            .map(|a| Auth::from_bytes(&a.auth).unwrap())
             .unwrap_or(Auth::default());
-        
+
         // Recreate primary key
-        let primary_key = self.context.create_primary(
-            Hierarchy::Owner,
-            self.create_primary_template()?,
-            Some(auth_value.clone()),
-            None,
-            None,
-            None,
-        ).map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        
+        let primary_key = self
+            .context
+            .create_primary(
+                Hierarchy::Owner,
+                self.create_primary_template()?,
+                Some(auth_value.clone()),
+                None,
+                None,
+                None,
+            )
+            .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
+
         // Load sealed object
         let private = tss_esapi::structures::Private::from_bytes(&blob.private)
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        let public = Public::from_bytes(&blob.public)
+        let public =
+            Public::from_bytes(&blob.public).map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
+
+        let key_handle = self
+            .context
+            .load(primary_key.key_handle, private, public)
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        
-        let key_handle = self.context.load(
-            primary_key.key_handle,
-            private,
-            public,
-        ).map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        
+
         // Unseal
-        let data = self.context.unseal(key_handle)
-            .map_err(|e| {
-                // Check if PCR mismatch
-                if e.to_string().contains("policy") {
-                    TpmError::PcrMismatch("Platform state changed since sealing".into())
-                } else {
-                    TpmError::UnsealFailed(e.to_string())
-                }
-            })?;
-        
+        let data = self.context.unseal(key_handle).map_err(|e| {
+            // Check if PCR mismatch
+            if e.to_string().contains("policy") {
+                TpmError::PcrMismatch("Platform state changed since sealing".into())
+            } else {
+                TpmError::UnsealFailed(e.to_string())
+            }
+        })?;
+
         // Cleanup
         self.context.flush_context(key_handle.into()).ok();
-        self.context.flush_context(primary_key.key_handle.into()).ok();
-        
+        self.context
+            .flush_context(primary_key.key_handle.into())
+            .ok();
+
         Ok(data.as_bytes().to_vec())
     }
 
@@ -506,14 +519,12 @@ impl TpmProvider {
         PublicBuilder::new()
             .with_public_algorithm(PublicAlgorithm::Rsa)
             .with_name_hashing_algorithm(HashingAlgorithm::Sha256)
-            .with_rsa_parameters(
-                tss_esapi::structures::RsaParameters::new(
-                    SymmetricDefinitionObject::AES_128_CFB,
-                    RsaScheme::Null,
-                    RsaKeyBits::Rsa2048,
-                    tss_esapi::structures::RsaExponent::default(),
-                )
-            )
+            .with_rsa_parameters(tss_esapi::structures::RsaParameters::new(
+                SymmetricDefinitionObject::AES_128_CFB,
+                RsaScheme::Null,
+                RsaKeyBits::Rsa2048,
+                tss_esapi::structures::RsaExponent::default(),
+            ))
             .with_rsa_unique_identifier(Default::default())
             .with_object_attributes(
                 ObjectAttributesBuilder::new()
@@ -524,7 +535,7 @@ impl TpmProvider {
                     .with_restricted(true)
                     .with_decrypt(true)
                     .build()
-                    .unwrap()
+                    .unwrap(),
             )
             .build()
             .map_err(|e| TpmError::KeyOperationFailed(e.to_string()))
@@ -597,18 +608,18 @@ pub fn derive_key_with_tpm(
     tpm: &mut TpmProvider,
     pcr_selection: &PcrSelection,
 ) -> Result<[u8; 32], TpmError> {
-    use sha2::{Sha256, Digest};
     use hkdf::Hkdf;
-    
+    use sha2::{Digest, Sha256};
+
     // Hash password
     let password_hash = Sha256::digest(password);
-    
+
     // Get TPM random as additional entropy
     let tpm_random = tpm.random(32)?;
-    
+
     // Read current PCR values
     let pcr_values = tpm.read_pcrs(pcr_selection)?;
-    
+
     // Combine all material
     let mut ikm = Vec::with_capacity(32 + 32 + pcr_values.len() * 32);
     ikm.extend_from_slice(&password_hash);
@@ -616,15 +627,15 @@ pub fn derive_key_with_tpm(
     for (_, value) in &pcr_values {
         ikm.extend_from_slice(value);
     }
-    
+
     // Derive key
     let hk = Hkdf::<Sha256>::new(Some(salt), &ikm);
     let mut okm = [0u8; 32];
     hk.expand(b"meow-tpm-v1", &mut okm)
         .map_err(|e| TpmError::KeyOperationFailed(e.to_string()))?;
-    
+
     ikm.zeroize();
-    
+
     Ok(okm)
 }
 
@@ -635,10 +646,13 @@ mod tests {
     #[test]
     fn test_pcr_selection() {
         let sel = PcrSelection::new()
-            .add(0).unwrap()
-            .add(7).unwrap()
-            .add(2).unwrap();
-        
+            .add(0)
+            .unwrap()
+            .add(7)
+            .unwrap()
+            .add(2)
+            .unwrap();
+
         // Should be sorted
         assert_eq!(sel.pcrs(), &[0, 2, 7]);
     }
@@ -662,10 +676,10 @@ mod tests {
             public: vec![5, 6, 7],
             pcr_selection: vec![0, 2, 7],
         };
-        
+
         let bytes = blob.to_bytes();
         let recovered = SealedBlob::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(blob.private, recovered.private);
         assert_eq!(blob.public, recovered.public);
         assert_eq!(blob.pcr_selection, recovered.pcr_selection);

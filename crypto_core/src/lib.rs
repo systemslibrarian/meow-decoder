@@ -102,8 +102,8 @@ extern crate alloc;
 pub mod aead_wrapper;
 pub mod nonce;
 pub mod types;
-pub mod verus_proofs;
 pub mod verus_kdf_proofs;
+pub mod verus_proofs;
 
 // ============================================================================
 // Hardware Security Modules (Feature-Gated)
@@ -173,14 +173,8 @@ pub mod wasm;
 
 // Re-exports from aead_wrapper
 pub use aead_wrapper::{
-    AeadError,
-    AeadWrapper,
-    AuthenticatedPlaintext,
-    NonceManager,
-    UniqueNonce,
-    KEY_SIZE,
-    NONCE_SIZE,
-    TAG_SIZE,
+    AeadError, AeadWrapper, AuthenticatedPlaintext, NonceManager, UniqueNonce, KEY_SIZE,
+    NONCE_SIZE, TAG_SIZE,
 };
 
 // Re-exports from nonce
@@ -195,27 +189,36 @@ pub use types::{AadError, AeadKey, AssociatedData, KeyError};
 
 #[cfg(feature = "pure-crypto")]
 pub use pure_crypto::{
-    // Types
-    SecretKey, Salt, CryptoError, Argon2Params,
+    aes_gcm_decrypt,
     // AEAD
-    aes_gcm_encrypt, aes_gcm_decrypt,
+    aes_gcm_encrypt,
     // KDF
-    argon2_derive, hkdf_derive, hkdf_derive_key,
-    // Hash/MAC
-    sha256, hmac_sha256, hmac_sha256_verify,
-    // X25519
-    X25519KeyPair,
-    // Utilities
-    random_bytes, random_key, constant_time_eq,
+    argon2_derive,
+    constant_time_eq,
     // Constants
     constants,
+    hkdf_derive,
+    hkdf_derive_key,
+    hmac_sha256,
+    hmac_sha256_verify,
+    // Utilities
+    random_bytes,
+    random_key,
+    // Hash/MAC
+    sha256,
+    Argon2Params,
+    CryptoError,
+    Salt,
+    // Types
+    SecretKey,
+    // X25519
+    X25519KeyPair,
 };
 
 #[cfg(feature = "pq-crypto")]
 pub use pure_crypto::pq::{
-    MlKemKeyPair, mlkem_encapsulate, hybrid_key_derive,
-    MLKEM_PUBLIC_KEY_SIZE, MLKEM_SECRET_KEY_SIZE,
-    MLKEM_CIPHERTEXT_SIZE, MLKEM_SHARED_SECRET_SIZE,
+    hybrid_key_derive, mlkem_encapsulate, MlKemKeyPair, MLKEM_CIPHERTEXT_SIZE,
+    MLKEM_PUBLIC_KEY_SIZE, MLKEM_SECRET_KEY_SIZE, MLKEM_SHARED_SECRET_SIZE,
 };
 
 // ============================================================================
@@ -224,21 +227,19 @@ pub use pure_crypto::pq::{
 
 #[cfg(feature = "hsm")]
 pub use hsm::{
-    HsmError, HsmUri, SecurePin, HsmKeyType, HsmKeyHandle,
-    HsmProvider, HsmSession, derive_key_with_hsm,
+    derive_key_with_hsm, HsmError, HsmKeyHandle, HsmKeyType, HsmProvider, HsmSession, HsmUri,
+    SecurePin,
 };
 
 #[cfg(feature = "yubikey")]
 pub use yubikey_piv::{
-    YubiKeyError, PivSlot, YubiKeyType, YubiKeyPin,
-    YubiKeyInfo, YubiKeyProvider, Fido2Provider,
-    derive_key_with_yubikey,
+    derive_key_with_yubikey, Fido2Provider, PivSlot, YubiKeyError, YubiKeyInfo, YubiKeyPin,
+    YubiKeyProvider, YubiKeyType,
 };
 
 #[cfg(feature = "tpm")]
 pub use tpm::{
-    TpmError, PcrSelection, SealedBlob, TpmAuth,
-    TpmProvider, TpmInfo, derive_key_with_tpm,
+    derive_key_with_tpm, PcrSelection, SealedBlob, TpmAuth, TpmError, TpmInfo, TpmProvider,
 };
 
 /// Version of the crypto_core crate

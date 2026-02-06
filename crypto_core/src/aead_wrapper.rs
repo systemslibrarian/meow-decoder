@@ -121,7 +121,7 @@ impl NonceManager {
         // Generate random prefix using system RNG
         let mut random_prefix = [0u8; 4];
         getrandom::getrandom(&mut random_prefix).expect("Failed to get random bytes");
-        
+
         NonceManager {
             counter: AtomicU64::new(0),
             random_prefix,
@@ -145,17 +145,17 @@ impl NonceManager {
     pub fn allocate_nonce(&self) -> Result<UniqueNonce, AeadError> {
         // Atomically increment counter
         let counter_value = self.counter.fetch_add(1, Ordering::SeqCst);
-        
+
         // Check for exhaustion (should never happen in practice)
         if counter_value >= MAX_NONCE_COUNTER {
             return Err(AeadError::NonceExhaustion);
         }
-        
+
         // Construct nonce: [8-byte counter (big-endian) | 4-byte random]
         let mut nonce = [0u8; NONCE_SIZE];
         nonce[0..8].copy_from_slice(&counter_value.to_be_bytes());
         nonce[8..12].copy_from_slice(&self.random_prefix);
-        
+
         // Track allocation in debug builds
         #[cfg(debug_assertions)]
         {
@@ -166,7 +166,7 @@ impl NonceManager {
             );
             allocated.insert(nonce);
         }
-        
+
         Ok(UniqueNonce {
             bytes: nonce,
             #[cfg(debug_assertions)]
@@ -246,10 +246,10 @@ impl AeadWrapper {
         if key.len() != KEY_SIZE {
             return Err(AeadError::InvalidKey);
         }
-        
+
         let mut key_array = [0u8; KEY_SIZE];
         key_array.copy_from_slice(key);
-        
+
         Ok(AeadWrapper {
             key: key_array,
             nonce_manager: NonceManager::new(),
@@ -261,7 +261,7 @@ impl AeadWrapper {
     /// # Verus Specification
     /// ```verus
     /// requires self.nonce_manager.counter < MAX_NONCE_COUNTER
-    /// ensures result.is_ok() ==> 
+    /// ensures result.is_ok() ==>
     ///     self.nonce_manager.nonce_count() == old(self.nonce_manager.nonce_count()) + 1
     /// ensures result.is_ok() ==> result.unwrap().0 not in old(self.nonce_manager.allocated)
     /// ```
@@ -272,15 +272,19 @@ impl AeadWrapper {
     /// # Security
     /// - Nonce is guaranteed unique by NonceManager
     /// - Plaintext is authenticated with AAD
-    pub fn encrypt(&self, plaintext: &[u8], aad: &[u8]) -> Result<([u8; NONCE_SIZE], Vec<u8>), AeadError> {
+    pub fn encrypt(
+        &self,
+        plaintext: &[u8],
+        aad: &[u8],
+    ) -> Result<([u8; NONCE_SIZE], Vec<u8>), AeadError> {
         // Allocate unique nonce (guaranteed by type system)
         let unique_nonce = self.nonce_manager.allocate_nonce()?;
         let nonce_bytes = unique_nonce.take();
-        
+
         // Perform AES-GCM encryption
         // In real implementation, use a crypto library like `aes-gcm`
         let ciphertext = self.aes_gcm_encrypt(&nonce_bytes, plaintext, aad)?;
-        
+
         Ok((nonce_bytes, ciphertext))
     }
 
@@ -288,12 +292,12 @@ impl AeadWrapper {
     ///
     /// # Verus Specification
     /// ```verus
-    /// ensures result.is_ok() ==> 
+    /// ensures result.is_ok() ==>
     ///     // Plaintext matches what was encrypted
     ///     exists nonce, plaintext, aad:
     ///         ciphertext == aes_gcm_encrypt(self.key, nonce, plaintext, aad) &&
     ///         result.unwrap().data() == plaintext
-    /// ensures result.is_err() ==> 
+    /// ensures result.is_err() ==>
     ///     // Authentication failed, no plaintext exposed
     ///     result == Err(AeadError::AuthenticationFailed) ||
     ///     result == Err(AeadError::CiphertextTooShort)
@@ -315,10 +319,10 @@ impl AeadWrapper {
         if ciphertext_with_tag.len() < TAG_SIZE {
             return Err(AeadError::CiphertextTooShort);
         }
-        
+
         // Perform AES-GCM decryption with authentication
         let plaintext = self.aes_gcm_decrypt(nonce, ciphertext_with_tag, aad)?;
-        
+
         // Wrap in AuthenticatedPlaintext to prove authentication succeeded
         Ok(AuthenticatedPlaintext {
             data: plaintext,
@@ -384,23 +388,23 @@ impl AeadWrapper {
         // - `aes-gcm` crate
         // - `ring` crate
         // - `openssl` bindings
-        
+
         // For now, we demonstrate the interface:
         use aes_gcm::{
             aead::{Aead, KeyInit, Payload},
             Aes256Gcm, Nonce,
         };
-        
-        let cipher = Aes256Gcm::new_from_slice(&self.key)
-            .map_err(|_| AeadError::InvalidKey)?;
-        
+
+        let cipher = Aes256Gcm::new_from_slice(&self.key).map_err(|_| AeadError::InvalidKey)?;
+
         let nonce = Nonce::from_slice(nonce);
         let payload = Payload {
             msg: plaintext,
             aad,
         };
-        
-        cipher.encrypt(nonce, payload)
+
+        cipher
+            .encrypt(nonce, payload)
             .map_err(|_| AeadError::AuthenticationFailed)
     }
 
@@ -416,17 +420,17 @@ impl AeadWrapper {
             aead::{Aead, KeyInit, Payload},
             Aes256Gcm, Nonce,
         };
-        
-        let cipher = Aes256Gcm::new_from_slice(&self.key)
-            .map_err(|_| AeadError::InvalidKey)?;
-        
+
+        let cipher = Aes256Gcm::new_from_slice(&self.key).map_err(|_| AeadError::InvalidKey)?;
+
         let nonce = Nonce::from_slice(nonce);
         let payload = Payload {
             msg: ciphertext_with_tag,
             aad,
         };
-        
-        cipher.decrypt(nonce, payload)
+
+        cipher
+            .decrypt(nonce, payload)
             .map_err(|_| AeadError::AuthenticationFailed)
     }
 
@@ -449,7 +453,7 @@ impl Drop for AeadWrapper {
 
 #[cfg(verus_keep_ghost)]
 verus! {
-    
+
 /// Proof: Nonce uniqueness invariant
 ///
 /// For all encryptions e1, e2 with the same key:
@@ -525,7 +529,7 @@ mod tests {
     #[test]
     fn test_nonce_uniqueness() {
         let nm = NonceManager::new();
-        
+
         let mut nonces = HashSet::new();
         for _ in 0..10000 {
             let nonce = nm.allocate_nonce().unwrap();
@@ -533,7 +537,7 @@ mod tests {
             assert!(!nonces.contains(&bytes), "Nonce collision!");
             nonces.insert(bytes);
         }
-        
+
         assert_eq!(nm.nonce_count(), 10000);
     }
 
@@ -541,12 +545,12 @@ mod tests {
     fn test_encrypt_decrypt_roundtrip() {
         let key = [0x42u8; KEY_SIZE];
         let wrapper = AeadWrapper::new(&key).unwrap();
-        
+
         let plaintext = b"Hello, verified crypto!";
         let aad = b"additional authenticated data";
-        
+
         let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad).unwrap();
-        
+
         let authenticated = wrapper.decrypt(&nonce, &ciphertext, aad).unwrap();
         assert_eq!(authenticated.data(), plaintext);
     }
@@ -555,17 +559,17 @@ mod tests {
     fn test_tampered_ciphertext_fails() {
         let key = [0x42u8; KEY_SIZE];
         let wrapper = AeadWrapper::new(&key).unwrap();
-        
+
         let plaintext = b"Secret data";
         let aad = b"aad";
-        
+
         let (nonce, mut ciphertext) = wrapper.encrypt(plaintext, aad).unwrap();
-        
+
         // Tamper with ciphertext
         if !ciphertext.is_empty() {
             ciphertext[0] ^= 0xFF;
         }
-        
+
         let result = wrapper.decrypt(&nonce, &ciphertext, aad);
         assert_eq!(result.err(), Some(AeadError::AuthenticationFailed));
     }
@@ -574,12 +578,12 @@ mod tests {
     fn test_wrong_aad_fails() {
         let key = [0x42u8; KEY_SIZE];
         let wrapper = AeadWrapper::new(&key).unwrap();
-        
+
         let plaintext = b"Secret data";
         let aad = b"correct aad";
-        
+
         let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad).unwrap();
-        
+
         // Try to decrypt with wrong AAD
         let wrong_aad = b"wrong aad";
         let result = wrapper.decrypt(&nonce, &ciphertext, wrong_aad);
@@ -590,13 +594,13 @@ mod tests {
     fn test_key_zeroization() {
         let key = [0x42u8; KEY_SIZE];
         let wrapper = AeadWrapper::new(&key).unwrap();
-        
+
         // Get a reference to the internal key (unsafe for testing only)
         let key_ptr = wrapper.key.as_ptr();
-        
+
         // Drop the wrapper
         drop(wrapper);
-        
+
         // In a real test with Miri, we could verify the memory is zeroed
         // For now, we trust the Zeroize implementation
     }
@@ -606,7 +610,7 @@ mod tests {
         // This test would take too long to actually exhaust nonces
         // Instead, we verify the counter mechanism
         let nm = NonceManager::new();
-        
+
         // Manually set counter near max (would require unsafe in real impl)
         // For now, just verify the error type exists
         assert!(matches!(
@@ -621,9 +625,9 @@ mod tests {
         let wrapper = AeadWrapper::new(&key).unwrap();
         let plaintext = b"test data for into_data";
         let aad: &[u8] = b"context";
-        
+
         let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad).unwrap();
-        
+
         let authenticated = wrapper.decrypt(&nonce, &ciphertext, aad).unwrap();
         // Use into_data() to consume and get Vec<u8>
         let data: Vec<u8> = authenticated.into_data();

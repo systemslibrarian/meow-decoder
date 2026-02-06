@@ -14,7 +14,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use argon2::{Algorithm, Argon2, Params, Version};
-use hmac::{Hmac, Mac, digest::KeyInit as HmacKeyInit};
+use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -39,13 +39,13 @@ mod zeroize_security_tests {
     fn test_zeroize_key_material_after_use() {
         // Simulate key derivation then zeroization
         let mut key = [0x42u8; 32];
-        
+
         // Use the key for encryption (simulated)
         let _cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        
+
         // Now zeroize
         key.zeroize();
-        
+
         // Verify every byte is zero
         assert!(
             key.iter().all(|&b| b == 0),
@@ -58,12 +58,12 @@ mod zeroize_security_tests {
     fn test_zeroize_vec_complete_clearing() {
         let mut secret = vec![0xAAu8; 64];
         let original_ptr = secret.as_ptr();
-        
+
         secret.zeroize();
-        
+
         // Vec::zeroize clears the length (data was zeroed before clearing)
         assert_eq!(secret.len(), 0, "Vec should be cleared after zeroize");
-        
+
         // Even though length is 0, we can verify the behavior is secure
         // by checking capacity wasn't changed (data was in-place zeroed)
         assert!(secret.capacity() >= 64, "Capacity should be preserved");
@@ -74,12 +74,12 @@ mod zeroize_security_tests {
     fn test_zeroize_password_buffer() {
         let mut password = String::from("super_secret_password_123!");
         let original_len = password.len();
-        
+
         // Zeroize the string's bytes
         unsafe {
             password.as_bytes_mut().zeroize();
         }
-        
+
         // Verify the underlying bytes are zeroed
         assert!(
             password.bytes().all(|b| b == 0),
@@ -118,9 +118,9 @@ mod zeroize_security_tests {
     #[test]
     fn test_zeroize_boxed_secret() {
         let mut secret: Box<[u8]> = vec![0xFFu8; 128].into_boxed_slice();
-        
+
         secret.zeroize();
-        
+
         assert!(
             secret.iter().all(|&b| b == 0),
             "Boxed secret should be zeroed"
@@ -132,11 +132,11 @@ mod zeroize_security_tests {
     fn test_zeroize_empty_containers() {
         let mut empty_vec: Vec<u8> = Vec::new();
         let mut empty_array: [u8; 0] = [];
-        
+
         // Should not panic
         empty_vec.zeroize();
         empty_array.zeroize();
-        
+
         assert_eq!(empty_vec.len(), 0);
     }
 }
@@ -275,17 +275,17 @@ mod aes_gcm_failure_tests {
         let plaintext = vec![0xAAu8; 1024 * 1024];
 
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        
+
         let ciphertext = cipher
             .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
             .unwrap();
-        
+
         assert_eq!(ciphertext.len(), plaintext.len() + 16); // +16 for auth tag
-        
+
         let decrypted = cipher
             .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
             .unwrap();
-        
+
         assert_eq!(decrypted, plaintext);
     }
 }
@@ -325,13 +325,13 @@ mod x25519_edge_tests {
     #[test]
     fn test_public_key_derivation_deterministic() {
         let secret_bytes = [0x42u8; 32];
-        
+
         let secret1 = StaticSecret::from(secret_bytes);
         let secret2 = StaticSecret::from(secret_bytes);
-        
+
         let public1 = PublicKey::from(&secret1);
         let public2 = PublicKey::from(&secret2);
-        
+
         assert_eq!(
             public1.as_bytes(),
             public2.as_bytes(),
@@ -344,42 +344,39 @@ mod x25519_edge_tests {
     fn test_x25519_rfc7748_test_vector() {
         // RFC 7748 test vector
         let alice_secret_bytes: [u8; 32] = [
-            0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d,
-            0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2, 0x66, 0x45,
-            0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a,
-            0xb1, 0x77, 0xfb, 0xa5, 0x1d, 0xb9, 0x2c, 0x2a,
+            0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2,
+            0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5,
+            0x1d, 0xb9, 0x2c, 0x2a,
         ];
-        
+
         let bob_secret_bytes: [u8; 32] = [
-            0x5d, 0xab, 0x08, 0x7e, 0x62, 0x4a, 0x8a, 0x4b,
-            0x79, 0xe1, 0x7f, 0x8b, 0x83, 0x80, 0x0e, 0xe6,
-            0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18, 0xb6, 0xfd,
-            0x1c, 0x2f, 0x8b, 0x27, 0xff, 0x88, 0xe0, 0xeb,
+            0x5d, 0xab, 0x08, 0x7e, 0x62, 0x4a, 0x8a, 0x4b, 0x79, 0xe1, 0x7f, 0x8b, 0x83, 0x80,
+            0x0e, 0xe6, 0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18, 0xb6, 0xfd, 0x1c, 0x2f, 0x8b, 0x27,
+            0xff, 0x88, 0xe0, 0xeb,
         ];
 
         let alice_secret = StaticSecret::from(alice_secret_bytes);
         let bob_secret = StaticSecret::from(bob_secret_bytes);
-        
+
         let alice_public = PublicKey::from(&alice_secret);
         let bob_public = PublicKey::from(&bob_secret);
-        
+
         let alice_shared = alice_secret.diffie_hellman(&bob_public);
         let bob_shared = bob_secret.diffie_hellman(&alice_public);
-        
+
         assert_eq!(
             alice_shared.as_bytes(),
             bob_shared.as_bytes(),
             "Shared secrets must match"
         );
-        
+
         // Expected shared secret from RFC 7748
         let expected: [u8; 32] = [
-            0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1,
-            0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35, 0x0f, 0x25,
-            0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33,
-            0x76, 0xf0, 0x9b, 0x3c, 0x1e, 0x16, 0x17, 0x42,
+            0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1, 0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35,
+            0x0f, 0x25, 0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33, 0x76, 0xf0, 0x9b, 0x3c,
+            0x1e, 0x16, 0x17, 0x42,
         ];
-        
+
         assert_eq!(alice_shared.as_bytes(), &expected);
     }
 
@@ -388,14 +385,14 @@ mod x25519_edge_tests {
     fn test_zero_secret_key_behavior() {
         let zero_secret = StaticSecret::from([0u8; 32]);
         let zero_public = PublicKey::from(&zero_secret);
-        
+
         // Zero secret should still produce a valid public key
         assert_eq!(zero_public.as_bytes().len(), 32);
-        
+
         // Exchange should work (though cryptographically weak)
         let other = StaticSecret::random_from_rng(OsRng);
         let other_public = PublicKey::from(&other);
-        
+
         let shared = zero_secret.diffie_hellman(&other_public);
         assert_eq!(shared.as_bytes().len(), 32);
     }
@@ -413,16 +410,20 @@ mod argon2id_edge_tests {
     fn test_argon2id_deterministic() {
         let password = b"test_password";
         let salt = [0x42u8; 16];
-        
+
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        
+
         let mut key1 = vec![0u8; 32];
         let mut key2 = vec![0u8; 32];
-        
-        argon2.hash_password_into(password, &salt, &mut key1).unwrap();
-        argon2.hash_password_into(password, &salt, &mut key2).unwrap();
-        
+
+        argon2
+            .hash_password_into(password, &salt, &mut key1)
+            .unwrap();
+        argon2
+            .hash_password_into(password, &salt, &mut key2)
+            .unwrap();
+
         assert_eq!(key1, key2, "Same input should produce same output");
     }
 
@@ -430,23 +431,28 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_salt_sensitivity() {
         let password = b"same_password";
-        
+
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        
+
         let mut keys = Vec::new();
-        
+
         for salt_byte in 0..10u8 {
             let salt = [salt_byte; 16];
             let mut key = vec![0u8; 32];
-            argon2.hash_password_into(password, &salt, &mut key).unwrap();
+            argon2
+                .hash_password_into(password, &salt, &mut key)
+                .unwrap();
             keys.push(key);
         }
-        
+
         // All keys should be unique
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(keys[i], keys[j], "Different salts must produce different keys");
+                assert_ne!(
+                    keys[i], keys[j],
+                    "Different salts must produce different keys"
+                );
             }
         }
     }
@@ -455,29 +461,34 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_password_sensitivity() {
         let salt = [0x42u8; 16];
-        
+
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        
+
         let passwords = [
             b"password1".as_ref(),
             b"password2".as_ref(),
-            b"Password1".as_ref(), // Case difference
+            b"Password1".as_ref(),  // Case difference
             b"password1 ".as_ref(), // Trailing space
         ];
-        
+
         let mut keys = Vec::new();
-        
+
         for password in &passwords {
             let mut key = vec![0u8; 32];
-            argon2.hash_password_into(password, &salt, &mut key).unwrap();
+            argon2
+                .hash_password_into(password, &salt, &mut key)
+                .unwrap();
             keys.push(key);
         }
-        
+
         // All keys should be unique
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(keys[i], keys[j], "Different passwords must produce different keys");
+                assert_ne!(
+                    keys[i], keys[j],
+                    "Different passwords must produce different keys"
+                );
             }
         }
     }
@@ -487,17 +498,22 @@ mod argon2id_edge_tests {
     fn test_argon2id_output_lengths() {
         let password = b"password";
         let salt = [0x42u8; 16];
-        
+
         for output_len in [16, 32, 64, 128] {
             let params = Params::new(1024, 1, 1, Some(output_len)).unwrap();
             let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-            
+
             let mut key = vec![0u8; output_len];
-            argon2.hash_password_into(password, &salt, &mut key).unwrap();
-            
+            argon2
+                .hash_password_into(password, &salt, &mut key)
+                .unwrap();
+
             assert_eq!(key.len(), output_len);
             // Output should have some entropy
-            assert!(key.iter().any(|&b| b != 0), "Output should not be all zeros");
+            assert!(
+                key.iter().any(|&b| b != 0),
+                "Output should not be all zeros"
+            );
         }
     }
 
@@ -505,16 +521,16 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_empty_password() {
         let salt = [0x42u8; 16];
-        
+
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        
+
         let mut key = vec![0u8; 32];
-        
+
         // Empty password should work (not recommended but valid)
         let result = argon2.hash_password_into(b"", &salt, &mut key);
         assert!(result.is_ok(), "Empty password should be handled");
-        
+
         // Output should still have entropy
         assert!(key.iter().any(|&b| b != 0));
     }
@@ -523,21 +539,25 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_unicode_password() {
         let salt = [0x42u8; 16];
-        
+
         let params = Params::new(1024, 1, 1, Some(32)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        
+
         let unicode_passwords = [
-            "пароль",           // Russian
-            "パスワード",         // Japanese
-            "密码",              // Chinese
-            "🐱🔐🐈",           // Emoji
+            "пароль",     // Russian
+            "パスワード", // Japanese
+            "密码",       // Chinese
+            "🐱🔐🐈",     // Emoji
         ];
-        
+
         for password in &unicode_passwords {
             let mut key = vec![0u8; 32];
             let result = argon2.hash_password_into(password.as_bytes(), &salt, &mut key);
-            assert!(result.is_ok(), "Unicode password '{}' should work", password);
+            assert!(
+                result.is_ok(),
+                "Unicode password '{}' should work",
+                password
+            );
         }
     }
 }
@@ -554,16 +574,16 @@ mod hmac_additional_tests {
     fn test_hmac_constant_time_verify() {
         let key = [0x42u8; 32];
         let message = b"message to authenticate";
-        
+
         let mut mac = create_hmac(&key);
         mac.update(message);
         let tag = mac.finalize().into_bytes();
-        
+
         // Verify with constant-time comparison
         let mut mac2 = create_hmac(&key);
         mac2.update(message);
         let tag2 = mac2.finalize().into_bytes();
-        
+
         assert!(bool::from(tag.as_slice().ct_eq(tag2.as_slice())));
     }
 
@@ -573,16 +593,16 @@ mod hmac_additional_tests {
         let key = [0x42u8; 32];
         let original_message = b"original message";
         let modified_message = b"modified message";
-        
+
         let mut mac = create_hmac(&key);
         mac.update(original_message);
         let tag = mac.finalize().into_bytes();
-        
+
         // Create tag for modified message
         let mut mac2 = create_hmac(&key);
         mac2.update(modified_message);
         let tag2 = mac2.finalize().into_bytes();
-        
+
         // Tags should differ
         assert!(!bool::from(tag.as_slice().ct_eq(tag2.as_slice())));
     }
@@ -591,14 +611,14 @@ mod hmac_additional_tests {
     #[test]
     fn test_hmac_various_key_lengths() {
         let message = b"test message";
-        
+
         for key_len in [16, 32, 64, 128] {
             let key = vec![0x42u8; key_len];
-            
+
             let mut mac = create_hmac(&key);
             mac.update(message);
             let tag = mac.finalize().into_bytes();
-            
+
             // Tag should always be 32 bytes for SHA-256
             assert_eq!(tag.len(), 32);
         }
@@ -617,13 +637,13 @@ mod constant_time_tests {
     fn test_ct_eq_correctness() {
         // Equal slices
         assert!(bool::from(b"hello".ct_eq(b"hello")));
-        
+
         // Unequal slices
         assert!(!bool::from(b"hello".ct_eq(b"world")));
-        
+
         // Single bit difference
         assert!(!bool::from([0x00u8].as_slice().ct_eq(&[0x01u8])));
-        
+
         // Empty slices
         let empty1: &[u8] = &[];
         let empty2: &[u8] = &[];
@@ -648,7 +668,7 @@ mod constant_time_tests {
             v[9999] = 0x43;
             v
         };
-        
+
         assert!(bool::from(a.as_slice().ct_eq(b.as_slice())));
         assert!(!bool::from(a.as_slice().ct_eq(c.as_slice())));
     }
@@ -673,8 +693,10 @@ mod workflow_tests {
         let params = Params::new(1024, 1, 1, Some(64)).unwrap();
         let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
         let mut key_material = vec![0u8; 64];
-        argon2.hash_password_into(password, &salt, &mut key_material).unwrap();
-        
+        argon2
+            .hash_password_into(password, &salt, &mut key_material)
+            .unwrap();
+
         // Split into encryption key and MAC key
         let enc_key = &key_material[..32];
         let mac_key = &key_material[32..];
@@ -700,7 +722,7 @@ mod workflow_tests {
         verify_mac.update(&nonce);
         verify_mac.update(&ciphertext);
         let verify_tag = verify_mac.finalize().into_bytes();
-        
+
         assert!(bool::from(tag.as_slice().ct_eq(verify_tag.as_slice())));
 
         // 6. Decrypt
@@ -717,14 +739,14 @@ mod workflow_tests {
         // Alice and Bob generate keypairs
         let alice_secret = StaticSecret::random_from_rng(rand::rngs::OsRng);
         let alice_public = PublicKey::from(&alice_secret);
-        
+
         let bob_secret = StaticSecret::random_from_rng(rand::rngs::OsRng);
         let bob_public = PublicKey::from(&bob_secret);
 
         // Key exchange
         let alice_shared = alice_secret.diffie_hellman(&bob_public);
         let bob_shared = bob_secret.diffie_hellman(&alice_public);
-        
+
         assert_eq!(alice_shared.as_bytes(), bob_shared.as_bytes());
 
         // Use shared secret as encryption key

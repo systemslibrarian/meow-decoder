@@ -23,7 +23,7 @@
 //! uncomment the `verus!` macros.
 
 /// Ghost state for tracking allocated nonces
-/// 
+///
 /// In Verus, this would be:
 /// ```verus
 /// tracked struct NonceGhost {
@@ -145,7 +145,7 @@ pub fn authenticated_plaintext_existential() -> &'static str {
 /// proof fn zeroize_on_drop_lemma()
 ///     ensures
 ///         // ZeroizeOnDrop trait guarantees zeroing
-///         forall |wrapper: AeadWrapper| wrapper.drop() ==> 
+///         forall |wrapper: AeadWrapper| wrapper.drop() ==>
 ///             memory_region(wrapper.key_bytes) == [0u8; 32]
 /// {
 ///     // The zeroize crate uses volatile writes to prevent optimization
@@ -324,7 +324,7 @@ mod tests {
     fn test_verification_status_complete() {
         let status = verification_status();
         assert_eq!(status.len(), 4);
-        
+
         // All properties should have a verification method
         for s in status {
             assert!(!s.id.is_empty());

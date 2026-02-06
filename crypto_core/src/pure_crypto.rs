@@ -30,13 +30,13 @@ use {
         aead::{Aead, KeyInit, Payload},
         Aes256Gcm, Nonce as GcmNonce,
     },
-    argon2::{Argon2, Params, Version, Algorithm as Argon2Algorithm},
+    argon2::{Algorithm as Argon2Algorithm, Argon2, Params, Version},
     hkdf::Hkdf,
-    sha2::{Sha256, Digest},
     hmac::Hmac,
-    x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret},
+    rand_core::{OsRng, RngCore},
+    sha2::{Digest, Sha256},
     subtle::ConstantTimeEq,
-    rand_core::{RngCore, OsRng},
+    x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret},
 };
 
 #[cfg(feature = "std")]
@@ -246,9 +246,9 @@ pub fn aes_gcm_encrypt(
 ) -> Result<Vec<u8>, CryptoError> {
     let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
         .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
-    
+
     let gcm_nonce = GcmNonce::from_slice(nonce.as_bytes());
-    
+
     let ciphertext = if let Some(aad_data) = aad {
         let payload = Payload {
             msg: plaintext,
@@ -257,8 +257,9 @@ pub fn aes_gcm_encrypt(
         cipher.encrypt(gcm_nonce, payload)
     } else {
         cipher.encrypt(gcm_nonce, plaintext)
-    }.map_err(|_| CryptoError::EncryptionFailed("GCM encryption failed".into()))?;
-    
+    }
+    .map_err(|_| CryptoError::EncryptionFailed("GCM encryption failed".into()))?;
+
     Ok(ciphertext)
 }
 
@@ -275,11 +276,11 @@ pub fn aes_gcm_decrypt(
     ciphertext: &[u8],
     aad: Option<&[u8]>,
 ) -> Result<Vec<u8>, CryptoError> {
-    let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
-        .map_err(|_e| CryptoError::DecryptionFailed)?;
-    
+    let cipher =
+        Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_e| CryptoError::DecryptionFailed)?;
+
     let gcm_nonce = GcmNonce::from_slice(nonce.as_bytes());
-    
+
     let plaintext = if let Some(aad_data) = aad {
         let payload = Payload {
             msg: ciphertext,
@@ -288,8 +289,9 @@ pub fn aes_gcm_decrypt(
         cipher.decrypt(gcm_nonce, payload)
     } else {
         cipher.decrypt(gcm_nonce, ciphertext)
-    }.map_err(|_| CryptoError::DecryptionFailed)?;
-    
+    }
+    .map_err(|_| CryptoError::DecryptionFailed)?;
+
     Ok(plaintext)
 }
 
@@ -352,20 +354,22 @@ pub fn argon2_derive(
     params: Option<Argon2Params>,
 ) -> Result<SecretKey, CryptoError> {
     let params = params.unwrap_or_default();
-    
+
     let argon2_params = Params::new(
         params.memory_kib,
         params.time,
         params.parallelism,
         Some(AES_KEY_SIZE),
-    ).map_err(|e| CryptoError::KeyDerivationFailed(e.to_string()))?;
-    
+    )
+    .map_err(|e| CryptoError::KeyDerivationFailed(e.to_string()))?;
+
     let argon2 = Argon2::new(Argon2Algorithm::Argon2id, Version::V0x13, argon2_params);
-    
+
     let mut output = [0u8; AES_KEY_SIZE];
-    argon2.hash_password_into(password, salt.as_bytes(), &mut output)
+    argon2
+        .hash_password_into(password, salt.as_bytes(), &mut output)
         .map_err(|e| CryptoError::KeyDerivationFailed(e.to_string()))?;
-    
+
     Ok(SecretKey { bytes: output })
 }
 
@@ -424,7 +428,7 @@ impl X25519KeyPair {
         // Use StaticSecret which exposes bytes (EphemeralSecret doesn't)
         let static_secret = StaticSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&static_secret);
-        
+
         Ok(Self {
             secret: static_secret.to_bytes(),
             public: public.to_bytes(),
@@ -438,7 +442,10 @@ impl X25519KeyPair {
 
     /// Perform Diffie-Hellman key exchange
     #[cfg(feature = "pure-crypto")]
-    pub fn diffie_hellman(&self, their_public: &[u8; X25519_KEY_SIZE]) -> Result<[u8; X25519_KEY_SIZE], CryptoError> {
+    pub fn diffie_hellman(
+        &self,
+        their_public: &[u8; X25519_KEY_SIZE],
+    ) -> Result<[u8; X25519_KEY_SIZE], CryptoError> {
         let secret = StaticSecret::from(self.secret);
         let their_pk = PublicKey::from(*their_public);
         let shared = secret.diffie_hellman(&their_pk);
@@ -542,8 +549,7 @@ pub mod pq {
         // - EncodedSizeUser::from_encoded_bytes/to_encoded_bytes for serialization
         // The getrandom feature avoids rand_core version mismatches between crates.
         use ml_kem::{
-            DecapsulationKey1024 as DecapsulationKey,
-            EncapsulationKey1024 as EncapsulationKey,
+            DecapsulationKey1024 as DecapsulationKey, EncapsulationKey1024 as EncapsulationKey,
             EncodedSizeUser,
         };
         // External kem crate: Generate, Encapsulate, Decapsulate traits
@@ -559,22 +565,30 @@ pub mod pq {
             // Generate trait method: generate() uses system RNG via getrandom feature
             let dk = DecapsulationKey::generate();
             let ek = dk.encapsulation_key();
-            Ok((dk.to_encoded_bytes().to_vec(), ek.to_encoded_bytes().to_vec()))
+            Ok((
+                dk.to_encoded_bytes().to_vec(),
+                ek.to_encoded_bytes().to_vec(),
+            ))
         }
 
         /// Encapsulate to produce ciphertext and shared secret
         pub fn encapsulate(encapsulation_key: &[u8]) -> Result<(Vec<u8>, [u8; 32]), CryptoError> {
             // Convert slice to Array using TryFrom
-            let ek_array: ml_kem::array::Array<u8, _> = encapsulation_key.try_into()
-                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid encapsulation key length".into()))?;
-            let ek = EncapsulationKey::from_encoded_bytes(&ek_array)
-                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid encapsulation key".into()))?;
-            
+            let ek_array: ml_kem::array::Array<u8, _> =
+                encapsulation_key.try_into().map_err(|_| {
+                    CryptoError::KeyDerivationFailed("Invalid encapsulation key length".into())
+                })?;
+            let ek = EncapsulationKey::from_encoded_bytes(&ek_array).map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid encapsulation key".into())
+            })?;
+
             // Encapsulate trait: encapsulate() uses system RNG via getrandom feature
             // Returns (Ciphertext, SharedSecret) directly - NOT a Result
             let (ct, shared) = ek.encapsulate();
-            
-            let shared_arr: [u8; 32] = shared.as_slice().try_into()
+
+            let shared_arr: [u8; 32] = shared
+                .as_slice()
+                .try_into()
                 .map_err(|_| CryptoError::EncryptionFailed("Invalid shared secret size".into()))?;
             Ok((ct.to_vec(), shared_arr))
         }
@@ -582,20 +596,24 @@ pub mod pq {
         /// Decapsulate to recover shared secret
         pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
             // Convert slice to Array using TryFrom
-            let dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into()
-                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key length".into()))?;
+            let dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into().map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid secret key length".into())
+            })?;
             let dk = DecapsulationKey::from_encoded_bytes(&dk_array)
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
-            
+
             // Convert ciphertext to Array
-            let ct_array: ml_kem::array::Array<u8, _> = ciphertext.try_into()
-                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid ciphertext length".into()))?;
-            
+            let ct_array: ml_kem::array::Array<u8, _> = ciphertext.try_into().map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid ciphertext length".into())
+            })?;
+
             // Decapsulate trait: decapsulate returns SharedSecret directly
             // NOT a Result - no map_err needed
             let shared = dk.decapsulate(&ct_array);
-            
-            let shared_arr: [u8; 32] = shared.as_slice().try_into()
+
+            let shared_arr: [u8; 32] = shared
+                .as_slice()
+                .try_into()
                 .map_err(|_| CryptoError::DecryptionFailed)?;
             Ok(shared_arr)
         }
@@ -612,26 +630,31 @@ pub mod pq {
 
         /// Generate new ML-KEM-1024 key pair using liboqs
         pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
-            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
-            
-            let (public_key, secret_key) = kem.keypair()
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs keygen failed: {}", e)))?;
-            
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024).map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e))
+            })?;
+
+            let (public_key, secret_key) = kem.keypair().map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs keygen failed: {}", e))
+            })?;
+
             Ok((secret_key.into_vec(), public_key.into_vec()))
         }
 
         /// Encapsulate to produce ciphertext and shared secret using liboqs
         pub fn encapsulate(encapsulation_key: &[u8]) -> Result<(Vec<u8>, [u8; 32]), CryptoError> {
-            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
-            
-            let public_key = kem.public_key_from_bytes(encapsulation_key)
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024).map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e))
+            })?;
+
+            let public_key = kem
+                .public_key_from_bytes(encapsulation_key)
                 .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid public key".into()))?;
-            
-            let (ciphertext, shared_secret) = kem.encapsulate(&public_key)
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs encaps failed: {}", e)))?;
-            
+
+            let (ciphertext, shared_secret) = kem.encapsulate(&public_key).map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs encaps failed: {}", e))
+            })?;
+
             let mut shared = [0u8; 32];
             shared.copy_from_slice(&shared_secret.into_vec()[..32]);
             Ok((ciphertext.into_vec(), shared))
@@ -639,18 +662,22 @@ pub mod pq {
 
         /// Decapsulate to recover shared secret using liboqs
         pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
-            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024)
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e)))?;
-            
-            let sk = kem.secret_key_from_bytes(secret_key)
+            let kem = oqs::kem::Kem::new(oqs::kem::Algorithm::MlKem1024).map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs init failed: {}", e))
+            })?;
+
+            let sk = kem
+                .secret_key_from_bytes(secret_key)
                 .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
-            
-            let ct = kem.ciphertext_from_bytes(ciphertext)
+
+            let ct = kem
+                .ciphertext_from_bytes(ciphertext)
                 .ok_or_else(|| CryptoError::KeyDerivationFailed("Invalid ciphertext".into()))?;
-            
-            let shared_secret = kem.decapsulate(&sk, &ct)
-                .map_err(|e| CryptoError::KeyDerivationFailed(format!("liboqs decaps failed: {}", e)))?;
-            
+
+            let shared_secret = kem.decapsulate(&sk, &ct).map_err(|e| {
+                CryptoError::KeyDerivationFailed(format!("liboqs decaps failed: {}", e))
+            })?;
+
             let mut shared = [0u8; 32];
             shared.copy_from_slice(&shared_secret.into_vec()[..32]);
             Ok(shared)
@@ -684,7 +711,7 @@ pub mod pq {
 
     impl MlKemKeyPair {
         /// Generate new ML-KEM-1024 key pair
-        /// 
+        ///
         /// Uses the active backend (RustCrypto or liboqs) based on feature flags.
         pub fn generate() -> Result<Self, CryptoError> {
             let (secret, public) = backend::generate_keypair()?;
@@ -697,7 +724,10 @@ pub mod pq {
         }
 
         /// Decapsulate to recover shared secret
-        pub fn decapsulate(&self, ciphertext: &[u8]) -> Result<[u8; MLKEM_SHARED_SECRET_SIZE], CryptoError> {
+        pub fn decapsulate(
+            &self,
+            ciphertext: &[u8],
+        ) -> Result<[u8; MLKEM_SHARED_SECRET_SIZE], CryptoError> {
             backend::decapsulate(&self.secret, ciphertext)
         }
     }
@@ -722,7 +752,7 @@ pub mod pq {
         let mut combined = Vec::with_capacity(64);
         combined.extend_from_slice(x25519_shared);
         combined.extend_from_slice(mlkem_shared);
-        
+
         // Derive final key
         hkdf_derive_key(&combined, None, info)
     }
@@ -805,10 +835,10 @@ mod tests {
         let key = SecretKey::from_bytes(&[0x42u8; 32]).unwrap();
         let nonce = Nonce::from_bytes(&[0u8; 12]).unwrap();
         let plaintext = b"Hello, Meow Decoder!";
-        
+
         let ciphertext = aes_gcm_encrypt(&key, &nonce, plaintext, None).unwrap();
         let decrypted = aes_gcm_decrypt(&key, &nonce, &ciphertext, None).unwrap();
-        
+
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
     }
 
@@ -819,12 +849,12 @@ mod tests {
         let nonce = Nonce::from_bytes(&[0u8; 12]).unwrap();
         let plaintext = b"Secret data";
         let aad = b"Additional authenticated data";
-        
+
         let ciphertext = aes_gcm_encrypt(&key, &nonce, plaintext, Some(aad)).unwrap();
         let decrypted = aes_gcm_decrypt(&key, &nonce, &ciphertext, Some(aad)).unwrap();
-        
+
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
-        
+
         // Wrong AAD should fail
         let wrong_aad = b"Wrong AAD";
         let result = aes_gcm_decrypt(&key, &nonce, &ciphertext, Some(wrong_aad));
@@ -836,10 +866,10 @@ mod tests {
     fn test_hmac_sha256_verify() {
         let key = b"secret key";
         let data = b"message to authenticate";
-        
+
         let mac = hmac_sha256(key, data);
         assert!(hmac_sha256_verify(key, data, &mac));
-        
+
         // Wrong mac should fail
         let mut wrong_mac = mac;
         wrong_mac[0] ^= 0x01;
@@ -860,7 +890,7 @@ mod tests {
         let a = [1, 2, 3, 4];
         let b = [1, 2, 3, 4];
         let c = [1, 2, 3, 5];
-        
+
         assert!(constant_time_eq(&a, &b));
         assert!(!constant_time_eq(&a, &c));
     }
@@ -879,10 +909,10 @@ mod tests {
     fn test_x25519_key_exchange() {
         let alice = X25519KeyPair::generate().unwrap();
         let bob = X25519KeyPair::generate().unwrap();
-        
+
         let shared_alice = alice.diffie_hellman(bob.public_bytes()).unwrap();
         let shared_bob = bob.diffie_hellman(alice.public_bytes()).unwrap();
-        
+
         assert_eq!(shared_alice, shared_bob);
     }
 
@@ -892,7 +922,7 @@ mod tests {
         let ikm = b"input key material";
         let salt = Some(b"salt".as_slice());
         let info = b"info";
-        
+
         let okm = hkdf_derive(ikm, salt, info, 64).unwrap();
         assert_eq!(okm.len(), 64);
     }
@@ -936,25 +966,25 @@ mod tests {
         // Cover all Display implementations
         let err1 = CryptoError::InvalidKeySize(16, 32);
         assert!(format!("{}", err1).contains("Invalid key size"));
-        
+
         let err2 = CryptoError::InvalidNonceSize(8, 12);
         assert!(format!("{}", err2).contains("Invalid nonce size"));
-        
+
         let err3 = CryptoError::EncryptionFailed("test".to_string());
         assert!(format!("{}", err3).contains("Encryption failed"));
-        
+
         let err4 = CryptoError::DecryptionFailed;
         assert!(format!("{}", err4).contains("Decryption failed"));
-        
+
         let err5 = CryptoError::KeyDerivationFailed("kdf".to_string());
         assert!(format!("{}", err5).contains("Key derivation failed"));
-        
+
         let err6 = CryptoError::SignatureInvalid;
         assert!(format!("{}", err6).contains("Signature"));
-        
+
         let err7 = CryptoError::RandomFailed("rng".to_string());
         assert!(format!("{}", err7).contains("Random"));
-        
+
         let err8 = CryptoError::FeatureDisabled;
         assert!(format!("{}", err8).contains("feature"));
     }
@@ -970,11 +1000,11 @@ mod tests {
     fn test_argon2_params_variants() {
         let default = Argon2Params::default();
         assert_eq!(default.memory_kib, ARGON2_MEMORY_KIB);
-        
+
         let owasp = Argon2Params::owasp_minimum();
         assert_eq!(owasp.memory_kib, 65536);
         assert_eq!(owasp.time, 3);
-        
+
         let ultra = Argon2Params::ultra();
         assert_eq!(ultra.memory_kib, 1048576);
         assert_eq!(ultra.time, 40);
@@ -1007,7 +1037,7 @@ mod tests {
         let b = [1, 2, 3, 4];
         let c = [1, 2, 3, 5];
         let d = [1, 2, 3];
-        
+
         assert!(constant_time_eq(&a, &b));
         assert!(!constant_time_eq(&a, &c));
         assert!(!constant_time_eq(&a, &d));
@@ -1068,14 +1098,14 @@ mod tests {
     fn test_argon2_derive_basic() {
         let password = b"test_password";
         let salt = Salt::from_bytes(&[0xAA; 16]).unwrap();
-        
+
         // Use minimal params for testing speed
         let params = Argon2Params {
             memory_kib: 1024, // 1 MiB for speed
             time: 1,
             parallelism: 1,
         };
-        
+
         let result = argon2_derive(password, &salt, Some(params));
         assert!(result.is_ok());
         let key = result.unwrap();
@@ -1086,16 +1116,16 @@ mod tests {
     fn test_argon2_derive_deterministic() {
         let password = b"same_password";
         let salt = Salt::from_bytes(&[0xBB; 16]).unwrap();
-        
+
         let params = Argon2Params {
             memory_kib: 1024,
             time: 1,
             parallelism: 1,
         };
-        
+
         let key1 = argon2_derive(password, &salt, Some(params)).unwrap();
         let key2 = argon2_derive(password, &salt, Some(params)).unwrap();
-        
+
         // Same password + salt = same key
         assert_eq!(key1.as_ref(), key2.as_ref());
     }
@@ -1108,10 +1138,10 @@ mod tests {
             time: 1,
             parallelism: 1,
         };
-        
+
         let key1 = argon2_derive(b"password1", &salt, Some(params)).unwrap();
         let key2 = argon2_derive(b"password2", &salt, Some(params)).unwrap();
-        
+
         assert_ne!(key1.as_ref(), key2.as_ref());
     }
 
@@ -1119,7 +1149,7 @@ mod tests {
     fn test_argon2_derive_default_params() {
         let password = b"test";
         let salt = Salt::from_bytes(&[0xDD; 16]).unwrap();
-        
+
         // Using default (None) will use production params - skip for speed
         // Just test that owasp_minimum works
         let owasp = Argon2Params::owasp_minimum();

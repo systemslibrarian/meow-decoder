@@ -47,17 +47,17 @@ mod mock {
     #[test]
     fn test_pcr_selection() {
         let mut selection = PcrSelection::new();
-        
+
         assert!(!selection.is_set(0));
         assert!(!selection.is_set(7));
-        
+
         selection.select(0);
         selection.select(7);
-        
+
         assert!(selection.is_set(0));
         assert!(selection.is_set(7));
         assert!(!selection.is_set(1));
-        
+
         // Serialize to TPML_PCR_SELECTION format
         let serialized = selection.to_tpml();
         assert_eq!(serialized.len(), 4); // 3 bytes bitmap + 1 byte count
@@ -71,10 +71,10 @@ mod mock {
         assert_eq!(parse_pcr_mask("0,7").unwrap(), vec![0, 7]);
         assert_eq!(parse_pcr_mask("0-3").unwrap(), vec![0, 1, 2, 3]);
         assert_eq!(parse_pcr_mask("0,2-4,7").unwrap(), vec![0, 2, 3, 4, 7]);
-        
+
         assert!(parse_pcr_mask("").is_err());
         assert!(parse_pcr_mask("24").is_err()); // Out of range
-        assert!(parse_pcr_mask("a").is_err());  // Not numeric
+        assert!(parse_pcr_mask("a").is_err()); // Not numeric
         assert!(parse_pcr_mask("5-2").is_err()); // Inverted range
     }
 
@@ -194,25 +194,27 @@ mod mock {
         }
 
         let mut result = Vec::new();
-        
+
         for part in mask.split(',') {
             if part.contains('-') {
                 // Range
                 let mut range = part.split('-');
-                let start: u8 = range.next()
+                let start: u8 = range
+                    .next()
                     .and_then(|s| s.parse().ok())
                     .ok_or("Invalid range start")?;
-                let end: u8 = range.next()
+                let end: u8 = range
+                    .next()
                     .and_then(|s| s.parse().ok())
                     .ok_or("Invalid range end")?;
-                
+
                 if start > end {
                     return Err("Inverted range");
                 }
                 if end >= 24 {
                     return Err("PCR index out of range");
                 }
-                
+
                 for i in start..=end {
                     result.push(i);
                 }
@@ -225,7 +227,7 @@ mod mock {
                 result.push(index);
             }
         }
-        
+
         Ok(result)
     }
 
@@ -259,13 +261,13 @@ mod mock {
             let version = data[0];
             let mut pcr_digest = [0u8; 32];
             pcr_digest.copy_from_slice(&data[1..33]);
-            
+
             let auth_len = data[33] as usize;
             if data.len() < 34 + auth_len + 4 {
                 return Err("Data too short for auth policy");
             }
             let auth_policy = data[34..34 + auth_len].to_vec();
-            
+
             let mut offset = 34 + auth_len;
             let private_len = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
             offset += 2;
@@ -274,7 +276,7 @@ mod mock {
             }
             let private = data[offset..offset + private_len].to_vec();
             offset += private_len;
-            
+
             let public_len = u16::from_be_bytes([data[offset], data[offset + 1]]) as usize;
             offset += 2;
             if data.len() < offset + public_len {
@@ -339,7 +341,7 @@ mod mock {
         fn combined_digest(&self) -> [u8; 32] {
             use std::collections::hash_map::DefaultHasher;
             use std::hash::{Hash, Hasher};
-            
+
             let mut hasher = DefaultHasher::new();
             self.pcr0_firmware.hash(&mut hasher);
             self.pcr1_firmware_config.hash(&mut hasher);
@@ -349,7 +351,7 @@ mod mock {
             self.pcr5_gpt.hash(&mut hasher);
             self.pcr6_vendor_specific.hash(&mut hasher);
             self.pcr7_secure_boot.hash(&mut hasher);
-            
+
             let hash = hasher.finish();
             let mut result = [0u8; 32];
             result[..8].copy_from_slice(&hash.to_le_bytes());
@@ -364,7 +366,7 @@ mod mock {
 
 #[cfg(feature = "tpm-real")]
 mod real {
-    use crypto_core::tpm::{TpmProvider, TpmAuth, PcrSelection};
+    use crypto_core::tpm::{PcrSelection, TpmAuth, TpmProvider};
 
     #[test]
     fn test_tpm_connect() {
@@ -379,7 +381,10 @@ mod real {
 
         let info = provider.get_info().expect("Failed to get TPM info");
         println!("TPM Manufacturer: {}", info.manufacturer);
-        println!("TPM Firmware: {}.{}", info.firmware_version.0, info.firmware_version.1);
+        println!(
+            "TPM Firmware: {}.{}",
+            info.firmware_version.0, info.firmware_version.1
+        );
     }
 
     #[test]
@@ -399,7 +404,7 @@ mod real {
         }
 
         let pcrs = provider.read_pcrs(&selection).expect("Failed to read PCRs");
-        
+
         println!("PCR values:");
         for (i, value) in pcrs.iter().enumerate() {
             println!("  PCR[{}]: {}", i, hex::encode(value));
@@ -424,13 +429,15 @@ mod real {
         let auth = TpmAuth::password("sealing-password");
 
         // Seal
-        let sealed = provider.seal(secret, &pcrs, Some(&auth))
+        let sealed = provider
+            .seal(secret, &pcrs, Some(&auth))
             .expect("Failed to seal");
 
         println!("Sealed blob: {} bytes", sealed.as_bytes().len());
 
         // Unseal
-        let unsealed = provider.unseal(&sealed, Some(&auth))
+        let unsealed = provider
+            .unseal(&sealed, Some(&auth))
             .expect("Failed to unseal");
 
         assert_eq!(secret.as_slice(), unsealed.as_slice());
@@ -451,23 +458,15 @@ mod real {
         let context = b"meow-decoder-encryption";
 
         // Derive key using TPM (binds to platform state)
-        let key = crypto_core::tpm::derive_key_with_tpm(
-            &provider,
-            password,
-            context,
-            32,
-        ).expect("Failed to derive key");
+        let key = crypto_core::tpm::derive_key_with_tpm(&provider, password, context, 32)
+            .expect("Failed to derive key");
 
         assert_eq!(key.len(), 32);
         println!("Derived key: {} bytes", key.len());
 
         // Derive again - should be deterministic
-        let key2 = crypto_core::tpm::derive_key_with_tpm(
-            &provider,
-            password,
-            context,
-            32,
-        ).expect("Failed to derive key again");
+        let key2 = crypto_core::tpm::derive_key_with_tpm(&provider, password, context, 32)
+            .expect("Failed to derive key again");
 
         assert_eq!(key, key2);
         println!("Key derivation is deterministic!");
@@ -535,7 +534,7 @@ mod security_properties {
             let mut combined = [0u8; 64];
             combined[..32].copy_from_slice(current);
             combined[32..].copy_from_slice(measurement);
-            
+
             // Mock hash (in real impl, use SHA-256)
             let mut result = [0u8; 32];
             for (i, chunk) in combined.chunks(2).enumerate() {
@@ -546,9 +545,9 @@ mod security_properties {
 
         let initial = [0u8; 32];
         let measurement = [0xAA; 32];
-        
+
         let extended = pcr_extend(&initial, &measurement);
-        
+
         // Cannot reverse extend operation
         assert_ne!(extended, initial);
         assert_ne!(extended, measurement);

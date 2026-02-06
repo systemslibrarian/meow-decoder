@@ -164,10 +164,11 @@ jobs:
             exit 1
           }
 
+      # RUSTSEC-2026-0009: time 0.3.46 (transitive from x509-parser) - awaiting upstream fix
       - name: Rust dependency audit (cargo-audit) - crypto_core
         run: |
           cd crypto_core
-          cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 || {
+          cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 || {
             echo "⚠️ cargo-audit found vulnerabilities not in exception list."
             exit 1
           }
@@ -176,7 +177,7 @@ jobs:
       - name: Rust dependency audit (cargo-audit) - rust_crypto
         run: |
           cd rust_crypto
-          cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 || {
+          cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 || {
             echo "⚠️ Found vulnerabilities in rust_crypto."
             exit 1
           }

@@ -50,9 +50,9 @@ mod mock {
     #[test]
     fn test_hsm_uri_invalid() {
         let invalid_uris = [
-            "https://example.com",        // Wrong scheme
-            "pkcs11:invalid=;",           // Malformed
-            "",                           // Empty
+            "https://example.com", // Wrong scheme
+            "pkcs11:invalid=;",    // Malformed
+            "",                    // Empty
         ];
 
         for uri in &invalid_uris {
@@ -81,7 +81,7 @@ mod mock {
         assert!(is_valid_key_type("ec-p384"));
         assert!(is_valid_key_type("rsa2048"));
         assert!(is_valid_key_type("rsa4096"));
-        
+
         assert!(!is_valid_key_type("des"));
         assert!(!is_valid_key_type("unknown"));
         assert!(!is_valid_key_type(""));
@@ -91,8 +91,10 @@ mod mock {
     #[test]
     fn test_key_handle_serde() {
         let handle = MockKeyHandle {
-            id: [0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00, 0x00, 0x00,
-                 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00],
+            id: [
+                0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+                0x00, 0x00,
+            ],
             label: "test-key".to_string(),
             key_type: "aes256".to_string(),
         };
@@ -116,12 +118,12 @@ mod mock {
         if !uri.starts_with("pkcs11:") {
             return Err("Invalid scheme");
         }
-        
+
         let rest = &uri[7..]; // Skip "pkcs11:"
         let mut token = None;
         let mut object = None;
         let mut slot_id = None;
-        
+
         for part in rest.split(';') {
             if part.is_empty() {
                 continue;
@@ -132,7 +134,7 @@ mod mock {
             let mut kv = part.splitn(2, '=');
             let key = kv.next().unwrap();
             let value = kv.next().unwrap_or("");
-            
+
             match key {
                 "token" => token = Some(value.to_string()),
                 "object" => object = Some(value.to_string()),
@@ -140,8 +142,12 @@ mod mock {
                 _ => {} // Ignore unknown attributes
             }
         }
-        
-        Ok(Pkcs11Uri { token, object, slot_id })
+
+        Ok(Pkcs11Uri {
+            token,
+            object,
+            slot_id,
+        })
     }
 
     #[derive(Debug)]
@@ -172,10 +178,9 @@ mod mock {
     }
 
     fn is_valid_key_type(key_type: &str) -> bool {
-        matches!(key_type,
-            "aes128" | "aes256" |
-            "ec-p256" | "ec-p384" |
-            "rsa2048" | "rsa4096"
+        matches!(
+            key_type,
+            "aes128" | "aes256" | "ec-p256" | "ec-p384" | "rsa2048" | "rsa4096"
         )
     }
 
@@ -215,11 +220,15 @@ mod mock {
             if data.len() < type_start + 1 + type_len {
                 return Err("Data too short for key type");
             }
-            let key_type = String::from_utf8_lossy(
-                &data[type_start + 1..type_start + 1 + type_len]
-            ).to_string();
+            let key_type =
+                String::from_utf8_lossy(&data[type_start + 1..type_start + 1 + type_len])
+                    .to_string();
 
-            Ok(Self { id, label, key_type })
+            Ok(Self {
+                id,
+                label,
+                key_type,
+            })
         }
     }
 }
@@ -230,7 +239,7 @@ mod mock {
 
 #[cfg(feature = "hsm-real")]
 mod real {
-    use crypto_core::hsm::{HsmProvider, HsmUri, SecurePin, HsmKeyType};
+    use crypto_core::hsm::{HsmKeyType, HsmProvider, HsmUri, SecurePin};
 
     /// Get test HSM configuration from environment
     fn get_test_config() -> Option<(String, String)> {
@@ -270,21 +279,24 @@ mod real {
         let mut session = provider.open_session(&pin).expect("Failed to open session");
 
         // Generate key
-        let key_handle = session.generate_key(
-            HsmKeyType::Aes256,
-            "meow-test-key-lifecycle",
-        ).expect("Failed to generate key");
+        let key_handle = session
+            .generate_key(HsmKeyType::Aes256, "meow-test-key-lifecycle")
+            .expect("Failed to generate key");
 
         // Find key
-        let found = session.find_key("meow-test-key-lifecycle")
+        let found = session
+            .find_key("meow-test-key-lifecycle")
             .expect("Failed to find key");
         assert!(found.is_some());
 
         // Delete key (cleanup)
-        session.delete_key(&key_handle).expect("Failed to delete key");
+        session
+            .delete_key(&key_handle)
+            .expect("Failed to delete key");
 
         // Verify deleted
-        let not_found = session.find_key("meow-test-key-lifecycle")
+        let not_found = session
+            .find_key("meow-test-key-lifecycle")
             .expect("Failed to search for key");
         assert!(not_found.is_none());
     }
@@ -303,38 +315,35 @@ mod real {
         let mut session = provider.open_session(&pin).expect("Failed to open session");
 
         // Generate key
-        let key_handle = session.generate_key(
-            HsmKeyType::Aes256,
-            "meow-test-encrypt",
-        ).expect("Failed to generate key");
+        let key_handle = session
+            .generate_key(HsmKeyType::Aes256, "meow-test-encrypt")
+            .expect("Failed to generate key");
 
         // Test data
         let plaintext = b"Hello from the HSM! This is a test message.";
         let aad = b"additional authenticated data";
 
         // Generate nonce
-        let nonce = session.generate_random(12).expect("Failed to generate nonce");
+        let nonce = session
+            .generate_random(12)
+            .expect("Failed to generate nonce");
 
         // Encrypt
-        let ciphertext = session.encrypt_aes_gcm(
-            &key_handle,
-            &nonce,
-            plaintext,
-            Some(aad),
-        ).expect("Failed to encrypt");
+        let ciphertext = session
+            .encrypt_aes_gcm(&key_handle, &nonce, plaintext, Some(aad))
+            .expect("Failed to encrypt");
 
         // Decrypt
-        let decrypted = session.decrypt_aes_gcm(
-            &key_handle,
-            &nonce,
-            &ciphertext,
-            Some(aad),
-        ).expect("Failed to decrypt");
+        let decrypted = session
+            .decrypt_aes_gcm(&key_handle, &nonce, &ciphertext, Some(aad))
+            .expect("Failed to decrypt");
 
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
 
         // Cleanup
-        session.delete_key(&key_handle).expect("Failed to delete key");
+        session
+            .delete_key(&key_handle)
+            .expect("Failed to delete key");
     }
 
     #[test]
@@ -351,26 +360,24 @@ mod real {
         let mut session = provider.open_session(&pin).expect("Failed to open session");
 
         // Generate master key
-        let master = session.generate_key(
-            HsmKeyType::Aes256,
-            "meow-master-key",
-        ).expect("Failed to generate master key");
+        let master = session
+            .generate_key(HsmKeyType::Aes256, "meow-master-key")
+            .expect("Failed to generate master key");
 
         // Derive encryption key
-        let derived = session.derive_key(
-            &master,
-            b"encryption-key",
-            b"meow-kdf-context",
-            32,
-        ).expect("Failed to derive key");
+        let derived = session
+            .derive_key(&master, b"encryption-key", b"meow-kdf-context", 32)
+            .expect("Failed to derive key");
 
         // Verify derived key can be used
         let nonce = session.generate_random(12).expect("Random");
         let plaintext = b"test";
-        
-        let ciphertext = session.encrypt_aes_gcm(&derived, &nonce, plaintext, None)
+
+        let ciphertext = session
+            .encrypt_aes_gcm(&derived, &nonce, plaintext, None)
             .expect("Encrypt with derived key");
-        let decrypted = session.decrypt_aes_gcm(&derived, &nonce, &ciphertext, None)
+        let decrypted = session
+            .decrypt_aes_gcm(&derived, &nonce, &ciphertext, None)
             .expect("Decrypt with derived key");
 
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
@@ -390,7 +397,7 @@ mod properties {
     use super::mock::*;
 
     /// HSM-001: Key material never leaves HSM
-    /// 
+    ///
     /// Verified by:
     /// - API returns handles, not key bytes
     /// - All crypto operations happen inside HSM
@@ -404,7 +411,7 @@ mod properties {
         };
 
         let serialized = handle.serialize();
-        
+
         // Verify no 32-byte AES key in serialized data
         assert!(serialized.len() < 32, "Handle should not contain full key");
     }

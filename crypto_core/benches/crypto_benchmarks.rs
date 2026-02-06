@@ -17,7 +17,7 @@
 //! cargo bench -- --save-baseline main
 //! ```
 
-use criterion::{black_box, criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
+use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 
 // ============================================
 // AES-256-GCM Benchmarks
@@ -43,7 +43,9 @@ fn bench_aes_gcm(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("encrypt", size), size, |b, _| {
             b.iter(|| {
-                cipher.encrypt(nonce, black_box(plaintext.as_slice())).unwrap()
+                cipher
+                    .encrypt(nonce, black_box(plaintext.as_slice()))
+                    .unwrap()
             })
         });
 
@@ -52,7 +54,9 @@ fn bench_aes_gcm(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::new("decrypt", size), size, |b, _| {
             b.iter(|| {
-                cipher.decrypt(nonce, black_box(ciphertext.as_slice())).unwrap()
+                cipher
+                    .decrypt(nonce, black_box(ciphertext.as_slice()))
+                    .unwrap()
             })
         });
     }
@@ -66,15 +70,15 @@ fn bench_aes_gcm(c: &mut Criterion) {
 
 #[cfg(feature = "argon2")]
 fn bench_argon2id(c: &mut Criterion) {
-    use argon2::{Argon2, Algorithm, Version, Params};
+    use argon2::{Algorithm, Argon2, Params, Version};
 
     let mut group = c.benchmark_group("argon2id");
 
     // Test different memory costs (in KiB)
     // Note: Higher memory = more secure but slower
     let configs = [
-        ("32MiB_1iter", 32 * 1024, 1),   // Fast (testing)
-        ("64MiB_3iter", 64 * 1024, 3),   // OWASP minimum
+        ("32MiB_1iter", 32 * 1024, 1),     // Fast (testing)
+        ("64MiB_3iter", 64 * 1024, 3),     // OWASP minimum
         ("256MiB_10iter", 256 * 1024, 10), // Enhanced
         ("512MiB_20iter", 512 * 1024, 20), // Ultra (production default)
     ];
@@ -94,11 +98,9 @@ fn bench_argon2id(c: &mut Criterion) {
         group.bench_function(*name, |b| {
             b.iter(|| {
                 let mut output = [0u8; 32];
-                argon2.hash_password_into(
-                    black_box(password),
-                    black_box(&salt),
-                    &mut output,
-                ).unwrap();
+                argon2
+                    .hash_password_into(black_box(password), black_box(&salt), &mut output)
+                    .unwrap();
                 output
             })
         });
@@ -113,8 +115,8 @@ fn bench_argon2id(c: &mut Criterion) {
 
 #[cfg(feature = "x25519")]
 fn bench_x25519(c: &mut Criterion) {
-    use x25519_dalek::{EphemeralSecret, PublicKey};
     use rand_core::OsRng;
+    use x25519_dalek::{EphemeralSecret, PublicKey};
 
     let mut group = c.benchmark_group("x25519");
 
@@ -147,8 +149,8 @@ fn bench_x25519(c: &mut Criterion) {
 
 #[cfg(feature = "pq-crypto")]
 fn bench_ml_kem(c: &mut Criterion) {
-    use ml_kem::{MlKem768, KemCore};
-    use kem::{Encapsulate, Decapsulate};
+    use kem::{Decapsulate, Encapsulate};
+    use ml_kem::{KemCore, MlKem768};
 
     let mut group = c.benchmark_group("ml_kem_768");
 
@@ -164,18 +166,14 @@ fn bench_ml_kem(c: &mut Criterion) {
     let (dk, ek) = MlKem768::generate(&mut rand_core::OsRng);
 
     group.bench_function("encapsulate", |b| {
-        b.iter(|| {
-            ek.encapsulate(&mut rand_core::OsRng).unwrap()
-        })
+        b.iter(|| ek.encapsulate(&mut rand_core::OsRng).unwrap())
     });
 
     // Pre-encapsulate for decap benchmark
     let (ciphertext, _shared_secret) = ek.encapsulate(&mut rand_core::OsRng).unwrap();
 
     group.bench_function("decapsulate", |b| {
-        b.iter(|| {
-            dk.decapsulate(black_box(&ciphertext)).unwrap()
-        })
+        b.iter(|| dk.decapsulate(black_box(&ciphertext)).unwrap())
     });
 
     group.finish();
@@ -187,8 +185,8 @@ fn bench_ml_kem(c: &mut Criterion) {
 
 #[cfg(feature = "pq-crypto")]
 fn bench_ml_kem_1024(c: &mut Criterion) {
-    use ml_kem::{MlKem1024, KemCore};
-    use kem::{Encapsulate, Decapsulate};
+    use kem::{Decapsulate, Encapsulate};
+    use ml_kem::{KemCore, MlKem1024};
 
     let mut group = c.benchmark_group("ml_kem_1024");
 
@@ -202,17 +200,13 @@ fn bench_ml_kem_1024(c: &mut Criterion) {
     let (dk, ek) = MlKem1024::generate(&mut rand_core::OsRng);
 
     group.bench_function("encapsulate", |b| {
-        b.iter(|| {
-            ek.encapsulate(&mut rand_core::OsRng).unwrap()
-        })
+        b.iter(|| ek.encapsulate(&mut rand_core::OsRng).unwrap())
     });
 
     let (ciphertext, _) = ek.encapsulate(&mut rand_core::OsRng).unwrap();
 
     group.bench_function("decapsulate", |b| {
-        b.iter(|| {
-            dk.decapsulate(black_box(&ciphertext)).unwrap()
-        })
+        b.iter(|| dk.decapsulate(black_box(&ciphertext)).unwrap())
     });
 
     group.finish();
@@ -224,32 +218,24 @@ fn bench_ml_kem_1024(c: &mut Criterion) {
 
 #[cfg(feature = "liboqs-native")]
 fn bench_liboqs_kem(c: &mut Criterion) {
-    use oqs::kem::{Kem, Algorithm};
+    use oqs::kem::{Algorithm, Kem};
 
     let mut group = c.benchmark_group("liboqs_ml_kem_768");
 
     let kem = Kem::new(Algorithm::MlKem768).unwrap();
 
-    group.bench_function("keygen", |b| {
-        b.iter(|| {
-            kem.keypair().unwrap()
-        })
-    });
+    group.bench_function("keygen", |b| b.iter(|| kem.keypair().unwrap()));
 
     let (pk, sk) = kem.keypair().unwrap();
 
     group.bench_function("encapsulate", |b| {
-        b.iter(|| {
-            kem.encapsulate(black_box(&pk)).unwrap()
-        })
+        b.iter(|| kem.encapsulate(black_box(&pk)).unwrap())
     });
 
     let (ct, _ss) = kem.encapsulate(&pk).unwrap();
 
     group.bench_function("decapsulate", |b| {
-        b.iter(|| {
-            kem.decapsulate(black_box(&sk), black_box(&ct)).unwrap()
-        })
+        b.iter(|| kem.decapsulate(black_box(&sk), black_box(&ct)).unwrap())
     });
 
     group.finish();
@@ -271,14 +257,18 @@ fn bench_hkdf(c: &mut Criterion) {
     let info = b"meow_decoder_benchmark";
 
     for output_len in [32, 64, 128, 256].iter() {
-        group.bench_with_input(BenchmarkId::new("expand", output_len), output_len, |b, &len| {
-            let hkdf = Hkdf::<Sha256>::new(Some(&salt), &ikm);
-            let mut okm = vec![0u8; len];
+        group.bench_with_input(
+            BenchmarkId::new("expand", output_len),
+            output_len,
+            |b, &len| {
+                let hkdf = Hkdf::<Sha256>::new(Some(&salt), &ikm);
+                let mut okm = vec![0u8; len];
 
-            b.iter(|| {
-                hkdf.expand(black_box(info), &mut okm).unwrap();
-            })
-        });
+                b.iter(|| {
+                    hkdf.expand(black_box(info), &mut okm).unwrap();
+                })
+            },
+        );
     }
 
     group.finish();
@@ -289,10 +279,7 @@ fn bench_hkdf(c: &mut Criterion) {
 // ============================================
 
 // Base benchmarks (always available)
-criterion_group!(
-    benches_base,
-    bench_aes_gcm,
-);
+criterion_group!(benches_base, bench_aes_gcm,);
 
 // Optional feature benchmarks
 #[cfg(feature = "argon2")]

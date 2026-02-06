@@ -63,18 +63,18 @@ pub struct Argon2idParams {
 impl Argon2idParams {
     /// Our production defaults (ultra-hardened)
     pub const PRODUCTION: Self = Self {
-        memory_kib: 524288,  // 512 MiB
+        memory_kib: 524288, // 512 MiB
         iterations: 20,
         parallelism: 4,
     };
-    
+
     /// OWASP minimum (reference)
     pub const OWASP_MIN: Self = Self {
-        memory_kib: 65536,  // 64 MiB
+        memory_kib: 65536, // 64 MiB
         iterations: 3,
         parallelism: 4,
     };
-    
+
     /// Check if parameters meet security requirements
     pub fn is_secure(&self) -> bool {
         // OWASP minimums
@@ -85,7 +85,7 @@ impl Argon2idParams {
         // GPU resistance factor (memory * iterations threshold)
         (self.memory_kib as u64) * (self.iterations as u64) >= 3_000_000
     }
-    
+
     /// Compute GPU resistance factor
     pub fn gpu_resistance_factor(&self) -> u64 {
         (self.memory_kib as u64) * (self.iterations as u64)
@@ -139,7 +139,7 @@ impl DomainSeparation {
     pub const QUANTUM_NOISE_INFO: &'static [u8] = b"meow_quantum_noise_v1";
     pub const RATCHET_DOMAIN: &'static [u8] = b"meow_ratchet_v3";
     pub const DURESS_HASH_PREFIX: &'static [u8] = b"duress_check_v1";
-    
+
     /// Verify all contexts are distinct (no prefix collisions)
     pub fn verify_no_prefix_collision() -> bool {
         let contexts: &[&[u8]] = &[
@@ -151,7 +151,7 @@ impl DomainSeparation {
             Self::RATCHET_DOMAIN,
             Self::DURESS_HASH_PREFIX,
         ];
-        
+
         // Check no context is a prefix of another
         for (i, c1) in contexts.iter().enumerate() {
             for (j, c2) in contexts.iter().enumerate() {
@@ -164,7 +164,7 @@ impl DomainSeparation {
         }
         true
     }
-    
+
     /// Verify all contexts use versioned naming
     pub fn verify_versioned_contexts() -> bool {
         let contexts: &[&[u8]] = &[
@@ -176,7 +176,7 @@ impl DomainSeparation {
             Self::RATCHET_DOMAIN,
             Self::DURESS_HASH_PREFIX,
         ];
-        
+
         // Each context should contain "_v" version marker
         contexts.iter().all(|c| {
             let s = std::str::from_utf8(c).unwrap_or("");
@@ -223,9 +223,9 @@ pub fn domain_separation_proof() -> &'static str {
 pub struct SaltRequirements;
 
 impl SaltRequirements {
-    pub const REQUIRED_LENGTH: usize = 16;  // 128 bits
+    pub const REQUIRED_LENGTH: usize = 16; // 128 bits
     pub const ENTROPY_BITS: usize = 128;
-    
+
     /// Calculate birthday bound collision probability
     /// Returns log2(1/P) for n samples from 2^128 space
     pub fn birthday_security_margin(num_encryptions_log2: u32) -> u32 {
@@ -237,7 +237,7 @@ impl SaltRequirements {
             129 - 2 * num_encryptions_log2
         }
     }
-    
+
     /// Check if salt meets requirements
     pub fn is_valid(salt: &[u8]) -> bool {
         salt.len() == Self::REQUIRED_LENGTH
@@ -258,7 +258,7 @@ pub fn salt_freshness_proof() -> &'static str {
 ///
 /// Verus specification:
 /// ```verus
-/// datatype KeyState = 
+/// datatype KeyState =
 ///     | NotDerived
 ///     | Derived(key: Seq<u8>)
 ///     | InUse(key: Seq<u8>)
@@ -301,12 +301,12 @@ impl KeyLifecycleState {
     /// Check if transition is valid
     pub fn can_transition_to(&self, next: Self) -> bool {
         match (*self, next) {
-            (Self::NotDerived, Self::Derived) => true,  // derive_key()
-            (Self::Derived, Self::InUse) => true,       // start using
-            (Self::InUse, Self::Derived) => true,       // operation done
-            (Self::Derived, Self::Zeroed) => true,      // cleanup
-            (Self::InUse, Self::Zeroed) => true,        // cleanup during use
-            (Self::Zeroed, _) => false,                 // no operations after zeroize
+            (Self::NotDerived, Self::Derived) => true, // derive_key()
+            (Self::Derived, Self::InUse) => true,      // start using
+            (Self::InUse, Self::Derived) => true,      // operation done
+            (Self::Derived, Self::Zeroed) => true,     // cleanup
+            (Self::InUse, Self::Zeroed) => true,       // cleanup during use
+            (Self::Zeroed, _) => false,                // no operations after zeroize
             _ => false,
         }
     }
@@ -356,14 +356,12 @@ pub enum ErrorPathProperty {
 impl ErrorPathProperty {
     pub fn description(&self) -> &'static str {
         match self {
-            Self::NoPartialPlaintext => 
-                "Decryption either succeeds completely or returns no data",
-            Self::SafeErrorMessages =>
-                "Error messages contain no secret material (keys, plaintext)",
-            Self::ConstantTimeErrors =>
-                "Error paths take same time regardless of failure point",
-            Self::CleanupOnError =>
-                "All allocated resources are freed on error paths",
+            Self::NoPartialPlaintext => "Decryption either succeeds completely or returns no data",
+            Self::SafeErrorMessages => {
+                "Error messages contain no secret material (keys, plaintext)"
+            }
+            Self::ConstantTimeErrors => "Error paths take same time regardless of failure point",
+            Self::CleanupOnError => "All allocated resources are freed on error paths",
         }
     }
 }
@@ -412,7 +410,7 @@ impl TimingAnalysis {
             "GCM tag verification (via aes_gcm crate)",
         ]
     }
-    
+
     /// Operations with timing equalization (random delay)
     pub fn timing_equalized_operations() -> Vec<&'static str> {
         vec![
@@ -436,12 +434,28 @@ pub fn timing_uniformity_proof() -> &'static str {
 /// Extended verification coverage
 pub fn extended_verification_status() -> Vec<(&'static str, &'static str, &'static str)> {
     vec![
-        ("KDF-001", "Key Derivation Correctness", "Runtime + bounds check"),
-        ("KDF-002", "Domain Separation", "Static analysis (distinct strings)"),
+        (
+            "KDF-001",
+            "Key Derivation Correctness",
+            "Runtime + bounds check",
+        ),
+        (
+            "KDF-002",
+            "Domain Separation",
+            "Static analysis (distinct strings)",
+        ),
         ("KDF-003", "Salt Freshness", "CSPRNG + length check"),
         ("KDF-004", "Key Lifecycle", "Rust ownership + ZeroizeOnDrop"),
-        ("ERR-001", "Error Path Safety", "Type system (AuthenticatedPlaintext)"),
-        ("ERR-002", "Timing Uniformity", "compare_digest + equalize_timing"),
+        (
+            "ERR-001",
+            "Error Path Safety",
+            "Type system (AuthenticatedPlaintext)",
+        ),
+        (
+            "ERR-002",
+            "Timing Uniformity",
+            "compare_digest + equalize_timing",
+        ),
     ]
 }
 
@@ -468,9 +482,18 @@ mod tests {
         // This is the OWASP reference minimum, not our production target
         // The is_secure() check requires gpu_resistance >= 3,000,000
         // So OWASP_MIN is not considered "secure" by our stricter standard
-        assert!(!params.is_secure(), "OWASP_MIN does not meet our enhanced security threshold");
-        assert!(params.memory_kib >= 65536, "OWASP_MIN meets OWASP memory requirement");
-        assert!(params.iterations >= 3, "OWASP_MIN meets OWASP iterations requirement");
+        assert!(
+            !params.is_secure(),
+            "OWASP_MIN does not meet our enhanced security threshold"
+        );
+        assert!(
+            params.memory_kib >= 65536,
+            "OWASP_MIN meets OWASP memory requirement"
+        );
+        assert!(
+            params.iterations >= 3,
+            "OWASP_MIN meets OWASP iterations requirement"
+        );
     }
 
     #[test]
@@ -487,7 +510,7 @@ mod tests {
     fn test_salt_requirements() {
         let good_salt = [0u8; 16];
         let bad_salt = [0u8; 15];
-        
+
         assert!(SaltRequirements::is_valid(&good_salt));
         assert!(!SaltRequirements::is_valid(&bad_salt));
     }
@@ -505,7 +528,7 @@ mod tests {
         let s = KeyLifecycleState::NotDerived;
         assert!(s.can_transition_to(KeyLifecycleState::Derived));
         assert!(!s.can_transition_to(KeyLifecycleState::InUse));
-        
+
         let s = KeyLifecycleState::Zeroed;
         assert!(!s.can_transition_to(KeyLifecycleState::Derived));
         assert!(!s.can_transition_to(KeyLifecycleState::InUse));
@@ -522,7 +545,7 @@ mod tests {
     fn test_extended_verification_status() {
         let status = extended_verification_status();
         assert_eq!(status.len(), 6);
-        
+
         // All KDF properties covered
         assert!(status.iter().any(|(id, _, _)| *id == "KDF-001"));
         assert!(status.iter().any(|(id, _, _)| *id == "KDF-002"));
@@ -540,19 +563,19 @@ mod tests {
         assert!(!s.can_transition_to(KeyLifecycleState::InUse));
         assert!(!s.can_transition_to(KeyLifecycleState::Zeroed));
         assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
-        
+
         let s = KeyLifecycleState::Derived;
         assert!(s.can_transition_to(KeyLifecycleState::InUse));
         assert!(s.can_transition_to(KeyLifecycleState::Zeroed));
         assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
         assert!(!s.can_transition_to(KeyLifecycleState::Derived));
-        
+
         let s = KeyLifecycleState::InUse;
         assert!(s.can_transition_to(KeyLifecycleState::Derived));
         assert!(s.can_transition_to(KeyLifecycleState::Zeroed));
         assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
         assert!(!s.can_transition_to(KeyLifecycleState::InUse));
-        
+
         let s = KeyLifecycleState::Zeroed;
         assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
         assert!(!s.can_transition_to(KeyLifecycleState::Derived));
@@ -568,17 +591,25 @@ mod tests {
             ErrorPathProperty::ConstantTimeErrors,
             ErrorPathProperty::CleanupOnError,
         ];
-        
+
         for prop in &props {
             let desc = prop.description();
             assert!(!desc.is_empty());
         }
-        
+
         // Verify specific descriptions
-        assert!(ErrorPathProperty::NoPartialPlaintext.description().contains("succeeds completely"));
-        assert!(ErrorPathProperty::SafeErrorMessages.description().contains("no secret"));
-        assert!(ErrorPathProperty::ConstantTimeErrors.description().contains("same time"));
-        assert!(ErrorPathProperty::CleanupOnError.description().contains("freed"));
+        assert!(ErrorPathProperty::NoPartialPlaintext
+            .description()
+            .contains("succeeds completely"));
+        assert!(ErrorPathProperty::SafeErrorMessages
+            .description()
+            .contains("no secret"));
+        assert!(ErrorPathProperty::ConstantTimeErrors
+            .description()
+            .contains("same time"));
+        assert!(ErrorPathProperty::CleanupOnError
+            .description()
+            .contains("freed"));
     }
 
     #[test]

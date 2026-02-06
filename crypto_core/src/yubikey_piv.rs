@@ -40,9 +40,7 @@ use yubikey::{
 #[cfg(feature = "yubikey")]
 use ctap_hid_fido2::{
     fidokey::{GetAssertionArgsBuilder, MakeCredentialArgsBuilder},
-    FidoKeyHid, HidInfo,
-    verifier,
-    Cfg, FidoKeyHidFactory,
+    verifier, Cfg, FidoKeyHid, FidoKeyHidFactory, HidInfo,
 };
 
 use zeroize::{Zeroize, ZeroizeOnDrop};
@@ -121,7 +119,7 @@ pub enum PivSlot {
     Authentication,
     /// Card management (9b)
     CardManagement,
-    /// Digital signature (9c) 
+    /// Digital signature (9c)
     DigitalSignature,
     /// Key management / encryption (9d)
     KeyManagement,
@@ -152,7 +150,9 @@ impl PivSlot {
             PivSlot::DigitalSignature => SlotId::Signature,
             PivSlot::KeyManagement => SlotId::KeyManagement,
             PivSlot::CardAuthentication => SlotId::CardAuthentication,
-            PivSlot::Retired(n) if *n <= 20 => SlotId::Retired(piv::RetiredSlotId::try_from(*n).unwrap()),
+            PivSlot::Retired(n) if *n <= 20 => {
+                SlotId::Retired(piv::RetiredSlotId::try_from(*n).unwrap())
+            }
             _ => SlotId::Authentication, // Fallback
         }
     }
@@ -179,12 +179,12 @@ impl YubiKeyType {
         match self {
             YubiKeyType::Rsa2048 => Ok(AlgorithmId::Rsa2048),
             YubiKeyType::Rsa4096 => Err(YubiKeyError::NotSupported(
-                "RSA 4096 not supported in PIV (max 2048-bit)".into()
+                "RSA 4096 not supported in PIV (max 2048-bit)".into(),
             )),
             YubiKeyType::EcP256 => Ok(AlgorithmId::EccP256),
             YubiKeyType::EcP384 => Ok(AlgorithmId::EccP384),
             YubiKeyType::Ed25519 => Err(YubiKeyError::NotSupported(
-                "Ed25519 not supported in PIV".into()
+                "Ed25519 not supported in PIV".into(),
             )),
         }
     }
@@ -236,13 +236,13 @@ pub struct YubiKeyProvider {
 impl YubiKeyProvider {
     /// Connect to first available YubiKey
     pub fn connect() -> Result<Self, YubiKeyError> {
-        let mut yubikey = YubiKey::open()
-            .map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?;
-        
+        let mut yubikey =
+            YubiKey::open().map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?;
+
         let serial = yubikey.serial().0;
         let version = format!("{}", yubikey.version());
         let name = yubikey.name().to_string();
-        
+
         let info = YubiKeyInfo {
             serial,
             version,
@@ -250,7 +250,7 @@ impl YubiKeyProvider {
             fido2_supported: true, // Modern YubiKeys support FIDO2
             piv_supported: true,
         };
-        
+
         Ok(Self { yubikey, info })
     }
 
@@ -258,10 +258,10 @@ impl YubiKeyProvider {
     pub fn connect_by_serial(serial: u32) -> Result<Self, YubiKeyError> {
         let mut yubikey = YubiKey::open_by_serial(yubikey::Serial(serial))
             .map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?;
-        
+
         let version = format!("{}", yubikey.version());
         let name = yubikey.name().to_string();
-        
+
         let info = YubiKeyInfo {
             serial,
             version,
@@ -269,7 +269,7 @@ impl YubiKeyProvider {
             fido2_supported: true,
             piv_supported: true,
         };
-        
+
         Ok(Self { yubikey, info })
     }
 
@@ -277,9 +277,12 @@ impl YubiKeyProvider {
     pub fn list_devices() -> Result<Vec<YubiKeyInfo>, YubiKeyError> {
         let mut readers = yubikey::reader::Context::open()
             .map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?;
-        
+
         let mut devices = Vec::new();
-        for reader in readers.iter().map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))? {
+        for reader in readers
+            .iter()
+            .map_err(|e| YubiKeyError::ConnectionFailed(e.to_string()))?
+        {
             if let Ok(yk) = reader.open() {
                 devices.push(YubiKeyInfo {
                     serial: yk.serial().0,
@@ -290,7 +293,7 @@ impl YubiKeyProvider {
                 });
             }
         }
-        
+
         if devices.is_empty() {
             Err(YubiKeyError::NotFound)
         } else {
@@ -305,7 +308,8 @@ impl YubiKeyProvider {
 
     /// Verify PIN
     pub fn verify_pin(&mut self, pin: &YubiKeyPin) -> Result<(), YubiKeyError> {
-        self.yubikey.verify_pin(pin.pin.as_bytes())
+        self.yubikey
+            .verify_pin(pin.pin.as_bytes())
             .map_err(|e| match e {
                 yubikey::Error::WrongPin { tries } => YubiKeyError::PinIncorrect(tries),
                 yubikey::Error::PinLocked => YubiKeyError::PinBlocked,
@@ -329,28 +333,23 @@ impl YubiKeyProvider {
     ) -> Result<Vec<u8>, YubiKeyError> {
         let slot_id = slot.to_slot_id();
         let algorithm = key_type.to_algorithm_id()?;
-        
+
         let pin_pol = if pin_policy {
             PinPolicy::Always
         } else {
             PinPolicy::Default
         };
-        
+
         let touch_pol = if touch_policy {
             TouchPolicy::Always
         } else {
             TouchPolicy::Default
         };
-        
+
         // Generate key
-        let public_key = piv::generate(
-            &mut self.yubikey,
-            slot_id,
-            algorithm,
-            pin_pol,
-            touch_pol,
-        ).map_err(|e| YubiKeyError::KeyGenerationFailed(e.to_string()))?;
-        
+        let public_key = piv::generate(&mut self.yubikey, slot_id, algorithm, pin_pol, touch_pol)
+            .map_err(|e| YubiKeyError::KeyGenerationFailed(e.to_string()))?;
+
         // Return public key bytes
         Ok(public_key.to_vec())
     }
@@ -370,21 +369,17 @@ impl YubiKeyProvider {
         if let Some(p) = pin {
             self.verify_pin(p)?;
         }
-        
+
         let slot_id = slot.to_slot_id();
-        
+
         // Get key info to determine algorithm
         let key_info = piv::metadata(&mut self.yubikey, slot_id)
             .map_err(|e| YubiKeyError::SlotEmpty(format!("{:?}", slot)))?;
-        
+
         // Sign the data
-        let signature = piv::sign_data(
-            &mut self.yubikey,
-            data,
-            key_info.algorithm,
-            slot_id,
-        ).map_err(|e| YubiKeyError::SigningFailed(e.to_string()))?;
-        
+        let signature = piv::sign_data(&mut self.yubikey, data, key_info.algorithm, slot_id)
+            .map_err(|e| YubiKeyError::SigningFailed(e.to_string()))?;
+
         Ok(signature.to_vec())
     }
 
@@ -398,19 +393,16 @@ impl YubiKeyProvider {
         if let Some(p) = pin {
             self.verify_pin(p)?;
         }
-        
+
         let slot_id = slot.to_slot_id();
-        
+
         let key_info = piv::metadata(&mut self.yubikey, slot_id)
             .map_err(|e| YubiKeyError::SlotEmpty(format!("{:?}", slot)))?;
-        
-        let plaintext = piv::decrypt_data(
-            &mut self.yubikey,
-            ciphertext,
-            key_info.algorithm,
-            slot_id,
-        ).map_err(|e| YubiKeyError::DecryptionFailed(e.to_string()))?;
-        
+
+        let plaintext =
+            piv::decrypt_data(&mut self.yubikey, ciphertext, key_info.algorithm, slot_id)
+                .map_err(|e| YubiKeyError::DecryptionFailed(e.to_string()))?;
+
         Ok(plaintext.to_vec())
     }
 
@@ -430,7 +422,7 @@ impl YubiKeyProvider {
         // Challenge-response uses different interface (yubico OTP)
         // This is a placeholder - actual implementation would use ykpers or similar
         Err(YubiKeyError::NotSupported(
-            "Challenge-response requires separate yubico OTP library".into()
+            "Challenge-response requires separate yubico OTP library".into(),
         ))
     }
 }
@@ -448,7 +440,7 @@ impl Fido2Provider {
     pub fn connect() -> Result<Self, YubiKeyError> {
         let device = FidoKeyHidFactory::create(&Cfg::init())
             .map_err(|e| YubiKeyError::ConnectionFailed(format!("{:?}", e)))?;
-        
+
         Ok(Self { device })
     }
 
@@ -456,7 +448,7 @@ impl Fido2Provider {
     pub fn list_devices() -> Result<Vec<HidInfo>, YubiKeyError> {
         let devices = ctap_hid_fido2::get_fidokey_devices()
             .map_err(|e| YubiKeyError::ConnectionFailed(format!("{:?}", e)))?;
-        
+
         Ok(devices)
     }
 
@@ -490,7 +482,7 @@ impl Fido2Provider {
         // FIDO2 GetAssertion with hmac-secret extension
         // This is a simplified implementation
         Err(YubiKeyError::NotSupported(
-            "FIDO2 hmac-secret requires credential setup".into()
+            "FIDO2 hmac-secret requires credential setup".into(),
         ))
     }
 
@@ -513,7 +505,7 @@ impl Fido2Provider {
     ) -> Result<Vec<u8>, YubiKeyError> {
         // Create credential with hmac-secret extension
         Err(YubiKeyError::NotSupported(
-            "Credential creation not yet implemented".into()
+            "Credential creation not yet implemented".into(),
         ))
     }
 }
@@ -565,29 +557,29 @@ pub fn derive_key_with_yubikey(
     slot: PivSlot,
     pin: Option<&YubiKeyPin>,
 ) -> Result<[u8; 32], YubiKeyError> {
-    use sha2::{Sha256, Digest};
     use hkdf::Hkdf;
-    
+    use sha2::{Digest, Sha256};
+
     // Hash password
     let password_hash = Sha256::digest(password);
-    
+
     // Sign password hash with YubiKey (requires physical device)
     let yk_response = yubikey.sign(slot, &password_hash, pin)?;
-    
+
     // Combine password hash + YubiKey response
     let mut ikm = Vec::with_capacity(32 + yk_response.len());
     ikm.extend_from_slice(&password_hash);
     ikm.extend_from_slice(&yk_response);
-    
+
     // Derive final key
     let hk = Hkdf::<Sha256>::new(Some(salt), &ikm);
     let mut okm = [0u8; 32];
     hk.expand(b"meow-yubikey-v1", &mut okm)
         .map_err(|e| YubiKeyError::Fido2Failed(e.to_string()))?;
-    
+
     // Zeroize intermediate material
     ikm.zeroize();
-    
+
     Ok(okm)
 }
 

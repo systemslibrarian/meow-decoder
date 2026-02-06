@@ -184,7 +184,10 @@ mod tests {
         let bytes = [0u8; 31];
         assert!(matches!(
             AeadKey::from_bytes(&bytes),
-            Err(KeyError::InvalidLength { expected: 32, got: 31 })
+            Err(KeyError::InvalidLength {
+                expected: 32,
+                got: 31
+            })
         ));
     }
 
@@ -220,19 +223,31 @@ mod tests {
 
     #[test]
     fn test_key_error_display() {
-        let err = KeyError::InvalidLength { expected: 32, got: 16 };
-        assert_eq!(format!("{}", err), "Invalid key length: expected 32, got 16");
+        let err = KeyError::InvalidLength {
+            expected: 32,
+            got: 16,
+        };
+        assert_eq!(
+            format!("{}", err),
+            "Invalid key length: expected 32, got 16"
+        );
     }
 
     #[test]
     fn test_key_error_is_error_trait() {
-        let err: &dyn std::error::Error = &KeyError::InvalidLength { expected: 32, got: 16 };
+        let err: &dyn std::error::Error = &KeyError::InvalidLength {
+            expected: 32,
+            got: 16,
+        };
         assert!(err.to_string().contains("32"));
     }
 
     #[test]
     fn test_aad_error_display() {
-        let err = AadError::TooLong { max: 16384, got: 20000 };
+        let err = AadError::TooLong {
+            max: 16384,
+            got: 20000,
+        };
         assert_eq!(format!("{}", err), "AAD too long: max 16384, got 20000");
     }
 

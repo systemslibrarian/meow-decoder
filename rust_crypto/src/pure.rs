@@ -275,7 +275,11 @@ pub fn hmac_sha256(key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
 }
 
 /// Verify HMAC-SHA256 in constant time.
-pub fn hmac_sha256_verify(key: &[u8], message: &[u8], expected_tag: &[u8]) -> Result<bool, CryptoError> {
+pub fn hmac_sha256_verify(
+    key: &[u8],
+    message: &[u8],
+    expected_tag: &[u8],
+) -> Result<bool, CryptoError> {
     let mut mac =
         <HmacSha256 as HmacMac>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
     mac.update(message);
@@ -610,7 +614,10 @@ mod tests {
         let key = [0u8; 32];
         let short_nonce = [0u8; 11];
         let result = aes_gcm_encrypt(&key, &short_nonce, b"test", None);
-        assert!(matches!(result, Err(CryptoError::InvalidNonceLength { .. })));
+        assert!(matches!(
+            result,
+            Err(CryptoError::InvalidNonceLength { .. })
+        ));
     }
 
     #[test]
@@ -842,14 +849,20 @@ mod tests {
         let (_, pk) = mlkem768_keygen();
         let (_, ct) = mlkem768_encapsulate(&pk).unwrap();
         let result = mlkem768_decapsulate(&[0u8; 100], &ct);
-        assert!(matches!(result, Err(CryptoError::InvalidMlKemPrivateKey(_))));
+        assert!(matches!(
+            result,
+            Err(CryptoError::InvalidMlKemPrivateKey(_))
+        ));
     }
 
     #[test]
     fn test_mlkem768_invalid_ciphertext() {
         let (sk, _) = mlkem768_keygen();
         let result = mlkem768_decapsulate(&sk, &[0u8; 100]);
-        assert!(matches!(result, Err(CryptoError::InvalidMlKemCiphertext(_))));
+        assert!(matches!(
+            result,
+            Err(CryptoError::InvalidMlKemCiphertext(_))
+        ));
     }
 
     // =========================================================================
@@ -859,9 +872,18 @@ mod tests {
     #[test]
     fn test_crypto_error_display() {
         let errors = vec![
-            CryptoError::InvalidSaltLength { expected: 16, got: 10 },
-            CryptoError::InvalidKeyLength { expected: 32, got: 16 },
-            CryptoError::InvalidNonceLength { expected: 12, got: 8 },
+            CryptoError::InvalidSaltLength {
+                expected: 16,
+                got: 10,
+            },
+            CryptoError::InvalidKeyLength {
+                expected: 32,
+                got: 16,
+            },
+            CryptoError::InvalidNonceLength {
+                expected: 12,
+                got: 8,
+            },
             CryptoError::CiphertextTooShort,
             CryptoError::InvalidArgon2Params("bad param".into()),
             CryptoError::Argon2Failed("failed".into()),

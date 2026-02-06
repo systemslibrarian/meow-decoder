@@ -78,7 +78,11 @@ impl std::fmt::Display for NonceError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::InvalidLength { expected, got } => {
-                write!(f, "Invalid nonce length: expected {}, got {}", expected, got)
+                write!(
+                    f,
+                    "Invalid nonce length: expected {}, got {}",
+                    expected, got
+                )
             }
             Self::AlreadyUsed => write!(f, "Nonce already used"),
             Self::Exhausted => write!(f, "Nonce counter exhausted"),
@@ -126,7 +130,7 @@ impl NonceGenerator {
         let mut session_id = [0u8; 4];
         getrandom::getrandom(&mut session_id)
             .expect("System RNG failed - cannot generate secure nonces");
-        
+
         Self {
             counter: AtomicU64::new(0),
             session_id,
@@ -153,14 +157,14 @@ impl NonceGenerator {
     /// # Verus Specification
     /// ```verus
     /// requires self.counter.load() < MAX_COUNTER
-    /// ensures result.is_ok() ==> 
+    /// ensures result.is_ok() ==>
     ///     self.counter.load() == old(self.counter.load()) + 1
     /// ensures result.is_ok() ==>
     ///     forall prev_nonce in old(self.generated): result.unwrap() != prev_nonce
     /// ```
     pub fn next(&self) -> Result<Nonce, NonceError> {
         let count = self.counter.fetch_add(1, Ordering::SeqCst);
-        
+
         if count >= Self::MAX_COUNTER {
             return Err(NonceError::Exhausted);
         }
@@ -308,7 +312,10 @@ mod tests {
         let bytes = [1u8; 11];
         assert!(matches!(
             Nonce::from_bytes(&bytes),
-            Err(NonceError::InvalidLength { expected: 12, got: 11 })
+            Err(NonceError::InvalidLength {
+                expected: 12,
+                got: 11
+            })
         ));
     }
 
@@ -329,7 +336,7 @@ mod tests {
     #[test]
     fn test_generator_counter_format() {
         let gen = NonceGenerator::with_session_id([0xDE, 0xAD, 0xBE, 0xEF]);
-        
+
         let n1 = gen.next().unwrap();
         let n2 = gen.next().unwrap();
 
@@ -349,7 +356,7 @@ mod tests {
 
         // First use should succeed
         assert!(tracker.check_and_mark(&nonce).is_ok());
-        
+
         // Second use should fail
         assert!(matches!(
             tracker.check_and_mark(&nonce),
@@ -360,7 +367,7 @@ mod tests {
     #[test]
     fn test_tracker_capacity() {
         let mut tracker = NonceTracker::with_capacity(100);
-        
+
         for i in 0..100 {
             let mut bytes = [0u8; 12];
             bytes[0..8].copy_from_slice(&(i as u64).to_be_bytes());
@@ -387,13 +394,19 @@ mod tests {
     #[test]
     fn test_nonce_error_display() {
         // Test InvalidLength display
-        let err = NonceError::InvalidLength { expected: 12, got: 8 };
-        assert_eq!(format!("{}", err), "Invalid nonce length: expected 12, got 8");
-        
+        let err = NonceError::InvalidLength {
+            expected: 12,
+            got: 8,
+        };
+        assert_eq!(
+            format!("{}", err),
+            "Invalid nonce length: expected 12, got 8"
+        );
+
         // Test AlreadyUsed display
         let err = NonceError::AlreadyUsed;
         assert_eq!(format!("{}", err), "Nonce already used");
-        
+
         // Test Exhausted display
         let err = NonceError::Exhausted;
         assert_eq!(format!("{}", err), "Nonce counter exhausted");
@@ -428,15 +441,15 @@ mod tests {
     fn test_tracker_clear() {
         let mut tracker = NonceTracker::new();
         let nonce = Nonce::from_array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
-        
+
         // Mark as used
         tracker.check_and_mark(&nonce).unwrap();
         assert_eq!(tracker.len(), 1);
-        
+
         // Clear tracker
         tracker.clear();
         assert_eq!(tracker.len(), 0);
-        
+
         // Should be able to use same nonce again after clear
         assert!(tracker.check_and_mark(&nonce).is_ok());
     }
@@ -445,14 +458,14 @@ mod tests {
     fn test_tracker_len() {
         let mut tracker = NonceTracker::new();
         assert_eq!(tracker.len(), 0);
-        
+
         for i in 0..5 {
             let mut bytes = [0u8; 12];
             bytes[0] = i;
             let nonce = Nonce::from_array(bytes);
             tracker.check_and_mark(&nonce).unwrap();
         }
-        
+
         assert_eq!(tracker.len(), 5);
     }
 }

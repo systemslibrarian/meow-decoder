@@ -4,14 +4,14 @@
 //!
 //! Run with: `cargo test --test proptest_crypto`
 
-use proptest::prelude::*;
 use aes_gcm::{
     aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
 };
 use argon2::{Algorithm, Argon2, Params, Version};
-use hmac::{Hmac, Mac, digest::KeyInit as HmacKeyInit};
-use sha2::{Sha256, Digest};
+use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac};
+use proptest::prelude::*;
+use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;

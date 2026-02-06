@@ -94,7 +94,9 @@ impl fmt::Display for HsmError {
             HsmError::DerivationFailed(msg) => write!(f, "HSM key derivation failed: {}", msg),
             HsmError::KeyNotFound(label) => write!(f, "HSM key not found: {}", label),
             HsmError::NotSupported(op) => write!(f, "HSM operation not supported: {}", op),
-            HsmError::FeatureDisabled => write!(f, "HSM feature not compiled (enable 'hsm' feature)"),
+            HsmError::FeatureDisabled => {
+                write!(f, "HSM feature not compiled (enable 'hsm' feature)")
+            }
         }
     }
 }
@@ -193,7 +195,7 @@ impl HsmUri {
     pub fn parse(uri: &str) -> Result<Self, HsmError> {
         if !uri.starts_with("pkcs11:") {
             return Err(HsmError::InitializationFailed(
-                "URI must start with 'pkcs11:'".into()
+                "URI must start with 'pkcs11:'".into(),
             ));
         }
 
@@ -217,7 +219,7 @@ impl HsmUri {
 
         if library_path.is_empty() {
             return Err(HsmError::InitializationFailed(
-                "library-path is required in URI".into()
+                "library-path is required in URI".into(),
             ));
         }
 
@@ -252,13 +254,13 @@ impl HsmProvider {
     /// Returns `HsmError::InitializationFailed` if PKCS#11 library cannot be loaded
     pub fn new(uri: &str) -> Result<Self, HsmError> {
         let parsed_uri = HsmUri::parse(uri)?;
-        
+
         let ctx = Pkcs11::new(Path::new(&parsed_uri.library_path))
             .map_err(|e| HsmError::InitializationFailed(e.to_string()))?;
-        
+
         ctx.initialize(CInitializeArgs::OsThreads)
             .map_err(|e| HsmError::InitializationFailed(e.to_string()))?;
-        
+
         Ok(Self {
             ctx: Arc::new(ctx),
             uri: parsed_uri,
@@ -267,9 +269,11 @@ impl HsmProvider {
 
     /// List available slots
     pub fn list_slots(&self) -> Result<Vec<HsmSlotInfo>, HsmError> {
-        let slots = self.ctx.get_slots_with_token()
+        let slots = self
+            .ctx
+            .get_slots_with_token()
             .map_err(|e| HsmError::InitializationFailed(e.to_string()))?;
-        
+
         let mut info = Vec::new();
         for slot in slots {
             if let Ok(token_info) = self.ctx.get_token_info(slot) {
@@ -296,27 +300,37 @@ impl HsmProvider {
     ///
     /// Returns `HsmError::SlotNotFound` if slot doesn't exist
     /// Returns `HsmError::AuthenticationFailed` if PIN is wrong
-    pub fn open_session(&self, slot_id: Option<u64>, pin: Option<SecurePin>) -> Result<HsmSession, HsmError> {
+    pub fn open_session(
+        &self,
+        slot_id: Option<u64>,
+        pin: Option<SecurePin>,
+    ) -> Result<HsmSession, HsmError> {
         let slot_id = slot_id.or(self.uri.slot_id).unwrap_or(0);
-        
-        let slots = self.ctx.get_slots_with_token()
+
+        let slots = self
+            .ctx
+            .get_slots_with_token()
             .map_err(|e| HsmError::SessionFailed(e.to_string()))?;
-        
-        let slot = slots.into_iter()
+
+        let slot = slots
+            .into_iter()
             .find(|s| s.id() == slot_id)
             .ok_or(HsmError::SlotNotFound(slot_id))?;
-        
+
         let flags = SessionFlags::SERIAL_SESSION | SessionFlags::RW_SESSION;
-        let session = self.ctx.open_session_no_callback(slot, flags)
+        let session = self
+            .ctx
+            .open_session_no_callback(slot, flags)
             .map_err(|e| HsmError::SessionFailed(e.to_string()))?;
-        
+
         // Authenticate if PIN provided
         if let Some(pin) = pin {
             let auth_pin = AuthPin::new(pin.pin.clone());
-            session.login(UserType::User, Some(&auth_pin))
+            session
+                .login(UserType::User, Some(&auth_pin))
                 .map_err(|_| HsmError::AuthenticationFailed)?;
         }
-        
+
         Ok(HsmSession {
             session,
             ctx: Arc::clone(&self.ctx),
@@ -363,7 +377,11 @@ impl HsmSession {
     /// - Key never leaves HSM boundary (HSM-001)
     /// - CKA_SENSITIVE = true (hardware protection)
     /// - CKA_EXTRACTABLE = false (no export)
-    pub fn generate_key(&self, key_type: HsmKeyType, label: &str) -> Result<HsmKeyHandle, HsmError> {
+    pub fn generate_key(
+        &self,
+        key_type: HsmKeyType,
+        label: &str,
+    ) -> Result<HsmKeyHandle, HsmError> {
         let mechanism = match key_type {
             HsmKeyType::Aes128 | HsmKeyType::Aes256 => Mechanism::AesKeyGen,
             HsmKeyType::EcdhP256 => Mechanism::EccKeyPairGen,
@@ -372,24 +390,26 @@ impl HsmSession {
             }
             HsmKeyType::GenericSecret => Mechanism::GenericSecretKeyGen,
         };
-        
+
         let key_len = (key_type.key_bits() / 8) as u64;
-        
+
         let template = vec![
-            Attribute::Token(true),           // Persistent key
-            Attribute::Private(true),         // Requires authentication
-            Attribute::Sensitive(true),       // Cannot be revealed in plaintext
-            Attribute::Extractable(false),    // Cannot be exported
-            Attribute::Encrypt(true),         // Can encrypt
-            Attribute::Decrypt(true),         // Can decrypt
-            Attribute::Derive(true),          // Can derive keys
-            Attribute::ValueLen(key_len),     // Key size
+            Attribute::Token(true),        // Persistent key
+            Attribute::Private(true),      // Requires authentication
+            Attribute::Sensitive(true),    // Cannot be revealed in plaintext
+            Attribute::Extractable(false), // Cannot be exported
+            Attribute::Encrypt(true),      // Can encrypt
+            Attribute::Decrypt(true),      // Can decrypt
+            Attribute::Derive(true),       // Can derive keys
+            Attribute::ValueLen(key_len),  // Key size
             Attribute::Label(label.as_bytes().to_vec()),
         ];
-        
-        let handle = self.session.generate_key(&mechanism, &template)
+
+        let handle = self
+            .session
+            .generate_key(&mechanism, &template)
             .map_err(|e| HsmError::KeyGenerationFailed(e.to_string()))?;
-        
+
         Ok(HsmKeyHandle {
             handle,
             label: label.into(),
@@ -403,18 +423,23 @@ impl HsmSession {
             Attribute::Label(label.as_bytes().to_vec()),
             Attribute::Class(ObjectClass::SECRET_KEY),
         ];
-        
-        let objects = self.session.find_objects(&template)
+
+        let objects = self
+            .session
+            .find_objects(&template)
             .map_err(|e| HsmError::KeyNotFound(e.to_string()))?;
-        
-        let handle = objects.into_iter()
+
+        let handle = objects
+            .into_iter()
             .next()
             .ok_or_else(|| HsmError::KeyNotFound(label.into()))?;
-        
+
         // Get key type from attributes
-        let attrs = self.session.get_attributes(handle, &[AttributeType::KeyType])
+        let attrs = self
+            .session
+            .get_attributes(handle, &[AttributeType::KeyType])
             .map_err(|e| HsmError::KeyNotFound(e.to_string()))?;
-        
+
         let key_type = if let Some(Attribute::KeyType(kt)) = attrs.first() {
             match kt {
                 KeyType::AES => HsmKeyType::Aes256,
@@ -424,7 +449,7 @@ impl HsmSession {
         } else {
             HsmKeyType::GenericSecret
         };
-        
+
         Ok(HsmKeyHandle {
             handle,
             label: label.into(),
@@ -453,23 +478,24 @@ impl HsmSession {
     ) -> Result<Vec<u8>, HsmError> {
         // Generate random IV
         let mut iv = [0u8; 12];
-        getrandom::getrandom(&mut iv)
-            .map_err(|e| HsmError::EncryptionFailed(e.to_string()))?;
-        
+        getrandom::getrandom(&mut iv).map_err(|e| HsmError::EncryptionFailed(e.to_string()))?;
+
         let mechanism = Mechanism::AesGcm {
             iv: iv.to_vec(),
             aad: aad.to_vec(),
             tag_bits: 128,
         };
-        
-        let ciphertext = self.session.encrypt(&mechanism, key.handle, plaintext)
+
+        let ciphertext = self
+            .session
+            .encrypt(&mechanism, key.handle, plaintext)
             .map_err(|e| HsmError::EncryptionFailed(e.to_string()))?;
-        
+
         // Prepend IV to ciphertext
         let mut result = Vec::with_capacity(12 + ciphertext.len());
         result.extend_from_slice(&iv);
         result.extend_from_slice(&ciphertext);
-        
+
         Ok(result)
     }
 
@@ -489,16 +515,17 @@ impl HsmSession {
         if ciphertext.len() < 12 + 16 {
             return Err(HsmError::DecryptionFailed("Ciphertext too short".into()));
         }
-        
+
         let (iv, ct) = ciphertext.split_at(12);
-        
+
         let mechanism = Mechanism::AesGcm {
             iv: iv.to_vec(),
             aad: aad.to_vec(),
             tag_bits: 128,
         };
-        
-        self.session.decrypt(&mechanism, key.handle, ct)
+
+        self.session
+            .decrypt(&mechanism, key.handle, ct)
             .map_err(|e| HsmError::DecryptionFailed(e.to_string()))
     }
 
@@ -523,14 +550,16 @@ impl HsmSession {
         let mut data = Vec::with_capacity(salt.len() + info.len());
         data.extend_from_slice(salt);
         data.extend_from_slice(info);
-        
+
         // Use SP800-108 KDF if available, otherwise SHA256 HMAC derivation
         let mechanism = Mechanism::Sha256Hmac;
-        
+
         // Derive in HSM
-        let derived = self.session.sign(&mechanism, key.handle, &data)
+        let derived = self
+            .session
+            .sign(&mechanism, key.handle, &data)
             .map_err(|e| HsmError::DerivationFailed(e.to_string()))?;
-        
+
         // Truncate to desired length
         if derived.len() >= output_len {
             Ok(derived[..output_len].to_vec())
@@ -541,7 +570,9 @@ impl HsmSession {
             while output.len() < output_len {
                 let mut round_data = data.clone();
                 round_data.push(counter);
-                let round = self.session.sign(&mechanism, key.handle, &round_data)
+                let round = self
+                    .session
+                    .sign(&mechanism, key.handle, &round_data)
                     .map_err(|e| HsmError::DerivationFailed(e.to_string()))?;
                 output.extend_from_slice(&round);
                 counter += 1;
@@ -552,7 +583,8 @@ impl HsmSession {
 
     /// Delete key from HSM
     pub fn delete_key(&self, key: HsmKeyHandle) -> Result<(), HsmError> {
-        self.session.destroy_object(key.handle)
+        self.session
+            .destroy_object(key.handle)
             .map_err(|e| HsmError::KeyNotFound(e.to_string()))
     }
 }
@@ -577,7 +609,8 @@ mod tests {
 
     #[test]
     fn test_uri_parsing() {
-        let uri = HsmUri::parse("pkcs11:library-path=/usr/lib/softhsm/libsofthsm2.so;slot=0").unwrap();
+        let uri =
+            HsmUri::parse("pkcs11:library-path=/usr/lib/softhsm/libsofthsm2.so;slot=0").unwrap();
         assert_eq!(uri.library_path, "/usr/lib/softhsm/libsofthsm2.so");
         assert_eq!(uri.slot_id, Some(0));
     }
