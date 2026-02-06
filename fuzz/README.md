@@ -11,10 +11,10 @@ The fuzzing infrastructure includes **821 lines of comprehensive tests** (`tests
 | Test Class | Tests | Description |
 |------------|-------|-------------|
 | `TestFuzzManifest` | 18 | Manifest parsing: MEOW2/3/4, forward secrecy, duress, PQ mode |
-| `TestFuzzCrypto` | 16 | Key derivation, decryption, HMAC verification, NIST enforcement |
-| `TestFuzzFountain` | 19 | Droplet unpacking, fountain decoding, belief propagation |
+| `TestFuzzCrypto` | 24 | Key derivation, decryption, HMAC verification, NIST enforcement |
+| `TestFuzzFountain` | 18 | Droplet unpacking, fountain decoding, belief propagation |
 | `TestAflFuzzManifest` | 3 | AFL persistence mode, crash-on-failure |
-| `TestSeedCorpus` | 12 | Corpus generation, CLI interface, idempotency |
+| `TestSeedCorpus` | 13 | Corpus generation, CLI interface, idempotency |
 | `TestFuzzIntegration` | 5 | Cross-module, mutation resilience, stress testing |
 | `TestFuzzErrorHandling` | 4 | Error handling verification per module |
 | **Total** | **85** | Full harness validation |
