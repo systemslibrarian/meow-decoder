@@ -48,6 +48,7 @@ from .frame_mac import pack_frame_with_mac
 from .quantum_mixer import (
     entangle_realities,
 )
+from .decoy_generator import generate_convincing_decoy
 
 
 @dataclass
