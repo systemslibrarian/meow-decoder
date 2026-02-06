@@ -670,6 +670,7 @@ class TestSpecV12EncodeDecodeSmallGaps:
         from meow_decoder.spec_v12.encode import encode_file
         from meow_decoder.spec_v12.decode import decode_file
         from meow_decoder.spec_v12.key_management import SoftwareBackend
+        from PIL import Image
 
         backend = SoftwareBackend()
         sender_sk, sender_pk = backend.generate_ed25519_keypair()
@@ -678,21 +679,11 @@ class TestSpecV12EncodeDecodeSmallGaps:
 
         plaintext = b"Spec v12 encode/decode test data"
 
-        # Create minimal GIF carrier
-        gif = (
-            b"GIF89a"
-            b"\x01\x00\x01\x00"
-            b"\x00\x00\x00"
-            b"\x2C"
-            b"\x00\x00\x00\x00"
-            b"\x01\x00\x01\x00"
-            b"\x00"
-            b"\x02"
-            b"\x02"
-            b"\x4C\x01"
-            b"\x00"
-            b"\x3B"
-        )
+        # Create a proper GIF carrier using PIL
+        img = Image.new('RGB', (100, 100), color='white')
+        buf = io.BytesIO()
+        img.save(buf, format='GIF')
+        gif = buf.getvalue()
 
         encoded = encode_file(plaintext, recipient_pk, sender_sk, gif)
         assert len(encoded) > len(gif)
@@ -704,6 +695,16 @@ class TestSpecV12EncodeDecodeSmallGaps:
 # =====================================================
 # secure_bridge.py coverage
 # =====================================================
+
+# Check if Rust backend is available
+try:
+    import meow_crypto_rs
+    _RUST_AVAILABLE = True
+except (ImportError, RuntimeError):
+    _RUST_AVAILABLE = False
+
+
+@pytest.mark.skipif(not _RUST_AVAILABLE, reason="meow_crypto_rs not built")
 class TestSecureBridge:
     def test_create_key_handle_and_encrypt_decrypt(self):
         """Test SecureBridge key handle + encrypt/decrypt roundtrip."""
@@ -714,7 +715,7 @@ class TestSecureBridge:
         handle = bridge.create_key_handle(
             "bridge_password_long",
             salt,
-            memory_kib=65536,  # 64 MiB for test speed
+            memory_kib=65536,
             iterations=3
         )
         assert handle is not None
@@ -744,7 +745,7 @@ class TestSecureBridge:
             assert result == plaintext
 
     def test_hmac_with_handle(self):
-        """Test HMAC generation — catches a Rust binding kwarg bug."""
+        """Test HMAC generation with Rust backend."""
         from meow_decoder.secure_bridge import SecureBridge
         import secrets as sec
         bridge = SecureBridge()
@@ -756,9 +757,8 @@ class TestSecureBridge:
             iterations=3
         )
         data = b"Data to authenticate"
-        # Source has a bug (passes 'data' kwarg to Rust), so we expect TypeError
-        with pytest.raises(TypeError):
-            bridge.hmac_with_handle(handle, data)
+        mac = bridge.hmac_with_handle(handle, data)
+        assert len(mac) > 0
 
 
 # =====================================================
