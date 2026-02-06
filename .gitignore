@@ -1,5 +1,9 @@
 # 🐱 Meow Decoder - .gitignore
 
+# Local-only docs (not tracked)
+pushupdates.md
+meow-push.sh
+
 # Python
 __pycache__/
 *.py[cod]
