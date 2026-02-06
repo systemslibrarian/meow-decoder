@@ -32,9 +32,11 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `tests/test_fuzz_targets.py` | **Comprehensive fuzz harness testing (821 lines, 85 tests)** | Manifest parsing boundaries, crypto edge cases, fountain code robustness, AFL++ integration, corpus generation, integration & error handling |
 | `tests/test_fuzz_roundtrip.py` | Property-based testing | Hypothesis-powered random input testing, boundary conditions |
 
-### Rust Crypto Backend Tests (rust_crypto/)
+### Rust Crypto Backend Tests
 
-The Rust crypto backend (`meow_crypto_rs`) includes **128 tests** across three suites:
+The project includes two Rust crypto packages with **286 total tests**:
+
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 128 tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
@@ -42,12 +44,47 @@ The Rust crypto backend (`meow_crypto_rs`) includes **128 tests** across three s
 | `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization verification, failure modes, boundary conditions |
 | `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
 
+#### crypto_core - Formally Verified Primitives - 158 tests
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `crypto_core/src/*.rs` (unit tests) | 89 | Inline unit tests for AEAD, nonce, types, verus proofs |
+| `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
+| `crypto_core/tests/coverage_tests.rs` | 47 | Comprehensive coverage tests for edge cases |
+| `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests |
+
+#### Coverage Report (February 2026)
+
+| Module | Covered/Total | Coverage |
+|--------|---------------|----------|
+| `crypto_core/src/aead_wrapper.rs` | 65/69 | **94.2%** |
+| `crypto_core/src/nonce.rs` | 55/56 | **98.2%** |
+| `crypto_core/src/pure_crypto.rs` | 121/121 | **100%** ✓ |
+| `crypto_core/src/types.rs` | 28/29 | **96.6%** |
+| `crypto_core/src/verus_kdf_proofs.rs` | 52/53 | **98.1%** |
+| `crypto_core/src/verus_proofs.rs` | 10/10 | **100%** ✓ |
+| **crypto_core Total** | **331/338** | **97.9%** ✓ |
+
+**Uncovered lines** (non-testable):
+- Nonce exhaustion paths (require 2^64 iterations)
+- `#[cfg(debug_assertions)]` code paths
+- Hardware module stubs (hsm.rs, yubikey_piv.rs) - require PKCS#11 hardware
+
 **Run Rust tests:**
 ```bash
+# rust_crypto (PyO3 bindings)
 cargo test -p meow_crypto_rs              # All 128 tests
 cargo test --test comprehensive_tests     # Core functionality
 cargo test --test additional_security_tests  # Security edge cases
 cargo test --test proptest_crypto         # Property-based fuzzing
+
+# crypto_core (formally verified)
+cargo test -p crypto_core                 # All 158 tests
+cargo test -p crypto_core --test coverage_tests     # Coverage tests
+cargo test -p crypto_core --test security_properties  # Security properties
+
+# Coverage report (requires cargo-tarpaulin)
+cd crypto_core && cargo tarpaulin --out Stdout --packages crypto_core
 ```
 
 ### February 2026 Coverage Expansion (Completed)
@@ -107,11 +144,13 @@ fail_under = 35  # Incrementally increase to 80%+
 
 ### Coverage Targets
 
-| Tier | Modules | Target | Priority |
-|------|---------|--------|----------|
+| Tier | Modules | Target | Status |
+|------|---------|--------|--------|
 | TIER 1 | crypto.py, crypto_backend.py, fountain.py, frame_mac.py, constant_time.py | 95-100% | Critical |
 | TIER 2 | encode.py, decode_gif.py, config.py, qr_code.py, gif_handler.py | 90%+ | High |
 | TIER 3 | Everything else | Best-effort | Low |
+| **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
+| **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
 **Status:** todo-feb.md completed (26 files, 0 remaining).
 
