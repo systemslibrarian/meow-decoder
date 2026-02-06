@@ -26,6 +26,7 @@ from .gif_handler import GIFDecoder
 from .progress import ProgressBar
 from .hardware_integration import HardwareSecurityProvider, process_hardware_args
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
+from .tamper_report import TamperReport
 
 
 def decode_gif(
@@ -44,7 +45,8 @@ def decode_gif(
     hsm_key_label: Optional[str] = None,
     tpm_derive: bool = False,
     hardware_auto: bool = False,
-    verbose: bool = False
+    verbose: bool = False,
+    tamper_report: Optional[TamperReport] = None
 ) -> dict:
     """
     Decode file from GIF.
@@ -65,6 +67,7 @@ def decode_gif(
         tpm_derive: Use TPM for key derivation
         hardware_auto: Automatically use best available hardware security
         verbose: Print verbose output
+        tamper_report: Optional TamperReport to populate with per-frame MAC results
         
     Returns:
         Dictionary with decoding statistics
@@ -393,9 +396,14 @@ def decode_gif(
             if manifest_valid_legacy:
                 frame_master_key = legacy_master_key
                 mac_stats.record_valid()
+                if tamper_report is not None:
+                    tamper_report.record(0, True, "legacy derivation")
                 if verbose:
                     print("  ✓ Manifest frame MAC valid (legacy derivation)")
             else:
+                # Manifest frame MAC invalid -- record in tamper report
+                if tamper_report is not None:
+                    tamper_report.record(0, False, "manifest MAC invalid")
                 # Fail open (disable frame MAC mode) rather than hard-failing the decode.
                 # The manifest HMAC has already been verified above.
                 has_frame_macs = False
@@ -404,6 +412,8 @@ def decode_gif(
                     print("  ⚠️  Manifest frame MAC invalid; disabling frame MAC verification")
         else:
             mac_stats.record_valid()
+            if tamper_report is not None:
+                tamper_report.record(0, True)
             if verbose:
                 print("  ✓ Manifest frame MAC valid")
     
@@ -436,11 +446,15 @@ def decode_gif(
                 if not frame_valid:
                     droplets_rejected += 1
                     mac_stats.record_invalid()
+                    if tamper_report is not None:
+                        tamper_report.record(idx + 1, False, "MAC mismatch")
                     if verbose and droplets_rejected <= 5:
                         print(f"  ⚠️  Frame {idx + 1}: MAC invalid, skipping (frame injection?)")
                     continue
                 
                 mac_stats.record_valid()
+                if tamper_report is not None:
+                    tamper_report.record(idx + 1, True)
             else:
                 droplet_bytes = qr_data
             
@@ -622,6 +636,10 @@ Examples:
                            help='Enable Nine Lives retry mode: automatic recovery with up to 9 attempts on error')
     
     
+    parser.add_argument('--tamper-report', action='store_true',
+                       help='Show frame-by-frame MAC verification timeline after decoding')
+    parser.add_argument('--tamper-report-json', type=Path, default=None,
+                       help='Write tamper report as JSON to the given file')
     parser.add_argument('--about', '--meow-about', action='store_true',
                        help='Show version and build information')
 
@@ -810,11 +828,17 @@ Examples:
     
     # Decode file
     try:
+        # Create tamper report if requested
+        t_report = None
+        if getattr(args, 'tamper_report', False) or getattr(args, 'tamper_report_json', None):
+            t_report = TamperReport()
+
         decode_kwargs = {
             "config": config,
             "keyfile": keyfile,
             "receiver_private_key": receiver_private_key,  # Forward secrecy support
             "verbose": args.verbose,
+            "tamper_report": t_report,
         }
 
         if duress_config.enabled:
@@ -874,6 +898,17 @@ Examples:
             print(f"  Time: {stats['elapsed_time']:.2f}s")
         
         print(f"\nOutput saved to: {args.output}")
+
+        # Display tamper report if requested
+        if t_report is not None:
+            if getattr(args, 'tamper_report', False):
+                print()
+                print(t_report.ascii_timeline())
+            if getattr(args, 'tamper_report_json', None):
+                json_path = args.tamper_report_json
+                json_path.parent.mkdir(parents=True, exist_ok=True)
+                json_path.write_text(t_report.to_json())
+                print(f"\nTamper report saved to: {json_path}")
         
     except Exception as e:
         cat_msg = cat_translate_error(e)

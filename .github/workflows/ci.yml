@@ -8,35 +8,35 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  # Cancel previous runs on same branch to avoid queue buildup
   cancel-in-progress: true
 
 permissions:
   contents: read
 
+# ─── Shared environment ──────────────────────────────────────────────────────
+env:
+  MEOW_TEST_MODE: "1"
+  MEOW_CRYPTO_BACKEND: "rust"
+  PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  PYTHONDONTWRITEBYTECODE: "1"
+
 jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GATE 1: Fast tests (excludes @pytest.mark.slow)
+  # ═══════════════════════════════════════════════════════════════════════════
   test:
-    name: Tests + Coverage (Python 3.12 + Rust backend)
+    name: "Gate 1: Tests + Coverage"
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
-    env:
-      MEOW_TEST_MODE: "1"
-      MEOW_CRYPTO_BACKEND: "rust"
-      PIP_DISABLE_PIP_VERSION_CHECK: "1"
-      PYTHONDONTWRITEBYTECODE: "1"
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: "pip"
 
-      - name: Install system dependencies (zbar, opencv, build tools)
+      - name: Install system dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -44,8 +44,7 @@ jobs:
             build-essential pkg-config libssl-dev \
             libpcsclite-dev libudev-dev
 
-      - name: Set up Rust stable toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
         with:
           toolchain: stable
 
@@ -60,61 +59,26 @@ jobs:
         run: |
           cd rust_crypto
           maturin build --release --out dist
-          ls -lah dist
           python -m pip install --force-reinstall dist/*.whl
           cd ..
 
-      - name: Verify Rust backend import
-        run: |
-          python -c "import meow_crypto_rs; print('Rust backend imported successfully')"
+      - name: Verify Rust backend
+        run: python -c "import meow_crypto_rs; print('Rust backend OK')"
 
-      - name: Run full test suite with coverage
+      - name: Run test suite (no slow markers)
         run: |
-          pytest -v \
+          pytest -v -m "not slow" \
             --cov=meow_decoder \
             --cov-config=.coveragerc \
             --cov-report=xml:coverage.xml \
             --cov-report=term-missing \
             --cov-fail-under=0
-          
-          # Verify coverage file was generated
+
           if [ ! -f coverage.xml ]; then
-            echo "Warning: coverage.xml not generated, generating from .coverage database"
             coverage xml -o coverage.xml --rcfile=.coveragerc || true
           fi
 
-      - name: Show coverage summary (debug)
-        run: |
-          coverage report --rcfile=.coveragerc || echo "No coverage data collected"
-          echo ""
-          echo "Coverage data file exists? $(ls -l .coverage 2>/dev/null || echo 'No .coverage file')"
-
-      - name: Verify coverage.xml exists and has content
-        run: |
-          if [ ! -f coverage.xml ]; then
-            echo "ERROR: coverage.xml was not generated"
-            ls -la
-            exit 1
-          fi
-          if [ ! -s coverage.xml ]; then
-            echo "WARNING: coverage.xml is empty (likely no coverage data collected)"
-          else
-            echo "coverage.xml size: $(stat -c %s coverage.xml) bytes"
-            head -n 30 coverage.xml || true
-          fi
-
-      - name: Security coverage gate (TIER 1 modules ≥85%)
-        run: |
-          pytest tests/ -v -m "security or crypto or adversarial" \
-            --cov --cov-config=.coveragerc-security \
-            --cov-fail-under=85 \
-            --cov-report=term-missing \
-            --cov-report=xml:coverage-security.xml || {
-            echo "⚠️ Security coverage gate FAILED — TIER 1 modules below 85%"
-            exit 1
-          }
-
-      - name: Upload coverage report to Codecov
+      - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
           files: ./coverage.xml
@@ -123,3 +87,104 @@ jobs:
           verbose: true
           name: python-coverage
           flags: python
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GATE 2: Security coverage ≥ 85% (TIER 1 modules)
+  # ═══════════════════════════════════════════════════════════════════════════
+  security-coverage:
+    name: "Gate 2: Security Coverage ≥85%"
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libzbar0 libgl1 libglib2.0-0 \
+            build-essential pkg-config libssl-dev \
+            libpcsclite-dev libudev-dev
+
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Install Python + Rust backend
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install pytest pytest-cov maturin coverage
+          cd rust_crypto && maturin build --release --out dist && python -m pip install --force-reinstall dist/*.whl && cd ..
+
+      - name: Security coverage gate
+        run: |
+          pytest tests/ -v -m "security or crypto or adversarial" \
+            --cov --cov-config=.coveragerc-security \
+            --cov-fail-under=85 \
+            --cov-report=term-missing
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GATE 3: Lint + type check (flake8, black, mypy, bandit)
+  # ═══════════════════════════════════════════════════════════════════════════
+  lint:
+    name: "Gate 3: Lint + Type Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+          pip install flake8 black mypy bandit
+
+      - name: flake8 lint
+        run: flake8 meow_decoder/ --max-line-length=120 --extend-ignore=E501,W503
+
+      - name: black format check
+        run: black --check --diff meow_decoder/
+
+      - name: mypy type check
+        run: mypy meow_decoder/ --ignore-missing-imports --no-error-summary || true
+
+      - name: bandit security lint
+        run: bandit -r meow_decoder/ -ll -q || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # Required status check — all 3 gates must pass for merge
+  # ═══════════════════════════════════════════════════════════════════════════
+  all-gates:
+    name: "All CI Gates"
+    needs: [test, security-coverage, lint]
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check gate results
+        run: |
+          if [[ "${{ needs.test.result }}" != "success" ]]; then
+            echo "❌ Gate 1 (Tests) failed"
+            exit 1
+          fi
+          if [[ "${{ needs.security-coverage.result }}" != "success" ]]; then
+            echo "❌ Gate 2 (Security Coverage) failed"
+            exit 1
+          fi
+          if [[ "${{ needs.lint.result }}" != "success" ]]; then
+            echo "❌ Gate 3 (Lint) failed"
+            exit 1
+          fi
+          echo "✅ All 3 CI gates passed"

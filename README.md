@@ -64,6 +64,7 @@
 
 This release is **security‑reviewed within a bounded threat model**. Claims are tied to:
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
+- [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte‑level spec)
 - [SECURITY.md](SECURITY.md) (formal methods + limitations)
 
@@ -788,6 +789,7 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 | [QUICKSTART.md](QUICKSTART.md) | 5-minute phone capture demo |
 | [Usage Guide](docs/USAGE.md) | Detailed usage instructions |
 | [Threat Model](docs/THREAT_MODEL.md) | Security analysis & limitations |
+| [Secure Usage Checklist](docs/SECURE_USAGE_CHECKLIST.md) | OPSEC & operational hardening |
 | [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive |
 | [Schrödinger Mode](docs/SCHRODINGER.md) | Plausible deniability |
 | [Security Roadmap](docs/ROADMAP.md) | Future security enhancements |

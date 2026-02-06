@@ -51,6 +51,55 @@ MAX_K_BLOCKS = 1_000_000  # 1M blocks max
 MAX_DECOMP_RATIO = 10  # decompression output limit: orig_len <= comp_len * ratio
 
 
+# ── MT-1: Canonical AAD construction ──────────────────────────────────────────
+# A single function builds the AAD for both encrypt and decrypt.  The layout is:
+#   AAD_VERSION (1 byte) || orig_len (8 LE) || comp_len (8 LE)
+#   || salt (16) || sha256 (32) || magic (variable) [|| ephemeral_pk (32)]
+#
+# AAD_VERSION = 0x01 — bump this if the layout ever changes so old code can
+# detect an incompatible manifest and fall back or reject explicitly.
+
+AAD_VERSION = b"\x01"
+
+
+def build_canonical_aad(
+    orig_len: int,
+    comp_len: int,
+    salt: bytes,
+    sha256_hash: bytes,
+    magic: bytes,
+    ephemeral_public_key: Optional[bytes] = None,
+) -> bytes:
+    """Build canonical Additional Authenticated Data for AES-GCM.
+
+    Using a single function for both encrypt and decrypt guarantees the
+    byte-layout is identical and prevents subtle mismatch bugs.
+
+    Layout (deterministic, fixed-order):
+        ``AAD_VERSION || le_u64(orig_len) || le_u64(comp_len)
+          || salt || sha256 || magic [|| ephemeral_pk]``
+
+    Args:
+        orig_len:  Original (uncompressed) file length.
+        comp_len:  Compressed (possibly padded) length.
+        salt:      16-byte random salt.
+        sha256_hash: 32-byte SHA-256 of the original data.
+        magic:     Manifest magic bytes (e.g. b"MEOW3").
+        ephemeral_public_key: 32-byte X25519 ephemeral key (forward secrecy).
+
+    Returns:
+        Deterministic AAD bytestring.
+    """
+    aad = AAD_VERSION
+    aad += struct.pack("<QQ", orig_len, comp_len)
+    aad += salt
+    aad += sha256_hash
+    aad += magic
+    if ephemeral_public_key is not None:
+        aad += ephemeral_public_key
+    return aad
+
+
 @dataclass
 class Manifest:
     """
@@ -412,16 +461,15 @@ def encrypt_file_bytes(
         # Build AAD (Additional Authenticated Data) for manifest protection
         # Why: Binding metadata to the AEAD prevents substitution and
         # protocol-confusion attacks against lengths/hash/version fields.
-        aad = struct.pack('<QQ', len(raw), len(comp))  # orig_len, comp_len
-        aad += salt  # Include salt in authentication
-        aad += sha   # Include original hash in authentication
-        aad += MAGIC  # Include version magic in authentication
-        
-        if ephemeral_public_key is not None:
-            # Why: Bind ephemeral public key to ciphertext to prevent
-            # key-substitution attacks in forward secrecy mode.
-            # Include ephemeral public key in AAD for forward secrecy mode
-            aad += ephemeral_public_key
+        # MT-1: Uses canonical shared function for encrypt/decrypt symmetry.
+        aad = build_canonical_aad(
+            orig_len=len(raw),
+            comp_len=len(comp),
+            salt=salt,
+            sha256_hash=sha,
+            magic=MAGIC,
+            ephemeral_public_key=ephemeral_public_key,
+        )
         
         # Best-effort nonce reuse guard (per-process)
         _register_nonce_use(key, nonce)
@@ -550,17 +598,17 @@ def decrypt_to_raw(
             else:
                 key = derive_key(password, salt, keyfile)
         
-        # Reconstruct AAD for verification
+        # Reconstruct AAD for verification (MT-1: canonical shared function)
         # Must match exactly what was used during encryption
         if orig_len is not None and comp_len is not None and sha256 is not None:
-            aad = struct.pack('<QQ', orig_len, comp_len)
-            aad += salt
-            aad += sha256
-            aad += MAGIC
-            
-            if ephemeral_public_key is not None:
-                # Include ephemeral public key in AAD for forward secrecy mode
-                aad += ephemeral_public_key
+            aad = build_canonical_aad(
+                orig_len=orig_len,
+                comp_len=comp_len,
+                salt=salt,
+                sha256_hash=sha256,
+                magic=MAGIC,
+                ephemeral_public_key=ephemeral_public_key,
+            )
         else:
             aad = None  # Backwards compatibility (no AAD)
         

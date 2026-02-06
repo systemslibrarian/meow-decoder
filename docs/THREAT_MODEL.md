@@ -291,6 +291,8 @@ This section maps **security claims** to **formal verification artifacts**.
 
 For a complete pre-audit checklist, see: [SELF_AUDIT_TEMPLATE.md](SELF_AUDIT_TEMPLATE.md)
 
+For operational security best practices, see: [SECURE_USAGE_CHECKLIST.md](SECURE_USAGE_CHECKLIST.md)
+
 ---
 
 ## 🕵️ **SIDE-CHANNEL ANALYSIS**

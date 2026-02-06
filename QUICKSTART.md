@@ -400,6 +400,7 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 ### Learn More
 - Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details
 - Read [SECURITY.md](SECURITY.md) for threat model
+- Read [SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) for operational security best practices
 - Read [SCHRODINGER.md](docs/SCHRODINGER.md) for plausible deniability
 
 ### Use Cases

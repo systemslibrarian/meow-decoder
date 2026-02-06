@@ -182,7 +182,6 @@ jobs:
             exit 1
           }
           cd ..
-        continue-on-error: true
 
   # ===========================================================================
   # SBOM Generation
@@ -261,4 +260,3 @@ jobs:
             echo "⚠️ cargo-deny found issues in rust_crypto."
             exit 1
           }
-        continue-on-error: true
