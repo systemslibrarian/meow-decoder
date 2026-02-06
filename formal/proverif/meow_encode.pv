@@ -116,6 +116,8 @@ fun manifest_hmac_key(key): key.
 fun frame_key(key, framenum, salt): key.
 (* Helper to encode keys into bitstrings for HKDF inputs *)
 fun key_to_bits(key): bitstring.
+(* Helper to encode ciphertext into bitstring for HMAC inputs *)
+fun ciphertext_to_bits(ciphertext): bitstring.
 
 (* === X25519 Key Exchange (for Forward Secrecy) === *)
 type privkey.
@@ -379,7 +381,7 @@ let Encoder(sid: sessionid, pwd: password, pt: plaintext) =
     
     (* Create data frame with per-frame MAC *)
     (* Matches frame_mac.py: MAC = HMAC(key, frame_idx || salt || data) *)
-        let frame_data = ct in
+        let frame_data = ciphertext_to_bits(ct) in
         let frame_mac_val = hmac_sha256(frame_key, frame_data) in
         let data_frame = frame(Frame1, ct, frame_mac_val) in
     
@@ -531,7 +533,7 @@ let EncoderWithFS(sid: sessionid, pwd: password, pt: plaintext, receiver_pub: pu
     let manifest_msg = manifest(MEOW3, s, n, aad, manifest_mac) in
     
     (* Create data frame *)
-    let frame_data = ct in
+    let frame_data = ciphertext_to_bits(ct) in
     let frame_mac_val = hmac_sha256(frame_key, frame_data) in
     let data_frame = frame(Frame1, ct, frame_mac_val) in
     

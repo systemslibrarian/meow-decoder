@@ -124,8 +124,11 @@ Init ==
 (* Encoder Actions *)
 
 \* Start a new encoding session
+\* Requires: key must be unsealed (hardware available) or failed (software fallback)
+\* Cannot start encoding with sealed key - must unseal first
 EncoderStartSession(password) ==
     /\ encoderState = "Idle"
+    /\ keyState \in {"unsealed", "failed"}  \* Hardware unsealed OR software fallback
     /\ encoderState' = "KeyDerivation"
     /\ encoderSession' = encoderSession + 1
     /\ UNCHANGED <<encoderNonce, encoderFrames, usedNonces, keyState, pcrValues, decoderState, 
@@ -191,8 +194,10 @@ EncoderTransmit ==
 -----------------------------------------------------------------------------
 (* Hardware-Sealed Key Actions *)
 
+\* Seal the key (only when system is idle - would be nonsensical during encoding)
 SealKey ==
     /\ keyState = "unsealed"
+    /\ encoderState = "Idle"  \* Cannot seal mid-encoding
     /\ keyState' = "sealed"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
                    pcrValues, decoderState, decoderSession, receivedFrames, decoderOutput,
@@ -336,7 +341,9 @@ DecoderDecrypt(password) ==
         isDuress == password \in DuressPasswords
        IN
         /\ authResult' = IF authOk THEN "success" ELSE "failure"
-                /\ keyState' = IF authOk /\ isDuress THEN "failed" ELSE keyState
+        \* Note: keyState stays unchanged. Duress mode is indicated by
+        \* decoderState = "OutputDecoy", not by keyState.
+        \* keyState = "failed" is reserved for TPM/HSM unseal failures.
         /\ IF ~authOk
            THEN 
                 /\ decoderState' = "Error"
@@ -349,7 +356,7 @@ DecoderDecrypt(password) ==
                 /\ decoderState' = "OutputReal"
                 /\ decoderOutput' = "real"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                usedNonces, pcrValues, decoderSession, receivedFrames, attackerFrames,
+                usedNonces, keyState, pcrValues, decoderSession, receivedFrames, attackerFrames,
                 attackerActions, channel>>
 
 \* Output real plaintext (only from OutputReal state)
