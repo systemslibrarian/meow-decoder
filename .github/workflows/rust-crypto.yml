@@ -69,7 +69,7 @@ jobs:
           MEOW_TEST_MODE: "1"
       
       - name: Upload wheel
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4.6.0
         with:
           name: wheel-linux-py${{ matrix.python-version }}
           path: rust_crypto/dist/*.whl
@@ -113,7 +113,7 @@ jobs:
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Upload wheel
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4.6.0
         with:
           name: wheel-macos-${{ matrix.target }}-py${{ matrix.python-version }}
           path: rust_crypto/dist/*.whl
@@ -155,7 +155,7 @@ jobs:
         shell: pwsh
       
       - name: Upload wheel
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4.6.0
         with:
           name: wheel-windows-py${{ matrix.python-version }}
           path: rust_crypto/dist/*.whl
@@ -180,7 +180,7 @@ jobs:
           manylinux: auto
       
       - name: Upload wheels
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v4.6.0
         with:
           name: wheel-manylinux-${{ matrix.target }}
           path: dist/*.whl
