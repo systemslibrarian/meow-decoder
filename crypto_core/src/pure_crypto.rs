@@ -542,15 +542,16 @@ pub mod pq {
     #[cfg(all(feature = "pq-crypto", not(feature = "liboqs-native")))]
     mod backend {
         use super::*;
-        // ML-KEM 0.3.x API with getrandom feature:
+        // ML-KEM 0.3.0-rc.0 API with getrandom feature:
         // - Generate::generate() -> Self uses system RNG internally
         // - Encapsulate::encapsulate() -> (Ciphertext, SharedSecret) uses system RNG
         // - Decapsulate::decapsulate(&ct) -> SharedSecret [NOT Result]
-        // - EncodedSizeUser::from_encoded_bytes/to_encoded_bytes for serialization
+        // - Serialization: .to_bytes(), ::new() for EncapsulationKey, ::from_expanded_bytes() for DecapsulationKey
         // The getrandom feature avoids rand_core version mismatches between crates.
+        #[allow(deprecated)] // ExpandedKeyEncoding deprecated but needed for serialization roundtrip
         use ml_kem::{
             DecapsulationKey1024 as DecapsulationKey, EncapsulationKey1024 as EncapsulationKey,
-            EncodedSizeUser,
+            ExpandedKeyEncoding, KeyExport,
         };
         // External kem crate: Generate, Encapsulate, Decapsulate traits
         use kem::{Decapsulate, Encapsulate, Generate};
@@ -566,8 +567,8 @@ pub mod pq {
             let dk = DecapsulationKey::generate();
             let ek = dk.encapsulation_key();
             Ok((
-                dk.to_encoded_bytes().to_vec(),
-                ek.to_encoded_bytes().to_vec(),
+                dk.to_bytes().to_vec(),
+                ek.to_bytes().to_vec(),
             ))
         }
 
@@ -578,7 +579,8 @@ pub mod pq {
                 encapsulation_key.try_into().map_err(|_| {
                     CryptoError::KeyDerivationFailed("Invalid encapsulation key length".into())
                 })?;
-            let ek = EncapsulationKey::from_encoded_bytes(&ek_array).map_err(|_| {
+            // ml-kem 0.3.0-rc.0: use ::new() instead of from_encoded_bytes
+            let ek = EncapsulationKey::new(&ek_array).map_err(|_| {
                 CryptoError::KeyDerivationFailed("Invalid encapsulation key".into())
             })?;
 
@@ -590,16 +592,18 @@ pub mod pq {
                 .as_slice()
                 .try_into()
                 .map_err(|_| CryptoError::EncryptionFailed("Invalid shared secret size".into()))?;
-            Ok((ct.to_vec(), shared_arr))
+            Ok((ct.as_slice().to_vec(), shared_arr))
         }
 
         /// Decapsulate to recover shared secret
+        #[allow(deprecated)] // from_expanded_bytes deprecated but needed for serialization roundtrip
         pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
             // Convert slice to Array using TryFrom
             let dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into().map_err(|_| {
                 CryptoError::KeyDerivationFailed("Invalid secret key length".into())
             })?;
-            let dk = DecapsulationKey::from_encoded_bytes(&dk_array)
+            // ml-kem 0.3.0-rc.0: use from_expanded_bytes instead of from_encoded_bytes
+            let dk = DecapsulationKey::from_expanded_bytes(&dk_array)
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
 
             // Convert ciphertext to Array
