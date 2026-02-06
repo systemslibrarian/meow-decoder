@@ -8,7 +8,8 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Don't cancel coverage runs - we need them to complete for Codecov uploads
+  cancel-in-progress: false
 
 permissions:
   contents: read
