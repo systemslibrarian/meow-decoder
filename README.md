@@ -21,11 +21,23 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/codeql.yml/badge.svg" alt="CodeQL">
   </a>
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/formal-verification.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/formal-verification.yml/badge.svg" alt="Formal Verification">
+  </a>
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml/badge.svg" alt="Fuzzing">
+  </a>
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml/badge.svg" alt="Rust Crypto">
+  </a>
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU" alt="Python Coverage">
   </a>
   <a href="tests/TEST_SUITE_README.md">
     <img src="assets/coverage.svg" alt="Rust Coverage">
+  </a>
+  <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
+    <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
   </a>
   <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">

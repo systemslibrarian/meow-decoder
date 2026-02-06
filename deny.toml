@@ -25,16 +25,8 @@ ignore = [
     # Risk: LOW - Compile-time only, no runtime attack surface
     "RUSTSEC-2024-0436",
     
-    # RUSTSEC-2026-0009: time 0.3.46 - Local time offset determination issue
-    # Status: Fix available in >=0.3.47, pending upstream x509-parser/asn1-rs update
-    # Mitigation: Transitive dependency from ctap-hid-fido2 -> x509-parser -> time.
-    # The vulnerability relates to local time offset determination on Unix which can
-    # cause undefined behavior in certain multi-threaded scenarios. Our FIDO2 code
-    # does not use local time operations - it uses UTC timestamps only for certificate
-    # validation. The vulnerable code path (UtcOffset::current_local_offset) is not invoked.
-    # Risk: LOW - FIDO2 operations use UTC, not local time
-    # Tracking: Will upgrade when x509-parser releases with time >=0.3.47
-    "RUSTSEC-2026-0009",
+    # Note: RUSTSEC-2026-0009 (time crate) was fixed by updating to time 0.3.47
+    # via workspace dependency in Cargo.toml. No exception needed.
 ]
 
 [licenses]

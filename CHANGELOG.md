@@ -6,6 +6,12 @@ All notable changes to Meow Decoder.
 > The version numbers below (5.x, 6.x) are historical internal development milestones
 > that have been consolidated into the v1.0 public release.
 
+## [Unreleased]
+
+### Security
+- **RUSTSEC-2026-0009**: Updated `time` crate from 0.3.46 to 0.3.47 to fix local time offset determination vulnerability
+- Added workspace-level `time = "0.3.47"` dependency constraint to prevent regression
+
 ## [1.0.0] - 2026-01-28 (Public Release)
 
 **This release consolidates all internal development milestones (v5.x, v6.x) into the
