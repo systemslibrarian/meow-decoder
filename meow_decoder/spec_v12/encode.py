@@ -13,12 +13,15 @@ from typing import Final
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 try:
     from cryptography.hazmat.primitives.ciphers.aead import XChaCha20Poly1305
+
     _AEAD_CIPHER = XChaCha20Poly1305
     _AES_FALLBACK = False
 except ImportError:  # pragma: no cover - fallback for limited builds
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     _AEAD_CIPHER = AESGCM
     _AES_FALLBACK = True
 
@@ -108,5 +111,3 @@ def encode_file(
     gc.collect()
 
     return embedded_gif
-
-

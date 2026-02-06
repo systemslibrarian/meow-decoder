@@ -28,14 +28,14 @@ _TEST_MODE = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes"
 
 if _TEST_MODE:
     # Fast parameters for CI/testing (still secure enough for functional tests)
-    ARGON2_MEMORY = 32768       # 32 MiB (fast)
-    ARGON2_ITERATIONS = 1       # 1 pass (fast)
-    ARGON2_PARALLELISM = 1      # 1 thread
+    ARGON2_MEMORY = 32768  # 32 MiB (fast)
+    ARGON2_ITERATIONS = 1  # 1 pass (fast)
+    ARGON2_PARALLELISM = 1  # 1 thread
 else:
     # Production: Ultra-hardened for maximum brute-force resistance
-    ARGON2_MEMORY = 524288      # 512 MiB (8x OWASP recommendation)
-    ARGON2_ITERATIONS = 20      # 20 passes (makes offline attacks impractical)
-    ARGON2_PARALLELISM = 4      # 4 threads
+    ARGON2_MEMORY = 524288  # 512 MiB (8x OWASP recommendation)
+    ARGON2_ITERATIONS = 20  # 20 passes (makes offline attacks impractical)
+    ARGON2_PARALLELISM = 4  # 4 threads
 
 # HMAC domain separation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"
@@ -104,7 +104,7 @@ def build_canonical_aad(
 class Manifest:
     """
     Encrypted file manifest containing all metadata for decryption.
-    
+
     Attributes:
         salt: Random salt for key derivation (16 bytes)
         nonce: Random nonce for AES-GCM (12 bytes)
@@ -122,6 +122,7 @@ class Manifest:
                       None = classical-only mode
                       Present = PQ hybrid mode (X25519 + ML-KEM-768)
     """
+
     salt: bytes
     nonce: bytes
     orig_len: int
@@ -175,7 +176,7 @@ def compute_duress_hash(password: str, salt: bytes) -> bytes:
     Returns:
         32-byte SHA-256 hash
     """
-    return hashlib.sha256(DURESS_HASH_PREFIX + salt + password.encode('utf-8')).digest()
+    return hashlib.sha256(DURESS_HASH_PREFIX + salt + password.encode("utf-8")).digest()
 
 
 def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> bytes:
@@ -199,10 +200,7 @@ def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> byte
 
 
 def check_duress_password(
-    entered_password: str,
-    salt: bytes,
-    duress_tag: bytes,
-    manifest_core: bytes
+    entered_password: str, salt: bytes, duress_tag: bytes, manifest_core: bytes
 ) -> bool:
     """
     Check if entered password matches duress tag (constant-time).
@@ -231,12 +229,12 @@ def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) ->
     the duress tag for binding it to the HMAC.
     """
     core = (
-        MAGIC +
-        manifest.salt +
-        manifest.nonce +
-        struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len) +
-        struct.pack(">HI", manifest.block_size, manifest.k_blocks) +
-        manifest.sha256
+        MAGIC
+        + manifest.salt
+        + manifest.nonce
+        + struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len)
+        + struct.pack(">HI", manifest.block_size, manifest.k_blocks)
+        + manifest.sha256
     )
 
     if manifest.ephemeral_public_key is not None:
@@ -254,39 +252,42 @@ def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) ->
 def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> bytes:
     """
     Derive encryption key using Argon2id.
-    
+
     Args:
         password: User passphrase (minimum 8 characters)
         salt: Random salt (16 bytes)
         keyfile: Optional keyfile content
-        
+
     Returns:
         32-byte encryption key
-        
+
     Raises:
         ValueError: If password is empty, too short, or salt is wrong length
     """
     if not password:
         raise ValueError("Password cannot be empty")
     if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)")
+        raise ValueError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)"
+        )
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
-    
+
     # Combine password and keyfile if provided
     secret = password.encode("utf-8")
     if keyfile:
         # Use HKDF to properly combine password and keyfile
         from cryptography.hazmat.primitives import hashes
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
         hkdf = HKDF(
             algorithm=hashes.SHA256(),
             length=64,
             salt=KEYFILE_DOMAIN_SEP,
-            info=b"password_keyfile_combine"
+            info=b"password_keyfile_combine",
         )
         secret = hkdf.derive(secret + keyfile)
-    
+
     secret_buf = bytearray(secret)
     try:
         # Derive key using Argon2id via backend
@@ -297,9 +298,9 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
             output_len=32,
             iterations=ARGON2_ITERATIONS,
             memory_kib=ARGON2_MEMORY,
-            parallelism=ARGON2_PARALLELISM
+            parallelism=ARGON2_PARALLELISM,
         )
-        
+
         return key
     except Exception as e:
         raise RuntimeError(f"Key derivation failed: {e}")
@@ -317,11 +318,11 @@ def encrypt_file_bytes(
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
-    precomputed_salt: Optional[bytes] = None
+    precomputed_salt: Optional[bytes] = None,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
-    
+
     Args:
         raw: Raw file bytes
         password: Encryption password
@@ -332,16 +333,16 @@ def encrypt_file_bytes(
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips Argon2id derivation and uses this key
         precomputed_salt: Salt used for precomputed_key (required if precomputed_key provided)
-        
+
     Returns:
         Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, encryption_key)
         - ephemeral_public_key is None if password-only mode
         - ephemeral_public_key is 32 bytes if forward secrecy mode
         - encryption_key is the 32-byte key used for encryption (needed for HMAC computation)
-        
+
     Raises:
         RuntimeError: If encryption fails
-        
+
     Security:
         - Uses AES-256-GCM with AAD for manifest authentication
         - AAD includes: orig_len, comp_len, salt, sha256, magic
@@ -355,19 +356,20 @@ def encrypt_file_bytes(
         logger = None
         try:
             from .cat_utils import get_purr_logger
+
             logger = get_purr_logger()
         except (ImportError, AttributeError):
             pass
-        
+
         if logger:
             logger.log(f"Compressing {len(raw)} bytes with zlib", category="io")
-        
+
         # Compress with maximum compression
         comp = zlib.compress(raw, level=9)
-        
+
         if logger:
             logger.log(f"Compressed to {len(comp)} bytes", category="io")
-        
+
         # Add length padding to hide true size
         if use_length_padding:
             try:
@@ -375,25 +377,25 @@ def encrypt_file_bytes(
             except ImportError:
                 from metadata_obfuscation import add_length_padding
             comp = add_length_padding(comp)
-        
+
         # Hash original data (before padding!)
         sha = hashlib.sha256(raw).digest()
-        
+
         # Generate random salt and nonce (cryptographically secure)
         # Invariant: Nonce MUST be unique per key to prevent GCM nonce reuse.
         # We enforce uniqueness by generating a fresh random salt (new key) and
         # a fresh random 96-bit nonce per encryption.
-        # 
+        #
         # For hardware key derivation (HSM/TPM), salt is pre-generated and passed in.
         if precomputed_salt is not None:
             salt = precomputed_salt
         else:
             salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
-        
+
         # Determine encryption mode and derive key
         ephemeral_public_key = None
-        
+
         # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
         if precomputed_key is not None:
             if len(precomputed_key) != 32:
@@ -407,7 +409,7 @@ def encrypt_file_bytes(
                     generate_ephemeral_keypair,
                     derive_shared_secret,
                     deserialize_public_key,
-                    serialize_public_key
+                    serialize_public_key,
                 )
             except ImportError:
                 # Try relative import
@@ -415,49 +417,41 @@ def encrypt_file_bytes(
                     generate_ephemeral_keypair,
                     derive_shared_secret,
                     deserialize_public_key,
-                    serialize_public_key
+                    serialize_public_key,
                 )
-            
+
             # Generate ephemeral keypair (now returns ForwardSecrecyKeys with bytes)
             fs_keys = generate_ephemeral_keypair()
-            
+
             # Deserialize receiver's public key (validates bytes)
             receiver_pubkey = deserialize_public_key(receiver_public_key)
-            
+
             # Derive shared secret (expects bytes)
-            key = derive_shared_secret(
-                fs_keys.ephemeral_private,
-                receiver_pubkey,
-                password,
-                salt
-            )
-            
+            key = derive_shared_secret(fs_keys.ephemeral_private, receiver_pubkey, password, salt)
+
             # Export ephemeral public key for transmission (validates bytes)
             ephemeral_public_key = serialize_public_key(fs_keys.ephemeral_public)
-            
+
             # NOTE: fs_keys.ephemeral_private goes out of scope here
             # This provides forward secrecy - private key never stored!
         else:
             # PASSWORD-ONLY MODE: Standard Argon2id derivation
             if logger:
                 logger.log("Deriving encryption key from password (Argon2id)", category="crypto")
-            
+
             if yubikey_slot is not None:
                 if keyfile is not None:
                     raise ValueError("Cannot combine --yubikey with --keyfile")
                 backend = get_default_backend()
                 key = backend.derive_key_yubikey(
-                    password.encode("utf-8"),
-                    salt,
-                    slot=yubikey_slot,
-                    pin=yubikey_pin
+                    password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
                 )
             else:
                 key = derive_key(password, salt, keyfile)
-            
+
             if logger:
                 logger.log("✓ Key derivation complete", category="crypto")
-        
+
         # Build AAD (Additional Authenticated Data) for manifest protection
         # Why: Binding metadata to the AEAD prevents substitution and
         # protocol-confusion attacks against lengths/hash/version fields.
@@ -470,7 +464,7 @@ def encrypt_file_bytes(
             magic=MAGIC,
             ephemeral_public_key=ephemeral_public_key,
         )
-        
+
         # Best-effort nonce reuse guard (per-process)
         _register_nonce_use(key, nonce)
 
@@ -480,13 +474,15 @@ def encrypt_file_bytes(
         # AAD is authenticated but not encrypted
         if logger:
             logger.crypto_op(f"Encrypting {len(comp)} bytes with AES-256-GCM")
-        
+
         backend = get_default_backend()
-        cipher = backend.aes_gcm_encrypt(key, nonce, comp, aad)  # ← AAD prevents metadata tampering!
-        
+        cipher = backend.aes_gcm_encrypt(
+            key, nonce, comp, aad
+        )  # ← AAD prevents metadata tampering!
+
         if logger:
             logger.success(f"Encryption complete! ({len(cipher)} bytes ciphertext)")
-        
+
         return comp, sha, salt, nonce, cipher, ephemeral_public_key, key
     except Exception as e:
         raise RuntimeError(f"Encryption failed: {e}")
@@ -505,11 +501,11 @@ def decrypt_to_raw(
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
-    precomputed_key: Optional[bytes] = None
+    precomputed_key: Optional[bytes] = None,
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
-    
+
     Args:
         cipher: Encrypted data
         password: Decryption password
@@ -525,14 +521,14 @@ def decrypt_to_raw(
         receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips key derivation and uses this key
-        
+
     Returns:
         Decrypted and decompressed plaintext
-        
+
     Raises:
         RuntimeError: If decryption or decompression fails
         ValueError: If forward secrecy mode but receiver_private_key missing
-        
+
     Security:
         - Verifies AAD before decrypting
         - Ensures manifest hasn't been tampered with
@@ -544,12 +540,13 @@ def decrypt_to_raw(
         logger = None
         try:
             from .cat_utils import get_purr_logger
+
             logger = get_purr_logger()
         except (ImportError, AttributeError):
             pass
-        
+
         # Determine decryption mode and derive key
-        
+
         # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
         if precomputed_key is not None:
             if len(precomputed_key) != 32:
@@ -559,30 +556,22 @@ def decrypt_to_raw(
             # FORWARD SECRECY MODE
             if receiver_private_key is None:
                 raise ValueError("Forward secrecy mode requires receiver private key")
-            
+
             try:
                 from meow_decoder.x25519_forward_secrecy import (
                     derive_shared_secret,
-                    deserialize_public_key
+                    deserialize_public_key,
                 )
             except ImportError:
                 # Try relative import
-                from .x25519_forward_secrecy import (
-                    derive_shared_secret,
-                    deserialize_public_key
-                )
-            
+                from .x25519_forward_secrecy import derive_shared_secret, deserialize_public_key
+
             # Deserialize sender's ephemeral public key
             sender_pubkey = deserialize_public_key(ephemeral_public_key)
-            
+
             # Derive shared secret (same as sender)
             # Receiver private key is passed as bytes, sender pubkey as bytes
-            key = derive_shared_secret(
-                receiver_private_key,
-                sender_pubkey,
-                password,
-                salt
-            )
+            key = derive_shared_secret(receiver_private_key, sender_pubkey, password, salt)
         else:
             # PASSWORD-ONLY MODE
             if yubikey_slot is not None:
@@ -590,14 +579,11 @@ def decrypt_to_raw(
                     raise ValueError("Cannot combine --yubikey with --keyfile")
                 backend = get_default_backend()
                 key = backend.derive_key_yubikey(
-                    password.encode("utf-8"),
-                    salt,
-                    slot=yubikey_slot,
-                    pin=yubikey_pin
+                    password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
                 )
             else:
                 key = derive_key(password, salt, keyfile)
-        
+
         # Reconstruct AAD for verification (MT-1: canonical shared function)
         # Must match exactly what was used during encryption
         if orig_len is not None and comp_len is not None and sha256 is not None:
@@ -611,15 +597,15 @@ def decrypt_to_raw(
             )
         else:
             aad = None  # Backwards compatibility (no AAD)
-        
+
         # Decrypt with AES-256-GCM
         # GCM will verify AAD matches before decrypting
         if logger:
             logger.crypto_op(f"Decrypting {len(cipher)} bytes with AES-256-GCM")
-        
+
         backend = get_default_backend()
         comp = backend.aes_gcm_decrypt(key, nonce, cipher, aad)  # ← AAD verified here!
-        
+
         # Remove length padding if present
         # Try to remove padding, fall back to no padding for backward compatibility
         try:
@@ -632,15 +618,17 @@ def decrypt_to_raw(
             # No padding or padding corrupted - use as-is
             # This provides backward compatibility with files without padding
             pass
-        
+
         # Decompress
         # Try to remove padding, fall back to no padding for backward compatibility
         if logger:
             logger.log("Decompressing data with zlib", category="io")
-        
+
         # ST-2: Decompression bomb protection — limit output size
         # Use incremental decompression to enforce MAX_DECOMP_RATIO
-        decomp_limit = max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
+        decomp_limit = (
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
+        )
         decompressor = zlib.decompressobj()
         chunks = []
         total_out = 0
@@ -665,8 +653,8 @@ def decrypt_to_raw(
             chunks.append(remaining)
         except zlib.error as ze:
             raise RuntimeError(f"Decompression failed: {ze}")
-        raw = b''.join(chunks)
-        
+        raw = b"".join(chunks)
+
         return raw
     except Exception as e:
         raise RuntimeError(f"Decryption failed (wrong password/keyfile or tampered manifest?): {e}")
@@ -675,7 +663,7 @@ def decrypt_to_raw(
 def pack_manifest(m: Manifest) -> bytes:
     """
     Serialize manifest to bytes.
-    
+
     Format (base, 115 bytes):
         MAGIC (5 bytes) +
         salt (16 bytes) +
@@ -687,70 +675,72 @@ def pack_manifest(m: Manifest) -> bytes:
         k_blocks (4 bytes) +
         sha256 (32 bytes) +
         hmac (32 bytes)
-    
+
     Format (with forward secrecy, 147 bytes):
         (base 115 bytes) +
         ephemeral_public_key (32 bytes)
-    
+
     Format (with forward secrecy + PQ, 1235 bytes):
         (base with FS 147 bytes) +
         pq_ciphertext (1088 bytes)
-    
+
     Args:
         m: Manifest object
-        
+
     Returns:
         Serialized manifest bytes (115, 147, or 1235 bytes)
-        
+
     Notes:
         - Password-only mode: 115 bytes (MEOW2 backward compat)
         - Forward secrecy mode: 147 bytes (MEOW3)
         - PQ hybrid mode: 1235 bytes (MEOW4)
     """
     base = (
-        MAGIC +
-        m.salt +
-        m.nonce +
-        struct.pack(">III", m.orig_len, m.comp_len, m.cipher_len) +
-        struct.pack(">HI", m.block_size, m.k_blocks) +
-        m.sha256 +
-        m.hmac
+        MAGIC
+        + m.salt
+        + m.nonce
+        + struct.pack(">III", m.orig_len, m.comp_len, m.cipher_len)
+        + struct.pack(">HI", m.block_size, m.k_blocks)
+        + m.sha256
+        + m.hmac
     )
-    
+
     # Add ephemeral public key if forward secrecy enabled
     if m.ephemeral_public_key is not None:
         if len(m.ephemeral_public_key) != 32:
-            raise ValueError(f"Ephemeral public key must be 32 bytes, got {len(m.ephemeral_public_key)}")
+            raise ValueError(
+                f"Ephemeral public key must be 32 bytes, got {len(m.ephemeral_public_key)}"
+            )
         base = base + m.ephemeral_public_key
-    
+
     # Add PQ ciphertext if PQ hybrid enabled
     if m.pq_ciphertext is not None:
         if len(m.pq_ciphertext) != 1088:
             raise ValueError(f"PQ ciphertext must be 1088 bytes, got {len(m.pq_ciphertext)}")
         base = base + m.pq_ciphertext
-    
+
     # Add duress tag if present (32 bytes) - ALWAYS LAST for easy detection
     if m.duress_tag is not None:
         if len(m.duress_tag) != 32:
             raise ValueError(f"Duress tag must be 32 bytes, got {len(m.duress_tag)}")
         base = base + m.duress_tag
-    
+
     return base
 
 
 def unpack_manifest(b: bytes) -> Manifest:
     """
     Deserialize manifest from bytes.
-    
+
     Args:
         b: Serialized manifest bytes
-        
+
     Returns:
         Manifest object with optional ephemeral_public_key, pq_ciphertext, and duress_tag
-        
+
     Raises:
         ValueError: If manifest is invalid or wrong version
-        
+
     Notes:
         Valid manifest sizes:
         - 115 bytes = password-only mode (MEOW2, legacy)
@@ -764,16 +754,18 @@ def unpack_manifest(b: bytes) -> Manifest:
     fs_duress_len = fs_len + 32  # 179 bytes (with FS + duress)
     pq_len = fs_len + 1088  # 1235 bytes (with PQ ciphertext)
     pq_duress_len = pq_len + 32  # 1267 bytes (with PQ + duress)
-    
+
     valid_sizes = [min_len, fs_len, fs_duress_len, pq_len, pq_duress_len]
-    
+
     if len(b) < min_len:
         raise ValueError(f"Manifest too short (got {len(b)}, need at least {min_len} bytes)")
-    
+
     if len(b) not in valid_sizes:
-        raise ValueError(f"Manifest length invalid (got {len(b)}, expected one of {valid_sizes} bytes)")
-    
-    if b[:len(MAGIC)] != MAGIC:
+        raise ValueError(
+            f"Manifest length invalid (got {len(b)}, expected one of {valid_sizes} bytes)"
+        )
+
+    if b[: len(MAGIC)] != MAGIC:
         # Try MEOW2 for backward compatibility
         if b[:5] == b"MEOW2":
             # Old version without forward secrecy
@@ -781,32 +773,40 @@ def unpack_manifest(b: bytes) -> Manifest:
             pass
         else:
             raise ValueError("Invalid MAGIC/version (possibly old v1 file or corrupted data)")
-    
+
     off = len(MAGIC)
-    salt = b[off:off+16]; off += 16
-    nonce = b[off:off+12]; off += 12
-    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off:off+12]); off += 12
-    block_size, k_blocks = struct.unpack(">HI", b[off:off+6]); off += 6
-    sha = b[off:off+32]; off += 32
-    hmac_tag = b[off:off+32]; off += 32
-    
+    salt = b[off : off + 16]
+    off += 16
+    nonce = b[off : off + 12]
+    off += 12
+    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off : off + 12])
+    off += 12
+    block_size, k_blocks = struct.unpack(">HI", b[off : off + 6])
+    off += 6
+    sha = b[off : off + 32]
+    off += 32
+    hmac_tag = b[off : off + 32]
+    off += 32
+
     # Parse optional fields based on manifest size
     ephemeral_public_key = None
     pq_ciphertext = None
     duress_tag = None
-    
+
     if len(b) >= fs_len:
         # Forward secrecy mode - extract ephemeral public key
-        ephemeral_public_key = b[off:off+32]; off += 32
-    
+        ephemeral_public_key = b[off : off + 32]
+        off += 32
+
     if len(b) >= pq_len:
         # PQ hybrid mode - extract PQ ciphertext
-        pq_ciphertext = b[off:off+1088]; off += 1088
-    
+        pq_ciphertext = b[off : off + 1088]
+        off += 1088
+
     # Check for duress tag (last 32 bytes if size matches duress variant)
     if len(b) == fs_duress_len or len(b) == pq_duress_len:
-        duress_tag = b[off:off+32]
-    
+        duress_tag = b[off : off + 32]
+
     # ── ST-2: Strict numeric bounds validation ──
     # Reject manifests with implausible field values before any crypto operations.
     if orig_len > MAX_ORIG_LEN:
@@ -816,7 +816,9 @@ def unpack_manifest(b: bytes) -> Manifest:
     if cipher_len > MAX_CIPHER_LEN:
         raise ValueError(f"Manifest cipher_len too large ({cipher_len} > {MAX_CIPHER_LEN})")
     if block_size < MIN_BLOCK_SIZE or block_size > MAX_BLOCK_SIZE:
-        raise ValueError(f"Manifest block_size out of range ({block_size}, valid: {MIN_BLOCK_SIZE}–{MAX_BLOCK_SIZE})")
+        raise ValueError(
+            f"Manifest block_size out of range ({block_size}, valid: {MIN_BLOCK_SIZE}–{MAX_BLOCK_SIZE})"
+        )
     if k_blocks == 0 or k_blocks > MAX_K_BLOCKS:
         raise ValueError(f"Manifest k_blocks out of range ({k_blocks}, valid: 1–{MAX_K_BLOCKS})")
     if comp_len > 0 and orig_len > comp_len * MAX_DECOMP_RATIO:
@@ -827,12 +829,12 @@ def unpack_manifest(b: bytes) -> Manifest:
         # Ciphertext should be >= compressed data (GCM adds 16-byte tag + possible padding)
         pass  # Not strictly enforced — padding modes may vary
     # Validate ephemeral public key is not all-zero
-    if ephemeral_public_key is not None and ephemeral_public_key == b'\x00' * 32:
+    if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
     # Validate PQ ciphertext length
     if pq_ciphertext is not None and len(pq_ciphertext) != 1088:
         raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1088)")
-    
+
     return Manifest(
         salt=salt,
         nonce=nonce,
@@ -845,7 +847,7 @@ def unpack_manifest(b: bytes) -> Manifest:
         hmac=hmac_tag,
         ephemeral_public_key=ephemeral_public_key,
         pq_ciphertext=pq_ciphertext,
-        duress_tag=duress_tag
+        duress_tag=duress_tag,
     )
 
 
@@ -857,14 +859,14 @@ def derive_encryption_key_for_manifest(
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
-    precomputed_key: Optional[bytes] = None
+    precomputed_key: Optional[bytes] = None,
 ) -> bytes:
     """
     Derive the encryption key for a manifest, matching encryption/decryption paths.
 
     This helper centralizes key derivation to keep frame MAC and HMAC derivations
     consistent and avoids subtle divergence.
-    
+
     Args:
         password: User password
         salt: Salt from manifest
@@ -873,7 +875,7 @@ def derive_encryption_key_for_manifest(
         receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips key derivation and returns this key
-    
+
     Returns:
         32-byte encryption key
     """
@@ -882,7 +884,7 @@ def derive_encryption_key_for_manifest(
         if len(precomputed_key) != 32:
             raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
         return precomputed_key
-    
+
     if ephemeral_public_key is not None:
         if receiver_private_key is None:
             raise ValueError("Forward secrecy mode requires receiver private key")
@@ -890,31 +892,20 @@ def derive_encryption_key_for_manifest(
         try:
             from meow_decoder.x25519_forward_secrecy import (
                 derive_shared_secret,
-                deserialize_public_key
+                deserialize_public_key,
             )
         except ImportError:
-            from .x25519_forward_secrecy import (
-                derive_shared_secret,
-                deserialize_public_key
-            )
+            from .x25519_forward_secrecy import derive_shared_secret, deserialize_public_key
 
         sender_pubkey = deserialize_public_key(ephemeral_public_key)
-        return derive_shared_secret(
-            receiver_private_key,
-            sender_pubkey,
-            password,
-            salt
-        )
+        return derive_shared_secret(receiver_private_key, sender_pubkey, password, salt)
 
     if yubikey_slot is not None:
         if keyfile is not None:
             raise ValueError("Cannot combine --yubikey with --keyfile")
         backend = get_default_backend()
         return backend.derive_key_yubikey(
-            password.encode("utf-8"),
-            salt,
-            slot=yubikey_slot,
-            pin=yubikey_pin
+            password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
         )
 
     return derive_key(password, salt, keyfile)
@@ -929,11 +920,11 @@ def compute_manifest_hmac(
     receiver_private_key: Optional[bytes] = None,
     encryption_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
-    yubikey_pin: Optional[str] = None
+    yubikey_pin: Optional[str] = None,
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
-    
+
     Args:
         password: User password
         salt: Salt from manifest
@@ -942,10 +933,10 @@ def compute_manifest_hmac(
         ephemeral_public_key: Optional ephemeral X25519 public key (forward secrecy mode)
         receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present during decoding)
         encryption_key: Pre-derived encryption key (32 bytes) - if provided, used directly instead of deriving
-        
+
     Returns:
         32-byte HMAC-SHA256 tag
-        
+
     Security:
         - Uses same key derivation as encryption
         - Forward secrecy mode: Uses X25519 shared secret
@@ -965,14 +956,14 @@ def compute_manifest_hmac(
             ephemeral_public_key=ephemeral_public_key,
             receiver_private_key=receiver_private_key,
             yubikey_slot=yubikey_slot,
-            yubikey_pin=yubikey_pin
+            yubikey_pin=yubikey_pin,
         )
-    
+
     # Derive HMAC key from encryption key
     # Why: Domain separation prevents reuse of the encryption key for
     # authentication, mitigating cross-context key reuse risks.
     key_material = MANIFEST_HMAC_KEY_PREFIX + key
-    
+
     backend = get_default_backend()
     return backend.hmac_sha256(key_material, packed_no_hmac)
 
@@ -984,11 +975,11 @@ def verify_manifest_hmac(
     receiver_private_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
-    precomputed_key: Optional[bytes] = None
+    precomputed_key: Optional[bytes] = None,
 ) -> bool:
     """
     Verify manifest HMAC with constant-time comparison and timing equalization.
-    
+
     Args:
         password: User password
         manifest: Manifest to verify
@@ -996,10 +987,10 @@ def verify_manifest_hmac(
         receiver_private_key: Receiver's X25519 private key (required if manifest has ephemeral_public_key)
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips key derivation and uses this key for HMAC verification
-        
+
     Returns:
         True if HMAC is valid
-        
+
     Security:
         - Constant-time comparison prevents timing attacks
         - Timing equalization adds defense in depth
@@ -1008,24 +999,25 @@ def verify_manifest_hmac(
     """
     # Pack manifest without HMAC
     packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
-    
+
     # Compute expected HMAC (with forward secrecy support)
     expected_hmac = compute_manifest_hmac(
-        password, 
-        manifest.salt, 
-        packed_no_hmac, 
+        password,
+        manifest.salt,
+        packed_no_hmac,
         keyfile,
         ephemeral_public_key=manifest.ephemeral_public_key,
         receiver_private_key=receiver_private_key,
         encryption_key=precomputed_key,  # Pass precomputed key for HMAC
         yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin
+        yubikey_pin=yubikey_pin,
     )
-    
+
     # Constant-time comparison with timing equalization
     # Why: Prevents timing side-channel leakage on authentication failures.
     try:
         from .constant_time import constant_time_compare, equalize_timing
+
         result = constant_time_compare(expected_hmac, manifest.hmac)
         # Add timing equalization (prevents timing side-channels)
         equalize_timing(0.001, 0.005)  # 1-5ms random delay
@@ -1035,6 +1027,7 @@ def verify_manifest_hmac(
         result = secrets.compare_digest(expected_hmac, manifest.hmac)
         # Still add some timing jitter
         import time
+
         time.sleep(secrets.randbelow(5) / 1000.0)  # 0-5ms
         return result
 
@@ -1042,58 +1035,57 @@ def verify_manifest_hmac(
 def verify_keyfile(keyfile_path: str) -> bytes:
     """
     Read and validate keyfile.
-    
+
     Args:
         keyfile_path: Path to keyfile
-        
+
     Returns:
         Keyfile contents
-        
+
     Raises:
         ValueError: If keyfile is invalid
         FileNotFoundError: If keyfile doesn't exist
     """
     if not os.path.exists(keyfile_path):
         raise FileNotFoundError(f"Keyfile not found: {keyfile_path}")
-    
+
     with open(keyfile_path, "rb") as f:
         keyfile = f.read()
-    
+
     if len(keyfile) < 32:
         raise ValueError(f"Keyfile too small (need at least 32 bytes, got {len(keyfile)})")
-    
+
     if len(keyfile) > 1024 * 1024:  # 1 MB
         raise ValueError(f"Keyfile too large (max 1 MB, got {len(keyfile)} bytes)")
-    
-    return keyfile
 
+    return keyfile
 
 
 # Testing
 if __name__ == "__main__":
     print("Testing Base Cryptography Module...\n")
-    
+
     # Test 1: Key derivation
     print("1. Testing key derivation...")
     password = "test_password_123"
     salt = secrets.token_bytes(16)
-    
+
     key1 = derive_key(password, salt)
     key2 = derive_key(password, salt)
-    
+
     assert key1 == key2, "Same password should give same key"
     assert len(key1) == 32, "Key should be 32 bytes"
     print(f"   ✓ Key derivation works ({len(key1)} bytes)")
-    
+
     # Test 2: Encryption/decryption
     print("\n2. Testing encryption/decryption...")
     test_data = b"Secret cat message! " * 100
-    
+
     comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(test_data, password)
     print(f"   Original: {len(test_data)} bytes")
     print(f"   Compressed: {len(comp)} bytes ({len(comp)/len(test_data)*100:.1f}%)")
     print(f"   Encrypted: {len(cipher)} bytes")
-    
+
     decrypted = decrypt_to_raw(
         cipher,
         password,
@@ -1105,71 +1097,75 @@ if __name__ == "__main__":
     )
     assert decrypted == test_data, "Decryption should recover original"
     print("   ✓ Encryption/decryption roundtrip works")
-    
+
     # Test 3: SHA256 verification
     print("\n3. Testing SHA256 hash...")
     computed_sha = hashlib.sha256(test_data).digest()
     assert computed_sha == sha, "SHA256 should match"
     print("   ✓ SHA256 verification works")
-    
+
     # Test 4: Manifest packing/unpacking
     print("\n4. Testing manifest...")
-    
+
     manifest = Manifest(
-        salt=salt, nonce=nonce,
+        salt=salt,
+        nonce=nonce,
         orig_len=len(test_data),
         comp_len=len(comp),
         cipher_len=len(cipher),
         sha256=sha,
         block_size=512,
         k_blocks=10,
-        hmac=b'\x00' * 32,  # Placeholder
-        ephemeral_public_key=None, # Test password-only mode
+        hmac=b"\x00" * 32,  # Placeholder
+        ephemeral_public_key=None,  # Test password-only mode
         pq_ciphertext=None,
-        duress_tag=None
+        duress_tag=None,
     )
-    
+
     # Compute HMAC
     packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=False)
-    
+
     # Derive key to compute HMAC
     enc_key = derive_key(password, salt)
     manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
-    
+
     # Pack and unpack
     packed = pack_manifest(manifest)
     unpacked = unpack_manifest(packed)
-    
+
     assert unpacked.salt == manifest.salt
     assert unpacked.orig_len == manifest.orig_len
     print(f"   ✓ Manifest roundtrip works ({len(packed)} bytes)")
-    
+
     # Test 5: HMAC verification
     print("\n5. Testing HMAC verification...")
-    
+
     is_valid = verify_manifest_hmac(password, unpacked)
     assert is_valid, "HMAC should be valid"
     print("   ✓ HMAC verification works")
-    
+
     # Test wrong password
     is_valid_wrong = verify_manifest_hmac("wrong_password", unpacked)
     assert not is_valid_wrong, "HMAC should fail with wrong password"
     print("   ✓ HMAC rejects wrong password")
-    
+
     # Test 6: Keyfile support
     print("\n6. Testing keyfile...")
-    
+
     import tempfile
+
     with tempfile.NamedTemporaryFile(delete=False) as f:
         keyfile_path = f.name
         f.write(secrets.token_bytes(256))
-    
+
     try:
         keyfile = verify_keyfile(keyfile_path)
-        
+
         # Encrypt with keyfile
-        comp_kf, sha_kf, salt_kf, nonce_kf, cipher_kf, _, _ = encrypt_file_bytes(test_data, password, keyfile)
-        
+        comp_kf, sha_kf, salt_kf, nonce_kf, cipher_kf, _, _ = encrypt_file_bytes(
+            test_data, password, keyfile
+        )
+
         # Decrypt with keyfile (include AAD parameters)
         decrypted_kf = decrypt_to_raw(
             cipher_kf,
@@ -1183,7 +1179,7 @@ if __name__ == "__main__":
         )
         assert decrypted_kf == test_data
         print("   ✓ Keyfile encryption/decryption works")
-        
+
         # Try decrypting without keyfile (should fail)
         try:
             decrypt_to_raw(
@@ -1198,8 +1194,8 @@ if __name__ == "__main__":
             print("   ✗ Decryption without keyfile should fail")
         except RuntimeError:
             print("   ✓ Keyfile is required for decryption")
-    
+
     finally:
         os.unlink(keyfile_path)
-    
+
     print("\n✅ All cryptography tests passed!")

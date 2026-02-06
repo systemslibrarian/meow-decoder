@@ -15,6 +15,7 @@ class DuressMode(enum.Enum):
     """
     Operational mode when duress is triggered.
     """
+
     DECOY = "decoy"  # Return fake "success" data (looks normal)
     PANIC = "panic"  # Silent wipe and clean exit (paranoid)
 
@@ -24,30 +25,31 @@ class DuressConfig:
     """
     Configuration for duress mode behavior.
     """
+
     enabled: bool = False
     mode: DuressMode = DuressMode.DECOY
     panic_enabled: bool = False  # Explicit opt-in for destructive panic
-    
+
     # Decoy settings
     decoy_type: str = "message"  # message, bundled_file, user_file
     decoy_message: str = "Decode complete."
     decoy_file_path: Optional[str] = None
     decoy_output_name: Optional[str] = None
     show_decoy: bool = True  # Show decoy data on duress trigger
-    
+
     # Legacy/Granular options (kept for compatibility/internal use)
     wipe_memory: bool = True  # Wipe sensitive memory on duress
     wipe_resume_files: bool = True  # Wipe resume/temp files on duress
     exit_after_wipe: bool = False
-    
+
     # Security options
     overwrite_passes: int = 3  # Number of overwrite passes for secure wipe
     gc_aggressive: bool = True  # Force garbage collection after wipe
-    
+
     # Timing equalization
     min_delay_ms: int = 100
     max_delay_ms: int = 500
-    
+
     # Callback for custom duress handling
     trigger_callback: Optional[Callable] = None
 
@@ -55,101 +57,107 @@ class DuressConfig:
 @dataclass
 class EncodingConfig:
     """Configuration for encoding operations."""
-    block_size: int = 512                    # Fountain code block size
-    redundancy: float = 1.5                  # Redundancy factor (1.5 = 150% of k_blocks)
-    qr_error_correction: str = "H"           # QR error correction (L/M/Q/H) - H for GIF
-    qr_box_size: int = 14                    # QR box size in pixels - 14 for GIF readability
-    qr_border: int = 4                       # QR border size
-    fps: int = 2                             # GIF frames per second (slow for readability)
-    
+
+    block_size: int = 512  # Fountain code block size
+    redundancy: float = 1.5  # Redundancy factor (1.5 = 150% of k_blocks)
+    qr_error_correction: str = "H"  # QR error correction (L/M/Q/H) - H for GIF
+    qr_box_size: int = 14  # QR box size in pixels - 14 for GIF readability
+    qr_border: int = 4  # QR border size
+    fps: int = 2  # GIF frames per second (slow for readability)
+
     # Security options (🐱 NINE LIVES MODE - NOW DEFAULT!)
-    enable_forward_secrecy: bool = True      # ✅ Enable per-block keys (RECOMMENDED)
-    ratchet_interval: int = 100              # Blocks between ratchet steps
-    enable_stego: bool = False               # Enable steganography
-    stealth_level: int = 2                   # Stealth level (1-4)
-    enable_animation: bool = False           # Animated carriers
-    enable_low_memory: bool = False          # Low-memory streaming mode
-    enable_pq: bool = True                   # ✅ Post-quantum crypto (ML-KEM-1024 + X25519 hybrid) - DEFAULT ON
-    
+    enable_forward_secrecy: bool = True  # ✅ Enable per-block keys (RECOMMENDED)
+    ratchet_interval: int = 100  # Blocks between ratchet steps
+    enable_stego: bool = False  # Enable steganography
+    stealth_level: int = 2  # Stealth level (1-4)
+    enable_animation: bool = False  # Animated carriers
+    enable_low_memory: bool = False  # Low-memory streaming mode
+    enable_pq: bool = True  # ✅ Post-quantum crypto (ML-KEM-1024 + X25519 hybrid) - DEFAULT ON
+
     # Enhanced security features
-    enable_duress: bool = False              # Duress password support
-    enable_hardware_keys: bool = True        # Auto-detect hardware security (TPM/YubiKey)
-    enable_enhanced_entropy: bool = True     # Multi-source entropy collection
-    enable_chaff_frames: bool = False        # Add dummy frames to GIF
-    
+    enable_duress: bool = False  # Duress password support
+    enable_hardware_keys: bool = True  # Auto-detect hardware security (TPM/YubiKey)
+    enable_enhanced_entropy: bool = True  # Multi-source entropy collection
+    enable_chaff_frames: bool = False  # Add dummy frames to GIF
+
     # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
-    require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
-    
+    require_rust: bool = True  # SECURITY: Fail if Rust unavailable (default)
+
     # Performance
-    enable_profiling: bool = False           # Enable performance profiling
+    enable_profiling: bool = False  # Enable performance profiling
 
 
 @dataclass
 class DecodingConfig:
     """Configuration for decoding operations."""
-    webcam_device: int = 0                   # Webcam device index
-    frame_skip: int = 0                      # Skip frames for performance
-    preprocessing: str = "normal"            # Preprocessing mode (normal/aggressive)
-    
+
+    webcam_device: int = 0  # Webcam device index
+    frame_skip: int = 0  # Skip frames for performance
+    preprocessing: str = "normal"  # Preprocessing mode (normal/aggressive)
+
     # Security options
-    enable_resume: bool = True               # Enable resume functionality
-    resume_password: Optional[str] = None    # Password for encrypted resume
-    save_interval: int = 10                  # Save resume every N droplets
-    
+    enable_resume: bool = True  # Enable resume functionality
+    resume_password: Optional[str] = None  # Password for encrypted resume
+    save_interval: int = 10  # Save resume every N droplets
+
     # Steganography
-    enable_stego: bool = False               # Decode from steganography
-    aggressive_stego: bool = False           # Aggressive stego preprocessing
-    
+    enable_stego: bool = False  # Decode from steganography
+    aggressive_stego: bool = False  # Aggressive stego preprocessing
+
     # Performance
-    max_memory_mb: int = 500                 # Maximum memory usage
+    max_memory_mb: int = 500  # Maximum memory usage
 
 
 @dataclass
 class CryptoConfig:
     """
     Configuration for cryptography operations.
-    
+
     Security Note:
         Defaults are set to OWASP-recommended minimums for Argon2id.
         ~500-800ms on modern hardware (acceptable for high-security use).
-        
+
         For faster operation (e.g., testing), reduce:
         - argon2_memory to 32768 (32 MB)
         - argon2_iterations to 2
-        
+
         For maximum security, increase:
         - argon2_memory to 131072 (128 MB) or 262144 (256 MB)
         - argon2_iterations to 4 or 5
     """
-    key_derivation: str = "argon2id"         # Key derivation function
-    argon2_memory: int = 524288              # 512 MiB (8x OWASP minimum) - ULTRA HARDENED
-    argon2_iterations: int = 20              # 20 passes (~5-10 sec delay)
-    argon2_parallelism: int = 4              # 4 threads
-    
+
+    key_derivation: str = "argon2id"  # Key derivation function
+    argon2_memory: int = 524288  # 512 MiB (8x OWASP minimum) - ULTRA HARDENED
+    argon2_iterations: int = 20  # 20 passes (~5-10 sec delay)
+    argon2_parallelism: int = 4  # 4 threads
+
     # Ultra-hardened mode (when lives depend on it)
-    ultra_hardened: bool = False             # 1 GiB / 40 iterations (~20-30 sec)
-    
-    cipher: str = "aes-256-gcm"              # Cipher algorithm
-    
+    ultra_hardened: bool = False  # 1 GiB / 40 iterations (~20-30 sec)
+
+    cipher: str = "aes-256-gcm"  # Cipher algorithm
+
     # Backend selection (SECURITY: Rust is REQUIRED unless explicitly allowed)
-    require_rust: bool = True                # SECURITY: Fail if Rust unavailable (default)
-    
+    require_rust: bool = True  # SECURITY: Fail if Rust unavailable (default)
+
     # Forward secrecy
-    enable_forward_secrecy: bool = True      # Enabled by default
-    ratchet_interval: int = 50               # Ratchet every 50 blocks
-    
+    enable_forward_secrecy: bool = True  # Enabled by default
+    ratchet_interval: int = 50  # Ratchet every 50 blocks
+
     # Post-quantum (DEFAULT ON for quantum resilience)
-    enable_pq: bool = True                   # ✅ ENABLED by default (ML-KEM-1024 + X25519 hybrid)
-    kyber_variant: str = "kyber1024"         # ML-KEM-1024 (NIST FIPS 203 - highest security)
+    enable_pq: bool = True  # ✅ ENABLED by default (ML-KEM-1024 + X25519 hybrid)
+    kyber_variant: str = "kyber1024"  # ML-KEM-1024 (NIST FIPS 203 - highest security)
 
 
 @dataclass
 class PathConfig:
     """Configuration for file paths."""
+
     cache_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "meowdecoder")
-    resume_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "meowdecoder" / "resume")
+    resume_dir: Path = field(
+        default_factory=lambda: Path.home() / ".cache" / "meowdecoder" / "resume"
+    )
     temp_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "meowdecoder" / "temp")
-    
+
     def __post_init__(self):
         """Ensure directories exist."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
@@ -160,90 +168,91 @@ class PathConfig:
 @dataclass
 class MeowConfig:
     """Master configuration for Meow Decoder."""
+
     encoding: EncodingConfig = field(default_factory=EncodingConfig)
     decoding: DecodingConfig = field(default_factory=DecodingConfig)
     crypto: CryptoConfig = field(default_factory=CryptoConfig)
     duress: DuressConfig = field(default_factory=DuressConfig)
     paths: PathConfig = field(default_factory=PathConfig)
-    
+
     # Global options
     verbose: bool = False
     debug: bool = False
-    
+
     def save(self, path: Path):
         """Save configuration to JSON file."""
         # Custom serialization for enums
         duress_dict = self.duress.__dict__.copy()
-        if isinstance(duress_dict['mode'], DuressMode):
-            duress_dict['mode'] = duress_dict['mode'].value
+        if isinstance(duress_dict["mode"], DuressMode):
+            duress_dict["mode"] = duress_dict["mode"].value
 
         config_dict = {
-            'encoding': self.encoding.__dict__,
-            'decoding': self.decoding.__dict__,
-            'crypto': self.crypto.__dict__,
-            'duress': duress_dict,
-            'paths': {
-                'cache_dir': str(self.paths.cache_dir),
-                'resume_dir': str(self.paths.resume_dir),
-                'temp_dir': str(self.paths.temp_dir)
+            "encoding": self.encoding.__dict__,
+            "decoding": self.decoding.__dict__,
+            "crypto": self.crypto.__dict__,
+            "duress": duress_dict,
+            "paths": {
+                "cache_dir": str(self.paths.cache_dir),
+                "resume_dir": str(self.paths.resume_dir),
+                "temp_dir": str(self.paths.temp_dir),
             },
-            'verbose': self.verbose,
-            'debug': self.debug
+            "verbose": self.verbose,
+            "debug": self.debug,
         }
-        
-        with open(path, 'w') as f:
+
+        with open(path, "w") as f:
             json.dump(config_dict, f, indent=2)
-    
+
     @classmethod
-    def load(cls, path: Path) -> 'MeowConfig':
+    def load(cls, path: Path) -> "MeowConfig":
         """Load configuration from JSON file."""
-        with open(path, 'r') as f:
+        with open(path, "r") as f:
             config_dict = json.load(f)
-        
+
         config = cls()
-        
+
         # Load encoding config
-        if 'encoding' in config_dict:
-            for key, value in config_dict['encoding'].items():
+        if "encoding" in config_dict:
+            for key, value in config_dict["encoding"].items():
                 if hasattr(config.encoding, key):
-                   setattr(config.encoding, key, value)
-        
+                    setattr(config.encoding, key, value)
+
         # Load decoding config
-        if 'decoding' in config_dict:
-            for key, value in config_dict['decoding'].items():
+        if "decoding" in config_dict:
+            for key, value in config_dict["decoding"].items():
                 if hasattr(config.decoding, key):
-                   setattr(config.decoding, key, value)
-        
+                    setattr(config.decoding, key, value)
+
         # Load crypto config
-        if 'crypto' in config_dict:
-            for key, value in config_dict['crypto'].items():
-                 if hasattr(config.crypto, key):
-                   setattr(config.crypto, key, value)
-        
+        if "crypto" in config_dict:
+            for key, value in config_dict["crypto"].items():
+                if hasattr(config.crypto, key):
+                    setattr(config.crypto, key, value)
+
         # Load duress config
-        if 'duress' in config_dict:
-            for key, value in config_dict['duress'].items():
-                if key == 'mode' and isinstance(value, str):
-                     try:
-                         value = DuressMode(value)
-                     except ValueError:
-                         value = DuressMode.DECOY # Fallback
-                
+        if "duress" in config_dict:
+            for key, value in config_dict["duress"].items():
+                if key == "mode" and isinstance(value, str):
+                    try:
+                        value = DuressMode(value)
+                    except ValueError:
+                        value = DuressMode.DECOY  # Fallback
+
                 if hasattr(config.duress, key):
                     setattr(config.duress, key, value)
 
         # Load paths
-        if 'paths' in config_dict:
+        if "paths" in config_dict:
             config.paths = PathConfig(
-                cache_dir=Path(config_dict['paths']['cache_dir']),
-                resume_dir=Path(config_dict['paths']['resume_dir']),
-                temp_dir=Path(config_dict['paths']['temp_dir'])
+                cache_dir=Path(config_dict["paths"]["cache_dir"]),
+                resume_dir=Path(config_dict["paths"]["resume_dir"]),
+                temp_dir=Path(config_dict["paths"]["temp_dir"]),
             )
-        
+
         # Load global options
-        config.verbose = config_dict.get('verbose', False)
-        config.debug = config_dict.get('debug', False)
-        
+        config.verbose = config_dict.get("verbose", False)
+        config.debug = config_dict.get("debug", False)
+
         return config
 
 
@@ -254,32 +263,32 @@ DEFAULT_CONFIG = MeowConfig()
 def get_config() -> MeowConfig:
     """
     Get configuration, loading from file if it exists.
-    
+
     Returns:
         MeowConfig instance
     """
     config_path = Path.home() / ".config" / "meowdecoder" / "config.json"
-    
+
     if config_path.exists():
         try:
             return MeowConfig.load(config_path)
         except Exception as e:
             print(f"Warning: Failed to load config from {config_path}: {e}")
             print("Using default configuration.")
-    
+
     return MeowConfig()
 
 
 def save_config(config: MeowConfig):
     """
     Save configuration to default location.
-    
+
     Args:
         config: MeowConfig to save
     """
     config_dir = Path.home() / ".config" / "meowdecoder"
     config_dir.mkdir(parents=True, exist_ok=True)
-    
+
     config_path = config_dir / "config.json"
     config.save(config_path)
 
@@ -287,7 +296,7 @@ def save_config(config: MeowConfig):
 # Testing
 if __name__ == "__main__":
     print("Testing Meow Decoder Configuration...\n")
-    
+
     # Test 1: Create default config
     print("1. Creating default configuration...")
     config = MeowConfig()
@@ -295,7 +304,7 @@ if __name__ == "__main__":
     print(f"   Redundancy: {config.encoding.redundancy}")
     print(f"   Cache dir: {config.paths.cache_dir}")
     print("   ✓ Default config created")
-    
+
     # Test 2: Modify config
     print("\n2. Modifying configuration...")
     config.encoding.enable_forward_secrecy = True
@@ -304,21 +313,22 @@ if __name__ == "__main__":
     print(f"   Forward secrecy: {config.encoding.enable_forward_secrecy}")
     print(f"   Stealth level: {config.encoding.stealth_level}")
     print("   ✓ Config modified")
-    
+
     # Test 3: Save/load config
     print("\n3. Testing save/load...")
     import tempfile
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
         config_path = Path(f.name)
-    
+
     try:
         config.save(config_path)
         loaded_config = MeowConfig.load(config_path)
-        
+
         assert loaded_config.encoding.enable_forward_secrecy == True
         assert loaded_config.encoding.stealth_level == 4
         print("   ✓ Save/load working")
     finally:
         config_path.unlink()
-    
+
     print("\n✅ All configuration tests passed!")
