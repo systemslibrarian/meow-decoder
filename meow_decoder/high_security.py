@@ -42,7 +42,6 @@ from typing import Optional
 # Import core modules
 from .config import MeowConfig, EncodingConfig, DecodingConfig, CryptoConfig
 
-
 # Maximum security Argon2id parameters
 # These are high - 5-10 seconds per attempt on modern hardware
 # Makes brute force impractical for most adversaries

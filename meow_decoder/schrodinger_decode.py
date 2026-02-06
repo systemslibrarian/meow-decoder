@@ -5,6 +5,7 @@
 This decoder collapses the quantum superposition based on the provided password,
 revealing one of the two hidden realities.
 """
+
 from __future__ import annotations
 
 import sys

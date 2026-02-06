@@ -16,7 +16,6 @@ from typing import Tuple, Optional
 
 from .crypto_backend import get_default_backend, secure_zero_memory
 
-
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 

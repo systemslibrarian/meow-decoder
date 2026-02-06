@@ -55,7 +55,6 @@ from typing import Tuple
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes
 
-
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY CONSTANT: Frame MAC Size
 # ═══════════════════════════════════════════════════════════════════════════════

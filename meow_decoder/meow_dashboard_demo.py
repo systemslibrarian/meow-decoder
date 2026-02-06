@@ -440,8 +440,7 @@ def launch_cat_dashboard():
 
 
 if __name__ == "__main__":
-    print(
-        """
+    print("""
 ╔═══════════════════════════════════════════════════════╗
 ║                                                       ║
 ║           😸 MEOW DECODER DASHBOARD 😸                ║
@@ -449,8 +448,7 @@ if __name__ == "__main__":
 ║          Hiss Your Secrets Into Yarn Balls!          ║
 ║                                                       ║
 ╚═══════════════════════════════════════════════════════╝
-    """
-    )
+    """)
 
     try:
         launch_cat_dashboard()

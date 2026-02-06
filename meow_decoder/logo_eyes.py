@@ -19,7 +19,6 @@ from typing import List, Tuple, Optional
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 
-
 # Eye positions in the ORIGINAL 765x602 logo (detected from green areas)
 ORIGINAL_LOGO_SIZE = (765, 602)
 ORIGINAL_LEFT_EYE = (302, 263)  # center

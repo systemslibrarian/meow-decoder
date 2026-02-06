@@ -349,7 +349,7 @@ class BiDirectionalSender:
             raise ValueError("Status update too short")
 
         session_id = data[:8]
-        (frames_received, frames_decoded, blocks_decoded, k_blocks_needed, missing, errors) = (
+        frames_received, frames_decoded, blocks_decoded, k_blocks_needed, missing, errors = (
             struct.unpack(">IIIIII", data[8:32])
         )
 

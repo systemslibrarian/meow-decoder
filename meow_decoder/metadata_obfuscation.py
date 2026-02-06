@@ -16,7 +16,6 @@ import random
 from typing import Tuple, List
 from dataclasses import dataclass
 
-
 # Standard size classes for padding (powers of 2, in KB)
 SIZE_CLASSES = [
     1024,  # 1 KB

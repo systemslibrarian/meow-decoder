@@ -20,7 +20,6 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from meow_decoder.fountain import FountainDecoder
 from meow_decoder.crypto import Manifest
 
-
 STATE_VERSION = 1  # For future migrations
 
 

@@ -23,7 +23,6 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF, HKDFExpand
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-
 # Domain separation constants
 BLOCK_KEY_DOMAIN = b"meow_block_key_v3"
 RATCHET_DOMAIN = b"meow_ratchet_v3"

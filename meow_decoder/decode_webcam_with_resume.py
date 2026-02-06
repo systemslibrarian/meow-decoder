@@ -600,7 +600,9 @@ Resume Feature:
                             decoder.droplets_seen += 1
                     except Exception as e:
                         if not args.quiet:
-                            print(f"{Fore.YELLOW}⚠️  Droplet error (skipping): {e}{Style.RESET_ALL}")
+                            print(
+                                f"{Fore.YELLOW}⚠️  Droplet error (skipping): {e}{Style.RESET_ALL}"
+                            )
                         continue
 
             # Update display

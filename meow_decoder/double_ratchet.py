@@ -45,7 +45,6 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF, HKDFExpand
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
-
 # Domain separation constants
 RATCHET_INFO_ROOT = b"meow_double_ratchet_root_v1"
 RATCHET_INFO_CHAIN = b"meow_double_ratchet_chain_v1"

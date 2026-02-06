@@ -40,7 +40,6 @@ except ImportError:
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 from cryptography.hazmat.primitives import serialization
 
-
 # Signature algorithm identifiers
 SIG_ED25519 = 0x01
 SIG_DILITHIUM3 = 0x02

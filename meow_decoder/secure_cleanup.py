@@ -30,7 +30,6 @@ from typing import List, Optional, Set
 from contextlib import contextmanager
 import threading
 
-
 # Global registry of sensitive buffers (weak references)
 _sensitive_buffers: Set[int] = set()
 _buffer_data: dict = {}  # id -> bytearray
