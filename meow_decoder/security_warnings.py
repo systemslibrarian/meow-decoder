@@ -19,11 +19,13 @@ SILENCE_PQ_WARNING = os.environ.get("MEOW_SILENCE_PQ_WARNING", "").lower() in ("
 
 class PostQuantumExperimentalWarning(UserWarning):
     """Warning for experimental post-quantum cryptography usage."""
+
     pass
 
 
 class SecurityDeprecationWarning(UserWarning):
     """Warning for deprecated security features."""
+
     pass
 
 
@@ -32,7 +34,7 @@ def _warn_pq_experimental() -> None:
     """Emit PQ experimental warning (once per session)."""
     if SILENCE_PQ_WARNING:
         return
-    
+
     warnings.warn(
         "\n"
         "════════════════════════════════════════════════════════════════════════\n"
@@ -54,17 +56,17 @@ def _warn_pq_experimental() -> None:
         "To silence this warning: MEOW_SILENCE_PQ_WARNING=1\n"
         "════════════════════════════════════════════════════════════════════════\n",
         PostQuantumExperimentalWarning,
-        stacklevel=3
+        stacklevel=3,
     )
 
 
 def warn_pq_experimental() -> None:
     """
     Emit a one-time warning about experimental PQ crypto status.
-    
+
     Call this when initializing PQ key material or performing PQ operations.
     The warning is only shown once per Python session.
-    
+
     Set MEOW_SILENCE_PQ_WARNING=1 to suppress for informed users.
     """
     _warn_pq_experimental()
@@ -88,14 +90,14 @@ def _warn_python_backend() -> None:
         "RECOMMENDED: Use the Rust backend (meow_crypto_rs) for production.\n"
         "════════════════════════════════════════════════════════════════════════\n",
         SecurityDeprecationWarning,
-        stacklevel=3
+        stacklevel=3,
     )
 
 
 def warn_python_backend() -> None:
     """
     Emit warning when Python backend is used instead of Rust.
-    
+
     This should never happen in normal operation since Python backend
     is disabled, but serves as defense-in-depth if it's accidentally enabled.
     """

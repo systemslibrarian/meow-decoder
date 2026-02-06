@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Final
 
-MEOW_PAYLOAD_MARKER: Final[bytes] = b"\x21\xFF\x0BMEOW-PAYLOAD"
+MEOW_PAYLOAD_MARKER: Final[bytes] = b"\x21\xff\x0bMEOW-PAYLOAD"
 GIF_HEADER_MIN_SIZE: Final[int] = 13  # Header (6) + Logical Screen Descriptor (7)
 
 

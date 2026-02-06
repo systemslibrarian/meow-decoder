@@ -33,7 +33,7 @@ from cryptography.hazmat.primitives import hashes
 class QuantumState:
     """
     Represents the superposition of two realities.
-    
+
     Attributes:
         mixed_data: Cryptographically mixed blocks (indistinguishable)
         reality_a_key: Key to collapse to reality A
@@ -41,6 +41,7 @@ class QuantumState:
         quantum_noise: Shared noise binding both realities
         entanglement_root: Merkle root of entangled blocks
     """
+
     mixed_data: bytes
     reality_a_key: bytes
     reality_b_key: bytes
@@ -48,53 +49,45 @@ class QuantumState:
     entanglement_root: bytes
 
 
-def derive_quantum_noise(
-    password_a: str,
-    password_b: str,
-    salt: bytes,
-    length: int = 32
-) -> bytes:
+def derive_quantum_noise(password_a: str, password_b: str, salt: bytes, length: int = 32) -> bytes:
     """
     Derive shared quantum noise from both passwords.
-    
+
     This noise is used to entangle both realities cryptographically.
     Neither password alone can derive it - both are required.
     This prevents independent manipulation of either reality.
-    
+
     Args:
         password_a: First password (real or decoy)
         password_b: Second password (decoy or real)
         salt: Random salt for derivation
         length: Output length in bytes
-        
+
     Returns:
         Quantum noise key binding both realities
-        
+
     Security:
         - Requires both passwords to derive
         - Unique per encoding (salted)
         - Cryptographically secure (HKDF-SHA256)
         - Forward secure (cannot derive from noise alone)
-        
+
     Philosophy:
         The quantum noise is the "yarn" that tangles both realities together.
         Neither cat can escape without unraveling the other's yarn.
     """
     # Combine both passwords via XOR of their hashes
-    hash_a = hashlib.sha256(password_a.encode('utf-8')).digest()
-    hash_b = hashlib.sha256(password_b.encode('utf-8')).digest()
-    
+    hash_a = hashlib.sha256(password_a.encode("utf-8")).digest()
+    hash_b = hashlib.sha256(password_b.encode("utf-8")).digest()
+
     # XOR combines them - neither can derive this alone
     combined = bytes(a ^ b for a, b in zip(hash_a, hash_b))
-    
+
     # Derive quantum noise with HKDF
     noise = HKDF(
-        algorithm=hashes.SHA256(),
-        length=length,
-        salt=salt,
-        info=b"meow_quantum_noise_v1"
+        algorithm=hashes.SHA256(), length=length, salt=salt, info=b"meow_quantum_noise_v1"
     ).derive(combined)
-    
+
     return noise
 
 
@@ -104,45 +97,42 @@ def entangle_realities(
 ) -> bytes:
     """
     Entangle two realities into an indistinguishable superposition by interleaving.
-    
+
     This practical approach ensures each reality can be decrypted independently
     while still being mixed together in a single data stream.
-    
+
     Args:
         reality_a: First encrypted reality (ciphertext A)
         reality_b: Second encrypted reality (ciphertext B)
-        
+
     Returns:
         Interleaved superposition.
     """
     # Ensure both realities are same length (pad shorter one)
     max_len = max(len(reality_a), len(reality_b))
-    
+
     if len(reality_a) < max_len:
         reality_a = reality_a + secrets.token_bytes(max_len - len(reality_a))
     if len(reality_b) < max_len:
         reality_b = reality_b + secrets.token_bytes(max_len - len(reality_b))
-    
+
     # Interleave into superposition
     # Even positions: reality A, Odd positions: reality B
     superposition = bytearray(max_len * 2)
     superposition[0::2] = reality_a
     superposition[1::2] = reality_b
-    
+
     return bytes(superposition)
 
 
-def collapse_to_reality(
-    superposition: bytes,
-    reality_index: int
-) -> bytes:
+def collapse_to_reality(superposition: bytes, reality_index: int) -> bytes:
     """
     Collapse superposition to a single reality by de-interleaving.
-    
+
     Args:
         superposition: Interleaved superposition of both realities.
         reality_index: 0 for even positions (A), 1 for odd positions (B).
-        
+
     Returns:
         Collapsed reality (original encrypted ciphertext).
     """
@@ -158,47 +148,47 @@ def collapse_to_reality(
 def expand_noise(seed: bytes, length: int) -> bytes:
     """
     Expand quantum noise to arbitrary length via HKDF.
-    
+
     Args:
         seed: Seed noise (32 bytes typically)
         length: Desired output length
-        
+
     Returns:
         Expanded noise of requested length
-        
+
     Note:
         Uses HKDF in extract-and-expand mode for cryptographic strength.
     """
     if length <= len(seed):
         return seed[:length]
-    
+
     # Expand via repeated HKDF
     output = bytearray()
     counter = 0
-    
+
     while len(output) < length:
         chunk = HKDF(
             algorithm=hashes.SHA256(),
             length=min(32, length - len(output)),
             salt=seed,
-            info=struct.pack(">I", counter) + b"meow_noise_expand"
+            info=struct.pack(">I", counter) + b"meow_noise_expand",
         ).derive(seed)
         output.extend(chunk)
         counter += 1
-    
+
     return bytes(output[:length])
 
 
 def compute_entanglement_root(blocks: List[bytes]) -> bytes:
     """
     Compute Merkle root of entangled blocks for integrity.
-    
+
     Args:
         blocks: List of mixed/entangled blocks
-        
+
     Returns:
         Merkle root hash (32 bytes)
-        
+
     Security:
         - Tamper-evident (any change breaks root)
         - Doesn't reveal which reality
@@ -206,143 +196,132 @@ def compute_entanglement_root(blocks: List[bytes]) -> bytes:
     """
     if not blocks:
         return hashlib.sha256(b"meow_empty_yarn").digest()
-    
+
     # Build Merkle tree
     current_level = [hashlib.sha256(b).digest() for b in blocks]
-    
+
     while len(current_level) > 1:
         next_level = []
-        
+
         for i in range(0, len(current_level), 2):
             left = current_level[i]
             right = current_level[i + 1] if i + 1 < len(current_level) else left
-            
+
             parent = hashlib.sha256(left + right).digest()
             next_level.append(parent)
-        
+
         current_level = next_level
-    
+
     return current_level[0]
 
 
 def verify_indistinguishability(
-    data_a: bytes,
-    data_b: bytes,
-    threshold: float = 0.01
+    data_a: bytes, data_b: bytes, threshold: float = 0.01
 ) -> Tuple[bool, dict]:
     """
     Verify two byte sequences are statistically indistinguishable.
-    
+
     Performs multiple statistical tests to ensure no forensic markers.
-    
+
     Args:
         data_a: First data sequence
         data_b: Second data sequence
         threshold: Maximum allowed difference (0.01 = 1%)
-        
+
     Returns:
         Tuple of (is_indistinguishable, test_results)
-        
+
     Tests:
         - Entropy difference
         - Chi-square test
         - Byte frequency distribution
         - Run length patterns
-        
+
     Note:
         Used for testing/verification, not in production encode/decode.
     """
     import math
     from collections import Counter
-    
+
     results = {}
-    
+
     # Test 1: Entropy
     def calculate_entropy(data):
         if not data:
             return 0.0
         counter = Counter(data)
         length = len(data)
-        entropy = -sum(
-            (count / length) * math.log2(count / length)
-            for count in counter.values()
-        )
+        entropy = -sum((count / length) * math.log2(count / length) for count in counter.values())
         return entropy
-    
+
     entropy_a = calculate_entropy(data_a)
     entropy_b = calculate_entropy(data_b)
     entropy_diff = abs(entropy_a - entropy_b)
-    
-    results['entropy_a'] = entropy_a
-    results['entropy_b'] = entropy_b
-    results['entropy_diff'] = entropy_diff
-    results['entropy_pass'] = entropy_diff < threshold
-    
+
+    results["entropy_a"] = entropy_a
+    results["entropy_b"] = entropy_b
+    results["entropy_diff"] = entropy_diff
+    results["entropy_pass"] = entropy_diff < threshold
+
     # Test 2: Byte frequency distribution
     freq_a = Counter(data_a)
     freq_b = Counter(data_b)
-    
+
     # Normalize to probabilities
     len_a, len_b = len(data_a), len(data_b)
     prob_a = {k: v / len_a for k, v in freq_a.items()}
     prob_b = {k: v / len_b for k, v in freq_b.items()}
-    
+
     # Compare distributions (KL divergence approximation)
     all_bytes = set(prob_a.keys()) | set(prob_b.keys())
     if not all_bytes:
         max_diff = 0.0
     else:
-        max_diff = max(
-            abs(prob_a.get(b, 0) - prob_b.get(b, 0))
-            for b in all_bytes
-        )
-    
-    results['max_freq_diff'] = max_diff
-    results['freq_pass'] = max_diff < threshold
-    
+        max_diff = max(abs(prob_a.get(b, 0) - prob_b.get(b, 0)) for b in all_bytes)
+
+    results["max_freq_diff"] = max_diff
+    results["freq_pass"] = max_diff < threshold
+
     # Overall pass
-    results['indistinguishable'] = (
-        results['entropy_pass'] and results['freq_pass']
-    )
-    
-    return results['indistinguishable'], results
+    results["indistinguishable"] = results["entropy_pass"] and results["freq_pass"]
+
+    return results["indistinguishable"], results
 
 
 # Constants for yarn metaphor
 YARN_REALITY_A = 0  # Red yarn - first reality
 YARN_REALITY_B = 1  # Blue yarn - second reality
-YARN_TANGLED = 2    # Purple yarn - superposition
+YARN_TANGLED = 2  # Purple yarn - superposition
 
 
 if __name__ == "__main__":
     # Quick self-test
     print("🐱 Quantum Mixer Self-Test")
     print("=" * 60)
-    
+
     # Test quantum noise derivation
     noise = derive_quantum_noise("password1", "password2", b"test_salt" * 2)
     print(f"✅ Quantum noise: {noise.hex()[:32]}...")
-    
+
     # Test entanglement
     reality_a = b"Secret message A" * 10
     reality_b = b"Secret message B" * 10
     superposition = entangle_realities(reality_a, reality_b, noise)
     print(f"✅ Superposition: {len(superposition)} bytes")
-    
+
     # Test collapse
     collapsed_a = collapse_to_reality(superposition, noise, noise, YARN_REALITY_A)
     collapsed_b = collapse_to_reality(superposition, noise, noise, YARN_REALITY_B)
-    
+
     print(f"✅ Collapsed A: {collapsed_a[:16]}...")
     print(f"✅ Collapsed B: {collapsed_b[:16]}...")
-    
+
     # Test indistinguishability
     is_indist, results = verify_indistinguishability(
-        superposition[:len(superposition)//2],
-        superposition[len(superposition)//2:]
+        superposition[: len(superposition) // 2], superposition[len(superposition) // 2 :]
     )
     print(f"✅ Indistinguishable: {is_indist}")
     print(f"   Entropy diff: {results['entropy_diff']:.6f}")
     print(f"   Freq diff: {results['max_freq_diff']:.6f}")
-    
+
     print("\n🎉 Quantum Mixer operational!")

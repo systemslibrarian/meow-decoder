@@ -12,12 +12,15 @@ from typing import Final
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 try:
     from cryptography.hazmat.primitives.ciphers.aead import XChaCha20Poly1305
+
     _AEAD_CIPHER = XChaCha20Poly1305
     _AES_FALLBACK = False
 except ImportError:  # pragma: no cover - fallback for limited builds
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     _AEAD_CIPHER = AESGCM
     _AES_FALLBACK = True
 
@@ -73,7 +76,9 @@ def decode_file(
 
         recipient_x25519_sk = ed25519_sk_to_x25519_sk(recipient_ed25519_sk)
         recipient_priv = x25519.X25519PrivateKey.from_private_bytes(recipient_x25519_sk)
-        shared_secret = recipient_priv.exchange(x25519.X25519PublicKey.from_public_bytes(ephemeral_pk))
+        shared_secret = recipient_priv.exchange(
+            x25519.X25519PublicKey.from_public_bytes(ephemeral_pk)
+        )
         if shared_secret == b"\x00" * 32:
             raise ValueError("Invalid ephemeral public key")
 
