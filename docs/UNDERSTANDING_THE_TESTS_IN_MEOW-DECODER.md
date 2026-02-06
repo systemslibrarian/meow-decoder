@@ -1,8 +1,8 @@
 # What Do the Tests in meow-decoder Actually Do?
 
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Last Updated:** 2026-02-03  
-**Test Count:** 60+ test modules
+**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
+**Last Updated:** 2026-02-06  
+**Test Count:** 60+ Python test modules + 332 Rust tests
 
 ---
 
@@ -226,6 +226,50 @@ If you're adding or changing code in crypto, forward secrecy, duress, encoding/d
 
 The tests are paranoid by design.  
 They treat every uncovered branch in critical code as a **potential vulnerability** until proven otherwise.
+
+---
+
+## 🦀 Rust Crypto Backend Tests
+
+The project includes **332 Rust tests** across two packages:
+
+### rust_crypto (meow_crypto_rs) - 174 tests
+
+| File | Tests | Purpose |
+|------|-------|--------|
+| `src/pure.rs` | 46 | Pure Rust crypto: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-768 |
+| `tests/comprehensive_tests.rs` | 76 | Core crypto operations via PyO3 bindings |
+| `tests/additional_security_tests.rs` | 29 | Security edge cases, zeroization, failure modes |
+| `tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
+
+### crypto_core - 158 tests (97.9% coverage)
+
+| File | Tests | Purpose |
+|------|-------|--------|
+| `src/*.rs` (unit tests) | 89 | AEAD wrapper, nonce handling, types, verus proofs |
+| `tests/coverage_tests.rs` | 47 | Edge case coverage tests |
+| `tests/security_properties.rs` | 17 | Security property verification |
+| `tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
+
+### Running Rust Tests
+
+**Requirements:**
+```bash
+# Install Rust toolchain
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
+# Install test dependencies (for coverage)
+cargo install cargo-tarpaulin
+```
+
+**Run commands:**
+```bash
+cargo test -p meow_crypto_rs    # PyO3 bindings (174 tests)
+cargo test -p crypto_core       # Formally verified (158 tests)
+
+# Coverage (crypto_core only - PyO3 blocks tarpaulin)
+cargo tarpaulin -p crypto_core --skip-clean
+```
 
 ---
 

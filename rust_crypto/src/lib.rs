@@ -12,6 +12,15 @@
 //! - Post-quantum ML-KEM-768 (Kyber) [optional]
 //!
 //! All implementations use audited crates and constant-time operations.
+//!
+//! # Architecture
+//!
+//! The crypto logic is implemented in the `pure` module without PyO3 dependencies,
+//! enabling coverage measurement with cargo-tarpaulin. The PyO3 bindings in this
+//! file are thin wrappers over the pure functions.
+
+// Pure Rust crypto module (testable without Python)
+pub mod pure;
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;

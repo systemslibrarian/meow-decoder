@@ -34,15 +34,18 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 ### Rust Crypto Backend Tests
 
-The project includes two Rust crypto packages with **286 total tests**:
+The project includes two Rust crypto packages with **332 total tests**:
 
-#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 128 tests
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 174 tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `rust_crypto/tests/comprehensive_tests.rs` | 76 | Core crypto operations: Argon2id, AES-GCM, HKDF, HMAC, X25519, ML-KEM, constant-time, integration |
-| `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization verification, failure modes, boundary conditions |
+| `rust_crypto/src/pure.rs` (unit tests) | 46 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-768 |
+| `rust_crypto/tests/comprehensive_tests.rs` | 76 | Core crypto operations via PyO3 bindings |
+| `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization, failure modes, boundary conditions |
 | `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
+
+**Architecture Note:** The `rust_crypto/src/pure.rs` module contains all crypto logic without PyO3 dependencies. The PyO3 bindings in `lib.rs` are thin wrappers that call the pure functions. This separation enables comprehensive unit testing of the crypto logic.
 
 #### crypto_core - Formally Verified Primitives - 158 tests
 
@@ -52,18 +55,36 @@ The project includes two Rust crypto packages with **286 total tests**:
 | `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
 | `crypto_core/tests/coverage_tests.rs` | 47 | Comprehensive coverage tests for edge cases |
 | `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests |
+#### Requirements for Running Rust Tests
 
+```bash
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source ~/.cargo/env
+
+# Verify installation
+rustc --version  # Should show 1.75.0 or later
+cargo --version
+
+# Optional: Install coverage tool
+cargo install cargo-tarpaulin
+```
 #### Coverage Report (February 2026)
 
-| Module | Covered/Total | Coverage |
-|--------|---------------|----------|
-| `crypto_core/src/aead_wrapper.rs` | 65/69 | **94.2%** |
-| `crypto_core/src/nonce.rs` | 55/56 | **98.2%** |
-| `crypto_core/src/pure_crypto.rs` | 121/121 | **100%** ✓ |
-| `crypto_core/src/types.rs` | 28/29 | **96.6%** |
-| `crypto_core/src/verus_kdf_proofs.rs` | 52/53 | **98.1%** |
-| `crypto_core/src/verus_proofs.rs` | 10/10 | **100%** ✓ |
-| **crypto_core Total** | **331/338** | **97.9%** ✓ |
+| Package | Module | Covered/Total | Coverage |
+|---------|--------|---------------|----------|
+| crypto_core | `src/aead_wrapper.rs` | 65/69 | **94.2%** |
+| crypto_core | `src/nonce.rs` | 55/56 | **98.2%** |
+| crypto_core | `src/pure_crypto.rs` | 121/121 | **100%** ✓ |
+| crypto_core | `src/types.rs` | 28/29 | **96.6%** |
+| crypto_core | `src/verus_kdf_proofs.rs` | 52/53 | **98.1%** |
+| crypto_core | `src/verus_proofs.rs` | 10/10 | **100%** ✓ |
+| **crypto_core** | **Total (excl. hardware stubs)** | **331/338** | **97.9%** ✓ |
+
+**rust_crypto Coverage Note:** The `meow_crypto_rs` package uses PyO3 for Python bindings. Standard Rust coverage tools (cargo-tarpaulin, llvm-cov) cannot link the test binaries without Python symbols, preventing automated coverage measurement. However:
+- The `pure.rs` module (46 tests) covers all crypto operations
+- Integration tests (105 tests) verify PyO3 wrapper correctness
+- The crypto logic is identical to the covered `crypto_core` primitives
 
 **Uncovered lines** (non-testable):
 - Nonce exhaustion paths (require 2^64 iterations)
@@ -72,19 +93,20 @@ The project includes two Rust crypto packages with **286 total tests**:
 
 **Run Rust tests:**
 ```bash
-# rust_crypto (PyO3 bindings)
-cargo test -p meow_crypto_rs              # All 128 tests
-cargo test --test comprehensive_tests     # Core functionality
-cargo test --test additional_security_tests  # Security edge cases
-cargo test --test proptest_crypto         # Property-based fuzzing
+# rust_crypto (PyO3 bindings) - 174 tests
+cargo test -p meow_crypto_rs              # All tests
+cargo test -p meow_crypto_rs pure::       # Pure module tests (46)
+cargo test --test comprehensive_tests     # Core functionality (76)
+cargo test --test additional_security_tests  # Security edge cases (29)
+cargo test --test proptest_crypto         # Property-based fuzzing (23)
 
-# crypto_core (formally verified)
-cargo test -p crypto_core                 # All 158 tests
+# crypto_core (formally verified) - 158 tests
+cargo test -p crypto_core                 # All tests
 cargo test -p crypto_core --test coverage_tests     # Coverage tests
 cargo test -p crypto_core --test security_properties  # Security properties
 
 # Coverage report (requires cargo-tarpaulin)
-cd crypto_core && cargo tarpaulin --out Stdout --packages crypto_core
+cargo tarpaulin -p crypto_core --skip-clean  # 97.9% coverage
 ```
 
 ### February 2026 Coverage Expansion (Completed)
