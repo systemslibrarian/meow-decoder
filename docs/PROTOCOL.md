@@ -42,14 +42,18 @@ This document defines the **byte‑level formats**, state transitions, and **fai
 
 ## 3. AAD (Additional Authenticated Data)
 
-AAD is bound to ciphertext and **must match exactly** at decryption:
+AAD is bound to ciphertext and **must match exactly** at decryption.
+
+**Canonical construction** (see `meow_decoder/canonical_aad.py`):
 
 ```
 AAD = LE64(orig_len) || LE64(comp_len) || salt || sha256 || MAGIC
 AAD += ephemeral_public_key (32 bytes, if present)
 ```
 
+- Field order is deterministic (version-aware).
 - If AAD verification fails, decryption MUST fail and emit no plaintext.
+- Backward compatible with MEOW2/MEOW3/MEOW4 manifests.
 
 ---
 

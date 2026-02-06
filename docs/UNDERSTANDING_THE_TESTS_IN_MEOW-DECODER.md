@@ -111,6 +111,16 @@ Targeted tests added in February 2026 to reach 95% codecov:
 | `test_coverage_boost_extras.py` | Entropy boost, secure bridge, double ratchet, merkle tree, multi-secret (69 tests) |
 | `test_cat_errors.py` | Cat-themed error system: exception hierarchy, fur_ball_error catalog, pounce_on_errors decorator, litter_box_cleanup, output helpers, cat_translate_error, meow_excepthook (40+ tests) |
 
+### Roadmap Tests (ST + MT) 🗺️
+
+| Test File | What It Tests |
+|-----------|---------------|
+| `test_manifest_bounds.py` | ST-2: Manifest numeric bounds, decompression-bomb protection, ephemeral pubkey validation (17 tests) |
+| `test_canonical_aad.py` | MT-1: Canonical AAD construction, deterministic ordering, backward compat, roundtrip (10 tests) |
+| `test_timing_harness.py` | MT-5: Statistical timing comparison for correct/wrong password, duress/real (varies) |
+| `test_tamper_report.py` | MT-7: TamperReport class, ASCII timeline, cluster detection, JSON export (19 tests) |
+| `test_bridge_protocol.py` | MT-8: Mobile bridge wire protocol, 6 message types, parser validation (21 tests) |
+
 ### Property-Based & Adversarial Tests 🎲
 
 | Test File | What It Tests |

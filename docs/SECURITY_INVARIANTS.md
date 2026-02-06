@@ -97,6 +97,7 @@ Invariants are verified through:
 
 **AAD Contents:**
 ```python
+# Canonical AAD construction (see canonical_aad.py)
 aad = struct.pack('<QQ', orig_len, comp_len)  # Lengths
 aad += salt                                     # Salt
 aad += sha256                                   # Original hash
@@ -108,6 +109,7 @@ if ephemeral_public_key:
 **Verification:**
 - `tests/test_invariants.py::TestSecurityInvariants::test_invariant_aad_modification_rejected`
 - `tests/test_security.py::TestTamperDetection::test_manifest_tampering`
+- `tests/test_canonical_aad.py` — deterministic construction, backward compat, roundtrip
 
 **Failure Impact:** Length oracle attacks, version downgrade attacks.
 

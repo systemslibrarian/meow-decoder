@@ -31,6 +31,11 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **AFL++ Fuzzing**: Continuous fuzzing for manifest/fountain/crypto
 - [x] **Mutation Testing**: mutmut for crypto-critical code paths
 - [x] **Security Scanning**: pip-audit, cargo-audit, Bandit in CI
+- [x] **3-Gate CI Pipeline**: Fast tests + security coverage ≥ 85% + lint/type-check (MT-2)
+- [x] **Strict Pytest Markers**: `security`, `adversarial`, `crypto`, `fuzz`, `slow`, `integration`, `cat` (ST-4)
+- [x] **Security Coverage Gate**: TIER 1 crypto modules ≥ 85% on PRs (ST-5)
+- [x] **Manifest Bounds Validation**: Numeric bounds + decompression-bomb protection (ST-2)
+- [x] **Timing Attack Harness**: Statistical timing tests for password/duress paths (MT-5)
 
 ---
 
@@ -45,6 +50,17 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 ### Documentation
 - [x] **Security Invariants Doc**: Formal listing of all security invariants (`docs/SECURITY_INVARIANTS.md`)
 - [x] **Attack Surface Analysis**: Updated threat model with mitigations
+- [x] **Secure Usage Checklist**: OPSEC guidance (`docs/SECURE_USAGE_CHECKLIST.md`) (MT-6)
+- [x] **Argon2id Benchmarks**: KDF tuning & hardware timings (`docs/ARGON2ID_BENCHMARKS.md`) (ST-7)
+- [x] **OpenSSF Improvement Plan**: 5-phase scorecard improvement (`OpenSSFImprovements.md`)
+
+### New Features
+- [x] **Canonical AAD**: Deterministic `version_byte || fields` construction (`canonical_aad.py`) (MT-1)
+- [x] **Tamper Timeline**: Frame-by-frame MAC report with cluster detection (`tamper_report.py`) (MT-7)
+- [x] **Mobile Bridge Protocol**: JSON-over-WebSocket phone→CLI bridge (`mobile/bridge/protocol.py`) (MT-8)
+- [x] **Self-Test CLI**: `meow-encode --self-test` verifies backend, roundtrip, fountain (ST-6)
+- [x] **Duplicate Quarantine**: Deprecated paths moved to `meow_decoder/experimental/` (ST-1)
+- [x] **CLI Hardware Flags**: `--hsm-slot`, `--tpm-derive`, `--hardware-auto` wired (ST-8)
 
 ---
 
@@ -89,7 +105,7 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: January 27, 2026*
+*Last Updated: February 2026*
 
 # Update pytest configuration
 # Update coverage targets

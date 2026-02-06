@@ -10,6 +10,68 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Added — Roadmap ST-1…ST-8 + MT-1…MT-8 Completion 🐾
+
+#### Canonical AAD Construction (MT-1)
+- **New Module**: `meow_decoder/canonical_aad.py`
+  - `build_canonical_aad()` — deterministic `version_byte || fixed-order manifest fields`
+  - Backward compatible with MEOW2/MEOW3/MEOW4 manifests
+  - Test vectors in `tests/test_canonical_aad.py` (10 tests)
+
+#### 3-Gate CI Pipeline (MT-2)
+- **Gate 1**: Fast pytest (excludes `@pytest.mark.slow`)
+- **Gate 2**: Security coverage ≥ 85 % (TIER 1 crypto modules)
+- **Gate 3**: Lint + type check (flake8, mypy, black --check)
+- All three gates required for PR merge
+
+#### Codecov PR-Only Informational (MT-3)
+- `codecov.yml` updated: coverage checks fail only on `push` to `main`, not on PRs
+
+#### CI continue-on-error Cleanup (MT-4)
+- Removed or justified every `continue-on-error: true` in `security-ci.yml`
+
+#### Timing Attack Test Harness (MT-5)
+- **New Test**: `tests/test_timing_harness.py` (`@pytest.mark.security`)
+  - Statistical timing comparison: correct vs wrong password
+  - Statistical timing comparison: duress vs real password
+  - Configurable threshold with skip on inconsistent CI runners
+
+#### Secure Usage Checklist (MT-6)
+- **New Doc**: `docs/SECURE_USAGE_CHECKLIST.md` — OPSEC guidance covering encoding, transfer, decoding, storage, and after-use cleanup
+- Cross-linked from README.md, QUICKSTART.md, THREAT_MODEL.md
+
+#### Tamper Timeline Visualization (MT-7)
+- **New Module**: `meow_decoder/tamper_report.py`
+  - `TamperReport` class with `FrameResult` dataclass
+  - ASCII timeline rendering (█ valid, ▒ mixed, ░ invalid, · no data)
+  - Sliding-window cluster detection for suspicious failure patterns
+  - JSON export via `to_json()`
+- **CLI flags**: `--tamper-report` and `--tamper-report-json` on `meow-decode-gif`
+- `tests/test_tamper_report.py` (19 tests)
+
+#### React Native QR Bridge (MT-8)
+- **New Doc**: `mobile/ARCHITECTURE.md` — bridge architecture, wire protocol, security boundaries
+- **New Module**: `mobile/bridge/protocol.py` — 6 JSON message types, parsers, `MAX_FRAME_BYTES`
+- **Reference Impl**: `mobile/react-native/MeowScanner.tsx` + `useBridge.ts`
+- Phone stays "dumb" — all crypto on CLI side
+- `tests/test_bridge_protocol.py` (21 tests)
+
+#### Short-Term Tasks (ST-1…ST-8)
+- **ST-1**: Quarantined duplicate crypto paths → `meow_decoder/experimental/`
+- **ST-2**: Manifest numeric bounds + decompression-bomb protection (`tests/test_manifest_bounds.py`, 17 tests)
+- **ST-3**: Fixed memory-zeroing claims across all docs (Python = "best-effort", Rust = "guaranteed")
+- **ST-4**: Defined pytest markers (`security`, `adversarial`, `crypto`, `fuzz`, `slow`, `integration`, `cat`) + `--strict-markers`
+- **ST-5**: Security coverage PR gate ≥ 85 % for TIER 1 modules
+- **ST-6**: `--self-test` CLI command with roundtrip verification
+- **ST-7**: `docs/ARGON2ID_BENCHMARKS.md` — Argon2id tuning guide with low-end hardware timings
+- **ST-8**: CLI wiring for HSM/YubiKey/TPM (`--hsm-slot`, `--tpm-derive`, `--hardware-auto`)
+
+#### OpenSSF Scorecard Improvement Plan
+- **New Doc**: `OpenSSFImprovements.md` — 5-phase plan targeting 7.0–8.0+ score
+  - Phase 1: workflow permissions, dependabot.yml, binary artifact removal
+  - Phase 2: SHA-pin all GitHub Actions (~60+ refs), branch protection
+  - Phase 3: signed releases, CII badge, maintained score
+
 ### Security
 - **RUSTSEC-2026-0009**: Updated `time` crate from 0.3.46 to 0.3.47 to fix local time offset determination vulnerability
 - Added workspace-level `time = "0.3.47"` dependency constraint to prevent regression

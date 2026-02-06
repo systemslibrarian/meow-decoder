@@ -165,8 +165,10 @@
 
 - **Primary crypto path:** `crypto_enhanced.py` (Python) + `crypto_core/` (Rust)
 - **Experimental directory:** `meow_decoder/experimental/` for deprecated/duplicate code
-- **Test count:** 68+ Python test modules + 332 Rust tests
+- **Test count:** 70+ Python test modules + 332 Rust tests
 - **Coverage target:** 95% overall, 85–90% TIER 1 security gate
+- **New modules (MT):** `canonical_aad.py`, `tamper_report.py`, `mobile/bridge/protocol.py`
+- **New docs (MT):** `SECURE_USAGE_CHECKLIST.md`, `ARGON2ID_BENCHMARKS.md`, `mobile/ARCHITECTURE.md`, `OpenSSFImprovements.md`
 
 ---
 

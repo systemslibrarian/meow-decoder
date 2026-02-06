@@ -185,9 +185,17 @@ OUTPUT FILE (secret.pdf)
 │  │              USER INTERFACES                    │            │
 │  │                                                 │            │
 │  │  • encode.py (CLI encoder)                     │            │
-│  │  • decode_gif.py (CLI decoder)                 │            │
+│  │  • decode_gif.py (CLI decoder + --tamper-report)│            │
 │  │  • decode_webcam.py (webcam capture)           │            │
 │  │  • meow_dashboard.py (GUI)                     │            │
+│  └─────────────────────────────────────────────────┘            │
+│                                                                   │
+│  ┌─────────────────────────────────────────────────┐            │
+│  │              SUPPORT MODULES                    │            │
+│  │                                                 │            │
+│  │  • canonical_aad.py (deterministic AAD)        │            │
+│  │  • tamper_report.py (frame MAC timeline)       │            │
+│  │  • mobile/bridge/protocol.py (phone bridge)    │            │
 │  └─────────────────────────────────────────────────┘            │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘

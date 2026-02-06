@@ -55,6 +55,9 @@ This table summarizes the main Python source files in the `meow_decoder/` packag
 | meow_decoder/timelock_duress.py        | timelock_duress              | Time-locked duress mechanisms (e.g., dead-man’s switch for data exposure).   |
 | meow_decoder/webcam_enhanced.py        | webcam_enhanced              | Enhanced decoding from live webcam feeds with error recovery and resume.     |
 | meow_decoder/x25519_forward_secrecy.py | x25519_forward_secrecy       | Forward secrecy protocol built specifically around X25519 curves.           |
+| meow_decoder/canonical_aad.py          | canonical_aad                | Deterministic AAD construction: `version_byte ∥ fixed-order manifest fields`. |
+| meow_decoder/tamper_report.py          | tamper_report                | Frame-by-frame MAC verification timeline with ASCII rendering and cluster detection. |
+| mobile/bridge/protocol.py             | bridge.protocol              | JSON wire protocol for phone→CLI QR scanner bridge (6 message types).       |
 
 **Notes**:
 - This list covers runtime/production modules only. Debug, demo, profiling, and hardware-specific files are excluded to keep focus on the secure core.

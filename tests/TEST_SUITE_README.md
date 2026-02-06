@@ -148,6 +148,18 @@ Targeted coverage boost suites added to reach 95% codecov:
 |------|-------|---------|
 | `tests/test_cat_errors.py` | 40+ | Cat-themed exceptions, fur_ball_error catalog, pounce_on_errors decorator, litter_box_cleanup, output helpers, cat_translate_error, meow_excepthook |
 
+### February 2026 Roadmap Completion (ST + MT Tasks)
+
+New test suites added for the completed roadmap tasks:
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `tests/test_manifest_bounds.py` | 17 | **ST-2:** Manifest numeric bounds checking, decompression-bomb protection, ephemeral pubkey validation, PQ ciphertext length validation |
+| `tests/test_canonical_aad.py` | 10 | **MT-1:** Canonical AAD construction — deterministic `version_byte ∥ fields`, backward compatibility with MEOW2/MEOW3/MEOW4, encrypt/decrypt roundtrip |
+| `tests/test_timing_harness.py` | varies | **MT-5:** Statistical timing comparison for correct vs wrong password, duress vs real — configurable threshold, skipped on inconsistent CI runners |
+| `tests/test_tamper_report.py` | 19 | **MT-7:** TamperReport class — ASCII timeline rendering, cluster detection, JSON export, empty/full/mixed reports, FrameResult dataclass |
+| `tests/test_bridge_protocol.py` | 21 | **MT-8:** Mobile bridge wire protocol — 6 JSON message types, parser validation, MAX_FRAME_BYTES, error codes, round-trip serialization |
+
 ### February 2026 Security Audit (audit1.md)
 
 Security regression tests added after the comprehensive security audit:

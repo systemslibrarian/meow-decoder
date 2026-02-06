@@ -489,6 +489,8 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
 | 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
+| 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
+| 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
 | 🌐 **WASM Target** | Planned browser bindings (not yet shipped) |
 
 ---
@@ -554,7 +556,8 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Coercion Resistance | Duress passwords | ⚠️ Module only |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
-| Security Tests | 370+ tests, CI-enforced | ✅ |
+| Tamper Timeline | Frame-by-frame MAC report | ✅ |
+| Security Tests | 400+ tests, CI-enforced (3-gate) | ✅ |
 
 **Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
@@ -752,11 +755,19 @@ pytest tests/
 # Run security tests specifically
 pytest tests/test_security.py tests/test_adversarial.py
 
+# Run by marker (strict markers enforced)
+pytest -m security          # Security-critical tests
+pytest -m crypto            # Crypto unit tests
+pytest -m "not slow"        # Skip slow tests (used in CI Gate 1)
+
 # Run property-based tests (security invariants)
 pytest tests/test_property_based.py -v --hypothesis-show-statistics
 
 # Run with coverage
 pytest --cov=meow_decoder tests/
+
+# Self-test (verifies backend, roundtrip, fountain codec)
+meow-encode --self-test
 ```
 
 ### Property-Based Testing
@@ -792,7 +803,14 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 | [Secure Usage Checklist](docs/SECURE_USAGE_CHECKLIST.md) | OPSEC & operational hardening |
 | [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive |
 | [Schrödinger Mode](docs/SCHRODINGER.md) | Plausible deniability |
+| [Argon2id Benchmarks](docs/ARGON2ID_BENCHMARKS.md) | KDF parameter tuning & hardware timings |
+| [Protocol Spec](docs/PROTOCOL.md) | Byte-level protocol specification |
 | [Security Roadmap](docs/ROADMAP.md) | Future security enhancements |
+| [Side-Channel Hardening](docs/SIDE_CHANNEL_HARDENING.md) | Timing & side-channel mitigations |
+| [Security Invariants](docs/SECURITY_INVARIANTS.md) | Formal invariant specification |
+| [Test Suite](tests/TEST_SUITE_README.md) | Test inventory, coverage & run instructions |
+| [Mobile Bridge](mobile/ARCHITECTURE.md) | React Native QR bridge architecture |
+| [OpenSSF Improvements](OpenSSFImprovements.md) | OpenSSF Scorecard improvement plan |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting |
 
 ---

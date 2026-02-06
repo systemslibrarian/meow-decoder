@@ -395,8 +395,10 @@ These protections are based on well-understood cryptographic primitives with no 
 |--------|---------------|----------|
 | Ciphertext integrity | AES-GCM auth tag | 128-bit authentication |
 | Manifest integrity | HMAC-SHA256 + AAD | Cryptographically bound |
+| AAD construction | Canonical AAD (`canonical_aad.py`) | Deterministic, version-aware |
 | Frame integrity | Per-frame 8-byte MAC | Prevents injection |
 | Chunk integrity | Merkle tree | Efficient verification |
+| Tamper forensics | `--tamper-report` CLI flag | Frame-by-frame MAC timeline with cluster detection |
 | **Status** | ✅ **STRONG** | Any modification detected |
 
 ### ✅ **Data Loss / Corruption**
