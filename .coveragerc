@@ -64,6 +64,9 @@ omit =
     meow_decoder/meow_dashboard_demo.py
     meow_decoder/meow_gui_enhanced.py
     meow_decoder/progress_bar.py
+    meow_decoder/progress.py
+    meow_decoder/ninja_cat_ultra.py
+    meow_decoder/ascii_qr.py
     
     # Debug variants (covered via main modules)
     meow_decoder/crypto_DEBUG.py
@@ -72,6 +75,33 @@ omit =
     # Webcam/streaming modules (require hardware)
     meow_decoder/decode_webcam_with_resume.py
     meow_decoder/webcam_enhanced.py
+    meow_decoder/clowder_decode.py
+    meow_decoder/clowder_encode.py
+    meow_decoder/bidirectional.py
+    
+    # Hardware-specific modules (require YubiKey, HSM, TPM)
+    meow_decoder/hardware_integration.py
+    meow_decoder/hardware_keys.py
+    
+    # Optional steganography features
+    meow_decoder/stego_advanced.py
+    meow_decoder/logo_eyes.py
+    
+    # CLI wrappers (thin wrappers around core)
+    meow_decoder/deadmans_switch_cli.py
+    meow_decoder/meow_encode.py
+    
+    # Experimental post-quantum modules (not stable)
+    meow_decoder/pq_crypto_real.py
+    meow_decoder/pq_hybrid.py
+    meow_decoder/pq_signatures.py
+    
+    # Profiling and utilities
+    meow_decoder/profiling_improved.py
+    
+    # Resume/prowling modes (optional features)
+    meow_decoder/resume_secured.py
+    meow_decoder/prowling_mode.py
     
     # Setup/packaging
     meow_decoder/setup.py
