@@ -1,42 +1,44 @@
-# 🤝 Contributing to Meow Decoder
+# 🐾 Contributing to Meow Decoder — Cat Herder's Handbook
 
-Thank you for your interest in contributing to Meow Decoder! This document provides guidelines and information for contributors.
+Thank you for joining the **clowder**! Contributors to Meow Decoder are affectionately known as **Cat Herders** 🐱 — because wrangling cryptographic code is exactly like herding cats.
+
+> *"In a world of dogs fetching sticks, we herd cats through air gaps."*
 
 ---
 
 ## 🎯 Ways to Contribute
 
-### 🔒 Security Research (High Priority)
-- Find and responsibly disclose vulnerabilities
-- Review cryptographic implementation
-- Audit constant-time operations
-- Test side-channel resistance
+### 🌿 Catnip Bounty Program (Security Research — High Priority)
+- Find and responsibly disclose vulnerabilities — earn your **Catnip Bounty** 🌿
+- Review cryptographic implementation (sniff the code for bugs)
+- Audit constant-time operations (no timing-based treats!)
+- Test side-channel resistance (make sure the cat leaves no paw prints)
 
-**Security issues:** Please email security concerns privately (see [SECURITY.md](SECURITY.md)) rather than opening public issues.
+**Security issues:** Please email security concerns privately (see [SECURITY.md](SECURITY.md)) rather than opening public issues. The cat appreciates discretion.
 
-### 🐛 Bug Reports
-- Reproduce the issue with minimal steps
+### 🐛 Hairball Reports (Bug Reports)
+- Reproduce the hairball with minimal steps
 - Include Python version, OS, and dependencies
-- Provide error messages and stack traces
+- Provide the full fur ball (error messages and stack traces)
 - Attach sample files if relevant (non-sensitive!)
 
-### ✨ Feature Requests
-- Check existing issues first
-- Explain the use case clearly
-- Consider security implications
-- Be open to alternative approaches
+### 📦 Add to the Litter Box (Feature Requests)
+- Check the existing litter box (issues) first — someone may have already scooped it
+- Explain the use case clearly (what new trick should the cat learn?)
+- Consider security implications (cats are cautious creatures)
+- Be open to alternative approaches (cats always find a different way in)
 
-### 📝 Documentation
-- Fix typos and clarify confusing sections
+### 📝 Grooming the Docs (Documentation)
+- Fix typos and clarify confusing sections (untangle the yarn)
 - Add examples and use cases
 - Improve architecture documentation
-- Translate to other languages
+- Translate to other languages (multilingual meowing)
 
-### 💻 Code Contributions
-- Bug fixes
-- Performance improvements
-- New features (discuss first!)
-- Test coverage improvements
+### 💻 Code Contributions (Scratching Posts)
+- Bug fixes (removing hairballs)
+- Performance improvements (faster pouncing)
+- New features (discuss first — cats don't like surprises!)
+- Test coverage improvements (more safety nets for nine lives)
 
 ---
 
@@ -212,36 +214,41 @@ git checkout -b feature/your-feature-name
 
 ---
 
-## 🏷️ Issue Labels
+## 🏷️ Issue Labels (Cat Collar Tags)
 
 | Label | Description |
 |-------|-------------|
-| `security` | Security-related issues (high priority) |
-| `bug` | Something isn't working |
-| `enhancement` | New feature request |
-| `documentation` | Documentation improvements |
-| `good first issue` | Good for newcomers |
-| `help wanted` | Extra attention needed |
-| `crypto` | Cryptography-related |
-| `ux` | User experience improvements |
+| `🚨 security` | Security-related issues — the cat's top priority |
+| `🐛 hairball` | Something isn't working (bug report) |
+| `📦 litter-box` | New feature request (add to the litter box) |
+| `📝 grooming` | Documentation improvements |
+| `🐱 good-first-pounce` | Good for new Cat Herders |
+| `😿 help-wanted` | Extra paws needed |
+| `🔐 crypto` | Cryptography-related (sharp claws required) |
+| `✨ ux` | User experience improvements (nicer purring) |
 
 ---
 
 ## 📞 Getting Help
 
-- **Questions:** Open a GitHub Discussion
-- **Bugs:** Open a GitHub Issue
-- **Security:** See [SECURITY.md](SECURITY.md)
-- **Chat:** (Coming soon)
+- **Questions:** Open a GitHub Discussion (ask the clowder)
+- **Hairballs:** Open a GitHub Issue (report a bug)
+- **Security:** See [SECURITY.md](SECURITY.md) (the Catnip Bounty Program)
+- **Chat:** (Coming soon — the cat café)
 
 ---
 
-## 🙏 Recognition
+## 🏆 Recognition — The Cat Herder Hall of Fame
 
-Contributors are recognized in:
-- Release notes
-- CONTRIBUTORS.md (coming soon)
-- Security Hall of Fame (for vulnerability reporters)
+All Cat Herders are recognized in:
+- 📋 Release notes ("Herded by...")
+- 🐾 CONTRIBUTORS.md — the **Official Clowder Roster** (coming soon)
+- 🌿 **Catnip Bounty Hall of Fame** (for security researchers)
+- 🎖️ Special titles for repeat contributors:
+  - **Kitten** — First contribution merged
+  - **Tabby** — 5+ contributions
+  - **Maine Coon** — 20+ contributions or major feature
+  - **Apex Predator** — Core maintainer / security lead
 
 ---
 
@@ -252,5 +259,7 @@ By contributing, you agree that your contributions will be licensed under the MI
 ---
 
 <p align="center">
-  <em>🐱 Thank you for helping make Meow Decoder more secure and useful! 🐱</em>
+  <em>🐾 Thank you for herding cats with us! Every Cat Herder makes Meow Decoder more secure. 🐾</em>
+  <br>
+  <em>"We don't herd cats because it's easy. We herd cats because they have secrets."</em>
 </p>

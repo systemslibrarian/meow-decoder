@@ -2,7 +2,7 @@
 
 **Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Last Updated:** 2026-02-06  
-**Test Count:** 60+ Python test modules + 332 Rust tests
+**Test Count:** 68+ Python test modules + 332 Rust tests
 
 ---
 
@@ -96,6 +96,20 @@ These tests ensure data flows correctly through the pipeline without corruption 
 | `test_streaming_crypto_comprehensive.py` | Large file streaming encryption |
 | `test_resume_secured_comprehensive.py` | Encrypted resume/checkpoint files |
 | `test_profiling_improved_comprehensive.py` | Performance profiling |
+
+### TIER 5: Coverage Boost & Cat Error Tests 📈
+
+Targeted tests added in February 2026 to reach 95% codecov:
+
+| Test File | What It Tests |
+|-----------|---------------|
+| `test_coverage_boost_cat_utils.py` | PurrLogger, NineLivesRetry, CatBreed, aliases, sounds, ASCII art (66 tests) |
+| `test_coverage_boost_spec_v12.py` | Spec v1.2 encode/decode, key management, steganography, multi-tier (28 tests) |
+| `test_coverage_boost_catnip.py` | CatnipFountainEncoder/Decoder edge cases (10 tests) |
+| `test_coverage_boost_schrodinger.py` | Schrödinger dual-reality encode/decode, manifest pack/unpack (18 tests) |
+| `test_coverage_boost_remaining.py` | Prowling mode, streaming crypto, resume, profiling, ninja cat (67 tests) |
+| `test_coverage_boost_extras.py` | Entropy boost, secure bridge, double ratchet, merkle tree, multi-secret (69 tests) |
+| `test_cat_errors.py` | Cat-themed error system: exception hierarchy, fur_ball_error catalog, pounce_on_errors decorator, litter_box_cleanup, output helpers, cat_translate_error, meow_excepthook (40+ tests) |
 
 ### Property-Based & Adversarial Tests 🎲
 
@@ -284,4 +298,6 @@ cargo tarpaulin -p crypto_core --skip-clean
 
 Welcome to meow-decoder — where "it works on my machine" is never good enough. 😼
 
-Questions? Ask in issues or chat — we're all learning how to build tools that can actually resist real threats.
+Questions? Ask in issues or chat — we're all Cat Herders learning how to build tools that can actually resist real threats. 🐾
+
+Found a vulnerability? Check the [🌿 Catnip Bounty Program (SECURITY.md)](../SECURITY.md).

@@ -489,7 +489,10 @@ Examples:
         return 0
         
     except Exception as e:
-        print(f"❌ Error: {e}", file=sys.stderr)
+        from .cat_errors import cat_translate_error
+        cat_msg = cat_translate_error(e)
+        print(f"\n{cat_msg}", file=sys.stderr)
+        print(f"  Technical details: {e}", file=sys.stderr)
         import traceback
         traceback.print_exc()
         return 1

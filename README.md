@@ -784,15 +784,27 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 
 ---
 
-## 🤝 Contributing
+## 🐾 Contributing — Join the Clowder
 
-Contributions welcome! Especially:
-- Security researchers (find vulnerabilities, get credit)
-- UX designers (help make it more accessible)
-- Mobile developers (native app would be great)
-- Cryptographers (review our implementation)
+We're always looking for more **Cat Herders**! Especially:
+- 🌿 **Catnip Hunters** — Security researchers (find vulnerabilities, earn your catnip bounty)
+- 🎨 **Grooming Specialists** — UX designers (help make it more accessible)
+- 📱 **Outdoor Cats** — Mobile developers (native app would be great)
+- 🔐 **Apex Predators** — Cryptographers (review our implementation)
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+**Contributor titles:**
+| Contributions | Title |
+|--------------|-------|
+| First PR merged | 🐱 **Kitten** |
+| 5+ contributions | 🐈 **Tabby** |
+| 20+ or major feature | 🦁 **Maine Coon** |
+| Core maintainer | 🐆 **Apex Predator** |
+
+See the [Cat Herder's Handbook (CONTRIBUTING.md)](CONTRIBUTING.md) for guidelines.
+
+**Found a vulnerability?** Check the [🌿 Catnip Bounty Program (SECURITY.md)](SECURITY.md).  
+**Need help?** Visit the [🐾 Cat Help Desk (SUPPORT.md)](SUPPORT.md).  
+**Have a feature idea?** [📦 Add to the Litter Box](https://github.com/systemslibrarian/meow-decoder/issues).
 
 ---
 
@@ -806,4 +818,9 @@ MIT License — see [LICENSE](LICENSE)
   <strong>Built for air-gapped, hostile, or zero-trust environments.</strong>
   <br>
   <em>🐱 "Trust no network. Trust the cat." 🐱</em>
+  <br><br>
+  <strong>🐾 Community:</strong>
+  <a href="CONTRIBUTING.md">Cat Herder's Handbook</a> ·
+  <a href="SECURITY.md">Catnip Bounty Program</a> ·
+  <a href="SUPPORT.md">Cat Help Desk</a>
 </p>

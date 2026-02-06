@@ -25,6 +25,7 @@ from .qr_code import QRCodeReader
 from .gif_handler import GIFDecoder
 from .progress import ProgressBar
 from .hardware_integration import HardwareSecurityProvider, process_hardware_args
+from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
 
 
 def decode_gif(
@@ -662,17 +663,20 @@ Examples:
     
     # Validate input file
     if not args.input.exists():
-        print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+        hiss_error(fur_ball_error("file_not_found", suggestion=False))
+        print(f"  Path: {args.input}", file=sys.stderr)
         sys.exit(1)
     
     if not args.input.is_file():
-        print(f"Error: Input is not a file: {args.input}", file=sys.stderr)
+        hiss_error(f"That's not a file! The cat can't decode a directory.")
+        print(f"  Path: {args.input}", file=sys.stderr)
         sys.exit(1)
     
     # Check output file
     if args.output.exists() and not args.force:
-        print(f"Error: Output file already exists: {args.output}", file=sys.stderr)
-        print("Use --force to overwrite", file=sys.stderr)
+        hiss_error(fur_ball_error("output_exists", suggestion=False))
+        print(f"  Path: {args.output}", file=sys.stderr)
+        print("  Use --force to overwrite", file=sys.stderr)
         sys.exit(1)
     
     # Get password
@@ -684,7 +688,8 @@ Examples:
         password = getpass("Enter decryption password: ")
     
     if not password:
-        print("Error: Password cannot be empty", file=sys.stderr)
+        hiss_error(fur_ball_error("wrong_password", suggestion=False))
+        print("  Password cannot be empty.", file=sys.stderr)
         sys.exit(1)
     
     # Load keyfile if specified
@@ -861,7 +866,7 @@ Examples:
         
         # Print summary
         if not args.verbose:
-            print(f"\n✅ Decoding complete!")
+            purr_success("Decoding complete!")
             print(f"  Input: {stats['input_frames']} frames, {stats['qr_codes_read']} QR codes")
             print(f"  Processed: {stats['droplets_processed']} droplets")
             print(f"  Output: {stats['output_size']:,} bytes")
@@ -871,7 +876,9 @@ Examples:
         print(f"\nOutput saved to: {args.output}")
         
     except Exception as e:
-        print(f"\nError during decoding: {e}", file=sys.stderr)
+        cat_msg = cat_translate_error(e)
+        print(f"\n{cat_msg}", file=sys.stderr)
+        print(f"\n  Technical details: {e}", file=sys.stderr)
         if args.verbose:
             import traceback
             traceback.print_exc()

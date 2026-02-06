@@ -1,8 +1,10 @@
-# 🛡️ Security Policy
+# 🛡️ Security Policy — The Cat's Claw Defense Manual
 
 **Project:** Meow Decoder  
 **Version:** 1.0  
 **Last Updated:** 2026-01-28
+
+> *"A cat always lands on its feet — and always verifies its HMAC."*
 
 ---
 
@@ -40,20 +42,20 @@ Report: [docs/formal_methods_report.md](docs/formal_methods_report.md)
 
 ## 🐛 **Reporting Security Vulnerabilities**
 
-We take security seriously. If you discover a security vulnerability, please follow responsible disclosure:
+We take security seriously — the cat guards its secrets with nine lives. If you discover a security vulnerability, please follow responsible disclosure:
 
-### **DO:**
+### **DO:** (Good Cat Herder)
 ✅ Email security details to: `systemslibrarian@gmail.com`  
-✅ Include detailed steps to reproduce  
+✅ Include detailed steps to reproduce (show us the hairball)  
 ✅ Include version information (`python3 encode.py --version`)  
 ✅ Allow us 90 days to fix before public disclosure  
 ✅ Include any relevant logs or repro steps  
 
-### **DON'T:**
+### **DON'T:** (Bad Kitten)
 ❌ Post vulnerabilities publicly on GitHub Issues  
 ❌ Exploit vulnerabilities maliciously  
 ❌ Test on systems you don't own  
-❌ Demand payment ("bug bounty" - we're open source!)  
+❌ Demand payment without disclosure (that's not how the Catnip Bounty works!)  
 
 ### **Response Timeline:**
 - **24 hours:** Initial acknowledgment
@@ -63,32 +65,23 @@ We take security seriously. If you discover a security vulnerability, please fol
 
 ---
 
-## � **Bug Bounty Program** (Placeholder)
+## 🌿 **Catnip Bounty Program**
 
-> 🐱 "A cat's attention is not easily earned, but we pay in gratitude!" 
+> 🐱 *"Find a bug, earn your catnip! The best security researchers get the finest treats."*
 
-**Current Status:** 🔄 **Seeking Funding**
+We recognize security researchers who responsibly disclose vulnerabilities:
 
-We are currently seeking funding to establish a formal bug bounty program. In the meantime:
+| Severity | Recognition |
+|----------|-------------|
+| 🙀 Critical (RCE, key extraction) | 🏆 Hall of Fame + Apex Predator title |
+| 😾 High (auth bypass, side-channel) | 🏆 Hall of Fame + SWAG |
+| 😼 Medium (DoS, info leak) | 🏆 Hall of Fame |
+| 🐱 Low (minor issues) | 🏆 Hall of Fame |
 
-| Severity | Future Reward | Current Recognition |
-|----------|---------------|---------------------|
-| Critical (RCE, key extraction) | $2,000 - $5,000 | Hall of Fame + SWAG |
-| High (auth bypass, side-channel) | $500 - $2,000 | Hall of Fame + SWAG |
-| Medium (DoS, info leak) | $100 - $500 | Hall of Fame |
-| Low (minor issues) | $25 - $100 | Hall of Fame |
-
-**How to Help Us Launch a Bounty Program:**
-
-- Sponsor via GitHub Sponsors (coming soon)
-- Organization sponsorship (contact: systemslibrarian@gmail.com)
-- Open Technology Fund (OTF) grants (in progress)
-- Freedom of the Press Foundation support (in progress)
-
-**Current Rewards:**
-- 🏅 Hall of Fame recognition
+**Rewards:**
+- 🏅 **Catnip Bounty Hall of Fame** recognition
 - 🐱 Meow Decoder SWAG (stickers, when available)
-- 📜 Letter of thanks / recommendation
+- 📜 Letter of paws — err, thanks / recommendation
 - 🤝 First-name credit in release notes
 
 **Scope:**
@@ -98,16 +91,16 @@ We are currently seeking funding to establish a formal bug bounty program. In th
 - ❌ Out of scope: Social engineering, phishing, physical attacks
 
 **Rules:**
-- No testing on systems you don't own
-- No exploitation of users' data
-- Responsible disclosure (90 days)
-- One report per issue
+- No testing on systems you don't own (respect other cats' territory)
+- No exploitation of users' data (that's a bad kitty move)
+- Responsible disclosure (90 days — patience of a cat stalking prey)
+- One report per issue (one hairball at a time)
 
 ---
 
-## �🎖️ **Hall of Fame**
+## 🏆🎖️ **Catnip Bounty Hall of Fame**
 
-We thank the following security researchers for responsible disclosure:
+We thank the following security researchers — our **elite Catnip Hunters** 🌿 — for responsible disclosure:
 
 | Researcher | Date | Vulnerability | Severity |
 |------------|------|---------------|----------|
@@ -584,18 +577,18 @@ Found a bug, give me $1000 or I'll publish it on Twitter.
 
 ---
 
-## 🤝 **Credit Policy**
+## 🤝 **Credit Policy — The Cat Remembers**
 
-We credit security researchers who:
-- ✅ Follow responsible disclosure
-- ✅ Provide actionable reports
-- ✅ Don't exploit vulnerabilities maliciously
+We credit security researchers (Catnip Hunters) who:
+- ✅ Follow responsible disclosure (good kitty behavior)
+- ✅ Provide actionable reports (not just hissing)
+- ✅ Don't exploit vulnerabilities maliciously (no claws out)
 
 **Credit options:**
-- Name in Hall of Fame
-- Name in release notes
-- Name in security advisory
-- Anonymous (if preferred)
+- 🏆 Name in the Catnip Bounty Hall of Fame
+- 📝 Name in release notes ("Sniffed out by...")
+- 🚨 Name in security advisory
+- 🐾 Anonymous (stealth cat, if preferred)
 
 ---
 
@@ -625,10 +618,10 @@ After a fix is released:
 
 ---
 
-**Remember:** This is experimental software. Use responsibly, report issues ethically, and always assume bugs exist. Security is a journey, not a destination! 🐾
+**Remember:** This is experimental software. Use responsibly, report issues ethically, and always assume bugs exist. Security is a journey, not a destination — and the cat walks it on silent paws! 🐾
 
 ---
 
-**Last Updated:** 2026-01-25  
-**Version:** 5.7.0  
-**Status:** Research/Educational - Not Audited
+**Last Updated:** 2026-01-28  
+**Version:** 1.0.0  
+**Status:** Security-Reviewed (Internal Review) — Catnip Bounty Open

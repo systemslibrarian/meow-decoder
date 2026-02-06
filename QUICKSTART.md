@@ -1,8 +1,8 @@
-# 🚀 5-Minute Quickstart - Phone Capture Demo
+# 🚀 5-Minute Quickstart — Your First Meow! 🐱
 
-**Goal:** See Meow Decoder work in 5 minutes  
+**Goal:** See Meow Decoder work in 5 minutes — the cat is ready to pounce!  
 **What you'll do:** Encode → Capture → Decode  
-**Equipment needed:** Computer + phone camera
+**Equipment needed:** Computer + phone camera (the cat cam 📹)
 
 ---
 

@@ -1,10 +1,20 @@
-# Support
+# 🐾 Support — The Cat Help Desk
 
-- **Questions / help:** open a GitHub Discussion or Issue (choose “Question”).
-- **Bug reports:** use the bug report template and include:
+> *"Even cats need a helping paw sometimes."*
+
+- **Questions / help:** Open a GitHub Discussion or Issue (choose "Question") — the clowder is here to help! 🐱
+- **Hairball reports (bugs):** Use the bug report template and include:
   - OS, Python version
-  - the exact command you ran
-  - the full error output (paste as text)
-  - a minimal repro (smallest file/QR that breaks)
+  - The exact command you ran
+  - The full fur ball (error output — paste as text)
+  - A minimal repro (smallest file/QR that coughs up the hairball)
+- **Feature requests:** [Add to the Litter Box](https://github.com/systemslibrarian/meow-decoder/issues) — describe what new trick the cat should learn! 📦
+- **Want to contribute?** Read the [Cat Herder's Handbook (CONTRIBUTING.md)](CONTRIBUTING.md) to join the clowder! 🐾
 
-If the issue may be security-sensitive, please follow **SECURITY.md** instead.
+If the issue may be security-sensitive, please follow the **[Catnip Bounty Program (SECURITY.md)](SECURITY.md)** instead.
+
+---
+
+<p align="center">
+  <em>🐱 "No cat left behind — we answer every meow." 🐱</em>
+</p>

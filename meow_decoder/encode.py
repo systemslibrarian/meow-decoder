@@ -23,6 +23,7 @@ from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
 from .progress import ProgressBar
 from .hardware_integration import HardwareSecurityProvider, process_hardware_args
+from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
 
 
 from typing import List
@@ -777,11 +778,13 @@ Nothing to see here. 😶‍🌫️
     
     # Validate input file
     if not args.input.exists():
-        print(f"Error: Input file not found: {args.input}", file=sys.stderr)
+        hiss_error(fur_ball_error("file_not_found", suggestion=False))
+        print(f"  Path: {args.input}", file=sys.stderr)
         sys.exit(1)
     
     if not args.input.is_file():
-        print(f"Error: Input is not a file: {args.input}", file=sys.stderr)
+        hiss_error(f"That's not a file, it's a directory! Cats can't encode folders.")
+        print(f"  Path: {args.input}", file=sys.stderr)
         sys.exit(1)
     
     # Get password
@@ -803,11 +806,12 @@ Nothing to see here. 😶‍🌫️
         password_confirm = getpass("Confirm password: ")
         
         if password != password_confirm:
-            print("Error: Passwords do not match", file=sys.stderr)
+            hiss_error("The collar tags don't match! Passwords must be identical.")
             sys.exit(1)
     
     if not password:
-        print("Error: Password cannot be empty", file=sys.stderr)
+        hiss_error(fur_ball_error("wrong_password", suggestion=False))
+        print("  Password cannot be empty.", file=sys.stderr)
         sys.exit(1)
     
     # Cat judge password strength
@@ -885,22 +889,22 @@ Nothing to see here. 😶‍🌫️
         if duress_password:
             duress_confirm = getpass("Confirm duress password: ")
             if duress_password != duress_confirm:
-                print("Error: Duress passwords do not match", file=sys.stderr)
+                hiss_error("The duress collar tags don't match! Try again.")
                 sys.exit(1)
             if duress_password == password:
-                print("Error: Duress password cannot be same as encryption password", file=sys.stderr)
+                hiss_error(fur_ball_error("duress_same_password", suggestion=False))
                 sys.exit(1)
             print("🚨 Duress password configured")
     elif args.duress_password:
         duress_password = args.duress_password
         if duress_password == password:
-            print("Error: Duress password cannot be same as encryption password", file=sys.stderr)
+            hiss_error(fur_ball_error("duress_same_password", suggestion=False))
             sys.exit(1)
         print("🚨 Duress password configured (WARNING: visible in CLI args)")
     
     # Duress mode requires forward secrecy to avoid manifest size ambiguity
     if duress_password and not args.forward_secrecy:
-        print("Error: Duress mode requires forward secrecy enabled", file=sys.stderr)
+        hiss_error(fur_ball_error("duress_no_fs", suggestion=False))
         print("   Do not use --no-forward-secrecy with --duress-password", file=sys.stderr)
         sys.exit(1)
     
@@ -1009,7 +1013,7 @@ Nothing to see here. 😶‍🌫️
         
         # Print summary
         if not args.verbose:
-            print(f"\n✅ Encoding complete!")
+            purr_success("Encoding complete!")
             print(f"  Input: {stats['input_size']:,} bytes")
             print(f"  Output: {stats['output_size']:,} bytes ({stats['qr_frames']} frames)")
             print(f"  Compression: {stats['compression_ratio']*100:.1f}%")
@@ -1089,7 +1093,9 @@ Nothing to see here. 😶‍🌫️
         print(f"\nOutput saved to: {args.output}")
         
     except Exception as e:
-        print(f"\nError during encoding: {e}", file=sys.stderr)
+        cat_msg = cat_translate_error(e)
+        print(f"\n{cat_msg}", file=sys.stderr)
+        print(f"\n  Technical details: {e}", file=sys.stderr)
         if args.verbose:
             import traceback
             traceback.print_exc()

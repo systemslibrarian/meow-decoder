@@ -129,6 +129,25 @@ Additional comprehensive suites added to close remaining gaps and complete todo-
 - `tests/test_deadmans_switch_cli_comprehensive.py`
 - `tests/test_webcam_modules_comprehensive.py`
 
+### February 2026 Coverage Boost (95% Target)
+
+Targeted coverage boost suites added to reach 95% codecov:
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `tests/test_coverage_boost_cat_utils.py` | 66 | Cat utilities: PurrLogger, NineLivesRetry, CatBreed, aliases, sounds, ASCII art |
+| `tests/test_coverage_boost_spec_v12.py` | 28 | Spec v1.2 encode/decode, key management, steganography, multi-tier |
+| `tests/test_coverage_boost_catnip.py` | 10 | Catnip fountain: CatnipFountainEncoder, CatnipFountainDecoder |
+| `tests/test_coverage_boost_schrodinger.py` | 18 | Schrödinger encode/decode: dual-reality, manifest pack/unpack, roundtrip |
+| `tests/test_coverage_boost_remaining.py` | 67 | Prowling mode, streaming crypto, resume, profiling, ninja cat |
+| `tests/test_coverage_boost_extras.py` | 69 | Entropy boost, secure bridge, double ratchet, merkle tree, multi-secret |
+
+### February 2026 Cat-Themed Error System
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `tests/test_cat_errors.py` | 40+ | Cat-themed exceptions, fur_ball_error catalog, pounce_on_errors decorator, litter_box_cleanup, output helpers, cat_translate_error, meow_excepthook |
+
 ### February 2026 Security Audit (audit1.md)
 
 Security regression tests added after the comprehensive security audit:
