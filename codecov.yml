@@ -28,13 +28,13 @@ flags:
   python:
     paths:
       - meow_decoder/
-      - crypto_core/
     carryforward: true
   
   # Separate flag for Rust coverage (via tarpaulin)
+  # Note: rust_crypto is PyO3 cdylib, covered via Python tests
+  # crypto_core is pure Rust, covered via tarpaulin
   rust:
     paths:
-      - rust_crypto/src/
       - crypto_core/src/
     carryforward: true
 

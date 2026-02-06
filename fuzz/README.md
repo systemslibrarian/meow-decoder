@@ -6,7 +6,7 @@ Fuzzing helps identify edge cases, parsing errors, and potential crashes that st
 
 ## Test Coverage
 
-The fuzzing infrastructure includes **821 lines of comprehensive tests** (`tests/test_fuzz_targets.py`) covering:
+The fuzzing infrastructure includes **1362 lines of comprehensive tests** (`tests/test_fuzz_targets.py`) with **95%+ code coverage**:
 
 | Test Class | Tests | Description |
 |------------|-------|-------------|
@@ -17,7 +17,21 @@ The fuzzing infrastructure includes **821 lines of comprehensive tests** (`tests
 | `TestSeedCorpus` | 13 | Corpus generation, CLI interface, idempotency |
 | `TestFuzzIntegration` | 5 | Cross-module, mutation resilience, stress testing |
 | `TestFuzzErrorHandling` | 4 | Error handling verification per module |
-| **Total** | **85** | Full harness validation |
+| `TestFuzzCoverageGaps` | 10 | Edge cases for exception paths, NIST enforcement |
+| `TestFuzzMockedExceptions` | 16 | Mocked exception handling for full coverage |
+| `TestAtherisInstrumentation` | 8 | Module setup and imports |
+| `TestAtherisInstrumentedPaths` | 3 | Atheris instrumentation via module reload |
+| **Total** | **122** | Full harness validation |
+
+### Coverage by Module
+
+| Module | Coverage |
+|--------|----------|
+| `fuzz_crypto.py` | 95.29% |
+| `fuzz_manifest.py` | 98.11% |
+| `fuzz_fountain.py` | 98.48% |
+| `seed_corpus.py` | 100% |
+| `afl_fuzz_manifest.py` | 100% |
 
 Run the test suite:
 

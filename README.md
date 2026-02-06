@@ -24,8 +24,8 @@
 <a href="https://codecov.io/gh/systemslibrarian/meow-decoder" > 
  <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU"/> 
  </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags%5B0%5D=rust">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?flag=rust&token=EBYQIEJETU" alt="Rust Coverage">
+[![Codecov](https://codecov.io/gh/<USERNAME>/<REPO>/graph/badge.svg?token=<TOKEN>)](https://codecov.io/gh/<USERNAME>/<REPO>)
+![Rust Coverage](assets/coverage.svg)
   </a>
   <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
     <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">

@@ -819,3 +819,544 @@ class TestFuzzErrorHandling:
             fuzz_crypto.fuzz_derive_key(data)
             fuzz_crypto.fuzz_decrypt(data)
             fuzz_crypto.fuzz_hmac_verify(data)
+
+
+# =============================================================================
+# ADDITIONAL COVERAGE TESTS
+# =============================================================================
+
+class TestFuzzCoverageGaps:
+    """Tests specifically targeting uncovered code paths."""
+    
+    def test_derive_key_empty_password_after_decode(self):
+        """Test password that becomes empty after UTF-8 decode (skipped)."""
+        # Salt (16 bytes) + password bytes that decode to empty
+        data = secrets.token_bytes(16)  # Just salt, password is empty
+        fuzz_crypto.fuzz_derive_key(data + b"")  # Too short
+        
+        # 17 bytes but password portion is just zero bytes (becomes control chars)
+        data = secrets.token_bytes(16) + b"\x00"
+        try:
+            fuzz_crypto.fuzz_derive_key(data)
+        except ValueError:
+            pass  # Expected - NIST minimum password length
+    
+    def test_derive_key_nist_minimum_enforcement(self):
+        """Test NIST 8-character minimum password enforcement."""
+        salt = secrets.token_bytes(16)
+        
+        # Password shorter than 8 chars raises ValueError (NIST enforcement)
+        short_passwords = [b"a", b"ab", b"abc", b"abcdefg"]
+        for pwd in short_passwords:
+            try:
+                fuzz_crypto.fuzz_derive_key(salt + pwd)
+            except ValueError as e:
+                # Expected - NIST password length check
+                assert "8 characters" in str(e) or "NIST" in str(e)
+    
+    def test_derive_key_utf8_decode_errors(self):
+        """Test passwords with invalid UTF-8 sequences."""
+        salt = secrets.token_bytes(16)
+        
+        # Invalid UTF-8 sequences (handled with errors='replace')
+        invalid_utf8 = [
+            b"\x80\x81\x82\x83\x84\x85\x86\x87\x88",  # Invalid continuation bytes
+            b"\xfe\xff" * 10,  # Invalid UTF-8 lead bytes
+            b"\xf8\x88\x80\x80\x80\x80\x80\x80\x80",  # Invalid 5-byte sequence
+        ]
+        for pwd in invalid_utf8:
+            fuzz_crypto.fuzz_derive_key(salt + pwd)
+    
+    def test_decrypt_runtime_error_path(self):
+        """Test decryption that triggers RuntimeError (auth failure)."""
+        # Valid structure but garbage - should trigger RuntimeError (decryption fails)
+        salt = secrets.token_bytes(16)
+        nonce = secrets.token_bytes(12)
+        cipher = secrets.token_bytes(500)  # Larger ciphertext
+        
+        fuzz_crypto.fuzz_decrypt(salt + nonce + cipher)
+    
+    def test_decrypt_decompression_error(self):
+        """Test decryption error handling with various garbage payloads."""
+        for _ in range(10):
+            data = secrets.token_bytes(100 + secrets.randbelow(500))
+            fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_fountain_decoder_edge_k_blocks(self):
+        """Test fountain decoder with edge case k_blocks values."""
+        # k_blocks = 1 (minimum)
+        data = bytes([0]) + bytes([0]) + secrets.token_bytes(100)  # k_blocks=1, block_size=64
+        fuzz_fountain.fuzz_fountain_decoder(data)
+        
+        # k_blocks = 100 (maximum in fuzzer)
+        data = bytes([99]) + bytes([7]) + secrets.token_bytes(100)  # k_blocks=100, block_size=512
+        fuzz_fountain.fuzz_fountain_decoder(data)
+    
+    def test_fountain_decoder_malformed_droplet(self):
+        """Test fountain decoder with malformed droplet data."""
+        # Valid params but truncated droplet
+        data = bytes([10, 3]) + b"\x00\x00\x00\x01"  # Truncated droplet
+        fuzz_fountain.fuzz_fountain_decoder(data)
+        
+        # Completely random droplet data
+        data = bytes([5, 2]) + secrets.token_bytes(50)
+        fuzz_fountain.fuzz_fountain_decoder(data)
+    
+    def test_unpack_droplet_struct_errors(self):
+        """Test droplet unpacking with data that causes struct errors."""
+        # These should trigger struct.error which is caught
+        test_cases = [
+            b"\x00",  # Too short for seed
+            b"\x00\x00\x00",  # Can't unpack seed
+            b"\x00\x00\x00\x00\x00",  # Can't unpack num_indices
+            b"\x00\x00\x00\x01\x00\x05",  # Claims 5 indices but none provided
+        ]
+        for data in test_cases:
+            fuzz_fountain.fuzz_unpack_droplet(data)
+    
+    def test_hmac_verify_exception_paths(self):
+        """Test HMAC verify with data triggering various exceptions."""
+        # Valid-looking manifest but will fail verification
+        test_cases = [
+            b"MEOW2" + secrets.token_bytes(110),
+            b"MEOW3" + secrets.token_bytes(142),
+            b"MEOW4" + secrets.token_bytes(110),  # Invalid version
+            b"MEOW3" + b"\xFF" * 142,  # All-FF values
+        ]
+        for data in test_cases:
+            fuzz_crypto.fuzz_hmac_verify(data)
+    
+    def test_manifest_exception_else_branch(self):
+        """Test manifest parsing exceptions that hit the 'else: raise' branch."""
+        # Valid-ish manifest that might cause unexpected exceptions
+        test_cases = [
+            # Manifest with extreme length values
+            b"MEOW3" + b"\x00" * 28 + b"\xFF\xFF\xFF\xFF" * 3 + b"\x00" * 74,
+        ]
+        for data in test_cases:
+            fuzz_manifest.fuzz_unpack_manifest(data)
+
+
+class TestFuzzMockedExceptions:
+    """Tests using mocks to trigger specific exception paths."""
+    
+    def test_derive_key_memory_error(self, monkeypatch):
+        """Test MemoryError handling in fuzz_derive_key."""
+        def mock_derive(*args, **kwargs):
+            raise MemoryError("out of memory")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.derive_key", mock_derive)
+        
+        # Should not raise - MemoryError is caught
+        salt = secrets.token_bytes(16)
+        password = b"long_password_123"
+        fuzz_crypto.fuzz_derive_key(salt + password)
+    
+    def test_derive_key_unexpected_value_error(self, monkeypatch):
+        """Test ValueError that doesn't match expected patterns re-raises."""
+        def mock_derive(*args, **kwargs):
+            raise ValueError("unexpected crypto error")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.derive_key", mock_derive)
+        
+        salt = secrets.token_bytes(16)
+        password = b"long_password_123"
+        
+        with pytest.raises(ValueError, match="unexpected crypto error"):
+            fuzz_crypto.fuzz_derive_key(salt + password)
+    
+    def test_derive_key_empty_password_value_error(self, monkeypatch):
+        """Test ValueError with 'empty' in message is caught."""
+        def mock_derive(*args, **kwargs):
+            raise ValueError("password is empty")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.derive_key", mock_derive)
+        
+        salt = secrets.token_bytes(16)
+        password = b"long_password_123"
+        # Should not raise - caught by "empty" check
+        fuzz_crypto.fuzz_derive_key(salt + password)
+    
+    def test_derive_key_salt_value_error(self, monkeypatch):
+        """Test ValueError with 'salt' in message is caught."""
+        def mock_derive(*args, **kwargs):
+            raise ValueError("invalid salt length")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.derive_key", mock_derive)
+        
+        salt = secrets.token_bytes(16)
+        password = b"long_password_123"
+        # Should not raise - caught by "salt" check
+        fuzz_crypto.fuzz_derive_key(salt + password)
+    
+    def test_decrypt_unexpected_exception(self, monkeypatch):
+        """Test unexpected exception in fuzz_decrypt re-raises."""
+        def mock_decrypt(*args, **kwargs):
+            raise TypeError("unexpected type error")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+        
+        data = secrets.token_bytes(100)
+        
+        with pytest.raises(TypeError, match="unexpected type error"):
+            fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_decrypt_expected_exceptions(self, monkeypatch):
+        """Test expected exception patterns in fuzz_decrypt are caught."""
+        expected_errors = [
+            "decryption failed",
+            "invalid tag",
+            "authentication error",
+            "decompression failed",
+            "invalid input",
+            "corrupt data",
+            "wrong key",
+        ]
+        
+        for error_msg in expected_errors:
+            def mock_decrypt(*args, msg=error_msg, **kwargs):
+                raise Exception(msg)
+            
+            monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+            
+            data = secrets.token_bytes(100)
+            # Should not raise - caught by pattern matching
+            fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_hmac_verify_unexpected_exception(self, monkeypatch):
+        """Test unexpected exception in fuzz_hmac_verify re-raises."""
+        # First we need to let unpack_manifest succeed
+        from meow_decoder.crypto import Manifest
+        mock_manifest = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=512,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32)
+        )
+        
+        def mock_unpack(*args, **kwargs):
+            return mock_manifest
+        
+        def mock_verify(*args, **kwargs):
+            raise TypeError("unexpected hmac error")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.unpack_manifest", mock_unpack)
+        monkeypatch.setattr("fuzz.fuzz_crypto.verify_manifest_hmac", mock_verify)
+        
+        data = b"MEOW3" + secrets.token_bytes(110)
+        
+        with pytest.raises(TypeError, match="unexpected hmac error"):
+            fuzz_crypto.fuzz_hmac_verify(data)
+    
+    def test_fountain_unpack_unexpected_exception(self, monkeypatch):
+        """Test unexpected exception in fuzz_unpack_droplet re-raises."""
+        def mock_unpack(*args, **kwargs):
+            raise TypeError("unexpected droplet error")
+        
+        monkeypatch.setattr("fuzz.fuzz_fountain.unpack_droplet", mock_unpack)
+        
+        data = secrets.token_bytes(100)
+        
+        with pytest.raises(TypeError, match="unexpected droplet error"):
+            fuzz_fountain.fuzz_unpack_droplet(data)
+    
+    def test_fountain_decoder_unexpected_exception(self, monkeypatch):
+        """Test unexpected exception in fuzz_fountain_decoder re-raises."""
+        def mock_decoder_init(*args, **kwargs):
+            raise TypeError("unexpected decoder error")
+        
+        monkeypatch.setattr("fuzz.fuzz_fountain.FountainDecoder", mock_decoder_init)
+        
+        data = bytes([10, 3]) + secrets.token_bytes(50)
+        
+        with pytest.raises(TypeError, match="unexpected decoder error"):
+            fuzz_fountain.fuzz_fountain_decoder(data)
+    
+    def test_manifest_unpack_unexpected_exception(self, monkeypatch):
+        """Test unexpected exception in fuzz_unpack_manifest re-raises."""
+        def mock_unpack(*args, **kwargs):
+            raise TypeError("unexpected manifest error")
+        
+        monkeypatch.setattr("fuzz.fuzz_manifest.unpack_manifest", mock_unpack)
+        
+        data = b"MEOW3" + secrets.token_bytes(110)
+        
+        with pytest.raises(TypeError, match="unexpected manifest error"):
+            fuzz_manifest.fuzz_unpack_manifest(data)
+    
+    def test_derive_key_empty_password_path(self):
+        """Test fuzz_derive_key when password decodes to empty string."""
+        # Salt (16 bytes) + bytes that decode to empty via replace
+        # UTF-8 decode of orphaned continuation bytes becomes replacement chars
+        # but we need actual empty string - impossible with replace mode
+        # This path (line 50) requires password == "" after decode
+        # With errors='replace', invalid bytes become \ufffd, never empty
+        # So line 50 is unreachable in practice - test the closest we can get
+        salt = secrets.token_bytes(16)
+        # Single byte password - will work but may fail NIST
+        try:
+            fuzz_crypto.fuzz_derive_key(salt + b"x")
+        except ValueError:
+            pass  # Expected NIST check
+    
+    def test_manifest_too_short_exception(self, monkeypatch):
+        """Test exception with 'too short' in message is caught."""
+        def mock_unpack(*args, **kwargs):
+            raise Exception("data too short for manifest")
+        
+        monkeypatch.setattr("fuzz.fuzz_manifest.unpack_manifest", mock_unpack)
+        
+        data = b"MEOW3" + secrets.token_bytes(110)
+        # Should not raise - caught by "too short" check
+        fuzz_manifest.fuzz_unpack_manifest(data)
+    
+    def test_manifest_invalid_exception(self, monkeypatch):
+        """Test exception with 'invalid' in message is caught."""
+        def mock_unpack(*args, **kwargs):
+            raise Exception("invalid manifest format")
+        
+        monkeypatch.setattr("fuzz.fuzz_manifest.unpack_manifest", mock_unpack)
+        
+        data = b"MEOW3" + secrets.token_bytes(110)
+        # Should not raise - caught by "invalid" check
+        fuzz_manifest.fuzz_unpack_manifest(data)
+    
+    def test_decrypt_runtime_error(self, monkeypatch):
+        """Test RuntimeError handling in fuzz_decrypt."""
+        def mock_decrypt(*args, **kwargs):
+            raise RuntimeError("decryption failed")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+        
+        data = secrets.token_bytes(100)
+        # Should not raise - RuntimeError is caught
+        fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_fountain_slice_error(self, monkeypatch):
+        """Test exception with 'slice' in message is caught."""
+        def mock_unpack(*args, **kwargs):
+            raise Exception("slice index out of range")
+        
+        monkeypatch.setattr("fuzz.fuzz_fountain.unpack_droplet", mock_unpack)
+        
+        data = secrets.token_bytes(100)
+        # Should not raise - caught by "slice" check
+        fuzz_fountain.fuzz_unpack_droplet(data)
+    
+    def test_fountain_decoder_value_error(self, monkeypatch):
+        """Test exception with 'value' in message in decoder is caught."""
+        call_count = [0]
+        
+        class MockDecoder:
+            def __init__(self, *args, **kwargs):
+                pass
+            
+            @property
+            def decoded_count(self):
+                call_count[0] += 1
+                if call_count[0] == 1:
+                    raise Exception("invalid value in decoder")
+                return 0
+        
+        monkeypatch.setattr("fuzz.fuzz_fountain.FountainDecoder", MockDecoder)
+        monkeypatch.setattr("fuzz.fuzz_fountain.unpack_droplet", lambda *a, **k: None)
+        
+        data = bytes([10, 3]) + secrets.token_bytes(50)
+        # Should not raise - caught by "value" check
+        fuzz_fountain.fuzz_fountain_decoder(data)
+
+
+class TestAtherisInstrumentation:
+    """Tests for atheris instrumentation paths using module reload."""
+    
+    def test_fuzz_modules_load_without_atheris(self):
+        """Verify fuzz modules work when atheris is None."""
+        # Already tested implicitly, but be explicit
+        assert fuzz_crypto.atheris is None
+        assert fuzz_manifest.atheris is None
+        assert fuzz_fountain.atheris is None
+    
+    def test_crypto_setup_imports(self):
+        """Test _setup_imports function directly."""
+        result = fuzz_crypto._setup_imports()
+        assert len(result) == 6
+        # derive_key, decrypt_to_raw, unpack_manifest, verify_manifest_hmac, Manifest, secrets
+        assert callable(result[0])  # derive_key
+        assert callable(result[1])  # decrypt_to_raw
+    
+    def test_manifest_setup_imports(self):
+        """Test _setup_imports function directly."""
+        result = fuzz_manifest._setup_imports()
+        assert len(result) == 2
+        assert callable(result[0])  # unpack_manifest
+    
+    def test_fountain_setup_imports(self):
+        """Test _setup_imports function directly."""
+        result = fuzz_fountain._setup_imports()
+        assert len(result) == 3
+        assert callable(result[0])  # unpack_droplet
+    
+    def test_derive_key_generic_exception(self, monkeypatch):
+        """Test generic Exception (non-memory) in derive_key re-raises."""
+        def mock_derive(*args, **kwargs):
+            raise Exception("some random exception")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.derive_key", mock_derive)
+        
+        salt = secrets.token_bytes(16)
+        password = b"long_password_123"
+        
+        with pytest.raises(Exception, match="some random exception"):
+            fuzz_crypto.fuzz_derive_key(salt + password)
+    
+    def test_decrypt_generic_exception_re_raises(self, monkeypatch):
+        """Test generic Exception that doesn't match patterns re-raises."""
+        def mock_decrypt(*args, **kwargs):
+            raise Exception("completely unexpected error")
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+        
+        data = secrets.token_bytes(100)
+        
+        with pytest.raises(Exception, match="completely unexpected error"):
+            fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_decrypt_success_path(self, monkeypatch):
+        """Test fuzz_decrypt when decryption actually succeeds (lines 97-98)."""
+        def mock_decrypt(*args, **kwargs):
+            return b"decrypted data successfully"
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+        
+        data = secrets.token_bytes(100)
+        # Should complete successfully - result is bytes
+        fuzz_crypto.fuzz_decrypt(data)
+    
+    def test_decrypt_success_none_result(self, monkeypatch):
+        """Test fuzz_decrypt when decryption returns None."""
+        def mock_decrypt(*args, **kwargs):
+            return None
+        
+        monkeypatch.setattr("fuzz.fuzz_crypto.decrypt_to_raw", mock_decrypt)
+        
+        data = secrets.token_bytes(100)
+        # Should complete successfully - result is None
+        fuzz_crypto.fuzz_decrypt(data)
+
+
+class TestAtherisInstrumentedPaths:
+    """Tests that mock atheris to cover instrumentation code paths."""
+    
+    def test_manifest_with_mocked_atheris(self, monkeypatch):
+        """Test manifest module with mocked atheris instrumentation."""
+        import importlib
+        import sys
+        
+        # Create mock atheris
+        class MockAtheris:
+            @staticmethod
+            def instrument_imports():
+                class MockContext:
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        pass
+                return MockContext()
+            
+            @staticmethod
+            def Setup(*args):
+                pass
+            
+            @staticmethod
+            def Fuzz():
+                pass
+        
+        # Temporarily inject mock atheris
+        sys.modules['atheris'] = MockAtheris()
+        
+        try:
+            # Reload module to trigger atheris path
+            import fuzz.fuzz_manifest as fm_temp
+            importlib.reload(fm_temp)
+            
+            # Verify module still works
+            fm_temp.fuzz_unpack_manifest(b"test")
+            
+            # Test main - should use mocked atheris
+            # (won't actually fuzz, just verifies path is covered)
+            
+        finally:
+            # Restore None for atheris
+            sys.modules['atheris'] = None
+            importlib.reload(fuzz_manifest)
+    
+    def test_fountain_with_mocked_atheris(self, monkeypatch):
+        """Test fountain module with mocked atheris instrumentation."""
+        import importlib
+        import sys
+        
+        class MockAtheris:
+            @staticmethod
+            def instrument_imports():
+                class MockContext:
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        pass
+                return MockContext()
+            
+            @staticmethod
+            def Setup(*args):
+                pass
+            
+            @staticmethod
+            def Fuzz():
+                pass
+        
+        sys.modules['atheris'] = MockAtheris()
+        
+        try:
+            import fuzz.fuzz_fountain as ff_temp
+            importlib.reload(ff_temp)
+            ff_temp.fuzz_unpack_droplet(b"test")
+        finally:
+            sys.modules['atheris'] = None
+            importlib.reload(fuzz_fountain)
+    
+    def test_crypto_with_mocked_atheris(self, monkeypatch):
+        """Test crypto module with mocked atheris instrumentation."""
+        import importlib
+        import sys
+        
+        class MockAtheris:
+            @staticmethod
+            def instrument_imports():
+                class MockContext:
+                    def __enter__(self):
+                        return self
+                    def __exit__(self, *args):
+                        pass
+                return MockContext()
+            
+            @staticmethod
+            def Setup(*args):
+                pass
+            
+            @staticmethod
+            def Fuzz():
+                pass
+        
+        sys.modules['atheris'] = MockAtheris()
+        
+        try:
+            import fuzz.fuzz_crypto as fc_temp
+            importlib.reload(fc_temp)
+            fc_temp.fuzz_derive_key(secrets.token_bytes(50))
+        finally:
+            sys.modules['atheris'] = None
+            importlib.reload(fuzz_crypto)

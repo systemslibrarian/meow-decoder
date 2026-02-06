@@ -39,19 +39,14 @@ jobs:
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
-      - name: Run tests with coverage (rust_crypto)
-        run: |
-          cargo tarpaulin \
-            --all-features \
-            --out Lcov \
-            --output-dir . \
-            --timeout 300
-        working-directory: ./rust_crypto
+      # Note: rust_crypto is a PyO3 cdylib extension - it cannot be tested standalone with tarpaulin
+      # Its coverage comes from Python tests (tests/test_rust_crypto_backend.py)
+      # We only run tarpaulin on crypto_core (pure Rust)
 
       - name: Run tests with coverage (crypto_core)
         run: |
           cargo tarpaulin \
-            --all-features \
+            --features "pure-crypto,pq-crypto" \
             --out Lcov \
             --output-dir . \
             --timeout 300
@@ -61,13 +56,12 @@ jobs:
         uses: codecov/codecov-action@v4
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./rust_crypto/lcov.info,./crypto_core/lcov.info
+          files: ./crypto_core/lcov.info
           flags: rust
           name: rust-coverage
           fail_ci_if_error: false
 
-      - name: Run regular tests (without coverage, for faster feedback)
+      - name: Run regular tests (crypto_core, without coverage)
         if: always()
         run: |
-          cd rust_crypto && cargo test --all-features
-          cd ../crypto_core && cargo test --all-features
+          cd crypto_core && cargo test --features "pure-crypto,pq-crypto"
