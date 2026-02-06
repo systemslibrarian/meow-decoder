@@ -17,6 +17,9 @@ These tests ensure security regressions are caught automatically.
 """
 
 import pytest
+
+pytestmark = pytest.mark.security
+
 import secrets
 import struct
 from pathlib import Path

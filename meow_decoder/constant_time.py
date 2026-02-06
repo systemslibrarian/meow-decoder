@@ -62,14 +62,16 @@ def constant_time_compare(a: bytes, b: bytes) -> bool:
 
 def secure_zero_memory(buffer: Any) -> None:
     """
-    Zero memory buffer in a way compiler can't optimize away.
+    Best-effort zeroing of a memory buffer.
     
     Args:
         buffer: Buffer to zero (bytearray, ctypes buffer, etc.)
         
     Security:
-        - Uses memset to prevent compiler optimization
-        - Ensures secrets actually erased from RAM
+        - Uses ctypes.memset to overwrite the buffer in-place
+        - Best-effort only: Python's GC, allocator, and string
+          interning may retain copies that cannot be zeroed
+        - For guaranteed zeroing, use the Rust backend (zeroize crate)
         - Critical for password/key cleanup
         
     Note:

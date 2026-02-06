@@ -18,6 +18,9 @@ These tests PROVE the security model works under attack.
 """
 
 import pytest
+
+pytestmark = pytest.mark.adversarial
+
 import secrets
 import struct
 import time

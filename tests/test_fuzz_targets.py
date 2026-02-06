@@ -13,13 +13,15 @@ Tests cover:
 - Seed corpus generation and validation
 """
 
+import pytest
+
+pytestmark = pytest.mark.fuzz
+
 import os
 import struct
 import secrets
 import hashlib
 from pathlib import Path
-
-import pytest
 
 from fuzz import fuzz_crypto, fuzz_manifest, fuzz_fountain, afl_fuzz_manifest, seed_corpus
 

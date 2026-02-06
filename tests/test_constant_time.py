@@ -11,6 +11,8 @@ import time
 
 import pytest
 
+pytestmark = [pytest.mark.security, pytest.mark.crypto]
+
 
 # =============================================================================
 # constant_time_compare

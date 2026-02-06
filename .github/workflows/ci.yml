@@ -103,6 +103,17 @@ jobs:
             head -n 30 coverage.xml || true
           fi
 
+      - name: Security coverage gate (TIER 1 modules ≥85%)
+        run: |
+          pytest tests/ -v -m "security or crypto or adversarial" \
+            --cov --cov-config=.coveragerc-security \
+            --cov-fail-under=85 \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage-security.xml || {
+            echo "⚠️ Security coverage gate FAILED — TIER 1 modules below 85%"
+            exit 1
+          }
+
       - name: Upload coverage report to Codecov
         uses: codecov/codecov-action@v5
         with:

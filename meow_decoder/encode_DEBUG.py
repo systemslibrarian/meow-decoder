@@ -1,8 +1,20 @@
 #!/usr/bin/env python3
 """
-Meow Decoder - Main Encoder CLI
+⚠️  DEPRECATED / QUARANTINED — Scheduled for move to meow_decoder/experimental/
+
+Meow Decoder - Main Encoder CLI (DEBUG variant)
 Encodes files into GIF animations with QR codes
+
+This module includes verbose debug logging. NOT for production use.
 """
+import warnings as _warnings
+_warnings.warn(
+    "meow_decoder.encode_DEBUG is a debug variant and should not be used in production. "
+    "Use meow_decoder.encode instead. "
+    "This module will move to meow_decoder.experimental in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import sys
 import argparse

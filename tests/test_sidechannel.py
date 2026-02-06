@@ -27,6 +27,8 @@ from pathlib import Path
 from typing import List, Tuple
 import pytest
 
+pytestmark = pytest.mark.security
+
 # Add parent to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 

@@ -119,13 +119,13 @@ if ephemeral_public_key:
 backend == "rust"
 ```
 
-**Description:** The Rust backend is mandatory; Python fallback is disabled. This preserves constant-time guarantees and consistent memory zeroing.
+**Description:** The Rust backend is mandatory; Python fallback is disabled. This preserves constant-time guarantees; memory zeroing is guaranteed in Rust (via `zeroize` crate), best-effort in Python.
 
 **Verification:**
 - `tests/test_crypto_backend_rust.py::TestBackendAvailability::test_rust_backend_available`
 - `tests/conftest.py` enforces Rust backend availability
 
-**Failure Impact:** Loss of constant-time guarantees and memory zeroing (security regression).
+**Failure Impact:** Loss of constant-time guarantees and guaranteed Rust-side memory zeroing (security regression).
 
 ---
 
@@ -268,11 +268,11 @@ backend == "rust"
     AFTER use: S is overwritten with zeros
 ```
 
-**Description:** Sensitive data must be securely zeroed after use to prevent memory forensics.
+**Description:** Sensitive data should be zeroed after use to limit memory forensics exposure. Rust-side zeroing is guaranteed via the `zeroize` crate; Python-side zeroing (e.g., `SecureBytes`, `ctypes.memset`) is best-effort due to GC and allocator limitations.
 
 **Implementation:**
-- `SecureBytes` class with `__del__` zeroing
-- Rust `zeroize` crate for automatic zeroing
+- `SecureBytes` class with `__del__` zeroing (best-effort in Python)
+- Rust `zeroize` crate for guaranteed automatic zeroing
 - `mlock()` to prevent swap (where available)
 
 **Verification:**

@@ -89,11 +89,17 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --cov=meow_decoder --cov-report=html --cov-report=term"
+addopts = "-v --strict-markers --cov=meow_decoder --cov-report=html --cov-report=term"
 # Hypothesis settings
 hypothesis_settings = { max_examples = 100, deadline = 5000 }
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "security: security-critical tests (crypto, auth, tamper detection)",
+    "adversarial: adversarial / abuse-case tests (malformed input, fuzzing)",
+    "crypto: cryptographic primitive and protocol tests",
+    "fuzz: fuzz / property-based tests (may be slow)",
+    "integration: end-to-end integration tests",
+    "cat: cat-themed error and UX tests",
 ]
 
 [tool.coverage.run]

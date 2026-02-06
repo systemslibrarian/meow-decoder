@@ -287,16 +287,21 @@ def whisker_validate(condition: bool, error_key: str, **kwargs):
 @contextmanager
 def litter_box_cleanup(*buffers):
     """
-    🧹 Context manager: zero-wipe sensitive buffers on exit.
+    🧹 Context manager: best-effort zero-wipe sensitive buffers on exit.
 
     Cat-themed wrapper around secure cleanup. Accepts bytearrays
     that will be zeroed when the block exits (even on exception).
+
+    .. warning::
+        This is best-effort only. Python's garbage collector and
+        memory allocator may retain copies that cannot be zeroed.
+        For guaranteed zeroing, use the Rust backend (zeroize crate).
 
     Example:
         key = bytearray(os.urandom(32))
         with litter_box_cleanup(key):
             encrypt(key, data)
-        # key is now zeroed
+        # key is now zeroed (best-effort)
     """
     try:
         yield

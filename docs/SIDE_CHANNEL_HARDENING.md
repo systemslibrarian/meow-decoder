@@ -106,7 +106,7 @@ ARGON2_PARALLELISM = 4      # 4 threads
 ```python
 # meow_decoder/constant_time.py
 def secure_zero_memory(buffer: Any) -> None:
-    """Zero memory buffer in a way compiler can't optimize away."""
+    """Best-effort zeroing of a memory buffer."""
     if isinstance(buffer, bytearray):
         size = len(buffer)
         addr = ctypes.addressof((ctypes.c_char * size).from_buffer(buffer))

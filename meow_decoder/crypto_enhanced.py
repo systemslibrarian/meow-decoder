@@ -1,8 +1,21 @@
 """
+⚠️  DEPRECATED / QUARANTINED — Scheduled for move to meow_decoder/experimental/
+
 Enhanced Cryptographic Operations for Meow Decoder v2.1
 Provides AES-256-GCM encryption with Argon2id key derivation
 ENHANCED with secure memory handling and constant-time operations
+
+This module is NOT part of the primary crypto pipeline.
+Production code should use crypto.py + crypto_backend.py (Rust backend).
 """
+import warnings as _warnings
+_warnings.warn(
+    "meow_decoder.crypto_enhanced is deprecated. "
+    "Use meow_decoder.crypto (primary) or meow_decoder.crypto_backend (Rust). "
+    "This module will move to meow_decoder.experimental in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import os
 import struct
@@ -72,7 +85,7 @@ class Manifest:
 class SecureBytes:
     """
     Context manager for secure handling of sensitive byte data.
-    Zeros memory on exit to prevent residue.
+    Best-effort zeroing on exit (Python GC/allocator may retain copies).
     """
     
     def __init__(self, data: bytes = None, size: int = None):

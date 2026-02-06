@@ -4,11 +4,11 @@
 #
 # Recommended CI usage:
 #   coverage run -m pytest
-#   coverage report --rcfile=.coveragerc-security --fail-under=52
+#   coverage report --rcfile=.coveragerc-security --fail-under=85
 #   coverage xml --rcfile=.coveragerc-security -o coverage.xml
 #
 # or with pytest-cov:
-#   pytest --cov-config=.coveragerc-security --cov-fail-under=52 --cov-report=xml
+#   pytest --cov-config=.coveragerc-security --cov-fail-under=85 --cov-report=xml
 
 [run]
 source =
@@ -66,7 +66,7 @@ exclude_also =
 show_missing = True
 sort = Miss
 
-fail_under = 52
+fail_under = 85
 
 [xml]
 output = coverage.xml

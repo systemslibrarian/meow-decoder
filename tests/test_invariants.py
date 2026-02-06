@@ -9,6 +9,9 @@ Run with: pytest tests/test_invariants.py -v
 """
 
 import pytest
+
+pytestmark = pytest.mark.security
+
 import secrets
 import tempfile
 from pathlib import Path

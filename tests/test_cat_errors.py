@@ -8,6 +8,8 @@ import warnings
 import pytest
 from unittest.mock import patch
 
+pytestmark = pytest.mark.cat
+
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 

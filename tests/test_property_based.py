@@ -17,6 +17,9 @@ Property-based testing finds edge cases that handwritten tests miss.
 """
 
 import pytest
+
+pytestmark = [pytest.mark.fuzz, pytest.mark.crypto]
+
 import secrets
 import hashlib
 from hypothesis import given, settings, assume, HealthCheck

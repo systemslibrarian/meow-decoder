@@ -53,6 +53,12 @@ dev:
 test:
 	pytest tests/ -v --cov=meow_decoder
 
+test-security:
+	@echo "🐾 Running security coverage gate (TIER 1 modules, ≥85% required)..."
+	MEOW_TEST_MODE=1 pytest tests/ -v -m "security or crypto or adversarial" \
+		--cov --cov-config=.coveragerc-security --cov-fail-under=85 \
+		--cov-report=term-missing --cov-report=xml:coverage-security.xml
+
 lint:
 	flake8 meow_decoder/
 	black --check meow_decoder/

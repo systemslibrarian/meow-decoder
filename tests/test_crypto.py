@@ -9,6 +9,9 @@ Run with: MEOW_TEST_MODE=1 pytest tests/test_crypto.py -v --cov=meow_decoder.cry
 """
 
 import pytest
+
+pytestmark = [pytest.mark.security, pytest.mark.crypto]
+
 import secrets
 import hashlib
 import struct

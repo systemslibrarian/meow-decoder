@@ -1,6 +1,8 @@
 """
-Forward Secrecy Module with X25519 Ephemeral Key Agreement
-Provides true forward secrecy for air-gap optical transfers
+⚠️  DEPRECATED / QUARANTINED — Scheduled for move to meow_decoder/experimental/
+
+Forward Secrecy Module with X25519 Ephemeral Key Agreement (LEGACY)
+Use meow_decoder.x25519_forward_secrecy instead.
 
 Security Model:
 - Receiver has long-term X25519 public key
@@ -9,6 +11,14 @@ Security Model:
 - Hybrid with password using HKDF
 - Ephemeral private key never stored (forward secrecy!)
 """
+import warnings as _warnings
+_warnings.warn(
+    "meow_decoder.forward_secrecy_x25519 is deprecated. "
+    "Use meow_decoder.x25519_forward_secrecy instead. "
+    "This module will move to meow_decoder.experimental in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import secrets
 import struct

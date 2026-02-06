@@ -180,7 +180,7 @@ All changes maintain these security invariants:
 
 1. **Auth-Then-Output**: No plaintext output without HMAC+AEAD verification
 2. **Constant-Time Comparisons**: All MAC/password comparisons use `secrets.compare_digest()`
-3. **Memory Zeroization**: Sensitive data zeroed via Rust `zeroize` crate
+3. **Memory Zeroization**: Rust-side data zeroed via `zeroize` crate (guaranteed); Python-side zeroing is best-effort
 4. **Nonce Uniqueness**: Per-process cache + random generation
 5. **Domain Separation**: HKDF info strings separate all derived keys
 
@@ -305,7 +305,7 @@ All changes maintain these security invariants:
 
 1. **Auth-Then-Output**: No plaintext output without HMAC+AEAD verification
 2. **Constant-Time Comparisons**: All MAC/password comparisons use `secrets.compare_digest()`
-3. **Memory Zeroization**: Sensitive data zeroed via Rust `zeroize` crate
+3. **Memory Zeroization**: Rust-side data zeroed via `zeroize` crate (guaranteed); Python-side zeroing is best-effort
 4. **Nonce Uniqueness**: Per-process cache + random generation
 5. **Domain Separation**: HKDF info strings separate all derived keys
 6. **Timing-Safe Schrödinger**: Both realities always processed identically
@@ -532,7 +532,7 @@ All changes maintain these security invariants:
 
 1. **Auth-Then-Output**: No plaintext output without HMAC+AEAD verification
 2. **Constant-Time Comparisons**: All MAC/password comparisons use `secrets.compare_digest()`
-3. **Memory Zeroization**: Sensitive data zeroed via Rust `zeroize` crate
+3. **Memory Zeroization**: Rust-side data zeroed via `zeroize` crate (guaranteed); Python-side zeroing is best-effort
 4. **Nonce Uniqueness**: Per-process cache + random generation
 5. **Domain Separation**: HKDF info strings separate all derived keys
 6. **Timing-Safe Schrödinger**: Both realities always processed identically

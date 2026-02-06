@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Tests for meow_decoder.frame_mac."""
 
+import pytest
+
+pytestmark = [pytest.mark.security, pytest.mark.crypto]
+
 import runpy
 import secrets
 

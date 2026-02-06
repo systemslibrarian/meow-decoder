@@ -148,19 +148,19 @@ def enable_high_security_mode(silent: bool = True) -> None:
     
     # Patch crypto_enhanced.py parameters
     try:
-        from . import crypto_enhanced
+        from .experimental import crypto_enhanced
         crypto_enhanced.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY
         crypto_enhanced.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS
         crypto_enhanced.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM
     except (ImportError, AttributeError):
         pass
     
-    # Patch forward_secrecy_x25519.py parameters
+    # Patch x25519_forward_secrecy.py parameters (if they exist)
     try:
-        from . import forward_secrecy_x25519
-        forward_secrecy_x25519.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY
-        forward_secrecy_x25519.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS
-        forward_secrecy_x25519.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM
+        from . import x25519_forward_secrecy
+        x25519_forward_secrecy.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY
+        x25519_forward_secrecy.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS
+        x25519_forward_secrecy.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM
     except (ImportError, AttributeError):
         pass
     

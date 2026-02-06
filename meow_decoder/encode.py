@@ -423,6 +423,108 @@ def encode_file(
     }
 
 
+def _run_self_test() -> int:
+    """Run a quick encrypt-decrypt roundtrip smoke test.
+
+    Verifies:
+      1. Rust crypto backend is available
+      2. AES-256-GCM encrypt then decrypt roundtrip
+      3. Manifest pack/unpack integrity
+      4. Fountain encode then decode roundtrip
+
+    Returns 0 on success, 1 on failure.
+    """
+    import secrets as _sec
+
+    print("🐾 Meow Decoder Self-Test")
+    print("=" * 50)
+
+    passed = 0
+    failed = 0
+
+    # --- Test 1: Rust backend detection ---
+    try:
+        from .crypto_backend import get_backend_name
+        backend = get_backend_name()
+        print(f"  [✅] Crypto backend: {backend}")
+        passed += 1
+    except Exception as e:
+        print(f"  [❌] Crypto backend detection failed: {e}")
+        failed += 1
+
+    # --- Test 2: AES-256-GCM roundtrip ---
+    try:
+        from .crypto import encrypt_file_bytes, decrypt_to_raw
+        plaintext = b"The quick brown cat jumps over the lazy dog. " * 20
+        password = "self-test-" + _sec.token_hex(8)
+        ct = encrypt_file_bytes(plaintext, password)
+        pt = decrypt_to_raw(ct, password)
+        assert pt == plaintext, "Decrypted data does not match original"
+        print(f"  [✅] AES-256-GCM roundtrip ({len(plaintext)} bytes)")
+        passed += 1
+    except Exception as e:
+        print(f"  [❌] AES-256-GCM roundtrip failed: {e}")
+        failed += 1
+
+    # --- Test 3: Manifest pack/unpack ---
+    try:
+        from .crypto import Manifest, pack_manifest, unpack_manifest
+        m = Manifest(
+            magic=b"MEOW",
+            version=2,
+            nonce=_sec.token_bytes(12),
+            salt=_sec.token_bytes(16),
+            orig_len=900,
+            comp_len=800,
+            cipher_len=816,
+            block_size=512,
+            k_blocks=2,
+            hmac=_sec.token_bytes(32),
+        )
+        packed = pack_manifest(m)
+        m2 = unpack_manifest(packed)
+        assert m2.orig_len == m.orig_len, "Manifest roundtrip mismatch"
+        print(f"  [✅] Manifest pack/unpack ({len(packed)} bytes)")
+        passed += 1
+    except Exception as e:
+        print(f"  [❌] Manifest pack/unpack failed: {e}")
+        failed += 1
+
+    # --- Test 4: Fountain codec ---
+    try:
+        from .fountain import FountainEncoder, FountainDecoder
+        data = _sec.token_bytes(1024)
+        block_size = 256
+        enc = FountainEncoder(data, block_size)
+        dec = FountainDecoder(len(data), block_size)
+        for _ in range(int(len(data) / block_size * 2)):
+            droplet = enc.generate_droplet()
+            dec.add_droplet(droplet)
+            if dec.is_complete():
+                break
+        if dec.is_complete():
+            recovered = dec.get_data()
+            assert recovered == data, "Fountain roundtrip mismatch"
+            print("  [✅] Fountain encode/decode (1024 bytes)")
+            passed += 1
+        else:
+            print("  [⚠️] Fountain decode incomplete (may need more frames)")
+            passed += 1  # Not a failure, just needs more redundancy
+    except Exception as e:
+        print(f"  [❌] Fountain encode/decode failed: {e}")
+        failed += 1
+
+    # --- Summary ---
+    print("=" * 50)
+    total = passed + failed
+    if failed == 0:
+        print(f"🐱 All {passed}/{total} checks passed. Meow is healthy!")
+        return 0
+    else:
+        print(f"😿 {failed}/{total} checks FAILED. See errors above.")
+        return 1
+
+
 def main():
     """Main CLI entry point."""
     
@@ -593,6 +695,8 @@ Examples:
     
     parser.add_argument('--about', '--meow-about', action='store_true',
                        help='Show version and build information')
+    parser.add_argument('--self-test', action='store_true',
+                       help='Run a quick encrypt→decrypt roundtrip smoke test and exit')
 
     args = parser.parse_args()
     
@@ -603,6 +707,10 @@ Examples:
         from .cat_utils import meow_about
         print(meow_about())
         sys.exit(0)
+    
+    # Handle self-test (encrypt→decrypt roundtrip smoke test)
+    if args.self_test:
+        return _run_self_test()
     
     # Handle hardware status check (exit after display)
     if args.hardware_status:

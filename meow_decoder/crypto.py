@@ -41,6 +41,15 @@ else:
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"
 KEYFILE_DOMAIN_SEP = b"meow_keyfile_separation_v2"
 
+# ── Manifest numeric bounds (ST-2: decompression-bomb & overflow protection) ──
+MAX_ORIG_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max original file size
+MAX_COMP_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max compressed size
+MAX_CIPHER_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max ciphertext size
+MAX_BLOCK_SIZE = 65535  # uint16 max
+MIN_BLOCK_SIZE = 64  # minimum sensible block size
+MAX_K_BLOCKS = 1_000_000  # 1M blocks max
+MAX_DECOMP_RATIO = 10  # decompression output limit: orig_len <= comp_len * ratio
+
 
 @dataclass
 class Manifest:
@@ -581,7 +590,34 @@ def decrypt_to_raw(
         if logger:
             logger.log("Decompressing data with zlib", category="io")
         
-        raw = zlib.decompress(comp)
+        # ST-2: Decompression bomb protection — limit output size
+        # Use incremental decompression to enforce MAX_DECOMP_RATIO
+        decomp_limit = max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
+        decompressor = zlib.decompressobj()
+        chunks = []
+        total_out = 0
+        # Feed the compressed data in one shot but limit output
+        try:
+            chunk = decompressor.decompress(comp, decomp_limit + 1)
+            total_out += len(chunk)
+            if total_out > decomp_limit:
+                raise ValueError(
+                    f"Decompression bomb detected: output ({total_out} bytes) exceeds "
+                    f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
+                )
+            chunks.append(chunk)
+            # Flush remaining
+            remaining = decompressor.flush()
+            total_out += len(remaining)
+            if total_out > decomp_limit:
+                raise ValueError(
+                    f"Decompression bomb detected: output ({total_out} bytes) exceeds "
+                    f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
+                )
+            chunks.append(remaining)
+        except zlib.error as ze:
+            raise RuntimeError(f"Decompression failed: {ze}")
+        raw = b''.join(chunks)
         
         return raw
     except Exception as e:
@@ -722,6 +758,32 @@ def unpack_manifest(b: bytes) -> Manifest:
     # Check for duress tag (last 32 bytes if size matches duress variant)
     if len(b) == fs_duress_len or len(b) == pq_duress_len:
         duress_tag = b[off:off+32]
+    
+    # ── ST-2: Strict numeric bounds validation ──
+    # Reject manifests with implausible field values before any crypto operations.
+    if orig_len > MAX_ORIG_LEN:
+        raise ValueError(f"Manifest orig_len too large ({orig_len} > {MAX_ORIG_LEN})")
+    if comp_len > MAX_COMP_LEN:
+        raise ValueError(f"Manifest comp_len too large ({comp_len} > {MAX_COMP_LEN})")
+    if cipher_len > MAX_CIPHER_LEN:
+        raise ValueError(f"Manifest cipher_len too large ({cipher_len} > {MAX_CIPHER_LEN})")
+    if block_size < MIN_BLOCK_SIZE or block_size > MAX_BLOCK_SIZE:
+        raise ValueError(f"Manifest block_size out of range ({block_size}, valid: {MIN_BLOCK_SIZE}–{MAX_BLOCK_SIZE})")
+    if k_blocks == 0 or k_blocks > MAX_K_BLOCKS:
+        raise ValueError(f"Manifest k_blocks out of range ({k_blocks}, valid: 1–{MAX_K_BLOCKS})")
+    if comp_len > 0 and orig_len > comp_len * MAX_DECOMP_RATIO:
+        raise ValueError(
+            f"Manifest decompression ratio too high (orig_len={orig_len} > comp_len={comp_len} × {MAX_DECOMP_RATIO})"
+        )
+    if cipher_len > 0 and cipher_len < comp_len:
+        # Ciphertext should be >= compressed data (GCM adds 16-byte tag + possible padding)
+        pass  # Not strictly enforced — padding modes may vary
+    # Validate ephemeral public key is not all-zero
+    if ephemeral_public_key is not None and ephemeral_public_key == b'\x00' * 32:
+        raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
+    # Validate PQ ciphertext length
+    if pq_ciphertext is not None and len(pq_ciphertext) != 1088:
+        raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1088)")
     
     return Manifest(
         salt=salt,

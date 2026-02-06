@@ -194,7 +194,7 @@ are included in this release.
 - **Duress Passwords**: Configure distress signal password that triggers secure wipe
 - **Constant-Time Verification**: Timing-safe password comparison prevents side-channel attacks
 - **Timing Equalization**: 100-500ms random delays mask operation timing
-- **Secure Memory Wipe**: 3-pass overwrite (zeros, ones, random) for key material
+- **Secure Memory Wipe**: Best-effort 3-pass overwrite (zeros, ones, random) for key material (Python GC may retain copies; Rust backend provides guaranteed zeroing)
 - **Resume File Destruction**: Automatic cleanup of recovery files under duress
 
 #### Enhanced Entropy Collection

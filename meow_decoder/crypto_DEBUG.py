@@ -1,9 +1,20 @@
 """
-Base Cryptography Module for Meow Decoder
+⚠️  DEPRECATED / QUARANTINED — Scheduled for move to meow_decoder/experimental/
+
+Base Cryptography Module for Meow Decoder (DEBUG variant)
 Provides AES-256-GCM encryption with Argon2id key derivation
 
-This is the base version. For enhanced security features, see crypto_enhanced.py
+This module uses weaker Argon2id parameters (256 MiB/10 iter) and verbose
+logging. NOT for production use.
 """
+import warnings as _warnings
+_warnings.warn(
+    "meow_decoder.crypto_DEBUG is a debug variant and should not be used in production. "
+    "Use meow_decoder.crypto instead. "
+    "This module will move to meow_decoder.experimental in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import os
 import struct

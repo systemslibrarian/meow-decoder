@@ -117,7 +117,7 @@ We thank the following security researchers â€” our **elite Catnip Hunters** ðŸŒ
    - **Mitigation:** Use defense in depth and independent review.
 
 2. **Python Fallback Removed**
-   - Rust backend is mandatory for constant-time and memory-zeroing guarantees
+   - Rust backend is mandatory for constant-time guarantees and guaranteed memory zeroing within Rust; Python-side zeroing remains best-effort due to GC/allocator limitations
    - **Mitigation:** Install Rust backend as required (see README)
 
 3. **Dependency Trust**
