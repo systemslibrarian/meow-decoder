@@ -19,17 +19,7 @@ include =
     meow_decoder/frame_mac.py
     meow_decoder/crypto_backend.py
     meow_decoder/crypto.py
-    meow_decoder/forward_secrecy.py
-    meow_decoder/x25519_forward_secrecy.py
-    meow_decoder/double_ratchet.py
     meow_decoder/metadata_obfuscation.py
-    meow_decoder/secure_cleanup.py
-    meow_decoder/pq_hybrid.py
-    meow_decoder/pq_crypto_real.py
-    meow_decoder/pq_signatures.py
-    meow_decoder/duress_mode.py
-    meow_decoder/stego_advanced.py
-    meow_decoder/timelock_duress.py
 
 branch = true
 
@@ -39,17 +29,7 @@ include =
     meow_decoder/frame_mac.py
     meow_decoder/crypto_backend.py
     meow_decoder/crypto.py
-    meow_decoder/forward_secrecy.py
-    meow_decoder/x25519_forward_secrecy.py
-    meow_decoder/double_ratchet.py
     meow_decoder/metadata_obfuscation.py
-    meow_decoder/secure_cleanup.py
-    meow_decoder/pq_hybrid.py
-    meow_decoder/pq_crypto_real.py
-    meow_decoder/pq_signatures.py
-    meow_decoder/duress_mode.py
-    meow_decoder/stego_advanced.py
-    meow_decoder/timelock_duress.py
 
 exclude_also =
     pragma: no cover

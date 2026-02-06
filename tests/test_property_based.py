@@ -326,6 +326,8 @@ class TestManifestInvariants:
         self, orig_len, comp_len, cipher_len, block_size, k_blocks
     ):
         """pack_manifest then unpack_manifest should preserve all fields."""
+        # Ensure decompression ratio is within bounds (MAX_DECOMP_RATIO=10)
+        assume(comp_len == 0 or orig_len <= comp_len * 10)
         manifest = Manifest(
             salt=secrets.token_bytes(16),
             nonce=secrets.token_bytes(12),

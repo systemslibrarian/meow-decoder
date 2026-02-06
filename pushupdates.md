@@ -180,14 +180,39 @@ These are the steps we took on 2026-02-06 to protect `main`:
 1. **Go to**: GitHub repo → **Settings** → **Branches**
 2. **Click**: "Add classic branch protection rule"
 3. **Branch name pattern**: `main`
-4. **Checked these boxes**:
-   - ✅ Require a pull request before merging
-     - ✅ Require approvals: **0** (solo dev — just needs CI to pass)
-   - ✅ Require status checks to pass before merging
+4. **Settings we enabled**:
+   - ✅ **Require a pull request before merging**
+     - ❌ Require approvals — **UNCHECKED** (solo dev can't approve their own PRs)
+     - ❌ Dismiss stale approvals — unchecked
+     - ❌ Require review from Code Owners — unchecked
+     - ❌ Require approval of most recent push — unchecked
+   - ✅ **Require status checks to pass before merging**
      - ✅ Require branches to be up to date before merging
-     - Added required checks: `CI - Tests + Coverage`, `CodeQL`, `Security CI`
-   - ✅ Do not allow bypassing the above settings *(prevents accidental direct pushes)*
-5. **Click**: "Create" / "Save changes"
+     - Added required checks: `All CI Gates`, `CodeQL`, `security`
+   - ✅ **Do not allow bypassing the above settings** *(prevents accidental direct pushes)*
+5. **Click**: "Save changes"
+
+### Important: "Require approvals" must stay UNCHECKED
+
+We originally had "Require approvals" checked and it blocked all merges with:
+> `At least 1 approving review is required by reviewers with write access`
+
+As a solo dev, you can't approve your own PRs. The fix was to **uncheck "Require approvals"**
+while keeping "Require a pull request before merging" checked. This way:
+- Direct pushes to main are still blocked
+- PRs are required
+- CI must pass before merging
+- But no human review approval is needed
+
+### Required status checks explained
+
+These are the check names you search for and add in the branch protection settings:
+
+| Check name      | What it covers                                    |
+|-----------------|---------------------------------------------------|
+| `All CI Gates`  | Tests + Coverage, Security Coverage, Lint + Types |
+| `CodeQL`        | SAST code scanning                                |
+| `security`      | Bandit, cargo audit, SBOM, cargo-deny             |
 
 ### To verify it's working:
 
@@ -206,3 +231,9 @@ gh pr create --fill
 
 - **Settings → Branches → main** → Edit the rule
 - To temporarily allow direct push: uncheck "Do not allow bypassing"
+
+### Gotchas we hit along the way
+
+1. **"Require approvals" blocks solo devs** — unchecked it, kept PR requirement
+2. **Lint gate failed on first PR** — needed to run `black meow_decoder/` to format 68 files and update `.flake8` config
+3. **meow-push.sh script lost changes on branch switch** — local-only files aren't committed, so changes made on `main` are carried to branches; but config file edits need to be staged before switching
