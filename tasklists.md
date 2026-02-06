@@ -96,68 +96,68 @@
 - **Effort:** High (~4–6 hours)
 - **Dependencies:** ST-1
 - **Status:**
-  - [ ] Define canonical AAD = `version_byte || fixed-order manifest fields`
-  - [ ] Update `encrypt_file_bytes()` and `decrypt_to_raw()` to use canonical AAD
-  - [ ] Add backward compatibility for existing MEOW2/MEOW3 manifests
-  - [ ] Add test vectors
+  - [x] Define canonical AAD = `version_byte || fixed-order manifest fields`
+  - [x] Update `encrypt_file_bytes()` and `decrypt_to_raw()` to use canonical AAD
+  - [x] Add backward compatibility for existing MEOW2/MEOW3 manifests
+  - [x] Add test vectors
 
 ### MT-2: Lock down CI — enforce 3 PR gates
 - **Effort:** Medium (~2 hours)
 - **Dependencies:** ST-4, ST-5
 - **Status:**
-  - [ ] Gate 1: Fast pytest (no slow marker)
-  - [ ] Gate 2: Security coverage ≥ 85%
-  - [ ] Gate 3: Lint + type check (flake8, mypy, black)
-  - [ ] All gates required for merge
+  - [x] Gate 1: Fast pytest (no slow marker)
+  - [x] Gate 2: Security coverage ≥ 85%
+  - [x] Gate 3: Lint + type check (flake8, mypy, black)
+  - [x] All gates required for merge
 
 ### MT-3: Codecov — fail only on main push
 - **Effort:** Low (~30 minutes)
 - **Dependencies:** None
 - **Status:**
-  - [ ] Update `codecov.yml` to fail checks only on `push` to `main`, not on PRs
+  - [x] Update `codecov.yml` to fail checks only on `push` to `main`, not on PRs
 
 ### MT-4: Remove continue-on-error from security-ci.yml
 - **Effort:** Low (~15 minutes)
 - **Dependencies:** MT-2
 - **Status:**
-  - [ ] Audit `security-ci.yml` for `continue-on-error: true`
-  - [ ] Remove or justify each instance
+  - [x] Audit `security-ci.yml` for `continue-on-error: true`
+  - [x] Remove or justify each instance
 
 ### MT-5: Basic timing attack test harness
 - **Effort:** Medium (~2–3 hours)
 - **Dependencies:** ST-4
 - **Status:**
-  - [ ] Create `tests/test_timing_harness.py` with `@pytest.mark.security`
-  - [ ] Statistical timing comparison for correct vs wrong password
-  - [ ] Statistical timing comparison for duress vs real
-  - [ ] Configurable threshold + skip on inconsistent CI runners
+  - [x] Create `tests/test_timing_harness.py` with `@pytest.mark.security`
+  - [x] Statistical timing comparison for correct vs wrong password
+  - [x] Statistical timing comparison for duress vs real
+  - [x] Configurable threshold + skip on inconsistent CI runners
 
 ### MT-6: Expand opsec docs → Secure Usage Checklist
 - **Effort:** Low–Medium (~1–2 hours)
 - **Dependencies:** None
 - **Status:**
-  - [ ] Create `docs/SECURE_USAGE_CHECKLIST.md`
-  - [ ] Cover: power off after use, secure delete temp files, screen recording risks, OS hardening recommendations, camera security
-  - [ ] Link from README, QUICKSTART, THREAT_MODEL
+  - [x] Create `docs/SECURE_USAGE_CHECKLIST.md`
+  - [x] Cover: power off after use, secure delete temp files, screen recording risks, OS hardening recommendations, camera security
+  - [x] Link from README, QUICKSTART, THREAT_MODEL
 
 ### MT-7: Tamper timeline visualization
 - **Effort:** Medium (~2–3 hours)
 - **Dependencies:** None
 - **Status:**
-  - [ ] Add `--tamper-report` flag to decode CLI
-  - [ ] Output frame-by-frame MAC verification results
-  - [ ] Generate ASCII or HTML timeline of pass/fail frames
-  - [ ] Highlight suspicious patterns (clustered failures)
+  - [x] Add `--tamper-report` flag to decode CLI
+  - [x] Output frame-by-frame MAC verification results
+  - [x] Generate ASCII or HTML timeline of pass/fail frames
+  - [x] Highlight suspicious patterns (clustered failures)
 
 ### MT-8: Minimal CLI → React Native QR/video scanner bridge
 - **Effort:** High (~1–2 weeks)
 - **Dependencies:** All short-term items
 - **Status:**
-  - [ ] Define JSON/protobuf wire protocol between phone and CLI
-  - [ ] Create minimal React Native camera → QR scanner component
-  - [ ] Phone sends raw QR data to CLI over local network / USB
-  - [ ] Phone stays "dumb" — no crypto on device
-  - [ ] Document architecture in `mobile/ARCHITECTURE.md`
+  - [x] Define JSON/protobuf wire protocol between phone and CLI
+  - [x] Create minimal React Native camera → QR scanner component
+  - [x] Phone sends raw QR data to CLI over local network / USB
+  - [x] Phone stays "dumb" — no crypto on device
+  - [x] Document architecture in `mobile/ARCHITECTURE.md`
 
 ---
 

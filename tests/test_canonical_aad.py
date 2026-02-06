@@ -120,13 +120,30 @@ class TestCanonicalAADRoundtrip:
         """Encrypt + decrypt roundtrip succeeds with canonical AAD."""
         plaintext = b"Canonical AAD test payload!" * 10
         password = "test-canonical-aad-42"
-        ct = encrypt_file_bytes(plaintext, password)
-        pt = decrypt_to_raw(ct, password)
+        comp, sha256, salt, nonce, ciphertext, eph_pk, enc_key = encrypt_file_bytes(
+            plaintext, password
+        )
+        pt = decrypt_to_raw(
+            ciphertext, password, salt, nonce,
+            orig_len=len(plaintext),
+            comp_len=len(comp),
+            sha256=sha256,
+            ephemeral_public_key=eph_pk,
+        )
         assert pt == plaintext
 
     def test_wrong_password_fails(self):
         """Wrong password still causes AEAD failure (AAD mismatch)."""
         plaintext = b"Wrong password with canonical AAD"
-        ct = encrypt_file_bytes(plaintext, "correct")
+        password = "correct-password-42"
+        comp, sha256, salt, nonce, ciphertext, eph_pk, enc_key = encrypt_file_bytes(
+            plaintext, password
+        )
         with pytest.raises(Exception):
-            decrypt_to_raw(ct, "wrong")
+            decrypt_to_raw(
+                ciphertext, "wrongwrongwrong", salt, nonce,
+                orig_len=len(plaintext),
+                comp_len=len(comp),
+                sha256=sha256,
+                ephemeral_public_key=eph_pk,
+            )
