@@ -210,4 +210,61 @@ mod tests {
             Err(AadError::TooLong { .. })
         ));
     }
+
+    #[test]
+    fn test_key_as_bytes() {
+        let bytes = [0xAB; 32];
+        let key = AeadKey::from_bytes(&bytes).unwrap();
+        assert_eq!(key.as_bytes(), &bytes);
+    }
+
+    #[test]
+    fn test_key_error_display() {
+        let err = KeyError::InvalidLength { expected: 32, got: 16 };
+        assert_eq!(format!("{}", err), "Invalid key length: expected 32, got 16");
+    }
+
+    #[test]
+    fn test_key_error_is_error_trait() {
+        let err: &dyn std::error::Error = &KeyError::InvalidLength { expected: 32, got: 16 };
+        assert!(err.to_string().contains("32"));
+    }
+
+    #[test]
+    fn test_aad_error_display() {
+        let err = AadError::TooLong { max: 16384, got: 20000 };
+        assert_eq!(format!("{}", err), "AAD too long: max 16384, got 20000");
+    }
+
+    #[test]
+    fn test_aad_error_is_error_trait() {
+        let err: &dyn std::error::Error = &AadError::TooLong { max: 100, got: 200 };
+        assert!(err.to_string().contains("AAD too long"));
+    }
+
+    #[test]
+    fn test_aad_empty() {
+        let aad = AssociatedData::new(vec![]).unwrap();
+        assert_eq!(aad.as_bytes(), &[]);
+    }
+
+    #[test]
+    fn test_aad_max_length() {
+        let bytes = vec![0u8; AssociatedData::MAX_LEN];
+        let aad = AssociatedData::new(bytes).unwrap();
+        assert_eq!(aad.as_bytes().len(), AssociatedData::MAX_LEN);
+    }
+
+    #[test]
+    fn test_aad_from_slice() {
+        let bytes: &[u8] = &[1, 2, 3, 4, 5];
+        let aad: AssociatedData = bytes.into();
+        assert_eq!(aad.as_bytes(), bytes);
+    }
+
+    #[test]
+    fn test_aad_empty_default_method() {
+        let aad = AssociatedData::empty();
+        assert!(aad.as_bytes().is_empty());
+    }
 }

@@ -896,4 +896,234 @@ mod tests {
         let okm = hkdf_derive(ikm, salt, info, 64).unwrap();
         assert_eq!(okm.len(), 64);
     }
+
+    #[test]
+    fn test_secret_key_as_ref() {
+        let key = SecretKey::from_bytes(&[0x42u8; 32]).unwrap();
+        let reference: &[u8] = key.as_ref();
+        assert_eq!(reference.len(), 32);
+    }
+
+    #[test]
+    fn test_nonce_as_ref() {
+        let nonce = Nonce::from_bytes(&[0u8; 12]).unwrap();
+        let reference: &[u8] = nonce.as_ref();
+        assert_eq!(reference.len(), 12);
+    }
+
+    #[test]
+    fn test_salt_as_ref() {
+        let salt = Salt::from_bytes(&[0u8; 16]).unwrap();
+        let reference: &[u8] = salt.as_ref();
+        assert_eq!(reference.len(), 16);
+    }
+
+    #[test]
+    fn test_invalid_nonce_size() {
+        let result = Nonce::from_bytes(&[0u8; 8]);
+        assert!(matches!(result, Err(CryptoError::InvalidNonceSize(8, 12))));
+    }
+
+    #[test]
+    fn test_invalid_salt_size() {
+        let result = Salt::from_bytes(&[0u8; 8]);
+        // Salt uses InvalidKeySize since there's no InvalidSaltSize variant
+        assert!(matches!(result, Err(CryptoError::InvalidKeySize(8, 16))));
+    }
+
+    #[test]
+    fn test_crypto_error_display_all_variants() {
+        // Cover all Display implementations
+        let err1 = CryptoError::InvalidKeySize(16, 32);
+        assert!(format!("{}", err1).contains("Invalid key size"));
+        
+        let err2 = CryptoError::InvalidNonceSize(8, 12);
+        assert!(format!("{}", err2).contains("Invalid nonce size"));
+        
+        let err3 = CryptoError::EncryptionFailed("test".to_string());
+        assert!(format!("{}", err3).contains("Encryption failed"));
+        
+        let err4 = CryptoError::DecryptionFailed;
+        assert!(format!("{}", err4).contains("Decryption failed"));
+        
+        let err5 = CryptoError::KeyDerivationFailed("kdf".to_string());
+        assert!(format!("{}", err5).contains("Key derivation failed"));
+        
+        let err6 = CryptoError::SignatureInvalid;
+        assert!(format!("{}", err6).contains("Signature"));
+        
+        let err7 = CryptoError::RandomFailed("rng".to_string());
+        assert!(format!("{}", err7).contains("Random"));
+        
+        let err8 = CryptoError::FeatureDisabled;
+        assert!(format!("{}", err8).contains("feature"));
+    }
+
+    #[test]
+    fn test_crypto_error_debug() {
+        let err = CryptoError::DecryptionFailed;
+        let dbg = format!("{:?}", err);
+        assert!(dbg.contains("DecryptionFailed"));
+    }
+
+    #[test]
+    fn test_argon2_params_variants() {
+        let default = Argon2Params::default();
+        assert_eq!(default.memory_kib, ARGON2_MEMORY_KIB);
+        
+        let owasp = Argon2Params::owasp_minimum();
+        assert_eq!(owasp.memory_kib, 65536);
+        assert_eq!(owasp.time, 3);
+        
+        let ultra = Argon2Params::ultra();
+        assert_eq!(ultra.memory_kib, 1048576);
+        assert_eq!(ultra.time, 40);
+    }
+
+    #[test]
+    fn test_hkdf_derive_key() {
+        let ikm = [1u8; 32];
+        let info = b"test info";
+        let result = hkdf_derive_key(&ikm, None, info);
+        assert!(result.is_ok());
+        let key = result.unwrap();
+        assert_eq!(key.as_ref().len(), 32);
+    }
+
+    #[test]
+    fn test_hkdf_derive_with_salt() {
+        let ikm = [1u8; 32];
+        let salt = [2u8; 32];
+        let info = b"context";
+        let result = hkdf_derive(&ikm, Some(&salt), info, 64);
+        assert!(result.is_ok());
+        let okm = result.unwrap();
+        assert_eq!(okm.len(), 64);
+    }
+
+    #[test]
+    fn test_constant_time_eq_variants() {
+        let a = [1, 2, 3, 4];
+        let b = [1, 2, 3, 4];
+        let c = [1, 2, 3, 5];
+        let d = [1, 2, 3];
+        
+        assert!(constant_time_eq(&a, &b));
+        assert!(!constant_time_eq(&a, &c));
+        assert!(!constant_time_eq(&a, &d));
+    }
+
+    #[test]
+    fn test_random_bytes_generation() {
+        let bytes1 = random_bytes(32).unwrap();
+        let bytes2 = random_bytes(32).unwrap();
+        assert_eq!(bytes1.len(), 32);
+        assert_eq!(bytes2.len(), 32);
+        // Extremely unlikely to be equal
+        assert_ne!(bytes1, bytes2);
+    }
+
+    #[test]
+    fn test_random_key_generation() {
+        let key1 = random_key().unwrap();
+        let key2 = random_key().unwrap();
+        assert_ne!(key1.as_ref(), key2.as_ref());
+    }
+
+    #[test]
+    fn test_nonce_random_generation() {
+        let n1 = Nonce::random().unwrap();
+        let n2 = Nonce::random().unwrap();
+        assert_ne!(n1.as_bytes(), n2.as_bytes());
+    }
+
+    #[test]
+    fn test_salt_random_generation() {
+        let s1 = Salt::random().unwrap();
+        let s2 = Salt::random().unwrap();
+        assert_ne!(s1.as_bytes(), s2.as_bytes());
+    }
+
+    #[test]
+    fn test_secret_key_as_ref_slice() {
+        let key = SecretKey::from_bytes(&[0xAB; 32]).unwrap();
+        let bytes: &[u8] = key.as_ref();
+        assert_eq!(bytes.len(), 32);
+        assert_eq!(bytes[0], 0xAB);
+    }
+
+    #[test]
+    fn test_nonce_as_bytes() {
+        let nonce = Nonce::from_bytes(&[0x42; 12]).unwrap();
+        assert_eq!(nonce.as_bytes()[0], 0x42);
+    }
+
+    #[test]
+    fn test_salt_as_bytes() {
+        let salt = Salt::from_bytes(&[0x33; 16]).unwrap();
+        assert_eq!(salt.as_bytes()[0], 0x33);
+    }
+
+    #[test]
+    fn test_argon2_derive_basic() {
+        let password = b"test_password";
+        let salt = Salt::from_bytes(&[0xAA; 16]).unwrap();
+        
+        // Use minimal params for testing speed
+        let params = Argon2Params {
+            memory_kib: 1024, // 1 MiB for speed
+            time: 1,
+            parallelism: 1,
+        };
+        
+        let result = argon2_derive(password, &salt, Some(params));
+        assert!(result.is_ok());
+        let key = result.unwrap();
+        assert_eq!(key.as_ref().len(), 32);
+    }
+
+    #[test]
+    fn test_argon2_derive_deterministic() {
+        let password = b"same_password";
+        let salt = Salt::from_bytes(&[0xBB; 16]).unwrap();
+        
+        let params = Argon2Params {
+            memory_kib: 1024,
+            time: 1,
+            parallelism: 1,
+        };
+        
+        let key1 = argon2_derive(password, &salt, Some(params)).unwrap();
+        let key2 = argon2_derive(password, &salt, Some(params)).unwrap();
+        
+        // Same password + salt = same key
+        assert_eq!(key1.as_ref(), key2.as_ref());
+    }
+
+    #[test]
+    fn test_argon2_derive_different_passwords() {
+        let salt = Salt::from_bytes(&[0xCC; 16]).unwrap();
+        let params = Argon2Params {
+            memory_kib: 1024,
+            time: 1,
+            parallelism: 1,
+        };
+        
+        let key1 = argon2_derive(b"password1", &salt, Some(params)).unwrap();
+        let key2 = argon2_derive(b"password2", &salt, Some(params)).unwrap();
+        
+        assert_ne!(key1.as_ref(), key2.as_ref());
+    }
+
+    #[test]
+    fn test_argon2_derive_default_params() {
+        let password = b"test";
+        let salt = Salt::from_bytes(&[0xDD; 16]).unwrap();
+        
+        // Using default (None) will use production params - skip for speed
+        // Just test that owasp_minimum works
+        let owasp = Argon2Params::owasp_minimum();
+        let result = argon2_derive(password, &salt, Some(owasp));
+        assert!(result.is_ok());
+    }
 }

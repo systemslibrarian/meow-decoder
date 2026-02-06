@@ -375,4 +375,84 @@ mod tests {
             Err(NonceError::Exhausted)
         ));
     }
+
+    #[test]
+    fn test_nonce_as_ref() {
+        let bytes = [0xAB; 12];
+        let nonce = Nonce::from_array(bytes);
+        let reference: &[u8] = nonce.as_ref();
+        assert_eq!(reference, &bytes);
+    }
+
+    #[test]
+    fn test_nonce_error_display() {
+        // Test InvalidLength display
+        let err = NonceError::InvalidLength { expected: 12, got: 8 };
+        assert_eq!(format!("{}", err), "Invalid nonce length: expected 12, got 8");
+        
+        // Test AlreadyUsed display
+        let err = NonceError::AlreadyUsed;
+        assert_eq!(format!("{}", err), "Nonce already used");
+        
+        // Test Exhausted display
+        let err = NonceError::Exhausted;
+        assert_eq!(format!("{}", err), "Nonce counter exhausted");
+    }
+
+    #[test]
+    fn test_nonce_error_is_error_trait() {
+        let err: &dyn std::error::Error = &NonceError::AlreadyUsed;
+        assert!(err.to_string().contains("already used"));
+    }
+
+    #[test]
+    fn test_generator_near_exhaustion() {
+        // Fresh generator should not be near exhaustion
+        let gen = NonceGenerator::new();
+        assert!(!gen.is_near_exhaustion());
+    }
+
+    #[test]
+    fn test_generator_default() {
+        let gen = NonceGenerator::default();
+        assert_eq!(gen.count(), 0);
+    }
+
+    #[test]
+    fn test_tracker_default() {
+        let tracker = NonceTracker::default();
+        assert_eq!(tracker.len(), 0);
+    }
+
+    #[test]
+    fn test_tracker_clear() {
+        let mut tracker = NonceTracker::new();
+        let nonce = Nonce::from_array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+        
+        // Mark as used
+        tracker.check_and_mark(&nonce).unwrap();
+        assert_eq!(tracker.len(), 1);
+        
+        // Clear tracker
+        tracker.clear();
+        assert_eq!(tracker.len(), 0);
+        
+        // Should be able to use same nonce again after clear
+        assert!(tracker.check_and_mark(&nonce).is_ok());
+    }
+
+    #[test]
+    fn test_tracker_len() {
+        let mut tracker = NonceTracker::new();
+        assert_eq!(tracker.len(), 0);
+        
+        for i in 0..5 {
+            let mut bytes = [0u8; 12];
+            bytes[0] = i;
+            let nonce = Nonce::from_array(bytes);
+            tracker.check_and_mark(&nonce).unwrap();
+        }
+        
+        assert_eq!(tracker.len(), 5);
+    }
 }

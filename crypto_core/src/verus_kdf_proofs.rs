@@ -531,4 +531,92 @@ mod tests {
         assert!(status.iter().any(|(id, _, _)| *id == "ERR-001"));
         assert!(status.iter().any(|(id, _, _)| *id == "ERR-002"));
     }
+
+    #[test]
+    fn test_all_lifecycle_transitions() {
+        // Test all valid transitions
+        let s = KeyLifecycleState::NotDerived;
+        assert!(s.can_transition_to(KeyLifecycleState::Derived));
+        assert!(!s.can_transition_to(KeyLifecycleState::InUse));
+        assert!(!s.can_transition_to(KeyLifecycleState::Zeroed));
+        assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
+        
+        let s = KeyLifecycleState::Derived;
+        assert!(s.can_transition_to(KeyLifecycleState::InUse));
+        assert!(s.can_transition_to(KeyLifecycleState::Zeroed));
+        assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
+        assert!(!s.can_transition_to(KeyLifecycleState::Derived));
+        
+        let s = KeyLifecycleState::InUse;
+        assert!(s.can_transition_to(KeyLifecycleState::Derived));
+        assert!(s.can_transition_to(KeyLifecycleState::Zeroed));
+        assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
+        assert!(!s.can_transition_to(KeyLifecycleState::InUse));
+        
+        let s = KeyLifecycleState::Zeroed;
+        assert!(!s.can_transition_to(KeyLifecycleState::NotDerived));
+        assert!(!s.can_transition_to(KeyLifecycleState::Derived));
+        assert!(!s.can_transition_to(KeyLifecycleState::InUse));
+        assert!(!s.can_transition_to(KeyLifecycleState::Zeroed));
+    }
+
+    #[test]
+    fn test_error_path_properties() {
+        let props = [
+            ErrorPathProperty::NoPartialPlaintext,
+            ErrorPathProperty::SafeErrorMessages,
+            ErrorPathProperty::ConstantTimeErrors,
+            ErrorPathProperty::CleanupOnError,
+        ];
+        
+        for prop in &props {
+            let desc = prop.description();
+            assert!(!desc.is_empty());
+        }
+        
+        // Verify specific descriptions
+        assert!(ErrorPathProperty::NoPartialPlaintext.description().contains("succeeds completely"));
+        assert!(ErrorPathProperty::SafeErrorMessages.description().contains("no secret"));
+        assert!(ErrorPathProperty::ConstantTimeErrors.description().contains("same time"));
+        assert!(ErrorPathProperty::CleanupOnError.description().contains("freed"));
+    }
+
+    #[test]
+    fn test_timing_analysis_operations() {
+        let ops = TimingAnalysis::constant_time_operations();
+        assert!(!ops.is_empty());
+    }
+
+    #[test]
+    fn test_birthday_security_margin_edge_cases() {
+        // Edge case: very high encryptions (overflow protection)
+        assert_eq!(SaltRequirements::birthday_security_margin(65), 0);
+        // Low encryptions: high security margin
+        assert_eq!(SaltRequirements::birthday_security_margin(0), 129);
+    }
+
+    #[test]
+    fn test_kdf_security_invariant() {
+        let invariant = kdf_security_invariant();
+        assert!(invariant.contains("Argon2id"));
+        assert!(invariant.contains("512 MiB"));
+    }
+
+    #[test]
+    fn test_salt_freshness_proof() {
+        let proof = salt_freshness_proof();
+        assert!(proof.contains("128-bit"));
+    }
+
+    #[test]
+    fn test_key_lifecycle_proof() {
+        let proof = key_lifecycle_proof();
+        assert!(proof.contains("Zeroed"));
+    }
+
+    #[test]
+    fn test_error_path_safety_proof() {
+        let proof = error_path_safety_proof();
+        assert!(proof.contains("Error paths"));
+    }
 }

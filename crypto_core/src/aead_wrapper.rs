@@ -614,4 +614,19 @@ mod tests {
             Err(AeadError::NonceExhaustion)
         ));
     }
+
+    #[test]
+    fn test_authenticated_plaintext_into_data() {
+        let key = [0u8; 32];
+        let wrapper = AeadWrapper::new(&key).unwrap();
+        let plaintext = b"test data for into_data";
+        let aad: &[u8] = b"context";
+        
+        let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad).unwrap();
+        
+        let authenticated = wrapper.decrypt(&nonce, &ciphertext, aad).unwrap();
+        // Use into_data() to consume and get Vec<u8>
+        let data: Vec<u8> = authenticated.into_data();
+        assert_eq!(data, plaintext);
+    }
 }
