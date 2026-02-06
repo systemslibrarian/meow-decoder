@@ -42,13 +42,24 @@ class MemoryConfig:
     enable_mlock: bool = True       # Try to lock memory
 
 
+# Domain separation for streaming MAC
+STREAMING_MAC_INFO = b"meow_streaming_mac_v1"
+
+
 class StreamingCipher:
     """
-    Streaming cipher using AES-256-CTR mode.
+    Streaming cipher using AES-256-CTR mode with Encrypt-then-MAC authentication.
     
-    Note: CTR mode is used instead of GCM because GCM requires
-    the entire plaintext for authentication. For streaming with
-    authentication, we'd need to use encrypt-then-MAC.
+    SECURITY NOTE (Audit 2026-02-06):
+    CTR mode alone provides NO authentication. This class now implements
+    Encrypt-then-MAC pattern using HMAC-SHA256 to authenticate the ciphertext.
+    
+    The MAC covers: nonce || ciphertext
+    
+    Always verify MAC before decryption to prevent:
+    - Bit-flipping attacks (CWE-353)
+    - Ciphertext substitution
+    - Malleability exploits
     """
     
     def __init__(self,
@@ -88,13 +99,33 @@ class StreamingCipher:
         
         self.encryptor = cipher.encryptor()
         self.decryptor = cipher.decryptor()
+        
+        # Derive MAC key using HKDF for domain separation
+        # This ensures the MAC key is distinct from the encryption key
+        mac_key_material = HKDF(
+            algorithm=hashes.SHA256(),
+            length=32,
+            salt=nonce,
+            info=STREAMING_MAC_INFO
+        ).derive(key)
+        self._mac_key = mac_key_material
+    
+    def _compute_mac(self, data: bytes) -> bytes:
+        """Compute HMAC-SHA256 over data."""
+        import hmac as hmac_mod
+        return hmac_mod.new(self._mac_key, data, hashlib.sha256).digest()
+    
+    def _verify_mac(self, data: bytes, expected_mac: bytes) -> bool:
+        """Verify HMAC-SHA256 in constant time."""
+        computed = self._compute_mac(data)
+        return secrets.compare_digest(computed, expected_mac)
     
     def encrypt_stream(self,
                       input_stream: IO[bytes],
                       output_stream: IO[bytes],
-                      enable_compression: bool = True) -> Tuple[int, int, bytes]:
+                      enable_compression: bool = True) -> Tuple[int, int, bytes, bytes]:
         """
-        Encrypt stream in chunks.
+        Encrypt stream in chunks with authentication.
         
         Args:
             input_stream: Input file-like object
@@ -102,11 +133,18 @@ class StreamingCipher:
             enable_compression: Compress before encryption
             
         Returns:
-            Tuple of (original_size, compressed_size, sha256_hash)
+            Tuple of (original_size, compressed_size, sha256_hash, mac_tag)
+            
+        The MAC authenticates: nonce || ciphertext
+        Callers MUST store and verify the MAC before decryption.
         """
         original_size = 0
         compressed_size = 0
         hasher = hashlib.sha256()
+        
+        # MAC hasher for ciphertext authentication
+        import hmac as hmac_mod
+        mac_hasher = hmac_mod.new(self._mac_key, self.nonce, hashlib.sha256)
         
         # Create compressor if enabled
         if enable_compression:
@@ -131,6 +169,7 @@ class StreamingCipher:
             if compressed_chunk:
                 encrypted_chunk = self.encryptor.update(compressed_chunk)
                 output_stream.write(encrypted_chunk)
+                mac_hasher.update(encrypted_chunk)  # AUTH: Include in MAC
                 compressed_size += len(compressed_chunk)
             
             # Force GC to reclaim memory
@@ -145,30 +184,46 @@ class StreamingCipher:
             if final_compressed:
                 encrypted_final = self.encryptor.update(final_compressed)
                 output_stream.write(encrypted_final)
+                mac_hasher.update(encrypted_final)  # AUTH: Include in MAC
                 compressed_size += len(final_compressed)
         
         # Finalize encryption
         final_encrypted = self.encryptor.finalize()
         if final_encrypted:
             output_stream.write(final_encrypted)
+            mac_hasher.update(final_encrypted)  # AUTH: Include in MAC
         
-        return original_size, compressed_size, hasher.digest()
+        # Compute final MAC
+        mac_tag = mac_hasher.digest()
+        
+        return original_size, compressed_size, hasher.digest(), mac_tag
     
     def decrypt_stream(self,
                       input_stream: IO[bytes] = None,
                       output_stream: IO[bytes] = None,
                       enable_decompression: bool = True,
+                      expected_mac: Optional[bytes] = None,
                       **kwargs) -> int:
         """
-        Decrypt stream in chunks.
+        Decrypt stream in chunks with optional authentication verification.
+        
+        SECURITY WARNING (Audit 2026-02-06):
+        If expected_mac is provided, MAC is verified BEFORE returning any plaintext.
+        If expected_mac is None, NO AUTHENTICATION is performed and the ciphertext
+        may have been tampered with. Only omit expected_mac for trusted sources.
         
         Args:
             input_stream: Encrypted input stream
             output_stream: Decrypted output stream
             enable_decompression: Decompress after decryption
+            expected_mac: Expected MAC tag (32 bytes). If provided, MAC is verified
+                         before any decryption output. STRONGLY RECOMMENDED.
             
         Returns:
             Total bytes written
+            
+        Raises:
+            RuntimeError: If MAC verification fails (when expected_mac provided)
         """
         if input_stream is None and 'input_stream' in kwargs:
             input_stream = kwargs['input_stream']
@@ -180,6 +235,41 @@ class StreamingCipher:
         if input_stream is None or output_stream is None:
             raise ValueError("input_stream and output_stream are required")
 
+        # If MAC verification requested, we need to read all ciphertext first
+        if expected_mac is not None:
+            if len(expected_mac) != 32:
+                raise ValueError("MAC must be 32 bytes")
+            
+            # Read entire ciphertext for MAC verification
+            ciphertext = input_stream.read()
+            
+            # Verify MAC: HMAC(nonce || ciphertext)
+            import hmac as hmac_mod
+            mac_hasher = hmac_mod.new(self._mac_key, self.nonce, hashlib.sha256)
+            mac_hasher.update(ciphertext)
+            computed_mac = mac_hasher.digest()
+            
+            if not secrets.compare_digest(computed_mac, expected_mac):
+                raise RuntimeError("MAC verification failed - ciphertext may be tampered")
+            
+            # MAC verified - proceed with decryption
+            from io import BytesIO
+            verified_stream = BytesIO(ciphertext)
+            return self._decrypt_verified_stream(verified_stream, output_stream, enable_decompression)
+        
+        # No MAC verification - proceed with unverified decryption
+        # WARNING: This path is insecure if ciphertext source is untrusted
+        return self._decrypt_verified_stream(input_stream, output_stream, enable_decompression)
+    
+    def _decrypt_verified_stream(self,
+                                  input_stream: IO[bytes],
+                                  output_stream: IO[bytes],
+                                  enable_decompression: bool) -> int:
+        """
+        Internal decryption after MAC verification.
+        
+        This method assumes MAC has already been verified or caller accepts risk.
+        """
         total_written = 0
         
         # Create decompressor if enabled
@@ -339,7 +429,7 @@ def stream_encrypt_file(input_path: str,
                         output_path: str,
                         password: str,
                         salt: bytes,
-                        low_memory: bool = False) -> Tuple[bytes, int, int, bytes]:
+                        low_memory: bool = False) -> Tuple[bytes, int, int, bytes, bytes]:
     """
     Encrypt file using streaming mode.
     
@@ -351,7 +441,7 @@ def stream_encrypt_file(input_path: str,
         low_memory: Enable low-memory mode
         
     Returns:
-        Tuple of (nonce, original_size, compressed_size, sha256)
+        Tuple of (nonce, original_size, compressed_size, sha256, mac_tag)
     """
     # Derive key
     from meow_decoder.crypto import derive_key
@@ -363,7 +453,7 @@ def stream_encrypt_file(input_path: str,
     # Encrypt file
     with open(input_path, 'rb') as f_in:
         with open(output_path, 'wb') as f_out:
-            orig_size, comp_size, sha256 = cipher.encrypt_stream(
+            orig_size, comp_size, sha256, mac_tag = cipher.encrypt_stream(
                 f_in, f_out, enable_compression=True
             )
     
@@ -373,7 +463,7 @@ def stream_encrypt_file(input_path: str,
     del key_array
     gc.collect()
     
-    return cipher.nonce, orig_size, comp_size, sha256
+    return cipher.nonce, orig_size, comp_size, sha256, mac_tag
 
 
 def stream_decrypt_file(input_path: str,

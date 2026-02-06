@@ -20,3 +20,6 @@ rand = "0.8"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 thiserror = "1.0"
+# Force minimum version for transitive dependencies with known vulnerabilities
+# RUSTSEC-2026-0009: time local offset issue - requires >=0.3.47
+time = "0.3.47"

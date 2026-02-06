@@ -233,7 +233,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(small_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, sha256 = streaming_cipher.encrypt_stream(
+        orig_size, comp_size, sha256, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -247,7 +247,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(small_test_data)
         output_stream = io.BytesIO()
         
-        _, _, sha256 = streaming_cipher.encrypt_stream(
+        _, _, sha256, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -259,7 +259,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(medium_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, _ = streaming_cipher.encrypt_stream(
+        orig_size, comp_size, _, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -272,7 +272,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(small_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, _ = cipher.encrypt_stream(
+        orig_size, comp_size, _, _ = cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=False
         )
         
@@ -285,7 +285,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(b"")
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, sha256 = streaming_cipher.encrypt_stream(
+        orig_size, comp_size, sha256, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -300,7 +300,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(large_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, sha256 = cipher.encrypt_stream(
+        orig_size, comp_size, sha256, _ = cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -346,7 +346,7 @@ class TestCatStreamingCipherEncrypt:
         input_stream = io.BytesIO(binary_data)
         output_stream = io.BytesIO()
         
-        orig_size, _, sha256 = streaming_cipher.encrypt_stream(
+        orig_size, _, sha256, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=False
         )
         
@@ -650,7 +650,7 @@ class TestCatStreamEncryptFile:
         password = "test_password_12345678"
         salt = secrets.token_bytes(16)
         
-        nonce, orig_size, comp_size, sha256 = stream_encrypt_file(
+        nonce, orig_size, comp_size, sha256, _ = stream_encrypt_file(
             temp_test_file, temp_output_file, password, salt, low_memory=False
         )
         
@@ -666,7 +666,7 @@ class TestCatStreamEncryptFile:
         password = "low_memory_test_123"
         salt = secrets.token_bytes(16)
         
-        nonce, orig_size, comp_size, sha256 = stream_encrypt_file(
+        nonce, orig_size, comp_size, sha256, _ = stream_encrypt_file(
             temp_test_file, temp_output_file, password, salt, low_memory=True
         )
         
@@ -678,7 +678,7 @@ class TestCatStreamEncryptFile:
         password = "hash_test_password123"
         salt = secrets.token_bytes(16)
         
-        _, _, _, sha256 = stream_encrypt_file(
+        _, _, _, sha256, _ = stream_encrypt_file(
             temp_test_file, temp_output_file, password, salt
         )
         
@@ -770,7 +770,7 @@ class TestCatStreamDecryptFile:
         
         try:
             # Encrypt
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, enc_path, password, salt
             )
             
@@ -799,7 +799,7 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
         
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, enc_path, password, salt, low_memory=True
             )
             
@@ -825,7 +825,7 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
         
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, enc_path, correct_password, salt
             )
             
@@ -860,7 +860,7 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
         
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, enc_path, password, salt
             )
             
@@ -906,7 +906,7 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
         
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, enc_path, password, salt
             )
             
@@ -1002,7 +1002,7 @@ class TestCatSecurityInvariants:
         input_stream = io.BytesIO(medium_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, comp_size, _ = cipher.encrypt_stream(
+        orig_size, comp_size, _, _ = cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -1026,7 +1026,7 @@ class TestCatEdgeCases:
         input_stream = io.BytesIO(b"X")
         output_stream = io.BytesIO()
         
-        orig_size, _, _ = streaming_cipher.encrypt_stream(
+        orig_size, _, _, _ = streaming_cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -1053,7 +1053,7 @@ class TestCatEdgeCases:
         cipher = StreamingCipher(valid_key, chunk_size=chunk_size)
         output = io.BytesIO()
         
-        orig_size, _, _ = cipher.encrypt_stream(io.BytesIO(data), output, 
+        orig_size, _, _, _ = cipher.encrypt_stream(io.BytesIO(data), output, 
                                                  enable_compression=False)
         
         assert orig_size == len(data)
@@ -1066,7 +1066,7 @@ class TestCatEdgeCases:
         cipher = StreamingCipher(valid_key, chunk_size=chunk_size)
         output = io.BytesIO()
         
-        orig_size, _, _ = cipher.encrypt_stream(io.BytesIO(data), output,
+        orig_size, _, _, _ = cipher.encrypt_stream(io.BytesIO(data), output,
                                                  enable_compression=False)
         
         assert orig_size == len(data)
@@ -1076,7 +1076,7 @@ class TestCatEdgeCases:
         cipher = StreamingCipher(valid_key, chunk_size=16)
         
         output = io.BytesIO()
-        orig_size, _, _ = cipher.encrypt_stream(
+        orig_size, _, _, _ = cipher.encrypt_stream(
             io.BytesIO(small_test_data), output, enable_compression=False
         )
         
@@ -1108,7 +1108,7 @@ class TestCatEdgeCases:
         
         # Should handle Unicode gracefully
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, temp_output_file, password, salt
             )
             assert len(nonce) == 16
@@ -1153,7 +1153,7 @@ class TestCatMemoryManagement:
         input_stream = io.BytesIO(small_test_data)
         output_stream = io.BytesIO()
         
-        orig_size, _, _ = cipher.encrypt_stream(
+        orig_size, _, _, _ = cipher.encrypt_stream(
             input_stream, output_stream, enable_compression=True
         )
         
@@ -1182,7 +1182,7 @@ class TestCatIntegration:
         
         try:
             # Encrypt
-            nonce, orig_size, comp_size, sha256 = stream_encrypt_file(
+            nonce, orig_size, comp_size, sha256, _ = stream_encrypt_file(
                 orig_path, enc_path, password, salt
             )
             
@@ -1221,7 +1221,7 @@ class TestCatIntegration:
         
         try:
             # Encrypt in low memory mode
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 orig_path, enc_path, password, salt, low_memory=True
             )
             
@@ -1279,7 +1279,7 @@ class TestCatParameterized:
         cipher = StreamingCipher(valid_key)
         output = io.BytesIO()
         
-        orig_size, _, _ = cipher.encrypt_stream(
+        orig_size, _, _, _ = cipher.encrypt_stream(
             io.BytesIO(data), output, enable_compression=True
         )
         
@@ -1313,7 +1313,7 @@ class TestCatParameterized:
         salt = secrets.token_bytes(16)
         
         try:
-            nonce, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, _ = stream_encrypt_file(
                 temp_test_file, temp_output_file, password, salt
             )
             assert len(nonce) == 16

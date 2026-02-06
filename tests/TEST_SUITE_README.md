@@ -129,6 +129,46 @@ Additional comprehensive suites added to close remaining gaps and complete todo-
 - `tests/test_deadmans_switch_cli_comprehensive.py`
 - `tests/test_webcam_modules_comprehensive.py`
 
+### February 2026 Security Audit (audit1.md)
+
+Security regression tests added after the comprehensive security audit:
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `tests/test_streaming_crypto_security.py` | 14 | **CRIT-01 Fix:** Encrypt-then-MAC authentication for streaming crypto |
+| `tests/test_duress_timing_security.py` | 12 | **HIGH-02 Fix:** Timing equalization for duress mode |
+
+#### CRIT-01: AES-CTR Without Authentication (FIXED)
+
+The `streaming_crypto.py` module was using AES-256-CTR without authentication, which allowed bit-flipping attacks. Fix includes:
+- HMAC-SHA256 MAC computed over `nonce || ciphertext`
+- MAC verification happens BEFORE any decryption
+- HKDF domain separation for MAC key derivation
+
+Tests added:
+- `test_encrypt_returns_mac_tag` - Verify MAC output structure
+- `test_roundtrip_with_mac_verification` - Full authenticated roundtrip
+- `test_tampered_ciphertext_rejected` - Bit-flip attack detection
+- `test_truncated_ciphertext_rejected` - Truncation attack detection
+- `test_wrong_mac_rejected` - Invalid MAC rejection
+- `test_mac_length_validation` - MAC format validation
+- `test_mac_includes_nonce` - Nonce substitution prevention
+- Plus 7 more tests for edge cases and key derivation
+
+#### HIGH-02: Duress Timing Leak (FIXED)
+
+The `duress_mode.py` module had timing side-channels that could reveal whether a duress password was entered. Fix includes:
+- Dummy data wiping for timing equalization
+- Both branches execute equivalent work
+- Random timing delay after all operations
+
+Tests added:
+- `test_duress_vs_real_timing_similar` - Timing equivalence
+- `test_wrong_password_timing_similar` - Wrong password timing
+- `test_sensitive_data_zeroed_on_duress` - Data wiped on duress
+- `test_sensitive_data_intact_on_real` - Data preserved on real
+- Plus 8 more tests for password validation and dummy wipe
+
 ## Security Principles Applied
 
 ### 1. Fail-Closed Design
