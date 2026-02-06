@@ -1,5 +1,5 @@
 # Meow Decoder - Docker image (headless demo + tools)
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:db27ce7778e5f581d5d97812ee577a01a9fffbfa612c47fc521fa684e3389c9b
 
 # System deps:
 # - libzbar0: required by pyzbar (QR decode)

@@ -39,3 +39,13 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: daily
+
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily

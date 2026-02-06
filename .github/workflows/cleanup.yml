@@ -28,6 +28,11 @@ jobs:
       actions: write   # Required for deletion
 
     steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@e3f713f2d8f53843e71c69a996d56f51aa9adfb9 # v2.14.1
+        with:
+          egress-policy: audit
+
       - name: Delete old workflow runs (dry-run first for safety)
         uses: Mattraks/delete-workflow-runs@aa6f9271e9f8ce42cee05a044e8c8b0a59424ec8 # v2
         with:
