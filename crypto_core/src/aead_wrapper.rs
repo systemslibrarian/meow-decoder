@@ -326,6 +326,52 @@ impl AeadWrapper {
         })
     }
 
+    /// Encrypt plaintext with a provided nonce (for testing only)
+    ///
+    /// # Warning
+    /// This method is intended for testing purposes only. In production,
+    /// use `encrypt()` which automatically generates unique nonces.
+    ///
+    /// # Arguments
+    /// * `nonce` - The 12-byte nonce (must be unique per key)
+    /// * `plaintext` - Data to encrypt
+    /// * `aad` - Additional authenticated data
+    ///
+    /// # Returns
+    /// Ciphertext with authentication tag
+    pub fn encrypt_raw(
+        &self,
+        nonce: &[u8; NONCE_SIZE],
+        plaintext: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>, AeadError> {
+        self.aes_gcm_encrypt(nonce, plaintext, aad)
+    }
+
+    /// Decrypt ciphertext with a provided nonce (for testing only)
+    ///
+    /// # Warning
+    /// This method is intended for testing purposes only.
+    ///
+    /// # Arguments
+    /// * `nonce` - The 12-byte nonce used during encryption
+    /// * `ciphertext_with_tag` - Encrypted data with auth tag
+    /// * `aad` - Additional authenticated data
+    ///
+    /// # Returns
+    /// Decrypted plaintext bytes
+    pub fn decrypt_raw(
+        &self,
+        nonce: &[u8; NONCE_SIZE],
+        ciphertext_with_tag: &[u8],
+        aad: &[u8],
+    ) -> Result<Vec<u8>, AeadError> {
+        if ciphertext_with_tag.len() < TAG_SIZE {
+            return Err(AeadError::CiphertextTooShort);
+        }
+        self.aes_gcm_decrypt(nonce, ciphertext_with_tag, aad)
+    }
+
     /// Internal AES-GCM encryption (would use real crypto library)
     #[inline]
     fn aes_gcm_encrypt(
