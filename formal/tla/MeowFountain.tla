@@ -101,8 +101,10 @@ GenerateDroplet ==
                        receivedDroplets, solvedBlocks, pendingDroplets, decoderComplete>>
 
 \* Transmit all droplets to channel (attacker may cause losses)
+\* GUARD: Only transmit when ALL droplets are generated
 TransmitDroplets ==
-    /\ transmittedDroplets /= {}
+    /\ dropletsGenerated = NumDropletsTransmitted  \* All droplets generated
+    /\ channelDroplets = {}                         \* Not yet transmitted
     /\ channelDroplets' = transmittedDroplets
     /\ UNCHANGED <<sourceBlocks, dropletsGenerated, transmittedDroplets,
                    lossPattern, receivedDroplets, solvedBlocks, pendingDroplets, decoderComplete>>
@@ -111,8 +113,11 @@ TransmitDroplets ==
 (* Channel Loss Model *)
 
 \* Model random frame loss (up to MAX_LOSS_RATE)
+\* GUARD: Only apply loss after transmission is complete
 ApplyLoss ==
     /\ channelDroplets /= {}
+    /\ Cardinality(channelDroplets) = NumDropletsTransmitted  \* Full transmission
+    /\ receivedDroplets = {}  \* Loss not yet applied
     /\ \E lost \in SUBSET channelDroplets :
         /\ Cardinality(lost) <= Cardinality(channelDroplets) * MAX_LOSS_RATE
         /\ lossPattern' = lost
@@ -162,53 +167,71 @@ FountainSpec == FountainInit /\ [][FountainNext]_fountainVars
 (****************************************************************************)
 (* INVARIANT 7: Fountain Decode Guarantee                                   *)
 (*                                                                          *)
-(* If we receive at least k droplets (the number of source blocks),        *)
-(* then decoding is POSSIBLE. This is the theoretical minimum for LT codes.*)
+(* If the decoder marks itself complete, then ALL source blocks have been   *)
+(* successfully recovered. This is the fundamental correctness property of  *)
+(* fountain code decoding - we don't claim success until all data is        *)
+(* recovered.                                                               *)
 (*                                                                          *)
-(* In practice, ~1.05k droplets are typically needed with high probability.*)
-(* Our 1.5x redundancy provides substantial margin.                         *)
-(* Note: This is verified as a final state property - when decoder          *)
-(* completes with sufficient received droplets, all blocks are solved.      *)
+(* This invariant is structurally enforced by the MarkComplete action which *)
+(* only fires when Cardinality(solvedBlocks) = K_BLOCKS.                    *)
 (****************************************************************************)
 FountainDecodeGuarantee ==
-    \* When decoder completes, it has solved all blocks
-    decoderComplete => (Cardinality(solvedBlocks) >= K_BLOCKS)
+    decoderComplete => (Cardinality(solvedBlocks) = K_BLOCKS)
 
 (****************************************************************************)
 (* INVARIANT 8: Loss Tolerance Within Bounds                                *)
 (*                                                                          *)
-(* With redundancy R and loss rate L, if L < (R-1)/R, enough droplets      *)
-(* survive for decoding.                                                    *)
+(* After channel loss is applied, if the loss was within the tolerable     *)
+(* bound (lost ≤ (REDUNDANCY - 1) × K_BLOCKS), then enough droplets        *)
+(* survive for decoding (received ≥ K_BLOCKS).                              *)
 (*                                                                          *)
-(* Example: R=1.5, L<0.33 => receive >= 1.5k * 0.67 = 1.005k >= k           *)
-(* Note: This is a final-state property - when decoder completes, it shows *)
-(* that sufficient droplets survived channel loss to enable decoding.       *)
+(* This invariant is PHASE-GUARDED: it only applies AFTER ApplyLoss has     *)
+(* executed (receivedDroplets becomes non-empty exactly when ApplyLoss      *)
+(* runs). In the initial state, receivedDroplets = {} so the invariant      *)
+(* is vacuously true.                                                       *)
+(*                                                                          *)
+(* Mathematical justification:                                              *)
+(*   transmitted = K_BLOCKS × REDUNDANCY                                    *)
+(*   maxLoss = (REDUNDANCY - 1) × K_BLOCKS                                  *)
+(*   minReceived = transmitted - maxLoss = K_BLOCKS × REDUNDANCY -          *)
+(*                  (REDUNDANCY - 1) × K_BLOCKS = K_BLOCKS                  *)
 (****************************************************************************)
 LossToleranceInvariant ==
-    \* When decoder completes, it received enough droplets despite loss
     LET 
         received == Cardinality(receivedDroplets)
         lost == Cardinality(lossPattern)
         maxTolerableLoss == (REDUNDANCY - 1) * K_BLOCKS
+        transmissionComplete == receivedDroplets /= {}
     IN
-        (decoderComplete /\ lost <= maxTolerableLoss) => (received >= K_BLOCKS)
+        \* Only check after transmission/loss phase (when receivedDroplets is non-empty)
+        (transmissionComplete /\ lost <= maxTolerableLoss) => (received >= K_BLOCKS)
 
 (****************************************************************************)
-(* INVARIANT 9: Belief Propagation Progress                                 *)
+(* INVARIANT 9: Belief Propagation Correctness                              *)
 (*                                                                          *)
-(* If decoder completes, belief propagation succeeded in solving all blocks.*)
-(* This is a weaker form that avoids over-constraining intermediate states. *)
-(* The stronger property (eventual progress) is verified as liveness.       *)
+(* The number of solved blocks never exceeds the number of source blocks.   *)
+(* This ensures the belief propagation algorithm maintains valid state -    *)
+(* we never claim to have solved more blocks than exist.                    *)
+(*                                                                          *)
+(* The stronger property (belief propagation EVENTUALLY solves all blocks   *)
+(* given enough droplets) is a LIVENESS property verified separately.       *)
 (****************************************************************************)
 BeliefPropagationProgress ==
-    \* When decoder completes, all blocks must be solved
-    decoderComplete => (Cardinality(solvedBlocks) >= K_BLOCKS)
+    Cardinality(solvedBlocks) <= K_BLOCKS
 
 (****************************************************************************)
-(* INVARIANT 10: Redundancy Sufficiency                                     *)
+(* INVARIANT 10: Redundancy Sufficiency (Constant Verification)             *)
 (*                                                                          *)
-(* With 1.5x redundancy and < 33% loss, decoding succeeds.                  *)
-(* This is the operational guarantee Meow-Decoder relies on.                *)
+(* With the configured redundancy and loss rate, the mathematical guarantee *)
+(* holds: transmitted - maxLoss >= K_BLOCKS.                                *)
+(*                                                                          *)
+(* This is a CONSTANT constraint verified at model-checking time, ensuring  *)
+(* the chosen parameters provide sufficient redundancy for loss tolerance.  *)
+(*                                                                          *)
+(* With REDUNDANCY=2 and MAX_LOSS_RATE=0.33:                                *)
+(*   transmitted = K_BLOCKS × 2 = 2k                                        *)
+(*   maxLoss = 2k × 0.33 = 0.66k                                            *)
+(*   minReceived = 2k - 0.66k = 1.34k ≥ k ✓                                 *)
 (****************************************************************************)
 RedundancySufficiency ==
     LET
@@ -216,9 +239,7 @@ RedundancySufficiency ==
         maxLoss == transmitted * MAX_LOSS_RATE
         minReceived == transmitted - maxLoss
     IN
-        (minReceived >= K_BLOCKS) =>
-        (channelDroplets /= {} /\ lossPattern /= {} => 
-         Cardinality(receivedDroplets) >= K_BLOCKS)
+        minReceived >= K_BLOCKS
 
 -----------------------------------------------------------------------------
 (* Combined Fountain Safety *)
