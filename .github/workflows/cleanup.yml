@@ -17,6 +17,8 @@ on:
         required: false
         default: '30'  # ← Added & default to 30 days
 
+permissions: {}
+
 run-name: Cleanup workflow runs (keep last ${{ inputs.keep_minimum_runs || 5 }}, older than ${{ inputs.retain_days || 30 }} days)
 
 jobs:
@@ -27,7 +29,7 @@ jobs:
 
     steps:
       - name: Delete old workflow runs (dry-run first for safety)
-        uses: Mattraks/delete-workflow-runs@v2
+        uses: Mattraks/delete-workflow-runs@aa6f9271e9f8ce42cee05a044e8c8b0a59424ec8 # v2
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}

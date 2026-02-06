@@ -72,6 +72,7 @@ formal/tla/states/
 formal/tla/*.dump
 formal/tla/*.dot
 formal/tla/*.out
+formal/tla/tla2tools.jar
 formal/proverif/*.html
 formal/proverif/output/
 formal/proverif/proverif2.05/

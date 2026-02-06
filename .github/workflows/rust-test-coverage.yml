@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
+permissions:
+  contents: read
+
 jobs:
   test-and-coverage:
     name: Test + Tarpaulin Coverage (Ubuntu)
@@ -14,17 +17,17 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0  # Useful if you need git history for anything
 
       - name: Install Rust stable toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
         with:
           toolchain: stable
 
       - name: Cache Cargo dependencies
-        uses: Swatinem/rust-cache@v2
+        uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.7
         with:
           workspaces: |
             rust_crypto
@@ -53,7 +56,7 @@ jobs:
         working-directory: ./crypto_core
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@0565863a31f2c772f9f0395002a31e3f06189574 # v5.3.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./crypto_core/lcov.info

@@ -67,11 +67,11 @@ jobs:
 ```
 
 **Status:**
-- [ ] `fuzz.yml` — add `permissions: contents: read`
-- [ ] `rust-crypto.yml` — add `permissions: contents: read`
-- [ ] `rust-test-coverage.yml` — add `permissions: contents: read`
-- [ ] `formal-verification.yml` — add `permissions: contents: read`
-- [ ] `cleanup.yml` — add top-level `permissions: {}`
+- [x] `fuzz.yml` — add `permissions: contents: read`
+- [x] `rust-crypto.yml` — add `permissions: contents: read`
+- [x] `rust-test-coverage.yml` — add `permissions: contents: read`
+- [x] `formal-verification.yml` — add `permissions: contents: read`
+- [x] `cleanup.yml` — add top-level `permissions: {}`
 
 ---
 
@@ -131,7 +131,7 @@ updates:
 ```
 
 **Status:**
-- [ ] Create `.github/dependabot.yml`
+- [x] Create `.github/dependabot.yml`
 
 ---
 
@@ -166,10 +166,13 @@ Add to `formal-verification.yml` TLA+ job:
 ```
 
 **Status:**
-- [ ] `git rm formal/tla/tla2tools.jar`
-- [ ] Add to `.gitignore`
-- [ ] Update `formal-verification.yml` to download at runtime
+- [x] `git rm formal/tla/tla2tools.jar`
+- [x] Add to `.gitignore`
+- [x] Update `formal-verification.yml` to download at runtime
 - [ ] Verify TLA+ CI still works
+
+**Verification note:**
+- [ ] Run the “Formal Verification” workflow after this change to confirm TLA+ download works in CI.
 
 ---
 
@@ -221,15 +224,21 @@ Only `scorecard.yml` currently does this correctly.
 
 **Workflow files that need pinning (all `uses:` lines):**
 
-- [ ] `ci.yml` — ~8 action references
-- [ ] `security-ci.yml` — ~14 action references
-- [ ] `codeql.yml` — 3 action references
-- [ ] `fuzz.yml` — ~5 action references
-- [ ] `rust-crypto.yml` — ~20+ action references
-- [ ] `rust-test-coverage.yml` — ~4 action references
-- [ ] `formal-verification.yml` — ~2 action references
-- [ ] `cleanup.yml` — 1 action reference
-- [ ] `scorecard.yml` — already pinned ✅ (except `upload-sarif` and `upload-artifact`)
+- [x] `ci.yml` — ~8 action references
+- [x] `security-ci.yml` — ~14 action references
+- [x] `codeql.yml` — 3 action references
+- [x] `fuzz.yml` — ~5 action references
+- [x] `rust-crypto.yml` — ~20+ action references
+- [x] `rust-test-coverage.yml` — ~4 action references
+- [x] `formal-verification.yml` — ~2 action references
+- [x] `cleanup.yml` — 1 action reference
+- [x] `scorecard.yml` — already pinned ✅
+
+**Status:**
+- [x] All actions SHA-pinned
+
+**Pinning note:**
+- Resolved: pinned `actions/setup-java@v4` and `actions/github-script@v7`.
 
 **Tip:** After creating `dependabot.yml` (§1.2), Dependabot with the
 `github-actions` ecosystem will auto-open PRs to update pinned SHAs when
@@ -283,6 +292,13 @@ cargo tree -i time         # see who pulls in time
 - [ ] Remove `--ignore` flags that are no longer needed
 - [ ] Verify CI still passes after dep updates
 
+**Progress log (fill after running audits):**
+
+| Date | Scope | Result | Notes |
+|------|-------|--------|-------|
+| 2026-02-06 | crypto_core | _pending_ | Run `cargo audit` and paste remaining advisories here |
+| 2026-02-06 | rust_crypto | _pending_ | Run `cargo audit` and paste remaining advisories here |
+
 ---
 
 ### 2.3 Enable Branch Protection on `main`
@@ -320,6 +336,11 @@ cargo tree -i time         # see who pulls in time
 - [ ] Add required status checks
 - [ ] Test by pushing a branch + PR
 
+**Verification checklist:**
+- [ ] `main` rule exists and includes administrators
+- [ ] Required checks include `All CI Gates` and `Scorecard analysis`
+- [ ] PRs require approval and status checks are enforced
+
 ---
 
 ## Phase 3 — Longer-Term / Ongoing (~+5–15 pts over weeks)
@@ -348,6 +369,11 @@ alias meow-pr='git checkout -b fix/$(date +%s) && git add -A && git commit -m "f
 **Status:**
 - [ ] Switch to PR-based workflow
 - [ ] After ~20 merged PRs, re-scan Scorecard
+
+**Verification checklist:**
+- [ ] Merges to `main` are via PR only
+- [ ] At least one approval recorded per PR (self-approval allowed)
+- [ ] Required status checks are passing on merged PRs
 
 ---
 
@@ -387,6 +413,10 @@ alias meow-pr='git checkout -b fix/$(date +%s) && git add -A && git commit -m "f
 - [ ] Create project at bestpractices.dev
 - [ ] Complete questionnaire
 - [ ] Add badge to README.md
+
+**Verification checklist:**
+- [ ] Badge URL is live and shows the project
+- [ ] README badge links to the project page
 
 ---
 
@@ -439,6 +469,11 @@ gh release create v1.0.0 --title "v1.0.0" --notes "First signed release"
 - [ ] Create first signed tag + release
 - [ ] Add SLSA provenance to release workflow (optional)
 
+**Verification checklist:**
+- [ ] `git tag -v` verifies signed tag locally
+- [ ] GitHub release shows “Verified” for the tag
+- [ ] Release notes include version and changes
+
 ---
 
 ### 3.4 Improve Maintained score
@@ -460,6 +495,11 @@ The Scorecard `Maintained` check looks at:
 - [ ] Cut a release (§3.3) — releases boost this score significantly
 - [ ] Add at least 1 collaborator (even with read access)
 - [ ] Consider creating a GitHub Organization for the project
+
+**Verification checklist:**
+- [ ] At least one issue opened and closed in the last 90 days
+- [ ] At least one release in the last 12 months
+- [ ] At least two contributors shown in GitHub insights
 
 ---
 
@@ -500,6 +540,34 @@ The `--ignore RUSTSEC-*` flags in `security-ci.yml` should each have:
 - A comment explaining WHY it's ignored
 - A linked issue tracking the fix
 - A review date
+
+**Status:**
+- [x] Add comments and review dates in `security-ci.yml`
+- [ ] Create tracking issues for each ignored advisory
+
+**Issue drafts (copy into GitHub Issues):**
+
+1) **Title:** Track RUSTSEC-2023-0071 (rsa marvin-attack via yubikey)
+  **Body:**
+  - Advisory: RUSTSEC-2023-0071
+  - Current path: `yubikey` dependency in `crypto_core` (transitive)
+  - Mitigation: repo uses ECDH-only flows; no RSA encrypt/decrypt usage
+  - Action: monitor yubikey/rsa dependency updates; remove ignore when fixed
+  - Review date: 2026-05-01
+
+2) **Title:** Track RUSTSEC-2024-0436 (pending details)
+  **Body:**
+  - Advisory: RUSTSEC-2024-0436
+  - Current path: verify via `cargo audit` output
+  - Action: identify transitive dep, update if fixed upstream, document impact
+  - Review date: 2026-05-01
+
+3) **Title:** Track RUSTSEC-2026-0009 (time 0.3.46 via x509-parser)
+  **Body:**
+  - Advisory: RUSTSEC-2026-0009
+  - Current path: `x509-parser` -> `time` 0.3.46 (transitive)
+  - Action: bump `x509-parser`/`time` when fixed; remove ignore when resolved
+  - Review date: 2026-05-01
 
 ---
 
@@ -587,13 +655,15 @@ After the Scorecard action publishes results:
 ## Overall Progress Tracker
 
 - [ ] **Phase 1 complete** (Target: 5.5–6.5)
-  - [ ] §1.1 Workflow permissions
-  - [ ] §1.2 Dependabot config
+  - [x] §1.1 Workflow permissions
+  - [x] §1.2 Dependabot config
   - [ ] §1.3 Remove binary artifact
+  - [ ] Note: Phase 1 completion pending TLA+ CI verification
 - [ ] **Phase 2 complete** (Target: 7.0–8.0)
-  - [ ] §2.1 Pin actions to SHA
+  - [x] §2.1 Pin actions to SHA
   - [ ] §2.2 Fix vulnerabilities
   - [ ] §2.3 Branch protection
+  - [x] Note: §2.1 blocker resolved
 - [ ] **Phase 3 complete** (Target: 8.5–9.5)
   - [ ] §3.1 PR review history
   - [ ] §3.2 CII badge
