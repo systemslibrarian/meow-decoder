@@ -58,6 +58,23 @@ omit =
     
     # Virtual environments
     .venv/*
+    
+    # GUI and demo modules (not security-critical, hard to test)
+    meow_decoder/gui_logo_example.py
+    meow_decoder/meow_dashboard_demo.py
+    meow_decoder/meow_gui_enhanced.py
+    meow_decoder/progress_bar.py
+    
+    # Debug variants (covered via main modules)
+    meow_decoder/crypto_DEBUG.py
+    meow_decoder/encode_DEBUG.py
+    
+    # Webcam/streaming modules (require hardware)
+    meow_decoder/decode_webcam_with_resume.py
+    meow_decoder/webcam_enhanced.py
+    
+    # Setup/packaging
+    meow_decoder/setup.py
     venv/*
     env/*
 
