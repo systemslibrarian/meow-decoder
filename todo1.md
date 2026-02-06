@@ -3,7 +3,10 @@
 ## Current Status
 - ✅ Scorecard workflow added: `.github/workflows/scorecard.yml`
 - ✅ Badge already in README.md
-- ⏳ Waiting for first scan to complete and propagate to OpenSSF API
+- ✅ Workflow runs successfully with `publish_results: true`
+- ✅ SARIF uploaded to GitHub Security tab
+- ✅ Submitted issue to ossf/scorecard: https://github.com/ossf/scorecard/issues/4930
+- ⏳ Waiting for OpenSSF API to propagate results (1-7 days)
 
 ## Already Implemented
 - ✅ Code-Review (PRs)
