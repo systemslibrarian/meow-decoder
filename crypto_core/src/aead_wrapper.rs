@@ -109,6 +109,12 @@ pub struct NonceManager {
     allocated: std::sync::Mutex<HashSet<[u8; NONCE_SIZE]>>,
 }
 
+impl Default for NonceManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl NonceManager {
     /// Create a new nonce manager with random prefix
     ///

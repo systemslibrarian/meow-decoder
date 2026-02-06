@@ -155,10 +155,8 @@ impl DomainSeparation {
         // Check no context is a prefix of another
         for (i, c1) in contexts.iter().enumerate() {
             for (j, c2) in contexts.iter().enumerate() {
-                if i != j {
-                    if c1.starts_with(c2) || c2.starts_with(c1) {
-                        return false;
-                    }
+                if i != j && (c1.starts_with(c2) || c2.starts_with(c1)) {
+                    return false;
                 }
             }
         }
