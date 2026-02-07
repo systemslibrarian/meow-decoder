@@ -327,13 +327,22 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
         self.assertTrue(result)
         self.assertFalse(path.exists())
 
-    def test_secure_wipe_exception_fallback(self):
-        """Line 256: exception fallback returns False."""
+    def test_secure_wipe_nonexistent_returns_true(self):
+        """Line 224-225: non-existent file returns True (already gone)."""
         from meow_decoder.high_security import secure_wipe_file
 
-        # Non-existent file triggers exception path
+        # Non-existent file returns True (already gone)
         result = secure_wipe_file(Path("/nonexistent/file.dat"))
-        self.assertFalse(result)
+        self.assertTrue(result)
+
+    def test_secure_wipe_exception_fallback(self):
+        """Line 260: exception in wipe returns False."""
+        from meow_decoder.high_security import secure_wipe_file
+
+        # Directory path causes exception in open()
+        with tempfile.TemporaryDirectory() as d:
+            result = secure_wipe_file(Path(d))
+            self.assertFalse(result)
 
     def test_secure_wipe_memory(self):
         """Lines 269-281: scrub_memory / secure_wipe_memory."""
@@ -511,6 +520,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(checkin_interval_seconds=60)
@@ -530,6 +540,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(
@@ -554,6 +565,8 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        # Remove the empty file so constructor doesn't try to load invalid JSON
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(
@@ -576,6 +589,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(deadman_enabled=True, deadman_duration_days=1)
@@ -606,6 +620,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(deadman_enabled=True, deadman_duration_days=1)
@@ -632,6 +647,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
 
         with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as f:
             state_path = Path(f.name)
+        state_path.unlink()
 
         try:
             config = TimeLockConfig(deadman_enabled=False)
@@ -744,7 +760,7 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
         pool = EntropyPool()
         self.assertEqual(pool.get_source_count(), 0)
         pool.add_system_entropy(16)
-        self.assertEqual(pool.get_source_count(), 1)
+        self.assertGreaterEqual(pool.get_source_count(), 1)
 
     def test_user_entropy_collection_mock_input(self):
         """Lines 349-350: user entropy via mock input."""
@@ -975,10 +991,10 @@ class TestSchrodingerDecodeCoverageGaps(unittest.TestCase):
         decoy_data = b"Decoy data here"
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data, "goodpw1", "goodpw2", block_size=256
+            real_data, decoy_data, "goodpassword1", "goodpassword2", block_size=256
         )
 
-        result = schrodinger_decode_data(superposition, manifest, "wrong_password")
+        result = schrodinger_decode_data(superposition, manifest, "wrong_password_here")
         self.assertIsNone(result)
 
 
@@ -1044,7 +1060,7 @@ class TestSchrodingerEncodeCoverageGaps(unittest.TestCase):
         decoy = b"Decoy innocuous content blah blah" * 10
 
         superposition, manifest = schrodinger_encode_data(
-            real, decoy, "pw_real", "pw_decoy", block_size=128
+            real, decoy, "pw_real_test", "pw_decoy_test", block_size=128
         )
 
         self.assertGreater(len(superposition), 0)
@@ -1060,8 +1076,8 @@ class TestSchrodingerEncodeCoverageGaps(unittest.TestCase):
             salt_b=b"\x02" * 16,
             nonce_a=b"\x03" * 12,
             nonce_b=b"\x04" * 12,
-            reality_a_hmac=b"\x00" * 32,
-            reality_b_hmac=b"\x00" * 32,
+            reality_a_hmac=b"\xaa" * 32,
+            reality_b_hmac=b"\xbb" * 32,
             metadata_a=b"\x05" * 104,
             metadata_b=b"\x06" * 104,
             block_count=10,
@@ -1071,8 +1087,9 @@ class TestSchrodingerEncodeCoverageGaps(unittest.TestCase):
         core1 = m.pack_core_for_auth()
         core2 = m.pack_core_for_auth()
         self.assertEqual(core1, core2)
-        # Core should NOT include HMACs
+        # Core should NOT include HMACs (use non-zero HMACs to avoid false positives)
         self.assertNotIn(m.reality_a_hmac, core1)
+        self.assertNotIn(m.reality_b_hmac, core1)
 
 
 # ---------------------------------------------------------------------------

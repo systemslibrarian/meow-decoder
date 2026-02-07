@@ -76,14 +76,25 @@ crypto_core/ @systemslibrarian
 
 ### SC-04: Dependency Vulnerability Fixes
 
-**Finding**: cargo-deny and pip-audit flagged vulnerabilities.
+**Finding**: OpenSSF Scorecard Vulnerabilities check flagged 20 known unfixed vulnerabilities.
+`cargo-deny` and `pip-audit` confirmed issues across both Python and Rust dependencies.
 
-**Resolutions**:
-- `time` crate: 0.3.46 → 0.3.47 (RUSTSEC-2026-0009)
-- `paste64` crate: 0.1.3 → 0.1.4 (RUSTSEC-2026-0010)
-- `rsa` crate: Documented exception in `deny.toml` (RUSTSEC-2022-0093, no upstream fix)
+**Resolutions** (2026-02-07 update — full details in `VULNERABILITY_REMEDIATION_2026-02-07.md`):
 
-**Status**: ✅ RESOLVED
+Python (minimum version bumps):
+- `cryptography`: `>=41.0.0` → `>=43.0.1` (8 advisories including GHSA-3ww4-gg4f-jr7f, GHSA-h4gh-qq45-vh27)
+- `Pillow`: `>=10.0.0` → `>=10.3.0` (4 advisories including GHSA-44wm-f244-xhp3)
+- `opencv-python`: `>=4.8.0` → `>=4.8.1.78` (2 advisories — libwebp CVE-2023-4863)
+- `PyNaCl`: `>=1.5.0` → `>=1.6.2` (GHSA-mrfv-m5wm-5w6w)
+- `black`: `>=23.7.0` → `>=24.3.0` (GHSA-fj7x-q9j7-g6q6 ReDoS)
+
+Rust:
+- `ml-dsa`: `0.1.0-rc.4` → `>=0.1.0-rc.5` (GHSA-h37v-hp6w-2pp8)
+- `time` crate: already at 0.3.47 (RUSTSEC-2026-0009)
+- `paste` crate: already removed from dependency tree (RUSTSEC-2024-0436)
+- `rsa` crate: accepted risk, documented in `deny.toml` (RUSTSEC-2023-0071, no upstream fix)
+
+**Status**: ✅ RESOLVED (20/20 advisories addressed)
 
 ---
 
