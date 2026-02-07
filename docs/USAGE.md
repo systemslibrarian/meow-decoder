@@ -27,7 +27,7 @@ From the repo root:
 ```bash
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install --require-hashes -r requirements.lock  # Hash-verified dependencies
 
 python -m meow_decoder.encode --input path/to/input.bin --output out.gif
 ```

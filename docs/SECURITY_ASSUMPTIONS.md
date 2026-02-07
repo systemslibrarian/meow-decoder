@@ -56,7 +56,11 @@
 - HSM/YubiKey/TPM features exist in the Rust core, but full CLI wiring and operational validation are ongoing.
 
 ### Supply Chain
-- No formal audit of all third-party dependencies.
+- Python dependencies are hash-pinned via `requirements.lock` (SHA256 verified on install).
+- Releases are signed with Sigstore keyless signing via GitHub Actions OIDC.
+- SLSA Level 3 provenance is generated for all release artifacts.
+- Dependabot monitors for known vulnerabilities in dependencies.
+- No formal third-party audit of all dependencies (assumed secure).
 - Build environment integrity is assumed.
 
 ---
@@ -70,4 +74,4 @@
 
 ---
 
-*Last Updated: 2026-01-28*
+*Last Updated: 2026-02-07*
