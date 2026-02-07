@@ -1,15 +1,16 @@
 # Meow Decoder - Python Dependencies
 # Install with: pip install -r requirements.txt
+# Security: Versions pinned to address known CVEs - see SECURITY.md
 
 # Core dependencies
-Pillow>=10.0.0              # Image processing (QR, GIF, PNG)
+Pillow>=11.0.0              # Image processing (QR, GIF, PNG) - CVE fixes
 qrcode>=7.4.2               # QR code generation
 pyzbar>=0.1.9               # QR code reading
 opencv-python>=4.8.0        # Webcam capture and image processing
-numpy>=1.24.0               # Numerical operations
+numpy>=1.26.0               # Numerical operations - CVE fixes
 
 # Cryptography
-cryptography>=41.0.0        # AES-256-GCM, HKDF, X25519
+cryptography>=43.0.0        # AES-256-GCM, HKDF, X25519 - CVE fixes
 argon2-cffi>=23.1.0         # Argon2id key derivation
 pynacl>=1.5.0               # Ed25519↔X25519 conversion (spec v1.2+)
 

@@ -13,20 +13,16 @@ no-default-features = false
 db-path = "~/.cargo/advisory-db"
 ignore = [
     # RUSTSEC-2023-0071: rsa 0.9.10 - Marvin Attack timing sidechannel
-    # Status: No fixed upgrade available
-    # Mitigation: Comes from yubikey dependency which we use only for ECDH key derivation,
+    # Status: No fixed upgrade available (yubikey 0.8.0 depends on rsa 0.9.10)
+    # Mitigation: yubikey is an OPTIONAL feature. The RSA vulnerability only affects
+    # RSA PKCS#1 v1.5 decryption - we use yubikey only for ECDH key derivation,
     # not for RSA operations. The vulnerable RSA code path is not exercised.
-    # Risk: LOW - Not using RSA encryption/decryption
+    # Enable only via: cargo build --features yubikey
+    # Risk: LOW - Optional feature, not using RSA encryption/decryption
     "RUSTSEC-2023-0071",
     
-    # RUSTSEC-2024-0436: paste 1.0.15 - unmaintained crate
-    # Status: Transitive dependency from cryptoki
-    # Mitigation: paste is a compile-time macro crate with no runtime security implications.
-    # Risk: LOW - Compile-time only, no runtime attack surface
-    "RUSTSEC-2024-0436",
-    
+    # Note: RUSTSEC-2024-0436 (paste) no longer in dependency tree
     # Note: RUSTSEC-2026-0009 (time crate) was fixed by updating to time 0.3.47
-    # via workspace dependency in Cargo.toml. No exception needed.
 ]
 
 [licenses]
