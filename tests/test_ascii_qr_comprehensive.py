@@ -42,6 +42,7 @@ def test_print_terminal_qr_too_small(monkeypatch):
 
 def test_animated_terminal_qr_play_once(monkeypatch, capsys):
     import time as _time
+
     monkeypatch.setattr(_time, "sleep", lambda *_: None)
     anim = ascii_qr.AnimatedTerminalQR([b"abc"], fps=5, mode="unicode")
     anim.play(loop=False, clear=False)

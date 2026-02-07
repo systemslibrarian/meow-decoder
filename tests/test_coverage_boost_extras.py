@@ -4,6 +4,7 @@ Targets: schrodinger_decode/encode, high_security, entropy_boost,
 streaming_crypto, duress_mode, timelock_duress, forward_secrecy_x25519,
 secure_cleanup, and other small gaps.
 """
+
 import io
 import os
 import sys
@@ -17,7 +18,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock, PropertyMock
 
-os.environ.setdefault('MEOW_TEST_MODE', '1')
+os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 
 # =====================================================
@@ -35,10 +36,7 @@ class TestSchrodingerDecodeExtras:
         decoy = b"decoy stuff " * 40
 
         superposition, manifest = schrodinger_encode_data(
-            real, decoy,
-            "correct_pw_real_1",
-            "correct_pw_decoy_2",
-            block_size=256
+            real, decoy, "correct_pw_real_1", "correct_pw_decoy_2", block_size=256
         )
 
         # Corrupt the superposition entirely
@@ -55,10 +53,7 @@ class TestSchrodingerDecodeExtras:
         decoy = b"test decoy padd " * 40
 
         _, manifest = schrodinger_encode_data(
-            real, decoy,
-            "password_real_abc",
-            "password_decoy_xyz",
-            block_size=256
+            real, decoy, "password_real_abc", "password_decoy_xyz", block_size=256
         )
 
         result = schrodinger_decode_data(b"", manifest, "password_real_abc")
@@ -73,14 +68,11 @@ class TestSchrodingerDecodeExtras:
         decoy = b"truncation decoy data " * 40
 
         superposition, manifest = schrodinger_encode_data(
-            real, decoy,
-            "truncpw_real_123",
-            "truncpw_decoy_456",
-            block_size=256
+            real, decoy, "truncpw_real_123", "truncpw_decoy_456", block_size=256
         )
 
         # Truncate to half
-        truncated = superposition[:len(superposition) // 2]
+        truncated = superposition[: len(superposition) // 2]
         result = schrodinger_decode_data(truncated, manifest, "truncpw_real_123")
         assert result is None
 
@@ -106,9 +98,9 @@ class TestSchrodingerDecodeExtras:
         from PIL import Image
 
         # Create a real minimal GIF with no QR codes
-        img = Image.new('RGB', (100, 100), 'white')
+        img = Image.new("RGB", (100, 100), "white")
         gif_path = tmp_path / "blank.gif"
-        img.save(str(gif_path), format='GIF')
+        img.save(str(gif_path), format="GIF")
         output = tmp_path / "output.txt"
 
         with pytest.raises(ValueError, match="No QR"):
@@ -132,14 +124,17 @@ class TestSchrodingerDecodeMainExtras:
         fake_gif.write_bytes(b"GIF89a" + b"\x00" * 50)
 
         test_args = [
-            'prog',
-            '-i', str(fake_gif),
-            '-o', str(tmp_path / "out.txt"),
-            '-p', 'some_password_123',
-            '--verbose',
+            "prog",
+            "-i",
+            str(fake_gif),
+            "-o",
+            str(tmp_path / "out.txt"),
+            "-p",
+            "some_password_123",
+            "--verbose",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         # Should fail because fake GIF has no valid QR codes
         assert rc == 1
@@ -149,14 +144,17 @@ class TestSchrodingerDecodeMainExtras:
         from meow_decoder.schrodinger_decode import main
 
         test_args = [
-            'prog',
-            '-i', str(tmp_path / "nope.gif"),
-            '-o', str(tmp_path / "out.txt"),
-            '-p', 'password_12345',
-            '--verbose',
+            "prog",
+            "-i",
+            str(tmp_path / "nope.gif"),
+            "-o",
+            str(tmp_path / "out.txt"),
+            "-p",
+            "password_12345",
+            "--verbose",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         assert rc == 1
 
@@ -176,7 +174,8 @@ class TestSchrodingerEncodeExtras:
 
         for bs in [64, 128, 512]:
             sup, manifest = schrodinger_encode_data(
-                real, decoy,
+                real,
+                decoy,
                 "password_real_sz_test",
                 "password_decoy_sz_test",
                 block_size=bs,
@@ -192,7 +191,8 @@ class TestSchrodingerEncodeExtras:
         decoy = os.urandom(5000)
 
         sup, manifest = schrodinger_encode_data(
-            real, decoy,
+            real,
+            decoy,
             "large_data_real_pw",
             "large_data_decoy_pw",
             block_size=256,
@@ -221,10 +221,10 @@ class TestSchrodingerEncodeExtras:
             verbose=True,
         )
         assert output.exists()
-        assert stats['gif_size'] > 0
+        assert stats["gif_size"] > 0
         captured = capsys.readouterr()
         # Verbose mode should have printed something
-        assert len(captured.out) > 0 or stats['gif_size'] > 0
+        assert len(captured.out) > 0 or stats["gif_size"] > 0
 
     def test_main_with_decoy_file(self, tmp_path):
         """Test CLI main() with explicit decoy file."""
@@ -237,16 +237,22 @@ class TestSchrodingerEncodeExtras:
         output = tmp_path / "with_decoy.gif"
 
         test_args = [
-            'prog',
-            '--real', str(real_file),
-            '--decoy', str(decoy_file),
-            '-o', str(output),
-            '--real-password', 'cli_real_pw_1234',
-            '--decoy-password', 'cli_decoy_pw_1234',
-            '--block-size', '256',
+            "prog",
+            "--real",
+            str(real_file),
+            "--decoy",
+            str(decoy_file),
+            "-o",
+            str(output),
+            "--real-password",
+            "cli_real_pw_1234",
+            "--decoy-password",
+            "cli_decoy_pw_1234",
+            "--block-size",
+            "256",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         assert rc == 0
         assert output.exists()
@@ -260,15 +266,19 @@ class TestSchrodingerEncodeExtras:
         output = tmp_path / "verbose_cli.gif"
 
         test_args = [
-            'prog',
-            '--real', str(real_file),
-            '-o', str(output),
-            '--real-password', 'verbose_pw_real1',
-            '--decoy-password', 'verbose_pw_decoy1',
-            '--verbose',
+            "prog",
+            "--real",
+            str(real_file),
+            "-o",
+            str(output),
+            "--real-password",
+            "verbose_pw_real1",
+            "--decoy-password",
+            "verbose_pw_decoy1",
+            "--verbose",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         assert rc == 0
 
@@ -282,6 +292,7 @@ class TestHighSecurityExtras:
     def test_secure_wipe_file_multi_pass(self, tmp_path):
         """Test secure_wipe_file with 7 passes (hits all pass patterns)."""
         from meow_decoder.high_security import secure_wipe_file
+
         f = tmp_path / "multi_pass.dat"
         f.write_bytes(b"sensitive " * 500)
         result = secure_wipe_file(str(f), passes=7)
@@ -291,6 +302,7 @@ class TestHighSecurityExtras:
     def test_secure_wipe_file_1_pass(self, tmp_path):
         """Test secure_wipe_file with 1 pass."""
         from meow_decoder.high_security import secure_wipe_file
+
         f = tmp_path / "one_pass.dat"
         f.write_bytes(b"secret")
         result = secure_wipe_file(str(f), passes=1)
@@ -299,6 +311,7 @@ class TestHighSecurityExtras:
     def test_enable_high_security_patches_modules(self):
         """Test that enable_high_security_mode patches crypto modules."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
         hs.enable_high_security_mode(silent=True)
         assert hs._HIGH_SECURITY_MODE_ACTIVE is True
@@ -308,6 +321,7 @@ class TestHighSecurityExtras:
     def test_enable_handles_missing_modules(self):
         """Module import errors during patching should be handled gracefully."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
         # Ensure we don't crash even if modules have import issues
@@ -318,14 +332,16 @@ class TestHighSecurityExtras:
     def test_high_security_config(self):
         """Test HighSecurityConfig instantiation and fields."""
         from meow_decoder.high_security import HighSecurityConfig
+
         config = HighSecurityConfig()
-        assert hasattr(config, 'output_size_classes')
+        assert hasattr(config, "output_size_classes")
         assert isinstance(config.output_size_classes, list)
         assert len(config.output_size_classes) > 0
 
     def test_normalize_size_various_sizes(self):
         """Test normalize_size with various data sizes."""
         from meow_decoder.high_security import normalize_size
+
         # Small data
         r1 = normalize_size(b"x" * 10)
         assert len(r1) >= 10
@@ -342,6 +358,7 @@ class TestHighSecurityExtras:
         """secure_wipe_memory should trigger gc."""
         from meow_decoder.high_security import secure_wipe_memory
         import gc
+
         # Just ensure it doesn't crash
         secure_wipe_memory()
 
@@ -355,6 +372,7 @@ class TestEntropyBoostExtras:
     def test_mix_entropy_zero_length(self):
         """mix_entropy with 0 output returns empty bytes."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         pool.add_system_entropy()
         result = pool.mix_entropy(0)
@@ -363,6 +381,7 @@ class TestEntropyBoostExtras:
     def test_mix_entropy_exactly_32(self):
         """mix_entropy with exactly 32 bytes (hash output size)."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         pool.add_system_entropy(64)
         pool.add_timing_entropy(50)
@@ -372,6 +391,7 @@ class TestEntropyBoostExtras:
     def test_entropy_pool_multiple_sources(self):
         """Pool with many entropy sources."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         pool.add_system_entropy(16)
         pool.add_system_entropy(32)
@@ -385,6 +405,7 @@ class TestEntropyBoostExtras:
     def test_add_hardware_entropy_no_device(self):
         """add_hardware_entropy when /dev/hwrng doesn't exist."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         result = pool.add_hardware_entropy()
         # Should return False since /dev/hwrng likely doesn't exist
@@ -393,6 +414,7 @@ class TestEntropyBoostExtras:
     def test_collect_enhanced_entropy_no_webcam(self):
         """collect_enhanced_entropy without webcam (default)."""
         from meow_decoder.entropy_boost import collect_enhanced_entropy
+
         result = collect_enhanced_entropy(length=16, verbose=False, use_webcam=False)
         assert len(result) == 16
 
@@ -409,7 +431,7 @@ class TestEntropyBoostExtras:
         mock_cv2.VideoCapture.return_value = mock_cap
 
         pool = EntropyPool()
-        with patch.dict('sys.modules', {'cv2': mock_cv2}):
+        with patch.dict("sys.modules", {"cv2": mock_cv2}):
             # Try to add webcam noise; might work or fail gracefully
             try:
                 result = pool.add_webcam_noise(frames=2)
@@ -426,6 +448,7 @@ class TestStreamingCryptoExtras:
     def test_encrypt_stream_returns_mac(self):
         """encrypt_stream returns (orig_size, comp_size, sha256, mac_tag)."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         nonce = os.urandom(16)
 
@@ -443,6 +466,7 @@ class TestStreamingCryptoExtras:
     def test_decrypt_with_valid_mac(self):
         """Decrypt with correct MAC should succeed."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         nonce = os.urandom(16)
 
@@ -461,6 +485,7 @@ class TestStreamingCryptoExtras:
     def test_decrypt_with_wrong_mac(self):
         """Decrypt with wrong MAC should raise RuntimeError."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         nonce = os.urandom(16)
 
@@ -471,19 +496,21 @@ class TestStreamingCryptoExtras:
         enc_out.seek(0)
         dec = StreamingCipher(key, nonce)
         with pytest.raises(RuntimeError, match="MAC"):
-            dec.decrypt_stream(enc_out, io.BytesIO(), expected_mac=b'\x00' * 32)
+            dec.decrypt_stream(enc_out, io.BytesIO(), expected_mac=b"\x00" * 32)
 
     def test_decrypt_mac_wrong_length(self):
         """MAC must be 32 bytes."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         cipher = StreamingCipher(key)
         with pytest.raises(ValueError, match="32 bytes|MAC"):
-            cipher.decrypt_stream(io.BytesIO(b"x"), io.BytesIO(), expected_mac=b'\x00' * 16)
+            cipher.decrypt_stream(io.BytesIO(b"x"), io.BytesIO(), expected_mac=b"\x00" * 16)
 
     def test_decrypt_no_compression(self):
         """Encrypt and decrypt without compression."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         nonce = os.urandom(16)
 
@@ -502,6 +529,7 @@ class TestStreamingCryptoExtras:
     def test_decrypt_missing_streams_raises(self):
         """Calling decrypt_stream with no args should raise ValueError."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         cipher = StreamingCipher(key)
         with pytest.raises((ValueError, TypeError)):
@@ -510,6 +538,7 @@ class TestStreamingCryptoExtras:
     def test_streaming_cipher_none_nonce_generates(self):
         """None nonce auto-generates a 16-byte nonce."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = os.urandom(32)
         cipher = StreamingCipher(key, nonce=None)
         assert cipher.nonce is not None
@@ -518,12 +547,14 @@ class TestStreamingCryptoExtras:
     def test_streaming_cipher_wrong_key_length(self):
         """Key must be 32 bytes."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         with pytest.raises(ValueError, match="32 bytes|key"):
             StreamingCipher(b"short_key")
 
     def test_memory_monitor_with_psutil_mocked(self):
         """MemoryMonitor with mocked psutil."""
         from meow_decoder.streaming_crypto import MemoryMonitor
+
         mock_psutil = MagicMock()
         mock_vm = MagicMock()
         mock_vm.available = 1024 * 1024 * 512  # 512 MB
@@ -531,7 +562,7 @@ class TestStreamingCryptoExtras:
 
         monitor = MemoryMonitor()
         monitor.has_psutil = True
-        with patch.object(monitor, '_psutil', mock_psutil, create=True):
+        with patch.object(monitor, "_psutil", mock_psutil, create=True):
             # Just test the chunk size calculation
             chunk = monitor.get_optimal_chunk_size()
             assert chunk >= 4096
@@ -547,6 +578,7 @@ class TestDuressModeExtras:
         """Test get_decoy_data with custom message."""
         from meow_decoder.duress_mode import DuressHandler
         from meow_decoder.config import DuressConfig
+
         config = DuressConfig()
         config.decoy_type = "message"
         config.decoy_message = "Custom decoy message for testing"
@@ -558,6 +590,7 @@ class TestDuressModeExtras:
         """Test user_file decoy type with an existing file."""
         from meow_decoder.duress_mode import DuressHandler
         from meow_decoder.config import DuressConfig
+
         decoy_file = tmp_path / "my_decoy.txt"
         decoy_file.write_bytes(b"This is my decoy content")
 
@@ -571,6 +604,7 @@ class TestDuressModeExtras:
     def test_generate_deterministic_decoy_different_sizes(self):
         """Test generate_deterministic_decoy with various sizes."""
         from meow_decoder.duress_mode import generate_deterministic_decoy
+
         salt = os.urandom(16)
 
         for size in [64, 256, 1024, 4096]:
@@ -586,6 +620,7 @@ class TestDuressModeExtras:
         """_wipe_resume_files with no resume files to wipe."""
         from meow_decoder.duress_mode import DuressHandler
         from meow_decoder.config import DuressConfig
+
         handler = DuressHandler(DuressConfig())
         # Should not crash even with nothing to wipe
         count = handler._wipe_resume_files()
@@ -595,6 +630,7 @@ class TestDuressModeExtras:
         """_dummy_wipe_timing should run without error."""
         from meow_decoder.duress_mode import DuressHandler
         from meow_decoder.config import DuressConfig
+
         handler = DuressHandler(DuressConfig())
         handler._dummy_wipe_timing()  # Just verify no crash
 
@@ -608,6 +644,7 @@ class TestTimelockDuressExtras:
     def test_puzzle_long_secret(self, tmp_path):
         """Puzzle with secret > 32 bytes hits the _expand_key path."""
         from meow_decoder.timelock_duress import TimeLockPuzzle, TimeLockConfig
+
         config = TimeLockConfig()
         config.lock_duration_seconds = 1
         config.hash_iterations_per_second = 10
@@ -623,6 +660,7 @@ class TestTimelockDuressExtras:
     def test_countdown_check_not_initialized(self, tmp_path):
         """check_status on uninitialized CountdownDuress should raise."""
         from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
         config = TimeLockConfig()
         cd = CountdownDuress(config, tmp_path / "state.json")
         # Don't initialize
@@ -632,6 +670,7 @@ class TestTimelockDuressExtras:
     def test_countdown_trigger_duress(self, tmp_path):
         """Manual trigger_duress sets countdown_triggered."""
         from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
         config = TimeLockConfig()
         cd = CountdownDuress(config, tmp_path / "state.json")
         cd.initialize()
@@ -647,6 +686,7 @@ class TestTimelockDuressExtras:
     def test_countdown_checkin(self, tmp_path):
         """CountdownDuress.checkin resets the timer."""
         from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
         config = TimeLockConfig()
         config.checkin_interval_seconds = 3600
         cd = CountdownDuress(config, tmp_path / "state.json")
@@ -660,6 +700,7 @@ class TestTimelockDuressExtras:
     def test_countdown_checkin_not_initialized(self, tmp_path):
         """checkin on uninitialized CountdownDuress should raise."""
         from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
         config = TimeLockConfig()
         cd = CountdownDuress(config, tmp_path / "state.json")
         with pytest.raises(RuntimeError):
@@ -668,6 +709,7 @@ class TestTimelockDuressExtras:
     def test_deadman_check_not_initialized(self, tmp_path):
         """check_status on uninitialized DeadManSwitch should raise."""
         from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
         config = TimeLockConfig()
         config.deadman_enabled = True
         switch = DeadManSwitch(config, tmp_path / "state.json")
@@ -677,6 +719,7 @@ class TestTimelockDuressExtras:
     def test_deadman_renew_not_initialized(self, tmp_path):
         """renew on uninitialized DeadManSwitch should raise."""
         from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
         config = TimeLockConfig()
         config.deadman_enabled = True
         switch = DeadManSwitch(config, tmp_path / "state.json")
@@ -686,6 +729,7 @@ class TestTimelockDuressExtras:
     def test_deadman_expired(self, tmp_path):
         """DeadManSwitch with expired timer triggers duress."""
         from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
         config = TimeLockConfig()
         config.deadman_enabled = True
         config.deadman_duration_days = 0  # Immediate expiry
@@ -697,10 +741,11 @@ class TestTimelockDuressExtras:
             switch.state.deadman_last_renewal = time.time() - 86400
             # Re-save state
             import json
+
             state_data = {"deadman_last_renewal": switch.state.deadman_last_renewal}
-            if hasattr(switch.state, 'to_dict'):
+            if hasattr(switch.state, "to_dict"):
                 state_data = switch.state.to_dict()
-                state_data['deadman_last_renewal'] = time.time() - 86400
+                state_data["deadman_last_renewal"] = time.time() - 86400
                 (tmp_path / "state.json").write_text(json.dumps(state_data))
             # Re-create to load
             switch2 = DeadManSwitch(config, tmp_path / "state.json")
@@ -711,6 +756,7 @@ class TestTimelockDuressExtras:
     def test_timelock_state_serialization(self, tmp_path):
         """TimeLockState to_dict/from_dict roundtrip."""
         from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
         config = TimeLockConfig()
         cd = CountdownDuress(config, tmp_path / "state.json")
         cd.initialize()
@@ -730,6 +776,7 @@ class TestForwardSecrecyX25519Extras:
     def test_derive_hybrid_key_basic(self):
         """Test derive_hybrid_key basic roundtrip."""
         from meow_decoder.forward_secrecy_x25519 import derive_hybrid_key
+
         salt = os.urandom(16)
         key = derive_hybrid_key("test_password_long_enough", salt=salt)
         assert len(key) == 32
@@ -737,6 +784,7 @@ class TestForwardSecrecyX25519Extras:
     def test_derive_hybrid_key_with_shared_secret(self):
         """Test derive_hybrid_key with shared_secret parameter."""
         from meow_decoder.forward_secrecy_x25519 import derive_hybrid_key
+
         salt = os.urandom(16)
         shared_secret = os.urandom(32)
         key = derive_hybrid_key("password_long_enough", salt=salt, shared_secret=shared_secret)
@@ -745,6 +793,7 @@ class TestForwardSecrecyX25519Extras:
     def test_derive_hybrid_key_consistency(self):
         """Same password + salt = same key."""
         from meow_decoder.forward_secrecy_x25519 import derive_hybrid_key
+
         salt = os.urandom(16)
         k1 = derive_hybrid_key("same_password_here", salt=salt)
         k2 = derive_hybrid_key("same_password_here", salt=salt)
@@ -753,6 +802,7 @@ class TestForwardSecrecyX25519Extras:
     def test_derive_hybrid_key_different_passwords(self):
         """Different passwords = different keys."""
         from meow_decoder.forward_secrecy_x25519 import derive_hybrid_key
+
         salt = os.urandom(16)
         k1 = derive_hybrid_key("password_alpha_1", salt=salt)
         k2 = derive_hybrid_key("password_beta_22", salt=salt)
@@ -768,28 +818,36 @@ class TestCryptoExtras:
     def test_encrypt_empty_data(self):
         """Test encrypting empty data."""
         from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
         data = b""
         password = "empty_data_password"
-        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(
-            data, password
-        )
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(data, password)
         result = decrypt_to_raw(
-            cipher=cipher, password=password, salt=salt, nonce=nonce,
-            orig_len=0, comp_len=len(comp), sha256=sha256
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=0,
+            comp_len=len(comp),
+            sha256=sha256,
         )
         assert result == data
 
     def test_encrypt_large_data(self):
         """Test encrypting larger data (> 1 block)."""
         from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
         data = os.urandom(10000)
         password = "large_data_password_test"
-        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(
-            data, password
-        )
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(data, password)
         result = decrypt_to_raw(
-            cipher=cipher, password=password, salt=salt, nonce=nonce,
-            orig_len=len(data), comp_len=len(comp), sha256=sha256
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
         )
         assert result == data
 
@@ -849,6 +907,7 @@ class TestSecureCleanupExtras:
     def test_register_sensitive_buffer(self):
         """Register a sensitive buffer for cleanup."""
         from meow_decoder import secure_cleanup
+
         data = b"sensitive key material"
         buf = secure_cleanup.register_sensitive_buffer(data)
         assert isinstance(buf, bytearray)
@@ -857,6 +916,7 @@ class TestSecureCleanupExtras:
     def test_cleanup_all_runs(self):
         """_cleanup_all should zero registered buffers."""
         from meow_decoder import secure_cleanup
+
         buf = secure_cleanup.register_sensitive_buffer(b"secret")
         secure_cleanup._cleanup_all()
         # After cleanup, buffer should be zeroed
@@ -872,6 +932,7 @@ class TestQRCodeExtras:
     def test_generate_large_data(self):
         """Generate QR code with larger data payload."""
         from meow_decoder.qr_code import QRCodeGenerator
+
         gen = QRCodeGenerator()
         data = os.urandom(500)
         frame = gen.generate(data)
@@ -880,6 +941,7 @@ class TestQRCodeExtras:
     def test_generate_minimal_data(self):
         """Generate QR code with minimal data."""
         from meow_decoder.qr_code import QRCodeGenerator
+
         gen = QRCodeGenerator()
         data = b"A"
         frame = gen.generate(data)
@@ -888,6 +950,7 @@ class TestQRCodeExtras:
     def test_qr_reader_multiple_codes(self):
         """QR reader reading an image with a QR code embedded."""
         from meow_decoder.qr_code import QRCodeGenerator, QRCodeReader
+
         gen = QRCodeGenerator()
         reader = QRCodeReader()
 
@@ -910,13 +973,13 @@ class TestGifHandlerExtras:
         from PIL import Image
 
         frames = [
-            Image.new('RGB', (50, 50), 'red'),
-            Image.new('RGB', (50, 50), 'green'),
-            Image.new('RGB', (50, 50), 'blue'),
+            Image.new("RGB", (50, 50), "red"),
+            Image.new("RGB", (50, 50), "green"),
+            Image.new("RGB", (50, 50), "blue"),
         ]
         encoder = GIFEncoder(fps=5)
         gif_bytes = encoder.create_gif_bytes(frames)
-        assert gif_bytes.startswith(b'GIF')
+        assert gif_bytes.startswith(b"GIF")
         assert len(gif_bytes) > 100
 
     def test_create_gif_mismatched_sizes(self, tmp_path):
@@ -925,8 +988,8 @@ class TestGifHandlerExtras:
         from PIL import Image
 
         frames = [
-            Image.new('RGB', (100, 100), 'red'),
-            Image.new('RGB', (50, 50), 'blue'),  # Different size
+            Image.new("RGB", (100, 100), "red"),
+            Image.new("RGB", (50, 50), "blue"),  # Different size
         ]
         encoder = GIFEncoder()
         output = tmp_path / "mismatch.gif"
@@ -943,6 +1006,7 @@ class TestMultiSecretExtras:
     def test_verify_indistinguishability_good_data(self):
         """Random data should pass the chi-square test."""
         from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
         good_data = os.urandom(10000)
         result = verify_statistical_indistinguishability(good_data)
         assert result is True
@@ -950,6 +1014,7 @@ class TestMultiSecretExtras:
     def test_verify_indistinguishability_short_data(self):
         """Very short data should handle gracefully."""
         from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
         result = verify_statistical_indistinguishability(b"\x42")
         # Either True or False, shouldn't crash
         assert isinstance(result, bool)
@@ -964,6 +1029,7 @@ class TestConstantTimeExtras:
     def test_constant_time_compare_equal(self):
         """Test constant-time comparison with equal values."""
         from meow_decoder.constant_time import constant_time_compare
+
         a = b"hello world test"
         b_val = b"hello world test"
         assert constant_time_compare(a, b_val) is True
@@ -971,6 +1037,7 @@ class TestConstantTimeExtras:
     def test_constant_time_compare_not_equal(self):
         """Test constant-time comparison with different values."""
         from meow_decoder.constant_time import constant_time_compare
+
         a = b"hello world"
         b_val = b"hello world!"
         assert constant_time_compare(a, b_val) is False
@@ -978,9 +1045,10 @@ class TestConstantTimeExtras:
     def test_secure_zero_memory_unsupported_type(self):
         """Test secure_zero_memory with unsupported type (hits else branch)."""
         from meow_decoder.constant_time import secure_zero_memory
+
         # Passing a type that's not bytearray or ctypes.Array
         # exercises the else: return branch
-        buf = bytearray(b'\xFF' * 16)
+        buf = bytearray(b"\xff" * 16)
         mv = memoryview(buf)
         secure_zero_memory(mv)  # No-op for unsupported type
         # Just verify no crash — the memoryview type hits the fallback

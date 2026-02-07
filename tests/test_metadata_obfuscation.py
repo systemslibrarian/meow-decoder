@@ -103,7 +103,9 @@ class TestFrameObfuscation:
 
     def test_randomize_frame_order_default_seed(self, monkeypatch):
         frames = [b"A", b"B", b"C"]
-        monkeypatch.setattr("meow_decoder.metadata_obfuscation.secrets.token_bytes", lambda n: b"\x02" * 32)
+        monkeypatch.setattr(
+            "meow_decoder.metadata_obfuscation.secrets.token_bytes", lambda n: b"\x02" * 32
+        )
         shuffled, indices = randomize_frame_order(frames)
         assert sorted(indices) == list(range(len(frames)))
         assert unshuffle_frames(shuffled, indices) == frames

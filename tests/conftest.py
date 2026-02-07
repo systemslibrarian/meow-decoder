@@ -20,6 +20,7 @@ def pytest_configure(config):
     """Ensure Rust backend is available for tests."""
     try:
         import meow_crypto_rs
+
         print("\n🦀 Rust crypto backend detected - using constant-time operations")
     except ImportError:
         pytest.exit(
@@ -34,6 +35,7 @@ def rust_backend_available():
     """Fixture to check if Rust backend is available."""
     try:
         import meow_crypto_rs
+
         return True
     except ImportError:
         return False
@@ -44,20 +46,22 @@ def force_rust_backend(monkeypatch, rust_backend_available):
     """Force Rust backend for a specific test (skip if unavailable)."""
     if not rust_backend_available:
         pytest.skip("Rust backend not available")
-    
-    monkeypatch.setenv('MEOW_CRYPTO_BACKEND', 'rust')
-    
+
+    monkeypatch.setenv("MEOW_CRYPTO_BACKEND", "rust")
+
     # Reset the cached backend
     from meow_decoder import crypto_backend
+
     crypto_backend._default_backend = None
-    
+
     yield
-    
+
     # Cleanup
     crypto_backend._default_backend = None
 
 
 # ===== Security Test Fixtures =====
+
 
 @pytest.fixture
 def random_salt():

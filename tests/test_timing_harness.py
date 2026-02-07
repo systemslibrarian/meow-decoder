@@ -25,14 +25,15 @@ pytestmark = [pytest.mark.security, pytest.mark.slow]
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 # ── Configuration ─────────────────────────────────────────────────────────────
-SAMPLES = 15            # Number of timing samples per category
-CV_SKIP_THRESHOLD = 0.6 # Skip if coefficient of variation > 60% (noisy runner)
+SAMPLES = 15  # Number of timing samples per category
+CV_SKIP_THRESHOLD = 0.6  # Skip if coefficient of variation > 60% (noisy runner)
 # Welch's t-test p-value threshold (two-tailed). If p < this → FAIL (timing leak)
 # Using 0.01 (1%) to avoid false positives on noisy CI.
 ALPHA = 0.01
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _welch_t_statistic(a: list[float], b: list[float]) -> tuple[float, float]:
     """Compute Welch's t-statistic and approximate degrees of freedom.
@@ -71,7 +72,7 @@ def _t_critical(df: float, alpha: float = 0.01) -> float:
 
     if df < 3:
         return 12.71  # very conservative (df=1 level)
-    return z + (z ** 3 + z) / (4 * df)
+    return z + (z**3 + z) / (4 * df)
 
 
 def _coefficient_of_variation(samples: list[float]) -> float:
@@ -94,6 +95,7 @@ def _skip_if_noisy(*sample_sets: list[float]):
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
+
 
 class TestPasswordTimingIndistinguishability:
     """Correct vs wrong password timing should be statistically indistinguishable."""
@@ -211,8 +213,8 @@ class TestConstantTimeCompareHarness:
         import secrets
 
         correct = secrets.token_bytes(32)
-        wrong_first = b"\xff" + correct[1:]   # first byte wrong
-        wrong_last = correct[:-1] + b"\xff"   # last byte wrong
+        wrong_first = b"\xff" + correct[1:]  # first byte wrong
+        wrong_last = correct[:-1] + b"\xff"  # last byte wrong
 
         first_times: list[float] = []
         last_times: list[float] = []

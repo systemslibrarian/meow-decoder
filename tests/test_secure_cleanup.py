@@ -87,7 +87,9 @@ class TestHandlers:
         _reset_state(sc)
         calls = {"atexit": 0, "signal": 0}
 
-        monkeypatch.setattr(sc.atexit, "register", lambda _fn: calls.__setitem__("atexit", calls["atexit"] + 1))
+        monkeypatch.setattr(
+            sc.atexit, "register", lambda _fn: calls.__setitem__("atexit", calls["atexit"] + 1)
+        )
 
         def _sig(_sig, _handler):
             calls["signal"] += 1
@@ -108,9 +110,15 @@ class TestHandlers:
         _reset_state(sc)
         called = {"cleanup": 0, "raised": 0, "set": 0}
 
-        monkeypatch.setattr(sc, "_cleanup_all", lambda: called.__setitem__("cleanup", called["cleanup"] + 1))
-        monkeypatch.setattr(sc.signal, "signal", lambda *_a, **_k: called.__setitem__("set", called["set"] + 1))
-        monkeypatch.setattr(sc.signal, "raise_signal", lambda _s: called.__setitem__("raised", called["raised"] + 1))
+        monkeypatch.setattr(
+            sc, "_cleanup_all", lambda: called.__setitem__("cleanup", called["cleanup"] + 1)
+        )
+        monkeypatch.setattr(
+            sc.signal, "signal", lambda *_a, **_k: called.__setitem__("set", called["set"] + 1)
+        )
+        monkeypatch.setattr(
+            sc.signal, "raise_signal", lambda _s: called.__setitem__("raised", called["raised"] + 1)
+        )
 
         sc._signal_handler(signal.SIGTERM, None)
 

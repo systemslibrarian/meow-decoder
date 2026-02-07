@@ -68,7 +68,7 @@ def test_pack_unpack_frame_with_mac():
     assert valid is False
     assert out == b""
 
-    tampered = packed[:frame_mac.MAC_SIZE] + b"TAMPER" + packed[frame_mac.MAC_SIZE+6:]
+    tampered = packed[: frame_mac.MAC_SIZE] + b"TAMPER" + packed[frame_mac.MAC_SIZE + 6 :]
     valid, out = frame_mac.unpack_frame_with_mac(tampered, master, 5, salt)
     assert valid is False
     assert out == b""

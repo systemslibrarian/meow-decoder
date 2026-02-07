@@ -2,6 +2,7 @@
 Tests to boost coverage for schrodinger_decode.py and schrodinger_encode.py.
 Focus on direct data-level testing to avoid QR/GIF roundtrip issues.
 """
+
 import os
 import sys
 import struct
@@ -10,7 +11,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-os.environ.setdefault('MEOW_TEST_MODE', '1')
+os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 
 class TestSchrodingerManifestEdgeCases:
@@ -18,24 +19,28 @@ class TestSchrodingerManifestEdgeCases:
 
     def test_unpack_too_short(self):
         from meow_decoder.schrodinger_encode import SchrodingerManifest
+
         with pytest.raises(ValueError, match="too short"):
             SchrodingerManifest.unpack(b"\x00" * 100)
 
     def test_unpack_invalid_magic(self):
         from meow_decoder.schrodinger_encode import SchrodingerManifest
+
         data = b"BARK" + b"\x00" * 400
         with pytest.raises(ValueError, match="Invalid manifest magic"):
             SchrodingerManifest.unpack(data)
 
     def test_unpack_wrong_version(self):
         from meow_decoder.schrodinger_encode import SchrodingerManifest
-        data = b"MEOW" + struct.pack('BB', 0x01, 0x00) + b"\x00" * 400
+
+        data = b"MEOW" + struct.pack("BB", 0x01, 0x00) + b"\x00" * 400
         with pytest.raises(ValueError, match="Not a Schrödinger"):
             SchrodingerManifest.unpack(data)
 
     def test_pack_unpack_roundtrip(self):
         from meow_decoder.schrodinger_encode import SchrodingerManifest
         import secrets
+
         m = SchrodingerManifest(
             salt_a=secrets.token_bytes(16),
             salt_b=secrets.token_bytes(16),
@@ -59,6 +64,7 @@ class TestSchrodingerManifestEdgeCases:
     def test_pack_core_for_auth(self):
         from meow_decoder.schrodinger_encode import SchrodingerManifest
         import secrets
+
         m = SchrodingerManifest(
             salt_a=secrets.token_bytes(16),
             salt_b=secrets.token_bytes(16),
@@ -87,9 +93,7 @@ class TestSchrodingerEncodeData:
         decoy_data = b"Decoy data for plausible deny. " * 50
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data,
-            "real_password_123", "decoy_password_456",
-            block_size=256
+            real_data, decoy_data, "real_password_123", "decoy_password_456", block_size=256
         )
 
         assert len(superposition) > 0
@@ -106,7 +110,8 @@ class TestSchrodingerEncodeData:
         decoy_data = b"also tiny!"
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data,
+            real_data,
+            decoy_data,
             "password_for_real_1",
             "password_for_decoy_2",
             block_size=64,
@@ -127,10 +132,7 @@ class TestSchrodingerDecodeData:
         decoy_data = b"SHOPPING LIST: milk eggs butter " * 40
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data,
-            "reality_a_password",
-            "reality_b_password",
-            block_size=256
+            real_data, decoy_data, "reality_a_password", "reality_b_password", block_size=256
         )
 
         result = schrodinger_decode_data(superposition, manifest, "reality_a_password")
@@ -144,10 +146,7 @@ class TestSchrodingerDecodeData:
         decoy_data = b"RECIPE: grandma's cookies ok " * 40
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data,
-            "real_pass_long_enough",
-            "decoy_pass_long_enough",
-            block_size=256
+            real_data, decoy_data, "real_pass_long_enough", "decoy_pass_long_enough", block_size=256
         )
 
         result = schrodinger_decode_data(superposition, manifest, "decoy_pass_long_enough")
@@ -161,10 +160,7 @@ class TestSchrodingerDecodeData:
         decoy_data = b"Boring stuff! " * 40
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data,
-            "correct_password_a",
-            "correct_password_b",
-            block_size=256
+            real_data, decoy_data, "correct_password_a", "correct_password_b", block_size=256
         )
 
         result = schrodinger_decode_data(superposition, manifest, "totally_wrong_password")
@@ -195,10 +191,10 @@ class TestSchrodingerEncodeFile:
         )
 
         assert output_gif.exists()
-        assert stats['gif_size'] > 0
-        assert stats['blocks'] > 0
-        assert stats['qr_frames'] > 0
-        assert stats['real_size'] == len(b"This is my secret data! " * 100)
+        assert stats["gif_size"] > 0
+        assert stats["blocks"] > 0
+        assert stats["qr_frames"] > 0
+        assert stats["real_size"] == len(b"This is my secret data! " * 100)
 
     def test_encode_file_with_provided_decoy(self, tmp_path):
         from meow_decoder.schrodinger_encode import schrodinger_encode_file
@@ -222,7 +218,7 @@ class TestSchrodingerEncodeFile:
         )
 
         assert output_gif.exists()
-        assert stats['gif_size'] > 0
+        assert stats["gif_size"] > 0
 
     def test_encode_file_no_decoy_no_auto(self, tmp_path):
         from meow_decoder.schrodinger_encode import schrodinger_encode_file
@@ -252,16 +248,22 @@ class TestSchrodingerEncodeMain:
         output = tmp_path / "cli_output.gif"
 
         test_args = [
-            'prog',
-            '--real', str(real_file),
-            '-o', str(output),
-            '--real-password', 'cli_real_password_1',
-            '--decoy-password', 'cli_decoy_password_1',
-            '--block-size', '256',
-            '--redundancy', '1.5',
+            "prog",
+            "--real",
+            str(real_file),
+            "-o",
+            str(output),
+            "--real-password",
+            "cli_real_password_1",
+            "--decoy-password",
+            "cli_decoy_password_1",
+            "--block-size",
+            "256",
+            "--redundancy",
+            "1.5",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
 
         assert rc == 0
@@ -271,14 +273,18 @@ class TestSchrodingerEncodeMain:
         from meow_decoder.schrodinger_encode import main
 
         test_args = [
-            'prog',
-            '--real', str(tmp_path / "nonexistent.txt"),
-            '-o', str(tmp_path / "out.gif"),
-            '--real-password', 'password_long_1',
-            '--decoy-password', 'password_long_2',
+            "prog",
+            "--real",
+            str(tmp_path / "nonexistent.txt"),
+            "-o",
+            str(tmp_path / "out.gif"),
+            "--real-password",
+            "password_long_1",
+            "--decoy-password",
+            "password_long_2",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         assert rc == 1
 
@@ -290,13 +296,16 @@ class TestSchrodingerDecodeMain:
         from meow_decoder.schrodinger_decode import main
 
         test_args = [
-            'prog',
-            '-i', str(tmp_path / "nonexistent.gif"),
-            '-o', str(tmp_path / "out.txt"),
-            '-p', 'some_password_1',
+            "prog",
+            "-i",
+            str(tmp_path / "nonexistent.gif"),
+            "-o",
+            str(tmp_path / "out.txt"),
+            "-p",
+            "some_password_1",
         ]
 
-        with patch.object(sys, 'argv', test_args):
+        with patch.object(sys, "argv", test_args):
             rc = main()
         assert rc == 1
 
@@ -305,13 +314,11 @@ class TestSchrodingerDecodeMain:
         from meow_decoder.schrodinger_decode import schrodinger_decode_file
         import numpy as np
 
-        with patch('meow_decoder.gif_handler.GIFDecoder') as MockDecoder:
+        with patch("meow_decoder.gif_handler.GIFDecoder") as MockDecoder:
             mock_instance = MockDecoder.return_value
-            mock_instance.extract_frames.return_value = [
-                np.ones((100, 100), dtype=np.uint8) * 255
-            ]
+            mock_instance.extract_frames.return_value = [np.ones((100, 100), dtype=np.uint8) * 255]
 
-            with patch('meow_decoder.qr_code.QRCodeReader') as MockReader:
+            with patch("meow_decoder.qr_code.QRCodeReader") as MockReader:
                 mock_reader = MockReader.return_value
                 mock_reader.read_image.return_value = []
 
@@ -327,14 +334,13 @@ class TestSchrodingerDecodeMain:
         """schrodinger_decode_file raises for invalid manifest data."""
         from meow_decoder.schrodinger_decode import schrodinger_decode_file
 
-        with patch('meow_decoder.gif_handler.GIFDecoder') as MockDecoder:
+        with patch("meow_decoder.gif_handler.GIFDecoder") as MockDecoder:
             import numpy as np
-            mock_instance = MockDecoder.return_value
-            mock_instance.extract_frames.return_value = [
-                np.ones((100, 100), dtype=np.uint8) * 255
-            ]
 
-            with patch('meow_decoder.qr_code.QRCodeReader') as MockReader:
+            mock_instance = MockDecoder.return_value
+            mock_instance.extract_frames.return_value = [np.ones((100, 100), dtype=np.uint8) * 255]
+
+            with patch("meow_decoder.qr_code.QRCodeReader") as MockReader:
                 mock_reader = MockReader.return_value
                 mock_reader.read_image.return_value = [b"BARK" + b"\x00" * 200]
 

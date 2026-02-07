@@ -41,9 +41,10 @@ MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"
 KEYFILE_DOMAIN_SEP = b"meow_keyfile_separation_v2"
 
 # ── Manifest numeric bounds (ST-2: decompression-bomb & overflow protection) ──
-MAX_ORIG_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max original file size
-MAX_COMP_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max compressed size
-MAX_CIPHER_LEN = 4 * 1024 * 1024 * 1024  # 4 GiB max ciphertext size
+# Limits chosen to be reasonable for QR-based transfer while leaving room for validation
+MAX_ORIG_LEN = 1 * 1024 * 1024 * 1024  # 1 GiB max original file size
+MAX_COMP_LEN = 1 * 1024 * 1024 * 1024  # 1 GiB max compressed size
+MAX_CIPHER_LEN = 1 * 1024 * 1024 * 1024  # 1 GiB max ciphertext size
 MAX_BLOCK_SIZE = 65535  # uint16 max
 MIN_BLOCK_SIZE = 64  # minimum sensible block size
 MAX_K_BLOCKS = 1_000_000  # 1M blocks max

@@ -2,6 +2,7 @@
 Tests for meow_decoder.cat_errors module.
 Cat-themed error handling, decorators, and pun utilities.
 """
+
 import os
 import sys
 import warnings
@@ -21,6 +22,7 @@ class TestCatExceptions:
 
     def test_meow_error_basic(self):
         from meow_decoder.cat_errors import MeowError
+
         e = MeowError("yarn tangled")
         assert "😿" in str(e)
         assert "Meow!" in str(e)
@@ -28,54 +30,72 @@ class TestCatExceptions:
 
     def test_meow_error_with_original(self):
         from meow_decoder.cat_errors import MeowError
+
         orig = ValueError("bad value")
         e = MeowError("wrapping error", original=orig)
         assert e.original is orig
 
     def test_catastrophic_error(self):
         from meow_decoder.cat_errors import CatastrophicError
+
         e = CatastrophicError("system failure")
         assert "🙀" in str(e)
         assert "CATASTROPHE!" in str(e)
 
     def test_hairball_error(self):
         from meow_decoder.cat_errors import HairballError
+
         e = HairballError("data corrupted")
         assert "😾" in str(e)
         assert "Hairball!" in str(e)
 
     def test_scratch_error(self):
         from meow_decoder.cat_errors import ScratchError
+
         e = ScratchError("auth denied")
         assert "😼" in str(e)
         assert "Scratch!" in str(e)
 
     def test_yarn_tangle_error(self):
         from meow_decoder.cat_errors import YarnTangleError
+
         e = YarnTangleError("config invalid")
         assert "😿" in str(e)
         assert "tangled" in str(e).lower()
 
     def test_kibble_shortage_error(self):
         from meow_decoder.cat_errors import KibbleShortageError
+
         e = KibbleShortageError("not enough data")
         assert "🐱" in str(e)
         assert "Kibble" in str(e)
 
     def test_nap_interrupt_error(self):
         from meow_decoder.cat_errors import NapInterruptError
+
         e = NapInterruptError("operation too slow")
         assert "😴" in str(e)
         assert "Nap" in str(e)
 
     def test_exceptions_inherit_from_meow_error(self):
         from meow_decoder.cat_errors import (
-            MeowError, CatastrophicError, HairballError,
-            ScratchError, YarnTangleError, KibbleShortageError,
+            MeowError,
+            CatastrophicError,
+            HairballError,
+            ScratchError,
+            YarnTangleError,
+            KibbleShortageError,
             NapInterruptError,
         )
-        for cls in [CatastrophicError, HairballError, ScratchError,
-                    YarnTangleError, KibbleShortageError, NapInterruptError]:
+
+        for cls in [
+            CatastrophicError,
+            HairballError,
+            ScratchError,
+            YarnTangleError,
+            KibbleShortageError,
+            NapInterruptError,
+        ]:
             assert issubclass(cls, MeowError)
             assert issubclass(cls, Exception)
 
@@ -88,34 +108,41 @@ class TestFurBallError:
 
     def test_known_key(self):
         from meow_decoder.cat_errors import fur_ball_error
+
         msg = fur_ball_error("wrong_password", suggestion=False)
         assert "HISS" in msg
         assert "collar tag" in msg.lower()
 
     def test_unknown_key_fallback(self):
         from meow_decoder.cat_errors import fur_ball_error
+
         msg = fur_ball_error("totally_nonexistent_key", suggestion=False)
         assert "😿" in msg
         assert "wrong" in msg.lower() or "confused" in msg.lower()
 
     def test_with_kwargs(self):
         from meow_decoder.cat_errors import fur_ball_error
+
         msg = fur_ball_error("not_enough_droplets", suggestion=False, count=42)
         assert "42" in msg
 
     def test_with_suggestion(self):
         from meow_decoder.cat_errors import fur_ball_error
+
         msg = fur_ball_error("file_not_found", suggestion=True)
         assert "💡" in msg  # suggestion included
 
     def test_all_known_keys_render(self):
         from meow_decoder.cat_errors import fur_ball_error, _CAT_ERROR_MESSAGES
+
         for key in _CAT_ERROR_MESSAGES:
             if "{" in _CAT_ERROR_MESSAGES[key]:
                 continue  # skip template-requiring keys
             msg = fur_ball_error(key, suggestion=False)
             assert len(msg) > 0
-            assert any(e in msg for e in ["😿", "😾", "😼", "🙀", "🐱", "🔮", "🔑", "📹", "🚨", "😴", "🌿"])
+            assert any(
+                e in msg for e in ["😿", "😾", "😼", "🙀", "🐱", "🔮", "🔑", "📹", "🚨", "😴", "🌿"]
+            )
 
 
 # ═══════════════════════════════════════════════════════════════
@@ -216,15 +243,18 @@ class TestWhiskerValidate:
 
     def test_passes_on_true(self):
         from meow_decoder.cat_errors import whisker_validate
+
         whisker_validate(True, "wrong_password")  # should not raise
 
     def test_raises_on_false(self):
         from meow_decoder.cat_errors import whisker_validate, YarnTangleError
+
         with pytest.raises(YarnTangleError, match="HISS"):
             whisker_validate(False, "wrong_password")
 
     def test_raises_with_kwargs(self):
         from meow_decoder.cat_errors import whisker_validate, YarnTangleError
+
         with pytest.raises(YarnTangleError, match="42"):
             whisker_validate(False, "not_enough_droplets", count=42)
 
@@ -237,6 +267,7 @@ class TestLitterBoxCleanup:
 
     def test_zeros_bytearray(self):
         from meow_decoder.cat_errors import litter_box_cleanup
+
         buf = bytearray(b"\xff" * 32)
         with litter_box_cleanup(buf):
             assert buf == bytearray(b"\xff" * 32)  # untouched inside
@@ -244,6 +275,7 @@ class TestLitterBoxCleanup:
 
     def test_zeros_on_exception(self):
         from meow_decoder.cat_errors import litter_box_cleanup
+
         buf = bytearray(b"\xaa" * 16)
         with pytest.raises(ValueError):
             with litter_box_cleanup(buf):
@@ -252,6 +284,7 @@ class TestLitterBoxCleanup:
 
     def test_multiple_buffers(self):
         from meow_decoder.cat_errors import litter_box_cleanup
+
         a = bytearray(b"\x11" * 8)
         b = bytearray(b"\x22" * 8)
         with litter_box_cleanup(a, b):
@@ -268,12 +301,14 @@ class TestOutputHelpers:
 
     def test_meow_wrap_returns_string(self):
         from meow_decoder.cat_errors import meow_wrap
+
         result = meow_wrap("hello", emoji="🐱")
         assert result == "🐱 hello"
 
     def test_meow_wrap_prints_to_file(self, capsys):
         from meow_decoder.cat_errors import meow_wrap
         import io
+
         buf = io.StringIO()
         meow_wrap("printed!", emoji="😸", file=buf)
         assert "😸 printed!" in buf.getvalue()
@@ -281,6 +316,7 @@ class TestOutputHelpers:
     def test_hiss_error(self, capsys):
         from meow_decoder.cat_errors import hiss_error
         import io
+
         buf = io.StringIO()
         hiss_error("something broke", file=buf)
         assert "😾" in buf.getvalue()
@@ -289,6 +325,7 @@ class TestOutputHelpers:
     def test_purr_success(self, capsys):
         from meow_decoder.cat_errors import purr_success
         import io
+
         buf = io.StringIO()
         purr_success("encoding done", file=buf)
         assert "😻" in buf.getvalue()
@@ -297,6 +334,7 @@ class TestOutputHelpers:
     def test_claw_mark_debug_on(self):
         from meow_decoder.cat_errors import claw_mark
         import io
+
         buf = io.StringIO()
         with patch.dict(os.environ, {"MEOW_DEBUG": "1"}):
             claw_mark("trace message", file=buf)
@@ -305,6 +343,7 @@ class TestOutputHelpers:
     def test_claw_mark_debug_off(self):
         from meow_decoder.cat_errors import claw_mark
         import io
+
         buf = io.StringIO()
         with patch.dict(os.environ, {}, clear=True):
             os.environ.pop("MEOW_DEBUG", None)
@@ -314,6 +353,7 @@ class TestOutputHelpers:
     def test_purr_status_cat_mode_on(self):
         from meow_decoder.cat_errors import purr_status
         import io
+
         buf = io.StringIO()
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "1"}):
             purr_status("scanning frames", verbose=True, file=buf)
@@ -322,6 +362,7 @@ class TestOutputHelpers:
     def test_purr_status_cat_mode_off(self):
         from meow_decoder.cat_errors import purr_status
         import io
+
         buf = io.StringIO()
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "0"}):
             purr_status("scanning frames", verbose=True, file=buf)
@@ -385,6 +426,7 @@ class TestCatNapTimeout:
         @cat_nap_timeout(1.0)
         def slow():
             import time
+
             time.sleep(10)
 
         with pytest.raises(NapInterruptError, match="fell asleep"):
@@ -399,6 +441,7 @@ class TestTailSwishProgress:
 
     def test_iterates_all_items(self):
         from meow_decoder.cat_errors import tail_swish_progress
+
         items = list(range(20))
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "1"}):
             result = list(tail_swish_progress(items, desc="test", verbose=True))
@@ -406,6 +449,7 @@ class TestTailSwishProgress:
 
     def test_cat_mode_off_still_iterates(self):
         from meow_decoder.cat_errors import tail_swish_progress
+
         items = [1, 2, 3]
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "0"}):
             result = list(tail_swish_progress(items, verbose=True))
@@ -420,26 +464,31 @@ class TestCatTranslateError:
 
     def test_known_pattern_password(self):
         from meow_decoder.cat_errors import cat_translate_error
+
         msg = cat_translate_error(ValueError("Password cannot be empty"))
         assert "😾" in msg or "HISS" in msg
 
     def test_known_pattern_nonce(self):
         from meow_decoder.cat_errors import cat_translate_error
+
         msg = cat_translate_error(RuntimeError("Nonce reuse detected!"))
         assert "🙀" in msg
 
     def test_known_pattern_no_frames(self):
         from meow_decoder.cat_errors import cat_translate_error
+
         msg = cat_translate_error(ValueError("No frames found in GIF"))
         assert "😿" in msg
 
     def test_known_pattern_hmac(self):
         from meow_decoder.cat_errors import cat_translate_error
+
         msg = cat_translate_error(ValueError("HMAC verification failed"))
         assert "😾" in msg
 
     def test_unknown_pattern_fallback(self):
         from meow_decoder.cat_errors import cat_translate_error
+
         msg = cat_translate_error(RuntimeError("xyzzy totally unknown"))
         assert "😿" in msg
         assert "confused" in msg.lower() or "wrong" in msg.lower()
@@ -484,16 +533,19 @@ class TestCatModeDetection:
 
     def test_default_is_on(self):
         from meow_decoder.cat_errors import _cat_mode_enabled
+
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "1"}):
             assert _cat_mode_enabled() is True
 
     def test_explicit_off(self):
         from meow_decoder.cat_errors import _cat_mode_enabled
+
         with patch.dict(os.environ, {"MEOW_CAT_MODE": "0"}):
             assert _cat_mode_enabled() is False
 
     def test_missing_env_defaults_off(self):
         from meow_decoder.cat_errors import _cat_mode_enabled
+
         env = os.environ.copy()
         env.pop("MEOW_CAT_MODE", None)
         with patch.dict(os.environ, env, clear=True):

@@ -13,6 +13,7 @@ def _fake_dpg_module():
     class _Ctx:
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             return False
 
@@ -44,12 +45,16 @@ def _fake_dpg_module():
 
 def test_logo_eyes_visible_and_stego_frames(tmp_path):
     qr = Image.new("RGB", (50, 50), (255, 255, 255))
-    config = logo_eyes.LogoConfig(scale=1.0, visible_qr=True, logo_path=str(tmp_path / "missing.png"))
+    config = logo_eyes.LogoConfig(
+        scale=1.0, visible_qr=True, logo_path=str(tmp_path / "missing.png")
+    )
     encoder = logo_eyes.LogoEyesEncoder(config)
     frame = encoder.generate_frame(qr, 0)
     assert frame.size == (encoder.width, encoder.height)
 
-    config_stego = logo_eyes.LogoConfig(scale=1.0, visible_qr=False, logo_path=str(tmp_path / "missing.png"))
+    config_stego = logo_eyes.LogoConfig(
+        scale=1.0, visible_qr=False, logo_path=str(tmp_path / "missing.png")
+    )
     encoder_stego = logo_eyes.LogoEyesEncoder(config_stego)
     frame_stego = encoder_stego.generate_frame(qr, 0)
     assert frame_stego.size == (encoder_stego.width, encoder_stego.height)
@@ -57,7 +62,9 @@ def test_logo_eyes_visible_and_stego_frames(tmp_path):
 
 def test_decode_from_logo_eyes_returns_frames(tmp_path):
     qr = Image.new("RGB", (50, 50), (255, 255, 255))
-    config = logo_eyes.LogoConfig(scale=1.0, visible_qr=True, logo_path=str(tmp_path / "missing.png"))
+    config = logo_eyes.LogoConfig(
+        scale=1.0, visible_qr=True, logo_path=str(tmp_path / "missing.png")
+    )
     frames = logo_eyes.encode_with_logo_eyes([qr], config=config)
     extracted = logo_eyes.decode_from_logo_eyes(frames, config=config, lsb_bits=1)
     assert len(extracted) == 1

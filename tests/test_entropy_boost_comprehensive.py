@@ -49,6 +49,7 @@ from meow_decoder.entropy_boost import (
 # Fixtures
 # =============================================================================
 
+
 @pytest.fixture
 def cat_entropy_pool():
     """Fresh entropy pool for each test."""
@@ -75,6 +76,7 @@ def tmp_hwrng(tmp_path):
 # TestCatEntropyPoolInit - Pool Initialization Tests
 # =============================================================================
 
+
 class TestCatEntropyPoolInit:
     """Tests for EntropyPool initialization."""
 
@@ -94,9 +96,9 @@ class TestCatEntropyPoolInit:
         """Multiple pools should be independent."""
         pool1 = EntropyPool()
         pool2 = EntropyPool()
-        
+
         pool1.add_system_entropy(32)
-        
+
         assert pool1.get_source_count() == 2  # secrets + urandom
         assert pool2.get_source_count() == 0
 
@@ -108,6 +110,7 @@ class TestCatEntropyPoolInit:
 # =============================================================================
 # TestCatEntropyPoolSystemEntropy - System Entropy Tests
 # =============================================================================
+
 
 class TestCatEntropyPoolSystemEntropy:
     """Tests for add_system_entropy method."""
@@ -146,6 +149,7 @@ class TestCatEntropyPoolSystemEntropy:
 # TestCatEntropyPoolTimingEntropy - Timing Entropy Tests
 # =============================================================================
 
+
 class TestCatEntropyPoolTimingEntropy:
     """Tests for add_timing_entropy method."""
 
@@ -168,10 +172,10 @@ class TestCatEntropyPoolTimingEntropy:
         """Timing entropy should vary between calls."""
         pool1 = EntropyPool()
         pool2 = EntropyPool()
-        
+
         pool1.add_timing_entropy(50)
         pool2.add_timing_entropy(50)
-        
+
         # Should be different (timing varies)
         assert pool1.sources[0] != pool2.sources[0]
 
@@ -185,6 +189,7 @@ class TestCatEntropyPoolTimingEntropy:
 # =============================================================================
 # TestCatEntropyPoolEnvironmentEntropy - Environment Entropy Tests
 # =============================================================================
+
 
 class TestCatEntropyPoolEnvironmentEntropy:
     """Tests for add_environment_entropy method."""
@@ -215,10 +220,10 @@ class TestCatEntropyPoolEnvironmentEntropy:
         pool1 = EntropyPool()
         time.sleep(0.001)  # Brief delay to change time
         pool2 = EntropyPool()
-        
+
         pool1.add_environment_entropy()
         pool2.add_environment_entropy()
-        
+
         # Time-based components should differ
         assert pool1.sources[0] != pool2.sources[0]
 
@@ -227,50 +232,51 @@ class TestCatEntropyPoolEnvironmentEntropy:
 # TestCatEntropyPoolUserEntropy - User Input Entropy Tests
 # =============================================================================
 
+
 class TestCatEntropyPoolUserEntropy:
     """Tests for add_user_entropy method."""
 
     def test_cat_fallback_input(self, cat_entropy_pool, monkeypatch):
         """Should use fallback input on Windows/non-TTY."""
         # Mock input() to return test string
-        monkeypatch.setattr('builtins.input', lambda: "test_input_string")
-        
+        monkeypatch.setattr("builtins.input", lambda: "test_input_string")
+
         # Mock tty import to fail
-        with patch.dict(sys.modules, {'tty': None}):
+        with patch.dict(sys.modules, {"tty": None}):
             # Capture stdout
-            with patch('sys.stdout', new_callable=StringIO):
+            with patch("sys.stdout", new_callable=StringIO):
                 cat_entropy_pool.add_user_entropy("Test: ")
-        
+
         assert cat_entropy_pool.get_source_count() == 1
         assert len(cat_entropy_pool.sources[0]) == 32
 
     def test_cat_empty_input(self, cat_entropy_pool, monkeypatch):
         """Should handle empty user input."""
-        monkeypatch.setattr('builtins.input', lambda: "")
-        
-        with patch.dict(sys.modules, {'tty': None}):
-            with patch('sys.stdout', new_callable=StringIO):
+        monkeypatch.setattr("builtins.input", lambda: "")
+
+        with patch.dict(sys.modules, {"tty": None}):
+            with patch("sys.stdout", new_callable=StringIO):
                 cat_entropy_pool.add_user_entropy("Test: ")
-        
+
         assert cat_entropy_pool.get_source_count() == 1
 
     def test_cat_unicode_input(self, cat_entropy_pool, monkeypatch):
         """Should handle unicode user input."""
-        monkeypatch.setattr('builtins.input', lambda: "🐱😺🙀")
-        
-        with patch.dict(sys.modules, {'tty': None}):
-            with patch('sys.stdout', new_callable=StringIO):
+        monkeypatch.setattr("builtins.input", lambda: "🐱😺🙀")
+
+        with patch.dict(sys.modules, {"tty": None}):
+            with patch("sys.stdout", new_callable=StringIO):
                 cat_entropy_pool.add_user_entropy("Test: ")
-        
+
         assert cat_entropy_pool.get_source_count() == 1
 
     def test_cat_custom_prompt(self, cat_entropy_pool, monkeypatch, capsys):
         """Should display custom prompt."""
-        monkeypatch.setattr('builtins.input', lambda: "test")
-        
-        with patch.dict(sys.modules, {'tty': None}):
+        monkeypatch.setattr("builtins.input", lambda: "test")
+
+        with patch.dict(sys.modules, {"tty": None}):
             cat_entropy_pool.add_user_entropy("Enter cat name: ")
-        
+
         captured = capsys.readouterr()
         assert "Enter cat name:" in captured.out
 
@@ -279,68 +285,69 @@ class TestCatEntropyPoolUserEntropy:
 # TestCatEntropyPoolHardwareEntropy - Hardware RNG Tests
 # =============================================================================
 
+
 class TestCatEntropyPoolHardwareEntropy:
     """Tests for add_hardware_entropy method."""
 
     def test_cat_no_hwrng_returns_false(self, cat_entropy_pool):
         """Should return False when /dev/hwrng doesn't exist."""
-        with patch('meow_decoder.entropy_boost.Path') as mock_path:
+        with patch("meow_decoder.entropy_boost.Path") as mock_path:
             mock_path.return_value.exists.return_value = False
             result = cat_entropy_pool.add_hardware_entropy(32)
-        
+
         assert result is False
         assert cat_entropy_pool.get_source_count() == 0
 
     def test_cat_hwrng_permission_error(self, cat_entropy_pool):
         """Should handle permission denied gracefully."""
-        with patch('meow_decoder.entropy_boost.Path') as mock_path:
+        with patch("meow_decoder.entropy_boost.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
             mock_open = MagicMock(side_effect=PermissionError)
-            
-            with patch('builtins.open', mock_open):
+
+            with patch("builtins.open", mock_open):
                 result = cat_entropy_pool.add_hardware_entropy(32)
-        
+
         assert result is False
 
     def test_cat_hwrng_io_error(self, cat_entropy_pool):
         """Should handle IO errors gracefully."""
-        with patch('meow_decoder.entropy_boost.Path') as mock_path:
+        with patch("meow_decoder.entropy_boost.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
             mock_open = MagicMock(side_effect=IOError)
-            
-            with patch('builtins.open', mock_open):
+
+            with patch("builtins.open", mock_open):
                 result = cat_entropy_pool.add_hardware_entropy(32)
-        
+
         assert result is False
 
     def test_cat_hwrng_short_read(self, cat_entropy_pool):
         """Should reject short reads from hwrng."""
-        with patch('meow_decoder.entropy_boost.Path') as mock_path:
+        with patch("meow_decoder.entropy_boost.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
-            
+
             mock_file = MagicMock()
             mock_file.read.return_value = b"short"  # Only 5 bytes
             mock_file.__enter__ = Mock(return_value=mock_file)
             mock_file.__exit__ = Mock(return_value=False)
-            
-            with patch('builtins.open', return_value=mock_file):
+
+            with patch("builtins.open", return_value=mock_file):
                 result = cat_entropy_pool.add_hardware_entropy(32)
-        
+
         assert result is False
 
     def test_cat_hwrng_success(self, cat_entropy_pool):
         """Should add entropy when hwrng works correctly."""
-        with patch('meow_decoder.entropy_boost.Path') as mock_path:
+        with patch("meow_decoder.entropy_boost.Path") as mock_path:
             mock_path.return_value.exists.return_value = True
-            
+
             mock_file = MagicMock()
             mock_file.read.return_value = secrets.token_bytes(32)
             mock_file.__enter__ = Mock(return_value=mock_file)
             mock_file.__exit__ = Mock(return_value=False)
-            
-            with patch('builtins.open', return_value=mock_file):
+
+            with patch("builtins.open", return_value=mock_file):
                 result = cat_entropy_pool.add_hardware_entropy(32)
-        
+
         assert result is True
         assert cat_entropy_pool.get_source_count() == 1
 
@@ -349,16 +356,17 @@ class TestCatEntropyPoolHardwareEntropy:
 # TestCatEntropyPoolWebcamNoise - Webcam Entropy Tests
 # =============================================================================
 
+
 class TestCatEntropyPoolWebcamNoise:
     """Tests for add_webcam_noise method."""
 
     def test_cat_no_opencv_returns_false(self, cat_entropy_pool):
         """Should return False when opencv not available."""
-        with patch.dict(sys.modules, {'cv2': None}):
+        with patch.dict(sys.modules, {"cv2": None}):
             # Force import error
-            with patch('builtins.__import__', side_effect=ImportError):
+            with patch("builtins.__import__", side_effect=ImportError):
                 result = cat_entropy_pool.add_webcam_noise(5)
-        
+
         assert result is False
 
     def test_cat_camera_not_opened_returns_false(self, cat_entropy_pool):
@@ -367,13 +375,14 @@ class TestCatEntropyPoolWebcamNoise:
         mock_cap = MagicMock()
         mock_cap.isOpened.return_value = False
         mock_cv2.VideoCapture.return_value = mock_cap
-        
-        with patch.dict(sys.modules, {'cv2': mock_cv2}):
+
+        with patch.dict(sys.modules, {"cv2": mock_cv2}):
             import importlib
-            with patch('meow_decoder.entropy_boost.cv2', mock_cv2, create=True):
+
+            with patch("meow_decoder.entropy_boost.cv2", mock_cv2, create=True):
                 # Mock import cv2 inside the method
                 result = cat_entropy_pool.add_webcam_noise(5)
-        
+
         # Since cv2 import is inside method, we can't easily mock it
         # This test verifies the except clause handles ImportError
         assert result is False  # ImportError path
@@ -388,6 +397,7 @@ class TestCatEntropyPoolWebcamNoise:
 # =============================================================================
 # TestCatEntropyPoolMixEntropy - Entropy Mixing Tests
 # =============================================================================
+
 
 class TestCatEntropyPoolMixEntropy:
     """Tests for mix_entropy method."""
@@ -420,7 +430,7 @@ class TestCatEntropyPoolMixEntropy:
         cat_entropy_pool.add_system_entropy(32)
         cat_entropy_pool.add_timing_entropy(10)
         cat_entropy_pool.add_environment_entropy()
-        
+
         assert cat_entropy_pool.get_source_count() >= 4
         result = cat_entropy_pool.mix_entropy(32)
         assert len(result) == 32
@@ -429,6 +439,7 @@ class TestCatEntropyPoolMixEntropy:
 # =============================================================================
 # TestCatCollectEnhancedEntropy - Main Function Tests
 # =============================================================================
+
 
 class TestCatCollectEnhancedEntropy:
     """Tests for collect_enhanced_entropy function."""
@@ -454,7 +465,7 @@ class TestCatCollectEnhancedEntropy:
         """Verbose mode should print progress."""
         result = collect_enhanced_entropy(32, verbose=True)
         captured = capsys.readouterr()
-        
+
         assert "🎲" in captured.out or "Collecting" in captured.out
         assert len(result) == 32
 
@@ -480,6 +491,7 @@ class TestCatCollectEnhancedEntropy:
 # =============================================================================
 # TestCatGenerateHelpers - Salt and Nonce Helpers
 # =============================================================================
+
 
 class TestCatGenerateHelpers:
     """Tests for generate_enhanced_salt and generate_enhanced_nonce."""
@@ -531,16 +543,17 @@ class TestCatGenerateHelpers:
 # TestCatEntropyQuality - Quality and Distribution Tests
 # =============================================================================
 
+
 class TestCatEntropyQuality:
     """Tests for entropy quality and statistical properties."""
 
     def test_cat_byte_distribution(self):
         """Entropy should have reasonable byte distribution."""
         from collections import Counter
-        
+
         sample = collect_enhanced_entropy(1000)
         counts = Counter(sample)
-        
+
         # Should have many unique bytes (good spread)
         unique_bytes = len(counts)
         assert unique_bytes > 200  # At least 200 of 256 possible
@@ -548,13 +561,10 @@ class TestCatEntropyQuality:
     def test_cat_no_obvious_patterns(self):
         """Entropy should not have obvious repeating patterns."""
         sample = collect_enhanced_entropy(256)
-        
+
         # Check for consecutive repeated bytes
-        consecutive_same = sum(
-            1 for i in range(len(sample) - 1) 
-            if sample[i] == sample[i + 1]
-        )
-        
+        consecutive_same = sum(1 for i in range(len(sample) - 1) if sample[i] == sample[i + 1])
+
         # Should not have too many consecutive same bytes
         assert consecutive_same < 10
 
@@ -562,7 +572,7 @@ class TestCatEntropyQuality:
         """Average byte value should be near 127.5."""
         sample = collect_enhanced_entropy(10000)
         average = sum(sample) / len(sample)
-        
+
         # Should be close to expected mean of uniform distribution
         assert 115 < average < 140
 
@@ -570,16 +580,13 @@ class TestCatEntropyQuality:
         """Shannon entropy should be high."""
         import math
         from collections import Counter
-        
+
         sample = collect_enhanced_entropy(10000)
         counts = Counter(sample)
-        
+
         total = len(sample)
-        entropy = -sum(
-            (count / total) * math.log2(count / total)
-            for count in counts.values()
-        )
-        
+        entropy = -sum((count / total) * math.log2(count / total) for count in counts.values())
+
         # Max entropy for 256 symbols is 8 bits
         # Good random data should be close to 8
         assert entropy > 7.5
@@ -588,6 +595,7 @@ class TestCatEntropyQuality:
 # =============================================================================
 # TestCatEdgeCases - Edge Cases and Error Handling
 # =============================================================================
+
 
 class TestCatEdgeCases:
     """Tests for edge cases and error conditions."""
@@ -608,28 +616,28 @@ class TestCatEdgeCases:
         pool = EntropyPool()
         pool.add_system_entropy(32)
         result = pool.mix_entropy(0)
-        assert result == b''
+        assert result == b""
 
     def test_cat_proc_not_available(self, cat_entropy_pool, monkeypatch):
         """Should handle missing /proc gracefully."""
         # Mock Path to make /proc not exist
         original_path = Path
-        
+
         class MockPath:
             def __init__(self, p):
                 self.p = p
-            
+
             def exists(self):
-                if '/proc' in str(self.p):
+                if "/proc" in str(self.p):
                     return False
                 return original_path(self.p).exists()
-            
+
             def read_bytes(self):
                 return original_path(self.p).read_bytes()
-        
-        with patch('meow_decoder.entropy_boost.Path', MockPath):
+
+        with patch("meow_decoder.entropy_boost.Path", MockPath):
             cat_entropy_pool.add_environment_entropy()
-        
+
         assert cat_entropy_pool.get_source_count() == 1
 
     def test_cat_gc_import_fails(self, cat_entropy_pool):
@@ -642,6 +650,7 @@ class TestCatEdgeCases:
 # =============================================================================
 # TestCatSecurityInvariants - Security Property Tests
 # =============================================================================
+
 
 class TestCatSecurityInvariants:
     """Tests for security invariants."""
@@ -664,15 +673,15 @@ class TestCatSecurityInvariants:
         """Different lengths should produce different output."""
         r16 = collect_enhanced_entropy(16)
         r32 = collect_enhanced_entropy(32)
-        
+
         # First 16 bytes should not match
         assert r16 != r32[:16]
 
     def test_cat_entropy_pool_sources_not_leaked(self, cat_populated_pool):
         """Mixed output should not directly contain source bytes."""
-        sources_combined = b''.join(cat_populated_pool.sources)
+        sources_combined = b"".join(cat_populated_pool.sources)
         output = cat_populated_pool.mix_entropy(32)
-        
+
         # Output should not be a substring of sources
         assert output not in sources_combined
 
@@ -680,6 +689,7 @@ class TestCatSecurityInvariants:
 # =============================================================================
 # TestCatMocked - Mock-Based Tests for Full Coverage
 # =============================================================================
+
 
 class TestCatMocked:
     """Mock-based tests for hard-to-reach code paths."""
@@ -690,37 +700,37 @@ class TestCatMocked:
         mock_termios = MagicMock()
         mock_termios.tcgetattr.return_value = {}
         mock_termios.error = Exception
-        
+
         # Mock stdin
         mock_stdin = MagicMock()
         mock_stdin.fileno.return_value = 0
-        chars = iter(['a', 'b', 'c', '\n'])
+        chars = iter(["a", "b", "c", "\n"])
         mock_stdin.read = lambda n: next(chars)
-        
-        with patch.dict(sys.modules, {'tty': mock_tty, 'termios': mock_termios}):
-            with patch('sys.stdin', mock_stdin):
-                with patch('sys.stdout', new_callable=StringIO):
+
+        with patch.dict(sys.modules, {"tty": mock_tty, "termios": mock_termios}):
+            with patch("sys.stdin", mock_stdin):
+                with patch("sys.stdout", new_callable=StringIO):
                     pool = EntropyPool()
                     # This should hit the termios path
                     pool.add_user_entropy("Test: ")
-        
+
         assert pool.get_source_count() == 1
 
     def test_cat_verbose_all_sources(self, capsys):
         """Verbose mode should report all source collections."""
         result = collect_enhanced_entropy(32, verbose=True, use_webcam=True)
         captured = capsys.readouterr()
-        
+
         # Should mention various entropy sources
         assert "entropy" in captured.out.lower()
 
     def test_cat_interactive_flow(self, monkeypatch, capsys):
         """Test interactive mode flow."""
-        monkeypatch.setattr('builtins.input', lambda: "cat_entropy_input")
-        
-        with patch.dict(sys.modules, {'tty': None}):
+        monkeypatch.setattr("builtins.input", lambda: "cat_entropy_input")
+
+        with patch.dict(sys.modules, {"tty": None}):
             result = collect_enhanced_entropy(32, interactive=True, verbose=True)
-        
+
         captured = capsys.readouterr()
         assert len(result) == 32
 
@@ -728,7 +738,7 @@ class TestCatMocked:
         """HKDF should use proper domain separation."""
         # The info parameter should be "meow_entropy_boost_v1"
         result = cat_populated_pool.mix_entropy(32)
-        
+
         # Result should be valid (HKDF ran successfully)
         assert len(result) == 32
 
@@ -736,6 +746,7 @@ class TestCatMocked:
 # =============================================================================
 # TestCatParameterized - Parameterized Tests
 # =============================================================================
+
 
 class TestCatParameterized:
     """Parameterized tests for various configurations."""
@@ -767,22 +778,23 @@ class TestCatParameterized:
 # TestCatIntegration - Integration Tests
 # =============================================================================
 
+
 class TestCatIntegration:
     """Integration tests for complete workflows."""
 
     def test_cat_full_entropy_collection(self):
         """Test full entropy collection with all non-interactive sources."""
         pool = EntropyPool()
-        
+
         # Add all available sources
         pool.add_system_entropy(32)
         pool.add_timing_entropy(100)
         pool.add_environment_entropy()
         pool.add_hardware_entropy(32)  # May fail, that's OK
-        
+
         # Should have at least 4 sources (2 system + 1 timing + 1 env)
         assert pool.get_source_count() >= 4
-        
+
         # Mix and verify
         result = pool.mix_entropy(32)
         assert len(result) == 32
@@ -791,41 +803,36 @@ class TestCatIntegration:
         """Entropy should be suitable for cryptographic use."""
         # Generate salt for key derivation
         salt = generate_enhanced_salt()
-        
+
         # Use in HKDF-like operation
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes
-        
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            info=b"test"
-        )
-        
+
+        hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"test")
+
         derived = hkdf.derive(b"password")
         assert len(derived) == 32
 
     def test_cat_concurrent_collection(self):
         """Multiple pools should work concurrently."""
         import threading
-        
+
         results = []
         errors = []
-        
+
         def collect():
             try:
                 result = collect_enhanced_entropy(32)
                 results.append(result)
             except Exception as e:
                 errors.append(e)
-        
+
         threads = [threading.Thread(target=collect) for _ in range(5)]
         for t in threads:
             t.start()
         for t in threads:
             t.join()
-        
+
         assert len(errors) == 0
         assert len(results) == 5
         # All results should be unique

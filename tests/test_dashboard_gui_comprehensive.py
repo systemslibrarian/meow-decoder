@@ -9,6 +9,7 @@ def _install_fake_dpg():
     class _Ctx:
         def __enter__(self):
             return self
+
         def __exit__(self, *args):
             return False
 

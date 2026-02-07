@@ -152,8 +152,7 @@ class TestDetectionHelpers:
             return path in {"/dev/tpm0", "/dev/tpmrm0"}
 
         tpm_output = (
-            "TPM2_PT_FAMILY_INDICATOR: value: \"2.0\"\n"
-            "TPM2_PT_MANUFACTURER: value: \"TEST\"\n"
+            'TPM2_PT_FAMILY_INDICATOR: value: "2.0"\n' 'TPM2_PT_MANUFACTURER: value: "TEST"\n'
         )
 
         def fake_run_cmd(cmd, timeout=5):
@@ -218,7 +217,11 @@ class TestDetectionHelpers:
         sentinel = _caps(hsm_available=True)
         provider._capabilities = sentinel
 
-        monkeypatch.setattr(provider, "_detect_hsm", lambda caps: (_ for _ in ()).throw(RuntimeError("should not run")))
+        monkeypatch.setattr(
+            provider,
+            "_detect_hsm",
+            lambda caps: (_ for _ in ()).throw(RuntimeError("should not run")),
+        )
         assert provider.detect_all() is sentinel
 
     def test_detect_all_runs_detectors(self, monkeypatch):
@@ -342,7 +345,7 @@ class TestDetectionHelpers:
             return path == "/dev/tpmrm0"
 
         def fake_run_cmd(cmd, timeout=5):
-            return True, "TPM2_PT_FAMILY_INDICATOR: value: \"\"\n"
+            return True, 'TPM2_PT_FAMILY_INDICATOR: value: ""\n'
 
         monkeypatch.setattr(hw.os.path, "exists", fake_exists)
         monkeypatch.setattr(provider, "_run_cmd", fake_run_cmd)
@@ -444,7 +447,9 @@ class TestDeriveKeyAuto:
         monkeypatch.setattr(provider, "detect_all", lambda: _caps(yubikey_available=True))
         monkeypatch.setattr(provider, "derive_key_yubikey_piv", lambda *args, **kwargs: b"y" * 32)
 
-        key, hw_type = provider.derive_key_auto(b"pw", b"s" * 16, prefer=hw.HardwareType.YUBIKEY_PIV)
+        key, hw_type = provider.derive_key_auto(
+            b"pw", b"s" * 16, prefer=hw.HardwareType.YUBIKEY_PIV
+        )
         assert key == b"y" * 32
         assert hw_type == hw.HardwareType.YUBIKEY_PIV
 
@@ -525,6 +530,7 @@ class TestProcessHardwareArgs:
 
         monkeypatch.setattr(hw, "HardwareSecurityProvider", DummyProvider)
         import getpass
+
         monkeypatch.setattr(getpass, "getpass", lambda prompt: "0000")
 
         args = SimpleNamespace(
@@ -922,7 +928,11 @@ class TestHardwareOperations:
 
     def test_hsm_generate_key_success(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
         monkeypatch.setattr(provider, "_run_cmd", lambda *args, **kwargs: (True, "ok"))
 
         key_id = provider.hsm_generate_key(slot=0, pin="1234")
@@ -930,7 +940,11 @@ class TestHardwareOperations:
 
     def test_hsm_generate_key_aes128(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
         monkeypatch.setattr(provider, "_run_cmd", lambda *args, **kwargs: (True, "ok"))
 
         key_id = provider.hsm_generate_key(slot=0, pin="1234", key_type="aes128")
@@ -945,7 +959,11 @@ class TestHardwareOperations:
 
     def test_hsm_generate_key_failure(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
         monkeypatch.setattr(provider, "_run_cmd", lambda *args, **kwargs: (False, "fail"))
 
         with pytest.raises(hw.HardwareOperationError):
@@ -953,7 +971,11 @@ class TestHardwareOperations:
 
     def test_hsm_derive_key_fallback_success(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
         provider._rust_backend = None
 
         def fake_run_cmd(cmd, timeout=5):
@@ -970,7 +992,11 @@ class TestHardwareOperations:
 
     def test_hsm_derive_key_fallback_failure(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
         provider._rust_backend = None
 
         monkeypatch.setattr(provider, "_run_cmd", lambda *args, **kwargs: (False, "fail"))
@@ -992,7 +1018,11 @@ class TestHardwareOperations:
 
     def test_hsm_derive_key_rust_backend_attribute_error(self, monkeypatch):
         provider = hw.HardwareSecurityProvider()
-        monkeypatch.setattr(provider, "detect_all", lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"))
+        monkeypatch.setattr(
+            provider,
+            "detect_all",
+            lambda: _caps(hsm_available=True, hsm_library_path="/tmp/lib.so"),
+        )
 
         class DummyRust:
             pass
@@ -1027,6 +1057,7 @@ class TestHardwareOperations:
                 return b"k" * 32
 
         import meow_decoder.crypto_backend as crypto_backend
+
         monkeypatch.setattr(crypto_backend, "get_default_backend", lambda: DummyBackend())
         key = provider._derive_key_software(b"pw", b"s" * 16)
         assert key == b"k" * 32
@@ -1048,6 +1079,7 @@ class TestHardwareOperations:
 
         monkeypatch.setattr(crypto_backend, "get_default_backend", raise_import_error)
         import cryptography.hazmat.primitives.kdf.argon2 as argon2_mod
+
         monkeypatch.setattr(argon2_mod, "Argon2id", DummyArgon2)
 
         key = provider._derive_key_software(b"pw", b"s" * 16)

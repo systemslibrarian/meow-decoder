@@ -8,6 +8,7 @@ Verifies:
   - Mismatched AAD causes decryption failure
   - Test vectors for regression detection
 """
+
 import os
 import struct
 import pytest
@@ -31,8 +32,8 @@ from meow_decoder.crypto import (
 
 # Fixed inputs for deterministic reference
 _SALT = bytes(range(16))  # 0x00..0x0f
-_SHA = bytes(range(32))   # 0x00..0x1f
-_EPK = bytes([0xAA] * 32) # all-0xAA ephemeral key
+_SHA = bytes(range(32))  # 0x00..0x1f
+_EPK = bytes([0xAA] * 32)  # all-0xAA ephemeral key
 
 
 class TestBuildCanonicalAAD:
@@ -62,7 +63,7 @@ class TestBuildCanonicalAAD:
         assert comp == 80
         assert aad[17:33] == _SALT
         assert aad[33:65] == _SHA
-        assert aad[65:65 + len(MAGIC)] == MAGIC
+        assert aad[65 : 65 + len(MAGIC)] == MAGIC
 
     def test_layout_with_ephemeral(self):
         """Ephemeral public key is appended at the end."""
@@ -124,7 +125,10 @@ class TestCanonicalAADRoundtrip:
             plaintext, password
         )
         pt = decrypt_to_raw(
-            ciphertext, password, salt, nonce,
+            ciphertext,
+            password,
+            salt,
+            nonce,
             orig_len=len(plaintext),
             comp_len=len(comp),
             sha256=sha256,
@@ -141,7 +145,10 @@ class TestCanonicalAADRoundtrip:
         )
         with pytest.raises(Exception):
             decrypt_to_raw(
-                ciphertext, "wrongwrongwrong", salt, nonce,
+                ciphertext,
+                "wrongwrongwrong",
+                salt,
+                nonce,
                 orig_len=len(plaintext),
                 comp_len=len(comp),
                 sha256=sha256,

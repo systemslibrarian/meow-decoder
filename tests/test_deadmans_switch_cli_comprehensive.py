@@ -65,15 +65,19 @@ def test_cmd_trigger_and_disable_confirm(tmp_path):
     gif_path.write_bytes(b"gif")
 
     state_file = gif_path.with_suffix(".deadman.json")
-    state_file.write_text(json.dumps({
-        "configured_at": "now",
-        "checkin_interval_seconds": 3600,
-        "grace_period_seconds": 3600,
-        "decoy_file": None,
-        "last_checkin": None,
-        "next_deadline": None,
-        "status": "armed",
-    }))
+    state_file.write_text(
+        json.dumps(
+            {
+                "configured_at": "now",
+                "checkin_interval_seconds": 3600,
+                "grace_period_seconds": 3600,
+                "decoy_file": None,
+                "last_checkin": None,
+                "next_deadline": None,
+                "status": "armed",
+            }
+        )
+    )
 
     args_trigger = SimpleNamespace(gif=str(gif_path), confirm=True)
     assert deadman.cmd_trigger(args_trigger) == 0

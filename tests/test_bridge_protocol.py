@@ -110,6 +110,7 @@ class TestParsing:
 
     def test_parse_frame(self):
         import base64
+
         payload = base64.b64encode(b"qr data").decode()
         raw = json.dumps({"type": "frame", "seq": 0, "qr_bytes_b64": payload, "timestamp_ms": 100})
         msg = parse_phone_message(raw)
@@ -137,27 +138,31 @@ class TestParsing:
         assert isinstance(msg, Ack)
 
     def test_parse_progress(self):
-        raw = json.dumps({
-            "type": "progress",
-            "frames_received": 5,
-            "frames_needed": 10,
-            "blocks_decoded": 3,
-            "blocks_total": 7,
-            "percent": 42.9,
-        })
+        raw = json.dumps(
+            {
+                "type": "progress",
+                "frames_received": 5,
+                "frames_needed": 10,
+                "blocks_decoded": 3,
+                "blocks_total": 7,
+                "percent": 42.9,
+            }
+        )
         msg = parse_cli_message(raw)
         assert isinstance(msg, Progress)
         assert msg.percent == 42.9
 
     def test_parse_result(self):
-        raw = json.dumps({
-            "type": "result",
-            "success": True,
-            "output_file": "out.pdf",
-            "output_size": 500,
-            "elapsed_s": 1.0,
-            "error": None,
-        })
+        raw = json.dumps(
+            {
+                "type": "result",
+                "success": True,
+                "output_file": "out.pdf",
+                "output_size": 500,
+                "elapsed_s": 1.0,
+                "error": None,
+            }
+        )
         msg = parse_cli_message(raw)
         assert isinstance(msg, Result)
         assert msg.success is True
