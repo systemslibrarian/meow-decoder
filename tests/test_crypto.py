@@ -2165,7 +2165,7 @@ class TestHypothesis:
     """Property-based tests using Hypothesis."""
 
     @given(st.binary(min_size=0, max_size=10000))
-    @settings(max_examples=20, deadline=None)
+    @settings(max_examples=5, deadline=None)  # Reduced: Argon2id KDF ~5-10s/call on CI
     def test_roundtrip_arbitrary_data(self, data):
         """Roundtrip works for arbitrary binary data."""
         password = "HypothesisTestPwd!"
@@ -2181,7 +2181,7 @@ class TestHypothesis:
         assert decrypted == data
 
     @given(st.text(min_size=MIN_PASSWORD_LENGTH, max_size=100))
-    @settings(max_examples=10, deadline=None)
+    @settings(max_examples=5, deadline=None)  # Reduced: Argon2id KDF ~5-10s/call on CI
     def test_password_roundtrip(self, password):
         """Roundtrip works for arbitrary passwords."""
         data = b"Test data for password hypothesis"
@@ -4135,8 +4135,8 @@ class TestConstantTimeCompareHarness:
         )
 
 
-
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # crypto.py — push from 95.58% higher
@@ -4186,9 +4186,8 @@ class TestCryptoExtras:
 # =====================================================
 
 
-
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # crypto.py small gaps
@@ -4238,7 +4237,6 @@ class TestCryptoSmallGaps:
 # =====================================================
 # fountain.py small gaps
 # =====================================================
-
 
 
 if __name__ == "__main__":

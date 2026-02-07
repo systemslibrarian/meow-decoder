@@ -67,8 +67,8 @@ hmac = { version = "0.12", optional = true }
 ml-kem = { version = "0.3.0-pre", optional = true, features = ["getrandom"] }
 
 # Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
-# Using 0.1.0-rc.4 (latest stable-ish release)
-ml-dsa = { version = "0.1.0-rc.4", optional = true }
+# Using >=0.1.0-rc.5 to fix GHSA-h37v-hp6w-2pp8 (off-by-two in UseHint)
+ml-dsa = { version = ">=0.1.0-rc.5", optional = true }
 
 # KEM traits for ml-kem (Generate, Encapsulate, Decapsulate)
 # Must match version expected by ml-kem (0.3.0-rc.2)

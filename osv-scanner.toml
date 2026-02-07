@@ -1,0 +1,93 @@
+# OSV-Scanner Vulnerability Ignore Configuration
+# https://google.github.io/osv-scanner/configuration/
+#
+# These advisories have been reviewed and determined to not affect this project
+# because the vulnerable code paths are never exercised. Each entry includes
+# evidence-based justification.
+#
+# Full analysis: docs/VULNERABILITY_REMEDIATION_2026-02-07.md
+# Last reviewed: 2026-02-07
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = """rsa crate Marvin Attack — transitive dep from optional `yubikey` feature. \
+Project uses YubiKey only for ECDH key derivation (yubikey_piv.rs); RSA encrypt/decrypt \
+code paths are never called. Also documented in deny.toml."""
+
+[[IgnoredVulns]]
+id = "GHSA-3ww4-gg4f-jr7f"
+reason = """cryptography Bleichenbacher timing oracle (RSA PKCS#1 v1.5) — project uses \
+only AES-256-GCM, HKDF, X25519, and Ed25519 from the cryptography package. No RSA \
+imports or API calls exist anywhere in the Python codebase."""
+
+[[IgnoredVulns]]
+id = "GHSA-9v9h-cgj8-h64p"
+reason = """cryptography PKCS12 NULL pointer dereference — project never uses PKCS12 \
+APIs. Zero references to pkcs12, load_key_and_certificates, or \
+serialize_key_and_certificates in any Python source file."""
+
+[[IgnoredVulns]]
+id = "GHSA-6vqw-3v5j-54x4"
+reason = """cryptography PKCS12 NULL pointer dereference (pkcs12.serialize_key_and_certificates) \
+— same as GHSA-9v9h-cgj8-h64p: no PKCS12 usage anywhere in the project."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2024-225"
+reason = """Alias for GHSA-6vqw-3v5j-54x4 — cryptography PKCS12 not used."""
+
+[[IgnoredVulns]]
+id = "GHSA-cf7p-gm2m-833m"
+reason = """cryptography SSH certificate mishandling — project never uses SSH certificate \
+APIs (SSHCertificate, load_ssh_public_key, etc.). Only string 'ssh' matches are in \
+unrelated docstrings."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2023-112"
+reason = """Alias for GHSA-cf7p-gm2m-833m — cryptography SSH certificate APIs not used."""
+
+[[IgnoredVulns]]
+id = "GHSA-jfhm-5ghh-2f97"
+reason = """cryptography PKCS7 NULL-dereference — project never uses PKCS7 APIs. Zero \
+references to pkcs7 or PKCS7 in any Python source file."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2023-254"
+reason = """Alias for GHSA-jfhm-5ghh-2f97 — cryptography PKCS7 not used."""
+
+[[IgnoredVulns]]
+id = "GHSA-qr4w-53vh-m672"
+reason = """opencv-python bundled libwebp (CVE-2023-4863) — cv2 is used exclusively for \
+VideoCapture (webcam frames). No calls to imread, imdecode, imwrite, or imencode exist. \
+No .webp files are ever processed. Webcam frames are raw BGR numpy arrays."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2023-183"
+reason = """Alias for GHSA-qr4w-53vh-m672 — opencv-python libwebp not exercised; only \
+webcam capture used."""
+
+[[IgnoredVulns]]
+id = "GHSA-j7hp-h8jx-5ppr"
+reason = """Pillow bundled libwebp (CVE-2023-4863) — Pillow is used only for GIF and PNG \
+image generation/reading. No .webp files are ever opened or processed. The vulnerable \
+libwebp decoder is never triggered."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2023-175"
+reason = """Alias for GHSA-j7hp-h8jx-5ppr — Pillow libwebp not exercised; only GIF/PNG \
+processed."""
+
+[[IgnoredVulns]]
+id = "GHSA-fj7x-q9j7-g6q6"
+reason = """black ReDoS — black is a dev-only code formatter listed in \
+[project.optional-dependencies] dev. Never imported in runtime code, never processes \
+untrusted input."""
+
+[[IgnoredVulns]]
+id = "PYSEC-2024-48"
+reason = """Alias for GHSA-fj7x-q9j7-g6q6 — black is dev-only; ReDoS not exploitable."""
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0436"
+reason = """paste crate unmaintained — already eliminated from dependency tree (cryptoki \
+upgraded to 0.12). Listed here in case transitive resolution re-introduces it. paste is \
+a compile-time macro crate with no runtime attack surface."""
