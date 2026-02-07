@@ -374,7 +374,7 @@ class SecureBridge:
 
         Called automatically on context exit.
         """
-        if getattr(self, '_finalized', True):
+        if getattr(self, "_finalized", True):
             return
 
         for handle in self._handles:

@@ -35,10 +35,12 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_psutil_import_fallback(self):
         """Lines 32-33: HAS_PSUTIL = False when psutil unavailable."""
         import importlib
+
         with patch.dict(sys.modules, {"psutil": None}):
             # Force re-evaluation of the try/except import
             # We verify the module-level fallback indirectly via MemoryMonitor
             from meow_decoder.streaming_crypto import MemoryMonitor
+
             mon = MemoryMonitor(target_usage_mb=50)
             # Even without psutil, get_optimal_chunk_size should work
             chunk = mon.get_optimal_chunk_size()
@@ -47,6 +49,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_verify_mac_direct(self):
         """Lines 115-116: _verify_mac() called directly."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
         cipher = StreamingCipher(key, nonce)
@@ -59,6 +62,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_encrypt_stream_full_path(self):
         """Lines 120-121, 193-194: encrypt_stream with compression."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
         cipher = StreamingCipher(key, nonce)
@@ -78,6 +82,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_encrypt_stream_no_compression(self):
         """encrypt_stream without compression."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
         cipher = StreamingCipher(key, nonce)
@@ -121,6 +126,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decrypt_stream_mac_validation_bad_length(self):
         """Line 236: MAC length != 32 raises ValueError."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
         cipher = StreamingCipher(key, nonce)
@@ -135,6 +141,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decrypt_stream_with_mac_verification(self):
         """decrypt_stream with expected_mac that passes."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
@@ -160,6 +167,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decrypt_stream_with_bad_mac(self):
         """decrypt_stream with wrong MAC raises RuntimeError."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
@@ -182,6 +190,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decompression_flush_path(self):
         """Lines 314-323: decompression flush path in decrypt_stream."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
@@ -206,6 +215,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decrypt_stream_decrypted_stream_kwarg(self):
         """Line 231: 'decrypted_stream' kwarg alias."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
@@ -229,6 +239,7 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
     def test_decrypt_stream_missing_streams_raises(self):
         """decrypt_stream with no streams raises ValueError."""
         from meow_decoder.streaming_crypto import StreamingCipher
+
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
         cipher = StreamingCipher(key, nonce)
@@ -248,6 +259,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def setUp(self):
         """Reset high security mode state for each test."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
     def test_activate_twice_early_return(self):
@@ -265,6 +277,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def test_import_error_fallback_crypto(self):
         """Lines 146-147: ImportError fallback when patching crypto."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
         with patch.dict(sys.modules, {"meow_decoder.crypto": None}):
@@ -275,6 +288,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def test_import_error_fallback_crypto_enhanced(self):
         """Lines 155-156: ImportError fallback for crypto_enhanced."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
         with patch.dict(sys.modules, {"meow_decoder.experimental.crypto_enhanced": None}):
@@ -284,6 +298,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def test_import_error_fallback_x25519(self):
         """Lines 164-165: ImportError fallback for x25519_forward_secrecy."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
         with patch.dict(sys.modules, {"meow_decoder.x25519_forward_secrecy": None}):
@@ -293,6 +308,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def test_verbose_print(self):
         """Line 179: verbose (not silent) prints confirmation."""
         import meow_decoder.high_security as hs
+
         hs._HIGH_SECURITY_MODE_ACTIVE = False
 
         with patch("builtins.print") as mock_print:
@@ -347,6 +363,7 @@ class TestHighSecurityCoverageGaps(unittest.TestCase):
     def test_secure_wipe_memory(self):
         """Lines 269-281: scrub_memory / secure_wipe_memory."""
         from meow_decoder.high_security import secure_wipe_memory
+
         # Just exercise the function — it does GC + memory overwrite
         secure_wipe_memory()
 
@@ -362,6 +379,7 @@ class TestDuressModeCoverageGaps(unittest.TestCase):
     def _make_handler(self, **kwargs):
         from meow_decoder.duress_mode import DuressHandler
         from meow_decoder.config import DuressConfig
+
         cfg = DuressConfig(**kwargs)
         return DuressHandler(config=cfg)
 
@@ -543,9 +561,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
         state_path.unlink()
 
         try:
-            config = TimeLockConfig(
-                checkin_interval_seconds=1, grace_period_seconds=0
-            )
+            config = TimeLockConfig(checkin_interval_seconds=1, grace_period_seconds=0)
             cd = CountdownDuress(config, state_path)
             with patch("builtins.print"):
                 cd.initialize()
@@ -569,9 +585,7 @@ class TestTimelockDuressCoverageGaps(unittest.TestCase):
         state_path.unlink()
 
         try:
-            config = TimeLockConfig(
-                checkin_interval_seconds=86400, grace_period_seconds=3600
-            )
+            config = TimeLockConfig(checkin_interval_seconds=86400, grace_period_seconds=3600)
             cd = CountdownDuress(config, state_path)
             with patch("builtins.print"):
                 cd.initialize()
@@ -695,6 +709,7 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
     def test_gc_get_count_entropy(self):
         """Lines 119-120: gc.get_count() entropy + except."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         pool.add_system_entropy(32)
         pool.add_environment_entropy()
@@ -704,6 +719,7 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
     def test_gc_get_count_exception_path(self):
         """Lines 119-120: except path when gc.get_count fails."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
 
         with patch("gc.get_count", side_effect=Exception("mocked")):
@@ -714,6 +730,7 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
     def test_proc_interrupts_reading(self):
         """Lines 128-129: /proc/interrupts reading."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         pool.add_environment_entropy()
         # On Linux this should read /proc/interrupts
@@ -757,6 +774,7 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
     def test_get_source_count(self):
         """Line 298: get_source_count()."""
         from meow_decoder.entropy_boost import EntropyPool
+
         pool = EntropyPool()
         self.assertEqual(pool.get_source_count(), 0)
         pool.add_system_entropy(16)
@@ -767,8 +785,9 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
         from meow_decoder.entropy_boost import EntropyPool
 
         pool = EntropyPool()
-        with patch("builtins.print"), \
-             patch("builtins.input", return_value="random_keyboard_smash_1234"):
+        with patch("builtins.print"), patch(
+            "builtins.input", return_value="random_keyboard_smash_1234"
+        ):
             pool.add_user_entropy("Type stuff: ")
 
         self.assertGreater(pool.get_source_count(), 0)
@@ -811,6 +830,7 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
     def test_key_handle_cleanup(self):
         """Lines 79-80: KeyHandle._zero_key() and cleanup."""
         from meow_decoder.secure_bridge import KeyHandle
+
         handle = KeyHandle(
             _handle_id=0,
             _backend="rust",
@@ -822,6 +842,7 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
     def test_key_handle_zero_no_key(self):
         """KeyHandle._zero_key() when no key bytes."""
         from meow_decoder.secure_bridge import KeyHandle
+
         handle = KeyHandle(
             _handle_id=1,
             _backend="rust",
@@ -833,6 +854,7 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
     def test_key_handle_del(self):
         """KeyHandle.__del__ triggers zeroing."""
         from meow_decoder.secure_bridge import KeyHandle
+
         handle = KeyHandle(
             _handle_id=2,
             _backend="rust",
@@ -867,6 +889,7 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
     def test_secure_memory_del(self):
         """Lines 167-168: __del__ on SecureMemory."""
         from meow_decoder.secure_bridge import SecureMemory
+
         mem = SecureMemory(32)
         mem.write(b"C" * 16)
         mem.__del__()
@@ -874,6 +897,7 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
     def test_secure_bridge_runtime_error_no_rust(self):
         """Line 197: RuntimeError when no Rust backend."""
         from meow_decoder import secure_bridge as sb
+
         orig = sb.RUST_AVAILABLE
         try:
             sb.RUST_AVAILABLE = False
@@ -1035,12 +1059,14 @@ class TestSchrodingerEncodeCoverageGaps(unittest.TestCase):
     def test_manifest_unpack_too_short(self):
         """unpack raises on short data."""
         from meow_decoder.schrodinger_encode import SchrodingerManifest
+
         with self.assertRaises(ValueError, msg="Manifest too short"):
             SchrodingerManifest.unpack(b"\x00" * 100)
 
     def test_manifest_unpack_bad_magic(self):
         """unpack raises on bad magic."""
         from meow_decoder.schrodinger_encode import SchrodingerManifest
+
         bad_data = b"WOOF" + b"\x00" * 378
         with self.assertRaises(ValueError, msg="Invalid manifest magic"):
             SchrodingerManifest.unpack(bad_data)
@@ -1048,6 +1074,7 @@ class TestSchrodingerEncodeCoverageGaps(unittest.TestCase):
     def test_manifest_unpack_wrong_version(self):
         """unpack raises on wrong version."""
         from meow_decoder.schrodinger_encode import SchrodingerManifest
+
         data = b"MEOW" + struct.pack("BB", 0x01, 0x00) + b"\x00" * 376
         with self.assertRaises(ValueError, msg="Not a Schrödinger"):
             SchrodingerManifest.unpack(data)
@@ -1160,7 +1187,9 @@ class TestCatnipFountainCoverageGaps(unittest.TestCase):
     def test_pack_unpack_kibble(self):
         """pack_kibble + unpack_kibble roundtrip."""
         from meow_decoder.catnip_fountain import (
-            Kibble, pack_kibble, unpack_kibble,
+            Kibble,
+            pack_kibble,
+            unpack_kibble,
         )
 
         kibble = Kibble(
