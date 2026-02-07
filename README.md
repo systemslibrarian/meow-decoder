@@ -810,8 +810,8 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 | [Security Invariants](docs/SECURITY_INVARIANTS.md) | Formal invariant specification |
 | [Test Suite](tests/TEST_SUITE_README.md) | Test inventory, coverage & run instructions |
 | [Mobile Bridge](mobile/ARCHITECTURE.md) | React Native QR bridge architecture |
-| [OpenSSF Improvements](OpenSSFImprovements.md) | OpenSSF Scorecard improvement plan |
-| [SECURITY.md](SECURITY.md) | Vulnerability reporting |
+| [Security Changes](docs/SECURITY_CHANGES.md) | Security hardening changelog |
+| [SECURITY.md](SECURITY.md) | Vulnerability reporting & supply chain security |
 
 ---
 
