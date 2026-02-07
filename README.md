@@ -85,132 +85,6 @@ Receiver: Video → meow-decode → secret.pdf (recovered)
 
 ---
 
-## � How It Actually Works (Technical)
-
-### The Data Pipeline
-
-```
-File → Compress → Encrypt → Fountain Encode → QR Codes → Animated GIF
-```
-
-| Step | What Happens |
-|------|--------------|
-| **1. Compress** | Your file is compressed with zlib to reduce size |
-| **2. Encrypt** | AES-256-GCM encryption with Argon2id key derivation |
-| **3. Fountain Encode** | Encrypted data split into redundant "droplets" using Luby Transform codes |
-| **4. QR Generation** | Each droplet (~500 bytes) becomes a QR code frame |
-| **5. GIF Assembly** | Frame 0 = manifest (metadata), Frames 1+ = data droplets |
-
-### Why Fountain Codes?
-
-Fountain codes are "rateless" - you can generate infinite droplets, and you only need **~67% of them** to reconstruct the original data. This means:
-
-- 📱 Shaky phone video? No problem
-- 🔄 Missed some frames? Keep going
-- 🌫️ Blurry QR codes? Skip them, decode others
-- ♾️ GIF loops forever, giving multiple chances to capture each frame
-
-### The Optical "Air Gap"
-
-```
-┌─────────────┐         ┌─────────────┐         ┌─────────────┐
-│   SENDER    │  light  │   PHONE     │  file   │  RECEIVER   │
-│   SCREEN    │ ──────► │   CAMERA    │ ──────► │   DECODE    │
-│  (GIF plays)│         │ (records)   │         │ (extracts)  │
-└─────────────┘         └─────────────┘         └─────────────┘
-      │                                               │
-      └───────── NO NETWORK CONNECTION ───────────────┘
-```
-
-The phone is just a "dumb" optical sensor carrying photons. It never decrypts anything - all crypto happens on trusted computers at each end.
-
-### Decoding Process
-
-1. **Extract frames** from GIF or video file
-2. **Scan QR codes** from each frame
-3. **Collect droplets** (fountain codes handle missing/corrupted frames)
-4. **Reconstruct** encrypted blob when enough droplets collected
-5. **Decrypt** with your password (Argon2id → AES-256-GCM)
-6. **Decompress** → original file restored
-
----
-
-## �🔐 What This Protects / Doesn't Protect
-
-### ✅ DOES Protect Against
-
-| Threat | How |
-|--------|-----|
-| **Network eavesdropping** | Data never touches a network |
-| **Man-in-the-middle** | Optical channel, no network routing |
-| **Brute force attacks** | Argon2id (512 MiB, 20 iterations) |
-| **Tampering/modification** | AES-GCM authentication + HMAC |
-| **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
-| **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
-| **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) |
-| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-1024, DEFAULT ON) |
-
-### ❌ Does NOT Protect Against
-
-| Threat | Why |
-|--------|-----|
-| **Shoulder surfing** | Someone watching your screen sees the GIF |
-| **Compromised endpoint** | Malware on sender/receiver defeats everything |
-| **Keyloggers** | Password stolen before encryption |
-| **Physical coercion (torture)** | No crypto defeats rubber-hose cryptanalysis |
-| **Screen recording malware** | Same as shoulder surfing, automated |
-| **State-level adversaries** | No formal audit; use certified tools for classified data |
-
----
-
-## 🧪 Formal Verification (TLA+ / ProVerif / Verus)
-
-Formal methods live in [formal/README.md](formal/README.md). Quick commands:
-
-```bash
-# One-command verification
-make verify
-
-# ProVerif (symbolic protocol analysis)
-cd /workspaces/meow-decoder/formal/proverif
-eval $(opam env)
-proverif meow_encode.pv
-
-# TLA+ (state machine model checking)
-cd /workspaces/meow-decoder/formal/tla
-java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
-
-# Verus (Rust proofs)
-cd /workspaces/meow-decoder/crypto_core
-verus src/lib.rs
-
-# Tamarin (observational equivalence, optional)
-cd /workspaces/meow-decoder/formal/tamarin
-./run.sh
-```
-
-More details and expected results:
-- [formal/README.md](formal/README.md)
-- [formal/proverif/README.md](formal/proverif/README.md)
-- [docs/formal_methods_report.md](docs/formal_methods_report.md)
-
-**Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
-
-### 🎯 Adversary Model
-
-| Adversary | Can Meow Decoder Stop Them? |
-|-----------|------------------------------|
-| Script kiddie | ✅ Yes, easily |
-| Skilled hacker (network) | ✅ Yes (no network exposure) |
-| Corporate IT snooping | ✅ Yes (optical bypasses monitoring) |
-| Law enforcement (legal demand) | ⚠️ Maybe (Schrödinger mode helps) |
-| Intelligence agency | ⚠️ Partial (endpoint risk) |
-| NSA with full resources | ❌ Not designed for this |
-
-**Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility.
-
----
-
 ## 🎬 Demo
 
 <p align="center">
@@ -291,50 +165,22 @@ meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123
 
 ---
 
-## ⚡ Optional Constant-Time Rust Crypto Backend
+## ✨ Key Features
 
-For maximum security and performance, Meow Decoder supports a Rust-based cryptographic backend. This uses the `rust_crypto` module to provide constant-time implementations of critical primitives (AES-GCM, Argon2id, etc.) via PyO3.
-
-### Prerequisites
-- [Rust](https://www.rust-lang.org/tools/install) installed (`rustup`)
-- `maturin` build tool (`pip install maturin`)
-
-### Build & Enable
-```bash
-# Build the Rust extension
-cd rust_crypto
-maturin develop --release
-cd ..
-```
-You can verify it is active by checking the verbose output `meow-encode -v ...`.
-
-See [rust_crypto/README.md](rust_crypto/README.md) for full details.
-
-### ✅ Rust Backend Required
-
-The Rust backend is mandatory for secure operation. The Python fallback has been removed.
-
----
-
-## 🔬 Fuzzing & Security Testing
-
-This project uses **AFL++** (via `atheris`) for continuous fuzzing of critical components to detect crashes and edge cases.
-
-For the full test inventory and coverage tracking, see [tests/TEST_SUITE_README.md](tests/TEST_SUITE_README.md).
-
-### Fuzz Targets
-- **Manifest Parsing**: Tests against malformed binary structures
-- **Crypto Operations**: Tests error handling in key derivation/decryption
-- **Fountain Codes**: Tests droplet parsing logic
-
-### Running Fuzzers
-```bash
-# Example: Fuzz manifest parser
-python3 fuzz/fuzz_manifest.py -runs=100000
-```
-See [fuzz/README.md](fuzz/README.md) for detailed instructions on corpus generation and running specific targets.
-
-**Findings:** Fuzzing results are environment‑ and time‑dependent. Do not assume “no crashes” without a recorded run log. Continued fuzzing is recommended before releases.
+| Feature | Description |
+|---------|-------------|
+| 🔒 **AES-256-GCM** | Military-grade authenticated encryption |
+| 🔑 **Argon2id** | Memory-hard KDF (512 MiB, 20 iterations) |
+| 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
+| 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
+| 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
+| 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
+| 📊 **Fountain Codes** | Tolerates 33% frame loss |
+| 🔐 **Duress Mode** | Panic password triggers secure wipe |
+| 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
+| 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
+| 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
+| 🌐 **WASM Target** | Planned browser bindings (not yet shipped) |
 
 ---
 
@@ -411,94 +257,7 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 
 ---
 
-## ✨ Key Features
-
-| Feature | Description |
-|---------|-------------|
-| 🔒 **AES-256-GCM** | Military-grade authenticated encryption |
-| 🔑 **Argon2id** | Memory-hard KDF (512 MiB, 20 iterations) |
-| 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
-| 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
-| 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
-| 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
-| 📊 **Fountain Codes** | Tolerates 33% frame loss |
-| 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
-| 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
-| 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
-| 🌐 **WASM Target** | Planned browser bindings (not yet shipped) |
-
----
-
-## 🔌 Hardware Security Status
-
-Hardware security primitives are implemented in the Rust core, with Python CLI wiring still in progress.
-
-- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`).
-- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`).
-- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
-
-Details and examples live in [crypto_core/README.md](crypto_core/README.md).
-
----
-
-## 🏗️ Architecture
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                    ENCODING PIPELINE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  File → Compress → Encrypt → Fountain Code → QR Frames → GIF   │
-│          (zlib)   (AES-GCM)  (Luby Transform)  (qrcode)  (PIL)  │
-│                                                                 │
-├─────────────────────────────────────────────────────────────────┤
-│                    DECODING PIPELINE                            │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  GIF/Video → Extract Frames → Read QR → Fountain Decode →      │
-│              (PIL/OpenCV)    (pyzbar)   (Belief Prop)           │
-│                                                                 │
-│           → Decrypt → Decompress → Verify Hash → File          │
-│             (AES-GCM)   (zlib)     (SHA-256)                    │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-**Crypto Stack:**
-- **Encryption:** AES-256-GCM (authenticated)
-- **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
-- **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
-- **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (DEFAULT ON)
-- **Signatures:** Dilithium3 + Ed25519 hybrid (manifest auth)
-- **Integrity:** HMAC-SHA256 + per-frame MACs
-- **Error Correction:** Luby Transform fountain codes
-
-For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
-
----
-
-## 🎯 Security Properties
-
-| Property | Implementation | Status |
-|----------|----------------|--------|
-| Authenticated Encryption | AES-256-GCM | ✅ |
-| Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
-| Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
-| Forward Secrecy | X25519 ephemeral keys | ✅ Default |
-| Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
-| Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
-| Coercion Resistance | Duress passwords | ⚠️ Module only |
-| Error Recovery | Fountain codes (33% loss OK) | ✅ |
-| Constant-Time Ops | Rust crypto backend | ✅ |
-| Tamper Timeline | Frame-by-frame MAC report | ✅ |
-| Security Tests | 400+ tests, CI-enforced (3-gate) | ✅ |
-
-**Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
-
----
-
-## � Coercion Resistance Features
+## 🛡️ Coercion Resistance Features
 
 ### Schrödinger Mode (Dual-Secret Plausible Deniability)
 
@@ -563,7 +322,7 @@ meow-decode-gif -i secret.gif -o output.pdf -p "GiveThisToAttacker"  # Decoy + w
 
 ---
 
-## �📱 Phone-Based Transfer Model
+## 📱 Phone-Based Transfer Model
 
 Meow Decoder intentionally **does not require a mobile app**.
 
@@ -604,6 +363,146 @@ While inspired by these projects, Meow Decoder adds critical security features:
 - 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
 - 🔑 **Forward Secrecy** — X25519 ephemeral keys protect past messages
+
+---
+
+# 🔧 Technical Details
+
+*The sections below are for developers, security researchers, and contributors.*
+
+---
+
+## 🔍 How It Actually Works (Technical)
+
+### The Data Pipeline
+
+```
+File → Compress → Encrypt → Fountain Encode → QR Codes → Animated GIF
+```
+
+| Step | What Happens |
+|------|--------------|
+| **1. Compress** | Your file is compressed with zlib to reduce size |
+| **2. Encrypt** | AES-256-GCM encryption with Argon2id key derivation |
+| **3. Fountain Encode** | Encrypted data split into redundant "droplets" using Luby Transform codes |
+| **4. QR Generation** | Each droplet (~500 bytes) becomes a QR code frame |
+| **5. GIF Assembly** | Frame 0 = manifest (metadata), Frames 1+ = data droplets |
+
+### Why Fountain Codes?
+
+Fountain codes are "rateless" - you can generate infinite droplets, and you only need **~67% of them** to reconstruct the original data. This means:
+
+- 📱 Shaky phone video? No problem
+- 🔄 Missed some frames? Keep going
+- 🌫️ Blurry QR codes? Skip them, decode others
+- ♾️ GIF loops forever, giving multiple chances to capture each frame
+
+### The Optical "Air Gap"
+
+```
+┌─────────────┐         ┌─────────────┐         ┌─────────────┐
+│   SENDER    │  light  │   PHONE     │  file   │  RECEIVER   │
+│   SCREEN    │ ──────► │   CAMERA    │ ──────► │   DECODE    │
+│  (GIF plays)│         │ (records)   │         │ (extracts)  │
+└─────────────┘         └─────────────┘         └─────────────┘
+      │                                               │
+      └───────── NO NETWORK CONNECTION ───────────────┘
+```
+
+The phone is just a "dumb" optical sensor carrying photons. It never decrypts anything - all crypto happens on trusted computers at each end.
+
+### Decoding Process
+
+1. **Extract frames** from GIF or video file
+2. **Scan QR codes** from each frame
+3. **Collect droplets** (fountain codes handle missing/corrupted frames)
+4. **Reconstruct** encrypted blob when enough droplets collected
+5. **Decrypt** with your password (Argon2id → AES-256-GCM)
+6. **Decompress** → original file restored
+
+---
+
+## 🔐 What This Protects / Doesn't Protect
+
+### ✅ DOES Protect Against
+
+| Threat | How |
+|--------|-----|
+| **Network eavesdropping** | Data never touches a network |
+| **Man-in-the-middle** | Optical channel, no network routing |
+| **Brute force attacks** | Argon2id (512 MiB, 20 iterations) |
+| **Tampering/modification** | AES-GCM authentication + HMAC |
+| **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
+| **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
+| **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) |
+| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-1024, DEFAULT ON) |
+
+### ❌ Does NOT Protect Against
+
+| Threat | Why |
+|--------|-----|
+| **Shoulder surfing** | Someone watching your screen sees the GIF |
+| **Compromised endpoint** | Malware on sender/receiver defeats everything |
+| **Keyloggers** | Password stolen before encryption |
+| **Physical coercion (torture)** | No crypto defeats rubber-hose cryptanalysis |
+| **Screen recording malware** | Same as shoulder surfing, automated |
+| **State-level adversaries** | No formal audit; use certified tools for classified data |
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    ENCODING PIPELINE                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  File → Compress → Encrypt → Fountain Code → QR Frames → GIF   │
+│          (zlib)   (AES-GCM)  (Luby Transform)  (qrcode)  (PIL)  │
+│                                                                 │
+├─────────────────────────────────────────────────────────────────┤
+│                    DECODING PIPELINE                            │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  GIF/Video → Extract Frames → Read QR → Fountain Decode →      │
+│              (PIL/OpenCV)    (pyzbar)   (Belief Prop)           │
+│                                                                 │
+│           → Decrypt → Decompress → Verify Hash → File          │
+│             (AES-GCM)   (zlib)     (SHA-256)                    │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Crypto Stack:**
+- **Encryption:** AES-256-GCM (authenticated)
+- **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
+- **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
+- **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (DEFAULT ON)
+- **Signatures:** Dilithium3 + Ed25519 hybrid (manifest auth)
+- **Integrity:** HMAC-SHA256 + per-frame MACs
+- **Error Correction:** Luby Transform fountain codes
+
+For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
+
+---
+
+## 🎯 Security Properties
+
+| Property | Implementation | Status |
+|----------|----------------|--------|
+| Authenticated Encryption | AES-256-GCM | ✅ |
+| Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
+| Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
+| Forward Secrecy | X25519 ephemeral keys | ✅ Default |
+| Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
+| Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
+| Coercion Resistance | Duress passwords | ⚠️ Module only |
+| Error Recovery | Fountain codes (33% loss OK) | ✅ |
+| Constant-Time Ops | Rust crypto backend | ✅ |
+| Tamper Timeline | Frame-by-frame MAC report | ✅ |
+| Security Tests | 400+ tests, CI-enforced (3-gate) | ✅ |
+
+**Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
 ---
 
@@ -650,35 +549,19 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ---
 
-## 🔬 Fuzzing & Security Testing
+## 🔌 Hardware Security Status
 
-We use AFL++ with Python bindings (atheris) to test robustness against malformed inputs.
+Hardware security primitives are implemented in the Rust core, with Python CLI wiring still in progress.
 
-### Running Fuzzers
+- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`).
+- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`).
+- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
 
-1.  **Install Atheris:**
-    ```bash
-    pip install atheris
-    ```
-
-2.  **Run a Fuzzer:**
-    ```bash
-    # Fuzz manifest parsing logic
-    python3 fuzz/fuzz_manifest.py
-
-    # Fuzz crypto operations
-    python3 fuzz/fuzz_crypto.py
-    ```
-
-**Findings:**
-*   Fuzzing results are not claimed without a recorded run log.
-*   Continuous fuzzing is recommended before major releases.
-
-See [fuzz/README.md](fuzz/README.md) for details.
+Details and examples live in [crypto_core/README.md](crypto_core/README.md).
 
 ---
 
-## �🧪 Development
+## 🧪 Development
 
 ```bash
 # Install dev dependencies
@@ -728,7 +611,90 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 
 ---
 
-## � Security Review Scope (v1.0)
+## 🔬 Fuzzing & Security Testing
+
+We use AFL++ with Python bindings (atheris) to test robustness against malformed inputs.
+
+For the full test inventory and coverage tracking, see [tests/TEST_SUITE_README.md](tests/TEST_SUITE_README.md).
+
+### Fuzz Targets
+- **Manifest Parsing**: Tests against malformed binary structures
+- **Crypto Operations**: Tests error handling in key derivation/decryption
+- **Fountain Codes**: Tests droplet parsing logic
+
+### Running Fuzzers
+
+1.  **Install Atheris:**
+    ```bash
+    pip install atheris
+    ```
+
+2.  **Run a Fuzzer:**
+    ```bash
+    # Fuzz manifest parsing logic
+    python3 fuzz/fuzz_manifest.py
+
+    # Fuzz crypto operations
+    python3 fuzz/fuzz_crypto.py
+    ```
+
+**Findings:**
+*   Fuzzing results are not claimed without a recorded run log.
+*   Continuous fuzzing is recommended before major releases.
+
+See [fuzz/README.md](fuzz/README.md) for details.
+
+---
+
+## 🧪 Formal Verification (TLA+ / ProVerif / Verus)
+
+Formal methods live in [formal/README.md](formal/README.md). Quick commands:
+
+```bash
+# One-command verification
+make verify
+
+# ProVerif (symbolic protocol analysis)
+cd /workspaces/meow-decoder/formal/proverif
+eval $(opam env)
+proverif meow_encode.pv
+
+# TLA+ (state machine model checking)
+cd /workspaces/meow-decoder/formal/tla
+java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
+
+# Verus (Rust proofs)
+cd /workspaces/meow-decoder/crypto_core
+verus src/lib.rs
+
+# Tamarin (observational equivalence, optional)
+cd /workspaces/meow-decoder/formal/tamarin
+./run.sh
+```
+
+More details and expected results:
+- [formal/README.md](formal/README.md)
+- [formal/proverif/README.md](formal/proverif/README.md)
+- [docs/formal_methods_report.md](docs/formal_methods_report.md)
+
+**Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
+
+### 🎯 Adversary Model
+
+| Adversary | Can Meow Decoder Stop Them? |
+|-----------|------------------------------|
+| Script kiddie | ✅ Yes, easily |
+| Skilled hacker (network) | ✅ Yes (no network exposure) |
+| Corporate IT snooping | ✅ Yes (optical bypasses monitoring) |
+| Law enforcement (legal demand) | ⚠️ Maybe (Schrödinger mode helps) |
+| Intelligence agency | ⚠️ Partial (endpoint risk) |
+| NSA with full resources | ❌ Not designed for this |
+
+**Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility.
+
+---
+
+## 🔒 Security Review Scope (v1.0)
 
 > ⚠️ **SECURITY‑REVIEWED v1.0 (INTERNAL REVIEW) – NOT A THIRD‑PARTY AUDIT**
 
@@ -742,7 +708,7 @@ If your threat model includes compromised endpoints or hardware side‑channels,
 
 ---
 
-## �📖 Documentation
+## 📖 Documentation
 
 | Document | Description |
 |----------|-------------|
