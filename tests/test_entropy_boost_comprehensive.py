@@ -35,7 +35,6 @@ from io import StringIO
 
 import pytest
 
-
 # Import module under test
 from meow_decoder.entropy_boost import (
     EntropyPool,
@@ -43,7 +42,6 @@ from meow_decoder.entropy_boost import (
     generate_enhanced_salt,
     generate_enhanced_nonce,
 )
-
 
 # =============================================================================
 # Fixtures

@@ -34,7 +34,6 @@ from meow_decoder.resume_secured import (
 from meow_decoder.crypto import Manifest
 from meow_decoder.fountain import FountainDecoder, Droplet
 
-
 # ============================================================================
 # Fixtures
 # ============================================================================

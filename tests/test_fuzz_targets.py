@@ -25,7 +25,6 @@ from pathlib import Path
 
 from fuzz import fuzz_crypto, fuzz_manifest, fuzz_fountain, afl_fuzz_manifest, seed_corpus
 
-
 # =============================================================================
 # FUZZ MANIFEST TESTS
 # =============================================================================

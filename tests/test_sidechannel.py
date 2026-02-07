@@ -531,8 +531,7 @@ def test_sidechannel_summary():
     print("\n" + "=" * 60)
     print("🔬 SIDE-CHANNEL RESISTANCE SUMMARY")
     print("=" * 60)
-    print(
-        """
+    print("""
 Security Properties Tested:
   ✅ Constant-time password comparison (secrets.compare_digest)
   ✅ Constant-time HMAC verification
@@ -555,8 +554,7 @@ Recommendations:
   3. Consider HSM/TPM for key storage
   
 Reference: docs/THREAT_MODEL.md § Side-Channel Attacks
-"""
-    )
+""")
     print("=" * 60)
 
 
