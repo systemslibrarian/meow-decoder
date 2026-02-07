@@ -1045,5 +1045,63 @@ class TestSecureBridgePerformanceMeow:
                         # All operations completed
 
 
+
+# --- Merged from test_coverage_boost_remaining.py ---
+class TestSecureBridgeBoost:
+    def test_create_key_handle_and_encrypt_decrypt(self):
+        """Test SecureBridge key handle + encrypt/decrypt roundtrip."""
+        from meow_decoder.secure_bridge import SecureBridge
+        import secrets as sec
+
+        bridge = SecureBridge()
+        salt = sec.token_bytes(16)
+        handle = bridge.create_key_handle(
+            "bridge_password_long", salt, memory_kib=65536, iterations=3
+        )
+        assert handle is not None
+
+        plaintext = b"Sensitive data to transfer via bridge"
+        nonce, ciphertext = bridge.encrypt_with_handle(handle, plaintext)
+        assert len(ciphertext) > 0
+
+        decrypted = bridge.decrypt_with_handle(handle, nonce, ciphertext)
+        assert decrypted == plaintext
+
+    def test_secure_bridge_context_manager(self):
+        """Test SecureBridge as context manager."""
+        from meow_decoder.secure_bridge import SecureBridge
+        import secrets as sec
+
+        with SecureBridge() as bridge:
+            salt = sec.token_bytes(16)
+            handle = bridge.create_key_handle(
+                "bridge_ctx_password", salt, memory_kib=65536, iterations=3
+            )
+            plaintext = b"Context manager test"
+            nonce, ct = bridge.encrypt_with_handle(handle, plaintext)
+            result = bridge.decrypt_with_handle(handle, nonce, ct)
+            assert result == plaintext
+
+    def test_hmac_with_handle(self):
+        """Test HMAC generation with Rust backend."""
+        from meow_decoder.secure_bridge import SecureBridge
+        import secrets as sec
+
+        bridge = SecureBridge()
+        salt = sec.token_bytes(16)
+        handle = bridge.create_key_handle(
+            "bridge_hmac_password", salt, memory_kib=65536, iterations=3
+        )
+        data = b"Data to authenticate"
+        mac = bridge.hmac_with_handle(handle, data)
+        assert len(mac) > 0
+
+
+# =====================================================
+# config.py additional coverage
+# =====================================================
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])

@@ -1102,5 +1102,68 @@ class TestMerkleTreeIntegrationMeow:
 # Main execution
 # =============================================================================
 
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# multi_secret.py — push from 98.25% higher
+# =====================================================
+class TestMultiSecretExtras:
+    """Extra multi_secret tests for uncovered branches."""
+
+    def test_verify_indistinguishability_good_data(self):
+        """Random data should pass the chi-square test."""
+        from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
+        good_data = os.urandom(10000)
+        result = verify_statistical_indistinguishability(good_data)
+        assert result is True
+
+    def test_verify_indistinguishability_short_data(self):
+        """Very short data should handle gracefully."""
+        from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
+        result = verify_statistical_indistinguishability(b"\x42")
+        # Either True or False, shouldn't crash
+        assert isinstance(result, bool)
+
+
+# =====================================================
+# constant_time.py — push from 99.07% to 100%
+# =====================================================
+
+
+
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# multi_secret.py small gaps
+# =====================================================
+class TestMultiSecretBoost:
+    def test_compute_merkle_root_empty(self):
+        """Empty blocks should return SHA256 of 'empty'."""
+        from meow_decoder.multi_secret import MultiSecretDecoder
+        import hashlib
+
+        decoder = MultiSecretDecoder.__new__(MultiSecretDecoder)
+        root = decoder._compute_merkle_root([])
+        assert root == hashlib.sha256(b"empty").digest()
+
+    def test_verify_statistical_indistinguishability_bad(self):
+        """Highly non-uniform data should fail chi-square test."""
+        from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
+        bad_data = b"\x00" * 10000
+        result = verify_statistical_indistinguishability(bad_data)
+        assert result is False
+
+
+# =====================================================
+# qr_code.py small gaps
+# =====================================================
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short", "-x"])

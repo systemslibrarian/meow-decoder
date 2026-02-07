@@ -164,3 +164,182 @@ def test_paranoid_mode_alias_sets_active(monkeypatch):
     monkeypatch.delenv("MEOW_HIGH_SECURITY_MODE", raising=False)
     high_security.paranoid_mode()
     assert high_security.is_high_security_mode() is True
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# high_security.py — push from 85.9% higher
+# =====================================================
+class TestHighSecurityExtras:
+    """Additional high_security tests for uncovered branches."""
+
+    def test_secure_wipe_file_multi_pass(self, tmp_path):
+        """Test secure_wipe_file with 7 passes (hits all pass patterns)."""
+        from meow_decoder.high_security import secure_wipe_file
+
+        f = tmp_path / "multi_pass.dat"
+        f.write_bytes(b"sensitive " * 500)
+        result = secure_wipe_file(str(f), passes=7)
+        assert result is True
+        assert not f.exists()
+
+    def test_secure_wipe_file_1_pass(self, tmp_path):
+        """Test secure_wipe_file with 1 pass."""
+        from meow_decoder.high_security import secure_wipe_file
+
+        f = tmp_path / "one_pass.dat"
+        f.write_bytes(b"secret")
+        result = secure_wipe_file(str(f), passes=1)
+        assert result is True
+
+    def test_enable_high_security_patches_modules(self):
+        """Test that enable_high_security_mode patches crypto modules."""
+        import meow_decoder.high_security as hs
+
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+        hs.enable_high_security_mode(silent=True)
+        assert hs._HIGH_SECURITY_MODE_ACTIVE is True
+        # Cleanup
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+
+    def test_enable_handles_missing_modules(self):
+        """Module import errors during patching should be handled gracefully."""
+        import meow_decoder.high_security as hs
+
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+
+        # Ensure we don't crash even if modules have import issues
+        hs.enable_high_security_mode(silent=True)
+        assert hs._HIGH_SECURITY_MODE_ACTIVE is True
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+
+    def test_high_security_config(self):
+        """Test HighSecurityConfig instantiation and fields."""
+        from meow_decoder.high_security import HighSecurityConfig
+
+        config = HighSecurityConfig()
+        assert hasattr(config, "output_size_classes")
+        assert isinstance(config.output_size_classes, list)
+        assert len(config.output_size_classes) > 0
+
+    def test_normalize_size_various_sizes(self):
+        """Test normalize_size with various data sizes."""
+        from meow_decoder.high_security import normalize_size
+
+        # Small data
+        r1 = normalize_size(b"x" * 10)
+        assert len(r1) >= 10
+
+        # Larger data
+        r2 = normalize_size(b"x" * 5000)
+        assert len(r2) >= 5000
+
+        # Empty data
+        r3 = normalize_size(b"")
+        assert len(r3) >= 0
+
+    def test_secure_wipe_memory_with_gc(self):
+        """secure_wipe_memory should trigger gc."""
+        from meow_decoder.high_security import secure_wipe_memory
+        import gc
+
+        # Just ensure it doesn't crash
+        secure_wipe_memory()
+
+
+# =====================================================
+# entropy_boost.py — push from 88.24% higher
+# =====================================================
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# high_security.py coverage
+# =====================================================
+class TestHighSecurityBoost:
+    def test_enable_high_security_mode_twice(self):
+        """Calling enable_high_security_mode() twice should hit the 'already active' guard."""
+        from meow_decoder.high_security import enable_high_security_mode
+        import meow_decoder.high_security as hs
+
+        # Reset
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+        enable_high_security_mode(silent=True)
+        assert hs._HIGH_SECURITY_MODE_ACTIVE is True
+        # Second call hits the early return
+        enable_high_security_mode(silent=True)
+        assert hs._HIGH_SECURITY_MODE_ACTIVE is True
+
+    def test_enable_high_security_mode_not_silent(self, capsys):
+        """Test non-silent mode prints confirmation."""
+        from meow_decoder.high_security import enable_high_security_mode
+        import meow_decoder.high_security as hs
+
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+        enable_high_security_mode(silent=False)
+        captured = capsys.readouterr()
+        assert "High security mode active" in captured.out or hs._HIGH_SECURITY_MODE_ACTIVE
+
+    def test_secure_wipe_file(self, tmp_path):
+        """Test secure_wipe_file on a real file."""
+        from meow_decoder.high_security import secure_wipe_file
+
+        test_file = tmp_path / "wipe_me.txt"
+        test_file.write_bytes(b"sensitive data " * 100)
+        assert test_file.exists()
+        result = secure_wipe_file(str(test_file))
+        assert result is True
+        assert not test_file.exists()
+
+    def test_secure_wipe_file_nonexistent(self):
+        """Wiping nonexistent file returns True (already gone)."""
+        from meow_decoder.high_security import secure_wipe_file
+
+        result = secure_wipe_file("/tmp/nonexistent_file_xyz_abc.txt")
+        # Source returns True for nonexistent files ("Already gone")
+        assert result is True
+
+    def test_secure_wipe_memory(self):
+        """Test secure_wipe_memory runs without error."""
+        from meow_decoder.high_security import secure_wipe_memory
+
+        secure_wipe_memory()
+
+    def test_is_high_security_mode(self):
+        """Test is_high_security_mode getter."""
+        from meow_decoder.high_security import is_high_security_mode
+        import meow_decoder.high_security as hs
+
+        # Reset the global and env var
+        hs._HIGH_SECURITY_MODE_ACTIVE = False
+        old_env = os.environ.pop("MEOW_HIGH_SECURITY_MODE", None)
+        try:
+            assert is_high_security_mode() is False
+            hs._HIGH_SECURITY_MODE_ACTIVE = True
+            assert is_high_security_mode() is True
+        finally:
+            hs._HIGH_SECURITY_MODE_ACTIVE = False
+            if old_env is not None:
+                os.environ["MEOW_HIGH_SECURITY_MODE"] = old_env
+
+    def test_generic_error(self):
+        """Test generic_error message formatting."""
+        from meow_decoder.high_security import generic_error
+
+        msg = generic_error("Decryption")
+        assert "Decryption" in msg
+        assert "failed" in msg
+
+    def test_normalize_size(self):
+        """Test normalize_size pads data correctly."""
+        from meow_decoder.high_security import normalize_size
+
+        data = b"short data"
+        result = normalize_size(data)
+        assert len(result) >= len(data)
+
+
+# =====================================================
+# streaming_crypto.py coverage
+# =====================================================
+

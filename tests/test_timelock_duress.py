@@ -283,3 +283,256 @@ def test_encode_decode_with_timelock_returns_key(monkeypatch):
 
     recovered_key = decode_with_timelock(encoded, "password")
     assert recovered_key == enc_key
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# timelock_duress.py — push from 92.89% higher
+# =====================================================
+class TestTimelockDuressExtras:
+    """Extra timelock_duress tests for uncovered branches."""
+
+    def test_puzzle_long_secret(self, tmp_path):
+        """Puzzle with secret > 32 bytes hits the _expand_key path."""
+        from meow_decoder.timelock_duress import TimeLockPuzzle, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.lock_duration_seconds = 1
+        config.hash_iterations_per_second = 10
+        puzzle = TimeLockPuzzle(config)
+
+        secret = secrets.token_bytes(64)  # > 32 bytes
+        encrypted, puzzle_data, state = puzzle.create_puzzle(secret)
+
+        solution, _ = puzzle.solve_puzzle(puzzle_data, state)
+        decrypted = puzzle.decrypt_secret(encrypted, solution)
+        assert decrypted == secret
+
+    def test_countdown_check_not_initialized(self, tmp_path):
+        """check_status on uninitialized CountdownDuress should raise."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        cd = CountdownDuress(config, tmp_path / "state.json")
+        # Don't initialize
+        with pytest.raises(RuntimeError):
+            cd.check_status()
+
+    def test_countdown_trigger_duress(self, tmp_path):
+        """Manual trigger_duress sets countdown_triggered."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        cd = CountdownDuress(config, tmp_path / "state.json")
+        cd.initialize()
+
+        triggered_before, _ = cd.check_status()
+        assert triggered_before is False
+
+        cd.trigger_duress()
+        triggered_after, remaining = cd.check_status()
+        assert triggered_after is True
+        assert remaining == 0.0
+
+    def test_countdown_checkin(self, tmp_path):
+        """CountdownDuress.checkin resets the timer."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.checkin_interval_seconds = 3600
+        cd = CountdownDuress(config, tmp_path / "state.json")
+        cd.initialize()
+        # Checkin should not raise
+        cd.checkin()
+        triggered, remaining = cd.check_status()
+        assert triggered is False
+        assert remaining > 0
+
+    def test_countdown_checkin_not_initialized(self, tmp_path):
+        """checkin on uninitialized CountdownDuress should raise."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        cd = CountdownDuress(config, tmp_path / "state.json")
+        with pytest.raises(RuntimeError):
+            cd.checkin()
+
+    def test_deadman_check_not_initialized(self, tmp_path):
+        """check_status on uninitialized DeadManSwitch should raise."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        switch = DeadManSwitch(config, tmp_path / "state.json")
+        with pytest.raises(RuntimeError):
+            switch.check_status()
+
+    def test_deadman_renew_not_initialized(self, tmp_path):
+        """renew on uninitialized DeadManSwitch should raise."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        switch = DeadManSwitch(config, tmp_path / "state.json")
+        with pytest.raises(RuntimeError):
+            switch.renew()
+
+    def test_deadman_expired(self, tmp_path):
+        """DeadManSwitch with expired timer triggers duress."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        config.deadman_duration_days = 0  # Immediate expiry
+        switch = DeadManSwitch(config, tmp_path / "state.json")
+        switch.initialize()
+
+        # Force the last renewal far into the past
+        if switch.state:
+            switch.state.deadman_last_renewal = time.time() - 86400
+            # Re-save state
+            import json
+
+            state_data = {"deadman_last_renewal": switch.state.deadman_last_renewal}
+            if hasattr(switch.state, "to_dict"):
+                state_data = switch.state.to_dict()
+                state_data["deadman_last_renewal"] = time.time() - 86400
+                (tmp_path / "state.json").write_text(json.dumps(state_data))
+            # Re-create to load
+            switch2 = DeadManSwitch(config, tmp_path / "state.json")
+            if switch2.state:
+                triggered, remaining = switch2.check_status()
+                assert triggered is True or remaining <= 0
+
+    def test_timelock_state_serialization(self, tmp_path):
+        """TimeLockState to_dict/from_dict roundtrip."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        cd = CountdownDuress(config, tmp_path / "state.json")
+        cd.initialize()
+
+        # State should be loadable
+        assert (tmp_path / "state.json").exists()
+        cd2 = CountdownDuress(config, tmp_path / "state.json")
+        assert cd2.state is not None
+
+
+# =====================================================
+# forward_secrecy_x25519.py — push from 94.52% higher
+# =====================================================
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# timelock_duress.py coverage
+# =====================================================
+class TestTimelockDuressBoost:
+    def test_countdown_duress_init_and_check(self, tmp_path):
+        """Test CountdownDuress initialization and state."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        state_path = tmp_path / "state.json"
+
+        cd = CountdownDuress(config, state_path)
+        cd.initialize()
+        assert state_path.exists()
+
+        # Reload from disk
+        cd2 = CountdownDuress(config, state_path)
+        assert cd2.state is not None
+
+    def test_countdown_already_triggered(self, tmp_path):
+        """Test check_status when countdown is already triggered."""
+        from meow_decoder.timelock_duress import CountdownDuress, TimeLockConfig
+
+        config = TimeLockConfig()
+        state_path = tmp_path / "state.json"
+
+        cd = CountdownDuress(config, state_path)
+        cd.initialize()
+        cd.state.countdown_triggered = True
+
+        triggered, remaining = cd.check_status()
+        assert triggered is True
+        assert remaining == 0.0
+
+    def test_deadman_switch_not_enabled(self, tmp_path):
+        """DeadManSwitch with disabled config should raise."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = False
+        state_path = tmp_path / "state.json"
+
+        switch = DeadManSwitch(config, state_path)
+        with pytest.raises(RuntimeError, match="not enabled"):
+            switch.initialize()
+
+    def test_deadman_already_triggered(self, tmp_path):
+        """Test dead-man check_status when already triggered."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        state_path = tmp_path / "state.json"
+
+        switch = DeadManSwitch(config, state_path)
+        switch.initialize()
+        switch.state.deadman_triggered = True
+
+        triggered, remaining = switch.check_status()
+        assert triggered is True
+        assert remaining == 0.0
+
+    def test_deadman_load_existing_state(self, tmp_path):
+        """Test DeadManSwitch loading existing state from disk."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        state_path = tmp_path / "state.json"
+
+        switch = DeadManSwitch(config, state_path)
+        switch.initialize()
+        assert state_path.exists()
+
+        switch2 = DeadManSwitch(config, state_path)
+        assert switch2.state is not None
+
+    def test_timelock_puzzle_create_solve(self, tmp_path):
+        """Test TimeLockPuzzle create/solve/decrypt roundtrip."""
+        from meow_decoder.timelock_duress import TimeLockPuzzle, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.lock_duration_seconds = 1  # minimal
+        config.hash_iterations_per_second = 10  # fast
+        puzzle = TimeLockPuzzle(config)
+
+        secret = os.urandom(64)
+        encrypted, puzzle_data, state = puzzle.create_puzzle(secret)
+
+        solution, solved_state = puzzle.solve_puzzle(puzzle_data, state)
+
+        decrypted = puzzle.decrypt_secret(encrypted, solution)
+        assert decrypted == secret
+
+    def test_deadman_renew(self, tmp_path):
+        """Test DeadManSwitch renew functionality."""
+        from meow_decoder.timelock_duress import DeadManSwitch, TimeLockConfig
+
+        config = TimeLockConfig()
+        config.deadman_enabled = True
+        state_path = tmp_path / "state.json"
+
+        switch = DeadManSwitch(config, state_path)
+        switch.initialize()
+        result = switch.renew()
+        assert result is True
+
+
+# =====================================================
+# crypto.py small gaps
+# =====================================================
+

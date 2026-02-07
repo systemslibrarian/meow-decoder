@@ -177,3 +177,38 @@ def test_save_config_writes_file(tmp_path, monkeypatch):
 
     cfg_path = tmp_path / ".config" / "meowdecoder" / "config.json"
     assert cfg_path.exists()
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# config.py additional coverage
+# =====================================================
+class TestConfig:
+    def test_encoding_config_defaults(self):
+        """Test EncodingConfig default values."""
+        from meow_decoder.config import EncodingConfig
+
+        config = EncodingConfig()
+        assert config.block_size > 0
+        assert config.redundancy >= 1.0
+
+    def test_meow_config(self):
+        """Test MeowConfig creation."""
+        from meow_decoder.config import MeowConfig
+
+        config = MeowConfig()
+        assert config is not None
+
+    def test_duress_config_defaults(self):
+        """Test DuressConfig defaults."""
+        from meow_decoder.config import DuressConfig
+
+        config = DuressConfig()
+        assert config.decoy_type == "message"
+        assert config.wipe_memory is True
+
+
+# =====================================================
+# frame_mac.py coverage
+# =====================================================
+

@@ -90,3 +90,97 @@ def test_fountain_decoder_pending_resolution():
 
     assert decoder.is_complete()
     assert decoder.get_data() == data
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# fountain.py — push from 96.75% higher
+# =====================================================
+class TestFountainExtras:
+    """Extra fountain.py tests for small uncovered branches."""
+
+    def test_fountain_full_roundtrip(self):
+        """Full encode/decode roundtrip with redundancy."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
+        data = b"Fountain code roundtrip test! " * 20
+        block_size = 50
+        k_blocks = (len(data) + block_size - 1) // block_size
+
+        encoder = FountainEncoder(data, k_blocks, block_size)
+        # Generate 2x droplets for redundancy
+        droplets = encoder.generate_droplets(k_blocks * 2)
+
+        decoder = FountainDecoder(k_blocks, block_size)
+        for droplet in droplets:
+            decoder.add_droplet(droplet)
+            if decoder.is_complete():
+                break
+
+        assert decoder.is_complete()
+        recovered = decoder.get_data(original_length=len(data))
+        assert recovered == data
+
+    def test_fountain_not_enough_droplets(self):
+        """Decoder that hasn't received enough droplets should not be complete."""
+        from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
+        data = b"X" * 200
+        block_size = 20
+        k_blocks = 10
+
+        encoder = FountainEncoder(data, k_blocks, block_size)
+        droplets = encoder.generate_droplets(2)  # Way too few
+
+        decoder = FountainDecoder(k_blocks, block_size)
+        for d in droplets:
+            decoder.add_droplet(d)
+
+        assert not decoder.is_complete()
+
+
+# =====================================================
+# secure_cleanup.py — push from 96.25% higher
+# =====================================================
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# fountain.py small gaps
+# =====================================================
+class TestFountainSmallGaps:
+    def test_generate_droplets_method(self):
+        """Test FountainEncoder.generate_droplets() list method."""
+        from meow_decoder.fountain import FountainEncoder
+
+        data = b"hello fountain" * 10
+        k = 7
+        block_size = 20
+        encoder = FountainEncoder(data, k, block_size)
+        droplets = encoder.generate_droplets(10)
+        assert len(droplets) == 10
+
+    def test_get_data_no_original_length(self):
+        """get_data without original_length should raise."""
+        from meow_decoder.fountain import FountainDecoder
+
+        decoder = FountainDecoder(5, 20)
+        with pytest.raises((ValueError, RuntimeError)):
+            decoder.get_data()
+
+    def test_single_droplet(self):
+        """Test single droplet generation."""
+        from meow_decoder.fountain import FountainEncoder
+
+        data = b"test data for fountain" * 5
+        encoder = FountainEncoder(data, 5, 20)
+        droplet = encoder.droplet()
+        assert droplet is not None
+        assert hasattr(droplet, "seed")
+        assert hasattr(droplet, "data")
+
+
+# =====================================================
+# forward_secrecy_x25519.py small gaps
+# =====================================================
+

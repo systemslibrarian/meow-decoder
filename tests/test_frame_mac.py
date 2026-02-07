@@ -98,3 +98,45 @@ def test_frame_mac_stats():
 
 def test_frame_mac_main_runs():
     runpy.run_module("meow_decoder.frame_mac", run_name="__main__")
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# frame_mac.py coverage
+# =====================================================
+class TestFrameMac:
+    def test_pack_unpack_frame_mac(self):
+        """Test frame MAC pack/unpack roundtrip."""
+        from meow_decoder.frame_mac import pack_frame_with_mac, unpack_frame_with_mac
+        import secrets
+
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        data = b"Test frame data for MAC verification"
+
+        packed = pack_frame_with_mac(data, master_key, 0, salt)
+        assert len(packed) > len(data)
+
+        # Unpack returns (is_valid, data)
+        valid, unpacked = unpack_frame_with_mac(packed, master_key, 0, salt)
+        assert valid is True
+        assert unpacked == data
+
+    def test_pack_frame_mac_different_indices(self):
+        """Different frame indices produce different MACs."""
+        from meow_decoder.frame_mac import pack_frame_with_mac
+        import secrets
+
+        master_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        data = b"Same data different index"
+
+        packed0 = pack_frame_with_mac(data, master_key, 0, salt)
+        packed1 = pack_frame_with_mac(data, master_key, 1, salt)
+        assert packed0 != packed1
+
+
+# =====================================================
+# quantum_mixer.py coverage
+# =====================================================
+
