@@ -175,34 +175,6 @@ omit = [
     # "meow_decoder/qr_code.py",      # INCLUDED
 ]
 
-[tool.coverage.report]
-include = [
-    "meow_decoder/crypto.py",
-    "meow_decoder/crypto_backend.py",
-    "meow_decoder/constant_time.py",
-    "meow_decoder/x25519_forward_secrecy.py",
-    "meow_decoder/forward_secrecy.py",
-    "meow_decoder/fountain.py",
-    "meow_decoder/encode.py",
-    "meow_decoder/decode_gif.py",
-    "meow_decoder/gif_handler.py",
-    "meow_decoder/frame_mac.py",
-    "meow_decoder/schrodinger_encode.py",
-    "meow_decoder/schrodinger_decode.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/stego_advanced.py",
-    "meow_decoder/decoy_generator.py",
-    "meow_decoder/duress_mode.py",
-    "meow_decoder/timelock_duress.py",
-    "meow_decoder/secure_cleanup.py",
-    "meow_decoder/secure_bridge.py",
-    "meow_decoder/high_security.py",
-    "meow_decoder/streaming_crypto.py",
-    "meow_decoder/double_ratchet.py",
-    "meow_decoder/multi_secret.py",
-    "meow_decoder/resume_secured.py",
-]
-
 [tool.coverage.xml]
 include = [
     "meow_decoder/crypto.py",
@@ -249,6 +221,32 @@ include = [
 # - qr_code.py - QR generation/reading
 
 [tool.coverage.report]
+include = [
+    "meow_decoder/crypto.py",
+    "meow_decoder/crypto_backend.py",
+    "meow_decoder/constant_time.py",
+    "meow_decoder/x25519_forward_secrecy.py",
+    "meow_decoder/forward_secrecy.py",
+    "meow_decoder/fountain.py",
+    "meow_decoder/encode.py",
+    "meow_decoder/decode_gif.py",
+    "meow_decoder/gif_handler.py",
+    "meow_decoder/frame_mac.py",
+    "meow_decoder/schrodinger_encode.py",
+    "meow_decoder/schrodinger_decode.py",
+    "meow_decoder/quantum_mixer.py",
+    "meow_decoder/stego_advanced.py",
+    "meow_decoder/decoy_generator.py",
+    "meow_decoder/duress_mode.py",
+    "meow_decoder/timelock_duress.py",
+    "meow_decoder/secure_cleanup.py",
+    "meow_decoder/secure_bridge.py",
+    "meow_decoder/high_security.py",
+    "meow_decoder/streaming_crypto.py",
+    "meow_decoder/double_ratchet.py",
+    "meow_decoder/multi_secret.py",
+    "meow_decoder/resume_secured.py",
+]
 # Coverage threshold for security-focused testing
 # Starting fresh - threshold disabled until test suite is rebuilt
 # Target: 80%+ for TIER 1, 70%+ for TIER 2
