@@ -134,7 +134,6 @@ omit = [
     "meow_decoder/ninja_cat_ultra.py",
     "meow_decoder/profiling*.py",
     "meow_decoder/prowling_mode.py",
-    "meow_decoder/stego_*.py",
     "meow_decoder/webcam_*.py",
     "meow_decoder/setup.py",
     # Legacy compatibility (TIER 3)
@@ -148,15 +147,10 @@ omit = [
     "meow_decoder/spec_v12/*.py",
     "meow_decoder/spec_v12/__init__.py",
     # Timelock/Deadman's switch (TIER 3 - advanced features)
-    "meow_decoder/timelock_duress.py",
     "meow_decoder/deadmans_switch_cli.py",
     # Security warnings (TIER 3 - optional notifications)
     "meow_decoder/security_warnings.py",
     # Advanced features (TIER 3)
-    "meow_decoder/multi_secret.py",
-    "meow_decoder/secure_bridge.py",
-    "meow_decoder/resume_secured.py",
-    "meow_decoder/streaming_crypto.py",
     # Progress bar UI (TIER 3)
     "meow_decoder/progress_bar.py",
     "meow_decoder/progress.py",
@@ -169,25 +163,72 @@ omit = [
     "meow_decoder/pq_crypto*.py",
     "meow_decoder/pq_hybrid.py",
     "meow_decoder/pq_signatures.py",
-    "meow_decoder/high_security.py",
     # Advanced crypto features (TIER 3)
     "meow_decoder/crypto_enhanced.py",
-    "meow_decoder/decoy_generator.py",
-    "meow_decoder/double_ratchet.py",
     "meow_decoder/entropy_boost.py",
     # forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
     # forward_secrecy_x25519.py - MOVED TO TIER 2 (tested in test_forward_secrecy_x25519.py)
     "meow_decoder/merkle_tree.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/schrodinger_decode.py",
-    "meow_decoder/schrodinger_encode.py",
-    "meow_decoder/secure_cleanup.py",
     # x25519_forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
-    # Duress mode (tested separately in test_duress.py)
-    "meow_decoder/duress_mode.py",
     # GIF/QR handling (TIER 2 - include for coverage)
     # "meow_decoder/gif_handler.py",  # INCLUDED
     # "meow_decoder/qr_code.py",      # INCLUDED
+]
+
+[tool.coverage.report]
+include = [
+    "meow_decoder/crypto.py",
+    "meow_decoder/crypto_backend.py",
+    "meow_decoder/constant_time.py",
+    "meow_decoder/x25519_forward_secrecy.py",
+    "meow_decoder/forward_secrecy.py",
+    "meow_decoder/fountain.py",
+    "meow_decoder/encode.py",
+    "meow_decoder/decode_gif.py",
+    "meow_decoder/gif_handler.py",
+    "meow_decoder/frame_mac.py",
+    "meow_decoder/schrodinger_encode.py",
+    "meow_decoder/schrodinger_decode.py",
+    "meow_decoder/quantum_mixer.py",
+    "meow_decoder/stego_advanced.py",
+    "meow_decoder/decoy_generator.py",
+    "meow_decoder/duress_mode.py",
+    "meow_decoder/timelock_duress.py",
+    "meow_decoder/secure_cleanup.py",
+    "meow_decoder/secure_bridge.py",
+    "meow_decoder/high_security.py",
+    "meow_decoder/streaming_crypto.py",
+    "meow_decoder/double_ratchet.py",
+    "meow_decoder/multi_secret.py",
+    "meow_decoder/resume_secured.py",
+]
+
+[tool.coverage.xml]
+include = [
+    "meow_decoder/crypto.py",
+    "meow_decoder/crypto_backend.py",
+    "meow_decoder/constant_time.py",
+    "meow_decoder/x25519_forward_secrecy.py",
+    "meow_decoder/forward_secrecy.py",
+    "meow_decoder/fountain.py",
+    "meow_decoder/encode.py",
+    "meow_decoder/decode_gif.py",
+    "meow_decoder/gif_handler.py",
+    "meow_decoder/frame_mac.py",
+    "meow_decoder/schrodinger_encode.py",
+    "meow_decoder/schrodinger_decode.py",
+    "meow_decoder/quantum_mixer.py",
+    "meow_decoder/stego_advanced.py",
+    "meow_decoder/decoy_generator.py",
+    "meow_decoder/duress_mode.py",
+    "meow_decoder/timelock_duress.py",
+    "meow_decoder/secure_cleanup.py",
+    "meow_decoder/secure_bridge.py",
+    "meow_decoder/high_security.py",
+    "meow_decoder/streaming_crypto.py",
+    "meow_decoder/double_ratchet.py",
+    "meow_decoder/multi_secret.py",
+    "meow_decoder/resume_secured.py",
 ]
 
 # ===== TIER 1: Crypto-Critical Modules (INCLUDED) =====
