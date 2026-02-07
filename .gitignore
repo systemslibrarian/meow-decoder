@@ -87,3 +87,4 @@ crypto_core/target/
 target/
 **/target/
 openssf.md
+OpenSSFImprovements.md
