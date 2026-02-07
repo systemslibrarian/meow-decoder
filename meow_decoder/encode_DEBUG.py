@@ -7,7 +7,6 @@ Encodes files into GIF animations with QR codes
 
 This module includes verbose debug logging. NOT for production use.
 """
-
 import warnings as _warnings
 
 _warnings.warn(
@@ -441,7 +440,8 @@ Examples:
 
     # Easter egg: summon void cat
     if args.summon_void_cat:
-        print("""
+        print(
+            """
 　／＞　　フ
 | 　_　 _ l
 ／` ミ＿xノ
@@ -457,19 +457,22 @@ Examples:
 All evidence consumed.
 Nothing to see here.
 😶‍🌫️ Meow.
-""")
+"""
+        )
         sys.exit(0)
 
     # Void cat mode
     if args.mode == "void":
-        print("""
+        print(
+            """
 🐈‍⬛ VOID CAT MODE ACTIVATED
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 Maximum paranoid stealth engaged.
 All evidence will be consumed.
 Nothing to see here. 😶‍🌫️
 ━━━━━━━━━━━━━━━━━━━━━━━━━
-""")
+"""
+        )
         # Force paranoid settings
         args.stego_level = 4  # Maximum stealth
         if not hasattr(args, "stego_level"):
