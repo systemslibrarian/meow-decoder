@@ -36,6 +36,9 @@ permissions:
 jobs:
   proverif:
     name: ProVerif Security Analysis
+    permissions:
+      contents: read
+      pull-requests: write  # Required for PR comment on failure
     runs-on: ubuntu-latest
     
     steps:
@@ -231,7 +234,7 @@ jobs:
           
           # Run TLC model checker on MeowEncode.tla
           echo "📋 Checking MeowEncode.tla..."
-          java -jar formal/tla/tla2tools.jar \
+          java -jar tla2tools.jar \
             -config MeowEncode.cfg \
             -workers auto \
             -deadlock \
@@ -248,7 +251,7 @@ jobs:
           
           # Run TLC model checker on MeowFountain.tla
           echo "📋 Checking MeowFountain.tla..."
-          java -jar formal/tla/tla2tools.jar \
+          java -jar tla2tools.jar \
             -config MeowFountain.cfg \
             -workers auto \
             -deadlock \
