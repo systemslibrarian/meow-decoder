@@ -13,12 +13,15 @@ from typing import List, Final
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+
 try:
     from cryptography.hazmat.primitives.ciphers.aead import XChaCha20Poly1305
+
     _AEAD_CIPHER = XChaCha20Poly1305
     _AES_FALLBACK = False
 except ImportError:  # pragma: no cover - fallback for limited builds
     from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+
     _AEAD_CIPHER = AESGCM
     _AES_FALLBACK = True
 
@@ -57,8 +60,7 @@ def encode_multi_tier(
 
     max_len = max(len(pt) for pt in tier_plaintexts)
     padded_plaintexts = [
-        pt + os.urandom(max_len - len(pt)) if len(pt) < max_len else pt
-        for pt in tier_plaintexts
+        pt + os.urandom(max_len - len(pt)) if len(pt) < max_len else pt for pt in tier_plaintexts
     ]
 
     header = VERSION + recipient_ed25519_pk + tier_count.to_bytes(1, "big")
@@ -222,5 +224,3 @@ def decode_multi_tier(
 
     except Exception:
         raise ValueError("Decryption failed") from None
-
-

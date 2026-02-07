@@ -8,7 +8,9 @@ ENHANCED with secure memory handling and constant-time operations
 This module is NOT part of the primary crypto pipeline.
 Production code should use crypto.py + crypto_backend.py (Rust backend).
 """
+
 import warnings as _warnings
+
 _warnings.warn(
     "meow_decoder.crypto_enhanced is deprecated. "
     "Use meow_decoder.crypto (primary) or meow_decoder.crypto_backend (Rust). "
@@ -43,9 +45,9 @@ MAGIC = b"MEOW2"  # v2: includes HMAC + Argon2id
 
 # Argon2id parameters (tuned for security)
 # These exceed OWASP minimums. Adjust based on your threat model.
-ARGON2_MEMORY = 262144      # 256 MiB (4x OWASP recommendation)
-ARGON2_ITERATIONS = 10      # 10 passes (OWASP recommends 3+)
-ARGON2_PARALLELISM = 4      # 4 threads
+ARGON2_MEMORY = 262144  # 256 MiB (4x OWASP recommendation)
+ARGON2_ITERATIONS = 10  # 10 passes (OWASP recommends 3+)
+ARGON2_PARALLELISM = 4  # 4 threads
 
 # Prefix for manifest HMAC key derivation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_grok"
@@ -59,7 +61,7 @@ BLOCK_KEY_DOMAIN_SEP = b"meow_block_key_v2"
 class Manifest:
     """
     Encrypted file manifest containing all metadata needed for decryption.
-    
+
     Attributes:
         salt: Random salt for key derivation
         nonce: Random nonce for AES-GCM
@@ -71,6 +73,7 @@ class Manifest:
         k_blocks: Number of fountain code blocks
         hmac: HMAC-SHA256 authentication tag
     """
+
     salt: bytes
     nonce: bytes
     orig_len: int
@@ -87,11 +90,11 @@ class SecureBytes:
     Context manager for secure handling of sensitive byte data.
     Best-effort zeroing on exit (Python GC/allocator may retain copies).
     """
-    
+
     def __init__(self, data: bytes = None, size: int = None):
         """
         Initialize secure bytes container.
-        
+
         Args:
             data: Initial data (copied to bytearray)
             size: Size to allocate (if data is None)
@@ -102,51 +105,55 @@ class SecureBytes:
             self._data = bytearray(size)
         else:
             self._data = bytearray()
-        
+
         # Try to lock memory (prevent swap) - platform dependent
         try:
             import ctypes
+
             libc = ctypes.CDLL("libc.so.6")
             buf_addr = ctypes.addressof((ctypes.c_char * len(self._data)).from_buffer(self._data))
             libc.mlock(buf_addr, len(self._data))
             self._mlocked = True
         except:  # pragma: no cover (platform-dependent mlock failure)
             self._mlocked = False
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.zero()
-    
+
     def zero(self):
         """Securely zero the data."""
         if self._data:
             # Overwrite with zeros
-            self._data[:] = b'\x00' * len(self._data)
-            
+            self._data[:] = b"\x00" * len(self._data)
+
             # Try to unlock if we locked
             if self._mlocked:
                 try:
                     import ctypes
+
                     libc = ctypes.CDLL("libc.so.6")
-                    buf_addr = ctypes.addressof((ctypes.c_char * len(self._data)).from_buffer(self._data))
+                    buf_addr = ctypes.addressof(
+                        (ctypes.c_char * len(self._data)).from_buffer(self._data)
+                    )
                     libc.munlock(buf_addr, len(self._data))
                 except:  # pragma: no cover (platform-dependent munlock failure)
                     pass
-            
+
             # Delete and force GC
             del self._data
             gc.collect()
-    
+
     def get_bytes(self) -> bytes:
         """Get immutable bytes copy."""
         return bytes(self._data)
-    
+
     def get_data(self) -> bytearray:
         """Get mutable bytearray reference."""
         return self._data
-    
+
     def __len__(self):
         return len(self._data)
 
@@ -156,10 +163,10 @@ def secure_key_context(key: bytes):
     """
     Context manager for secure key handling.
     Zeros key memory on exit.
-    
+
     Args:
         key: Encryption key
-        
+
     Yields:
         The key (use within context only)
     """
@@ -174,15 +181,15 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     """
     Derive encryption key using Argon2id with optional keyfile.
     Returns key in secure context - caller should use secure_key_context.
-    
+
     Args:
         password: User passphrase
         salt: Random salt (16 bytes)
         keyfile: Optional keyfile content
-        
+
     Returns:
         32-byte encryption key
-        
+
     Raises:
         ValueError: If password is empty or salt is wrong length
     """
@@ -190,7 +197,7 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         raise ValueError("Password cannot be empty")
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
-    
+
     # Combine password and keyfile if provided
     secret = password.encode("utf-8")
     if keyfile:
@@ -199,10 +206,10 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
             algorithm=hashes.SHA256(),
             length=64,
             salt=KEYFILE_DOMAIN_SEP,
-            info=b"password_keyfile_combine"
+            info=b"password_keyfile_combine",
         )
         secret = hkdf.derive(secret + keyfile)
-    
+
     try:
         # Derive key using Argon2id
         key = low_level.hash_secret_raw(
@@ -212,13 +219,13 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
             memory_cost=ARGON2_MEMORY,
             parallelism=ARGON2_PARALLELISM,
             hash_len=32,
-            type=low_level.Type.ID
+            type=low_level.Type.ID,
         )
-        
+
         # Zero the secret
         if isinstance(secret, bytearray):
-            secret[:] = b'\x00' * len(secret)
-        
+            secret[:] = b"\x00" * len(secret)
+
         return key
     except Exception as e:
         raise RuntimeError(f"Key derivation failed: {e}")
@@ -227,12 +234,12 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
 def derive_block_key(master_key: bytes, block_id: int, salt: bytes) -> bytes:
     """
     Derive per-block key for forward secrecy.
-    
+
     Args:
         master_key: Master encryption key
         block_id: Block index
         salt: File salt
-        
+
     Returns:
         32-byte block-specific key
     """
@@ -240,29 +247,26 @@ def derive_block_key(master_key: bytes, block_id: int, salt: bytes) -> bytes:
         algorithm=hashes.SHA256(),
         length=32,
         salt=salt,
-        info=BLOCK_KEY_DOMAIN_SEP + struct.pack(">I", block_id)
+        info=BLOCK_KEY_DOMAIN_SEP + struct.pack(">I", block_id),
     )
     return hkdf.derive(master_key)
 
 
 def encrypt_file_bytes(
-    raw: bytes, 
-    password: str, 
-    keyfile: Optional[bytes] = None,
-    use_forward_secrecy: bool = False
+    raw: bytes, password: str, keyfile: Optional[bytes] = None, use_forward_secrecy: bool = False
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes]:
     """
     Compress, hash, and encrypt file data with secure memory handling.
-    
+
     Args:
         raw: Raw file bytes
         password: Encryption password
         keyfile: Optional keyfile content
         use_forward_secrecy: Enable per-block key derivation
-        
+
     Returns:
         Tuple of (compressed, sha256, salt, nonce, ciphertext)
-        
+
     Raises:
         RuntimeError: If encryption fails
     """
@@ -272,26 +276,26 @@ def encrypt_file_bytes(
             # Compress with maximum compression
             comp = zlib.compress(secure_raw.get_bytes(), level=9)
             sha = hashlib.sha256(secure_raw.get_bytes()).digest()
-        
+
         # Generate random salt and nonce using secrets (cryptographically secure)
         salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)
-        
+
         # Derive key securely
         key = derive_key(password, salt, keyfile)
-        
+
         with secure_key_context(key) as secure_key:
             # Encrypt with AES-256-GCM
             aesgcm = AESGCM(secure_key)
-            
+
             if use_forward_secrecy:
                 # Note: For true forward secrecy, would need to encrypt blocks
                 # individually. For now, this is a single-block encryption.
                 # Full implementation would be in the fountain encoder.
                 pass
-            
+
             cipher = aesgcm.encrypt(nonce, comp, None)
-        
+
         return comp, sha, salt, nonce, cipher
     except Exception as e:
         raise RuntimeError(f"Encryption failed: {e}")
@@ -301,40 +305,36 @@ def encrypt_file_bytes(
 
 
 def decrypt_to_raw(
-    cipher: bytes, 
-    password: str, 
-    salt: bytes, 
-    nonce: bytes,
-    keyfile: Optional[bytes] = None
+    cipher: bytes, password: str, salt: bytes, nonce: bytes, keyfile: Optional[bytes] = None
 ) -> bytes:
     """
     Decrypt and decompress file data with secure memory handling.
-    
+
     Args:
         cipher: Encrypted data
         password: Decryption password
         salt: Salt used during encryption
         nonce: Nonce used during encryption
         keyfile: Optional keyfile content
-        
+
     Returns:
         Decrypted and decompressed plaintext
-        
+
     Raises:
         RuntimeError: If decryption or decompression fails
     """
     try:
         # Derive key securely
         key = derive_key(password, salt, keyfile)
-        
+
         with secure_key_context(key) as secure_key:
             aesgcm = AESGCM(secure_key)
             comp = aesgcm.decrypt(nonce, cipher, None)
-        
+
         # Decompress
         with SecureBytes(comp) as secure_comp:
             raw = zlib.decompress(secure_comp.get_bytes())
-        
+
         return raw
     except Exception as e:
         raise RuntimeError(f"Decryption failed (wrong password/keyfile?): {e}")
@@ -346,101 +346,105 @@ def decrypt_to_raw(
 def pack_manifest(m: Manifest) -> bytes:
     """
     Serialize manifest to bytes.
-    
+
     Args:
         m: Manifest object
-        
+
     Returns:
         Serialized manifest bytes
     """
     return (
-        MAGIC +
-        m.salt +
-        m.nonce +
-        struct.pack(">III", m.orig_len, m.comp_len, m.cipher_len) +
-        struct.pack(">HI", m.block_size, m.k_blocks) +
-        m.sha256 +
-        m.hmac
+        MAGIC
+        + m.salt
+        + m.nonce
+        + struct.pack(">III", m.orig_len, m.comp_len, m.cipher_len)
+        + struct.pack(">HI", m.block_size, m.k_blocks)
+        + m.sha256
+        + m.hmac
     )
 
 
 def unpack_manifest(b: bytes) -> Manifest:
     """
     Deserialize manifest from bytes.
-    
+
     Args:
         b: Serialized manifest bytes
-        
+
     Returns:
         Manifest object
-        
+
     Raises:
         ValueError: If manifest is invalid or wrong version
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32
     if len(b) < min_len:
         raise ValueError(f"Manifest too short (got {len(b)}, need at least {min_len} bytes)")
-    
-    if b[:len(MAGIC)] != MAGIC:
+
+    if b[: len(MAGIC)] != MAGIC:
         raise ValueError("Invalid MAGIC/version (possibly old v1 file or corrupted data)")
 
     off = len(MAGIC)
-    salt = b[off:off+16]; off += 16
-    nonce = b[off:off+12]; off += 12
-    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off:off+12]); off += 12
-    block_size, k_blocks = struct.unpack(">HI", b[off:off+6]); off += 6
-    sha = b[off:off+32]; off += 32
-    hmac_tag = b[off:off+32]
+    salt = b[off : off + 16]
+    off += 16
+    nonce = b[off : off + 12]
+    off += 12
+    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off : off + 12])
+    off += 12
+    block_size, k_blocks = struct.unpack(">HI", b[off : off + 6])
+    off += 6
+    sha = b[off : off + 32]
+    off += 32
+    hmac_tag = b[off : off + 32]
 
     return Manifest(
-        salt=salt, nonce=nonce,
-        orig_len=orig_len, comp_len=comp_len, cipher_len=cipher_len,
-        sha256=sha, block_size=block_size, k_blocks=k_blocks,
-        hmac=hmac_tag
+        salt=salt,
+        nonce=nonce,
+        orig_len=orig_len,
+        comp_len=comp_len,
+        cipher_len=cipher_len,
+        sha256=sha,
+        block_size=block_size,
+        k_blocks=k_blocks,
+        hmac=hmac_tag,
     )
 
 
 def compute_manifest_hmac(
-    password: str, 
-    salt: bytes, 
-    packed_no_hmac: bytes,
-    keyfile: Optional[bytes] = None
+    password: str, salt: bytes, packed_no_hmac: bytes, keyfile: Optional[bytes] = None
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
     Uses constant-time comparison to prevent timing attacks.
-    
+
     Args:
         password: User password
         salt: Salt from manifest
         packed_no_hmac: Serialized manifest without HMAC field
         keyfile: Optional keyfile content
-        
+
     Returns:
         32-byte HMAC-SHA256 tag
     """
     key = derive_key(password, salt, keyfile)
-    
+
     with secure_key_context(key) as secure_key:
         key_material = MANIFEST_HMAC_KEY_PREFIX + secure_key
         h = HMAC(key_material, hashes.SHA256())
         h.update(packed_no_hmac)
         hmac_result = h.finalize()
-    
+
     return hmac_result
 
 
-def verify_manifest_hmac(
-    expected_hmac: bytes,
-    computed_hmac: bytes
-) -> bool:
+def verify_manifest_hmac(expected_hmac: bytes, computed_hmac: bytes) -> bool:
     """
     Verify HMAC using constant-time comparison.
-    
+
     Args:
         expected_hmac: Expected HMAC value
         computed_hmac: Computed HMAC value
-        
+
     Returns:
         True if HMACs match
     """
@@ -451,11 +455,11 @@ def verify_manifest_hmac(
 def secure_wipe(filepath: str, passes: int = 3) -> None:
     """
     Securely overwrite and delete a file.
-    
+
     Args:
         filepath: Path to file to wipe
         passes: Number of overwrite passes (default 3)
-        
+
     Note:
         This is best-effort. Modern SSDs with wear-leveling may not
         guarantee complete data destruction. Use full-disk encryption
@@ -463,7 +467,7 @@ def secure_wipe(filepath: str, passes: int = 3) -> None:
     """
     try:
         size = os.path.getsize(filepath)
-        
+
         with open(filepath, "r+b") as f:
             for _ in range(passes):
                 f.seek(0)
@@ -471,7 +475,7 @@ def secure_wipe(filepath: str, passes: int = 3) -> None:
                 f.write(secrets.token_bytes(size))
                 f.flush()
                 os.fsync(f.fileno())
-        
+
         os.remove(filepath)
     except Exception as e:
         raise RuntimeError(f"Secure wipe failed: {e}")
@@ -480,39 +484,39 @@ def secure_wipe(filepath: str, passes: int = 3) -> None:
 def verify_keyfile(keyfile_path: str) -> bytes:
     """
     Read and validate keyfile.
-    
+
     Args:
         keyfile_path: Path to keyfile
-        
+
     Returns:
         Keyfile contents
-        
+
     Raises:
         ValueError: If keyfile is invalid
         FileNotFoundError: If keyfile doesn't exist
     """
     if not os.path.exists(keyfile_path):
         raise FileNotFoundError(f"Keyfile not found: {keyfile_path}")
-    
+
     keyfile = open(keyfile_path, "rb").read()
-    
+
     if len(keyfile) < 32:
         raise ValueError(f"Keyfile too small (need at least 32 bytes, got {len(keyfile)})")
-    
+
     if len(keyfile) > 1024 * 1024:  # 1 MB
         raise ValueError(f"Keyfile too large (max 1 MB, got {len(keyfile)} bytes)")
-    
+
     return keyfile
 
 
 def secure_compare(a: bytes, b: bytes) -> bool:
     """
     Constant-time comparison of two byte strings.
-    
+
     Args:
         a: First byte string
         b: Second byte string
-        
+
     Returns:
         True if equal
     """
@@ -526,12 +530,13 @@ class StreamingEncryption:
     Streaming encryption for large files to minimize memory footprint.
     Processes data in chunks to avoid loading entire file into RAM.
     """
-    
-    def __init__(self, password: str, salt: bytes, keyfile: Optional[bytes] = None, 
-                 chunk_size: int = 4096):
+
+    def __init__(
+        self, password: str, salt: bytes, keyfile: Optional[bytes] = None, chunk_size: int = 4096
+    ):
         """
         Initialize streaming encryption.
-        
+
         Args:
             password: Encryption password
             salt: Salt for key derivation
@@ -541,49 +546,49 @@ class StreamingEncryption:
         self.chunk_size = chunk_size
         self.key = derive_key(password, salt, keyfile)
         self.salt = salt
-    
+
     def encrypt_stream(self, input_stream, output_stream, nonce: bytes = None):
         """
         Encrypt data from input stream to output stream.
-        
+
         Args:
             input_stream: Input file-like object
             output_stream: Output file-like object
             nonce: Optional nonce (generated if None)
-            
+
         Returns:
             Tuple of (nonce, compressed_size, original_size)
         """
         if nonce is None:
             nonce = secrets.token_bytes(12)
-        
+
         with secure_key_context(self.key) as secure_key:
             aesgcm = AESGCM(secure_key)
-            
+
             # For streaming, we'd need to use a different mode
             # AES-GCM doesn't support true streaming in cryptography library
             # This is a simplified version - full implementation would need CTR mode
-            
+
             # Read all data (for now)
             data = input_stream.read()
-            
+
             # Compress
             compressed = zlib.compress(data, level=9)
-            
+
             # Encrypt
             ciphertext = aesgcm.encrypt(nonce, compressed, None)
-            
+
             # Write
             output_stream.write(ciphertext)
-        
+
         return nonce, len(compressed), len(data)
-    
+
     def __del__(self):
         """Clean up key on deletion."""
-        if hasattr(self, 'key'):
+        if hasattr(self, "key"):
             # Zero the key
             if isinstance(self.key, bytearray):
-                self.key[:] = b'\x00' * len(self.key)
+                self.key[:] = b"\x00" * len(self.key)
             del self.key
             gc.collect()
 
@@ -591,35 +596,35 @@ class StreamingEncryption:
 # Example usage and testing
 if __name__ == "__main__":  # pragma: no cover
     print("Testing enhanced crypto with secure memory handling...\n")
-    
+
     # Test secure bytes
     print("1. Testing SecureBytes...")
     with SecureBytes(b"sensitive data") as secure:
         print(f"   Data: {secure.get_bytes()}")
     print("   ✓ Data zeroed after context exit\n")
-    
+
     # Test encryption with secure memory
     print("2. Testing encryption with secure memory...")
     test_data = b"Secret cat data! " * 100
     password = "test_password_123"
-    
+
     comp, sha, salt, nonce, cipher = encrypt_file_bytes(test_data, password)
     print(f"   ✓ Encrypted {len(test_data)} bytes")
-    
+
     # Test decryption
     decrypted = decrypt_to_raw(cipher, password, salt, nonce)
     assert decrypted == test_data
     print(f"   ✓ Decrypted successfully")
     print(f"   ✓ Memory cleaned up\n")
-    
+
     # Test constant-time comparison
     print("3. Testing constant-time HMAC verification...")
     hmac1 = b"correct_hmac_value_here_32bytes!"
     hmac2 = b"correct_hmac_value_here_32bytes!"
     hmac3 = b"wrong___hmac_value_here_32bytes!"
-    
+
     assert verify_manifest_hmac(hmac1, hmac2) == True
     assert verify_manifest_hmac(hmac1, hmac3) == False
     print("   ✓ Constant-time comparison working\n")
-    
+
     print("All tests passed! ✓")

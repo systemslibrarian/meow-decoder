@@ -15,20 +15,22 @@ import math
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-
 # ── Data Structures ──────────────────────────────────────────────────────────
+
 
 @dataclass
 class FrameResult:
     """Verification result for a single frame."""
+
     index: int
     valid: bool
-    detail: str = ""   # optional extra info (e.g. "MAC mismatch", "QR unreadable")
+    detail: str = ""  # optional extra info (e.g. "MAC mismatch", "QR unreadable")
 
 
 @dataclass
 class TamperReport:
     """Aggregated tamper timeline report."""
+
     total_frames: int = 0
     results: List[FrameResult] = field(default_factory=list)
     clusters: List[dict] = field(default_factory=list)  # detected suspicious clusters
@@ -77,7 +79,7 @@ class TamperReport:
         clusters: List[dict] = []
         i = 0
         while i <= max_idx - window + 1:
-            chunk = validity[i: i + window]
+            chunk = validity[i : i + window]
             # Only consider positions where we have data
             data_points = [v for v in chunk if v is not None]
             if len(data_points) >= 2:
@@ -92,14 +94,15 @@ class TamperReport:
                             end += 1
                         else:
                             break
-                    clusters.append({
-                        "start": i,
-                        "end": end,
-                        "failures": sum(
-                            1 for v in validity[i: end + 1]
-                            if v is not None and not v
-                        ),
-                    })
+                    clusters.append(
+                        {
+                            "start": i,
+                            "end": end,
+                            "failures": sum(
+                                1 for v in validity[i : end + 1] if v is not None and not v
+                            ),
+                        }
+                    )
                     i = end + 1
                     continue
             i += 1
@@ -131,7 +134,7 @@ class TamperReport:
         cols: List[str] = []
 
         for b in range(0, max_idx + 1, bucket_size):
-            chunk = validity[b: b + bucket_size]
+            chunk = validity[b : b + bucket_size]
             data = [v for v in chunk if v is not None]
             if not data:
                 cols.append("·")
@@ -147,10 +150,12 @@ class TamperReport:
         # Build full report
         lines: List[str] = []
         lines.append("┌─ Tamper Timeline ─────────────────────────────────────────┐")
-        lines.append(f"│ Frames: {self.total_frames:>5}  "
-                     f"Valid: {self.valid_count:>5}  "
-                     f"Invalid: {self.invalid_count:>5}  "
-                     f"Rate: {self.success_rate * 100:5.1f}% │")
+        lines.append(
+            f"│ Frames: {self.total_frames:>5}  "
+            f"Valid: {self.valid_count:>5}  "
+            f"Invalid: {self.invalid_count:>5}  "
+            f"Rate: {self.success_rate * 100:5.1f}% │"
+        )
         lines.append("├───────────────────────────────────────────────────────────┤")
         lines.append(f"│ [{bar:<{width}}] │")
         lines.append("│ Legend: █ valid  ▒ mixed  ░ invalid  · no data           │")
@@ -193,8 +198,7 @@ class TamperReport:
                 "success_rate": round(self.success_rate, 4),
                 "clusters": self.clusters,
                 "frames": [
-                    {"index": r.index, "valid": r.valid, "detail": r.detail}
-                    for r in self.results
+                    {"index": r.index, "valid": r.valid, "detail": r.detail} for r in self.results
                 ],
             },
             indent=2,

@@ -9,11 +9,11 @@ Security Properties:
 
 Usage:
     from meow_decoder.secure_cleanup import SecureCleanupManager, register_sensitive_buffer
-    
+
     # Register sensitive data for cleanup
     key = derive_key(password, salt)
     register_sensitive_buffer(key)
-    
+
     # Or use context manager
     with SecureCleanupManager() as cleanup:
         key = derive_key(password, salt)
@@ -29,7 +29,6 @@ import weakref
 from typing import List, Optional, Set
 from contextlib import contextmanager
 import threading
-
 
 # Global registry of sensitive buffers (weak references)
 _sensitive_buffers: Set[int] = set()
@@ -60,10 +59,10 @@ def _cleanup_all() -> None:
     """Zero all registered sensitive buffers."""
     with _lock:
         buf_ids = list(_sensitive_buffers)
-    
+
     for buf_id in buf_ids:
         _zero_buffer(buf_id)
-    
+
     # Force garbage collection
     gc.collect()
 
@@ -79,17 +78,17 @@ def _signal_handler(signum: int, frame) -> None:
 def _register_handlers() -> None:
     """Register atexit and signal handlers (once)."""
     global _handlers_registered
-    
+
     if _handlers_registered:
         return
-    
+
     with _lock:
         if _handlers_registered:
             return
-        
+
         # Register atexit handler
         atexit.register(_cleanup_all)
-        
+
         # Register signal handlers (Unix only)
         try:
             signal.signal(signal.SIGTERM, _signal_handler)
@@ -97,42 +96,42 @@ def _register_handlers() -> None:
         except (ValueError, OSError):
             # Can't set signal handlers (e.g., not main thread)
             pass
-        
+
         _handlers_registered = True
 
 
 def register_sensitive_buffer(data: bytes) -> bytearray:
     """
     Register a sensitive buffer for secure cleanup.
-    
+
     Args:
         data: Sensitive bytes data
-        
+
     Returns:
         Mutable bytearray copy (original bytes cannot be zeroed)
-        
+
     Note:
         The returned bytearray will be zeroed on process exit,
         SIGTERM, or SIGINT. Always use the returned bytearray
         instead of the original bytes.
     """
     _register_handlers()
-    
+
     # Create mutable copy
     mutable = bytearray(data)
     buf_id = id(mutable)
-    
+
     with _lock:
         _sensitive_buffers.add(buf_id)
         _buffer_data[buf_id] = mutable
-    
+
     return mutable
 
 
 def unregister_and_zero(data: bytearray) -> None:
     """
     Unregister and zero a sensitive buffer immediately.
-    
+
     Args:
         data: Buffer previously registered with register_sensitive_buffer
     """
@@ -143,26 +142,26 @@ def unregister_and_zero(data: bytearray) -> None:
 class SecureCleanupManager:
     """
     Context manager for secure memory cleanup.
-    
+
     Example:
         with SecureCleanupManager() as cleanup:
             key = cleanup.register(derive_key(password, salt))
             # ... use key ...
         # key is zeroed here
     """
-    
+
     def __init__(self):
         self._buffers: List[bytearray] = []
-    
+
     def register(self, data: bytes) -> bytearray:
         """Register data for cleanup, returns mutable bytearray."""
         mutable = register_sensitive_buffer(data)
         self._buffers.append(mutable)
         return mutable
-    
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         # Zero all registered buffers
         for buf in self._buffers:
@@ -175,15 +174,15 @@ class SecureCleanupManager:
 def secure_password_context(password: str):
     """
     Context manager for secure password handling.
-    
+
     Encodes password to bytes, registers for cleanup, yields bytearray.
     Zeros on exit.
-    
+
     Example:
         with secure_password_context(password) as pwd_bytes:
             key = derive_from_bytes(pwd_bytes, salt)
     """
-    pwd_bytes = register_sensitive_buffer(password.encode('utf-8'))
+    pwd_bytes = register_sensitive_buffer(password.encode("utf-8"))
     try:
         yield pwd_bytes
     finally:
@@ -194,18 +193,18 @@ def secure_password_context(password: str):
 if __name__ == "__main__":  # pragma: no cover
     print("🧪 Testing Secure Cleanup Module")
     print("=" * 50)
-    
+
     # Test 1: Register and zero
     print("\n1. Testing buffer registration...")
     secret = b"super_secret_password_123"
     mutable = register_sensitive_buffer(secret)
     print(f"   Registered: {len(mutable)} bytes")
     assert mutable == bytearray(secret)
-    
+
     unregister_and_zero(mutable)
     assert all(b == 0 for b in mutable), "Buffer should be zeroed"
     print("   ✅ Buffer zeroed successfully")
-    
+
     # Test 2: Context manager
     print("\n2. Testing SecureCleanupManager...")
     with SecureCleanupManager() as cleanup:
@@ -213,18 +212,18 @@ if __name__ == "__main__":  # pragma: no cover
         assert key == bytearray(b"encryption_key_here")
     assert all(b == 0 for b in key), "Key should be zeroed after context"
     print("   ✅ Context manager zeroed on exit")
-    
+
     # Test 3: Password context
     print("\n3. Testing secure_password_context...")
     with secure_password_context("MySecretPassword") as pwd:
         assert pwd == bytearray(b"MySecretPassword")
     assert all(b == 0 for b in pwd), "Password should be zeroed"
     print("   ✅ Password zeroed after context")
-    
+
     # Test 4: Verify handlers registered
     print("\n4. Checking handlers...")
     assert _handlers_registered, "Handlers should be registered"
     print("   ✅ atexit and signal handlers registered")
-    
+
     print("\n" + "=" * 50)
     print("✅ All secure cleanup tests passed!")

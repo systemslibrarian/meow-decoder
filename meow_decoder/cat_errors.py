@@ -42,6 +42,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 # §1  Cat-Themed Exception Hierarchy
 # ═══════════════════════════════════════════════════════════════
 
+
 class MeowError(Exception):
     """
     😿 Base exception for all Meow Decoder cat-themed errors.
@@ -49,6 +50,7 @@ class MeowError(Exception):
     Wraps a real exception with a cat-themed message while preserving
     the original exception chain for proper debugging.
     """
+
     CAT_EMOJI = "😿"
     CAT_PREFIX = "Meow!"
 
@@ -60,36 +62,42 @@ class MeowError(Exception):
 
 class CatastrophicError(MeowError):
     """🙀 Unrecoverable errors — the cat fell off the shelf."""
+
     CAT_EMOJI = "🙀"
     CAT_PREFIX = "CATASTROPHE!"
 
 
 class HairballError(MeowError):
     """😾 Data corruption or integrity failures — coughing up a hairball."""
+
     CAT_EMOJI = "😾"
     CAT_PREFIX = "Hairball!"
 
 
 class ScratchError(MeowError):
     """😼 Authentication or permission failures — the cat scratches back."""
+
     CAT_EMOJI = "😼"
     CAT_PREFIX = "Scratch!"
 
 
 class YarnTangleError(MeowError):
     """😿 Configuration or input validation errors — tangled yarn ball."""
+
     CAT_EMOJI = "😿"
     CAT_PREFIX = "This yarn ball is tangled!"
 
 
 class KibbleShortageError(MeowError):
     """🐱 Insufficient data or resources — not enough kibbles."""
+
     CAT_EMOJI = "🐱"
     CAT_PREFIX = "Kibble shortage!"
 
 
 class NapInterruptError(MeowError):
     """😴 Timeout or interruption — someone disturbed the cat's nap."""
+
     CAT_EMOJI = "😴"
     CAT_PREFIX = "Nap interrupted!"
 
@@ -100,57 +108,49 @@ class NapInterruptError(MeowError):
 
 _CAT_ERROR_MESSAGES = {
     # File I/O
-    "file_not_found":       "😿 No yarn ball at that path! Did the cat knock it off the shelf?",
-    "file_too_large":       "🙀 This yarn ball is ENORMOUS! Even a lion couldn't carry it.",
-    "file_corrupted":       "😾 This yarn ball is all tangled up! The data seems corrupted.",
-    "permission_denied":    "😼 The cat says NO. Permission denied — try sudo catnip?",
-    "output_exists":        "😼 A yarn ball already lives there! Use --force to shove it aside.",
-
+    "file_not_found": "😿 No yarn ball at that path! Did the cat knock it off the shelf?",
+    "file_too_large": "🙀 This yarn ball is ENORMOUS! Even a lion couldn't carry it.",
+    "file_corrupted": "😾 This yarn ball is all tangled up! The data seems corrupted.",
+    "permission_denied": "😼 The cat says NO. Permission denied — try sudo catnip?",
+    "output_exists": "😼 A yarn ball already lives there! Use --force to shove it aside.",
     # Passwords & Auth
-    "wrong_password":       "😾 HISS! Wrong collar tag — that's not the right password.",
-    "password_too_short":   "😿 That collar tag is too tiny! Even a kitten needs more characters.",
-    "password_weak":        "🙀 That password is weaker than a kitten's yawn! Try harder.",
-    "passwords_match":      "😼 You can't use the same collar tag twice! Pick different passwords.",
-    "hmac_failed":          "😾 Collar tag verification FAILED! Someone's been scratching at this data.",
-    "auth_failed":          "😼 The cat does NOT recognize you. Authentication failed.",
-
+    "wrong_password": "😾 HISS! Wrong collar tag — that's not the right password.",
+    "password_too_short": "😿 That collar tag is too tiny! Even a kitten needs more characters.",
+    "password_weak": "🙀 That password is weaker than a kitten's yawn! Try harder.",
+    "passwords_match": "😼 You can't use the same collar tag twice! Pick different passwords.",
+    "hmac_failed": "😾 Collar tag verification FAILED! Someone's been scratching at this data.",
+    "auth_failed": "😼 The cat does NOT recognize you. Authentication failed.",
     # Crypto
-    "encryption_failed":    "🙀 The encryption hairball got stuck! Something went wrong.",
-    "decryption_failed":    "😿 Failed to purr these secrets back to life. Wrong password or damaged data?",
-    "key_derivation_err":   "😾 Can't sharpen these claws — key derivation failed.",
-    "nonce_reuse":          "🙀 CATASTROPHE! Nonce reuse detected — the cat panics!",
-    "invalid_keyfile":      "🌿 This catnip smells funny... invalid keyfile format.",
-    "key_wrong_size":       "😾 That key is the wrong size! Need exactly 32 bytes of whisker strength.",
-
+    "encryption_failed": "🙀 The encryption hairball got stuck! Something went wrong.",
+    "decryption_failed": "😿 Failed to purr these secrets back to life. Wrong password or damaged data?",
+    "key_derivation_err": "😾 Can't sharpen these claws — key derivation failed.",
+    "nonce_reuse": "🙀 CATASTROPHE! Nonce reuse detected — the cat panics!",
+    "invalid_keyfile": "🌿 This catnip smells funny... invalid keyfile format.",
+    "key_wrong_size": "😾 That key is the wrong size! Need exactly 32 bytes of whisker strength.",
     # Fountain / QR
-    "no_frames":            "😿 No frames in this GIF! It's an empty cat bed.",
-    "no_qr_codes":          "😿 No QR codes found! Did the cat eat them?",
-    "not_enough_droplets":  "🐱 Only {count} kibbles collected... need more treats to decode!",
-    "manifest_corrupted":   "😾 The manifest collar tag is scratched! Can't read the cat's name.",
-    "qr_too_large":         "🙀 Too much data for one QR code! Split into smaller yarn balls.",
-
+    "no_frames": "😿 No frames in this GIF! It's an empty cat bed.",
+    "no_qr_codes": "😿 No QR codes found! Did the cat eat them?",
+    "not_enough_droplets": "🐱 Only {count} kibbles collected... need more treats to decode!",
+    "manifest_corrupted": "😾 The manifest collar tag is scratched! Can't read the cat's name.",
+    "qr_too_large": "🙀 Too much data for one QR code! Split into smaller yarn balls.",
     # Schrödinger
-    "schrodinger_failed":   "🔮 Schrödinger's cat collapsed the wrong way! Decode failed.",
-    "reality_mismatch":     "🔮 Neither reality A nor B accepted that collar tag... suspicious.",
+    "schrodinger_failed": "🔮 Schrödinger's cat collapsed the wrong way! Decode failed.",
+    "reality_mismatch": "🔮 Neither reality A nor B accepted that collar tag... suspicious.",
     "superposition_broken": "🔮 The quantum superposition is damaged beyond repair!",
-
     # Forward Secrecy
-    "no_receiver_key":      "🔑 No receiver key provided! The cat can't deliver without an address.",
-    "key_exchange_failed":  "🔑 Key exchange failed — the cats couldn't agree on a meeting spot.",
-    "fs_requires_key":      "🔑 Forward secrecy needs a receiver public key. The cat needs a destination!",
-
+    "no_receiver_key": "🔑 No receiver key provided! The cat can't deliver without an address.",
+    "key_exchange_failed": "🔑 Key exchange failed — the cats couldn't agree on a meeting spot.",
+    "fs_requires_key": "🔑 Forward secrecy needs a receiver public key. The cat needs a destination!",
     # Duress
-    "duress_activated":     "🚨 DURESS DETECTED! The cat is pressing the panic button!",
+    "duress_activated": "🚨 DURESS DETECTED! The cat is pressing the panic button!",
     "duress_same_password": "😼 Duress password can't match the real one! That defeats the purr-pose.",
-    "duress_no_fs":         "🔒 Duress mode requires forward secrecy. No half-measures, says the cat.",
-
+    "duress_no_fs": "🔒 Duress mode requires forward secrecy. No half-measures, says the cat.",
     # Resources
-    "out_of_memory":        "🙀 Out of memory! Even cats can't carry that much. Try --prowling-mode.",
-    "no_webcam":            "📹 No camera found! Did you forget the cat cam?",
-    "timeout":              "😴 Operation timed out. The cat fell asleep waiting...",
-
+    "out_of_memory": "🙀 Out of memory! Even cats can't carry that much. Try --prowling-mode.",
+    "no_webcam": "📹 No camera found! Did you forget the cat cam?",
+    "timeout": "😴 Operation timed out. The cat fell asleep waiting...",
     # Generic
-    "unknown":              "😿 Something went wrong. The cat is confused. *sad meow noises*",
+    "unknown": "😿 Something went wrong. The cat is confused. *sad meow noises*",
 }
 
 # Sassy recovery suggestions
@@ -192,6 +192,7 @@ def fur_ball_error(error_key: str, suggestion: bool = True, **kwargs) -> str:
 # §3  Pun-Named Decorators & Wrappers
 # ═══════════════════════════════════════════════════════════════
 
+
 def pounce_on_errors(
     lives: int = 1,
     catch: tuple = (Exception,),
@@ -217,6 +218,7 @@ def pounce_on_errors(
         def download_file(url):
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -244,7 +246,9 @@ def pounce_on_errors(
             # Should not reach here, but just in case
             if last_exc is not None:
                 raise last_exc
+
         return wrapper  # type: ignore[return-value]
+
     return decorator
 
 
@@ -316,6 +320,7 @@ def litter_box_cleanup(*buffers):
 # §4  Cat-Themed Output Helpers
 # ═══════════════════════════════════════════════════════════════
 
+
 def _cat_mode_enabled() -> bool:
     """Check if cat mode is active (env var or global flag)."""
     return os.environ.get("MEOW_CAT_MODE", "1") == "1"
@@ -370,6 +375,7 @@ def claw_mark(message: str, file=None):
 # §5  Pun-Named Pipeline Wrappers
 # ═══════════════════════════════════════════════════════════════
 
+
 def nine_lives_retry(func: F = None, *, lives: int = 9, verbose: bool = True) -> F:
     """
     🐱 Decorator: retry a function up to 9 lives (configurable).
@@ -388,6 +394,7 @@ def nine_lives_retry(func: F = None, *, lives: int = 9, verbose: bool = True) ->
     # Called with parentheses: @nine_lives_retry(lives=3)
     def decorator(fn: F) -> F:
         return pounce_on_errors(lives=lives, verbose=verbose)(fn)
+
     return decorator  # type: ignore[return-value]
 
 
@@ -402,6 +409,7 @@ def cat_nap_timeout(seconds: float):
         def slow_decode():
             ...
     """
+
     def decorator(func: F) -> F:
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
@@ -423,11 +431,15 @@ def cat_nap_timeout(seconds: float):
             else:
                 # Windows: no alarm, just run normally
                 return func(*args, **kwargs)
+
         return wrapper  # type: ignore[return-value]
+
     return decorator
 
 
-def tail_swish_progress(iterable, desc: str = "Processing", total: int = None, verbose: bool = True):
+def tail_swish_progress(
+    iterable, desc: str = "Processing", total: int = None, verbose: bool = True
+):
     """
     🐾 Cat-themed progress indicator for iterables.
 
@@ -464,22 +476,22 @@ def tail_swish_progress(iterable, desc: str = "Processing", total: int = None, v
 
 # Maps known error messages to cat-themed keys
 _ERROR_PATTERN_MAP = [
-    ("Password cannot be empty",           "wrong_password"),
-    ("Password must be at least",          "password_too_short"),
-    ("Nonce reuse",                        "nonce_reuse"),
-    ("Salt must be 16 bytes",             "key_derivation_err"),
-    ("Key derivation failed",             "key_derivation_err"),
-    ("Encryption failed",                 "encryption_failed"),
-    ("Decryption failed",                 "decryption_failed"),
-    ("No frames found",                   "no_frames"),
-    ("No QR codes found",                 "no_qr_codes"),
-    ("Manifest QR decode corrupted",      "manifest_corrupted"),
-    ("HMAC verification failed",          "hmac_failed"),
-    ("Precomputed key must be 32 bytes",  "key_wrong_size"),
-    ("not the same as encryption",        "passwords_match"),
-    ("Duress mode requires forward",      "duress_no_fs"),
-    ("receiver public key",               "no_receiver_key"),
-    ("Cannot combine --yubikey",          "invalid_keyfile"),
+    ("Password cannot be empty", "wrong_password"),
+    ("Password must be at least", "password_too_short"),
+    ("Nonce reuse", "nonce_reuse"),
+    ("Salt must be 16 bytes", "key_derivation_err"),
+    ("Key derivation failed", "key_derivation_err"),
+    ("Encryption failed", "encryption_failed"),
+    ("Decryption failed", "decryption_failed"),
+    ("No frames found", "no_frames"),
+    ("No QR codes found", "no_qr_codes"),
+    ("Manifest QR decode corrupted", "manifest_corrupted"),
+    ("HMAC verification failed", "hmac_failed"),
+    ("Precomputed key must be 32 bytes", "key_wrong_size"),
+    ("not the same as encryption", "passwords_match"),
+    ("Duress mode requires forward", "duress_no_fs"),
+    ("receiver public key", "no_receiver_key"),
+    ("Cannot combine --yubikey", "invalid_keyfile"),
 ]
 
 

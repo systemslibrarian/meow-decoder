@@ -17,11 +17,11 @@ from pathlib import Path
 class DecoyGenerator:
     """
     Generate convincing innocent decoy files.
-    
+
     Creates realistic-looking innocent content that serves as
     plausible deniability for the real encrypted payload.
     """
-    
+
     # Cat-themed lorem ipsum
     CAT_LOREM = """
     The Feline Manifesto: A Study in Elegance
@@ -51,7 +51,7 @@ class DecoyGenerator:
     in a state of quantum superposition—simultaneously aloof and affectionate, 
     depending on their observation by humans.
     """
-    
+
     # Shopping list items
     SHOPPING_ITEMS = [
         "Cat food (salmon flavor)",
@@ -68,9 +68,9 @@ class DecoyGenerator:
         "Bananas",
         "Yogurt",
         "Pasta",
-        "Tomato sauce"
+        "Tomato sauce",
     ]
-    
+
     # Fake file names for vacation photos
     PHOTO_NAMES = [
         "IMG_2023_beach.jpg",
@@ -78,14 +78,14 @@ class DecoyGenerator:
         "IMG_2025_mountains.jpg",
         "vacation_001.jpg",
         "vacation_002.jpg",
-        "family_photo.jpg"
+        "family_photo.jpg",
     ]
-    
+
     @staticmethod
     def generate_lorem_pdf_content() -> bytes:
         """
         Generate fake PDF content (as text).
-        
+
         Real PDFs are complex, but we just need something that looks
         plausible in a hex dump and has reasonable size.
         """
@@ -124,69 +124,71 @@ startxref
 %%EOF
 """
         return pdf
-    
+
     @staticmethod
     def generate_shopping_list() -> str:
         """Generate random shopping list."""
         items = secrets.SystemRandom().sample(
             DecoyGenerator.SHOPPING_ITEMS,
-            k=secrets.randbelow(len(DecoyGenerator.SHOPPING_ITEMS) - 5) + 5
+            k=secrets.randbelow(len(DecoyGenerator.SHOPPING_ITEMS) - 5) + 5,
         )
-        
+
         date = datetime.now() - timedelta(days=secrets.randbelow(30))
-        
+
         content = f"Shopping List - {date.strftime('%B %d, %Y')}\n"
         content += "=" * 50 + "\n\n"
-        
+
         for i, item in enumerate(items, 1):
             content += f"{i}. {item}\n"
-        
+
         content += "\n" + "=" * 50 + "\n"
         content += "Remember: Don't forget the cat treats!\n"
-        
+
         return content
-    
+
     @staticmethod
     def generate_fake_image(size: int = 1024) -> bytes:
         """
         Generate fake image data (random but plausible-looking).
-        
+
         Args:
             size: Target size in bytes
         """
         # JPEG header
-        header = b'\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00'
-        
+        header = b"\xff\xd8\xff\xe0\x00\x10JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"
+
         # Random data that looks like compressed image
         body = secrets.token_bytes(size - len(header) - 2)
-        
+
         # JPEG end marker
-        footer = b'\xff\xd9'
-        
+        footer = b"\xff\xd9"
+
         return header + body + footer
-    
+
     @classmethod
     def generate_vacation_photos(cls, count: int = 3) -> List[Tuple[str, bytes]]:
         """
         Generate fake vacation photo files.
-        
+
         Args:
             count: Number of photos to generate
-            
+
         Returns:
             List of (filename, content) tuples
         """
         photos = []
-        photo_names = secrets.SystemRandom().sample(cls.PHOTO_NAMES, k=min(count, len(cls.PHOTO_NAMES)))
-        
+        photo_names = secrets.SystemRandom().sample(
+            cls.PHOTO_NAMES, k=min(count, len(cls.PHOTO_NAMES))
+        )
+
         for name in photo_names:
             # Vary size for realism (50-200 KB)
             size = 50000 + secrets.randbelow(150000)
             content = cls.generate_fake_image(size)
             photos.append((name, content))
-        
+
         return photos
-    
+
     @classmethod
     def generate_notes_file(cls) -> str:
         """Generate personal notes file."""
@@ -201,62 +203,62 @@ startxref
         content += "- Grocery shopping on Saturday\n\n"
         content += "Random thoughts:\n"
         content += cls.CAT_LOREM[:200] + "...\n"
-        
+
         return content
-    
+
     @classmethod
     def generate_decoy_archive(cls, target_size: int = 50000) -> bytes:
         """
         Generate complete decoy archive (ZIP).
-        
+
         Args:
             target_size: Approximate target size in bytes
-            
+
         Returns:
             ZIP file content as bytes
         """
         zip_buffer = io.BytesIO()
-        
-        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:
             # Add cat manifesto PDF
-            zf.writestr('The_Feline_Manifesto.pdf', cls.generate_lorem_pdf_content())
-            
+            zf.writestr("The_Feline_Manifesto.pdf", cls.generate_lorem_pdf_content())
+
             # Add shopping list
-            zf.writestr('shopping_list.txt', cls.generate_shopping_list())
-            
+            zf.writestr("shopping_list.txt", cls.generate_shopping_list())
+
             # Add notes
-            zf.writestr('notes.txt', cls.generate_notes_file())
-            
+            zf.writestr("notes.txt", cls.generate_notes_file())
+
             # Add vacation photos to reach target size
             current_size = zip_buffer.tell()
             remaining = target_size - current_size
-            
+
             if remaining > 10000:
                 # Add photos to fill space
                 num_photos = max(1, remaining // 80000)
                 photos = cls.generate_vacation_photos(num_photos)
-                
+
                 # Create vacation_photos subfolder
                 for photo_name, photo_data in photos:
-                    zf.writestr(f'vacation_photos/{photo_name}', photo_data)
-        
+                    zf.writestr(f"vacation_photos/{photo_name}", photo_data)
+
         return zip_buffer.getvalue()
 
 
 def generate_convincing_decoy(target_size: int = None) -> bytes:
     """
     Generate convincing decoy data.
-    
+
     Args:
         target_size: Target size in bytes (optional)
-        
+
     Returns:
         Decoy data as bytes
     """
     if target_size is None:
         # Default to 50-100 KB
         target_size = 50000 + secrets.randbelow(50000)
-    
+
     return DecoyGenerator.generate_decoy_archive(target_size)
 
 
@@ -265,11 +267,12 @@ if __name__ == "__main__":
     print("🐱 Generating decoy data...")
     decoy = generate_convincing_decoy(100000)
     print(f"✅ Generated {len(decoy):,} bytes of convincing decoy")
-    
+
     # Verify it's a valid ZIP
     import zipfile
+
     try:
-        with zipfile.ZipFile(io.BytesIO(decoy), 'r') as zf:
+        with zipfile.ZipFile(io.BytesIO(decoy), "r") as zf:
             print(f"✅ Valid ZIP with {len(zf.namelist())} files:")
             for name in zf.namelist():
                 info = zf.getinfo(name)

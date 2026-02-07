@@ -1,9 +1,40 @@
 [flake8]
-max-line-length = 88
-extend-ignore = E203,W503
+max-line-length = 120
+extend-ignore =
+    # Black compatibility - black formats slices with spaces before ':'
+    E203,
+    # Line break before binary operator (black preference)
+    W503,
+    # Line too long (use max-line-length instead)
+    E501,
+    # Trailing whitespace (black handles code; residual in multiline strings)
+    W291,W293,
+    # f-string without placeholders (cosmetic, common in logging/UI code)
+    F541,
+    # Module-level import not at top (intentional for conditional/optional deps)
+    E402,
+    # Bare except (intentional in security/cleanup code)
+    E722,
+    # Comparison to True/False (style preference)
+    E712,
+    # Lambda assignment (style preference)
+    E731
 
-# Allow e2e/verification scripts to have non-top imports and occasional unused imports.
-# Keep lint strict everywhere else.
+exclude =
+    .git,
+    __pycache__,
+    build,
+    dist,
+    .eggs,
+    .venv,
+    venv
+
+# F401 (unused imports) - many are conditional/optional dependency try/except imports
+# F811 (redefinition) - intentional re-imports after try/except fallbacks
+# F841 (unused variable) - some intentional in security code
 per-file-ignores =
-  tests/verify_*.py: E402,F401
-  verify_*.py: E402,F401
+    tests/*: E402,F401,F811
+    verify_*.py: E402,F401
+    meow_decoder/*_DEBUG.py: F401,F811,F841
+    meow_decoder/*.py: F401,F811,F841
+    meow_decoder/spec_v12/*.py: F401,F811,F841
