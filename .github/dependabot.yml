@@ -9,6 +9,25 @@ updates:
     labels:
       - "dependencies"
       - "python"
+    # Group minor/patch updates to reduce PR noise
+    groups:
+      python-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # Root workspace Cargo.toml
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "rust"
 
   - package-ecosystem: "cargo"
     directory: "/crypto_core"
@@ -39,3 +58,11 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    # Group action updates
+    groups:
+      actions-minor:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
