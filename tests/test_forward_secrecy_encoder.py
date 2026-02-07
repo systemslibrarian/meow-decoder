@@ -74,3 +74,23 @@ def test_create_secure_fountain_encoder_toggle():
         enable_forward_secrecy=True,
     )
     assert isinstance(wrapped, ForwardSecrecyFountainEncoder)
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# forward_secrecy_encoder.py small gaps
+# =====================================================
+class TestForwardSecrecyEncoder:
+    def test_example_encode_integration(self):
+        """Test example_encode_integration returns code string."""
+        from meow_decoder.forward_secrecy_encoder import example_encode_integration
+
+        result = example_encode_integration()
+        assert isinstance(result, str)
+        assert len(result) > 0
+
+
+# =====================================================
+# gif_handler.py small gaps
+# =====================================================
+

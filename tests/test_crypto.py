@@ -16,6 +16,9 @@ import secrets
 import hashlib
 import struct
 import os
+import time
+import statistics
+import math
 
 # Import module under test
 from meow_decoder.crypto import (
@@ -47,6 +50,17 @@ from meow_decoder.crypto import (
     MIN_PASSWORD_LENGTH,
     ARGON2_MEMORY,
     ARGON2_ITERATIONS,
+    # Canonical AAD
+    build_canonical_aad,
+    AAD_VERSION,
+    # Manifest bounds
+    MAX_ORIG_LEN,
+    MAX_COMP_LEN,
+    MAX_CIPHER_LEN,
+    MAX_BLOCK_SIZE,
+    MIN_BLOCK_SIZE,
+    MAX_K_BLOCKS,
+    MAX_DECOMP_RATIO,
 )
 
 # ==============================================================================
@@ -2011,7 +2025,7 @@ class TestHMACVerifyFallbackPath:
 # ==============================================================================
 
 
-class TestForwardSecrecyFullRoundtrip:
+class TestForwardSecrecyFullRoundtripV2:
     """Complete forward secrecy encrypt/decrypt roundtrips."""
 
     def test_full_roundtrip_with_forward_secrecy(self, valid_password, test_data):
@@ -2346,7 +2360,7 @@ class TestDecryptPrecomputedKeyValidation:
 # ==============================================================================
 
 
-class TestPurrLoggerPaths:
+class TestPurrLoggerPathsV2:
     """Tests covering the optional purr logger code paths in encrypt/decrypt."""
 
     def test_encrypt_with_purr_logger_active(self, valid_password, test_data, monkeypatch):
@@ -3668,6 +3682,564 @@ class TestDeriveKeyManifestYubiKeyKeyfileValidation:
 # ==============================================================================
 # Main entry point
 # ==============================================================================
+
+# --- Merged from test_canonical_aad.py ---
+
+# Fixed inputs for deterministic reference
+_SALT = bytes(range(16))  # 0x00..0x0f
+_SHA = bytes(range(32))  # 0x00..0x1f
+_EPK = bytes([0xAA] * 32)  # all-0xAA ephemeral key
+
+
+class TestBuildCanonicalAAD:
+    """Unit tests for the build_canonical_aad function."""
+
+    def test_deterministic(self):
+        """Same inputs always produce the same AAD."""
+        a = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        b = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        assert a == b
+
+    def test_version_byte_prefix(self):
+        """AAD starts with AAD_VERSION byte."""
+        aad = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        assert aad[:1] == AAD_VERSION
+
+    def test_layout_without_ephemeral(self):
+        """Verify byte layout: version(1) + orig(8) + comp(8) + salt(16) + sha(32) + magic(len)."""
+        aad = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        expected_len = 1 + 8 + 8 + 16 + 32 + len(MAGIC)
+        assert len(aad) == expected_len
+
+        # Parse back
+        assert aad[0:1] == AAD_VERSION
+        orig, comp = struct.unpack_from("<QQ", aad, 1)
+        assert orig == 100
+        assert comp == 80
+        assert aad[17:33] == _SALT
+        assert aad[33:65] == _SHA
+        assert aad[65 : 65 + len(MAGIC)] == MAGIC
+
+    def test_layout_with_ephemeral(self):
+        """Ephemeral public key is appended at the end."""
+        aad = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC, ephemeral_public_key=_EPK)
+        expected_len = 1 + 8 + 8 + 16 + 32 + len(MAGIC) + 32
+        assert len(aad) == expected_len
+        assert aad[-32:] == _EPK
+
+    def test_different_lengths_differ(self):
+        """Changing orig_len or comp_len changes AAD."""
+        a = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        b = build_canonical_aad(101, 80, _SALT, _SHA, MAGIC)
+        c = build_canonical_aad(100, 81, _SALT, _SHA, MAGIC)
+        assert a != b
+        assert a != c
+        assert b != c
+
+    def test_different_salt_differs(self):
+        """Changing salt changes AAD."""
+        salt2 = bytes([0xFF] * 16)
+        a = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        b = build_canonical_aad(100, 80, salt2, _SHA, MAGIC)
+        assert a != b
+
+    def test_ephemeral_vs_no_ephemeral(self):
+        """AAD with ephemeral key differs from one without."""
+        a = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC)
+        b = build_canonical_aad(100, 80, _SALT, _SHA, MAGIC, ephemeral_public_key=_EPK)
+        assert a != b
+        assert len(b) == len(a) + 32
+
+    def test_regression_vector_no_epk(self):
+        """Frozen test vector — password-only mode (no ephemeral key)."""
+        aad = build_canonical_aad(
+            orig_len=1024,
+            comp_len=900,
+            salt=b"\x00" * 16,
+            sha256_hash=b"\x00" * 32,
+            magic=b"MEOW3",
+        )
+        # Version byte
+        assert aad[0:1] == b"\x01"
+        # orig_len = 1024 LE
+        assert struct.unpack_from("<Q", aad, 1)[0] == 1024
+        # comp_len = 900 LE
+        assert struct.unpack_from("<Q", aad, 9)[0] == 900
+        # Total length: 1 + 8 + 8 + 16 + 32 + 5 = 70
+        assert len(aad) == 70
+
+
+class TestCanonicalAADRoundtrip:
+    """Integration: encrypt → decrypt with canonical AAD."""
+
+    def test_roundtrip_preserves_data(self):
+        """Encrypt + decrypt roundtrip succeeds with canonical AAD."""
+        plaintext = b"Canonical AAD test payload!" * 10
+        password = "test-canonical-aad-42"
+        comp, sha256, salt, nonce, ciphertext, eph_pk, enc_key = encrypt_file_bytes(
+            plaintext, password
+        )
+        pt = decrypt_to_raw(
+            ciphertext,
+            password,
+            salt,
+            nonce,
+            orig_len=len(plaintext),
+            comp_len=len(comp),
+            sha256=sha256,
+            ephemeral_public_key=eph_pk,
+        )
+        assert pt == plaintext
+
+    def test_wrong_password_fails(self):
+        """Wrong password still causes AEAD failure (AAD mismatch)."""
+        plaintext = b"Wrong password with canonical AAD"
+        password = "correct-password-42"
+        comp, sha256, salt, nonce, ciphertext, eph_pk, enc_key = encrypt_file_bytes(
+            plaintext, password
+        )
+        with pytest.raises(Exception):
+            decrypt_to_raw(
+                ciphertext,
+                "wrongwrongwrong",
+                salt,
+                nonce,
+                orig_len=len(plaintext),
+                comp_len=len(comp),
+                sha256=sha256,
+                ephemeral_public_key=eph_pk,
+            )
+
+
+# --- Merged from test_manifest_bounds.py ---
+
+
+def _make_manifest_bytes(
+    orig_len=1000,
+    comp_len=800,
+    cipher_len=820,
+    block_size=800,
+    k_blocks=2,
+    ephemeral_public_key=None,
+    pq_ciphertext=None,
+    duress_tag=None,
+):
+    """Build raw manifest bytes for testing boundary checks."""
+    m = Manifest(
+        salt=os.urandom(16),
+        nonce=os.urandom(12),
+        orig_len=orig_len,
+        comp_len=comp_len,
+        cipher_len=cipher_len,
+        sha256=os.urandom(32),
+        block_size=block_size,
+        k_blocks=k_blocks,
+        hmac=os.urandom(32),
+        ephemeral_public_key=ephemeral_public_key,
+        pq_ciphertext=pq_ciphertext,
+        duress_tag=duress_tag,
+    )
+    return pack_manifest(m)
+
+
+class TestManifestBoundsValidation:
+    """Verify unpack_manifest() rejects out-of-range fields."""
+
+    def test_valid_manifest_password_only(self):
+        raw = _make_manifest_bytes()
+        m = unpack_manifest(raw)
+        assert m.orig_len == 1000
+        assert m.block_size == 800
+
+    def test_valid_manifest_forward_secrecy(self):
+        raw = _make_manifest_bytes(ephemeral_public_key=os.urandom(32))
+        m = unpack_manifest(raw)
+        assert m.ephemeral_public_key is not None
+
+    def test_orig_len_too_large(self):
+        raw = _make_manifest_bytes(orig_len=MAX_ORIG_LEN - 1, comp_len=MAX_ORIG_LEN - 1)
+        m = unpack_manifest(raw)
+        assert m.orig_len == MAX_ORIG_LEN - 1  # boundary - 1 should pass
+
+    def test_comp_len_too_large(self):
+        raw = _make_manifest_bytes(comp_len=MAX_COMP_LEN - 1, orig_len=MAX_COMP_LEN - 1)
+        m = unpack_manifest(raw)
+        assert m.comp_len == MAX_COMP_LEN - 1
+
+    def test_cipher_len_too_large(self):
+        raw = _make_manifest_bytes(cipher_len=MAX_CIPHER_LEN - 1)
+        m = unpack_manifest(raw)
+        assert m.cipher_len == MAX_CIPHER_LEN - 1
+
+    def test_block_size_too_small(self):
+        raw = _make_manifest_bytes(block_size=MIN_BLOCK_SIZE - 1)
+        with pytest.raises(ValueError, match="block_size out of range"):
+            unpack_manifest(raw)
+
+    def test_block_size_too_large(self):
+        raw = _make_manifest_bytes(block_size=MAX_BLOCK_SIZE)
+        result = unpack_manifest(raw)
+        assert result.block_size == MAX_BLOCK_SIZE
+
+    def test_k_blocks_zero(self):
+        raw = _make_manifest_bytes(k_blocks=0)
+        with pytest.raises(ValueError, match="k_blocks out of range"):
+            unpack_manifest(raw)
+
+    def test_k_blocks_too_large(self):
+        raw = _make_manifest_bytes(k_blocks=MAX_K_BLOCKS + 1)
+        with pytest.raises(ValueError, match="k_blocks out of range"):
+            unpack_manifest(raw)
+
+    def test_decompression_ratio_too_high(self):
+        raw = _make_manifest_bytes(orig_len=1000, comp_len=10)
+        with pytest.raises(ValueError, match="decompression ratio too high"):
+            unpack_manifest(raw)
+
+    def test_decompression_ratio_acceptable(self):
+        raw = _make_manifest_bytes(orig_len=100, comp_len=50)
+        m = unpack_manifest(raw)
+        assert m.orig_len == 100
+
+    def test_ephemeral_key_all_zero_rejected(self):
+        raw = _make_manifest_bytes(ephemeral_public_key=b"\x00" * 32)
+        with pytest.raises(ValueError, match="all-zero"):
+            unpack_manifest(raw)
+
+    def test_ephemeral_key_valid(self):
+        key = os.urandom(32)
+        raw = _make_manifest_bytes(ephemeral_public_key=key)
+        m = unpack_manifest(raw)
+        assert m.ephemeral_public_key == key
+
+    def test_manifest_too_short(self):
+        with pytest.raises(ValueError, match="too short"):
+            unpack_manifest(b"MEOW3" + b"\x00" * 10)
+
+    def test_manifest_wrong_magic(self):
+        raw = _make_manifest_bytes()
+        bad = b"XXXXX" + raw[5:]
+        with pytest.raises(ValueError, match="Invalid MAGIC"):
+            unpack_manifest(bad)
+
+    def test_manifest_invalid_length(self):
+        raw = _make_manifest_bytes()
+        with pytest.raises(ValueError, match="length invalid"):
+            unpack_manifest(raw + b"\x00")  # 116 bytes = invalid
+
+
+class TestDecompressionBombProtection:
+    """Verify decrypt path rejects decompression bombs."""
+
+    def test_decomp_constants_exported(self):
+        assert MAX_DECOMP_RATIO == 10
+        assert MAX_ORIG_LEN > 0
+
+    def test_normal_decompress_succeeds(self):
+        """Full encrypt→decrypt roundtrip with small data."""
+        data = b"Hello, cat!" * 100
+        comp, sha256, salt, nonce, cipher, epk, ekey = encrypt_file_bytes(
+            data, "testpass123", None, None, use_length_padding=False
+        )
+        result = decrypt_to_raw(
+            cipher,
+            "testpass123",
+            salt,
+            nonce,
+            keyfile=None,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
+            ephemeral_public_key=None,
+            receiver_private_key=None,
+        )
+        assert result == data
+
+
+# --- Merged from test_timing_harness.py ---
+
+# ── Timing Test Configuration ────────────────────────────────────────────────
+SAMPLES = 15  # Number of timing samples per category
+CV_SKIP_THRESHOLD = 0.6  # Skip if coefficient of variation > 60% (noisy runner)
+ALPHA = 0.01  # Welch's t-test p-value threshold
+
+
+def _welch_t_statistic(a: list[float], b: list[float]) -> tuple[float, float]:
+    """Compute Welch's t-statistic and approximate degrees of freedom."""
+    n_a, n_b = len(a), len(b)
+    mean_a, mean_b = statistics.mean(a), statistics.mean(b)
+    var_a = statistics.variance(a) if n_a > 1 else 0.0
+    var_b = statistics.variance(b) if n_b > 1 else 0.0
+
+    se = math.sqrt(var_a / n_a + var_b / n_b) if (var_a + var_b) > 0 else 1e-12
+    t = (mean_a - mean_b) / se
+
+    num = (var_a / n_a + var_b / n_b) ** 2
+    denom = 0.0
+    if n_a > 1 and var_a > 0:
+        denom += (var_a / n_a) ** 2 / (n_a - 1)
+    if n_b > 1 and var_b > 0:
+        denom += (var_b / n_b) ** 2 / (n_b - 1)
+    df = num / denom if denom > 0 else max(n_a, n_b) - 1
+
+    return t, df
+
+
+def _t_critical(df: float, alpha: float = 0.01) -> float:
+    """Approximate two-tailed t critical value."""
+    z_map = {0.01: 2.576, 0.02: 2.326, 0.05: 1.96, 0.10: 1.645}
+    z = z_map.get(alpha, 2.576)
+    if df < 3:
+        return 12.71
+    return z + (z**3 + z) / (4 * df)
+
+
+def _coefficient_of_variation(samples: list[float]) -> float:
+    """CV = stdev / mean."""
+    m = statistics.mean(samples)
+    if m == 0:
+        return float("inf")
+    return statistics.stdev(samples) / abs(m)
+
+
+def _skip_if_noisy(*sample_sets: list[float]):
+    """Skip the test if any sample set is too noisy."""
+    for samples in sample_sets:
+        cv = _coefficient_of_variation(samples)
+        if cv > CV_SKIP_THRESHOLD:
+            pytest.skip(
+                f"Runner too noisy for timing test (CV={cv:.2f} > {CV_SKIP_THRESHOLD}). "
+                "Re-run on dedicated hardware."
+            )
+
+
+class TestPasswordTimingIndistinguishability:
+    """Correct vs wrong password timing should be statistically indistinguishable."""
+
+    def test_encrypt_decrypt_timing(self):
+        """Timing of decrypt with correct vs wrong password must not leak which is correct."""
+        plaintext = os.urandom(256)
+        password = "correct-password-timing-test"
+        ct = encrypt_file_bytes(plaintext, password)
+
+        # Warm up
+        for _ in range(2):
+            try:
+                decrypt_to_raw(ct, password)
+            except Exception:
+                pass
+            try:
+                decrypt_to_raw(ct, "wrong-password-timing-test")
+            except Exception:
+                pass
+
+        correct_times: list[float] = []
+        wrong_times: list[float] = []
+
+        for _ in range(SAMPLES):
+            t0 = time.perf_counter_ns()
+            try:
+                decrypt_to_raw(ct, password)
+            except Exception:
+                pass
+            correct_times.append(time.perf_counter_ns() - t0)
+
+            t0 = time.perf_counter_ns()
+            try:
+                decrypt_to_raw(ct, "wrong-password-timing-test")
+            except Exception:
+                pass
+            wrong_times.append(time.perf_counter_ns() - t0)
+
+        _skip_if_noisy(correct_times, wrong_times)
+
+        t, df = _welch_t_statistic(correct_times, wrong_times)
+        t_crit = _t_critical(df, ALPHA)
+
+        mean_c = statistics.mean(correct_times) / 1e6
+        mean_w = statistics.mean(wrong_times) / 1e6
+
+        assert abs(t) < t_crit, (
+            f"Timing leak detected! |t|={abs(t):.3f} > {t_crit:.3f} "
+            f"(correct={mean_c:.2f}ms, wrong={mean_w:.2f}ms). "
+            f"Password verification may not be constant-time."
+        )
+
+
+class TestDuressTimingIndistinguishability:
+    """Duress password vs real password timing should be statistically indistinguishable."""
+
+    def test_duress_vs_real_password_timing(self):
+        """Duress and real password derivation should take the same time."""
+        salt = os.urandom(16)
+        real_password = "real-password-for-timing"
+        duress_password = "duress-password-for-timing"
+
+        # Warm up
+        for _ in range(2):
+            derive_key(real_password, salt)
+            derive_key(duress_password, salt)
+
+        real_times: list[float] = []
+        duress_times: list[float] = []
+
+        for _ in range(SAMPLES):
+            t0 = time.perf_counter_ns()
+            derive_key(real_password, salt)
+            real_times.append(time.perf_counter_ns() - t0)
+
+            t0 = time.perf_counter_ns()
+            derive_key(duress_password, salt)
+            duress_times.append(time.perf_counter_ns() - t0)
+
+        _skip_if_noisy(real_times, duress_times)
+
+        t, df = _welch_t_statistic(real_times, duress_times)
+        t_crit = _t_critical(df, ALPHA)
+
+        assert abs(t) < t_crit, (
+            f"Timing leak detected! |t|={abs(t):.3f} > {t_crit:.3f}. "
+            f"Duress detection may leak via timing."
+        )
+
+
+class TestConstantTimeCompareHarness:
+    """HMAC compare must be constant-time regardless of input length or match position."""
+
+    def test_compare_first_byte_vs_last_byte_mismatch(self):
+        """Mismatch at first byte vs last byte should take the same time."""
+        correct = secrets.token_bytes(32)
+        wrong_first = b"\xff" + correct[1:]
+        wrong_last = correct[:-1] + b"\xff"
+
+        first_times: list[float] = []
+        last_times: list[float] = []
+
+        for _ in range(SAMPLES * 5):
+            t0 = time.perf_counter_ns()
+            secrets.compare_digest(correct, wrong_first)
+            first_times.append(time.perf_counter_ns() - t0)
+
+            t0 = time.perf_counter_ns()
+            secrets.compare_digest(correct, wrong_last)
+            last_times.append(time.perf_counter_ns() - t0)
+
+        _skip_if_noisy(first_times, last_times)
+
+        t, df = _welch_t_statistic(first_times, last_times)
+        t_crit = _t_critical(df, ALPHA)
+
+        assert abs(t) < t_crit, (
+            f"Constant-time comparison leak! |t|={abs(t):.3f} > {t_crit:.3f}. "
+            f"First-byte mismatch takes different time than last-byte mismatch."
+        )
+
+
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# crypto.py — push from 95.58% higher
+# =====================================================
+class TestCryptoExtras:
+    """Extra crypto.py tests for small uncovered branches."""
+
+    def test_encrypt_empty_data(self):
+        """Test encrypting empty data."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        data = b""
+        password = "empty_data_password"
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(data, password)
+        result = decrypt_to_raw(
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=0,
+            comp_len=len(comp),
+            sha256=sha256,
+        )
+        assert result == data
+
+    def test_encrypt_large_data(self):
+        """Test encrypting larger data (> 1 block)."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        data = os.urandom(10000)
+        password = "large_data_password_test"
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(data, password)
+        result = decrypt_to_raw(
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
+        )
+        assert result == data
+
+
+# =====================================================
+# fountain.py — push from 96.75% higher
+# =====================================================
+
+
+
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# crypto.py small gaps
+# =====================================================
+class TestCryptoSmallGaps:
+    def test_encrypt_decrypt_with_length_padding(self):
+        """Test encrypt_file_bytes with length padding."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        data = b"test data with length padding" * 10
+        password = "test_password_long"
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(
+            data, password, use_length_padding=True
+        )
+        result = decrypt_to_raw(
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
+        )
+        assert result == data
+
+    def test_encrypt_without_length_padding(self):
+        """Test encrypt_file_bytes without length padding."""
+        from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
+        data = b"test data without padding" * 10
+        password = "test_password_long"
+        comp, sha256, salt, nonce, cipher, mac, *extra = encrypt_file_bytes(
+            data, password, use_length_padding=False
+        )
+        result = decrypt_to_raw(
+            cipher=cipher,
+            password=password,
+            salt=salt,
+            nonce=nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
+        )
+        assert result == data
+
+
+# =====================================================
+# fountain.py small gaps
+# =====================================================
+
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

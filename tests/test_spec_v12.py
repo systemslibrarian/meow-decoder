@@ -1,11 +1,192 @@
+#!/usr/bin/env python3
 """
-Tests to boost coverage for spec_v12/multi_tier.py, key_management.py, steganography.py
+Tests for meow_decoder.spec_v12 (encode, decode, steganography, key_management, multi_tier).
+
+Consolidated from:
+  - test_spec_v12_encode.py
+  - test_spec_v12_decode.py
+  - test_coverage_boost_spec_v12.py
 """
 
 import os
 import struct
 import pytest
+import secrets
 from unittest.mock import patch, MagicMock
+
+from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
+from cryptography.hazmat.primitives import serialization
+
+from meow_decoder.spec_v12 import encode as spec_encode
+from meow_decoder.spec_v12 import decode as spec_decode
+from meow_decoder.spec_v12 import steganography as spec_stego
+
+
+def _minimal_gif() -> bytes:
+    # GIF89a + Logical Screen Descriptor (1x1, no GCT)
+    return b"GIF89a" + b"\x01\x00\x01\x00\x00\x00\x00"
+
+
+def _ed25519_keypair() -> tuple[bytes, bytes]:
+    priv = ed25519.Ed25519PrivateKey.generate()
+    pub = priv.public_key()
+    priv_bytes = priv.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+    pub_bytes = pub.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    return priv_bytes + pub_bytes, pub_bytes
+
+
+# ==============================================================================
+# Encode Tests (from test_spec_v12_encode.py)
+# ==============================================================================
+
+
+def test_ed25519_private_from_bytes_short():
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        spec_encode._ed25519_private_from_bytes(b"short")
+
+
+def test_encode_invalid_recipient_pk_length():
+    sender_sk, _ = _ed25519_keypair()
+
+    with pytest.raises(ValueError, match="recipient_ed25519_pk must be 32 bytes"):
+        spec_encode.encode_file(
+            plaintext=b"data",
+            recipient_ed25519_pk=b"short",
+            sender_ed25519_sk=sender_sk,
+            gif_carrier=_minimal_gif(),
+        )
+
+
+def test_encode_embeds_payload_marker(monkeypatch):
+    sender_sk, _ = _ed25519_keypair()
+    recipient_sk, recipient_pk = _ed25519_keypair()
+
+    # Use X25519 keypair for conversion stubs
+    x_priv = x25519.X25519PrivateKey.generate()
+    x_pub = x_priv.public_key()
+    x_pub_bytes = x_pub.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+
+    monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
+
+    out_gif = spec_encode.encode_file(
+        plaintext=b"hello",
+        recipient_ed25519_pk=recipient_pk,
+        sender_ed25519_sk=sender_sk,
+        gif_carrier=_minimal_gif(),
+    )
+
+    assert spec_stego.MEOW_PAYLOAD_MARKER in out_gif
+
+
+# ==============================================================================
+# Decode Tests (from test_spec_v12_decode.py)
+# ==============================================================================
+
+
+def test_roundtrip_encode_decode(monkeypatch):
+    sender_sk, sender_pk = _ed25519_keypair()
+    recipient_sk, recipient_pk = _ed25519_keypair()
+
+    # Use X25519 keypair for conversion stubs
+    x_priv = x25519.X25519PrivateKey.generate()
+    x_pub = x_priv.public_key()
+    x_pub_bytes = x_pub.public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    x_priv_bytes = x_priv.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
+    monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
+
+    plaintext = b"spec-v12 test payload"
+    gif = spec_encode.encode_file(plaintext, recipient_pk, sender_sk, _minimal_gif())
+
+    recovered = spec_decode.decode_file(gif, sender_pk, recipient_sk)
+    assert recovered == plaintext
+
+
+def test_decode_invalid_payload_size():
+    payload = b"X" * 100
+    gif = spec_stego.embed_in_gif(_minimal_gif(), payload)
+
+    with pytest.raises(ValueError, match="Decryption failed"):
+        spec_decode.decode_file(gif, b"\x00" * 32, b"\x00" * 64)
+
+
+def test_decode_unsupported_version():
+    payload = (0x0003).to_bytes(2, "big") + b"\x00" * (171 - 2)
+    gif = spec_stego.embed_in_gif(_minimal_gif(), payload)
+
+    with pytest.raises(ValueError, match="Decryption failed"):
+        spec_decode.decode_file(gif, b"\x00" * 32, b"\x00" * 64)
+
+
+def test_decode_wrong_recipient_key(monkeypatch):
+    sender_sk, sender_pk = _ed25519_keypair()
+    recipient_sk, recipient_pk = _ed25519_keypair()
+    other_recipient_sk, _ = _ed25519_keypair()
+
+    x_priv = x25519.X25519PrivateKey.generate()
+    x_pub_bytes = x_priv.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    x_priv_bytes = x_priv.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
+    monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
+
+    gif = spec_encode.encode_file(b"hello", recipient_pk, sender_sk, _minimal_gif())
+
+    with pytest.raises(ValueError, match="Decryption failed"):
+        spec_decode.decode_file(gif, sender_pk, other_recipient_sk)
+
+
+def test_decode_signature_failure(monkeypatch):
+    sender_sk, sender_pk = _ed25519_keypair()
+    recipient_sk, recipient_pk = _ed25519_keypair()
+    other_sender_sk, other_sender_pk = _ed25519_keypair()
+
+    x_priv = x25519.X25519PrivateKey.generate()
+    x_pub_bytes = x_priv.public_key().public_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PublicFormat.Raw,
+    )
+    x_priv_bytes = x_priv.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
+
+    monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
+    monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
+
+    gif = spec_encode.encode_file(b"hello", recipient_pk, sender_sk, _minimal_gif())
+
+    with pytest.raises(ValueError, match="Decryption failed"):
+        spec_decode.decode_file(gif, other_sender_pk, recipient_sk)
+
+
+# --- Merged from test_coverage_boost_spec_v12.py ---
 
 
 class TestSteganography:
@@ -268,9 +449,6 @@ class TestMultiTier:
 
     def _generate_ed25519_keypair_raw(self):
         """Helper to generate raw Ed25519 keypair bytes."""
-        from cryptography.hazmat.primitives.asymmetric import ed25519
-        from cryptography.hazmat.primitives import serialization
-
         sk = ed25519.Ed25519PrivateKey.generate()
         pk = sk.public_key()
         sk_bytes = sk.private_bytes(
@@ -392,12 +570,49 @@ class TestMultiTier:
     def test_decode_truncated_payload(self):
         """Decoding a truncated payload should fail."""
         from meow_decoder.spec_v12.multi_tier import decode_multi_tier
+        from meow_decoder.spec_v12.steganography import embed_in_gif
 
         sender_sk, sender_pk = self._generate_ed25519_keypair_raw()
-        # Minimal GIF with short payload
-        from meow_decoder.spec_v12.steganography import embed_in_gif
 
         gif = b"GIF89a" + b"\x01\x00\x01\x00" + b"\x00\x00\x00" + b"\x2c" + b"\x00" * 20
         embedded = embed_in_gif(gif, b"\x00" * 10)  # too short payload
         with pytest.raises(ValueError, match="Decryption failed"):
             decode_multi_tier(embedded, sender_pk, sender_sk, tier_index=0)
+
+
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# spec_v12/encode.py and decode.py small gaps
+# =====================================================
+class TestSpecV12EncodeDecodeSmallGaps:
+    def test_encode_decode_roundtrip(self):
+        """Test spec_v12 encode/decode roundtrip."""
+        from meow_decoder.spec_v12.encode import encode_file
+        from meow_decoder.spec_v12.decode import decode_file
+        from meow_decoder.spec_v12.key_management import SoftwareBackend
+        from PIL import Image
+
+        backend = SoftwareBackend()
+        sender_sk, sender_pk = backend.generate_ed25519_keypair()
+        recipient_backend = SoftwareBackend()
+        recipient_sk, recipient_pk = recipient_backend.generate_ed25519_keypair()
+
+        plaintext = b"Spec v12 encode/decode test data"
+
+        # Create a proper GIF carrier using PIL
+        img = Image.new("RGB", (100, 100), color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="GIF")
+        gif = buf.getvalue()
+
+        encoded = encode_file(plaintext, recipient_pk, sender_sk, gif)
+        assert len(encoded) > len(gif)
+
+        decoded = decode_file(encoded, sender_pk, recipient_sk)
+        assert decoded == plaintext
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

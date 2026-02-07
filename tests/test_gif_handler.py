@@ -111,3 +111,87 @@ def test_gif_optimizer_get_gif_info(tmp_path):
 
     assert info["frames"] == 1
     assert info["size"] == (32, 32)
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# gif_handler.py — push from 98.86% higher
+# =====================================================
+class TestGifHandlerExtras:
+    """Extra gif_handler tests for small uncovered branches."""
+
+    def test_create_gif_bytes_roundtrip(self):
+        """Create GIF bytes and verify they're valid."""
+        from meow_decoder.gif_handler import GIFEncoder
+        from PIL import Image
+
+        frames = [
+            Image.new("RGB", (50, 50), "red"),
+            Image.new("RGB", (50, 50), "green"),
+            Image.new("RGB", (50, 50), "blue"),
+        ]
+        encoder = GIFEncoder(fps=5)
+        gif_bytes = encoder.create_gif_bytes(frames)
+        assert gif_bytes.startswith(b"GIF")
+        assert len(gif_bytes) > 100
+
+    def test_create_gif_mismatched_sizes(self, tmp_path):
+        """Frames of different sizes should be resized."""
+        from meow_decoder.gif_handler import GIFEncoder
+        from PIL import Image
+
+        frames = [
+            Image.new("RGB", (100, 100), "red"),
+            Image.new("RGB", (50, 50), "blue"),  # Different size
+        ]
+        encoder = GIFEncoder()
+        output = tmp_path / "mismatch.gif"
+        encoder.create_gif(frames, output)
+        assert output.exists()
+
+
+# =====================================================
+# multi_secret.py — push from 98.25% higher
+# =====================================================
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# gif_handler.py small gaps
+# =====================================================
+class TestGifHandlerBoost:
+    def test_create_gif_bytes_empty_frames(self):
+        """Empty frames should raise ValueError."""
+        from meow_decoder.gif_handler import GIFEncoder
+
+        handler = GIFEncoder()
+        with pytest.raises(ValueError, match="No frames"):
+            handler.create_gif_bytes([])
+
+    def test_create_gif_empty_frames(self, tmp_path):
+        """create_gif with empty frames should raise ValueError."""
+        from meow_decoder.gif_handler import GIFEncoder
+
+        handler = GIFEncoder()
+        with pytest.raises(ValueError, match="No frames"):
+            handler.create_gif([], tmp_path / "test.gif")
+
+    def test_gif_decoder_extract_frames(self, tmp_path):
+        """Test GIFDecoder.extract_frames."""
+        from meow_decoder.gif_handler import GIFEncoder, GIFDecoder
+        from PIL import Image
+
+        # Create a test GIF
+        frames = [Image.new("RGB", (10, 10), "red"), Image.new("RGB", (10, 10), "blue")]
+        encoder = GIFEncoder(fps=2)
+        encoder.create_gif(frames, tmp_path / "test.gif")
+
+        decoder = GIFDecoder()
+        extracted = decoder.extract_frames(tmp_path / "test.gif")
+        assert len(extracted) >= 2
+
+
+# =====================================================
+# spec_v12/encode.py and decode.py small gaps
+# =====================================================
+

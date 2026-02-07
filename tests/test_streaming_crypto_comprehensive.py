@@ -10,7 +10,6 @@ Targets 90-95% code coverage with:
 - Security invariants
 - Memory management
 """
-
 import pytest
 import secrets
 import hashlib
@@ -22,8 +21,6 @@ from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 from dataclasses import dataclass
 from typing import Optional
-
-# Import the module under test
 from meow_decoder.streaming_crypto import (
     MemoryConfig,
     StreamingCipher,
@@ -33,11 +30,8 @@ from meow_decoder.streaming_crypto import (
     stream_decrypt_file,
 )
 
-# =============================================================================
-# 🐱 FIXTURES - Reusable test components
-# =============================================================================
-
-
+# Imports from merged file
+from meow_decoder.streaming_crypto import StreamingCipher, STREAMING_MAC_INFO
 @pytest.fixture
 def valid_key():
     """Generate a valid 32-byte AES-256 key."""
@@ -1359,5 +1353,492 @@ class TestCatMocked:
 # 🐱 MAIN - Run tests if executed directly
 # =============================================================================
 
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# streaming_crypto.py — push from 89.22% higher
+# =====================================================
+class TestStreamingCryptoExtras:
+    """Extra streaming_crypto tests for uncovered branches."""
+
+    def test_encrypt_stream_returns_mac(self):
+        """encrypt_stream returns (orig_size, comp_size, sha256, mac_tag)."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+
+        cipher = StreamingCipher(key, nonce)
+        inp = io.BytesIO(b"test data for MAC return")
+        out = io.BytesIO()
+        result = cipher.encrypt_stream(inp, out)
+
+        assert len(result) == 4
+        orig_size, comp_size, sha256_hash, mac_tag = result
+        assert orig_size == len(b"test data for MAC return")
+        assert len(sha256_hash) == 32
+        assert len(mac_tag) == 32
+
+    def test_decrypt_with_valid_mac(self):
+        """Decrypt with correct MAC should succeed."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+
+        plaintext = b"MAC verified plaintext data!"
+        enc = StreamingCipher(key, nonce)
+        enc_out = io.BytesIO()
+        _, _, _, mac_tag = enc.encrypt_stream(io.BytesIO(plaintext), enc_out)
+
+        enc_out.seek(0)
+        dec = StreamingCipher(key, nonce)
+        dec_out = io.BytesIO()
+        dec.decrypt_stream(enc_out, dec_out, expected_mac=mac_tag)
+        dec_out.seek(0)
+        assert dec_out.read() == plaintext
+
+    def test_decrypt_with_wrong_mac(self):
+        """Decrypt with wrong MAC should raise RuntimeError."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+
+        enc = StreamingCipher(key, nonce)
+        enc_out = io.BytesIO()
+        enc.encrypt_stream(io.BytesIO(b"data to encrypt"), enc_out)
+
+        enc_out.seek(0)
+        dec = StreamingCipher(key, nonce)
+        with pytest.raises(RuntimeError, match="MAC"):
+            dec.decrypt_stream(enc_out, io.BytesIO(), expected_mac=b"\x00" * 32)
+
+    def test_decrypt_mac_wrong_length(self):
+        """MAC must be 32 bytes."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        cipher = StreamingCipher(key)
+        with pytest.raises(ValueError, match="32 bytes|MAC"):
+            cipher.decrypt_stream(io.BytesIO(b"x"), io.BytesIO(), expected_mac=b"\x00" * 16)
+
+    def test_decrypt_no_compression(self):
+        """Encrypt and decrypt without compression."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+
+        plaintext = b"no compression test data"
+        enc = StreamingCipher(key, nonce)
+        enc_out = io.BytesIO()
+        enc.encrypt_stream(io.BytesIO(plaintext), enc_out, enable_compression=False)
+
+        enc_out.seek(0)
+        dec = StreamingCipher(key, nonce)
+        dec_out = io.BytesIO()
+        dec.decrypt_stream(enc_out, dec_out, enable_decompression=False)
+        dec_out.seek(0)
+        assert dec_out.read() == plaintext
+
+    def test_decrypt_missing_streams_raises(self):
+        """Calling decrypt_stream with no args should raise ValueError."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        cipher = StreamingCipher(key)
+        with pytest.raises((ValueError, TypeError)):
+            cipher.decrypt_stream()
+
+    def test_streaming_cipher_none_nonce_generates(self):
+        """None nonce auto-generates a 16-byte nonce."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        cipher = StreamingCipher(key, nonce=None)
+        assert cipher.nonce is not None
+        assert len(cipher.nonce) == 16
+
+    def test_streaming_cipher_wrong_key_length(self):
+        """Key must be 32 bytes."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        with pytest.raises(ValueError, match="32 bytes|key"):
+            StreamingCipher(b"short_key")
+
+    def test_memory_monitor_with_psutil_mocked(self):
+        """MemoryMonitor with mocked psutil."""
+        from meow_decoder.streaming_crypto import MemoryMonitor
+
+        mock_psutil = MagicMock()
+        mock_vm = MagicMock()
+        mock_vm.available = 1024 * 1024 * 512  # 512 MB
+        mock_psutil.virtual_memory.return_value = mock_vm
+
+        monitor = MemoryMonitor()
+        monitor.has_psutil = True
+        with patch.object(monitor, "_psutil", mock_psutil, create=True):
+            # Just test the chunk size calculation
+            chunk = monitor.get_optimal_chunk_size()
+            assert chunk >= 4096
+
+
+# =====================================================
+# duress_mode.py — push from 91.16% higher
+# =====================================================
+
+
+
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# streaming_crypto.py coverage
+# =====================================================
+class TestStreamingCryptoBoost:
+    def test_streaming_cipher_wrong_nonce_length(self):
+        """Nonce of wrong length should raise ValueError."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        with pytest.raises(ValueError):
+            StreamingCipher(key, nonce=b"short")
+
+    def test_streaming_cipher_encrypt_decrypt_roundtrip(self):
+        """Full encrypt/decrypt stream roundtrip."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+
+        plaintext = b"Hello streaming crypto! " * 100
+
+        cipher = StreamingCipher(key, nonce)
+        input_stream = io.BytesIO(plaintext)
+        encrypted_stream = io.BytesIO()
+        cipher.encrypt_stream(input_stream, encrypted_stream)
+
+        cipher2 = StreamingCipher(key, nonce)
+        encrypted_stream.seek(0)
+        decrypted_stream = io.BytesIO()
+        cipher2.decrypt_stream(encrypted_stream, decrypted_stream)
+
+        decrypted_stream.seek(0)
+        assert decrypted_stream.read() == plaintext
+
+    def test_decrypt_stream_kwargs_compat(self):
+        """Test backward-compat kwargs in decrypt_stream."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+        plaintext = b"Test data"
+
+        cipher = StreamingCipher(key, nonce)
+        in_s = io.BytesIO(plaintext)
+        enc_s = io.BytesIO()
+        cipher.encrypt_stream(in_s, enc_s)
+
+        cipher2 = StreamingCipher(key, nonce)
+        enc_s.seek(0)
+        dec_s = io.BytesIO()
+        cipher2.decrypt_stream(input_stream=enc_s, decrypted_stream=dec_s)
+        dec_s.seek(0)
+        assert dec_s.read() == plaintext
+
+    def test_memory_monitor_no_psutil(self):
+        """MemoryMonitor without psutil should fallback."""
+        from meow_decoder.streaming_crypto import MemoryMonitor
+
+        monitor = MemoryMonitor()
+        monitor.has_psutil = False
+        result = monitor.get_available_memory_mb()
+        assert result is None
+        chunk = monitor.get_optimal_chunk_size()
+        assert chunk == 65536
+
+
+# =====================================================
+# entropy_boost.py coverage
+# =====================================================
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
+
+
+# ===============================================================
+# Merged from test_streaming_crypto_security.py
+# ===============================================================
+
+
+class TestStreamingCryptoAuthentication:
+    """Test suite for streaming crypto MAC authentication (CRIT-01 fix)."""
+
+    def test_encrypt_returns_mac_tag(self):
+        """encrypt_stream should return MAC tag as 4th element."""
+        key = secrets.token_bytes(32)
+        cipher = StreamingCipher(key)
+
+        input_data = b"Test data for MAC verification"
+        result = cipher.encrypt_stream(io.BytesIO(input_data), io.BytesIO())
+
+        assert len(result) == 4, "Should return 4 elements"
+        orig_len, comp_len, sha_hash, mac_tag = result
+
+        assert orig_len == len(input_data)
+        assert isinstance(mac_tag, bytes)
+        assert len(mac_tag) == 32, "MAC should be 32 bytes (HMAC-SHA256)"
+
+    def test_roundtrip_with_mac_verification(self):
+        """Encrypt-then-MAC roundtrip should work correctly."""
+        key = secrets.token_bytes(32)
+        plaintext = b"Secret message for authenticated streaming encryption"
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        orig_len, comp_len, sha_hash, mac_tag = enc_cipher.encrypt_stream(
+            io.BytesIO(plaintext), enc_output
+        )
+
+        # Decrypt with MAC verification
+        enc_output.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+        dec_output = io.BytesIO()
+        bytes_written = dec_cipher.decrypt_stream(enc_output, dec_output, expected_mac=mac_tag)
+
+        assert bytes_written == len(plaintext)
+        assert dec_output.getvalue() == plaintext
+
+    def test_tampered_ciphertext_rejected(self):
+        """Tampered ciphertext should be rejected by MAC verification."""
+        key = secrets.token_bytes(32)
+        plaintext = b"Secret data that must not be tampered with"
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        _, _, _, mac_tag = enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_output)
+
+        # Tamper with ciphertext
+        ciphertext = bytearray(enc_output.getvalue())
+        ciphertext[5] ^= 0xFF  # Flip a bit
+        tampered = io.BytesIO(bytes(ciphertext))
+
+        # Decrypt with MAC verification - MUST fail
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(tampered, io.BytesIO(), expected_mac=mac_tag)
+
+    def test_truncated_ciphertext_rejected(self):
+        """Truncated ciphertext should be rejected by MAC verification."""
+        key = secrets.token_bytes(32)
+        plaintext = b"This is a longer message that will be truncated during attack"
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        _, _, _, mac_tag = enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_output)
+
+        # Truncate ciphertext
+        ciphertext = enc_output.getvalue()
+        truncated = io.BytesIO(ciphertext[:-10])
+
+        # Decrypt with MAC verification - MUST fail
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(truncated, io.BytesIO(), expected_mac=mac_tag)
+
+    def test_wrong_mac_rejected(self):
+        """Wrong MAC should be rejected."""
+        key = secrets.token_bytes(32)
+        plaintext = b"Data with wrong MAC"
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_output)
+
+        # Try to decrypt with wrong MAC
+        wrong_mac = secrets.token_bytes(32)
+        enc_output.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(enc_output, io.BytesIO(), expected_mac=wrong_mac)
+
+    def test_mac_length_validation(self):
+        """MAC must be exactly 32 bytes."""
+        key = secrets.token_bytes(32)
+        cipher = StreamingCipher(key)
+
+        with pytest.raises(ValueError, match="MAC must be 32 bytes"):
+            cipher.decrypt_stream(io.BytesIO(b"data"), io.BytesIO(), expected_mac=b"short")
+
+    def test_mac_is_deterministic(self):
+        """Same key/nonce/plaintext should produce same MAC."""
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(16)
+        plaintext = b"Deterministic MAC test data"
+
+        # Encrypt twice with same key/nonce
+        c1 = StreamingCipher(key, nonce=nonce)
+        out1 = io.BytesIO()
+        _, _, _, mac1 = c1.encrypt_stream(io.BytesIO(plaintext), out1)
+
+        c2 = StreamingCipher(key, nonce=nonce)
+        out2 = io.BytesIO()
+        _, _, _, mac2 = c2.encrypt_stream(io.BytesIO(plaintext), out2)
+
+        assert mac1 == mac2
+        assert out1.getvalue() == out2.getvalue()
+
+    def test_different_keys_produce_different_macs(self):
+        """Different keys should produce different MACs."""
+        plaintext = b"Same plaintext, different keys"
+        nonce = secrets.token_bytes(16)
+
+        c1 = StreamingCipher(secrets.token_bytes(32), nonce=nonce)
+        out1 = io.BytesIO()
+        _, _, _, mac1 = c1.encrypt_stream(io.BytesIO(plaintext), out1)
+
+        c2 = StreamingCipher(secrets.token_bytes(32), nonce=nonce)
+        out2 = io.BytesIO()
+        _, _, _, mac2 = c2.encrypt_stream(io.BytesIO(plaintext), out2)
+
+        assert mac1 != mac2
+
+    def test_mac_includes_nonce(self):
+        """MAC should include nonce to prevent nonce substitution attacks."""
+        key = secrets.token_bytes(32)
+        plaintext = b"Test nonce binding"
+
+        # Encrypt with nonce1
+        nonce1 = secrets.token_bytes(16)
+        c1 = StreamingCipher(key, nonce=nonce1)
+        out1 = io.BytesIO()
+        _, _, _, mac1 = c1.encrypt_stream(io.BytesIO(plaintext), out1)
+
+        # Encrypt with nonce2
+        nonce2 = secrets.token_bytes(16)
+        c2 = StreamingCipher(key, nonce=nonce2)
+        out2 = io.BytesIO()
+        _, _, _, mac2 = c2.encrypt_stream(io.BytesIO(plaintext), out2)
+
+        # MACs should differ due to nonce binding
+        assert mac1 != mac2
+
+    def test_decrypt_without_mac_still_works(self):
+        """Decrypt without MAC should still work (backward compat, but warns)."""
+        key = secrets.token_bytes(32)
+        plaintext = b"Unverified decryption test"
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_output)
+
+        # Decrypt WITHOUT MAC verification (insecure but backward-compatible)
+        enc_output.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+        dec_output = io.BytesIO()
+        bytes_written = dec_cipher.decrypt_stream(enc_output, dec_output)
+
+        assert bytes_written == len(plaintext)
+        assert dec_output.getvalue() == plaintext
+
+    def test_large_data_authenticated(self):
+        """MAC should work correctly for large data."""
+        key = secrets.token_bytes(32)
+        plaintext = secrets.token_bytes(1024 * 1024)  # 1 MB
+
+        # Encrypt
+        enc_cipher = StreamingCipher(key, chunk_size=65536)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        orig_len, _, _, mac_tag = enc_cipher.encrypt_stream(
+            io.BytesIO(plaintext),
+            enc_output,
+            enable_compression=False,  # Skip compression for raw test
+        )
+
+        # Decrypt with MAC
+        enc_output.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=nonce, chunk_size=65536)
+        dec_output = io.BytesIO()
+        dec_cipher.decrypt_stream(
+            enc_output, dec_output, enable_decompression=False, expected_mac=mac_tag
+        )
+
+        assert dec_output.getvalue() == plaintext
+
+    def test_empty_plaintext(self):
+        """MAC should work for empty plaintext."""
+        key = secrets.token_bytes(32)
+        plaintext = b""
+
+        enc_cipher = StreamingCipher(key)
+        nonce = enc_cipher.nonce
+        enc_output = io.BytesIO()
+        orig_len, _, _, mac_tag = enc_cipher.encrypt_stream(
+            io.BytesIO(plaintext), enc_output, enable_compression=False
+        )
+
+        assert orig_len == 0
+        assert len(mac_tag) == 32
+
+        # Verify MAC still protects against modification
+        enc_output.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=nonce)
+        dec_output = io.BytesIO()
+        dec_cipher.decrypt_stream(
+            enc_output, dec_output, enable_decompression=False, expected_mac=mac_tag
+        )
+
+        assert dec_output.getvalue() == plaintext
+
+
+class TestMACKeyDerivation:
+    """Test MAC key derivation uses proper domain separation."""
+
+    def test_mac_key_differs_from_encryption_key(self):
+        """MAC key should be derived separately from encryption key."""
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(16)
+
+        cipher = StreamingCipher(key, nonce=nonce)
+
+        # MAC key should exist and differ from encryption key
+        assert hasattr(cipher, "_mac_key")
+        assert cipher._mac_key != key
+        assert len(cipher._mac_key) == 32
+
+    def test_mac_key_uses_hkdf_domain_separation(self):
+        """MAC key derivation should use HKDF with proper domain separation."""
+        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+        from cryptography.hazmat.primitives import hashes
+
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(16)
+
+        cipher = StreamingCipher(key, nonce=nonce)
+
+        # Manually derive expected MAC key
+        expected_mac_key = HKDF(
+            algorithm=hashes.SHA256(), length=32, salt=nonce, info=STREAMING_MAC_INFO
+        ).derive(key)
+
+        assert cipher._mac_key == expected_mac_key
+
+
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

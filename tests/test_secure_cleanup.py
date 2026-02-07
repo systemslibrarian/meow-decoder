@@ -152,3 +152,60 @@ class TestContextManagers:
         buf = sc.register_sensitive_buffer(b"test")
         assert sc._handlers_registered is True
         sc.unregister_and_zero(buf)
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# secure_cleanup.py — push from 96.25% higher
+# =====================================================
+class TestSecureCleanupExtras:
+    """Extra secure_cleanup tests for uncovered branches."""
+
+    def test_register_sensitive_buffer(self):
+        """Register a sensitive buffer for cleanup."""
+        from meow_decoder import secure_cleanup
+
+        data = b"sensitive key material"
+        buf = secure_cleanup.register_sensitive_buffer(data)
+        assert isinstance(buf, bytearray)
+        assert bytes(buf) == data
+
+    def test_cleanup_all_runs(self):
+        """_cleanup_all should zero registered buffers."""
+        from meow_decoder import secure_cleanup
+
+        buf = secure_cleanup.register_sensitive_buffer(b"secret")
+        secure_cleanup._cleanup_all()
+        # After cleanup, buffer should be zeroed
+        assert buf == bytearray(len(b"secret"))
+
+
+# =====================================================
+# qr_code.py — push from 96.4% higher
+# =====================================================
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# secure_cleanup.py small gaps
+# =====================================================
+class TestSecureCleanupBoost:
+    def test_register_handlers_from_thread(self):
+        """Signal handlers from non-main thread should be handled gracefully."""
+        import threading
+        from meow_decoder import secure_cleanup
+
+        secure_cleanup._handlers_registered = False
+
+        def worker():
+            secure_cleanup._register_handlers()
+
+        t = threading.Thread(target=worker)
+        t.start()
+        t.join()
+
+
+# =====================================================
+# constant_time.py small gaps
+# =====================================================
+

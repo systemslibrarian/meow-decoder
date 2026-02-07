@@ -430,3 +430,69 @@ class TestLibcLoading:
         from meow_decoder import constant_time
 
         assert constant_time._libc is None or callable(getattr(constant_time._libc, "mlock", None))
+
+# --- Merged from test_coverage_boost_extras.py ---
+
+# =====================================================
+# constant_time.py — push from 99.07% to 100%
+# =====================================================
+class TestConstantTimeExtras:
+    """Extra constant_time tests."""
+
+    def test_constant_time_compare_equal(self):
+        """Test constant-time comparison with equal values."""
+        from meow_decoder.constant_time import constant_time_compare
+
+        a = b"hello world test"
+        b_val = b"hello world test"
+        assert constant_time_compare(a, b_val) is True
+
+    def test_constant_time_compare_not_equal(self):
+        """Test constant-time comparison with different values."""
+        from meow_decoder.constant_time import constant_time_compare
+
+        a = b"hello world"
+        b_val = b"hello world!"
+        assert constant_time_compare(a, b_val) is False
+
+    def test_secure_zero_memory_unsupported_type(self):
+        """Test secure_zero_memory with unsupported type (hits else branch)."""
+        from meow_decoder.constant_time import secure_zero_memory
+
+        # Passing a type that's not bytearray or ctypes.Array
+        # exercises the else: return branch
+        buf = bytearray(b"\xff" * 16)
+        mv = memoryview(buf)
+        secure_zero_memory(mv)  # No-op for unsupported type
+        # Just verify no crash — the memoryview type hits the fallback
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# constant_time.py small gaps
+# =====================================================
+class TestConstantTimeBoost:
+    def test_secure_zero_memory_ctypes_array(self):
+        """Test secure_zero_memory with ctypes.Array."""
+        from meow_decoder.constant_time import secure_zero_memory
+
+        buf = (ctypes.c_char * 32)()
+        for i in range(32):
+            buf[i] = bytes([0xFF])
+        secure_zero_memory(buf)
+        for i in range(32):
+            assert buf[i] == b"\x00"
+
+    def test_secure_zero_memory_bytearray(self):
+        """Test secure_zero_memory with bytearray."""
+        from meow_decoder.constant_time import secure_zero_memory
+
+        buf = bytearray(b"\xff" * 32)
+        secure_zero_memory(buf)
+        assert buf == bytearray(32)
+
+
+# =====================================================
+# crypto_enhanced.py small gaps
+# =====================================================
+

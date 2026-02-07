@@ -1064,5 +1064,42 @@ class TestIntegration:
         assert all(len(k) == 32 for k in block_keys)
 
 
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# crypto_enhanced.py small gaps
+# =====================================================
+class TestCryptoEnhanced:
+    def test_derive_key_basic(self):
+        """Test derive_key with string password."""
+        from meow_decoder.crypto_enhanced import derive_key
+
+        salt = os.urandom(16)
+        key = derive_key("test_password_long_enough", salt)
+        assert len(key) == 32
+
+    def test_derive_key_empty_password(self):
+        """Empty password should raise ValueError."""
+        from meow_decoder.crypto_enhanced import derive_key
+
+        salt = os.urandom(16)
+        with pytest.raises(ValueError, match="empty"):
+            derive_key("", salt)
+
+    def test_derive_key_bad_salt_length(self):
+        """Salt not 16 bytes should raise ValueError."""
+        from meow_decoder.crypto_enhanced import derive_key
+
+        with pytest.raises(ValueError, match="16 bytes"):
+            derive_key("test_password_long_enough", b"short")
+
+
+# =====================================================
+# forward_secrecy_encoder.py small gaps
+# =====================================================
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

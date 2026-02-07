@@ -319,7 +319,7 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        return meow_crypto_rs.hmac_sha256(key=handle._key_bytes, data=data)
+        return meow_crypto_rs.hmac_sha256(key=handle._key_bytes, message=data)
 
     def verify_hmac_with_handle(self, handle: KeyHandle, data: bytes, expected_tag: bytes) -> bool:
         """
@@ -337,7 +337,7 @@ class SecureBridge:
             raise RuntimeError("Rust backend required for SecureBridge")
 
         return meow_crypto_rs.hmac_sha256_verify(
-            key=handle._key_bytes, data=data, expected_tag=expected_tag
+            key=handle._key_bytes, message=data, expected_tag=expected_tag
         )
 
     def _try_zero_string(self, s: str):

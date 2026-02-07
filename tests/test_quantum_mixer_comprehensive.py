@@ -1001,5 +1001,40 @@ class TestQuantumMixerPerformanceMeow:
         assert elapsed < 5.0
 
 
+
+# --- Merged from test_coverage_boost_remaining.py ---
+
+# =====================================================
+# quantum_mixer.py coverage
+# =====================================================
+class TestQuantumMixerBoost:
+    def test_entangle_collapse_roundtrip(self):
+        """Test entangle/collapse roundtrip."""
+        from meow_decoder.quantum_mixer import entangle_realities, collapse_to_reality
+
+        data_a = os.urandom(256)
+        data_b = os.urandom(256)
+
+        superposition = entangle_realities(data_a, data_b)
+        assert len(superposition) > 0
+
+        recovered_a = collapse_to_reality(superposition, 0)
+        recovered_b = collapse_to_reality(superposition, 1)
+
+        assert recovered_a[: len(data_a)] == data_a
+        assert recovered_b[: len(data_b)] == data_b
+
+    def test_entangle_different_sizes(self):
+        """Test entangling data of different sizes."""
+        from meow_decoder.quantum_mixer import entangle_realities
+
+        data_a = os.urandom(100)
+        data_b = os.urandom(200)
+
+        superposition = entangle_realities(data_a, data_b)
+        assert len(superposition) > 0
+
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "--tb=short"])
