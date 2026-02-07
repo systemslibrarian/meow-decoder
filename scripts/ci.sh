@@ -6,8 +6,9 @@ log() { printf "\n==> %s\n" "$*"; }
 log "Python: $(python --version)"
 
 python -m pip install --upgrade pip
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
+# Use lock files with hashes for supply chain security (OpenSSF Scorecard)
+pip install --require-hashes -r requirements.lock
+pip install --require-hashes -r requirements-dev.lock
 pip install -e .
 
 log "Invariant tests (MUST NOT FAIL)"
