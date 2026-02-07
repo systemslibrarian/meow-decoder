@@ -696,15 +696,15 @@ More details and expected results:
 
 ## 🔒 Security Review Scope (v1.0)
 
-> ⚠️ **SECURITY‑REVIEWED v1.0 (INTERNAL REVIEW) – NOT A THIRD‑PARTY AUDIT**
+*Internal security review – not a third-party audit.*
 
-This release is **security‑reviewed within a bounded threat model**. Claims are tied to:
+This release is security-reviewed within a bounded threat model. Claims are tied to:
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
 - [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
-- [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte‑level spec)
+- [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte-level spec)
 - [SECURITY.md](SECURITY.md) (formal methods + limitations)
 
-If your threat model includes compromised endpoints or hardware side‑channels, this tool is **out of scope**.
+If your threat model includes compromised endpoints or hardware side-channels, this tool is out of scope.
 
 ---
 
