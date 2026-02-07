@@ -88,3 +88,10 @@ target/
 **/target/
 openssf.md
 OpenSSFImprovements.md
+
+# Private planning/audit files
+audit1.md
+future-security-audit.md
+tasklists.md
+todo*.md
+OpenSSFImprovements.md
