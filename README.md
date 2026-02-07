@@ -1,11 +1,5 @@
 # 🐱 Meow Decoder
 
-# ⚠️ SECURITY‑REVIEWED v1.0 (INTERNAL REVIEW) – NOT A THIRD‑PARTY AUDIT ⚠️
-
-> This release is security‑reviewed **within a bounded threat model**. It is **not** a third‑party audit.
->
-> See [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) and [SECURITY.md](SECURITY.md) for explicit scope.
-
 <p align="center">
   <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
 </p>
@@ -57,65 +51,6 @@
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/🍽️%20dinner/is%20keyboard/blue" alt="dinner = keyboard"></a>
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/🪑%20sit%20level/expert/ff69b4" alt="sit level: expert"></a>
 </p>
-
----
-
-## 🔐 Security Review Scope (v1.0)
-
-This release is **security‑reviewed within a bounded threat model**. Claims are tied to:
-- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
-- [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
-- [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte‑level spec)
-- [SECURITY.md](SECURITY.md) (formal methods + limitations)
-
-If your threat model includes compromised endpoints or hardware side‑channels, this tool is **out of scope**.
-
----
-
-## 📜 Spec v1.2/v1.3.1 Reference Implementation
-
-The spec-aligned implementation lives under meow_decoder/spec_v12 and provides:
-- Unified Ed25519 identity keys (RFC 8410 conversion to X25519 for ECDH)
-- Sign‑header‑then‑encrypt‑payload with AAD binding
-- Dynamic GIF insertion/extraction (MEOW‑PAYLOAD)
-- Constant‑order multi‑tier processing
-
-v1.2 Improvements Summary:
-- Removed file_id (stateless design)
-- Enhanced AAD includes signature field (prevents stripping)
-- Recipient public key in header (early misdelivery detection)
-- Dynamic GIF insertion (no fixed offset)
-- Constant‑time multi‑tier handling
-
-Example (single‑tier):
-1) Generate keys with SoftwareBackend
-2) Call spec_v12.encode_file and spec_v12.decode_file
-
-Minimal usage:
-1) Use SoftwareBackend to create keys
-2) Encode with encode_file
-3) Decode with decode_file
-
-```python
-from meow_decoder.spec_v12 import SoftwareBackend, encode_file, decode_file
-
-sender = SoftwareBackend()
-recipient = SoftwareBackend()
-sender_sk, sender_pk = sender.generate_ed25519_keypair()
-recipient_sk, recipient_pk = recipient.generate_ed25519_keypair()
-
-gif_carrier = open("carrier.gif", "rb").read()
-encrypted_gif = encode_file(b"secret", recipient_pk, sender_sk, gif_carrier)
-plaintext = decode_file(encrypted_gif, sender_pk, recipient_sk)
-```
-
-Dependencies:
-- PyNaCl (required for Ed25519↔X25519 conversion)
-- cryptography
-
-Security notes:
-- All decryption failures must return the same error ("Decryption failed")
-- Multi‑tier decode must process all tiers in constant order
 
 ---
 
@@ -793,7 +728,21 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 
 ---
 
-## 📖 Documentation
+## � Security Review Scope (v1.0)
+
+> ⚠️ **SECURITY‑REVIEWED v1.0 (INTERNAL REVIEW) – NOT A THIRD‑PARTY AUDIT**
+
+This release is **security‑reviewed within a bounded threat model**. Claims are tied to:
+- [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
+- [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
+- [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte‑level spec)
+- [SECURITY.md](SECURITY.md) (formal methods + limitations)
+
+If your threat model includes compromised endpoints or hardware side‑channels, this tool is **out of scope**.
+
+---
+
+## �📖 Documentation
 
 | Document | Description |
 |----------|-------------|
@@ -808,6 +757,7 @@ CI runs on Python 3.10–3.12 with CodeQL and security scanning.
 | [Security Roadmap](docs/ROADMAP.md) | Future security enhancements |
 | [Side-Channel Hardening](docs/SIDE_CHANNEL_HARDENING.md) | Timing & side-channel mitigations |
 | [Security Invariants](docs/SECURITY_INVARIANTS.md) | Formal invariant specification |
+| [Spec v1.2 Reference](docs/SPEC_REFERENCE.md) | Protocol reference implementation |
 | [Test Suite](tests/TEST_SUITE_README.md) | Test inventory, coverage & run instructions |
 | [Mobile Bridge](mobile/ARCHITECTURE.md) | React Native QR bridge architecture |
 | [Security Changes](docs/SECURITY_CHANGES.md) | Security hardening changelog |
