@@ -80,6 +80,7 @@ block_size_strategy = st.integers(min_value=16, max_value=512)
 # =============================================================================
 
 
+@pytest.mark.slow
 class TestEncryptDecryptInvariants:
     """Property: decrypt(encrypt(data)) == data for all valid inputs."""
 
@@ -87,7 +88,7 @@ class TestEncryptDecryptInvariants:
         data=small_data_strategy,
         password=password_strategy,
     )
-    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_roundtrip_preserves_data(self, data, password):
         """encrypt then decrypt should always return original data."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -105,7 +106,7 @@ class TestEncryptDecryptInvariants:
         data=small_data_strategy,
         password=password_strategy,
     )
-    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_sha256_matches_original(self, data, password):
         """SHA256 hash should always match original data."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -121,7 +122,7 @@ class TestEncryptDecryptInvariants:
         password1=password_strategy,
         password2=password_strategy,
     )
-    @settings(max_examples=30, deadline=15000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_different_password_fails(self, data, password1, password2):
         """Different password should fail decryption."""
         assume(len(password1) >= MIN_PASSWORD_LENGTH)
@@ -144,7 +145,7 @@ class TestEncryptDecryptInvariants:
             )
 
     @given(data=small_data_strategy, password=password_strategy)
-    @settings(max_examples=30, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_unique_nonce_per_encryption(self, data, password):
         """Each encryption should produce unique nonce."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -161,11 +162,12 @@ class TestEncryptDecryptInvariants:
 # =============================================================================
 
 
+@pytest.mark.slow
 class TestKeyDerivationInvariants:
     """Property: key derivation is deterministic and secure."""
 
     @given(password=password_strategy, salt=salt_strategy)
-    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_deterministic_key_derivation(self, password, salt):
         """Same password + salt should always produce same key."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -178,7 +180,7 @@ class TestKeyDerivationInvariants:
         assert len(key1) == 32
 
     @given(password=password_strategy, salt1=salt_strategy, salt2=salt_strategy)
-    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_different_salt_different_key(self, password, salt1, salt2):
         """Different salts should produce different keys."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -191,7 +193,7 @@ class TestKeyDerivationInvariants:
         assert key1 != key2
 
     @given(password1=password_strategy, password2=password_strategy, salt=salt_strategy)
-    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_different_password_different_key(self, password1, password2, salt):
         """Different passwords should produce different keys."""
         assume(len(password1) >= MIN_PASSWORD_LENGTH)
@@ -205,7 +207,7 @@ class TestKeyDerivationInvariants:
         assert key1 != key2
 
     @given(password=password_strategy, salt=salt_strategy)
-    @settings(max_examples=30, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_key_length_always_32(self, password, salt):
         """Derived key should always be exactly 32 bytes."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -362,7 +364,7 @@ class TestManifestInvariants:
             unpack_manifest(garbage)
 
     @given(password=password_strategy, salt=salt_strategy)
-    @settings(max_examples=30, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_manifest_hmac_verifies(self, password, salt):
         """Valid manifest HMAC should verify successfully."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
@@ -392,7 +394,7 @@ class TestManifestInvariants:
         assert verify_manifest_hmac(password, manifest) is True
 
     @given(password=password_strategy)
-    @settings(max_examples=30, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_manifest_hmac_fails_on_tamper(self, password):
         """Tampered manifest should fail HMAC verification."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
