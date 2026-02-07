@@ -4,33 +4,101 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-## Test Files Created
+**Current stats (after Phase 0 consolidation):** 64 test files, ~2261 test methods across Python tests + 332 Rust tests.
+
+### Phase 0 Consolidation (February 2026)
+
+The test suite was consolidated from 80 files to 66 by:
+- Merging 14 secondary test files into their primary module-specific test files
+- Decomposing 2 large omnibus coverage-boost files (135 tests total) into 20+ module-specific targets
+- All test methods preserved — zero tests lost during consolidation
+- 10 class name collisions resolved with `Boost` suffix renames
+
+## Test Files (Current)
 
 ### TIER 1: Crypto-Critical Tests (95-100% coverage target)
 
-| File | Purpose | Key Tests |
-|------|---------|-----------|
-| `tests/test_crypto_enhanced.py` | Core AES-256-GCM encryption with secure memory | Roundtrip, wrong key rejection, tampering detection, SecureBytes, HMAC |
-| `tests/test_coverage_90_crypto_paths.py` | Crypto edge cases and paths | Error handling, parameter validation, edge conditions |
-| `tests/test_streaming_crypto.py` | Streaming encryption | Large file handling, streaming modes |
-| `tests/test_kdf.py` | Argon2id key derivation | Determinism, salt/password variation, keyfile integration, parameter validation |
-| `tests/test_frame_mac.py` | Frame MAC authentication | Key derivation, pack/unpack, validation, index protection, tamper detection |
-| `tests/test_encode_decode.py` | Fountain code round-trip | Lossless encoding, frame loss recovery, SHA256 verification, various sizes |
+| File | Tests | Purpose |
+|------|-------|---------|
+| `test_crypto.py` | 205 | Core AES-256-GCM encryption, KDF, AAD construction, manifest bounds, timing harness |
+| `test_crypto_backend.py` | 105 | Rust crypto backend bindings |
+| `test_crypto_enhanced.py` | 87 | Enhanced crypto with secure memory, SecureBytes |
+| `test_constant_time.py` | 45 | Constant-time comparison, secure memset, timing consistency |
+| `test_frame_mac.py` | 11 | Frame MAC authentication, key derivation, pack/unpack |
+| `test_streaming_crypto_comprehensive.py` | 113 | Streaming encryption, MAC authentication, memory monitoring |
+| `test_fountain.py` | 12 | Fountain code encoding/decoding, droplet generation |
 
-### TIER 2: CLI/I/O Tests (90%+ coverage target)
+### TIER 2: Core Pipeline Tests (90%+ coverage target)
 
-| File | Purpose | Key Tests |
-|------|---------|-----------|
-| `tests/test_cli.py` | CLI interface behavior | Missing args, file validation, password handling, exit codes, error messages |
-| `tests/test_file_io.py` | File I/O and config | Keyfile validation, config save/load, path handling, resource cleanup |
-| `tests/test_metadata_obfuscation.py` | Length padding | Round-trip, size classes, corruption detection, edge cases |
+| File | Tests | Purpose |
+|------|-------|---------|
+| `test_encode.py` | 63 | Encoding pipeline, QR generation, frame assembly |
+| `test_decode_gif.py` | 49 | GIF decoding, frame extraction, QR reading |
+| `test_gif_handler.py` | 13 | GIF creation, frame handling, size validation |
+| `test_qr_code.py` | 16 | QR code generation and reading |
+| `test_config.py` | 17 | EncodingConfig, MeowConfig, DuressConfig |
+| `test_spec_v12.py` | 37 | Spec v1.2 encode/decode, key management, steganography |
+| `test_metadata_obfuscation.py` | 17 | Length padding, corruption detection |
 
-### TIER 3: Fuzz/Property Tests
+### TIER 3: Security Features Tests
 
-| File | Purpose | Key Tests |
-|------|---------|-----------|
-| `tests/test_fuzz_targets.py` | **Comprehensive fuzz harness testing (821 lines, 85 tests)** | Manifest parsing boundaries, crypto edge cases, fountain code robustness, AFL++ integration, corpus generation, integration & error handling |
-| `tests/test_fuzz_roundtrip.py` | Property-based testing | Hypothesis-powered random input testing, boundary conditions |
+| File | Tests | Purpose |
+|------|-------|---------|
+| `test_security.py` | 20 | Tamper detection, auth tag verification |
+| `test_adversarial.py` | 20 | Hostile input handling, corruption resilience |
+| `test_sidechannel.py` | 11 | Side-channel resistance |
+| `test_invariants.py` | 11 | Security invariant checks |
+| `test_forward_secrecy.py` | 34 | X25519 forward secrecy (MEOW3) |
+| `test_x25519_forward_secrecy.py` | 45 | X25519 key derivation, hybrid keys |
+| `test_forward_secrecy_decoder.py` | 5 | Forward secrecy decoding |
+| `test_forward_secrecy_encoder.py` | 3 | Forward secrecy encoding |
+| `test_forward_secrecy_x25519.py` | 7 | Legacy X25519 compat |
+| `test_duress_mode.py` | 57 | Duress mode, decoy data, timing equalization |
+| `test_timelock_duress.py` | 32 | Timelock puzzles, countdown duress, deadman switch |
+| `test_schrodinger_comprehensive.py` | 32 | Schrödinger dual-secret encode/decode |
+| `test_quantum_mixer_comprehensive.py` | 76 | Quantum entanglement/collapse, statistical tests |
+| `test_multi_secret_comprehensive.py` | 84 | Multi-secret encoding, Merkle trees, indistinguishability |
+| `test_secure_bridge_comprehensive.py` | 60 | Rust secure bridge, key handles, HMAC |
+| `test_secure_cleanup.py` | 13 | Sensitive buffer registration, cleanup |
+| `test_high_security_comprehensive.py` | 34 | High security mode, secure wipe, memory protection |
+| `test_entropy_boost_comprehensive.py` | 90 | Entropy pool, enhanced salt/nonce, hardware entropy |
+| `test_double_ratchet.py` | 27 | Signal-style key ratcheting |
+| `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-768) |
+| `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
+| `test_pq_signatures.py` | 10 | Post-quantum signatures |
+
+### TIER 4: UI/Integration/Infrastructure Tests
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `test_cat_errors.py` | 51 | Cat-themed error system, fur_ball_error, pounce_on_errors |
+| `test_cat_utils_comprehensive.py` | 78 | PurrLogger, NineLivesRetry, CatBreed, ASCII art |
+| `test_catnip_fountain_comprehensive.py` | 14 | Catnip fountain encoder/decoder |
+| `test_tamper_report.py` | 19 | TamperReport rendering, JSON export |
+| `test_bridge_protocol.py` | 21 | Mobile bridge wire protocol |
+| `test_fuzz_targets.py` | 122 | Comprehensive fuzz harness testing |
+| `test_property_based.py` | 20 | Hypothesis property-based tests |
+| `test_rust_crypto_backend.py` | 12 | Rust backend integration |
+| `test_hardware_integration.py` | 70 | Hardware security module integration |
+| `test_hardware_keys.py` | 44 | Hardware key management |
+| `test_stego_advanced.py` | 16 | Advanced steganography modes |
+| `test_meow_encode.py` | 5 | CLI encode integration |
+| `test_decoy_generator_comprehensive.py` | 12 | Decoy data generation |
+| `test_merkle_tree_comprehensive.py` | 78 | Merkle tree construction/verification |
+| `test_ninja_cat_ultra_comprehensive.py` | 30 | Ninja cat encoding mode |
+| `test_prowling_mode_comprehensive.py` | 21 | Prowling mode steganography |
+| `test_resume_secured_comprehensive.py` | 62 | Secure resume/checkpoint |
+| `test_profiling_improved_comprehensive.py` | 60 | Performance profiling |
+| `test_progress_modules_comprehensive.py` | 7 | Progress tracking |
+| `test_ascii_qr_comprehensive.py` | 6 | ASCII QR rendering |
+| `test_bidirectional_comprehensive.py` | 6 | Bidirectional transfer |
+| `test_clowder_comprehensive.py` | 3 | Clowder multi-device |
+| `test_dashboard_gui_comprehensive.py` | 2 | Dashboard GUI |
+| `test_deadmans_switch_cli_comprehensive.py` | 5 | Dead man's switch CLI |
+| `test_debug_modules_comprehensive.py` | 4 | Debug module variants |
+| `test_logo_and_gui_comprehensive.py` | 3 | Logo/GUI rendering |
+| `test_security_warnings_comprehensive.py` | 4 | Security warning display |
+| `test_webcam_modules_comprehensive.py` | 2 | Webcam capture modules |
 
 ### Rust Crypto Backend Tests
 
@@ -131,16 +199,17 @@ Additional comprehensive suites added to close remaining gaps and complete todo-
 
 ### February 2026 Coverage Boost (95% Target)
 
-Targeted coverage boost suites added to reach 95% codecov:
+Targeted coverage boost tests — originally in standalone files, now consolidated into module-specific test files
+(Phase 0 consolidation, February 2026):
 
-| File | Tests | Purpose |
-|------|-------|---------|
-| `tests/test_coverage_boost_cat_utils.py` | 66 | Cat utilities: PurrLogger, NineLivesRetry, CatBreed, aliases, sounds, ASCII art |
-| `tests/test_coverage_boost_spec_v12.py` | 28 | Spec v1.2 encode/decode, key management, steganography, multi-tier |
-| `tests/test_coverage_boost_catnip.py` | 10 | Catnip fountain: CatnipFountainEncoder, CatnipFountainDecoder |
-| `tests/test_coverage_boost_schrodinger.py` | 18 | Schrödinger encode/decode: dual-reality, manifest pack/unpack, roundtrip |
-| `tests/test_coverage_boost_remaining.py` | 67 | Prowling mode, streaming crypto, resume, profiling, ninja cat |
-| `tests/test_coverage_boost_extras.py` | 69 | Entropy boost, secure bridge, double ratchet, merkle tree, multi-secret |
+| Original File | Tests | Merged Into |
+|------|-------|-------------|
+| `test_coverage_boost_cat_utils.py` | 66 | `test_cat_utils_comprehensive.py` |
+| `test_coverage_boost_spec_v12.py` | 28 | `test_spec_v12.py` |
+| `test_coverage_boost_catnip.py` | 10 | `test_catnip_fountain_comprehensive.py` |
+| `test_coverage_boost_schrodinger.py` | 18 | `test_schrodinger_comprehensive.py` |
+| `test_coverage_boost_remaining.py` | 67 | Decomposed into 20 module-specific files |
+| `test_coverage_boost_extras.py` | 69 | Decomposed into 14 module-specific files |
 
 ### February 2026 Cat-Themed Error System
 
@@ -150,24 +219,26 @@ Targeted coverage boost suites added to reach 95% codecov:
 
 ### February 2026 Roadmap Completion (ST + MT Tasks)
 
-New test suites added for the completed roadmap tasks:
+Test suites for completed roadmap tasks — originally standalone, now merged into module-specific files
+(Phase 0 consolidation, February 2026):
 
-| File | Tests | Purpose |
-|------|-------|---------|
-| `tests/test_manifest_bounds.py` | 17 | **ST-2:** Manifest numeric bounds checking, decompression-bomb protection, ephemeral pubkey validation, PQ ciphertext length validation |
-| `tests/test_canonical_aad.py` | 10 | **MT-1:** Canonical AAD construction — deterministic `version_byte ∥ fields`, backward compatibility with MEOW2/MEOW3/MEOW4, encrypt/decrypt roundtrip |
-| `tests/test_timing_harness.py` | varies | **MT-5:** Statistical timing comparison for correct vs wrong password, duress vs real — configurable threshold, skipped on inconsistent CI runners |
-| `tests/test_tamper_report.py` | 19 | **MT-7:** TamperReport class — ASCII timeline rendering, cluster detection, JSON export, empty/full/mixed reports, FrameResult dataclass |
-| `tests/test_bridge_protocol.py` | 21 | **MT-8:** Mobile bridge wire protocol — 6 JSON message types, parser validation, MAX_FRAME_BYTES, error codes, round-trip serialization |
+| Original File | Tests | Merged Into | Purpose |
+|------|-------|-------------|---------|
+| `test_manifest_bounds.py` | 17 | `test_crypto.py` | **ST-2:** Manifest numeric bounds checking, decompression-bomb protection |
+| `test_canonical_aad.py` | 10 | `test_crypto.py` | **MT-1:** Canonical AAD construction, backward compatibility |
+| `test_timing_harness.py` | varies | `test_crypto.py` | **MT-5:** Statistical timing comparison |
+| `test_tamper_report.py` | 19 | *(unchanged — standalone)* | **MT-7:** TamperReport class |
+| `test_bridge_protocol.py` | 21 | *(unchanged — standalone)* | **MT-8:** Mobile bridge wire protocol |
 
 ### February 2026 Security Audit (audit1.md)
 
-Security regression tests added after the comprehensive security audit:
+Security regression tests — originally standalone, now merged into module-specific files
+(Phase 0 consolidation, February 2026):
 
-| File | Tests | Purpose |
-|------|-------|---------|
-| `tests/test_streaming_crypto_security.py` | 14 | **CRIT-01 Fix:** Encrypt-then-MAC authentication for streaming crypto |
-| `tests/test_duress_timing_security.py` | 12 | **HIGH-02 Fix:** Timing equalization for duress mode |
+| Original File | Tests | Merged Into | Purpose |
+|------|-------|-------------|---------|
+| `test_streaming_crypto_security.py` | 14 | `test_streaming_crypto_comprehensive.py` | **CRIT-01 Fix:** Encrypt-then-MAC authentication |
+| `test_duress_timing_security.py` | 12 | `test_duress_mode.py` | **HIGH-02 Fix:** Timing equalization for duress mode |
 
 #### CRIT-01: AES-CTR Without Authentication (FIXED)
 
@@ -245,7 +316,7 @@ fail_under = 35  # Incrementally increase to 80%+
 | **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
 | **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
-**Status:** todo-feb.md completed (26 files, 0 remaining).
+**Status:** Test suite consolidated (Phase 0 complete). 64 test files, ~2261 Python test methods.
 
 ## Running Tests
 
@@ -255,19 +326,19 @@ fail_under = 35  # Incrementally increase to 80%+
 pytest tests/ -v --cov=meow_decoder --cov-report=term-missing
 
 # Run only security-critical tests (TIER 1)
-pytest tests/test_crypto.py tests/test_kdf.py tests/test_frame_mac.py tests/test_encode_decode.py -v
+pytest tests/test_crypto.py tests/test_crypto_backend.py tests/test_constant_time.py tests/test_frame_mac.py tests/test_streaming_crypto_comprehensive.py -v
 
 # Run with HTML coverage report
 pytest tests/ --cov=meow_decoder --cov-report=html
 
-# Run property-based tests with more examples
-pytest tests/test_fuzz_roundtrip.py -v --hypothesis-seed=0
+# Run property-based tests
+pytest tests/test_property_based.py -v
 
-# Run comprehensive fuzz harness tests (85 tests)
+# Run comprehensive fuzz harness tests (122 tests)
 pytest tests/test_fuzz_targets.py -v
 
 # Run all fuzz/property tests
-pytest tests/test_fuzz_targets.py tests/test_fuzz_roundtrip.py -v
+pytest tests/test_fuzz_targets.py tests/test_property_based.py -v
 
 # ============ Rust Crypto Tests ============
 # Run all 128 Rust crypto tests
@@ -288,12 +359,12 @@ cargo test --test proptest_crypto             # 23 property tests
 3. ✅ **Ciphertext tampering detection** (`test_crypto.py`)
 4. ✅ **Auth tag tampering detection** (`test_crypto.py`)
 5. ✅ **Nonce uniqueness** (`test_crypto.py`)
-6. ✅ **KDF determinism** (`test_kdf.py`)
-7. ✅ **Salt variation produces different keys** (`test_kdf.py`)
-8. ✅ **Password variation produces different keys** (`test_kdf.py`)
-9. ✅ **Lossless encode/decode** (`test_encode_decode.py`)
-10. ✅ **Various file sizes** (`test_encode_decode.py`)
-11. ✅ **Binary data (null bytes, high bytes)** (`test_encode_decode.py`)
+6. ✅ **KDF determinism** (`test_crypto.py`)
+7. ✅ **Salt variation produces different keys** (`test_crypto.py`)
+8. ✅ **Password variation produces different keys** (`test_crypto.py`)
+9. ✅ **Lossless encode/decode** (`test_encode.py`)
+10. ✅ **Various file sizes** (`test_encode.py`)
+11. ✅ **Binary data (null bytes, high bytes)** (`test_encode.py`)
 
 ### CLI Tests
 
@@ -305,9 +376,9 @@ cargo test --test proptest_crypto             # 23 property tests
 
 ### Fuzz/Property Tests
 
-1. ✅ **Random input testing** (`test_fuzz_roundtrip.py`)
-2. ✅ **Corruption detection** (`test_fuzz_roundtrip.py`)
-3. ✅ **Boundary conditions** (`test_fuzz_roundtrip.py`)
+1. ✅ **Random input testing** (`test_property_based.py`)
+2. ✅ **Corruption detection** (`test_property_based.py`)
+3. ✅ **Boundary conditions** (`test_property_based.py`)
 4. ✅ **Manifest parsing harness** (`test_fuzz_targets.py`) - 18 tests
 5. ✅ **Crypto boundary harness** (`test_fuzz_targets.py`) - 16 tests
 6. ✅ **Fountain code harness** (`test_fuzz_targets.py`) - 19 tests
