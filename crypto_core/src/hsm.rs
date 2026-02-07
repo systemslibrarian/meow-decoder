@@ -37,11 +37,10 @@
 
 #[cfg(feature = "hsm")]
 use cryptoki::{
-    context::{CInitializeArgs, Pkcs11},
-    mechanism::{Mechanism, MechanismType},
+    context::{CInitializeArgs, CInitializeFlags, Pkcs11},
+    mechanism::{aead::GcmParams, Mechanism},
     object::{Attribute, AttributeType, KeyType, ObjectClass, ObjectHandle},
-    session::{Session, SessionFlags, UserType},
-    slot::Slot,
+    session::{Session, UserType},
     types::AuthPin,
 };
 
@@ -255,10 +254,10 @@ impl HsmProvider {
     pub fn new(uri: &str) -> Result<Self, HsmError> {
         let parsed_uri = HsmUri::parse(uri)?;
 
-        let ctx = Pkcs11::new(Path::new(&parsed_uri.library_path))
+        let ctx = Pkcs11::new(&parsed_uri.library_path)
             .map_err(|e| HsmError::InitializationFailed(e.to_string()))?;
 
-        ctx.initialize(CInitializeArgs::OsThreads)
+        ctx.initialize(CInitializeArgs::new(CInitializeFlags::OS_LOCKING_OK))
             .map_err(|e| HsmError::InitializationFailed(e.to_string()))?;
 
         Ok(Self {
@@ -278,7 +277,7 @@ impl HsmProvider {
         for slot in slots {
             if let Ok(token_info) = self.ctx.get_token_info(slot) {
                 info.push(HsmSlotInfo {
-                    slot_id: slot.id(),
+                    slot_id: u64::from(slot),
                     label: token_info.label().trim().into(),
                     manufacturer: token_info.manufacturer_id().trim().into(),
                     model: token_info.model().trim().into(),
@@ -314,13 +313,12 @@ impl HsmProvider {
 
         let slot = slots
             .into_iter()
-            .find(|s| s.id() == slot_id)
+            .find(|s| u64::from(*s) == slot_id)
             .ok_or(HsmError::SlotNotFound(slot_id))?;
 
-        let flags = SessionFlags::SERIAL_SESSION | SessionFlags::RW_SESSION;
         let session = self
             .ctx
-            .open_session_no_callback(slot, flags)
+            .open_rw_session(slot)
             .map_err(|e| HsmError::SessionFailed(e.to_string()))?;
 
         // Authenticate if PIN provided
@@ -401,7 +399,7 @@ impl HsmSession {
             Attribute::Encrypt(true),      // Can encrypt
             Attribute::Decrypt(true),      // Can decrypt
             Attribute::Derive(true),       // Can derive keys
-            Attribute::ValueLen(key_len),  // Key size
+            Attribute::ValueLen(key_len.into()), // Key size
             Attribute::Label(label.as_bytes().to_vec()),
         ];
 
@@ -480,11 +478,10 @@ impl HsmSession {
         let mut iv = [0u8; 12];
         getrandom::getrandom(&mut iv).map_err(|e| HsmError::EncryptionFailed(e.to_string()))?;
 
-        let mechanism = Mechanism::AesGcm {
-            iv: iv.to_vec(),
-            aad: aad.to_vec(),
-            tag_bits: 128,
-        };
+        let aad_slice = aad;
+        let gcm_params = GcmParams::new(&mut iv, aad_slice, 128.into())
+            .map_err(|e| HsmError::EncryptionFailed(e.to_string()))?;
+        let mechanism = Mechanism::AesGcm(gcm_params);
 
         let ciphertext = self
             .session
@@ -516,13 +513,14 @@ impl HsmSession {
             return Err(HsmError::DecryptionFailed("Ciphertext too short".into()));
         }
 
-        let (iv, ct) = ciphertext.split_at(12);
+        let (iv_slice, ct) = ciphertext.split_at(12);
+        let mut iv = [0u8; 12];
+        iv.copy_from_slice(iv_slice);
 
-        let mechanism = Mechanism::AesGcm {
-            iv: iv.to_vec(),
-            aad: aad.to_vec(),
-            tag_bits: 128,
-        };
+        let aad_slice = aad;
+        let gcm_params = GcmParams::new(&mut iv, aad_slice, 128.into())
+            .map_err(|e| HsmError::DecryptionFailed(e.to_string()))?;
+        let mechanism = Mechanism::AesGcm(gcm_params);
 
         self.session
             .decrypt(&mechanism, key.handle, ct)

@@ -74,9 +74,7 @@ def test_encrypt_decrypt_forward_secrecy_roundtrip(monkeypatch):
 def test_encrypt_decrypt_password_only_roundtrip(monkeypatch):
     monkeypatch.setenv("MEOW_TEST_MODE", "1")
     plaintext = b"password only"
-    cipher, salt, nonce, ephemeral_pub = encrypt_with_forward_secrecy(
-        plaintext, "password", None
-    )
+    cipher, salt, nonce, ephemeral_pub = encrypt_with_forward_secrecy(plaintext, "password", None)
 
     assert ephemeral_pub == b""
 

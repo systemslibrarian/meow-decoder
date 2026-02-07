@@ -14,6 +14,90 @@ by finding ID and include verification notes.
 
 ---
 
+## Supply Chain Security Hardening (February 2026)
+
+### SC-01: Hash-Pinned Python Dependencies
+
+**Finding**: OpenSSF Scorecard flagged Pinned-Dependencies at 4/10 due to unpinned pip installs.
+
+**Resolution**: Generated `requirements.lock` and `requirements-dev.lock` with SHA256 hashes using `uv`:
+```bash
+uv pip compile requirements.txt -o requirements.lock --generate-hashes
+```
+
+Updated all consumers:
+- `Dockerfile`: `pip install --require-hashes -r requirements.lock`
+- `.github/workflows/ci.yml`: Hash-verified dependency installation
+- `.github/workflows/fuzz.yml`: Hash-verified dependency installation
+- `scripts/ci.sh`: Hash-verified dependency installation
+
+**Status**: ✅ RESOLVED
+
+---
+
+### SC-02: Signed Releases with Sigstore
+
+**Finding**: OpenSSF Scorecard Signed-Releases check showed 0/10 (no signed releases).
+
+**Resolution**: Created `.github/workflows/release.yml` with:
+- Sigstore keyless signing via GitHub Actions OIDC
+- SLSA Level 3 provenance generation
+- Automatic artifact attestation on version tags (v*.*.*)
+
+**Verification**:
+```bash
+cosign verify-blob --certificate <artifact>.crt \
+  --signature <artifact>.sig \
+  --certificate-identity-regexp "github.com/systemslibrarian/meow-decoder" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  <artifact>
+```
+
+**Status**: ✅ IMPLEMENTED (pending first release)
+
+---
+
+### SC-03: CODEOWNERS for Security-Critical Paths
+
+**Finding**: No mandatory code review enforcement for crypto/security modules.
+
+**Resolution**: Added `.github/CODEOWNERS`:
+```
+# Security-critical paths require maintainer review
+meow_decoder/crypto*.py @systemslibrarian
+meow_decoder/fountain.py @systemslibrarian
+crypto_core/ @systemslibrarian
+.github/workflows/ @systemslibrarian
+```
+
+**Status**: ✅ RESOLVED
+
+---
+
+### SC-04: Dependency Vulnerability Fixes
+
+**Finding**: cargo-deny and pip-audit flagged vulnerabilities.
+
+**Resolutions**:
+- `time` crate: 0.3.46 → 0.3.47 (RUSTSEC-2026-0009)
+- `paste64` crate: 0.1.3 → 0.1.4 (RUSTSEC-2026-0010)
+- `rsa` crate: Documented exception in `deny.toml` (RUSTSEC-2022-0093, no upstream fix)
+
+**Status**: ✅ RESOLVED
+
+---
+
+### SC-05: TLA+ Formal Verification CI Fix
+
+**Finding**: Formal verification workflow failing due to incorrect jar path.
+
+**Resolution**: Fixed `.github/workflows/formal-verification.yml`:
+- After `cd formal/tla`, jar path should be `tla2tools.jar` not `formal/tla/tla2tools.jar`
+
+**Status**: ✅ RESOLVED
+
+---
+
 ## Phase 1: Critical & High Severity Fixes
 
 ### CRIT-01: Post-Quantum Feature Gate Enforcement

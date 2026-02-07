@@ -18,6 +18,31 @@ It is **not** a third‑party audit. All claims are tied to tests, specs, or for
 
 ---
 
+## 🔗 Supply Chain Security
+
+We implement multiple layers of supply chain protection:
+
+| Measure | Implementation |
+|---------|----------------|
+| **Hash-Pinned Python Dependencies** | `requirements.lock` with SHA256 hashes, enforced via `--require-hashes` |
+| **Signed Releases** | Sigstore keyless signing via GitHub Actions OIDC |
+| **SLSA Provenance** | Level 3 provenance generated for all release artifacts |
+| **Dependency Scanning** | pip-audit, cargo-audit, Dependabot alerts in CI |
+| **Code Review** | CODEOWNERS enforces review on security-critical paths |
+| **Reproducible Builds** | Dockerfile uses locked dependencies |
+
+**Verify a release:**
+```bash
+# Verify signature (requires cosign)
+cosign verify-blob --certificate meow_decoder-1.0.0.tar.gz.crt \
+  --signature meow_decoder-1.0.0.tar.gz.sig \
+  --certificate-identity-regexp "github.com/systemslibrarian/meow-decoder" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  meow_decoder-1.0.0.tar.gz
+```
+
+---
+
 ## 🧪 Formal Methods (What is Actually Proven)
 
 We use multiple formal methods with **conservative claims**:

@@ -1,5 +1,6 @@
 # Meow Decoder - Docker image (headless demo + tools)
-FROM python:3.11-slim
+# Pinned to digest for OpenSSF Scorecard Pinned-Dependencies
+FROM python:3.11-slim@sha256:db27ce7778e5f581d5d97812ee577a01a9fffbfa612c47fc521fa684e3389c9b
 
 # System deps:
 # - libzbar0: required by pyzbar (QR decode)
@@ -13,8 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install python deps first (better caching)
-COPY requirements.txt /app/requirements.txt
-RUN pip install --no-cache-dir -r /app/requirements.txt
+# Use requirements.lock with hashes for supply chain security (OpenSSF Scorecard)
+COPY requirements.lock /app/requirements.lock
+RUN pip install --no-cache-dir --require-hashes -r /app/requirements.lock
 
 # Copy the project
 COPY . /app

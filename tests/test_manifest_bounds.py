@@ -4,6 +4,7 @@ Tests for ST-2: Manifest numeric bounds + decompression-bomb protection.
 Validates that unpack_manifest() rejects manifests with out-of-range fields
 and that decompress path rejects decompression bombs.
 """
+
 import os
 import struct
 import pytest
@@ -130,7 +131,7 @@ class TestManifestBoundsValidation:
         assert m.orig_len == 100
 
     def test_ephemeral_key_all_zero_rejected(self):
-        raw = _make_manifest_bytes(ephemeral_public_key=b'\x00' * 32)
+        raw = _make_manifest_bytes(ephemeral_public_key=b"\x00" * 32)
         with pytest.raises(ValueError, match="all-zero"):
             unpack_manifest(raw)
 
@@ -166,13 +167,21 @@ class TestDecompressionBombProtection:
     def test_normal_decompress_succeeds(self):
         """Full encrypt→decrypt roundtrip with small data."""
         from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+
         data = b"Hello, cat!" * 100
         comp, sha256, salt, nonce, cipher, epk, ekey = encrypt_file_bytes(
             data, "testpass123", None, None, use_length_padding=False
         )
         result = decrypt_to_raw(
-            cipher, "testpass123", salt, nonce,
-            keyfile=None, orig_len=len(data), comp_len=len(comp),
-            sha256=sha256, ephemeral_public_key=None, receiver_private_key=None
+            cipher,
+            "testpass123",
+            salt,
+            nonce,
+            keyfile=None,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha256,
+            ephemeral_public_key=None,
+            receiver_private_key=None,
         )
         assert result == data

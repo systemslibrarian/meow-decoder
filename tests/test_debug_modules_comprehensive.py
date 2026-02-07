@@ -62,7 +62,9 @@ def test_crypto_debug_verify_manifest_hmac(monkeypatch):
         crypto_debug.MAGIC
         + manifest.salt
         + manifest.nonce
-        + crypto_debug.struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len)
+        + crypto_debug.struct.pack(
+            ">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len
+        )
         + crypto_debug.struct.pack(">HI", manifest.block_size, manifest.k_blocks)
         + manifest.sha256
     )
@@ -90,18 +92,21 @@ def test_encode_debug_encode_file_smoke(tmp_path, monkeypatch):
     class FakeFountain:
         def __init__(self, data, k_blocks, block_size):
             self.data = data
+
         def droplet(self):
             return object()
 
     class FakeQR:
         def __init__(self, *args, **kwargs):
             pass
+
         def generate(self, data):
             return types.SimpleNamespace(size=(10, 10))
 
     class FakeGIF:
         def __init__(self, fps=10, loop=0):
             pass
+
         def create_gif(self, frames, output_path, optimize=True):
             Path(output_path).write_bytes(b"gif")
             return 3

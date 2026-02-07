@@ -145,7 +145,9 @@ def test_hybrid_decapsulate_pq_kem_error(monkeypatch):
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
     monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False)
+    monkeypatch.setattr(
+        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
+    )
 
     receiver = pq.HybridKeyPair(use_pq=True)
     classical_pub, pq_pub = receiver.export_public_keys()
@@ -167,7 +169,9 @@ def test_hybrid_encapsulate_pq_kem_error(monkeypatch):
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
     monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False)
+    monkeypatch.setattr(
+        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
+    )
 
     with pytest.raises(RuntimeError, match="encapsulation failed"):
         pq.hybrid_encapsulate(
@@ -185,7 +189,9 @@ def test_check_pq_available_oqs_error(monkeypatch):
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
     monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False)
+    monkeypatch.setattr(
+        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
+    )
 
     available, msg = pq.check_pq_available()
     assert available is False
@@ -204,7 +210,9 @@ def test_hybrid_keypair_pq_generation_failure(monkeypatch):
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
     monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False)
+    monkeypatch.setattr(
+        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
+    )
 
     keypair = pq.HybridKeyPair(use_pq=True)
     assert keypair.is_hybrid() is False

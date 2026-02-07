@@ -47,12 +47,8 @@ def test_schrodinger_encode_decode_roundtrip(monkeypatch):
         real, decoy, real_pw, decoy_pw, block_size=128
     )
 
-    decoded_real = schrodinger_decode.schrodinger_decode_data(
-        superposition, manifest, real_pw
-    )
-    decoded_decoy = schrodinger_decode.schrodinger_decode_data(
-        superposition, manifest, decoy_pw
-    )
+    decoded_real = schrodinger_decode.schrodinger_decode_data(superposition, manifest, real_pw)
+    decoded_decoy = schrodinger_decode.schrodinger_decode_data(superposition, manifest, decoy_pw)
     decoded_none = schrodinger_decode.schrodinger_decode_data(
         superposition, manifest, "wrong-password"
     )

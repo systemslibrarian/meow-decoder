@@ -53,6 +53,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **Secure Usage Checklist**: OPSEC guidance (`docs/SECURE_USAGE_CHECKLIST.md`) (MT-6)
 - [x] **Argon2id Benchmarks**: KDF tuning & hardware timings (`docs/ARGON2ID_BENCHMARKS.md`) (ST-7)
 - [x] **OpenSSF Improvement Plan**: 5-phase scorecard improvement (`OpenSSFImprovements.md`)
+- [x] **Supply Chain Security**: Hash-pinned deps, Sigstore signed releases, SLSA provenance
 
 ### New Features
 - [x] **Canonical AAD**: Deterministic `version_byte || fields` construction (`canonical_aad.py`) (MT-1)

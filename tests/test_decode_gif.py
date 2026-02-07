@@ -66,7 +66,9 @@ class _IncompleteFountainDecoder(_DummyFountainDecoder):
         return False
 
 
-def _build_manifest_bytes(plaintext: bytes, block_size: int = 8, k_blocks: int = 1, ephemeral_public_key: bytes = None):
+def _build_manifest_bytes(
+    plaintext: bytes, block_size: int = 8, k_blocks: int = 1, ephemeral_public_key: bytes = None
+):
     import hashlib
 
     manifest = Manifest(
@@ -88,7 +90,9 @@ def test_decode_gif_no_frames(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[]))
 
     with pytest.raises(ValueError, match="No frames found in GIF"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_no_qr_codes(tmp_path, monkeypatch):
@@ -96,7 +100,9 @@ def test_decode_gif_no_qr_codes(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _DummyQRCodeReader())
 
     with pytest.raises(ValueError, match="No QR codes found in GIF"):
-           decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=True)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=True
+        )
 
 
 def test_decode_gif_invalid_manifest_length(tmp_path, monkeypatch):
@@ -109,7 +115,9 @@ def test_decode_gif_invalid_manifest_length(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _BadReader())
 
     with pytest.raises(ValueError, match="Manifest QR decode corrupted"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_happy_path(tmp_path, monkeypatch):
@@ -119,7 +127,11 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
 
     class _Reader(_DummyQRCodeReader):
         def read_image(self, frame):
@@ -136,7 +148,9 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=False
+    )
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
@@ -149,12 +163,22 @@ def test_decode_gif_hmac_failure(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: False)
 
     with pytest.raises(ValueError, match="HMAC verification failed"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_frame_mac_invalid_fails_open(tmp_path, monkeypatch):
@@ -165,8 +189,16 @@ def test_decode_gif_frame_mac_invalid_fails_open(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -179,7 +211,9 @@ def test_decode_gif_frame_mac_invalid_fails_open(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", _invalid_manifest)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=True)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=True
+    )
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
@@ -193,8 +227,16 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -214,7 +256,9 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", _unpack_frame_with_mac)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=True)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=True
+    )
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
@@ -227,13 +271,23 @@ def test_decode_gif_incomplete_decode(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _IncompleteFountainDecoder)
 
     with pytest.raises(RuntimeError, match="Decoding incomplete"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
@@ -243,8 +297,16 @@ def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
 
@@ -254,7 +316,9 @@ def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", _fail_decrypt)
 
     with pytest.raises(RuntimeError, match="Decryption failed"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_sha_mismatch(tmp_path, monkeypatch):
@@ -264,14 +328,24 @@ def test_decode_gif_sha_mismatch(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: b"wrong")
 
     with pytest.raises(ValueError, match="SHA256 mismatch"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_bad_precomputed_key_length(tmp_path, monkeypatch):
@@ -281,8 +355,16 @@ def test_decode_gif_bad_precomputed_key_length(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
 
     with pytest.raises(ValueError, match="Key derivation failed"):
         decode_mod.decode_gif(
@@ -303,7 +385,11 @@ def test_decode_gif_forward_secrecy_verbose(tmp_path, monkeypatch):
 
     frames = [Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=frames))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -330,7 +416,11 @@ def test_decode_gif_droplet_unpack_warning(tmp_path, monkeypatch):
 
     frames = [Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=frames))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -341,7 +431,9 @@ def test_decode_gif_droplet_unpack_warning(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "unpack_droplet", _raise_unpack)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=True)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=True
+    )
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
@@ -354,8 +446,16 @@ def test_decode_gif_deadman_import_error(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -372,7 +472,9 @@ def test_decode_gif_deadman_import_error(tmp_path, monkeypatch):
     monkeypatch.setattr(builtins, "__import__", _import)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=False
+    )
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
@@ -388,7 +490,11 @@ def test_decode_gif_verbose_frame_mac_stats(tmp_path, monkeypatch):
 
     frames = [Image.new("RGB", (64, 64)), Image.new("RGB", (64, 64))]
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=frames))
-    monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]))
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
+    )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
@@ -434,7 +540,9 @@ def test_decode_gif_rejects_invalid_droplet_mac_then_succeeds(tmp_path, monkeypa
     monkeypatch.setattr(
         decode_mod,
         "QRCodeReader",
-        lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, b"bad", droplet_bytes]),
+        lambda preprocessing=None: _SequenceQRCodeReader(
+            [manifest_with_mac, b"bad", droplet_bytes]
+        ),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)

@@ -13,13 +13,20 @@ class TestForwardSecrecyManager:
     def test_manager_creation(self):
         from meow_decoder.forward_secrecy import ForwardSecrecyManager
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False
+        )
         assert manager is not None
 
     def test_manager_creation_with_ratchet(self):
         from meow_decoder.forward_secrecy import ForwardSecrecyManager
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True, ratchet_interval=10)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32),
+            secrets.token_bytes(16),
+            enable_ratchet=True,
+            ratchet_interval=10,
+        )
         assert manager.enable_ratchet is True
         assert manager.ratchet_interval == 10
 
@@ -75,7 +82,12 @@ class TestForwardSecrecyManager:
     def test_ratchet_state_serialization(self):
         from meow_decoder.forward_secrecy import ForwardSecrecyManager
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True, ratchet_interval=10)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32),
+            secrets.token_bytes(16),
+            enable_ratchet=True,
+            ratchet_interval=10,
+        )
         manager.derive_block_key(15)
         state = manager.get_ratchet_state_for_manifest()
         assert state is not None
@@ -84,7 +96,9 @@ class TestForwardSecrecyManager:
     def test_ratchet_state_none_when_disabled(self):
         from meow_decoder.forward_secrecy import ForwardSecrecyManager
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False
+        )
         assert manager.get_ratchet_state_for_manifest() is None
 
     def test_restore_from_ratchet_state(self):
@@ -96,7 +110,9 @@ class TestForwardSecrecyManager:
         key_before = manager1.derive_block_key(25)
         state = manager1.get_ratchet_state_for_manifest()
 
-        manager2 = ForwardSecrecyManager.from_ratchet_state(master_key, salt, state, ratchet_interval=10)
+        manager2 = ForwardSecrecyManager.from_ratchet_state(
+            master_key, salt, state, ratchet_interval=10
+        )
         key_after = manager2.derive_block_key(25)
         assert key_before == key_after
 
@@ -136,7 +152,10 @@ class TestX25519ForwardSecrecy:
         assert keys1.ephemeral_public != keys2.ephemeral_public
 
     def test_derive_shared_secret(self):
-        from meow_decoder.x25519_forward_secrecy import generate_ephemeral_keypair, derive_shared_secret
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            derive_shared_secret,
+        )
         from meow_decoder.crypto_backend import get_default_backend
 
         backend = get_default_backend()
@@ -145,14 +164,21 @@ class TestX25519ForwardSecrecy:
         password = "TestPassword"
         salt = secrets.token_bytes(16)
 
-        sender_shared = derive_shared_secret(sender_keys.ephemeral_private, receiver_pub, password, salt)
-        receiver_shared = derive_shared_secret(receiver_priv, sender_keys.ephemeral_public, password, salt)
+        sender_shared = derive_shared_secret(
+            sender_keys.ephemeral_private, receiver_pub, password, salt
+        )
+        receiver_shared = derive_shared_secret(
+            receiver_priv, sender_keys.ephemeral_public, password, salt
+        )
 
         assert sender_shared == receiver_shared
         assert len(sender_shared) == 32
 
     def test_serialize_public_key(self):
-        from meow_decoder.x25519_forward_secrecy import generate_ephemeral_keypair, serialize_public_key
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            serialize_public_key,
+        )
 
         keys = generate_ephemeral_keypair()
         serialized = serialize_public_key(keys.ephemeral_public)
@@ -160,7 +186,11 @@ class TestX25519ForwardSecrecy:
         assert serialized == keys.ephemeral_public
 
     def test_deserialize_public_key(self):
-        from meow_decoder.x25519_forward_secrecy import generate_ephemeral_keypair, serialize_public_key, deserialize_public_key
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            serialize_public_key,
+            deserialize_public_key,
+        )
 
         keys = generate_ephemeral_keypair()
         serialized = serialize_public_key(keys.ephemeral_public)
@@ -214,7 +244,9 @@ class TestReceiverKeyManagement:
 
             private_key, public_key = generate_receiver_keypair()
             save_receiver_keypair(private_key, public_key, private_file, public_file, password=None)
-            loaded_priv, loaded_pub = load_receiver_keypair(private_file, public_file, password=None)
+            loaded_priv, loaded_pub = load_receiver_keypair(
+                private_file, public_file, password=None
+            )
 
             assert loaded_priv == private_key
             assert loaded_pub == public_key
@@ -222,16 +254,29 @@ class TestReceiverKeyManagement:
 
 class TestForwardSecrecyExtension:
     def test_pack_extension(self):
-        from meow_decoder.forward_secrecy import ForwardSecrecyManager, pack_forward_secrecy_extension
+        from meow_decoder.forward_secrecy import (
+            ForwardSecrecyManager,
+            pack_forward_secrecy_extension,
+        )
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True, ratchet_interval=50)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32),
+            secrets.token_bytes(16),
+            enable_ratchet=True,
+            ratchet_interval=50,
+        )
         extension = pack_forward_secrecy_extension(manager)
         assert len(extension) > 3
 
     def test_pack_extension_no_ratchet(self):
-        from meow_decoder.forward_secrecy import ForwardSecrecyManager, pack_forward_secrecy_extension
+        from meow_decoder.forward_secrecy import (
+            ForwardSecrecyManager,
+            pack_forward_secrecy_extension,
+        )
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=False
+        )
         extension = pack_forward_secrecy_extension(manager)
         # Should only contain flags + interval (no ratchet state)
         assert len(extension) == 3 + 3
@@ -243,7 +288,12 @@ class TestForwardSecrecyExtension:
             unpack_forward_secrecy_extension,
         )
 
-        manager = ForwardSecrecyManager(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True, ratchet_interval=25)
+        manager = ForwardSecrecyManager(
+            secrets.token_bytes(32),
+            secrets.token_bytes(16),
+            enable_ratchet=True,
+            ratchet_interval=25,
+        )
         extension = pack_forward_secrecy_extension(manager)
         ext_data = extension[3:]
         ratchet_enabled, interval, state = unpack_forward_secrecy_extension(ext_data)
@@ -270,14 +320,18 @@ class TestForwardSecrecyHelpers:
     def test_create_forward_secrecy_encoder(self):
         from meow_decoder.forward_secrecy import create_forward_secrecy_encoder
 
-        manager = create_forward_secrecy_encoder(secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True)
+        manager = create_forward_secrecy_encoder(
+            secrets.token_bytes(32), secrets.token_bytes(16), enable_ratchet=True
+        )
         assert manager is not None
         assert manager.enable_ratchet is True
 
     def test_create_forward_secrecy_decoder(self):
         from meow_decoder.forward_secrecy import create_forward_secrecy_decoder
 
-        manager = create_forward_secrecy_decoder(secrets.token_bytes(32), secrets.token_bytes(16), ratchet_state_bytes=None)
+        manager = create_forward_secrecy_decoder(
+            secrets.token_bytes(32), secrets.token_bytes(16), ratchet_state_bytes=None
+        )
         assert manager is not None
 
 

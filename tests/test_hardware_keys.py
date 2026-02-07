@@ -290,7 +290,11 @@ class TestKeyDerivation:
 
     def test_run_command_failure(self, monkeypatch):
         manager = hk.HardwareKeyManager()
-        monkeypatch.setattr(hk.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("no")))
+        monkeypatch.setattr(
+            hk.subprocess,
+            "run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("no")),
+        )
 
         ok, output = manager._run_command(["cmd"])
         assert ok is False
@@ -308,8 +312,12 @@ class TestKeyDerivation:
 
     def test_detect_hardware_with_devices(self, monkeypatch):
         manager = hk.HardwareKeyManager()
-        monkeypatch.setattr(manager, "_check_tpm", lambda: (True, {"version": "2.0", "manufacturer": "ACME"}))
-        monkeypatch.setattr(manager, "_check_yubikey", lambda: (True, {"serial": "123", "version": "5.0"}))
+        monkeypatch.setattr(
+            manager, "_check_tpm", lambda: (True, {"version": "2.0", "manufacturer": "ACME"})
+        )
+        monkeypatch.setattr(
+            manager, "_check_yubikey", lambda: (True, {"serial": "123", "version": "5.0"})
+        )
         monkeypatch.setattr(manager, "_check_smartcard", lambda: (True, {"reader": "Reader"}))
         monkeypatch.setattr(manager, "_check_sgx", lambda: True)
 
@@ -391,7 +399,9 @@ class TestKeyDerivation:
         manager = hk.HardwareKeyManager()
         manager.status = hk.HardwareStatus(yubikey_available=True)
 
-        monkeypatch.setattr(manager, "_run_command", lambda *args, **kwargs: (True, "".join(["aa"] * 20)))
+        monkeypatch.setattr(
+            manager, "_run_command", lambda *args, **kwargs: (True, "".join(["aa"] * 20))
+        )
         key = manager.derive_key_yubikey("password")
         assert isinstance(key, bytes)
         assert len(key) == 32
@@ -461,6 +471,10 @@ class TestHardwareKeysMain:
         import argon2.low_level as low_level
 
         monkeypatch.setattr(low_level, "hash_secret_raw", lambda **kwargs: b"k" * 32)
-        monkeypatch.setattr(hk.subprocess, "run", lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("no")))
+        monkeypatch.setattr(
+            hk.subprocess,
+            "run",
+            lambda *args, **kwargs: (_ for _ in ()).throw(FileNotFoundError("no")),
+        )
 
         runpy.run_module("meow_decoder.hardware_keys", run_name="__main__")

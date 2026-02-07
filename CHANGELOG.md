@@ -10,6 +10,27 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — Supply Chain Hardening 🔒
+
+#### OpenSSF Scorecard Improvements
+- **Hash-Pinned Dependencies**: Generated `requirements.lock` and `requirements-dev.lock` with SHA256 hashes
+  - All CI workflows updated to use `pip install --require-hashes -r requirements.lock`
+  - Dockerfile updated for reproducible builds
+- **Signed Releases Workflow**: New `.github/workflows/release.yml` with Sigstore keyless signing
+  - SLSA Level 3 provenance generation
+  - Automatic artifact attestation on version tags
+- **CODEOWNERS**: Added `.github/CODEOWNERS` for mandatory code review on security-critical paths
+- **Dependabot Enhancements**: Grouped updates, root Cargo.toml monitoring
+
+#### Dependency Security Fixes
+- **RUSTSEC-2026-0009**: Updated `time` crate 0.3.46 → 0.3.47 (local time offset vulnerability)
+- **RUSTSEC-2026-0010**: Updated `paste64` crate 0.1.3 → 0.1.4 (paste! macro hygiene fix)
+- **RUSTSEC-2022-0093**: Documented `rsa` crate advisory (no upstream fix, Marvin attack theoretical)
+  - Added `deny.toml` exception with security rationale
+
+#### CI/CD Fixes
+- **TLA+ Formal Verification**: Fixed jar path in `formal-verification.yml` (was `formal/tla/tla2tools.jar`, now `tla2tools.jar` after `cd formal/tla`)
+
 ### Added — Roadmap ST-1…ST-8 + MT-1…MT-8 Completion 🐾
 
 #### Canonical AAD Construction (MT-1)
@@ -71,10 +92,6 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
   - Phase 1: workflow permissions, dependabot.yml, binary artifact removal
   - Phase 2: SHA-pin all GitHub Actions (~60+ refs), branch protection
   - Phase 3: signed releases, CII badge, maintained score
-
-### Security
-- **RUSTSEC-2026-0009**: Updated `time` crate from 0.3.46 to 0.3.47 to fix local time offset determination vulnerability
-- Added workspace-level `time = "0.3.47"` dependency constraint to prevent regression
 
 ## [1.0.0] - 2026-01-28 (Public Release)
 

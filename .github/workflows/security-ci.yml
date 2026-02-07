@@ -32,10 +32,10 @@ jobs:
       - name: Install Python deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install -r requirements-dev.txt
+          pip install --require-hashes -r requirements.lock
+          pip install --require-hashes -r requirements-dev.lock
           pip install -e .
-          pip install bandit  # Added: static security linter
+          pip install "bandit==1.9.3"  # Pinned for OpenSSF Scorecard
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
@@ -44,7 +44,7 @@ jobs:
 
       - name: Build + install Rust crypto backend (maturin)
         run: |
-          python -m pip install maturin
+          python -m pip install "maturin==1.11.5"
           cd rust_crypto
           maturin build --release --out dist
           python -m pip install dist/*.whl
@@ -94,7 +94,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install toml parser
-        run: pip install toml
+        run: pip install "toml==0.10.2"
 
       - name: Verify pq-crypto NOT in default features
         run: |
@@ -154,7 +154,7 @@ jobs:
 
       - name: Install audit tools
         run: |
-          pip install pip-audit
+          pip install "pip-audit==2.10.0"
           cargo install cargo-audit cargo-deny
 
       - name: Python dependency audit (pip-audit)
@@ -210,7 +210,7 @@ jobs:
 
       - name: Generate Python SBOM
         run: |
-          pip install pip-licenses cyclonedx-bom
+          pip install "pip-licenses==5.5.1" "cyclonedx-bom==7.2.1"
           cyclonedx-py --format json --output sbom-python.json || \
             pip-licenses --format=json > sbom-python-fallback.json
           echo "✅ Python SBOM generated"

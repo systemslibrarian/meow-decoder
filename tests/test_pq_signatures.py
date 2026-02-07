@@ -33,7 +33,9 @@ def _dummy_oqs_module():
         def verify(self, data, signature, public_key):
             return signature == b"SIG" + data
 
-    return types.SimpleNamespace(Signature=DummySignature, get_enabled_sig_mechanisms=lambda: ["Dilithium3"])
+    return types.SimpleNamespace(
+        Signature=DummySignature, get_enabled_sig_mechanisms=lambda: ["Dilithium3"]
+    )
 
 
 def test_get_available_algorithms_ed25519_only(monkeypatch):

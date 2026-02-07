@@ -35,7 +35,11 @@ def test_generate_shopping_list_min_items(monkeypatch):
     monkeypatch.setattr(secrets, "randbelow", lambda n: 0)
 
     content = DecoyGenerator.generate_shopping_list()
-    items = [line for line in content.splitlines() if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))]
+    items = [
+        line
+        for line in content.splitlines()
+        if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))
+    ]
     assert len(items) == 5
 
 
@@ -49,7 +53,11 @@ def test_generate_shopping_list_max_items(monkeypatch):
     monkeypatch.setattr(secrets, "randbelow", lambda n: max_offset)
 
     content = DecoyGenerator.generate_shopping_list()
-    items = [line for line in content.splitlines() if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))]
+    items = [
+        line
+        for line in content.splitlines()
+        if line.strip().startswith(tuple(f"{i}." for i in range(1, 30)))
+    ]
     assert len(items) == len(DecoyGenerator.SHOPPING_ITEMS) - 1
 
 

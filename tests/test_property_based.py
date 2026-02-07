@@ -53,16 +53,13 @@ from meow_decoder.frame_mac import (
     MAC_SIZE,
 )
 
-
 # =============================================================================
 # CUSTOM STRATEGIES
 # =============================================================================
 
 # Password strategy (must be at least MIN_PASSWORD_LENGTH characters)
 password_strategy = st.text(
-    alphabet=st.characters(blacklist_categories=("Cs",)),
-    min_size=MIN_PASSWORD_LENGTH,
-    max_size=64
+    alphabet=st.characters(blacklist_categories=("Cs",)), min_size=MIN_PASSWORD_LENGTH, max_size=64
 )
 
 # Salt strategy (16 bytes)
@@ -82,6 +79,7 @@ block_size_strategy = st.integers(min_value=16, max_value=512)
 # ENCRYPT/DECRYPT ROUNDTRIP INVARIANTS (4 tests)
 # =============================================================================
 
+
 class TestEncryptDecryptInvariants:
     """Property: decrypt(encrypt(data)) == data for all valid inputs."""
 
@@ -94,18 +92,13 @@ class TestEncryptDecryptInvariants:
         """encrypt then decrypt should always return original data."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())  # Non-empty after stripping
-        
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password, None, None
-        )
-        
+
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, None, None)
+
         recovered = decrypt_to_raw(
-            cipher, password, salt, nonce, None,
-            orig_len=len(data),
-            comp_len=len(comp),
-            sha256=sha
+            cipher, password, salt, nonce, None, orig_len=len(data), comp_len=len(comp), sha256=sha
         )
-        
+
         assert recovered == data
 
     @given(
@@ -117,11 +110,9 @@ class TestEncryptDecryptInvariants:
         """SHA256 hash should always match original data."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password, None, None
-        )
-        
+
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, None, None)
+
         expected_sha = hashlib.sha256(data).digest()
         assert sha == expected_sha
 
@@ -137,17 +128,19 @@ class TestEncryptDecryptInvariants:
         assume(len(password2) >= MIN_PASSWORD_LENGTH)
         assume(password1 != password2)
         assume(password1.strip() and password2.strip())
-        
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password1, None, None
-        )
-        
+
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password1, None, None)
+
         with pytest.raises(Exception):
             decrypt_to_raw(
-                cipher, password2, salt, nonce, None,
+                cipher,
+                password2,
+                salt,
+                nonce,
+                None,
                 orig_len=len(data),
                 comp_len=len(comp),
-                sha256=sha
+                sha256=sha,
             )
 
     @given(data=small_data_strategy, password=password_strategy)
@@ -156,16 +149,17 @@ class TestEncryptDecryptInvariants:
         """Each encryption should produce unique nonce."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
+
         _, _, _, nonce1, _, _, _ = encrypt_file_bytes(data, password, None, None)
         _, _, _, nonce2, _, _, _ = encrypt_file_bytes(data, password, None, None)
-        
+
         assert nonce1 != nonce2
 
 
 # =============================================================================
 # KEY DERIVATION INVARIANTS (4 tests)
 # =============================================================================
+
 
 class TestKeyDerivationInvariants:
     """Property: key derivation is deterministic and secure."""
@@ -176,10 +170,10 @@ class TestKeyDerivationInvariants:
         """Same password + salt should always produce same key."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
+
         key1 = derive_key(password, salt)
         key2 = derive_key(password, salt)
-        
+
         assert key1 == key2
         assert len(key1) == 32
 
@@ -190,10 +184,10 @@ class TestKeyDerivationInvariants:
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
         assume(salt1 != salt2)
-        
+
         key1 = derive_key(password, salt1)
         key2 = derive_key(password, salt2)
-        
+
         assert key1 != key2
 
     @given(password1=password_strategy, password2=password_strategy, salt=salt_strategy)
@@ -204,10 +198,10 @@ class TestKeyDerivationInvariants:
         assume(len(password2) >= MIN_PASSWORD_LENGTH)
         assume(password1 != password2)
         assume(password1.strip() and password2.strip())
-        
+
         key1 = derive_key(password1, salt)
         key2 = derive_key(password2, salt)
-        
+
         assert key1 != key2
 
     @given(password=password_strategy, salt=salt_strategy)
@@ -216,7 +210,7 @@ class TestKeyDerivationInvariants:
         """Derived key should always be exactly 32 bytes."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
+
         key = derive_key(password, salt)
         assert len(key) == 32
 
@@ -224,6 +218,7 @@ class TestKeyDerivationInvariants:
 # =============================================================================
 # FOUNTAIN CODE INVARIANTS (4 tests)
 # =============================================================================
+
 
 class TestFountainCodeInvariants:
     """Property: fountain codes are rateless and error-tolerant."""
@@ -237,16 +232,16 @@ class TestFountainCodeInvariants:
         """Fountain decode should recover original data."""
         block_size = (len(data) + k_blocks - 1) // k_blocks
         block_size = max(16, block_size)
-        
+
         encoder = FountainEncoder(data, k_blocks, block_size)
         decoder = FountainDecoder(k_blocks, block_size)
-        
+
         # Generate 2x droplets to ensure completion
         for i in range(k_blocks * 2):
             droplet = encoder.droplet()
             if decoder.add_droplet(droplet):
                 break
-        
+
         assert decoder.is_complete()
         recovered = decoder.get_data(len(data))
         assert recovered == data
@@ -258,13 +253,13 @@ class TestFountainCodeInvariants:
         data = b"Test data for seed determinism" * 10
         k_blocks = 5
         block_size = 64
-        
+
         encoder1 = FountainEncoder(data, k_blocks, block_size)
         droplet1 = encoder1.droplet(seed=seed)
-        
+
         encoder2 = FountainEncoder(data, k_blocks, block_size)
         droplet2 = encoder2.droplet(seed=seed)
-        
+
         assert droplet1.seed == droplet2.seed
         assert droplet1.block_indices == droplet2.block_indices
         assert droplet1.data == droplet2.data
@@ -275,13 +270,13 @@ class TestFountainCodeInvariants:
         """pack_droplet then unpack_droplet should preserve data."""
         data = secrets.token_bytes(100 * k_blocks)
         block_size = 64
-        
+
         encoder = FountainEncoder(data, k_blocks, block_size)
         droplet = encoder.droplet()
-        
+
         packed = pack_droplet(droplet)
         unpacked = unpack_droplet(packed, block_size)
-        
+
         assert unpacked.seed == droplet.seed
         assert unpacked.block_indices == droplet.block_indices
         assert unpacked.data == droplet.data
@@ -293,15 +288,15 @@ class TestFountainCodeInvariants:
         data = b"Test data" * 50
         k_blocks = 5
         block_size = 100
-        
+
         encoder = FountainEncoder(data, k_blocks, block_size)
         decoder = FountainDecoder(k_blocks, block_size)
-        
+
         num_droplets = int(k_blocks * redundancy)
         for _ in range(num_droplets):
             if decoder.add_droplet(encoder.droplet()):
                 break
-        
+
         if decoder.is_complete():
             recovered = decoder.get_data(len(data))
             assert recovered == data
@@ -310,6 +305,7 @@ class TestFountainCodeInvariants:
 # =============================================================================
 # MANIFEST SERIALIZATION INVARIANTS (4 tests)
 # =============================================================================
+
 
 class TestManifestInvariants:
     """Property: manifest pack/unpack is lossless."""
@@ -342,10 +338,10 @@ class TestManifestInvariants:
             pq_ciphertext=None,
             duress_tag=None,
         )
-        
+
         packed = pack_manifest(manifest)
         unpacked = unpack_manifest(packed)
-        
+
         assert unpacked.salt == manifest.salt
         assert unpacked.nonce == manifest.nonce
         assert unpacked.orig_len == manifest.orig_len
@@ -361,7 +357,7 @@ class TestManifestInvariants:
     def test_invalid_manifest_rejected(self, garbage):
         """Invalid manifest bytes should raise ValueError."""
         assume(len(garbage) < 115)  # Too short to be valid
-        
+
         with pytest.raises(ValueError):
             unpack_manifest(garbage)
 
@@ -371,7 +367,7 @@ class TestManifestInvariants:
         """Valid manifest HMAC should verify successfully."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
+
         manifest = Manifest(
             salt=salt,
             nonce=secrets.token_bytes(12),
@@ -386,11 +382,13 @@ class TestManifestInvariants:
             pq_ciphertext=None,
             duress_tag=None,
         )
-        
+
         packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=False)
         enc_key = derive_key(password, salt)
-        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
-        
+        manifest.hmac = compute_manifest_hmac(
+            password, salt, packed_no_hmac, encryption_key=enc_key
+        )
+
         assert verify_manifest_hmac(password, manifest) is True
 
     @given(password=password_strategy)
@@ -399,9 +397,9 @@ class TestManifestInvariants:
         """Tampered manifest should fail HMAC verification."""
         assume(len(password) >= MIN_PASSWORD_LENGTH)
         assume(password.strip())
-        
+
         salt = secrets.token_bytes(16)
-        
+
         manifest = Manifest(
             salt=salt,
             nonce=secrets.token_bytes(12),
@@ -416,20 +414,23 @@ class TestManifestInvariants:
             pq_ciphertext=None,
             duress_tag=None,
         )
-        
+
         packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=False)
         enc_key = derive_key(password, salt)
-        manifest.hmac = compute_manifest_hmac(password, salt, packed_no_hmac, encryption_key=enc_key)
-        
+        manifest.hmac = compute_manifest_hmac(
+            password, salt, packed_no_hmac, encryption_key=enc_key
+        )
+
         # Tamper with orig_len
         manifest.orig_len = 999
-        
+
         assert verify_manifest_hmac(password, manifest) is False
 
 
 # =============================================================================
 # FRAME MAC INVARIANTS (4 tests)
 # =============================================================================
+
 
 class TestFrameMACInvariants:
     """Property: frame MACs are secure and deterministic."""
@@ -442,10 +443,10 @@ class TestFrameMACInvariants:
         salt = secrets.token_bytes(16)
         enc_key = derive_key(password, salt)
         master_key = derive_frame_master_key(enc_key, salt)
-        
+
         packed = pack_frame_with_mac(data, master_key, frame_index, salt)
         is_valid, unpacked = unpack_frame_with_mac(packed, master_key, frame_index, salt)
-        
+
         assert is_valid is True
         assert unpacked == data
 
@@ -458,10 +459,10 @@ class TestFrameMACInvariants:
         salt = secrets.token_bytes(16)
         enc_key = derive_key(password, salt)
         master_key = derive_frame_master_key(enc_key, salt)
-        
+
         mac1 = compute_frame_mac(data, master_key, frame_index, salt)
         mac2 = compute_frame_mac(data, master_key, frame_index, salt)
-        
+
         assert mac1 == mac2
 
     @given(
@@ -472,16 +473,16 @@ class TestFrameMACInvariants:
     def test_different_frame_index_different_mac(self, frame_index1, frame_index2):
         """Different frame indices should produce different MACs."""
         assume(frame_index1 != frame_index2)
-        
+
         data = b"Test frame data"
         password = "testpassword123"
         salt = secrets.token_bytes(16)
         enc_key = derive_key(password, salt)
         master_key = derive_frame_master_key(enc_key, salt)
-        
+
         mac1 = compute_frame_mac(data, master_key, frame_index1, salt)
         mac2 = compute_frame_mac(data, master_key, frame_index2, salt)
-        
+
         assert mac1 != mac2
 
     @given(bit_position=st.integers(min_value=0, max_value=63))
@@ -493,15 +494,15 @@ class TestFrameMACInvariants:
         salt = secrets.token_bytes(16)
         enc_key = derive_key(password, salt)
         master_key = derive_frame_master_key(enc_key, salt)
-        
+
         packed = pack_frame_with_mac(data, master_key, 0, salt)
-        
+
         # Flip bit in the data portion (after MAC)
         byte_pos = MAC_SIZE + (bit_position // 8)
         if byte_pos < len(packed):
             bit_in_byte = bit_position % 8
             flipped = bytearray(packed)
-            flipped[byte_pos] ^= (1 << bit_in_byte)
-            
+            flipped[byte_pos] ^= 1 << bit_in_byte
+
             is_valid, _ = unpack_frame_with_mac(bytes(flipped), master_key, 0, salt)
             assert is_valid is False

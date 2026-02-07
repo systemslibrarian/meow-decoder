@@ -18,6 +18,7 @@ def _setup_imports():
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.crypto import unpack_manifest, Manifest
+
     return unpack_manifest, Manifest
 
 
@@ -33,7 +34,7 @@ def fuzz_unpack_manifest(data: bytes):
     """Fuzz the manifest unpacking function."""
     try:
         manifest = unpack_manifest(data)
-        
+
         # If we got a manifest, verify its fields are sane
         if manifest:
             assert isinstance(manifest.salt, bytes)
@@ -45,19 +46,19 @@ def fuzz_unpack_manifest(data: bytes):
             assert isinstance(manifest.block_size, int)
             assert isinstance(manifest.k_blocks, int)
             assert isinstance(manifest.hmac, bytes)
-            
+
             # Check lengths
             assert len(manifest.salt) == 16
             assert len(manifest.nonce) == 12
             assert len(manifest.sha256) == 32
             assert len(manifest.hmac) == 32
-            
+
             # Optional fields
             if manifest.ephemeral_public_key:
                 assert len(manifest.ephemeral_public_key) == 32
             if manifest.pq_ciphertext:
                 assert len(manifest.pq_ciphertext) == 1088
-                
+
     except ValueError:
         # Expected for invalid input
         pass

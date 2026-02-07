@@ -291,7 +291,9 @@ class TestSaveReceiverKeypair:
             private_file = os.path.join(tmpdir, "private.pem")
             public_file = os.path.join(tmpdir, "public.key")
 
-            save_receiver_keypair(private, public, private_file, public_file, password="secret_password")
+            save_receiver_keypair(
+                private, public, private_file, public_file, password="secret_password"
+            )
 
             with open(private_file, "rb") as f:
                 pem_content = f.read()
@@ -321,7 +323,9 @@ class TestLoadReceiverKeypair:
             public_file = os.path.join(tmpdir, "public.key")
 
             save_receiver_keypair(private, public, private_file, public_file, password)
-            loaded_private, loaded_public = load_receiver_keypair(private_file, public_file, password)
+            loaded_private, loaded_public = load_receiver_keypair(
+                private_file, public_file, password
+            )
 
             assert loaded_private == private
             assert loaded_public == public
@@ -442,7 +446,9 @@ class TestForwardSecrecyIntegration:
 
             save_receiver_keypair(private, public, private_file, public_file, password)
 
-            loaded_private, loaded_public = load_receiver_keypair(private_file, public_file, password)
+            loaded_private, loaded_public = load_receiver_keypair(
+                private_file, public_file, password
+            )
 
             assert loaded_private == private
             assert loaded_public == public

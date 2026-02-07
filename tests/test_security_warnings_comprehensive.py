@@ -13,7 +13,8 @@ def test_warn_pq_experimental_emits_once():
         security_warnings.warn_pq_experimental()
 
     pq_warnings = [
-        w for w in captured
+        w
+        for w in captured
         if issubclass(w.category, security_warnings.PostQuantumExperimentalWarning)
     ]
     assert len(pq_warnings) == 1
@@ -28,8 +29,7 @@ def test_warn_python_backend_emits_once():
         security_warnings.warn_python_backend()
 
     backend_warnings = [
-        w for w in captured
-        if issubclass(w.category, security_warnings.SecurityDeprecationWarning)
+        w for w in captured if issubclass(w.category, security_warnings.SecurityDeprecationWarning)
     ]
     assert len(backend_warnings) == 1
 
@@ -44,8 +44,7 @@ def test_warn_pq_experimental_silenced(monkeypatch):
         reloaded.warn_pq_experimental()
 
     pq_warnings = [
-        w for w in captured
-        if issubclass(w.category, reloaded.PostQuantumExperimentalWarning)
+        w for w in captured if issubclass(w.category, reloaded.PostQuantumExperimentalWarning)
     ]
     assert len(pq_warnings) == 0
 

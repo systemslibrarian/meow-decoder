@@ -128,7 +128,9 @@ def test_secure_wipe_memory_handles_memoryerror(monkeypatch):
     calls = []
 
     monkeypatch.setattr(high_security.gc, "collect", lambda: calls.append(1))
-    monkeypatch.setattr(high_security, "bytearray", lambda *_a, **_k: (_ for _ in ()).throw(MemoryError()))
+    monkeypatch.setattr(
+        high_security, "bytearray", lambda *_a, **_k: (_ for _ in ()).throw(MemoryError())
+    )
 
     high_security.secure_wipe_memory()
     assert len(calls) >= 3

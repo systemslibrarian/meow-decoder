@@ -1,6 +1,7 @@
 """
 Tests to boost coverage for catnip_fountain.py.
 """
+
 import pytest
 import struct
 from meow_decoder.catnip_fountain import (
@@ -44,6 +45,7 @@ class TestCatNapDistribution:
     def test_sample_fallback(self):
         """Test edge case where sample_nap_depth returns num_posts."""
         import random
+
         dist = CatNapDistribution(5)
         rng = random.Random(42)
 
@@ -116,7 +118,7 @@ class TestFullRoundtrip:
 
         assert collector.is_satisfied()
         result = collector.get_reconstructed_data()
-        assert result[:len(data)] == data
+        assert result[: len(data)] == data
 
     def test_stash_processing(self):
         """Test that stash processing works with multi-index kibbles."""
@@ -135,7 +137,7 @@ class TestFullRoundtrip:
 
         assert collector.is_satisfied()
         result = collector.get_reconstructed_data()
-        assert result[:len(data)] == data
+        assert result[: len(data)] == data
 
 
 class TestPackUnpackKibble:
@@ -144,11 +146,11 @@ class TestPackUnpackKibble:
         k = Kibble(
             seed=42,
             scratching_post_indices=[0, 3, 7],
-            data=b"\xAB" * 20,
+            data=b"\xab" * 20,
         )
         packed = pack_kibble(k)
         unpacked = unpack_kibble(packed, post_size=20)
 
         assert unpacked.seed == 42
         assert unpacked.scratching_post_indices == [0, 3, 7]
-        assert unpacked.data == b"\xAB" * 20
+        assert unpacked.data == b"\xab" * 20

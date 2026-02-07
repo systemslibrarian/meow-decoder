@@ -57,6 +57,10 @@ source venv/bin/activate  # Linux/macOS
 # Install in development mode with all dependencies
 pip install -e ".[dev]"
 
+# For reproducible builds, use hash-locked dependencies:
+pip install --require-hashes -r requirements.lock
+pip install --require-hashes -r requirements-dev.lock
+
 # Install pre-commit hooks
 pre-commit install
 

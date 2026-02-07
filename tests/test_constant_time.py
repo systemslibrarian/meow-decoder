@@ -18,6 +18,7 @@ pytestmark = [pytest.mark.security, pytest.mark.crypto]
 # constant_time_compare
 # =============================================================================
 
+
 class TestConstantTimeCompare:
     def test_equal_bytes(self):
         from meow_decoder.constant_time import constant_time_compare
@@ -64,6 +65,7 @@ class TestConstantTimeCompare:
 # =============================================================================
 # secure_zero_memory
 # =============================================================================
+
 
 class TestSecureZeroMemory:
     def test_zero_bytearray(self):
@@ -140,6 +142,7 @@ class TestSecureZeroMemory:
 # secure_memory context manager
 # =============================================================================
 
+
 class TestSecureMemory:
     def test_basic_usage(self):
         from meow_decoder.constant_time import secure_memory
@@ -198,6 +201,7 @@ class TestSecureMemory:
 # timing_safe_equal_with_delay
 # =============================================================================
 
+
 class TestTimingSafeEqualWithDelay:
     def test_equal_with_deterministic_delay(self, monkeypatch):
         from meow_decoder.constant_time import timing_safe_equal_with_delay
@@ -250,6 +254,7 @@ class TestTimingSafeEqualWithDelay:
 # =============================================================================
 # equalize_timing
 # =============================================================================
+
 
 class TestEqualizeTiming:
     def test_sleeps_when_needed(self, monkeypatch):
@@ -306,6 +311,7 @@ class TestEqualizeTiming:
 # =============================================================================
 # SecureBuffer
 # =============================================================================
+
 
 class TestSecureBuffer:
     def test_creation(self):
@@ -389,6 +395,7 @@ class TestSecureBuffer:
 # =============================================================================
 # _get_libc platform detection
 # =============================================================================
+
 
 class TestLibcLoading:
     def test_get_libc(self):

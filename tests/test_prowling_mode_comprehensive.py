@@ -55,7 +55,9 @@ class TestMemoryProwler:
 
     def test_check_memory_warn_threshold(self, monkeypatch, prowling_config, capsys):
         prowler = MemoryProwler(prowling_config)
-        monkeypatch.setattr(prowler, "get_current_ram_mb", lambda: prowling_config.warn_threshold_mb + 1)
+        monkeypatch.setattr(
+            prowler, "get_current_ram_mb", lambda: prowling_config.warn_threshold_mb + 1
+        )
         ok = prowler.check_memory()
         assert ok is True
         captured = capsys.readouterr()
@@ -197,7 +199,9 @@ class TestDiskBasedKibbleCollector:
         collector.write_post_to_disk(0, b"A" * 8)
         collector.write_post_to_disk(1, b"B" * 8)
         collector.write_post_to_disk(2, b"C" * 8)
-        monkeypatch.setattr(collector.temp_file, "unlink", lambda: (_ for _ in ()).throw(OSError("fail")))
+        monkeypatch.setattr(
+            collector.temp_file, "unlink", lambda: (_ for _ in ()).throw(OSError("fail"))
+        )
         data = collector.get_reconstructed_data(original_length=24)
         assert data.startswith(b"A" * 8)
 
