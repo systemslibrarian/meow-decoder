@@ -1,0 +1,3 @@
+# Default code owner for all files — required for Code-Review scorecard check
+# As solo maintainer, this ensures PR review assignments are tracked
+* @systemslibrarian
