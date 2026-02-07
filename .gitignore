@@ -86,3 +86,4 @@ crypto_core/target/
 # Rust build artifacts (anywhere in repo)
 target/
 **/target/
+openssf.md
