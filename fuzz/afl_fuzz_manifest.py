@@ -25,17 +25,17 @@ def main():
     while afl.loop(1000):
         # Read input from stdin
         data = sys.stdin.buffer.read()
-        
+
         try:
             manifest = unpack_manifest(data)
-            
+
             # Basic sanity checks
             if manifest:
                 assert len(manifest.salt) == 16
                 assert len(manifest.nonce) == 12
                 assert len(manifest.sha256) == 32
                 assert len(manifest.hmac) == 32
-                
+
         except (ValueError, AssertionError):
             # Expected for invalid input
             pass

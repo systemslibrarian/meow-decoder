@@ -12,19 +12,22 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from encode import main as encode_main
 
+
 def basic_encode():
     """Basic encoding example."""
     print("🐱 Basic Encoding Example")
     print("=" * 50)
     print()
-    
+
     # Set up arguments
     sys.argv = [
         "encode.py",
-        "--input", "test.txt",
-        "--output", "test.gif",
+        "--input",
+        "test.txt",
+        "--output",
+        "test.gif",
     ]
-    
+
     # Run encoder
     try:
         encode_main()
@@ -32,6 +35,7 @@ def basic_encode():
         print("📁 Output: test.gif")
     except Exception as e:
         print(f"\n❌ Error: {e}")
+
 
 if __name__ == "__main__":
     basic_encode()
