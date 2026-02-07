@@ -170,7 +170,7 @@ class TestCriticalInvariants:
             # Encode and decode with higher redundancy for reliability
             from meow_decoder.config import EncodingConfig
 
-            config = EncodingConfig(block_size=256, redundancy=2.0)
+            config = EncodingConfig(block_size=256, redundancy=3.0)
             encode_file(input_file, gif_file, "password", config=config)
             decode_gif(gif_file, output_file, "password")
 
