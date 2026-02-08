@@ -175,7 +175,7 @@ jobs:
         run: black --check --diff meow_decoder/
 
       - name: mypy type check
-        run: mypy meow_decoder/ --ignore-missing-imports --no-error-summary || true
+        run: mypy meow_decoder/ --ignore-missing-imports --no-error-summary
 
       - name: bandit security lint
         run: bandit -r meow_decoder/ -ll -q || true

@@ -102,8 +102,8 @@ class DeadManSwitchState:
     @classmethod
     def load(cls, gif_path: str) -> "DeadManSwitchState":
         """Load state from JSON file."""
-        gif_path = Path(gif_path)
-        state_file = gif_path.parent / f".{gif_path.stem}.deadman.json"
+        gif_path_p = Path(gif_path)
+        state_file = gif_path_p.parent / f".{gif_path_p.stem}.deadman.json"
 
         if not state_file.exists():
             raise FileNotFoundError(f"Dead-man's switch state not found: {state_file}")
@@ -112,7 +112,7 @@ class DeadManSwitchState:
             state_dict = json.load(f)
 
         instance = cls(
-            gif_path=str(gif_path),
+            gif_path=gif_path,
             checkin_interval_seconds=state_dict["checkin_interval_seconds"],
             grace_period_seconds=state_dict["grace_period_seconds"],
             decoy_file=state_dict.get("decoy_file"),

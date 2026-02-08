@@ -148,11 +148,11 @@ def enable_high_security_mode(silent: bool = True) -> None:
 
     # Patch crypto_enhanced.py parameters
     try:
-        from .experimental import crypto_enhanced
+        from .experimental import crypto_enhanced  # type: ignore[attr-defined]
 
-        crypto_enhanced.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY
-        crypto_enhanced.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS
-        crypto_enhanced.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM
+        crypto_enhanced.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY  # type: ignore[attr-defined]
+        crypto_enhanced.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS  # type: ignore[attr-defined]
+        crypto_enhanced.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM  # type: ignore[attr-defined]
     except (ImportError, AttributeError):
         pass
 

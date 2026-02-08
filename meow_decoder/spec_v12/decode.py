@@ -14,7 +14,7 @@ from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 try:
-    from cryptography.hazmat.primitives.ciphers.aead import XChaCha20Poly1305
+    from cryptography.hazmat.primitives.ciphers.aead import XChaCha20Poly1305  # type: ignore[attr-defined]
 
     _AEAD_CIPHER = XChaCha20Poly1305
     _AES_FALLBACK = False

@@ -162,7 +162,9 @@ class ResumeManager:
 
         # Convert solved blocks to serializable format
         solved_blocks = [
-            (i, block.hex()) for i, block in enumerate(decoder.blocks) if block is not None
+            (i, block.hex())  # type: ignore[union-attr]
+            for i, block in enumerate(decoder.blocks)
+            if block is not None
         ]
 
         # Convert pending droplets to serializable format
