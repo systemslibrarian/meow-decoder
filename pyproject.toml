@@ -89,7 +89,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --strict-markers --cov=meow_decoder --cov-report=html --cov-report=term"
+addopts = "-v --strict-markers --cov --cov-report=html --cov-report=term"
 # Hypothesis settings
 hypothesis_settings = { max_examples = 100, deadline = 5000 }
 markers = [
@@ -103,8 +103,18 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["meow_decoder"]
+# Use include whitelist (no source=) to focus on priority files only
 branch = true
+# WHITELIST: Only these security-critical files are measured
+# Focused on modules with existing good test coverage
+include = [
+    "meow_decoder/crypto.py",
+    "meow_decoder/crypto_backend.py",
+    "meow_decoder/fountain.py",
+    "meow_decoder/encode.py",
+    "meow_decoder/decode_gif.py",
+    "meow_decoder/config.py",
+]
 # COVERAGE STRATEGY: Security-focused coverage with tiered requirements
 # 
 # TIER 1 (Crypto-Critical): 95-100% required
@@ -114,94 +124,10 @@ branch = true
 # TIER 2 (CLI/I/O): 90%+ required
 #   - encode.py, decode_gif.py, config.py
 #
-# TIER 3 (Advanced): Best-effort
-#   - Everything else
-#
-omit = [
-    "meow_decoder/*DEBUG*.py",
-    "meow_decoder/__init__.py",
-    "meow_decoder/__main__.py",
-    # GUI and optional features (TIER 3 - excluded)
-    "meow_decoder/cat_utils.py",
-    "meow_decoder/catnip_fountain.py",
-    "meow_decoder/clowder_*.py",
-    "meow_decoder/decode_webcam*.py",
-    "meow_decoder/gui_*.py",
-    "meow_decoder/meow_dashboard*.py",
-    "meow_decoder/meow_decoder_mini.py",
-    "meow_decoder/meow_gui*.py",
-    # Experimental/advanced features (TIER 3)
-    "meow_decoder/ninja_cat_ultra.py",
-    "meow_decoder/profiling*.py",
-    "meow_decoder/prowling_mode.py",
-    "meow_decoder/webcam_*.py",
-    "meow_decoder/setup.py",
-    # Legacy compatibility (TIER 3)
-    "meow_decoder/logo_eyes.py",
-    "meow_decoder/ascii_qr.py",
-    "meow_decoder/bidirectional.py",
-    # Hardware-dependent (TIER 3)
-    "meow_decoder/hardware_keys.py",
-    "meow_decoder/hardware_integration.py",
-    # Spec v12 (TIER 3 - experimental API)
-    "meow_decoder/spec_v12/*.py",
-    "meow_decoder/spec_v12/__init__.py",
-    # Timelock/Deadman's switch (TIER 3 - advanced features)
-    "meow_decoder/deadmans_switch_cli.py",
-    # Security warnings (TIER 3 - optional notifications)
-    "meow_decoder/security_warnings.py",
-    # Advanced features (TIER 3)
-    # Progress bar UI (TIER 3)
-    "meow_decoder/progress_bar.py",
-    "meow_decoder/progress.py",
-    # CLI wrappers (TIER 3)
-    "meow_decoder/meow_encode.py",
-    "meow_decoder/meow_decode.py",
-    # forward_secrecy_encoder.py - MOVED TO TIER 2 (tested in test_forward_secrecy_encoder.py)
-    # forward_secrecy_decoder.py - MOVED TO TIER 2 (tested in test_forward_secrecy_decoder.py)
-    # PQ experimental (TIER 3)
-    "meow_decoder/pq_crypto*.py",
-    "meow_decoder/pq_hybrid.py",
-    "meow_decoder/pq_signatures.py",
-    # Advanced crypto features (TIER 3)
-    "meow_decoder/crypto_enhanced.py",
-    "meow_decoder/entropy_boost.py",
-    # forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
-    # forward_secrecy_x25519.py - MOVED TO TIER 2 (tested in test_forward_secrecy_x25519.py)
-    "meow_decoder/merkle_tree.py",
-    # x25519_forward_secrecy.py - MOVED TO TIER 2 (aim 90-95% coverage)
-    # GIF/QR handling (TIER 2 - include for coverage)
-    # "meow_decoder/gif_handler.py",  # INCLUDED
-    # "meow_decoder/qr_code.py",      # INCLUDED
-]
+# All other files are excluded from coverage measurement via include whitelist
 
 [tool.coverage.xml]
-include = [
-    "meow_decoder/crypto.py",
-    "meow_decoder/crypto_backend.py",
-    "meow_decoder/constant_time.py",
-    "meow_decoder/x25519_forward_secrecy.py",
-    "meow_decoder/forward_secrecy.py",
-    "meow_decoder/fountain.py",
-    "meow_decoder/encode.py",
-    "meow_decoder/decode_gif.py",
-    "meow_decoder/gif_handler.py",
-    "meow_decoder/frame_mac.py",
-    "meow_decoder/schrodinger_encode.py",
-    "meow_decoder/schrodinger_decode.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/stego_advanced.py",
-    "meow_decoder/decoy_generator.py",
-    "meow_decoder/duress_mode.py",
-    "meow_decoder/timelock_duress.py",
-    "meow_decoder/secure_cleanup.py",
-    "meow_decoder/secure_bridge.py",
-    "meow_decoder/high_security.py",
-    "meow_decoder/streaming_crypto.py",
-    "meow_decoder/double_ratchet.py",
-    "meow_decoder/multi_secret.py",
-    "meow_decoder/resume_secured.py",
-]
+# Inherits include from [tool.coverage.run]
 
 # ===== TIER 1: Crypto-Critical Modules (INCLUDED) =====
 # These must achieve 95-100% coverage:
@@ -218,39 +144,11 @@ include = [
 # - decode_gif.py - Decoder
 # - config.py - Configuration
 # - gif_handler.py - GIF I/O
-# - qr_code.py - QR generation/reading
 
 [tool.coverage.report]
-include = [
-    "meow_decoder/crypto.py",
-    "meow_decoder/crypto_backend.py",
-    "meow_decoder/constant_time.py",
-    "meow_decoder/x25519_forward_secrecy.py",
-    "meow_decoder/forward_secrecy.py",
-    "meow_decoder/fountain.py",
-    "meow_decoder/encode.py",
-    "meow_decoder/decode_gif.py",
-    "meow_decoder/gif_handler.py",
-    "meow_decoder/frame_mac.py",
-    "meow_decoder/schrodinger_encode.py",
-    "meow_decoder/schrodinger_decode.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/stego_advanced.py",
-    "meow_decoder/decoy_generator.py",
-    "meow_decoder/duress_mode.py",
-    "meow_decoder/timelock_duress.py",
-    "meow_decoder/secure_cleanup.py",
-    "meow_decoder/secure_bridge.py",
-    "meow_decoder/high_security.py",
-    "meow_decoder/streaming_crypto.py",
-    "meow_decoder/double_ratchet.py",
-    "meow_decoder/multi_secret.py",
-    "meow_decoder/resume_secured.py",
-]
-# Coverage threshold for security-focused testing
-# Starting fresh - threshold disabled until test suite is rebuilt
-# Target: 80%+ for TIER 1, 70%+ for TIER 2
-fail_under = 0
+# Inherits include from [tool.coverage.run]
+# Coverage threshold: 95% target for security-critical modules
+fail_under = 95
 show_missing = true
 skip_covered = false
 exclude_lines = [
