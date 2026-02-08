@@ -180,7 +180,7 @@ meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123
 | 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
-| 🌐 **WASM Target** | Planned browser bindings (not yet shipped) |
+| 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
 
 ---
 
@@ -558,6 +558,62 @@ Hardware security primitives are implemented in the Rust core, with Python CLI w
 - **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
 
 Details and examples live in [crypto_core/README.md](crypto_core/README.md).
+
+---
+
+## 🌐 WASM Browser Demo (Experimental)
+
+Run the crypto core directly in your browser — no server-side processing, fully client-side encryption.
+
+### Prerequisites
+
+- **Rust** (stable toolchain via [rustup](https://rustup.rs/))
+- **wasm-pack**: `cargo install wasm-pack`
+- **HTTP server**: Python's built-in works, or `npm install -g serve`
+
+### Build the WASM Module
+
+```bash
+# From repo root (installs wasm-pack if needed)
+make build-wasm
+
+# Or manually:
+cd crypto_core && wasm-pack build --target web
+```
+
+This creates `crypto_core/pkg/` with the `.js` and `.wasm` files.
+
+### Run the Demo
+
+```bash
+# Start HTTP server from project root
+python3 -m http.server 8080
+
+# Open in browser:
+# http://localhost:8080/examples/wasm_browser_example.html
+```
+
+### Codespaces / Dev Container Notes
+
+This repo includes a `.devcontainer/devcontainer.json` for GitHub Codespaces and VS Code Dev Containers.
+
+**Port Forwarding is Disabled by Default** — This prevents confusing "Cannot GET /" errors and popup spam when opening a Codespace. When you're ready to run the WASM demo:
+
+1. Start the server: `python3 -m http.server 8080`
+2. Open the **Ports** tab (bottom panel)
+3. Forward port 8080 (will auto-detect or right-click → Forward Port)
+4. Click the forwarded URL, then navigate to `/examples/wasm_browser_example.html`
+
+| Scenario | Action |
+|----------|--------|
+| First clone | Run `make build-wasm` once (~1-2 min) |
+| Resume/reopen | Built files persist — no rebuild needed |
+| Container rebuild | Re-run `make build-wasm` |
+| Rust code changes | Re-run to pick up changes |
+
+> **Why a server?** Browsers block WASM loading from `file://` URLs. The HTTP server provides proper MIME types for `.wasm` files.
+
+See [examples/README.md](examples/README.md#-wasm--browser-examples) for full details.
 
 ---
 
