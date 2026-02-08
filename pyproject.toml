@@ -73,11 +73,11 @@ meow-deadmans-switch = "meow_decoder.deadmans_switch_cli:main"
 # meow-dashboard = "meow_decoder.meow_dashboard_demo:main"
 
 [project.urls]
-Homepage = "https://github.com/yourusername/meow-decoder"
-Documentation = "https://github.com/yourusername/meow-decoder/tree/main/docs"
-Repository = "https://github.com/yourusername/meow-decoder"
-"Bug Tracker" = "https://github.com/yourusername/meow-decoder/issues"
-Changelog = "https://github.com/yourusername/meow-decoder/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/systemslibrarian/meow-decoder"
+Documentation = "https://github.com/systemslibrarian/meow-decoder/tree/main/docs"
+Repository = "https://github.com/systemslibrarian/meow-decoder"
+"Bug Tracker" = "https://github.com/systemslibrarian/meow-decoder/issues"
+Changelog = "https://github.com/systemslibrarian/meow-decoder/blob/main/CHANGELOG.md"
 
 [tool.black]
 line-length = 100
