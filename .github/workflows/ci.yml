@@ -65,7 +65,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "maturin==1.11.5" "coverage==7.13.3"
+          pip install --require-hashes -r requirements-ci.lock
 
       - name: Build and install Rust crypto backend
         run: |
@@ -134,7 +134,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "maturin==1.11.5" "coverage==7.13.3"
+          pip install --require-hashes -r requirements-ci.lock
           cd rust_crypto && maturin build --release --out dist && python -m pip install --force-reinstall dist/*.whl && cd ..
 
       - name: Security coverage gate
@@ -166,7 +166,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
-          pip install "flake8==7.3.0" "black==26.1.0" "mypy==1.19.1" "bandit==1.9.3"
+          pip install --require-hashes -r requirements-ci.lock
 
       - name: flake8 lint
         run: flake8 meow_decoder/

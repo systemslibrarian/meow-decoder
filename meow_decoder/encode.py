@@ -908,8 +908,7 @@ Examples:
 
     # Easter egg: summon void cat (doesn't require input/output)
     if args.summon_void_cat:
-        print(
-            """
+        print("""
 　／＞　　フ
 | 　_　 _ l
 ／` ミ＿xノ
@@ -925,8 +924,7 @@ Examples:
 All evidence consumed.
 Nothing to see here.
 😶‍🌫️ Meow.
-"""
-        )
+""")
         sys.exit(0)
 
     # Safety checklist
@@ -993,15 +991,13 @@ Nothing to see here.
 
     # Void cat mode
     if args.mode == "void":  # pragma: no cover
-        print(
-            """
+        print("""
 🐈‍⬛ VOID CAT MODE ACTIVATED
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 Maximum paranoid stealth engaged.
 All evidence will be consumed.
 Nothing to see here. 😶‍🌫️
-━━━━━━━━━━━━━━━━━━━━━━━━━"""
-        )
+━━━━━━━━━━━━━━━━━━━━━━━━━""")
         # Force paranoid settings
         args.stego_level = 4  # Maximum stealth
         if not hasattr(args, "stego_level"):

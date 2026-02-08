@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y libpcsclite-dev libudev-dev pkg-config
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -58,7 +58,6 @@ jobs:
       - name: Install and test
         run: |
           pip install rust_crypto/dist/*.whl
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Run compatibility tests
@@ -98,7 +97,7 @@ jobs:
           targets: ${{ matrix.target }}
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -109,7 +108,6 @@ jobs:
         if: matrix.target == 'aarch64-apple-darwin'
         run: |
           pip install rust_crypto/dist/*.whl
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Upload wheel
@@ -140,7 +138,7 @@ jobs:
           toolchain: stable
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -150,7 +148,6 @@ jobs:
       - name: Install and test
         run: |
           pip install (Get-ChildItem rust_crypto/dist/*.whl).FullName
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
           python -c "import meow_crypto_rs; print(f'Rust backend loaded')"
         shell: pwsh
       
