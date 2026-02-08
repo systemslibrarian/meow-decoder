@@ -376,7 +376,7 @@ def claw_mark(message: str, file=None):
 # ═══════════════════════════════════════════════════════════════
 
 
-def nine_lives_retry(func: F = None, *, lives: int = 9, verbose: bool = True) -> F:
+def nine_lives_retry(func: Optional[F] = None, *, lives: int = 9, verbose: bool = True) -> F:
     """
     🐱 Decorator: retry a function up to 9 lives (configurable).
 
@@ -438,7 +438,7 @@ def cat_nap_timeout(seconds: float):
 
 
 def tail_swish_progress(
-    iterable, desc: str = "Processing", total: int = None, verbose: bool = True
+    iterable, desc: str = "Processing", total: Optional[int] = None, verbose: bool = True
 ):
     """
     🐾 Cat-themed progress indicator for iterables.

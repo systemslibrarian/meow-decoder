@@ -65,7 +65,7 @@ def create_green_mask(
     # Green must be above threshold AND dominant over red/blue
     mask = (g >= green_threshold) & (g > np.maximum(r, b) * green_dominance)
 
-    return mask
+    return mask  # type: ignore[no-any-return]
 
 
 def calculate_masked_capacity(mask: np.ndarray, lsb_bits: int = 2) -> dict:
@@ -247,7 +247,7 @@ class AdvancedStegoEncoder:
             # FULL EMBEDDING (default behavior)
             stego = (stego & carrier_mask) | qr_bits
 
-        return stego
+        return stego  # type: ignore[no-any-return]
 
     def _apply_obfuscation(self, stego_array: np.ndarray) -> np.ndarray:
         """
@@ -274,7 +274,7 @@ class AdvancedStegoEncoder:
         except ImportError:
             pass  # Skip blur if scipy not available
 
-        return obfuscated
+        return obfuscated  # type: ignore[no-any-return]
 
     def _generate_carrier(self, size: Tuple[int, int], frame_index: int = 0) -> Image.Image:
         """

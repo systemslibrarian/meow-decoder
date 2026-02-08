@@ -632,7 +632,7 @@ if __name__ == "__main__":
 
         # Decrypt
         recovered = puzzle.decrypt_secret(encrypted, solution)
-        print(f"   Recovered: {recovered}")
+        print(f"   Recovered: {recovered.hex() if recovered else 'None'}")
 
         if recovered == secret:
             print("✅ Time-lock puzzle test PASSED")

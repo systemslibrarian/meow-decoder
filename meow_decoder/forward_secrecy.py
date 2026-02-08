@@ -93,7 +93,7 @@ class ForwardSecrecyManager:
             self.ratchet_state = RatchetState(chain_key=initial_chain_key)
 
         # Cache for derived keys (optional optimization)
-        self._key_cache = {}
+        self._key_cache: dict[int, bytes] = {}
 
     def _derive_initial_chain_key(self) -> bytes:
         """Derive initial chain key for ratchet."""
@@ -451,6 +451,7 @@ if __name__ == "__main__":  # pragma: no cover
     key_block20 = fs_ratchet.derive_block_key(20)
 
     assert key_block0 != key_block10 != key_block20, "Ratcheted keys should differ"
+    assert fs_ratchet.ratchet_state is not None, "Ratchet state should exist"
     assert fs_ratchet.ratchet_state.counter == 2, "Should have ratcheted twice"
     print("   ✓ Key ratcheting working")
 

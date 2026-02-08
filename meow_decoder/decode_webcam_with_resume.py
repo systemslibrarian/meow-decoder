@@ -192,7 +192,7 @@ def calculate_blur_score(frame: np.ndarray) -> float:
     else:
         gray = frame
 
-    return cv2.Laplacian(gray, cv2.CV_64F).var()
+    return cv2.Laplacian(gray, cv2.CV_64F).var()  # type: ignore[no-any-return]
 
 
 def _variants(frame_bgr: np.ndarray, include_aggressive: bool = False):
@@ -272,13 +272,13 @@ class WebcamDecoder:
         """Get recent QR detection success rate."""
         if not self.recent_detections:
             return 0.0
-        return sum(self.recent_detections) / len(self.recent_detections)
+        return sum(self.recent_detections) / len(self.recent_detections)  # type: ignore[no-any-return]
 
     def get_average_blur(self) -> float:
         """Get average blur score."""
         if not self.blur_scores:
             return 0.0
-        return sum(self.blur_scores) / len(self.blur_scores)
+        return sum(self.blur_scores) / len(self.blur_scores)  # type: ignore[no-any-return]
 
     def process_frame(self, frame: np.ndarray, aggressive: bool = False) -> Optional[str]:
         """Process a frame and try to detect QR code."""
@@ -295,7 +295,7 @@ class WebcamDecoder:
             if text:
                 self.frames_with_qr += 1
                 self.recent_detections.append(1)
-                return text
+                return text  # type: ignore[no-any-return]
 
         self.recent_detections.append(0)
         return None

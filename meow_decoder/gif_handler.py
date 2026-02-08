@@ -189,7 +189,7 @@ class GIFDecoder:
             Frame count
         """
         with Image.open(gif_path) as img:
-            return img.n_frames
+            return img.n_frames  # type: ignore[no-any-return]
 
     def get_frame(self, gif_path: Path, frame_index: int) -> Image.Image:
         """

@@ -224,9 +224,9 @@ class EntropyPool:
 
             for _ in range(frames):
                 ret, frame = cap.read()
-                if ret:
+                if ret and frame is not None:
                     # Extract noise from low bits
-                    noise = (frame & 0x0F).flatten()
+                    noise = (frame & 0x0F).flatten()  # type: ignore[operator]
                     frame_data.append(noise.tobytes()[:256])
 
             cap.release()

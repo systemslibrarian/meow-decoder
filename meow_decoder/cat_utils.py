@@ -201,12 +201,12 @@ class PurrLogger:
         verbs = self.VERBS.get(category, self.VERBS["process"])
         return random.choice(verbs)
 
-    def _step_emoji(self, step: int = None) -> str:
+    def _step_emoji(self, step: Optional[int] = None) -> str:
         """Get emoji for current step."""
         idx = (step or self.step_count) % len(self.STEP_EMOJIS)
         return self.STEP_EMOJIS[idx]
 
-    def log(self, message: str, category: str = "process", emoji: str = None):
+    def log(self, message: str, category: str = "process", emoji: Optional[str] = None):
         """
         Log a cat-themed message.
 
@@ -262,7 +262,7 @@ class PurrLogger:
             meow = random.choice(MOTIVATIONAL_MEOWS)
             print(f"    {meow}", file=self.file)
 
-    def error(self, message: str, exception: Exception = None):
+    def error(self, message: str, exception: Optional[Exception] = None):
         """Log error with cat drama."""
         if not self.enabled:
             return
@@ -291,7 +291,9 @@ class PurrLogger:
         ts = self._timestamp()
         print(f"{ts}🙀 Mrrrow? {message}", file=self.file)
 
-    def crypto_op(self, operation: str, bits: int = None, algorithm: str = None):
+    def crypto_op(
+        self, operation: str, bits: Optional[int] = None, algorithm: Optional[str] = None
+    ):
         """Log crypto operation with extra flair."""
         if not self.enabled:
             return
@@ -308,7 +310,7 @@ class PurrLogger:
 
         print(f"{ts}🔐 {verb}: {operation}{detail_str}", file=self.file)
 
-    def io_op(self, operation: str, size_bytes: int = None, path: str = None):
+    def io_op(self, operation: str, size_bytes: Optional[int] = None, path: Optional[str] = None):
         """Log I/O operation."""
         if not self.enabled:
             return
@@ -801,7 +803,7 @@ def claw_verify_signature(*args, **kwargs) -> bool:
 
 def scratch_fountain_decode(decoder, original_length: Optional[int] = None) -> bytes:
     """Cat-themed alias for `FountainDecoder.get_data()`."""
-    return decoder.get_data(original_length=original_length)
+    return decoder.get_data(original_length=original_length)  # type: ignore[no-any-return]
 
 
 def meow_about() -> str:
@@ -962,7 +964,7 @@ if __name__ == "__main__":
     print("\n5️⃣  Catnip Flavors:\n")
     for flavor in ["tuna", "salmon", "chicken", "default"]:
         info = get_catnip_flavor(flavor)
-        print(f"  {flavor}: {info}")
+        print(f"  {flavor}: {info!r}")
 
     # 6. Cat breeds
     print("\n6️⃣  Cat Breed Presets:\n")

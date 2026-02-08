@@ -77,7 +77,7 @@ class QRCodeGenerator:
 
         img = qr.make_image(fill_color="black", back_color="white")
 
-        return img.convert("RGB")
+        return img.convert("RGB")  # type: ignore[no-any-return]
 
     def generate_batch(self, data_list: List[bytes]) -> List[Image.Image]:
         """

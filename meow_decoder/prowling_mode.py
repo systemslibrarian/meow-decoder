@@ -61,7 +61,7 @@ class MemoryProwler:
             process = psutil.Process()
             ram_mb = process.memory_info().rss // (1024 * 1024)
             self.peak_rss_mb = max(self.peak_rss_mb, ram_mb)
-            return ram_mb
+            return int(ram_mb)  # type: ignore[no-any-return]
         except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
             return None
 
@@ -72,7 +72,7 @@ class MemoryProwler:
 
         try:
             mem = psutil.virtual_memory()
-            return mem.available // (1024 * 1024)
+            return int(mem.available // (1024 * 1024))  # type: ignore[no-any-return]
         except (psutil.Error, OSError):
             return None
 

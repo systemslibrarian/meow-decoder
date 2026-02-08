@@ -101,7 +101,7 @@ def decode_file(
             pass
         gc.collect()
 
-        return plaintext
+        return plaintext  # type: ignore[no-any-return]
 
     except Exception:
         raise ValueError("Decryption failed") from None

@@ -265,7 +265,7 @@ if __name__ == "__main__":
     classical_pub, pq_pub = receiver.export_public_keys()
 
     print(f"   Classical public key: {classical_pub.hex()[:32]}... ({len(classical_pub)} bytes)")
-    print(f"   PQ public key: {pq_pub}")
+    print(f"   PQ public key: {pq_pub.hex() if pq_pub else 'None'}")
     print(f"   Is hybrid: {receiver.is_hybrid()}")
 
     # Encapsulate
@@ -274,7 +274,7 @@ if __name__ == "__main__":
     print(f"\n   Encapsulation:")
     print(f"   Shared secret: {shared_secret.hex()[:32]}...")
     print(f"   Ephemeral public: {ephemeral_pub.hex()[:32]}...")
-    print(f"   PQ ciphertext: {pq_ct}")
+    print(f"   PQ ciphertext: {pq_ct.hex()[:32] + '...' if pq_ct else 'None'}")
 
     # Decapsulate
     recovered_secret = hybrid_decapsulate(ephemeral_pub, pq_ct, receiver)

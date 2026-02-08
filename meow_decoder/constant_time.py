@@ -14,7 +14,7 @@ import secrets
 import time
 import platform
 from contextlib import contextmanager
-from typing import Any, Iterator
+from typing import Any, Iterator, Optional
 
 
 # Platform-specific libc loading
@@ -252,7 +252,7 @@ class SecureBuffer:
             raise ValueError("Data too large for buffer")
         self.buffer[offset : offset + len(data)] = data
 
-    def read(self, length: int = None, offset: int = 0) -> bytes:
+    def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """Read data from buffer."""
         if length is None:
             return bytes(self.buffer[offset:])
