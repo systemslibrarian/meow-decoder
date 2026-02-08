@@ -82,14 +82,14 @@ class ProgressStats:
         """Return throughput in bytes per second."""
         if not self._throughput_samples:
             return 0.0
-        return sum(self._throughput_samples) / len(self._throughput_samples)
+        return float(sum(self._throughput_samples)) / len(self._throughput_samples)
 
     @property
     def throughput_fps(self) -> float:
         """Return throughput in items (frames) per second."""
         if not self._throughput_fps_samples:
             return 0.0
-        return sum(self._throughput_fps_samples) / len(self._throughput_fps_samples)
+        return float(sum(self._throughput_fps_samples)) / len(self._throughput_fps_samples)
 
     @property
     def throughput_str(self) -> str:

@@ -313,8 +313,8 @@ if __name__ == "__main__":
     collapsed_a = collapse_to_reality(superposition, YARN_REALITY_A)
     collapsed_b = collapse_to_reality(superposition, YARN_REALITY_B)
 
-    print(f"✅ Collapsed A: {collapsed_a[:16]}...")
-    print(f"✅ Collapsed B: {collapsed_b[:16]}...")
+    print(f"✅ Collapsed A: {collapsed_a[:16].hex()}...")
+    print(f"✅ Collapsed B: {collapsed_b[:16].hex()}...")
 
     # Test indistinguishability
     is_indist, results = verify_indistinguishability(

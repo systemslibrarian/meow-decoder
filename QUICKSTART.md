@@ -30,7 +30,7 @@ In 5 minutes you'll:
 pip install meow-decoder
 
 # Or from source:
-git clone https://github.com/YOUR_USERNAME/meow-decoder.git
+git clone https://github.com/systemslibrarian/meow-decoder.git
 cd meow-decoder
 pip install -e .
 ```

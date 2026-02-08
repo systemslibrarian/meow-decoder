@@ -505,14 +505,13 @@ def _run_self_test() -> int:  # pragma: no cover
         from .crypto import Manifest, pack_manifest, unpack_manifest
 
         m = Manifest(
-            magic=b"MEOW",
-            version=2,
             nonce=_sec.token_bytes(12),
             salt=_sec.token_bytes(16),
             orig_len=900,
             comp_len=800,
             cipher_len=816,
             block_size=512,
+            sha256=_sec.token_bytes(32),
             k_blocks=2,
             hmac=_sec.token_bytes(32),
         )
@@ -531,10 +530,11 @@ def _run_self_test() -> int:  # pragma: no cover
 
         data = _sec.token_bytes(1024)
         block_size = 256
-        enc = FountainEncoder(data, block_size)
-        dec = FountainDecoder(len(data), block_size)
-        for _ in range(int(len(data) / block_size * 2)):
-            droplet = enc.generate_droplet()
+        k_blocks = len(data) // block_size
+        enc = FountainEncoder(data, k_blocks, block_size)
+        dec = FountainDecoder(k_blocks, block_size)
+        for _ in range(int(k_blocks * 2)):
+            droplet = enc.droplet()
             dec.add_droplet(droplet)
             if dec.is_complete():
                 break
@@ -908,8 +908,7 @@ Examples:
 
     # Easter egg: summon void cat (doesn't require input/output)
     if args.summon_void_cat:
-        print(
-            """
+        print("""
 　／＞　　フ
 | 　_　 _ l
 ／` ミ＿xノ
@@ -925,8 +924,7 @@ Examples:
 All evidence consumed.
 Nothing to see here.
 😶‍🌫️ Meow.
-"""
-        )
+""")
         sys.exit(0)
 
     # Safety checklist
@@ -993,15 +991,13 @@ Nothing to see here.
 
     # Void cat mode
     if args.mode == "void":  # pragma: no cover
-        print(
-            """
+        print("""
 🐈‍⬛ VOID CAT MODE ACTIVATED
 ━━━━━━━━━━━━━━━━━━━━━━━━━
 Maximum paranoid stealth engaged.
 All evidence will be consumed.
 Nothing to see here. 😶‍🌫️
-━━━━━━━━━━━━━━━━━━━━━━━━━"""
-        )
+━━━━━━━━━━━━━━━━━━━━━━━━━""")
         # Force paranoid settings
         args.stego_level = 4  # Maximum stealth
         if not hasattr(args, "stego_level"):

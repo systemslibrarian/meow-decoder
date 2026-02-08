@@ -13,7 +13,7 @@ Security Goals:
 import secrets
 import struct
 import random
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 from dataclasses import dataclass
 
 # Standard size classes for padding (powers of 2, in KB)
@@ -147,7 +147,9 @@ class FrameObfuscationConfig:
     fixed_frame_count: int = None  # None = no padding, int = pad to this count
 
 
-def randomize_frame_order(frames: List[bytes], seed: bytes = None) -> Tuple[List[bytes], List[int]]:
+def randomize_frame_order(
+    frames: List[bytes], seed: Optional[bytes] = None
+) -> Tuple[List[bytes], List[int]]:
     """
     Randomize frame order with deterministic shuffle.
 

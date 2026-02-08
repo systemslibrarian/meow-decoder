@@ -245,7 +245,7 @@ class ASCIIQRCode:
     @property
     def version(self) -> int:
         """Return QR version (1-40)."""
-        return self.qr.version
+        return int(self.qr.version)  # type: ignore[no-any-return]
 
     @property
     def module_count(self) -> int:

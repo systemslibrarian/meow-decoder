@@ -98,7 +98,7 @@ def draw_qr_overlay(frame: np.ndarray, qr_data: list) -> np.ndarray:
                 overlay, "QR DETECTED", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
             )
 
-    return overlay
+    return overlay  # type: ignore[no-any-return]
 
 
 def decode_webcam_enhanced(
@@ -201,10 +201,12 @@ def decode_webcam_enhanced(
                             decoder.add_droplet(droplet)
 
                             # Update progress
-                            paw_progress.update(len(seen_blocks))
+                            if paw_progress is not None:
+                                paw_progress.update(len(seen_blocks))
 
                             # Print status
-                            print(f"\r{paw_progress.get_status()}", end="", flush=True)
+                            if paw_progress is not None:
+                                print(f"\r{paw_progress.get_status()}", end="", flush=True)
 
                             # Check if complete
                             if decoder.is_complete():

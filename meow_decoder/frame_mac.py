@@ -273,7 +273,7 @@ class FrameMACStats:
         """Calculate MAC success rate."""
         if self.total_frames == 0:
             return 0.0
-        return self.valid_frames / self.total_frames
+        return float(self.valid_frames) / float(self.total_frames)
 
     def report(self) -> str:
         """Generate statistics report."""
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     print(f"\n✅ Packed frame:")
     print(f"   Total size: {len(packed)} bytes")
     print(f"   MAC: {packed[:MAC_SIZE].hex()}")
-    print(f"   Data: {packed[MAC_SIZE:][:30]}...")
+    print(f"   Data: {packed[MAC_SIZE:][:30].hex()}...")
 
     # Verify valid frame
     valid, unpacked = unpack_frame_with_mac(packed, master_key, frame_index, salt)
@@ -315,14 +315,14 @@ if __name__ == "__main__":
     valid2, unpacked2 = unpack_frame_with_mac(packed, master_key, 999, salt)
     print(f"\n❌ Invalid frame (wrong index):")
     print(f"   Valid: {valid2}")
-    print(f"   Data: {unpacked2}")
+    print(f"   Data: {unpacked2!r}")
 
     # Test tampered data
     tampered = packed[:MAC_SIZE] + b"TAMPERED" + packed[MAC_SIZE + 8 :]
     valid3, unpacked3 = unpack_frame_with_mac(tampered, master_key, frame_index, salt)
     print(f"\n❌ Tampered frame:")
     print(f"   Valid: {valid3}")
-    print(f"   Data: {unpacked3}")
+    print(f"   Data: {unpacked3!r}")
 
     # Test with statistics
     print(f"\n📊 Statistics Test:")

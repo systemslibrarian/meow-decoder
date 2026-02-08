@@ -162,7 +162,9 @@ class ResumeManager:
 
         # Convert solved blocks to serializable format
         solved_blocks = [
-            (i, block.hex()) for i, block in enumerate(decoder.blocks) if block is not None
+            (i, block.hex())  # type: ignore[union-attr]
+            for i, block in enumerate(decoder.blocks)
+            if block is not None
         ]
 
         # Convert pending droplets to serializable format
@@ -451,7 +453,7 @@ class ResumeManager:
 
         return deleted
 
-    def cleanup_old_sessions(self, days: int = None) -> int:
+    def cleanup_old_sessions(self, days: Optional[int] = None) -> int:
         """
         Delete sessions older than specified days.
 
@@ -480,7 +482,7 @@ class ResumeManager:
 
         return deleted
 
-    def cleanup_old_states(self, days: int = None) -> int:
+    def cleanup_old_states(self, days: Optional[int] = None) -> int:
         """Backward-compatible alias for cleanup_old_sessions."""
         return self.cleanup_old_sessions(days)
 
@@ -597,7 +599,7 @@ class AutoSaveDecoder:
         """Check if decoding complete."""
         return self.decoder.is_complete()
 
-    def get_data(self, orig_len: int = None) -> bytes:
+    def get_data(self, orig_len: Optional[int] = None) -> bytes:
         """Get reconstructed data (same as FountainDecoder)."""
         return self.decoder.get_data(orig_len)
 
@@ -633,7 +635,7 @@ def resume_from_session(
     if state is None:
         return None
 
-    return resume_manager.restore_decoder(state)
+    return resume_manager.restore_decoder(state)  # type: ignore[no-any-return]
 
 
 def create_resumable_decoder(

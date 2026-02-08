@@ -91,7 +91,7 @@ class SecureBytes:
     Best-effort zeroing on exit (Python GC/allocator may retain copies).
     """
 
-    def __init__(self, data: bytes = None, size: int = None):
+    def __init__(self, data: Optional[bytes] = None, size: Optional[int] = None):
         """
         Initialize secure bytes container.
 
@@ -547,7 +547,7 @@ class StreamingEncryption:
         self.key = derive_key(password, salt, keyfile)
         self.salt = salt
 
-    def encrypt_stream(self, input_stream, output_stream, nonce: bytes = None):
+    def encrypt_stream(self, input_stream, output_stream, nonce: Optional[bytes] = None):
         """
         Encrypt data from input stream to output stream.
 

@@ -87,15 +87,15 @@ class ForwardSecrecyFountainDecoder:
         from .fountain import Droplet
 
         droplet = Droplet(seed=seed, block_indices=block_indices, data=xor_data)
-        return self.fountain.add_droplet(droplet)
+        return self.fountain.add_droplet(droplet)  # type: ignore[no-any-return]
 
     def is_complete(self) -> bool:
         """Check if decoding is complete."""
-        return self.fountain.is_complete()  # Or however your decoder exposes this
+        return self.fountain.is_complete()  # type: ignore[no-any-return]
 
     def get_decoded_data(self) -> bytes:
         """Get decoded data after completion."""
-        return self.fountain.get_data()  # Or however your decoder exposes this
+        return self.fountain.get_data()  # type: ignore[no-any-return]
 
     def cleanup(self):
         """Cleanup sensitive data."""

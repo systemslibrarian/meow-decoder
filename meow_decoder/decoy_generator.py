@@ -10,7 +10,7 @@ import io
 import zipfile
 import secrets
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from pathlib import Path
 
 
@@ -245,7 +245,7 @@ startxref
         return zip_buffer.getvalue()
 
 
-def generate_convincing_decoy(target_size: int = None) -> bytes:
+def generate_convincing_decoy(target_size: Optional[int] = None) -> bytes:
     """
     Generate convincing decoy data.
 

@@ -48,7 +48,7 @@ jobs:
           sudo apt-get install -y libpcsclite-dev libudev-dev pkg-config
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -56,14 +56,15 @@ jobs:
           maturin build --release --out dist
       
       - name: Install and test
+        # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          pip install rust_crypto/dist/*.whl
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
+          pip install --no-deps rust_crypto/dist/*.whl
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Run compatibility tests
+        # Editable install for local source - can't hash-pin
         run: |
-          pip install -e .
+          pip install --no-deps -e .
           pytest tests/test_crypto_backend.py -v
         env:
           MEOW_TEST_MODE: "1"
@@ -98,7 +99,7 @@ jobs:
           targets: ${{ matrix.target }}
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -106,10 +107,10 @@ jobs:
           maturin build --release --target ${{ matrix.target }} --out dist
       
       - name: Install and test (native only)
+        # Local wheel install - can't hash-pin freshly-built artifacts
         if: matrix.target == 'aarch64-apple-darwin'
         run: |
-          pip install rust_crypto/dist/*.whl
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
+          pip install --no-deps rust_crypto/dist/*.whl
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Upload wheel
@@ -140,7 +141,7 @@ jobs:
           toolchain: stable
       
       - name: Install maturin
-        run: pip install "maturin==1.11.5"
+        run: pip install --require-hashes -r requirements-ci.lock
       
       - name: Build wheel
         run: |
@@ -148,9 +149,9 @@ jobs:
           maturin build --release --out dist
       
       - name: Install and test
+        # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          pip install (Get-ChildItem rust_crypto/dist/*.whl).FullName
-          pip install "pytest==9.0.2" "pytest-cov==7.0.0" "cryptography>=41.0.0" "argon2-cffi>=23.1.0" "hypothesis==6.151.5"
+          pip install --no-deps (Get-ChildItem rust_crypto/dist/*.whl).FullName
           python -c "import meow_crypto_rs; print(f'Rust backend loaded')"
         shell: pwsh
       

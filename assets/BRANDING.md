@@ -289,12 +289,12 @@ setup(
     author="Your Name",
     author_email="you@example.com",
     
-    url="https://github.com/yourusername/meow-decoder",
+    url="https://github.com/systemslibrarian/meow-decoder",
     project_urls={
-        "Documentation": "https://github.com/yourusername/meow-decoder/docs",
-        "Source": "https://github.com/yourusername/meow-decoder",
-        "Logo": "https://raw.githubusercontent.com/yourusername/meow-decoder/main/assets/meow-decoder-logo.svg",
-        "Icon": "https://raw.githubusercontent.com/yourusername/meow-decoder/main/assets/meow-icon-128.svg",
+        "Documentation": "https://github.com/systemslibrarian/meow-decoder/docs",
+        "Source": "https://github.com/systemslibrarian/meow-decoder",
+        "Logo": "https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/meow-decoder-logo.svg",
+        "Icon": "https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/meow-icon-128.svg",
     },
     
     packages=find_packages(),

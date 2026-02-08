@@ -1,8 +1,8 @@
 # What Do the Tests in meow-decoder Actually Do?
 
-**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Last Updated:** 2026-02-06  
-**Test Count:** 68+ Python test modules + 332 Rust tests
+**Version:** 1.2.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
+**Last Updated:** 2026-02-08  
+**Test Count:** 80 Python test modules (2359 tests) + 261 Rust tests
 
 ---
 
@@ -14,7 +14,7 @@ Because the stakes are so high (lives, freedom, safety of dissidents/journalists
 
 ## 📂 Complete Test Inventory
 
-The `tests/` folder contains **60+ test modules** organized by security tier:
+The `tests/` folder contains **80 test modules** organized by security tier:
 
 ### TIER 1: Crypto-Critical Tests (95-100% coverage target) 🔐
 
@@ -255,9 +255,9 @@ They treat every uncovered branch in critical code as a **potential vulnerabilit
 
 ## 🦀 Rust Crypto Backend Tests
 
-The project includes **332 Rust tests** across two packages:
+The project includes **261 Rust tests** across two packages:
 
-### rust_crypto (meow_crypto_rs) - 174 tests
+### rust_crypto (meow_crypto_rs) - 151 tests
 
 | File | Tests | Purpose |
 |------|-------|--------|
@@ -266,7 +266,7 @@ The project includes **332 Rust tests** across two packages:
 | `tests/additional_security_tests.rs` | 29 | Security edge cases, zeroization, failure modes |
 | `tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
 
-### crypto_core - 158 tests (97.9% coverage)
+### crypto_core - 110 tests (97.9% coverage)
 
 | File | Tests | Purpose |
 |------|-------|--------|

@@ -556,7 +556,7 @@ class BiDirectionalReceiver:
         """Check if decoding is complete."""
         if not self.session:
             return False
-        return self.blocks_decoded >= self.session.k_blocks
+        return bool(self.blocks_decoded >= self.session.k_blocks)
 
 
 class BiDirectionalProtocol:
@@ -711,13 +711,16 @@ if __name__ == "__main__":
     sender = create_sender_protocol(
         password, file_hash, k_blocks=100, block_size=512, total_frames=150
     )
+    assert sender.sender is not None, "Sender should be initialized"
     session_msg = sender.sender.get_session_start_message()
+    assert sender.sender.session is not None, "Session should be initialized"
     print(f"   Session ID: {sender.sender.session.session_id.hex()}")
     print(f"   Session message: {len(session_msg)} bytes")
 
     print("\n📥 Receiver side:")
     receiver = create_receiver_protocol(password)
     if receiver.receive_session_start(session_msg):
+        assert receiver.receiver is not None and receiver.receiver.session is not None
         print(
             f"   ✅ Session authenticated & received: {receiver.receiver.session.session_id.hex()}"
         )
@@ -729,7 +732,7 @@ if __name__ == "__main__":
         receiver.on_frame(i, success=True)
     receiver.on_decode_progress(50)
 
-    status = receiver.receiver.get_status_update()
+    status = receiver.receiver.get_status_update()  # type: ignore[union-attr]
     print(f"\n📊 Status Update:")
     print(f"   Frames received: {status.frames_received}")
     print(f"   Blocks decoded: {status.blocks_decoded}/{status.k_blocks_needed}")
@@ -741,7 +744,7 @@ if __name__ == "__main__":
 
     # Continue until done
     receiver.on_decode_progress(100)
-    print(f"\n✅ Transfer complete: {receiver.receiver.is_complete()}")
+    print(f"\n✅ Transfer complete: {receiver.receiver.is_complete()}")  # type: ignore[union-attr]
 
     print("\n🎉 Bidirectional protocol working!")
     print("💡 Note: This augments fountain codes, doesn't replace them")

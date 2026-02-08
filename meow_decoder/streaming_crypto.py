@@ -195,8 +195,8 @@ class StreamingCipher:
 
     def decrypt_stream(
         self,
-        input_stream: IO[bytes] = None,
-        output_stream: IO[bytes] = None,
+        input_stream: Optional[IO[bytes]] = None,
+        output_stream: Optional[IO[bytes]] = None,
         enable_decompression: bool = True,
         expected_mac: Optional[bytes] = None,
         **kwargs,
@@ -345,7 +345,7 @@ class MemoryMonitor:
 
         try:
             mem = psutil.virtual_memory()
-            return mem.available // (1024 * 1024)
+            return mem.available // (1024 * 1024)  # type: ignore[no-any-return]
         except:
             return None
 

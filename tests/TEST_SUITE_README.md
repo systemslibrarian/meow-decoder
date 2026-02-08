@@ -4,7 +4,7 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (after Phase 0 consolidation):** 64 test files, ~2261 test methods across Python tests + 332 Rust tests.
+**Current stats (February 2026):** 80 test files, 2359 test methods across Python tests + 261 Rust tests.
 
 ### Phase 0 Consolidation (February 2026)
 
@@ -102,9 +102,9 @@ The test suite was consolidated from 80 files to 66 by:
 
 ### Rust Crypto Backend Tests
 
-The project includes two Rust crypto packages with **332 total tests**:
+The project includes two Rust crypto packages with **261 total tests**:
 
-#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 174 tests
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 151 tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
@@ -115,7 +115,7 @@ The project includes two Rust crypto packages with **332 total tests**:
 
 **Architecture Note:** The `rust_crypto/src/pure.rs` module contains all crypto logic without PyO3 dependencies. The PyO3 bindings in `lib.rs` are thin wrappers that call the pure functions. This separation enables comprehensive unit testing of the crypto logic.
 
-#### crypto_core - Formally Verified Primitives - 158 tests
+#### crypto_core - Formally Verified Primitives - 110 tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
@@ -161,14 +161,14 @@ cargo install cargo-tarpaulin
 
 **Run Rust tests:**
 ```bash
-# rust_crypto (PyO3 bindings) - 174 tests
+# rust_crypto (PyO3 bindings) - 151 tests
 cargo test -p meow_crypto_rs              # All tests
-cargo test -p meow_crypto_rs pure::       # Pure module tests (46)
-cargo test --test comprehensive_tests     # Core functionality (76)
-cargo test --test additional_security_tests  # Security edge cases (29)
-cargo test --test proptest_crypto         # Property-based fuzzing (23)
+cargo test -p meow_crypto_rs pure::       # Pure module tests
+cargo test --test comprehensive_tests     # Core functionality
+cargo test --test additional_security_tests  # Security edge cases
+cargo test --test proptest_crypto         # Property-based fuzzing
 
-# crypto_core (formally verified) - 158 tests
+# crypto_core (formally verified) - 110 tests
 cargo test -p crypto_core                 # All tests
 cargo test -p crypto_core --test coverage_tests     # Coverage tests
 cargo test -p crypto_core --test security_properties  # Security properties

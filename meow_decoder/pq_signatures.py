@@ -76,6 +76,7 @@ class Signature:
         """Pack signature to bytes."""
         if self.algorithm == SIG_HYBRID:
             # Format: algorithm (1) + ed25519_len (2) + ed25519_sig + dilithium_sig
+            assert self.ed25519_sig is not None and self.dilithium_sig is not None
             return (
                 struct.pack(">BH", self.algorithm, len(self.ed25519_sig))
                 + self.ed25519_sig
@@ -327,7 +328,7 @@ def _verify_dilithium(data: bytes, signature: bytes, public_key: bytes) -> bool:
 
     try:
         with oqs.Signature("Dilithium3") as verifier:
-            return verifier.verify(data, signature, public_key)
+            return bool(verifier.verify(data, signature, public_key))  # type: ignore[no-any-return]
     except Exception:
         return False
 

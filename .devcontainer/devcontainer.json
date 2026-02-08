@@ -1,0 +1,104 @@
+{
+  "name": "Meow Decoder Dev",
+  "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+
+  // ============================================================
+  // PORT FORWARDING - Disabled by default for cleaner UX
+  // ============================================================
+  // Why: Prevents confusing "Cannot GET /" errors and popup spam
+  // when the codespace auto-forwards ports before the server runs.
+  // Users manually start the HTTP server when they want the WASM demo.
+  
+  "forwardPorts": [],
+  
+  "portsAttributes": {
+    // Ignore all auto-detected ports (no popups, no auto-forward)
+    "*": {
+      "onAutoForward": "ignore"
+    },
+    // Pre-configure port 8080 for when users manually forward it
+    "8080": {
+      "label": "WASM Demo Server",
+      "onAutoForward": "notify",
+      "protocol": "http"
+    }
+  },
+
+  // ============================================================
+  // VS CODE SETTINGS
+  // ============================================================
+  "customizations": {
+    "vscode": {
+      "settings": {
+        // Disable automatic port forwarding entirely
+        "remote.autoForwardPorts": false,
+        "remote.restoreForwardedPorts": false,
+        "remote.autoForwardPortsSource": "output",
+        
+        // Python settings
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.testing.pytestEnabled": true,
+        "python.testing.pytestArgs": ["tests"],
+        
+        // Editor settings  
+        "editor.formatOnSave": true,
+        "editor.rulers": [88, 120],
+        "files.trimTrailingWhitespace": true,
+        
+        // Terminal
+        "terminal.integrated.defaultProfile.linux": "bash"
+      },
+      "extensions": [
+        // Python
+        "ms-python.python",
+        "ms-python.black-formatter",
+        "ms-python.flake8",
+        
+        // Rust (for crypto_core WASM)
+        "rust-lang.rust-analyzer",
+        
+        // General
+        "eamodio.gitlens",
+        "esbenp.prettier-vscode",
+        "yzhang.markdown-all-in-one"
+      ]
+    }
+  },
+
+  // ============================================================
+  // FEATURES - Install additional tools
+  // ============================================================
+  "features": {
+    // Rust toolchain for WASM compilation
+    "ghcr.io/devcontainers/features/rust:1": {
+      "version": "latest",
+      "profile": "default"
+    },
+    // wasm-pack for building WASM modules
+    "ghcr.io/aspect-build/rules_js-features/wasm-pack:1": {}
+  },
+
+  // ============================================================
+  // LIFECYCLE COMMANDS
+  // ============================================================
+  
+  // Run after container creation (installs dependencies)
+  "postCreateCommand": "pip install -e '.[dev]' && echo '✅ Python dependencies installed'",
+  
+  // Run after container starts (show welcome message)
+  "postStartCommand": "echo '' && echo '🐱 Welcome to Meow Decoder!' && echo '' && echo '📦 To build WASM module: make build-wasm' && echo '🌐 To run WASM demo:     python3 -m http.server 8080' && echo '                        Then forward port 8080 in the Ports tab' && echo '                        Navigate to /examples/wasm_browser_example.html' && echo '' && echo '🧪 To run tests:        make test' && echo ''",
+
+  // ============================================================
+  // CONTAINER OPTIONS
+  // ============================================================
+  "containerEnv": {
+    // Enable test mode for faster Argon2id during development
+    "MEOW_TEST_MODE": "1"
+  },
+  
+  // Mount the workspace
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  
+  // Run as non-root user
+  "remoteUser": "vscode"
+}

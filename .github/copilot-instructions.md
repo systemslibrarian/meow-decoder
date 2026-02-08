@@ -11,7 +11,7 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
 ### Core Pipeline Components
 
 1. **Encryption** ([crypto.py](../meow_decoder/crypto.py), [crypto_enhanced.py](../meow_decoder/crypto_enhanced.py))
-   - AES-256-GCM with Argon2id key derivation (64 MiB, 3 iterations)
+   - AES-256-GCM with Argon2id key derivation (512 MiB, 20 iterations in production; 32 MiB, 1 iteration in test mode)
    - Manifest versions: MEOW2 (base), MEOW3 (forward secrecy), MEOW4 (post-quantum)
    - HMAC-SHA256 authentication with domain separation
 
@@ -133,11 +133,17 @@ Key parameters in [config.py](../meow_decoder/config.py):
 - `qr_version`: Auto-selected based on data size
 - `fps`: GIF frame rate (default 10)
 
-Argon2id params in [crypto.py](../meow_decoder/crypto.py) lines 19-21:
+Argon2id params in [crypto.py](../meow_decoder/crypto.py) lines 28-37:
 ```python
-ARGON2_MEMORY = 65536     # 64 MiB
-ARGON2_ITERATIONS = 3     # 3 passes
-ARGON2_PARALLELISM = 4    # 4 threads
+# Test mode (MEOW_TEST_MODE=1):
+ARGON2_MEMORY = 32768      # 32 MiB (fast)
+ARGON2_ITERATIONS = 1      # 1 pass
+ARGON2_PARALLELISM = 1     # 1 thread
+
+# Production mode:
+ARGON2_MEMORY = 524288     # 512 MiB (8x OWASP recommendation)
+ARGON2_ITERATIONS = 20     # 20 passes
+ARGON2_PARALLELISM = 4     # 4 threads
 ```
 
 ## When Modifying Crypto Code

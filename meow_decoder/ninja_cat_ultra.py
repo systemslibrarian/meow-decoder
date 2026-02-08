@@ -191,7 +191,7 @@ class NinjaCatUltra:
         max_pixel = 255.0
         psnr = 20 * np.log10(max_pixel / np.sqrt(mse))
 
-        return psnr
+        return psnr  # type: ignore[no-any-return]
 
     def auto_adjust_stealth(
         self, frames: List[Image.Image], original_frames: List[Image.Image]

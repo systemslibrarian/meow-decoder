@@ -141,8 +141,8 @@ class SecureMemory:
     def read(self) -> bytes:
         """Read data from secure memory."""
         if isinstance(self._buffer, ctypes.Array):
-            return bytes(self._buffer)
-        return bytes(self._buffer)
+            return bytes(self._buffer)  # type: ignore[no-any-return]
+        return bytes(self._buffer)  # type: ignore[no-any-return]
 
     def zero(self):
         """Zero the memory."""
@@ -304,7 +304,7 @@ class SecureBridge:
             key=handle._key_bytes, nonce=nonce, ciphertext=ciphertext, aad=aad or b""
         )
 
-        return plaintext
+        return bytes(plaintext)  # type: ignore[no-any-return]
 
     def hmac_with_handle(self, handle: KeyHandle, data: bytes) -> bytes:
         """
@@ -320,7 +320,7 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        return meow_crypto_rs.hmac_sha256(key=handle._key_bytes, message=data)
+        return bytes(meow_crypto_rs.hmac_sha256(key=handle._key_bytes, message=data))  # type: ignore[no-any-return]
 
     def verify_hmac_with_handle(self, handle: KeyHandle, data: bytes, expected_tag: bytes) -> bool:
         """
@@ -337,9 +337,11 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        return meow_crypto_rs.hmac_sha256_verify(
-            key=handle._key_bytes, message=data, expected_tag=expected_tag
-        )
+        return bool(
+            meow_crypto_rs.hmac_sha256_verify(
+                key=handle._key_bytes, message=data, expected_tag=expected_tag
+            )
+        )  # type: ignore[no-any-return]
 
     def _try_zero_string(self, s: str):
         """

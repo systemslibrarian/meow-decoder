@@ -246,7 +246,7 @@ class DoubleRatchet:
         plaintext2 = alice.decrypt(ciphertext2, header2)
     """
 
-    def __init__(self, state: RatchetState = None):
+    def __init__(self, state: Optional[RatchetState] = None):
         """Initialize with existing state or empty."""
         self.state = state or RatchetState()
 
@@ -322,6 +322,7 @@ class DoubleRatchet:
         self.state.send_chain_key = new_chain_key
 
         # Create header
+        assert self.state.dh_keypair is not None, "DH keypair must exist"
         header = MessageHeader(
             dh_public=self.state.dh_keypair.public_bytes(),
             pn=self.state.previous_send_n,
@@ -384,6 +385,7 @@ class DoubleRatchet:
 
         # Derive receiving chain
         their_pubkey = KeyPair.public_from_bytes(their_public)
+        assert self.state.dh_keypair is not None, "DH keypair must exist"
         dh_output = self.state.dh_keypair.private.exchange(their_pubkey)
         self.state.root_key, self.state.recv_chain_key = self._kdf_rk(
             self.state.root_key, dh_output

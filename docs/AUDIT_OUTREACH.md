@@ -65,7 +65,7 @@ who need to transfer sensitive files across air gaps. We've implemented
 extensive internal testing and formal methods, but lack third-party validation.
 
 **Resources:**
-- Repository: https://github.com/YOUR_USERNAME/meow-decoder
+- Repository: https://github.com/systemslibrarian/meow-decoder
 - Threat Model: docs/THREAT_MODEL.md
 - Formal Methods: docs/formal_methods_report.md
 - Self-Audit Checklist: docs/SELF_AUDIT_TEMPLATE.md

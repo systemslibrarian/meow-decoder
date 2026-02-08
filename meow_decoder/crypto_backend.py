@@ -97,26 +97,26 @@ class RustCryptoBackend:
         parallelism: int = 4,
         output_len: int = 32,
     ) -> bytes:
-        return self._rs.derive_key_argon2id(
+        return self._rs.derive_key_argon2id(  # type: ignore[no-any-return]
             password, salt, memory_kib, iterations, parallelism, output_len
         )
 
     def derive_key_hkdf(self, ikm: bytes, salt: bytes, info: bytes, output_len: int = 32) -> bytes:
-        return self._rs.derive_key_hkdf(ikm, salt, info, output_len)
+        return self._rs.derive_key_hkdf(ikm, salt, info, output_len)  # type: ignore[no-any-return]
 
     def hkdf_extract(self, salt: bytes, ikm: bytes) -> bytes:  # pragma: no cover
-        return self._rs.hkdf_extract(salt, ikm)
+        return self._rs.hkdf_extract(salt, ikm)  # type: ignore[no-any-return]
 
     def hkdf_expand(
         self, prk: bytes, info: bytes, output_len: int = 32
     ) -> bytes:  # pragma: no cover
-        return self._rs.hkdf_expand(prk, info, output_len)
+        return self._rs.hkdf_expand(prk, info, output_len)  # type: ignore[no-any-return]
 
     def derive_key_yubikey(
         self, password: bytes, salt: bytes, slot: str = "9d", pin: Optional[str] = None
     ) -> bytes:  # pragma: no cover
         try:
-            return self._rs.yubikey_derive_key(password, salt, slot, pin)
+            return self._rs.yubikey_derive_key(password, salt, slot, pin)  # type: ignore[no-any-return]
         except (AttributeError, ValueError) as e:
             raise RuntimeError(
                 "YubiKey support not enabled in Rust backend. Rebuild with: "
@@ -126,38 +126,38 @@ class RustCryptoBackend:
     def aes_gcm_encrypt(
         self, key: bytes, nonce: bytes, plaintext: bytes, aad: Optional[bytes] = None
     ) -> bytes:
-        return self._rs.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        return self._rs.aes_gcm_encrypt(key, nonce, plaintext, aad)  # type: ignore[no-any-return]
 
     def aes_gcm_decrypt(
         self, key: bytes, nonce: bytes, ciphertext: bytes, aad: Optional[bytes] = None
     ) -> bytes:
-        return self._rs.aes_gcm_decrypt(key, nonce, ciphertext, aad)
+        return self._rs.aes_gcm_decrypt(key, nonce, ciphertext, aad)  # type: ignore[no-any-return]
 
     def hmac_sha256(self, key: bytes, message: bytes) -> bytes:  # pragma: no cover
-        return self._rs.hmac_sha256(key, message)
+        return self._rs.hmac_sha256(key, message)  # type: ignore[no-any-return]
 
     def hmac_sha256_verify(
         self, key: bytes, message: bytes, tag: bytes
     ) -> bool:  # pragma: no cover
-        return self._rs.hmac_sha256_verify(key, message, tag)
+        return self._rs.hmac_sha256_verify(key, message, tag)  # type: ignore[no-any-return]
 
     def sha256(self, data: bytes) -> bytes:  # pragma: no cover
-        return self._rs.sha256(data)
+        return self._rs.sha256(data)  # type: ignore[no-any-return]
 
     def constant_time_compare(self, a: bytes, b: bytes) -> bool:  # pragma: no cover
-        return self._rs.constant_time_compare(a, b)
+        return self._rs.constant_time_compare(a, b)  # type: ignore[no-any-return]
 
     def x25519_generate_keypair(self) -> Tuple[bytes, bytes]:  # pragma: no cover
-        return self._rs.x25519_generate_keypair()
+        return self._rs.x25519_generate_keypair()  # type: ignore[no-any-return]
 
     def x25519_exchange(self, private_key: bytes, public_key: bytes) -> bytes:  # pragma: no cover
-        return self._rs.x25519_exchange(private_key, public_key)
+        return self._rs.x25519_exchange(private_key, public_key)  # type: ignore[no-any-return]
 
     def x25519_public_from_private(self, private_key: bytes) -> bytes:  # pragma: no cover
-        return self._rs.x25519_public_from_private(private_key)
+        return self._rs.x25519_public_from_private(private_key)  # type: ignore[no-any-return]
 
     def random_bytes(self, length: int) -> bytes:  # pragma: no cover
-        return self._rs.secure_random(length)
+        return self._rs.secure_random(length)  # type: ignore[no-any-return]
 
     def secure_zero(self, data: bytearray) -> None:
         """

@@ -30,12 +30,13 @@ jobs:
             build-essential pkg-config libssl-dev
 
       - name: Install Python deps
+        # Editable install (-e .) for local source - can't hash-pin
         run: |
-          python -m pip install --upgrade pip
+          pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
-          pip install -e .
-          pip install "bandit==1.9.3"  # Pinned for OpenSSF Scorecard
+          pip install --no-deps -e .
+          pip install --require-hashes -r requirements-ci.lock
 
       - name: Set up Rust
         uses: actions-rust-lang/setup-rust-toolchain@9399c7bb15d4c7d47b27263d024f0a4978346ba4 # v1.11.0
@@ -43,11 +44,11 @@ jobs:
           toolchain: stable
 
       - name: Build + install Rust crypto backend (maturin)
+        # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          python -m pip install "maturin==1.11.5"
           cd rust_crypto
           maturin build --release --out dist
-          python -m pip install dist/*.whl
+          python -m pip install --no-deps dist/*.whl
           cd ..
 
       - name: Verify Rust backend import
@@ -94,7 +95,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install toml parser
-        run: pip install "toml==0.10.2"
+        run: pip install --require-hashes -r requirements-ci.lock
 
       - name: Verify pq-crypto NOT in default features
         run: |
@@ -154,7 +155,7 @@ jobs:
 
       - name: Install audit tools
         run: |
-          pip install "pip-audit==2.10.0"
+          pip install --require-hashes -r requirements-ci.lock
           cargo install cargo-audit cargo-deny
 
       - name: Python dependency audit (pip-audit)
@@ -210,7 +211,7 @@ jobs:
 
       - name: Generate Python SBOM
         run: |
-          pip install "pip-licenses==5.5.1" "cyclonedx-bom==7.2.1"
+          pip install --require-hashes -r requirements-ci.lock
           cyclonedx-py --format json --output sbom-python.json || \
             pip-licenses --format=json > sbom-python-fallback.json
           echo "✅ Python SBOM generated"

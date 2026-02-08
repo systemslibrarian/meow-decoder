@@ -627,7 +627,9 @@ def decrypt_to_raw(
         # ST-2: Decompression bomb protection — limit output size
         # Use incremental decompression to enforce MAX_DECOMP_RATIO
         decomp_limit = (
-            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
+            if orig_len is not None and orig_len > 0
+            else 100 * 1024 * 1024
         )
         decompressor = zlib.decompressobj()
         chunks = []

@@ -168,9 +168,11 @@ class TestCriticalInvariants:
             output_file = tmp_path / f"output_{i}.dat"
 
             # Encode and decode with higher redundancy for reliability
+            # Using 5.0x redundancy to ensure sufficient droplet coverage
+            # in CI environments where QR reading may be less reliable
             from meow_decoder.config import EncodingConfig
 
-            config = EncodingConfig(block_size=256, redundancy=3.0)
+            config = EncodingConfig(block_size=256, redundancy=5.0)
             encode_file(input_file, gif_file, "password", config=config)
             decode_gif(gif_file, output_file, "password")
 

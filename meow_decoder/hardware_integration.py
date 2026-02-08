@@ -371,7 +371,7 @@ class HardwareSecurityProvider:
         # Try Rust backend first
         if self._rust_backend is not None:
             try:
-                return self._rust_backend.yubikey_derive_key(password, salt, slot, pin)
+                return self._rust_backend.yubikey_derive_key(password, salt, slot, pin)  # type: ignore[no-any-return]
             except AttributeError:
                 pass  # Feature not compiled
 
@@ -398,7 +398,7 @@ class HardwareSecurityProvider:
     # =========================================================================
 
     def tpm_seal(
-        self, data: bytes, pcrs: List[int] = None, auth_password: Optional[str] = None
+        self, data: bytes, pcrs: Optional[List[int]] = None, auth_password: Optional[str] = None
     ) -> bytes:
         """
         Seal data to TPM PCR state.
@@ -432,7 +432,7 @@ class HardwareSecurityProvider:
         # Try Rust backend first
         if self._rust_backend is not None:
             try:
-                return self._rust_backend.tpm_seal(data, pcrs, auth_password)
+                return self._rust_backend.tpm_seal(data, pcrs, auth_password)  # type: ignore[no-any-return]
             except AttributeError:
                 pass  # Feature not compiled
 
@@ -440,8 +440,8 @@ class HardwareSecurityProvider:
         import tempfile
         import shutil
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir_str:
+            tmpdir = Path(tmpdir_str)
 
             # Write data to temp file
             data_file = tmpdir / "data.bin"
@@ -502,7 +502,7 @@ class HardwareSecurityProvider:
             sealed += struct.pack(">I", len(priv_bytes)) + priv_bytes
             sealed += bytes(pcrs)
 
-            return sealed
+            return sealed  # type: ignore[no-any-return]
 
     def tpm_unseal(self, sealed_blob: bytes, auth_password: Optional[str] = None) -> bytes:
         """
@@ -525,7 +525,7 @@ class HardwareSecurityProvider:
         # Try Rust backend first
         if self._rust_backend is not None:
             try:
-                return self._rust_backend.tpm_unseal(sealed_blob, auth_password)
+                return self._rust_backend.tpm_unseal(sealed_blob, auth_password)  # type: ignore[no-any-return]
             except AttributeError:
                 pass  # Feature not compiled
 
@@ -533,8 +533,8 @@ class HardwareSecurityProvider:
         import tempfile
         import struct
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir_str:
+            tmpdir = Path(tmpdir_str)
 
             # Unpack sealed blob
             offset = 0
@@ -609,9 +609,11 @@ class HardwareSecurityProvider:
                     )
                 raise HardwareOperationError(f"TPM unseal failed: {output}")
 
-            return unsealed_file.read_bytes()
+            return unsealed_file.read_bytes()  # type: ignore[no-any-return]
 
-    def derive_key_tpm(self, password: bytes, salt: bytes, pcrs: List[int] = None) -> bytes:
+    def derive_key_tpm(
+        self, password: bytes, salt: bytes, pcrs: Optional[List[int]] = None
+    ) -> bytes:
         """
         Derive key using TPM-backed HMAC.
 
@@ -642,15 +644,15 @@ class HardwareSecurityProvider:
         # Try Rust backend first
         if self._rust_backend is not None:
             try:
-                return self._rust_backend.tpm_derive_key(combined, salt, pcrs or [])
+                return self._rust_backend.tpm_derive_key(combined, salt, pcrs or [])  # type: ignore[no-any-return]
             except AttributeError:
                 pass
 
         # Fallback to tpm2-tools
         import tempfile
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir_str:
+            tmpdir = Path(tmpdir_str)
 
             data_file = tmpdir / "data.bin"
             data_file.write_bytes(combined)
@@ -763,7 +765,7 @@ class HardwareSecurityProvider:
         # Try Rust backend first
         if self._rust_backend is not None:
             try:
-                return self._rust_backend.hsm_derive_key(
+                return self._rust_backend.hsm_derive_key(  # type: ignore[no-any-return]
                     password, salt, slot, pin, master_key_label
                 )
             except AttributeError:
@@ -775,8 +777,8 @@ class HardwareSecurityProvider:
 
         import tempfile
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+        with tempfile.TemporaryDirectory() as tmpdir_str:
+            tmpdir = Path(tmpdir_str)
 
             data_file = tmpdir / "data.bin"
             data_file.write_bytes(combined)
