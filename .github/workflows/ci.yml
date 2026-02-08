@@ -62,7 +62,7 @@ jobs:
 
       - name: Install Python dependencies
         run: |
-          python -m pip install pip==24.3.1  # Pinned for reproducibility
+          pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
           pip install --require-hashes -r requirements-ci.lock
@@ -133,11 +133,11 @@ jobs:
       - name: Install Python + Rust backend
         # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          python -m pip install pip==24.3.1  # Pinned for reproducibility
+          pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
           pip install --require-hashes -r requirements-ci.lock
-          cd rust_crypto && maturin build --release --out dist && python -m pip install --force-reinstall --no-deps dist/*.whl && cd ..
+          cd rust_crypto && maturin build --release --out dist && pip install --force-reinstall --no-deps dist/*.whl && cd ..
 
       - name: Security coverage gate
         run: |
@@ -165,7 +165,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          python -m pip install pip==24.3.1  # Pinned for reproducibility
+          pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
           pip install --require-hashes -r requirements-ci.lock

@@ -32,7 +32,7 @@ jobs:
       - name: Install Python deps
         # Editable install (-e .) for local source - can't hash-pin
         run: |
-          python -m pip install pip==24.3.1  # Pinned for reproducibility
+          pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
           pip install --no-deps -e .

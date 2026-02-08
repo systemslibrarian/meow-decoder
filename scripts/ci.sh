@@ -5,8 +5,8 @@ log() { printf "\n==> %s\n" "$*"; }
 
 log "Python: $(python --version)"
 
-python -m pip install pip==24.3.1  # Pinned for reproducibility
 # Use lock files with hashes for supply chain security (OpenSSF Scorecard)
+pip install --require-hashes -r requirements-pip.lock
 pip install --require-hashes -r requirements.lock
 pip install --require-hashes -r requirements-dev.lock
 # Editable install for local source - can't hash-pin
