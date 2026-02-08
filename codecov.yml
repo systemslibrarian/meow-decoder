@@ -21,10 +21,28 @@ coverage:
         paths:
           - meow_decoder/crypto.py
           - meow_decoder/crypto_backend.py
+          - meow_decoder/constant_time.py
+          - meow_decoder/x25519_forward_secrecy.py
+          - meow_decoder/forward_secrecy.py
           - meow_decoder/fountain.py
           - meow_decoder/encode.py
           - meow_decoder/decode_gif.py
-          - meow_decoder/config.py
+          - meow_decoder/gif_handler.py
+          - meow_decoder/frame_mac.py
+          - meow_decoder/schrodinger_encode.py
+          - meow_decoder/schrodinger_decode.py
+          - meow_decoder/quantum_mixer.py
+          - meow_decoder/stego_advanced.py
+          - meow_decoder/decoy_generator.py
+          - meow_decoder/duress_mode.py
+          - meow_decoder/timelock_duress.py
+          - meow_decoder/secure_cleanup.py
+          - meow_decoder/secure_bridge.py
+          - meow_decoder/high_security.py
+          - meow_decoder/streaming_crypto.py
+          - meow_decoder/double_ratchet.py
+          - meow_decoder/multi_secret.py
+          - meow_decoder/resume_secured.py
     patch:
       default:
         informational: true
@@ -34,10 +52,28 @@ coverage:
         paths:
           - meow_decoder/crypto.py
           - meow_decoder/crypto_backend.py
+          - meow_decoder/constant_time.py
+          - meow_decoder/x25519_forward_secrecy.py
+          - meow_decoder/forward_secrecy.py
           - meow_decoder/fountain.py
           - meow_decoder/encode.py
           - meow_decoder/decode_gif.py
-          - meow_decoder/config.py
+          - meow_decoder/gif_handler.py
+          - meow_decoder/frame_mac.py
+          - meow_decoder/schrodinger_encode.py
+          - meow_decoder/schrodinger_decode.py
+          - meow_decoder/quantum_mixer.py
+          - meow_decoder/stego_advanced.py
+          - meow_decoder/decoy_generator.py
+          - meow_decoder/duress_mode.py
+          - meow_decoder/timelock_duress.py
+          - meow_decoder/secure_cleanup.py
+          - meow_decoder/secure_bridge.py
+          - meow_decoder/high_security.py
+          - meow_decoder/streaming_crypto.py
+          - meow_decoder/double_ratchet.py
+          - meow_decoder/multi_secret.py
+          - meow_decoder/resume_secured.py
 
 # Flags for different coverage types
 flags:
@@ -45,15 +81,31 @@ flags:
     paths:
       - meow_decoder/crypto.py
       - meow_decoder/crypto_backend.py
+      - meow_decoder/constant_time.py
+      - meow_decoder/x25519_forward_secrecy.py
+      - meow_decoder/forward_secrecy.py
       - meow_decoder/fountain.py
       - meow_decoder/encode.py
       - meow_decoder/decode_gif.py
-      - meow_decoder/config.py
+      - meow_decoder/gif_handler.py
+      - meow_decoder/frame_mac.py
+      - meow_decoder/schrodinger_encode.py
+      - meow_decoder/schrodinger_decode.py
+      - meow_decoder/quantum_mixer.py
+      - meow_decoder/stego_advanced.py
+      - meow_decoder/decoy_generator.py
+      - meow_decoder/duress_mode.py
+      - meow_decoder/timelock_duress.py
+      - meow_decoder/secure_cleanup.py
+      - meow_decoder/secure_bridge.py
+      - meow_decoder/high_security.py
+      - meow_decoder/streaming_crypto.py
+      - meow_decoder/double_ratchet.py
+      - meow_decoder/multi_secret.py
+      - meow_decoder/resume_secured.py
     carryforward: true
   
   # Separate flag for Rust coverage (via tarpaulin)
-  # Note: rust_crypto is PyO3 cdylib, covered via Python tests
-  # crypto_core is pure Rust, covered via tarpaulin
   rust:
     paths:
       - crypto_core/src/
@@ -117,44 +169,23 @@ ignore:
   - "meow_decoder/profiling_improved.py"
   - "meow_decoder/prowling_mode.py"
   - "meow_decoder/setup.py"
-  # Forward secrecy modules (not in core 6)
-  - "meow_decoder/constant_time.py"
-  - "meow_decoder/x25519_forward_secrecy.py"
-  - "meow_decoder/forward_secrecy.py"
-  - "meow_decoder/forward_secrecy_*.py"
-  # GIF/QR modules (not in core 6)
-  - "meow_decoder/gif_handler.py"
+  # Other non-critical modules
   - "meow_decoder/qr_code.py"
-  - "meow_decoder/frame_mac.py"
-  # Schrödinger mode
-  - "meow_decoder/schrodinger_encode.py"
-  - "meow_decoder/schrodinger_decode.py"
-  - "meow_decoder/quantum_mixer.py"
-  - "meow_decoder/decoy_generator.py"
-  - "meow_decoder/multi_secret.py"
-  # Security modules
-  - "meow_decoder/duress_mode.py"
-  - "meow_decoder/timelock_duress.py"
-  - "meow_decoder/secure_cleanup.py"
-  - "meow_decoder/secure_bridge.py"
-  - "meow_decoder/high_security.py"
-  - "meow_decoder/security_warnings.py"
-  - "meow_decoder/entropy_boost.py"
-  # Streaming
-  - "meow_decoder/streaming_crypto.py"
-  - "meow_decoder/double_ratchet.py"
-  - "meow_decoder/resume_secured.py"
-  # Other
-  - "meow_decoder/stego_advanced.py"
   - "meow_decoder/merkle_tree.py"
   - "meow_decoder/metadata_obfuscation.py"
   - "meow_decoder/tamper_report.py"
   - "meow_decoder/cat_utils.py"
   - "meow_decoder/cat_errors.py"
   - "meow_decoder/crypto_enhanced.py"
+  - "meow_decoder/security_warnings.py"
+  - "meow_decoder/entropy_boost.py"
+  - "meow_decoder/config.py"
   - "meow_decoder/__init__.py"
   - "meow_decoder/__main__.py"
   - "meow_decoder/spec_v12/**/*"
+  - "meow_decoder/forward_secrecy_encoder.py"
+  - "meow_decoder/forward_secrecy_decoder.py"
+  - "meow_decoder/forward_secrecy_x25519.py"
 
 # Comment settings for PR comments
 comment:
@@ -176,35 +207,29 @@ component_management:
       paths:
         - meow_decoder/crypto.py
         - meow_decoder/crypto_backend.py
-        - meow_decoder/crypto_enhanced.py
         - meow_decoder/constant_time.py
         - meow_decoder/x25519_forward_secrecy.py
-        - meow_decoder/forward_secrecy*.py
-        - meow_decoder/pq_*.py
-        - crypto_core/**/*.py
+        - meow_decoder/forward_secrecy.py
     
     - component_id: encoding
       name: Encoding Pipeline
       paths:
         - meow_decoder/encode.py
         - meow_decoder/fountain.py
-        - meow_decoder/qr_code.py
         - meow_decoder/gif_handler.py
         - meow_decoder/frame_mac.py
-        - meow_decoder/merkle_tree.py
     
     - component_id: decoding
       name: Decoding Pipeline
       paths:
         - meow_decoder/decode_gif.py
-        - meow_decoder/decode_webcam*.py
         - meow_decoder/resume_secured.py
-        - meow_decoder/prowling_mode.py
     
     - component_id: schrodinger
       name: Schrödinger Mode
       paths:
-        - meow_decoder/schrodinger_*.py
+        - meow_decoder/schrodinger_encode.py
+        - meow_decoder/schrodinger_decode.py
         - meow_decoder/quantum_mixer.py
         - meow_decoder/multi_secret.py
         - meow_decoder/decoy_generator.py
@@ -214,23 +239,17 @@ component_management:
       paths:
         - meow_decoder/duress_mode.py
         - meow_decoder/high_security.py
-        - meow_decoder/security_warnings.py
         - meow_decoder/timelock_duress.py
-        - meow_decoder/secure_*.py
-        - meow_decoder/hardware_*.py
-        - meow_decoder/entropy_boost.py
+        - meow_decoder/secure_cleanup.py
+        - meow_decoder/secure_bridge.py
     
     - component_id: steganography
       name: Steganography
       paths:
-        - meow_decoder/ninja_cat_ultra.py
         - meow_decoder/stego_advanced.py
-        - meow_decoder/logo_eyes.py
     
     - component_id: streaming
-      name: Streaming & Clowder
+      name: Streaming
       paths:
-        - meow_decoder/clowder_*.py
         - meow_decoder/streaming_crypto.py
         - meow_decoder/double_ratchet.py
-        - meow_decoder/bidirectional.py
