@@ -56,13 +56,15 @@ jobs:
           maturin build --release --out dist
       
       - name: Install and test
+        # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          pip install rust_crypto/dist/*.whl
+          pip install --no-deps rust_crypto/dist/*.whl
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Run compatibility tests
+        # Editable install for local source - can't hash-pin
         run: |
-          pip install -e .
+          pip install --no-deps -e .
           pytest tests/test_crypto_backend.py -v
         env:
           MEOW_TEST_MODE: "1"
@@ -105,9 +107,10 @@ jobs:
           maturin build --release --target ${{ matrix.target }} --out dist
       
       - name: Install and test (native only)
+        # Local wheel install - can't hash-pin freshly-built artifacts
         if: matrix.target == 'aarch64-apple-darwin'
         run: |
-          pip install rust_crypto/dist/*.whl
+          pip install --no-deps rust_crypto/dist/*.whl
           python -c "import meow_crypto_rs; print(f'Rust backend loaded: {meow_crypto_rs.backend_info()}')"
       
       - name: Upload wheel
@@ -146,8 +149,9 @@ jobs:
           maturin build --release --out dist
       
       - name: Install and test
+        # Local wheel install - can't hash-pin freshly-built artifacts
         run: |
-          pip install (Get-ChildItem rust_crypto/dist/*.whl).FullName
+          pip install --no-deps (Get-ChildItem rust_crypto/dist/*.whl).FullName
           python -c "import meow_crypto_rs; print(f'Rust backend loaded')"
         shell: pwsh
       
