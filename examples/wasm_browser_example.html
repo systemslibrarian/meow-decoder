@@ -85,9 +85,22 @@
             background: #fff;
             border-radius: 10px;
             margin: 15px auto;
-            max-width: 280px;
+            max-width: 340px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
-        #qrcode canvas { max-width: 100%; height: auto; }
+        #qrcode, #schrodingerQrcode { 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+        }
+        #qrcode canvas, #qrcode img, #schrodingerQrcode canvas, #schrodingerQrcode img { 
+            max-width: 100%; 
+            height: auto; 
+            display: block;
+            margin: 0 auto;
+        }
         .qr-placeholder {
             width: 200px;
             height: 200px;

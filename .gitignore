@@ -96,3 +96,7 @@ tasklists.md
 todo*.md
 OpenSSFImprovements.md
 workflowsexplained.md
+
+# Deploy output
+pythonanywhere-deploy/
+*.zip

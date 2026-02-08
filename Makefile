@@ -21,6 +21,7 @@ help:
 	@echo "  make build-rust        - Build Rust crypto_core"
 	@echo "  make build-wasm        - Build WASM bindings"
 	@echo "  make build-wasm-release - Build optimized WASM for production"
+	@echo "  make prepare-deploy    - Prepare WASM demo for hosting"
 	@echo ""
 	@echo "🔒 Security:"
 	@echo "  make security-test       - Run security test suite"
@@ -175,5 +176,11 @@ build-wasm-node:
 	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
 	cd crypto_core && wasm-pack build --target nodejs --release --features wasm
 	@echo "✅ WASM Node.js build complete in crypto_core/pkg/"
+
+# 📦 Prepare WASM demo for deployment (PythonAnywhere, etc.)
+prepare-deploy:
+	@echo "📦 Preparing WASM demo for deployment..."
+	@./scripts/prepare_pythonanywhere.sh
+	@echo "📖 See examples/PYTHONANYWHERE_HOSTING.md for hosting instructions"
 
 .DEFAULT_GOAL := help

@@ -132,5 +132,36 @@ python3 demo_schrodinger.py
 
 ---
 
+## 🌐 Hosting the WASM Demo
+
+Want to host the browser demo on your own server?
+
+### PythonAnywhere (Free)
+
+See [PYTHONANYWHERE_HOSTING.md](PYTHONANYWHERE_HOSTING.md) for complete instructions.
+
+Quick start:
+```bash
+# Prepare files for upload
+./scripts/prepare_pythonanywhere.sh
+
+# Upload the pythonanywhere-deploy/ folder to PythonAnywhere
+```
+
+### Other Platforms
+
+The WASM demo is static files — works on any host that serves:
+- HTML files
+- `.wasm` files with `application/wasm` MIME type
+
+Platforms that work out of the box:
+- **GitHub Pages** (free, static)
+- **Netlify** (free tier, static)
+- **Vercel** (free tier, static)
+- **Cloudflare Pages** (free tier, static)
+- **Any VPS** with nginx/Apache
+
+---
+
 **🐾 Have fun experimenting! 😸**
 
