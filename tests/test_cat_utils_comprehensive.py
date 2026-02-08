@@ -1,4 +1,3 @@
-
 import io
 import meow_decoder.cat_utils as cat_utils
 
@@ -40,6 +39,8 @@ from meow_decoder.cat_utils import (
     CatSound,
     CAT_SOUNDS,
 )
+
+
 def test_play_cat_sound_valid_prints(capsys):
     cat_utils.play_cat_sound("success", audio=False, verbose=True)
     out = capsys.readouterr().out

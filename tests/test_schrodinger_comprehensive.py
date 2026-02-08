@@ -1,4 +1,3 @@
-
 import hashlib
 import meow_decoder.crypto as crypto
 import meow_decoder.schrodinger_encode as schrodinger_encode
@@ -14,6 +13,8 @@ from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 os.environ.setdefault("MEOW_TEST_MODE", "1")
+
+
 def _fast_derive_key(password: str, salt: bytes, keyfile=None) -> bytes:
     return hashlib.sha256(password.encode("utf-8") + salt).digest()
 
@@ -410,7 +411,9 @@ class TestSchrodingerDecodeMain:
                         verbose=False,
                     )
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # schrodinger_decode.py — push from 44% to much higher
@@ -502,7 +505,9 @@ class TestSchrodingerDecodeExtras:
                 verbose=True,
             )
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 class TestSchrodingerDecodeMainExtras:
     """Additional main() CLI tests for schrodinger_decode."""
@@ -556,6 +561,7 @@ class TestSchrodingerDecodeMainExtras:
 # =====================================================
 
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # schrodinger_encode.py — push from 64% higher
@@ -684,4 +690,3 @@ class TestSchrodingerEncodeExtras:
 # =====================================================
 # high_security.py — push from 85.9% higher
 # =====================================================
-

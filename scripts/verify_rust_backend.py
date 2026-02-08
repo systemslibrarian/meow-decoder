@@ -1,4 +1,3 @@
-
 import meow_crypto_rs
 import os
 
@@ -7,14 +6,7 @@ print(f"Meow Crypto RS version: {getattr(meow_crypto_rs, '__version__', 'unknown
 # Test Argon2id
 password = b"password"
 salt = os.urandom(16)
-key = meow_crypto_rs.derive_key_argon2id(
-    password,
-    salt,
-    32,
-    1,
-    65536,
-    1
-)
+key = meow_crypto_rs.derive_key_argon2id(password, salt, 32, 1, 65536, 1)
 print(f"Argon2id Key: {key.hex()}")
 assert len(key) == 32
 

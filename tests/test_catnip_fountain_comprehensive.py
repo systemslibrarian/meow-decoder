@@ -1,4 +1,3 @@
-
 import random
 import meow_decoder.catnip_fountain as catnip_fountain
 
@@ -13,6 +12,8 @@ from meow_decoder.catnip_fountain import (
     pack_kibble,
     unpack_kibble,
 )
+
+
 def test_cat_nap_distribution_probabilities():
     dist = catnip_fountain.CatNapDistribution(num_posts=10)
     assert abs(sum(dist.probabilities) - 1.0) < 1e-6

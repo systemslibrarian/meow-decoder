@@ -99,7 +99,9 @@ def test_frame_mac_stats():
 def test_frame_mac_main_runs():
     runpy.run_module("meow_decoder.frame_mac", run_name="__main__")
 
+
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # frame_mac.py coverage
@@ -139,4 +141,3 @@ class TestFrameMac:
 # =====================================================
 # quantum_mixer.py coverage
 # =====================================================
-

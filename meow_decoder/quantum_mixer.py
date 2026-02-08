@@ -306,12 +306,12 @@ if __name__ == "__main__":
     # Test entanglement
     reality_a = b"Secret message A" * 10
     reality_b = b"Secret message B" * 10
-    superposition = entangle_realities(reality_a, reality_b, noise)
+    superposition = entangle_realities(reality_a, reality_b)
     print(f"✅ Superposition: {len(superposition)} bytes")
 
     # Test collapse
-    collapsed_a = collapse_to_reality(superposition, noise, noise, YARN_REALITY_A)
-    collapsed_b = collapse_to_reality(superposition, noise, noise, YARN_REALITY_B)
+    collapsed_a = collapse_to_reality(superposition, YARN_REALITY_A)
+    collapsed_b = collapse_to_reality(superposition, YARN_REALITY_B)
 
     print(f"✅ Collapsed A: {collapsed_a[:16]}...")
     print(f"✅ Collapsed B: {collapsed_b[:16]}...")

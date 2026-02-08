@@ -844,6 +844,7 @@ class TestCatIntegration:
 
 # --- Merged from test_coverage_boost_extras.py ---
 
+
 # =====================================================
 # entropy_boost.py — push from 88.24% higher
 # =====================================================
@@ -925,9 +926,8 @@ class TestEntropyBoostExtras:
 # =====================================================
 
 
-
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # entropy_boost.py coverage
@@ -1017,7 +1017,6 @@ class TestEntropyBoostBoost:
 # =====================================================
 # duress_mode.py coverage
 # =====================================================
-
 
 
 if __name__ == "__main__":

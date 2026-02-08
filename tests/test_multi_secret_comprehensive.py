@@ -1105,6 +1105,7 @@ class TestMerkleTreeIntegrationMeow:
 
 # --- Merged from test_coverage_boost_extras.py ---
 
+
 # =====================================================
 # multi_secret.py — push from 98.25% higher
 # =====================================================
@@ -1133,9 +1134,8 @@ class TestMultiSecretExtras:
 # =====================================================
 
 
-
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # multi_secret.py small gaps
@@ -1158,11 +1158,70 @@ class TestMultiSecretBoost:
         result = verify_statistical_indistinguishability(bad_data)
         assert result is False
 
+    def test_verify_statistical_chi_square_fail(self):
+        """Data with reasonable entropy but heavy chi-square bias fails.
+
+        This specifically targets line 533 (chi_sq > 350 branch).
+        """
+        from meow_decoder.multi_secret import verify_statistical_indistinguishability
+
+        # Start with random data (high entropy)
+        biased = bytearray(secrets.token_bytes(100000))
+        # Add extra of one byte value to push chi-square over 350
+        # while keeping entropy high (>7.5)
+        for _ in range(1000):
+            biased.append(0x42)
+
+        result = verify_statistical_indistinguishability(bytes(biased))
+        # This should fail the chi-square test (chi_sq > 350) but pass entropy check
+        assert result is False
+
+    def test_decode_gcm_exception_path(self):
+        """Directly test the decryption exception path (lines 499-500).
+
+        We need to bypass the password verification and merkle check to hit
+        the actual GCM decryption failure path. We create a decoder with
+        valid structure but an altered password salt so decryption fails.
+        """
+        from meow_decoder.multi_secret import MultiSecretEncoder, MultiSecretDecoder
+        from unittest.mock import patch, MagicMock
+
+        # Create a valid encoding
+        secrets_list = [
+            (b"Secret data A", "password_a"),
+            (b"Secret data B", "password_b"),
+        ]
+        encoder = MultiSecretEncoder(secrets_list)
+        superposition, manifest = encoder.encode()
+
+        # Corrupt the salt to cause key derivation to produce wrong key
+        # This will make GCM authentication fail
+        corrupted_manifest = MultiSecretManifest(
+            n_realities=manifest.n_realities,
+            block_size=manifest.block_size,
+            total_blocks=manifest.total_blocks,
+            cipher_lengths=manifest.cipher_lengths,
+            salts=[secrets.token_bytes(16) for _ in range(manifest.n_realities)],  # Wrong salts!
+            nonces=manifest.nonces,  # Keep nonces
+            hmacs=manifest.hmacs,
+            merkle_root=manifest.merkle_root,
+        )
+
+        decoder = MultiSecretDecoder(superposition, corrupted_manifest)
+
+        # Mock password verification to return index 0 (bypass password check)
+        # Mock merkle check to pass (bypass integrity check)
+        with patch.object(decoder, "_verify_password", return_value=0):
+            with patch.object(
+                decoder, "_compute_merkle_root", return_value=corrupted_manifest.merkle_root
+            ):
+                with pytest.raises(ValueError, match="Decryption failed"):
+                    decoder.decode("password_a")
+
 
 # =====================================================
 # qr_code.py small gaps
 # =====================================================
-
 
 
 if __name__ == "__main__":

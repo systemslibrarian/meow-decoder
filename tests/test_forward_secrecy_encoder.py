@@ -75,7 +75,9 @@ def test_create_secure_fountain_encoder_toggle():
     )
     assert isinstance(wrapped, ForwardSecrecyFountainEncoder)
 
+
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # forward_secrecy_encoder.py small gaps
@@ -93,4 +95,3 @@ class TestForwardSecrecyEncoder:
 # =====================================================
 # gif_handler.py small gaps
 # =====================================================
-

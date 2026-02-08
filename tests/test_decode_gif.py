@@ -2,6 +2,7 @@
 """Tests for meow_decoder.decode_gif.
 Uses stubs to avoid heavy QR/GIF dependencies.
 """
+
 from pathlib import Path
 import pytest
 from PIL import Image
@@ -11,6 +12,8 @@ from meow_decoder.fountain import Droplet, pack_droplet
 
 # Imports from merged file
 from unittest.mock import patch
+
+
 class _DummyGIFDecoder:
     def __init__(self, frames=None):
         if frames is None:

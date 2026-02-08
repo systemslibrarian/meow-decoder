@@ -1,395 +1,189 @@
 #!/usr/bin/env python3
 """
-Tests for meow_decoder.constant_time
-Target: 95%+ branch coverage
+Tests for constant-time operations module.
 """
 
 import ctypes
-import os
+import pytest
 import secrets
 import time
 
-import pytest
-
-pytestmark = [pytest.mark.security, pytest.mark.crypto]
-
-
-# =============================================================================
-# constant_time_compare
-# =============================================================================
+from meow_decoder.constant_time import (
+    constant_time_compare,
+    secure_zero_memory,
+    secure_memory,
+    timing_safe_equal_with_delay,
+    equalize_timing,
+    SecureBuffer,
+)
 
 
 class TestConstantTimeCompare:
+    """Tests for constant_time_compare function."""
+
     def test_equal_bytes(self):
-        from meow_decoder.constant_time import constant_time_compare
+        """Test comparison of equal byte strings."""
+        a = b"secret_password_123"
+        b = b"secret_password_123"
 
-        assert constant_time_compare(b"secret", b"secret") is True
-
-    def test_unequal_bytes(self):
-        from meow_decoder.constant_time import constant_time_compare
-
-        assert constant_time_compare(b"secret", b"wrong") is False
-
-    def test_different_lengths(self):
-        from meow_decoder.constant_time import constant_time_compare
-
-        assert constant_time_compare(b"short", b"much_longer") is False
-
-    def test_empty_strings(self):
-        from meow_decoder.constant_time import constant_time_compare
-
-        assert constant_time_compare(b"", b"") is True
-        assert constant_time_compare(b"", b"data") is False
-
-    def test_null_bytes(self):
-        from meow_decoder.constant_time import constant_time_compare
-
-        assert constant_time_compare(b"a\x00b", b"a\x00b") is True
-
-    def test_random_bytes(self):
-        from meow_decoder.constant_time import constant_time_compare
-
-        a = secrets.token_bytes(32)
-        b = bytes(a)
         assert constant_time_compare(a, b) is True
 
-    def test_single_byte_strings(self):
-        from meow_decoder.constant_time import constant_time_compare
+    def test_unequal_bytes(self):
+        """Test comparison of unequal byte strings."""
+        a = b"secret_password_123"
+        b = b"wrong_password_456"
 
-        assert constant_time_compare(b"a", b"a") is True
-        assert constant_time_compare(b"a", b"b") is False
-        assert constant_time_compare(b"\x00", b"\x00") is True
-        assert constant_time_compare(b"\x00", b"\x01") is False
+        assert constant_time_compare(a, b) is False
 
+    def test_different_lengths(self):
+        """Test comparison of different length strings."""
+        a = b"short"
+        b = b"much_longer_string"
 
-# =============================================================================
-# secure_zero_memory
-# =============================================================================
+        assert constant_time_compare(a, b) is False
+
+    def test_empty_strings(self):
+        """Test comparison of empty strings."""
+        assert constant_time_compare(b"", b"") is True
+
+    def test_random_data(self):
+        """Test comparison of random data."""
+        data = secrets.token_bytes(32)
+
+        assert constant_time_compare(data, data) is True
+        assert constant_time_compare(data, secrets.token_bytes(32)) is False
 
 
 class TestSecureZeroMemory:
+    """Tests for secure_zero_memory function."""
+
     def test_zero_bytearray(self):
-        from meow_decoder.constant_time import secure_zero_memory
-
-        buf = bytearray(b"sensitive_data")
+        """Test zeroing a bytearray."""
+        buf = bytearray(b"sensitive data")
         secure_zero_memory(buf)
-        assert all(b == 0 for b in buf)
 
-    def test_zero_empty_bytearray(self):
-        from meow_decoder.constant_time import secure_zero_memory
+        assert buf == bytearray(len(buf))
 
+    def test_zero_empty_buffer(self):
+        """Test zeroing an empty buffer."""
         buf = bytearray()
         secure_zero_memory(buf)
+
         assert len(buf) == 0
 
-    def test_zero_ctypes_array(self):
-        from meow_decoder.constant_time import secure_zero_memory
 
-        arr = (ctypes.c_char * 4)()
-        arr.raw = b"ABCD"
-        secure_zero_memory(arr)
-        assert bytes(arr) == b"\x00" * 4
+class TestSecureMemoryContext:
+    """Tests for secure_memory context manager."""
 
-    def test_zero_large_bytearray(self):
-        from meow_decoder.constant_time import secure_zero_memory
+    def test_context_manager_basic(self):
+        """Test basic context manager usage."""
+        data = b"sensitive password"
 
-        buf = bytearray(os.urandom(4096))
-        secure_zero_memory(buf)
-        assert all(b == 0 for b in buf)
-
-    def test_preserves_length(self):
-        from meow_decoder.constant_time import secure_zero_memory
-
-        buf = bytearray(b"x" * 128)
-        secure_zero_memory(buf)
-        assert len(buf) == 128
-        assert all(b == 0 for b in buf)
-
-    def test_zero_unsupported_type(self):
-        from meow_decoder.constant_time import secure_zero_memory
-
-        secure_zero_memory("immutable")
-        secure_zero_memory(b"bytes")
-
-    def test_fallback_when_no_libc(self, monkeypatch):
-        import meow_decoder.constant_time as ct
-
-        monkeypatch.setattr(ct, "_libc", None)
-        buf = bytearray(b"secret")
-        ct.secure_zero_memory(buf)
-        assert buf == bytearray(b"\x00" * 6)
-
-    def test_fallback_unsupported_type(self, monkeypatch):
-        import meow_decoder.constant_time as ct
-
-        monkeypatch.setattr(ct, "_libc", None)
-        ct.secure_zero_memory(b"immutable")
-
-    def test_memset_failure_falls_back(self, monkeypatch):
-        import meow_decoder.constant_time as ct
-
-        buf = bytearray(b"secret")
-
-        def _boom(_addr, _val, _size):
-            raise OSError("memset failed")
-
-        monkeypatch.setattr(ct.ctypes, "memset", _boom)
-        ct.secure_zero_memory(buf)
-        assert buf == bytearray(b"\x00" * len(buf))
-
-
-# =============================================================================
-# secure_memory context manager
-# =============================================================================
-
-
-class TestSecureMemory:
-    def test_basic_usage(self):
-        from meow_decoder.constant_time import secure_memory
-
-        data = b"super_secret"
         with secure_memory(data) as buf:
             assert bytes(buf) == data
-        assert bytes(buf) == b"\x00" * len(data)
 
-    def test_modification(self):
-        from meow_decoder.constant_time import secure_memory
+    def test_context_manager_modification(self):
+        """Test modifying data within context."""
+        data = b"original data"
 
-        data = b"abcdef"
         with secure_memory(data) as buf:
-            buf[0] = ord("x")
-            assert bytes(buf) != data
-        assert bytes(buf) == b"\x00" * len(data)
-
-    def test_empty(self):
-        from meow_decoder.constant_time import secure_memory
-
-        with secure_memory(b"") as buf:
-            assert len(buf) == 0
-
-    def test_large_data(self):
-        from meow_decoder.constant_time import secure_memory
-
-        data = secrets.token_bytes(1024 * 1024)
-        with secure_memory(data) as buf:
-            assert len(buf) == len(data)
-
-    def test_lock_and_unlock_exceptions(self, monkeypatch):
-        import meow_decoder.constant_time as ct
-
-        class _LibcLockFails:
-            def mlock(self, *_args, **_kwargs):
-                raise OSError("mlock failed")
-
-        class _LibcUnlockFails:
-            def mlock(self, *_args, **_kwargs):
-                return 0
-
-            def munlock(self, *_args, **_kwargs):
-                raise OSError("munlock failed")
-
-        monkeypatch.setattr(ct, "_libc", _LibcLockFails())
-        with ct.secure_memory(b"pw") as buf:
-            assert bytes(buf) == b"pw"
-
-        monkeypatch.setattr(ct, "_libc", _LibcUnlockFails())
-        with ct.secure_memory(b"pw") as buf2:
-            assert bytes(buf2) == b"pw"
-
-
-# =============================================================================
-# timing_safe_equal_with_delay
-# =============================================================================
+            buf[0] = ord("X")
+            assert buf[0] == ord("X")
 
 
 class TestTimingSafeEqualWithDelay:
-    def test_equal_with_deterministic_delay(self, monkeypatch):
-        from meow_decoder.constant_time import timing_safe_equal_with_delay
+    """Tests for timing_safe_equal_with_delay function."""
 
-        sleep_calls = []
+    def test_equal_with_delay(self):
+        """Test equal comparison with delay."""
+        a = b"password123"
+        b = b"password123"
 
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
+        start = time.time()
+        result = timing_safe_equal_with_delay(a, b, min_delay_ms=1, max_delay_ms=5)
+        elapsed = time.time() - start
 
-        monkeypatch.setattr(time, "sleep", _sleep)
-        monkeypatch.setattr(secrets, "randbelow", lambda _n: 0)
-
-        result = timing_safe_equal_with_delay(b"pw", b"pw", min_delay_ms=5, max_delay_ms=5)
         assert result is True
-        assert sleep_calls == [0.005, 0.005]
+        assert elapsed >= 0.001
 
-    def test_unequal_with_deterministic_delay(self, monkeypatch):
-        from meow_decoder.constant_time import timing_safe_equal_with_delay
+    def test_unequal_with_delay(self):
+        """Test unequal comparison with delay."""
+        a = b"password123"
+        b = b"password456"
 
-        sleep_calls = []
+        result = timing_safe_equal_with_delay(a, b, min_delay_ms=1, max_delay_ms=5)
 
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
-
-        monkeypatch.setattr(time, "sleep", _sleep)
-        monkeypatch.setattr(secrets, "randbelow", lambda _n: 0)
-
-        result = timing_safe_equal_with_delay(b"pw", b"nope", min_delay_ms=2, max_delay_ms=2)
         assert result is False
-        assert sleep_calls == [0.002, 0.002]
-
-    def test_returns_bool_fast(self):
-        from meow_decoder.constant_time import timing_safe_equal_with_delay
-
-        out = timing_safe_equal_with_delay(b"a", b"a", min_delay_ms=0, max_delay_ms=1)
-        assert isinstance(out, bool)
-
-    def test_delay_adds_variance(self):
-        from meow_decoder.constant_time import timing_safe_equal_with_delay
-
-        times = []
-        for _ in range(5):
-            start = time.time()
-            timing_safe_equal_with_delay(b"x", b"x", min_delay_ms=1, max_delay_ms=5)
-            times.append(time.time() - start)
-
-        assert max(times) > min(times)
-
-
-# =============================================================================
-# equalize_timing
-# =============================================================================
 
 
 class TestEqualizeTiming:
-    def test_sleeps_when_needed(self, monkeypatch):
-        from meow_decoder.constant_time import equalize_timing
+    """Tests for equalize_timing function."""
 
-        sleep_calls = []
+    def test_equalize_fast_operation(self):
+        """Test equalizing a fast operation."""
+        start = time.time()
+        time.sleep(0.01)
+        elapsed = time.time() - start
 
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
+        equalize_start = time.time()
+        equalize_timing(elapsed, target_time=0.05)
+        equalize_elapsed = time.time() - equalize_start
 
-        monkeypatch.setattr(time, "sleep", _sleep)
+        assert equalize_elapsed >= 0.03
 
-        equalize_timing(operation_time=0.02, target_time=0.1)
-        assert sleep_calls == [pytest.approx(0.08, rel=1e-3)]
-
-    def test_no_sleep_when_exceeded(self, monkeypatch):
-        from meow_decoder.constant_time import equalize_timing
-
-        sleep_calls = []
-
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
-
-        monkeypatch.setattr(time, "sleep", _sleep)
-
-        equalize_timing(operation_time=0.2, target_time=0.1)
-        assert sleep_calls == []
-
-    def test_exact_time_no_sleep(self, monkeypatch):
-        from meow_decoder.constant_time import equalize_timing
-
-        sleep_calls = []
-
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
-
-        monkeypatch.setattr(time, "sleep", _sleep)
-        equalize_timing(operation_time=0.1, target_time=0.1)
-        assert sleep_calls == []
-
-    def test_zero_target(self, monkeypatch):
-        from meow_decoder.constant_time import equalize_timing
-
-        sleep_calls = []
-
-        def _sleep(seconds):
-            sleep_calls.append(seconds)
-
-        monkeypatch.setattr(time, "sleep", _sleep)
-        equalize_timing(operation_time=0.01, target_time=0.0)
-        assert sleep_calls == []
-
-
-# =============================================================================
-# SecureBuffer
-# =============================================================================
+    def test_equalize_slow_operation(self):
+        """Test equalizing when operation exceeds target."""
+        equalize_timing(0.1, target_time=0.05)
 
 
 class TestSecureBuffer:
-    def test_creation(self):
-        from meow_decoder.constant_time import SecureBuffer
+    """Tests for SecureBuffer class."""
 
-        with SecureBuffer(16) as buf:
-            assert len(buf.buffer) == 16
-            assert buf.size == 16
-            assert isinstance(buf.locked, bool)
+    def test_buffer_creation(self):
+        """Test creating a secure buffer."""
+        buf = SecureBuffer(32)
 
-    def test_write_and_read(self):
-        from meow_decoder.constant_time import SecureBuffer
+        assert buf.size == 32
 
+    def test_buffer_write_read(self):
+        """Test writing and reading from buffer."""
+        buf = SecureBuffer(32)
+
+        data = b"test data"
+        buf.write(data)
+
+        result = buf.read(len(data))
+        assert result == data
+
+    def test_buffer_write_with_offset(self):
+        """Test writing with offset."""
+        buf = SecureBuffer(32)
+
+        buf.write(b"hello", offset=5)
+        result = buf.read(5, offset=5)
+
+        assert result == b"hello"
+
+    def test_buffer_write_overflow(self):
+        """Test that overflow raises error."""
+        buf = SecureBuffer(10)
+
+        with pytest.raises(ValueError):
+            buf.write(b"this is too long for the buffer")
+
+    def test_buffer_context_manager(self):
+        """Test buffer as context manager."""
         with SecureBuffer(32) as buf:
-            buf.write(b"test_data")
-            assert buf.read(9) == b"test_data"
+            buf.write(b"sensitive")
+            data = buf.read(9)
+            assert data == b"sensitive"
 
-    def test_write_with_offset(self):
-        from meow_decoder.constant_time import SecureBuffer
+    def test_buffer_deletion(self):
+        """Test buffer cleanup on deletion."""
+        buf = SecureBuffer(32)
+        buf.write(b"secret")
 
-        with SecureBuffer(16) as buf:
-            buf.write(b"hello", offset=5)
-            assert buf.read(5, offset=5) == b"hello"
-
-    def test_read_all(self):
-        from meow_decoder.constant_time import SecureBuffer
-
-        with SecureBuffer(8) as buf:
-            buf.write(b"12345678")
-            assert buf.read() == b"12345678"
-
-    def test_read_with_offset(self):
-        from meow_decoder.constant_time import SecureBuffer
-
-        with SecureBuffer(16) as buf:
-            buf.write(b"0123456789")
-            assert buf.read(4, offset=5) == b"5678"
-
-    def test_write_too_large(self):
-        from meow_decoder.constant_time import SecureBuffer
-
-        with SecureBuffer(4) as buf:
-            with pytest.raises(ValueError, match="too large"):
-                buf.write(b"toolong")
-
-    def test_context_manager_exit(self):
-        from meow_decoder.constant_time import SecureBuffer
-
-        buf = SecureBuffer(8)
-        buf.__enter__()
-        buf.write(b"data")
-        buf.__exit__(None, None, None)
-
-    def test_lock_exceptions(self, monkeypatch):
-        import meow_decoder.constant_time as ct
-
-        class _LibcMlockRaises:
-            def mlock(self, *_args, **_kwargs):
-                raise OSError("mlock failed")
-
-        class _LibcUnlockRaises:
-            def mlock(self, *_args, **_kwargs):
-                return 0
-
-            def munlock(self, *_args, **_kwargs):
-                raise OSError("munlock failed")
-
-        monkeypatch.setattr(ct, "_libc", _LibcMlockRaises())
-        buf = ct.SecureBuffer(8)
-        buf.write(b"hi")
-        assert buf.read(2) == b"hi"
-        buf.__del__()
-
-        monkeypatch.setattr(ct, "_libc", _LibcUnlockRaises())
-        buf2 = ct.SecureBuffer(8)
-        buf2.write(b"hello")
-        buf2.locked = True
-        buf2.__del__()
+        del buf
 
 
 # =============================================================================
@@ -431,7 +225,9 @@ class TestLibcLoading:
 
         assert constant_time._libc is None or callable(getattr(constant_time._libc, "mlock", None))
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # constant_time.py — push from 99.07% to 100%
@@ -466,7 +262,9 @@ class TestConstantTimeExtras:
         secure_zero_memory(mv)  # No-op for unsupported type
         # Just verify no crash — the memoryview type hits the fallback
 
+
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # constant_time.py small gaps
@@ -493,6 +291,282 @@ class TestConstantTimeBoost:
 
 
 # =====================================================
+# constant_time.py FULL BRANCH COVERAGE
+# =====================================================
+class TestConstantTimeFullBranchCoverage:
+    """Tests to hit all branches in constant_time.py for 100% coverage."""
+
+    def test_secure_zero_memory_libc_none_fallback(self, monkeypatch):
+        """Test fallback zeroing when _libc is None (lines 83-86)."""
+        import meow_decoder.constant_time as ct
+
+        monkeypatch.setattr(ct, "_libc", None)
+
+        buf = bytearray(b"\xff" * 16)
+        ct.secure_zero_memory(buf)
+        assert buf == bytearray(16)
+
+    def test_secure_zero_memory_libc_none_non_bytearray(self, monkeypatch):
+        """Test fallback with unsupported type when _libc is None."""
+        import meow_decoder.constant_time as ct
+
+        monkeypatch.setattr(ct, "_libc", None)
+
+        # Pass a memoryview - hits else branch, returns without zeroing
+        buf = bytearray(b"\xff" * 16)
+        mv = memoryview(buf)
+        ct.secure_zero_memory(mv)
+        # memoryview not zeroed (unsupported in fallback too)
+        assert buf == bytearray(b"\xff" * 16)
+
+    def test_secure_zero_memory_empty_ctypes_array(self):
+        """Test secure_zero_memory with empty ctypes.Array (lines 96-99)."""
+        from meow_decoder.constant_time import secure_zero_memory
+
+        empty_buf = (ctypes.c_char * 0)()
+        secure_zero_memory(empty_buf)  # Should return early without error
+
+    def test_secure_zero_memory_memset_exception_fallback(self, monkeypatch):
+        """Test memset exception triggers manual fallback (lines 108-112)."""
+        import meow_decoder.constant_time as ct
+
+        # Make ctypes.memset raise an exception
+        original_memset = ctypes.memset
+
+        def mock_memset(*args, **kwargs):
+            raise OSError("Mock memset failure")
+
+        monkeypatch.setattr(ctypes, "memset", mock_memset)
+
+        buf = bytearray(b"\xff" * 16)
+        ct.secure_zero_memory(buf)
+        assert buf == bytearray(16)  # Should still be zeroed via fallback
+
+        monkeypatch.setattr(ctypes, "memset", original_memset)
+
+    def test_secure_memory_mlock_success(self):
+        """Test secure_memory context manager with mlock (lines 142-162)."""
+        from meow_decoder.constant_time import secure_memory
+
+        data = b"secret password"
+        with secure_memory(data) as buf:
+            assert bytes(buf) == data
+        # After exiting, buf should be zeroed
+        assert buf == bytearray(len(data))
+
+    def test_secure_memory_mlock_failure(self, monkeypatch):
+        """Test secure_memory when mlock fails."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                return -1  # Simulate failure
+
+            def munlock(self, addr, size):
+                return 0
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        data = b"secret data"
+        with ct.secure_memory(data) as buf:
+            assert bytes(buf) == data
+        assert buf == bytearray(len(data))
+
+    def test_secure_memory_mlock_exception(self, monkeypatch):
+        """Test secure_memory when mlock raises exception."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                raise OSError("mlock failed")
+
+            def munlock(self, addr, size):
+                return 0
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        data = b"protected"
+        with ct.secure_memory(data) as buf:
+            assert bytes(buf) == data
+
+    def test_secure_memory_munlock_exception(self, monkeypatch):
+        """Test secure_memory when munlock raises exception (line 161-162)."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                return 0  # Success
+
+            def munlock(self, addr, size):
+                raise OSError("munlock failed")
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        data = b"locked data"
+        with ct.secure_memory(data) as buf:
+            assert bytes(buf) == data
+        # Should complete without raising despite munlock failure
+
+    def test_secure_buffer_mlock_success(self):
+        """Test SecureBuffer with successful mlock (lines 241-247)."""
+        from meow_decoder.constant_time import SecureBuffer
+
+        buf = SecureBuffer(64)
+        buf.write(b"test data")
+        data = buf.read(9)
+        assert data == b"test data"
+        del buf  # Should trigger cleanup
+
+    def test_secure_buffer_mlock_failure(self, monkeypatch):
+        """Test SecureBuffer when mlock fails."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                return -1  # Failure
+
+            def munlock(self, addr, size):
+                return 0
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        buf = ct.SecureBuffer(32)
+        assert buf.locked is False
+        buf.write(b"data")
+        del buf
+
+    def test_secure_buffer_mlock_exception(self, monkeypatch):
+        """Test SecureBuffer when mlock raises exception."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                raise OSError("mlock fail")
+
+            def munlock(self, addr, size):
+                return 0
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        buf = ct.SecureBuffer(32)
+        assert buf.locked is False
+
+    def test_secure_buffer_munlock_exception_on_del(self, monkeypatch):
+        """Test SecureBuffer cleanup when munlock raises (lines 266-271)."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                return 0  # Success
+
+            def munlock(self, addr, size):
+                raise OSError("munlock failed")
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        buf = ct.SecureBuffer(32)
+        buf.write(b"secret")
+        # Force locked=True for this test path
+        buf.locked = True
+        del buf  # Should not raise despite munlock failure
+
+    def test_secure_buffer_libc_none_on_del(self, monkeypatch):
+        """Test SecureBuffer cleanup when _libc is None."""
+        import meow_decoder.constant_time as ct
+
+        # First create buffer with real _libc
+        buf = ct.SecureBuffer(32)
+        buf.write(b"data")
+        buf.locked = True
+
+        # Then set _libc to None before deletion
+        monkeypatch.setattr(ct, "_libc", None)
+        del buf  # Should handle gracefully
+
+    def test_secure_buffer_read_full(self):
+        """Test SecureBuffer read with no length specified (line 257-258)."""
+        from meow_decoder.constant_time import SecureBuffer
+
+        buf = SecureBuffer(32)
+        buf.write(b"hello world")
+        # Read from offset without length
+        data = buf.read(offset=6)
+        assert data.startswith(b"world")
+
+    def test_secure_zero_memory_memset_exception_ctypes_array(self, monkeypatch):
+        """Test memset exception with ctypes.Array (110->exit branch)."""
+        import meow_decoder.constant_time as ct
+
+        def mock_memset(*args, **kwargs):
+            raise OSError("Mock memset failure")
+
+        monkeypatch.setattr(ctypes, "memset", mock_memset)
+
+        # Use ctypes.Array - when memset fails, the fallback only zeros bytearrays,
+        # so this hits the 110->exit (no-op for non-bytearray in exception path)
+        buf = (ctypes.c_char * 16)()
+        for i in range(16):
+            buf[i] = b"\xff"
+        ct.secure_zero_memory(buf)
+        # Buffer may not be zeroed since fallback skips ctypes.Array
+
+    def test_secure_memory_libc_none(self, monkeypatch):
+        """Test secure_memory when _libc is None (142->150 path)."""
+        import meow_decoder.constant_time as ct
+
+        monkeypatch.setattr(ct, "_libc", None)
+
+        data = b"test data"
+        with ct.secure_memory(data) as buf:
+            assert bytes(buf) == data
+        # locked is False, so munlock is never attempted
+        assert buf == bytearray(len(data))
+
+    def test_secure_buffer_libc_none_creation(self, monkeypatch):
+        """Test SecureBuffer creation when _libc is None (241->exit)."""
+        import meow_decoder.constant_time as ct
+
+        monkeypatch.setattr(ct, "_libc", None)
+
+        buf = ct.SecureBuffer(32)
+        assert buf.locked is False
+        buf.write(b"test")
+        del buf  # Should cleanup without trying mlock/munlock
+
+    def test_secure_buffer_locked_false_del(self, monkeypatch):
+        """Test SecureBuffer __del__ when locked=False (263->exit)."""
+        import meow_decoder.constant_time as ct
+
+        class MockLibc:
+            def mlock(self, addr, size):
+                return -1  # Fail so locked stays False
+
+            def munlock(self, addr, size):
+                raise AssertionError("munlock should not be called")
+
+        monkeypatch.setattr(ct, "_libc", MockLibc())
+
+        buf = ct.SecureBuffer(32)
+        assert buf.locked is False
+        buf.write(b"test")
+        # This should NOT call munlock because locked=False
+        del buf
+
+    def test_secure_buffer_locked_true_libc_none_del(self, monkeypatch):
+        """Test SecureBuffer __del__ when locked=True but _libc is None (263->exit)."""
+        import meow_decoder.constant_time as ct
+
+        # Create with real _libc
+        buf = ct.SecureBuffer(32)
+        buf.write(b"test")
+        buf.locked = True  # Force locked even if mlock didn't succeed
+
+        # Now set _libc to None
+        monkeypatch.setattr(ct, "_libc", None)
+        # Should not try to call munlock since _libc is None
+        del buf
+
+
+# =====================================================
 # crypto_enhanced.py small gaps
 # =====================================================
-

@@ -3,6 +3,9 @@
 Focus on time-lock puzzle and countdown/deadman state.
 """
 
+import os
+import secrets
+import time
 from pathlib import Path
 
 import pytest
@@ -284,7 +287,9 @@ def test_encode_decode_with_timelock_returns_key(monkeypatch):
     recovered_key = decode_with_timelock(encoded, "password")
     assert recovered_key == enc_key
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # timelock_duress.py — push from 92.89% higher
@@ -424,6 +429,7 @@ class TestTimelockDuressExtras:
 
 # --- Merged from test_coverage_boost_remaining.py ---
 
+
 # =====================================================
 # timelock_duress.py coverage
 # =====================================================
@@ -535,4 +541,3 @@ class TestTimelockDuressBoost:
 # =====================================================
 # crypto.py small gaps
 # =====================================================
-

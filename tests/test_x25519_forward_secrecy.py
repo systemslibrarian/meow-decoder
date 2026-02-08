@@ -509,7 +509,9 @@ class TestForwardSecrecyEdgeCases:
 
         assert len(secret) == 32
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # forward_secrecy_x25519.py — push from 94.52% higher
@@ -559,6 +561,7 @@ class TestForwardSecrecyX25519Extras:
 
 # --- Merged from test_coverage_boost_remaining.py ---
 
+
 # =====================================================
 # forward_secrecy_x25519.py small gaps
 # =====================================================
@@ -574,4 +577,3 @@ class TestForwardSecrecyX25519Boost:
 # =====================================================
 # multi_secret.py small gaps
 # =====================================================
-

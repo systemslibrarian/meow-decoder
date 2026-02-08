@@ -16,6 +16,7 @@ DATA_DIR = Path(os.environ.get("MEOW_DATA_DIR", "/data")).resolve()
 PASSWORD = os.environ.get("MEOW_PASSWORD", "meow-meow")
 MESSAGE = os.environ.get("MEOW_MESSAGE", "Meow Decoder says hello 🐾\n")
 
+
 def main() -> int:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -67,6 +68,7 @@ def main() -> int:
         return 2
 
     return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

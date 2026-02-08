@@ -178,7 +178,9 @@ def test_save_config_writes_file(tmp_path, monkeypatch):
     cfg_path = tmp_path / ".config" / "meowdecoder" / "config.json"
     assert cfg_path.exists()
 
+
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # config.py additional coverage
@@ -211,4 +213,3 @@ class TestConfig:
 # =====================================================
 # frame_mac.py coverage
 # =====================================================
-

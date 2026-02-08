@@ -153,7 +153,9 @@ class TestContextManagers:
         assert sc._handlers_registered is True
         sc.unregister_and_zero(buf)
 
+
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # secure_cleanup.py — push from 96.25% higher
@@ -186,6 +188,7 @@ class TestSecureCleanupExtras:
 
 # --- Merged from test_coverage_boost_remaining.py ---
 
+
 # =====================================================
 # secure_cleanup.py small gaps
 # =====================================================
@@ -204,8 +207,56 @@ class TestSecureCleanupBoost:
         t.start()
         t.join()
 
+    def test_double_check_locking_path(self):
+        """Test the double-check locking return path (line 87).
+
+        This tests when two threads race to register handlers.
+        The second thread should hit the inner return.
+        """
+        import threading
+        import time
+        from meow_decoder import secure_cleanup as sc
+
+        # Reset state completely
+        _reset_state(sc)
+
+        results = []
+
+        def worker():
+            sc._register_handlers()
+            results.append(sc._handlers_registered)
+
+        # Spawn multiple threads to try to trigger the race
+        threads = [threading.Thread(target=worker) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        # All should complete, handlers should be registered
+        assert all(results)
+        assert sc._handlers_registered is True
+
+        # Reset for other tests
+        _reset_state(sc)
+
+    def test_signal_handler_exception_path(self, monkeypatch):
+        """Test when signal.signal raises ValueError/OSError."""
+        from meow_decoder import secure_cleanup as sc
+
+        _reset_state(sc)
+
+        def _raise_signal(*args, **kwargs):
+            raise ValueError("Can't set signal handler from this thread")
+
+        monkeypatch.setattr(sc.signal, "signal", _raise_signal)
+        monkeypatch.setattr(sc.atexit, "register", lambda fn: None)
+
+        # Should not raise, just silently skip signal registration
+        sc._register_handlers()
+        assert sc._handlers_registered is True
+
 
 # =====================================================
 # constant_time.py small gaps
 # =====================================================
-

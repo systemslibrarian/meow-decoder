@@ -664,10 +664,10 @@ def create_resumable_decoder(
     decoder = FountainDecoder(k_blocks=manifest.k_blocks, block_size=manifest.block_size)
 
     return AutoSaveDecoder(
-        decoder,
-        manifest,
-        password,
-        resume_manager,
+        decoder=decoder,
+        manifest=manifest,
+        resume_manager=resume_manager,
+        password=password,
         auto_save_interval=auto_save_interval,
         input_source=input_source,
         seed=seed,
