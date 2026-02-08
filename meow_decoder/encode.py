@@ -1000,8 +1000,7 @@ Nothing to see here.
 Maximum paranoid stealth engaged.
 All evidence will be consumed.
 Nothing to see here. 😶‍🌫️
-━━━━━━━━━━━━━━━━━━━━━━━━━
-"""
+━━━━━━━━━━━━━━━━━━━━━━━━━"""
         )
         # Force paranoid settings
         args.stego_level = 4  # Maximum stealth
