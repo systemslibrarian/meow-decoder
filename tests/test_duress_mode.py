@@ -2,6 +2,7 @@
 """Tests for meow_decoder.duress_mode.
 Target: 95%+ coverage of DuressHandler and helpers.
 """
+
 import argparse
 import os
 from pathlib import Path
@@ -21,6 +22,8 @@ from meow_decoder.duress_mode import (
 import time
 import statistics
 from meow_decoder.duress_mode import DuressHandler
+
+
 def test_set_passwords_same_raises():
     handler = DuressHandler()
     salt = secrets.token_bytes(16)
@@ -662,8 +665,8 @@ class TestDummyWipeTiming:
         handler._dummy_wipe_timing()
 
 
-
 # --- Merged from test_coverage_boost_extras.py ---
+
 
 # =====================================================
 # duress_mode.py — push from 91.16% higher
@@ -737,9 +740,8 @@ class TestDuressModeExtras:
 # =====================================================
 
 
-
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # duress_mode.py coverage
@@ -836,7 +838,6 @@ class TestDuressModeBoost:
 # =====================================================
 # timelock_duress.py coverage
 # =====================================================
-
 
 
 if __name__ == "__main__":

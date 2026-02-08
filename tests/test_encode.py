@@ -1929,3 +1929,94 @@ def test_main_duress_password_prompt_success(monkeypatch, tmp_path, capsys):
     enc.main()
     captured = capsys.readouterr()
     assert "Duress password configured" in captured.out or "Output saved to" in captured.out
+
+
+# --- Coverage boost: encode_file with explicit config parameter (line 86->91 branch) ---
+
+
+def test_encode_file_with_explicit_config(monkeypatch, tmp_path: Path):
+    """Test encode_file with explicit config parameter to cover config-not-None branch (line 86->91)."""
+    from meow_decoder.config import EncodingConfig
+    import meow_decoder.frame_mac as frame_mac
+
+    monkeypatch.setattr(frame_mac, "pack_frame_with_mac", lambda payload, *args, **kwargs: payload)
+    monkeypatch.setattr(frame_mac, "derive_frame_master_key", lambda *args, **kwargs: b"k" * 32)
+
+    input_path = tmp_path / "in.bin"
+    input_path.write_bytes(b"test data for config branch")
+    out_gif = tmp_path / "out.gif"
+
+    # Create explicit config
+    config = EncodingConfig()
+    stats = enc.encode_file(
+        input_path, out_gif, password="password_test", config=config, verbose=False
+    )
+    assert out_gif.exists()
+    assert stats["output_size"] > 0
+
+
+# --- Coverage boost: cat_utils.summon_cat_judge success path (lines 1107-1108) ---
+
+
+def test_main_cat_judge_available(monkeypatch, tmp_path: Path, capsys):
+    """Test cat_utils.summon_cat_judge when available (lines 1107-1108)."""
+    inp = _write_input(tmp_path)
+    _patch_encode_file(monkeypatch)
+
+    # Create a mock cat_utils module
+    import sys
+
+    mock_cat_utils = type(sys)("cat_utils")
+    mock_cat_utils.summon_cat_judge = lambda pwd: "😺 Purrfect password!"
+    sys.modules["cat_utils"] = mock_cat_utils
+
+    try:
+        monkeypatch.setattr(
+            sys,
+            "argv",
+            [
+                "meow-encode",
+                "-i",
+                str(inp),
+                "-o",
+                str(tmp_path / "out.gif"),
+                "-p",
+                "password1",
+            ],
+        )
+        enc.main()
+        captured = capsys.readouterr()
+        assert "Cat Judge" in captured.out or "Purrfect" in captured.out
+    finally:
+        # Cleanup
+        if "cat_utils" in sys.modules:
+            del sys.modules["cat_utils"]
+
+
+# --- Coverage boost: YubiKey PIN prompt path (lines 1135-1136) ---
+
+
+def test_main_yubikey_pin_prompt(monkeypatch, tmp_path: Path):
+    """Test YubiKey PIN prompt when --yubikey-pin not provided (lines 1135-1136)."""
+    inp = _write_input(tmp_path)
+    _patch_encode_file(monkeypatch)
+
+    # Mock getpass to return a PIN
+    monkeypatch.setattr(enc, "getpass", lambda prompt: "123456")
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "meow-encode",
+            "-i",
+            str(inp),
+            "-o",
+            str(tmp_path / "out.gif"),
+            "-p",
+            "password1",
+            "--yubikey",  # Request YubiKey but don't provide --yubikey-pin
+        ],
+    )
+    enc.main()
+    # Should complete successfully after prompting for PIN

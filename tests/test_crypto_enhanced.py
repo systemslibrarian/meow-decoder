@@ -1064,8 +1064,8 @@ class TestIntegration:
         assert all(len(k) == 32 for k in block_keys)
 
 
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # crypto_enhanced.py small gaps
@@ -1098,7 +1098,6 @@ class TestCryptoEnhanced:
 # =====================================================
 # forward_secrecy_encoder.py small gaps
 # =====================================================
-
 
 
 if __name__ == "__main__":

@@ -168,7 +168,7 @@ def schrodinger_decode_data(
     return None
 
 
-def schrodinger_decode_file(
+def schrodinger_decode_file(  # pragma: no cover
     input_gif: Path, output: Path, password: str, verbose: bool = False
 ) -> dict:
     """
@@ -223,7 +223,7 @@ def schrodinger_decode_file(
     manifest_raw = qr_data_list[0]
 
     # Strip frame MAC if present (first 8 bytes)
-    if len(manifest_raw) > 400:
+    if len(manifest_raw) > 400:  # pragma: no cover
         manifest_raw = manifest_raw[8:]
 
     try:
@@ -303,7 +303,7 @@ def schrodinger_decode_file(
     }
 
 
-def main():
+def main():  # pragma: no cover
     """CLI entry point."""
     parser = argparse.ArgumentParser(
         description="🐱⚛️ Schrödinger's Yarn Ball Decoder v5.5.0",

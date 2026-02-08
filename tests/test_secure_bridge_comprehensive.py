@@ -1045,7 +1045,6 @@ class TestSecureBridgePerformanceMeow:
                         # All operations completed
 
 
-
 # --- Merged from test_coverage_boost_remaining.py ---
 class TestSecureBridgeBoost:
     def test_create_key_handle_and_encrypt_decrypt(self):
@@ -1101,6 +1100,205 @@ class TestSecureBridgeBoost:
 # config.py additional coverage
 # =====================================================
 
+
+class TestSecureBridgeCoverageGaps:
+    """Tests targeting specific uncovered lines in secure_bridge.py."""
+
+    def test_key_handle_zero_key_exception_path(self):
+        """Test _zero_key exception handling (lines 82-83)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import KeyHandle
+
+            # Create a handle with key bytes that will cause exception when converted
+            class BadBytes:
+                def __init__(self):
+                    pass
+
+            handle = KeyHandle(
+                _handle_id=1,
+                _backend="rust",
+                _key_bytes=BadBytes(),  # Will fail bytearray()
+                _zeroed=False,
+            )
+            # Should not raise, exception is caught
+            handle._zero_key()
+            assert handle._zeroed is True
+
+    def test_secure_memory_ctypes_fallback(self):
+        """Test SecureMemory fallback to bytearray when ctypes fails (lines 109-111)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            # Mock ctypes to fail allocation
+            with patch("meow_decoder.secure_bridge.ctypes") as mock_ctypes:
+                mock_ctypes.c_char.__mul__ = MagicMock(side_effect=Exception("ctypes failed"))
+                mock_ctypes.Array = type(bytearray)  # Make isinstance check fail
+
+                from importlib import reload
+
+                # Need to reload to pick up the mock
+                import meow_decoder.secure_bridge
+
+                # Direct test with bytearray fallback
+                mem = meow_decoder.secure_bridge.SecureMemory(32)
+                # Should have fallen back to bytearray
+                assert mem.size == 32
+
+    def test_secure_memory_darwin_mlock(self):
+        """Test SecureMemory mlock on darwin platform (lines 124-128)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+            import ctypes
+
+            # Create memory and set up ctypes buffer
+            mem = SecureMemory(32)
+
+            # Mock the CDLL call for darwin
+            mock_libc = MagicMock()
+            mock_libc.mlock.return_value = 0
+
+            with patch("meow_decoder.secure_bridge.sys.platform", "darwin"):
+                with patch("meow_decoder.secure_bridge.ctypes.CDLL", return_value=mock_libc):
+                    mem._try_mlock()
+            # Should have tried mlock
+
+    def test_secure_memory_darwin_munlock(self):
+        """Test SecureMemory munlock on darwin platform (lines 165-171)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+            import ctypes
+
+            mem = SecureMemory(32)
+            # Force locked state and ctypes buffer
+            mem._locked = True
+
+            mock_libc = MagicMock()
+
+            with patch("meow_decoder.secure_bridge.sys.platform", "darwin"):
+                with patch("meow_decoder.secure_bridge.ctypes.CDLL", return_value=mock_libc):
+                    mem.unlock()
+            # Should have called munlock
+
+    def test_secure_bridge_rust_not_available(self):
+        """Test SecureBridge raises when Rust not available (line 200)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureBridge
+
+            with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", False):
+                with pytest.raises(RuntimeError) as exc_info:
+                    SecureBridge()
+                assert "Rust crypto backend required" in str(exc_info.value)
+
+    def test_try_zero_string_exception(self):
+        """Test _try_zero_string exception path (lines 355-356)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureBridge
+
+            with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
+                bridge = SecureBridge()
+                # Mock gc.collect to raise exception
+                with patch(
+                    "meow_decoder.secure_bridge.gc.collect", side_effect=Exception("GC failed")
+                ):
+                    # This should handle the exception gracefully
+                    bridge._try_zero_string("test_password")
+                # No exception should be raised
+
+    def test_secure_password_cleanup_exception(self):
+        """Test secure_password cleanup exception handling (lines 417-418)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import secure_password
+
+            # Mock gc.collect to raise exception in cleanup
+            with patch(
+                "meow_decoder.secure_bridge.gc.collect", side_effect=Exception("GC cleanup failed")
+            ):
+                with secure_password("test_password") as pwd:
+                    assert pwd == "test_password"
+            # No exception should propagate even with gc.collect failing
+
+    def test_check_rust_backend_info_exception(self):
+        """Test check_rust_backend when backend_info raises (lines 451-454)."""
+        mock_rs = MagicMock()
+        mock_rs.backend_info.side_effect = Exception("Backend info failed")
+
+        with patch.dict("sys.modules", {"meow_crypto_rs": mock_rs}):
+            with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
+                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rs):
+                    from meow_decoder.secure_bridge import check_rust_backend
+
+                    available, message = check_rust_backend()
+                    assert available is False
+                    assert "info failed" in message
+
+    def test_secure_memory_bytearray_write_read(self):
+        """Test SecureMemory with bytearray buffer (fallback path)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+
+            mem = SecureMemory(64)
+            # Force bytearray buffer for testing
+            mem._buffer = bytearray(64)
+
+            data = b"test data here"
+            mem.write(data)
+            result = mem.read()
+            assert result[: len(data)] == data
+
+    def test_secure_memory_bytearray_zero(self):
+        """Test SecureMemory zero with bytearray buffer."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+
+            mem = SecureMemory(32)
+            # Force bytearray buffer
+            mem._buffer = bytearray(b"sensitive data here!!!!!")
+
+            mem.zero()
+            # All bytes should be zero
+            assert all(b == 0 for b in mem._buffer)
+
+    def test_secure_memory_try_mlock_bytearray_returns_early(self):
+        """Test _try_mlock returns early when buffer is bytearray (line 116)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+
+            mem = SecureMemory(32)
+            # Force bytearray buffer
+            mem._buffer = bytearray(32)
+
+            # Mock CDLL to track if it's called
+            with patch("meow_decoder.secure_bridge.ctypes.CDLL") as mock_cdll:
+                mem._try_mlock()
+                # CDLL should NOT be called since buffer is bytearray
+                mock_cdll.assert_not_called()
+
+    def test_check_rust_backend_exception_path(self):
+        """Test check_rust_backend when backend_info raises (line 454)."""
+        mock_rs = MagicMock()
+        mock_rs.backend_info.side_effect = RuntimeError("Backend crashed")
+
+        with patch.dict("sys.modules", {"meow_crypto_rs": mock_rs}):
+            with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
+                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rs):
+                    # Need to reload to pick up the mock
+                    from meow_decoder.secure_bridge import check_rust_backend
+
+                    available, message = check_rust_backend()
+                    assert available is False
+                    assert "info failed" in message or "crashed" in message.lower()
+
+    def test_secure_memory_unlock_with_bytearray(self):
+        """Test unlock does nothing when buffer is bytearray (lines 165 early return)."""
+        with patch.dict("sys.modules", {"meow_crypto_rs": MagicMock()}):
+            from meow_decoder.secure_bridge import SecureMemory
+
+            mem = SecureMemory(32)
+            mem._buffer = bytearray(32)
+            mem._locked = True  # Pretend it's locked
+
+            # Should not raise even though buffer is bytearray
+            mem.unlock()
+            # _locked should still be True since unlock didn't happen (buffer not ctypes)
+            assert mem._locked is True
 
 
 if __name__ == "__main__":

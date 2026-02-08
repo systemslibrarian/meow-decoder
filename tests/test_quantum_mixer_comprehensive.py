@@ -1001,8 +1001,8 @@ class TestQuantumMixerPerformanceMeow:
         assert elapsed < 5.0
 
 
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # quantum_mixer.py coverage
@@ -1033,7 +1033,6 @@ class TestQuantumMixerBoost:
 
         superposition = entangle_realities(data_a, data_b)
         assert len(superposition) > 0
-
 
 
 if __name__ == "__main__":

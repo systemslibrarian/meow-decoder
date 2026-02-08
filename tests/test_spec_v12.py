@@ -580,8 +580,8 @@ class TestMultiTier:
             decode_multi_tier(embedded, sender_pk, sender_sk, tier_index=0)
 
 
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # spec_v12/encode.py and decode.py small gaps

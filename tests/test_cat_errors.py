@@ -141,7 +141,8 @@ class TestFurBallError:
             msg = fur_ball_error(key, suggestion=False)
             assert len(msg) > 0
             assert any(
-                e in msg for e in ["😿", "😾", "😼", "🙀", "🐱", "🔮", "🔑", "📹", "🚨", "😴", "🌿", "🔒"]
+                e in msg
+                for e in ["😿", "😾", "😼", "🙀", "🐱", "🔮", "🔑", "📹", "🚨", "😴", "🌿", "🔒"]
             )
 
 

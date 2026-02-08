@@ -10,6 +10,7 @@ Targets 90-95% code coverage with:
 - Security invariants
 - Memory management
 """
+
 import pytest
 import secrets
 import hashlib
@@ -32,6 +33,8 @@ from meow_decoder.streaming_crypto import (
 
 # Imports from merged file
 from meow_decoder.streaming_crypto import StreamingCipher, STREAMING_MAC_INFO
+
+
 @pytest.fixture
 def valid_key():
     """Generate a valid 32-byte AES-256 key."""
@@ -1356,6 +1359,7 @@ class TestCatMocked:
 
 # --- Merged from test_coverage_boost_extras.py ---
 
+
 # =====================================================
 # streaming_crypto.py — push from 89.22% higher
 # =====================================================
@@ -1490,9 +1494,8 @@ class TestStreamingCryptoExtras:
 # =====================================================
 
 
-
-
 # --- Merged from test_coverage_boost_remaining.py ---
+
 
 # =====================================================
 # streaming_crypto.py coverage
@@ -1563,7 +1566,6 @@ class TestStreamingCryptoBoost:
 # =====================================================
 # entropy_boost.py coverage
 # =====================================================
-
 
 
 if __name__ == "__main__":
@@ -1838,6 +1840,41 @@ class TestMACKeyDerivation:
         ).derive(key)
 
         assert cipher._mac_key == expected_mac_key
+
+
+class TestStreamingCryptoCoverageGaps:
+    """Tests for remaining coverage gaps."""
+
+    def test_encrypt_stream_empty_compressor_flush(self, valid_key, valid_nonce):
+        """Test encrypt_stream when compressor.flush() returns empty bytes (line 179->186)."""
+        import zlib
+
+        cipher = StreamingCipher(valid_key, nonce=valid_nonce)
+
+        # Very small data that compresses to nothing on flush
+        input_data = b"a"
+        input_stream = io.BytesIO(input_data)
+        output_stream = io.BytesIO()
+
+        # Mock the compressor's flush to return empty
+        original_compress_obj = zlib.compressobj
+
+        class MockCompressor:
+            def __init__(self, *args, **kwargs):
+                self._real = original_compress_obj(*args, **kwargs)
+
+            def compress(self, data):
+                return self._real.compress(data)
+
+            def flush(self):
+                # Return empty to hit the branch 179->186
+                return b""
+
+        with patch("zlib.compressobj", MockCompressor):
+            cipher.encrypt_stream(input_stream, output_stream, enable_compression=True)
+
+        # Encryption should still complete
+        assert output_stream.tell() > 0
 
 
 if __name__ == "__main__":

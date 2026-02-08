@@ -38,6 +38,13 @@ def test_gif_encoder_empty_frames_raises(tmp_path):
         encoder.create_gif([], tmp_path / "empty.gif")
 
 
+def test_gif_encoder_create_gif_bytes_empty_frames_raises():
+    """Test create_gif_bytes raises ValueError on empty frames (line 91)."""
+    encoder = GIFEncoder(fps=2)
+    with pytest.raises(ValueError, match="No frames provided"):
+        encoder.create_gif_bytes([])
+
+
 def test_gif_encoder_create_gif_bytes_roundtrip():
     frames = [_make_frame("green", (32, 32)), _make_frame("yellow", (32, 32))]
     encoder = GIFEncoder(fps=5)
@@ -75,6 +82,21 @@ def test_gif_optimizer_optimizes(tmp_path):
     assert original_size > 0
     assert optimized_size > 0
     assert output_path.exists()
+
+
+def test_gif_optimizer_no_resize(tmp_path):
+    """Test optimize_gif with reduce_size=False (line 241->246 branch)."""
+    frames = [_make_frame("red", (32, 32))]
+    input_path = tmp_path / "in.gif"
+    output_path = tmp_path / "out.gif"
+
+    GIFEncoder(fps=2).create_gif(frames, input_path)
+
+    original_size, optimized_size = GIFOptimizer.optimize_gif(
+        input_path, output_path, colors=128, reduce_size=False
+    )
+    assert original_size > 0
+    assert optimized_size > 0
 
 
 def test_gif_encoder_resizes_and_converts(tmp_path):

@@ -18,12 +18,13 @@ import time
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 
-
 # ── Phone → CLI ──────────────────────────────────────────────────────────────
+
 
 @dataclass
 class ScanStart:
     """Sent once when the user begins scanning."""
+
     type: str = field(default="scan_start", init=False)
     device_id: str = ""
     timestamp_ms: int = 0
@@ -39,6 +40,7 @@ class ScanStart:
 @dataclass
 class Frame:
     """One QR code frame captured by the phone camera."""
+
     type: str = field(default="frame", init=False)
     seq: int = 0
     qr_bytes_b64: str = ""
@@ -65,6 +67,7 @@ class Frame:
 @dataclass
 class ScanEnd:
     """Sent when scanning is complete."""
+
     type: str = field(default="scan_end", init=False)
     total_frames_sent: int = 0
     timestamp_ms: int = 0
@@ -79,9 +82,11 @@ class ScanEnd:
 
 # ── CLI → Phone ──────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Ack:
     """Acknowledgement for a received frame."""
+
     type: str = field(default="ack", init=False)
     seq: int = 0
     accepted: bool = True
@@ -94,6 +99,7 @@ class Ack:
 @dataclass
 class Progress:
     """Decoding progress update."""
+
     type: str = field(default="progress", init=False)
     frames_received: int = 0
     frames_needed: int = 0
@@ -108,6 +114,7 @@ class Progress:
 @dataclass
 class Result:
     """Final decode result."""
+
     type: str = field(default="result", init=False)
     success: bool = False
     output_file: str = ""
@@ -122,6 +129,7 @@ class Result:
 @dataclass
 class Error:
     """Fatal error."""
+
     type: str = field(default="error", init=False)
     code: str = "INTERNAL"
     message: str = ""
