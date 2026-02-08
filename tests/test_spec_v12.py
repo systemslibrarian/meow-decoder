@@ -8,6 +8,7 @@ Consolidated from:
   - test_coverage_boost_spec_v12.py
 """
 
+import io
 import os
 import struct
 import pytest

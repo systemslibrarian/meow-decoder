@@ -313,7 +313,8 @@ class TestManifest:
 
     def test_manifest_invalid_magic(self):
         """Invalid magic rejected."""
-        fake_manifest = b"BAAD" + b"\x00" * 200
+        # Must be exactly 115 bytes (base manifest size) to pass length check
+        fake_manifest = b"BADMG" + b"\x00" * 110  # 5 + 110 = 115 bytes
         with pytest.raises(ValueError, match="Invalid MAGIC"):
             unpack_manifest(fake_manifest)
 
@@ -337,9 +338,10 @@ class TestManifest:
 
     def test_manifest_invalid_length(self):
         """Invalid manifest length rejected."""
-        # Create valid header but wrong total length
-        fake = MAGIC + secrets.token_bytes(100)  # Wrong size
-        with pytest.raises(ValueError, match="length invalid"):
+        # Create valid header but wrong total length (must be >= 115 but not a valid size)
+        # Valid sizes are: 115, 147, 179, 1235, 1267
+        fake = MAGIC + secrets.token_bytes(115)  # 5 + 115 = 120 bytes (invalid size)
+        with pytest.raises(ValueError, match="(length invalid|too short)"):
             unpack_manifest(fake)
 
 

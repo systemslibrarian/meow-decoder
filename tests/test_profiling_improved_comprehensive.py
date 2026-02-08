@@ -835,8 +835,9 @@ class TestProfilerPerformanceMeow:
                 pass
         with_profiling = time.perf_counter() - start
 
-        # Overhead should be reasonable (less than 10x)
-        assert with_profiling < baseline * 100  # Very generous for CI
+        # Overhead should be reasonable - profiling should complete in under 1 second
+        # for 1000 iterations, regardless of baseline (which can be near-zero)
+        assert with_profiling < 1.0  # 1 second max for 1000 iterations
 
     def test_many_operations_meow(self, fresh_profiler):
         """Test profiler handles many operations."""
