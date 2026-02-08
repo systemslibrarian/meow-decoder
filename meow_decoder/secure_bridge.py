@@ -44,6 +44,7 @@ try:
 
     RUST_AVAILABLE = True
 except ImportError:
+    meow_crypto_rs = None  # type: ignore
     RUST_AVAILABLE = False
 
 
