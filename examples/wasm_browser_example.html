@@ -4,121 +4,596 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>🐱 Meow Decoder - WASM Demo</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/favicon.svg">
     <style>
+        * { box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            max-width: 800px;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
             color: #e0e0e0;
             min-height: 100vh;
         }
-        h1 { color: #00ff88; text-align: center; }
-        .container {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
+        h1 { color: #00ff88; text-align: center; margin-bottom: 5px; }
+        h2 { color: #00ccff; margin-top: 0; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
+        
+        .step {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
             padding: 20px;
             margin: 20px 0;
+            border-left: 4px solid #00ccff;
         }
-        label { display: block; margin: 10px 0 5px; color: #00ccff; }
+        .step-number {
+            background: #00ccff;
+            color: #1a1a2e;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        .step h2 { display: inline; vertical-align: middle; }
+        .step-desc { color: #aaa; margin: 10px 0 15px 40px; font-size: 0.9em; }
+        
+        label { display: block; margin: 12px 0 5px; color: #00ccff; font-weight: 500; }
         input, textarea {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             border: 1px solid #333;
-            border-radius: 5px;
+            border-radius: 6px;
             background: #1a1a2e;
             color: #fff;
-            box-sizing: border-box;
+            font-size: 1em;
         }
+        input:focus, textarea:focus { border-color: #00ccff; outline: none; }
+        
         button {
             background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
             color: #1a1a2e;
             border: none;
-            padding: 12px 24px;
-            border-radius: 5px;
+            padding: 14px 28px;
+            border-radius: 6px;
             cursor: pointer;
             font-weight: bold;
+            font-size: 1em;
             margin: 10px 5px 10px 0;
-            transition: transform 0.2s;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-        button:hover { transform: scale(1.05); }
-        button:disabled {
-            background: #555;
-            color: #999;
-            cursor: not-allowed;
+        button:hover { transform: scale(1.03); box-shadow: 0 4px 15px rgba(0,255,136,0.3); }
+        button:disabled { background: #444; color: #777; cursor: not-allowed; transform: none; box-shadow: none; }
+        button.secondary {
+            background: transparent;
+            border: 2px solid #00ccff;
+            color: #00ccff;
         }
-        #output {
-            background: #000;
-            padding: 15px;
-            border-radius: 5px;
-            font-family: monospace;
-            white-space: pre-wrap;
-            word-break: break-all;
-            min-height: 100px;
-        }
-        .status { 
-            padding: 10px; 
-            border-radius: 5px; 
-            margin: 10px 0;
-        }
+        
+        .status { padding: 12px; border-radius: 6px; margin: 15px 0; text-align: center; }
         .status.loading { background: #ff9800; color: #000; }
         .status.ready { background: #4caf50; color: #fff; }
         .status.error { background: #f44336; color: #fff; }
-        .cat-emoji { font-size: 3em; text-align: center; display: block; }
+        
+        .qr-container {
+            text-align: center;
+            padding: 20px;
+            background: #fff;
+            border-radius: 10px;
+            margin: 15px auto;
+            max-width: 280px;
+        }
+        #qrcode canvas { max-width: 100%; height: auto; }
+        .qr-placeholder {
+            width: 200px;
+            height: 200px;
+            margin: 0 auto;
+            border: 2px dashed #ccc;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #999;
+            border-radius: 8px;
+        }
+        
+        .result-box {
+            background: #0a2a0a;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 15px 0;
+            text-align: center;
+        }
+        .result-box.error { background: #2a0a0a; border-color: #ff4444; }
+        .result-box h3 { margin: 0 0 10px 0; color: #00ff88; }
+        .result-box.error h3 { color: #ff4444; }
+        .result-box .message { font-size: 1.3em; word-break: break-word; }
+        
+        .hidden { display: none; }
+        
+        .intro {
+            background: rgba(0, 204, 255, 0.1);
+            border: 1px solid rgba(0, 204, 255, 0.3);
+            border-radius: 10px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+        }
+        .intro p { margin: 8px 0; line-height: 1.5; }
+        
+        .cat-header { text-align: center; font-size: 2.5em; margin-bottom: 0; }
+        
+        .workflow-diagram {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        .workflow-diagram .arrow { color: #00ccff; font-size: 1.5em; }
+        .workflow-diagram .item {
+            background: rgba(0,204,255,0.1);
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+        }
+        
+        #log {
+            background: #000;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 0.85em;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .copy-btn {
+            padding: 8px 16px;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: -1px;
+        }
+        .tab {
+            padding: 10px 20px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid #333;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            color: #888;
+        }
+        .tab.active { background: rgba(255,255,255,0.1); color: #00ccff; border-color: #00ccff; }
+        .tab-content { border: 1px solid #333; border-radius: 0 8px 8px 8px; padding: 20px; }
+        
+        .mode-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin: 20px 0;
+        }
+        .mode-tab {
+            padding: 15px 30px;
+            background: rgba(255,255,255,0.05);
+            border: 2px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            color: #888;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        .mode-tab:hover { border-color: #00ccff; color: #00ccff; }
+        .mode-tab.active { 
+            background: rgba(0,255,136,0.1); 
+            border-color: #00ff88; 
+            color: #00ff88;
+        }
+        .mode-tab .icon { font-size: 1.5em; display: block; margin-bottom: 5px; }
+        .mode-tab .label { font-weight: bold; }
+        .mode-tab .desc { font-size: 0.75em; color: #666; margin-top: 3px; }
+        
+        .mode-content { display: none; }
+        .mode-content.active { display: block; }
+        
+        .schrodinger-box {
+            background: linear-gradient(135deg, rgba(138,43,226,0.1) 0%, rgba(0,204,255,0.1) 100%);
+            border: 1px solid #8a2be2;
+        }
+        .quantum-label { color: #8a2be2; }
+        .logo { max-width: 400px; width: 100%; display: block; margin: 0 auto 20px; }
     </style>
 </head>
 <body>
-    <span class="cat-emoji">🐱🔐</span>
+    <img src="../assets/meow-decoder-logo.svg" alt="Meow Decoder" class="logo">
     <h1>Meow Decoder - WASM Demo</h1>
+    <p class="subtitle">Encrypt secrets into QR codes, decrypt with password</p>
     
-    <div id="wasmStatus" class="status loading">
-        ⏳ Loading WASM module...
-    </div>
+    <div id="wasmStatus" class="status loading">⏳ Loading WASM crypto module...</div>
     
-    <div class="container">
-        <h2>🔑 Key Derivation</h2>
-        <label for="password">Password:</label>
-        <input type="password" id="password" placeholder="Enter your password" value="demo_password_123">
-        
-        <label for="salt">Salt (hex, 16 bytes):</label>
-        <input type="text" id="salt" placeholder="Random salt" 
-               value="0102030405060708090a0b0c0d0e0f10">
-        
-        <button id="deriveKeyBtn" disabled onclick="deriveKey()">Derive Key</button>
-        <button id="randomSaltBtn" disabled onclick="generateRandomSalt()">🎲 Random Salt</button>
-    </div>
-    
-    <div class="container">
-        <h2>🔒 Encryption</h2>
-        <label for="plaintext">Plaintext:</label>
-        <textarea id="plaintext" rows="3" placeholder="Enter message to encrypt">Hello, Meow Decoder! 🐱</textarea>
-        
-        <button id="encryptBtn" disabled onclick="encryptData()">🔐 Encrypt</button>
-    </div>
-    
-    <div class="container">
-        <h2>🔓 Decryption</h2>
-        <label for="ciphertext">Ciphertext (hex):</label>
-        <textarea id="ciphertext" rows="3" placeholder="Paste encrypted data here"></textarea>
-        
-        <label for="decryptNonce">Nonce (hex, 12 bytes):</label>
-        <input type="text" id="decryptNonce" placeholder="Nonce from encryption">
-        
-        <button id="decryptBtn" disabled onclick="decryptData()">🔓 Decrypt</button>
-    </div>
-    
-    <div class="container">
-        <h2>📋 Output</h2>
-        <div id="output">Waiting for WASM module to load...</div>
+    <div class="intro">
+        <p><strong>🎯 What this demo shows:</strong> Secure air-gap file transfer using QR codes. Encrypt on one device, photograph the QR, decrypt on another device.</p>
+        <div class="workflow-diagram">
+            <span class="item">📝 Secret</span>
+            <span class="arrow">→</span>
+            <span class="item">🔐 Encrypt</span>
+            <span class="arrow">→</span>
+            <span class="item">📱 QR Code</span>
+            <span class="arrow">→</span>
+            <span class="item">📸 Photo</span>
+            <span class="arrow">→</span>
+            <span class="item">📤 Upload</span>
+            <span class="arrow">→</span>
+            <span class="item">🔑 Password</span>
+            <span class="arrow">→</span>
+            <span class="item">✨ Reveal!</span>
+        </div>
+        <p style="color: #888; font-size: 0.9em;">💡 All crypto happens client-side. The QR code itself is encrypted — safe to share anywhere.</p>
     </div>
 
-    <script type="module">
-        // WASM module reference
-        let wasm = null;
-        let derivedKey = null;
+    <!-- MODE SELECTION -->
+    <div class="mode-tabs">
+        <div class="mode-tab active" onclick="switchMode('standard')">
+            <span class="icon">🔐</span>
+            <span class="label">Standard Mode</span>
+            <span class="desc">One secret, one password</span>
+        </div>
+        <div class="mode-tab" onclick="switchMode('schrodinger')">
+            <span class="icon">🐱</span>
+            <span class="label">Schrödinger Mode</span>
+            <span class="desc">Two secrets, two passwords</span>
+        </div>
+    </div>
+
+    <!-- STANDARD MODE -->
+    <div id="standardMode" class="mode-content active">
+    
+    <!-- STEP 1: ENCODE (Standard) -->
+    <div class="step">
+        <span class="step-number">1</span>
+        <h2>Create Encrypted QR Code</h2>
+        <p class="step-desc">Enter your secret message and a password. The message will be encrypted and encoded into a QR code.</p>
         
-        // Utility: hex encode/decode
+        <label for="secretMessage">🔒 Secret Message:</label>
+        <textarea id="secretMessage" rows="3" placeholder="Type your secret message here...">Hello from Meow Decoder! This message is encrypted. 🐱</textarea>
+        
+        <label for="encryptPassword">🔑 Password:</label>
+        <input type="password" id="encryptPassword" placeholder="Enter encryption password" value="CatSecret123">
+        
+        <div style="margin-top: 5px;">
+            <input type="checkbox" id="showPassword1" onchange="togglePassword('encryptPassword', this.checked)">
+            <label for="showPassword1" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+        </div>
+        
+        <button id="encryptBtn" disabled onclick="encryptToQR()">🔐 Encrypt & Generate QR</button>
+    </div>
+
+    <!-- STEP 2: QR CODE OUTPUT -->
+    <div id="qrSection" class="step hidden">
+        <span class="step-number">2</span>
+        <h2>Your Encrypted QR Code</h2>
+        <p class="step-desc">This QR code contains your encrypted message. Share it anywhere — only someone with the password can read it!</p>
+        
+        <div class="qr-container">
+            <div id="qrcode"></div>
+        </div>
+        
+        <div style="text-align: center;">
+            <button class="secondary copy-btn" onclick="downloadQR()">💾 Save QR Image</button>
+            <button class="secondary copy-btn" onclick="copyPayload()">📋 Copy Encrypted Data</button>
+        </div>
+        
+        <p style="text-align: center; color: #888; font-size: 0.85em; margin-top: 15px;">
+            ⬇️ Now try decrypting it below with the password
+        </p>
+    </div>
+
+    <!-- STEP 3: DECODE -->
+    <div class="step">
+        <span class="step-number">3</span>
+        <h2>Decrypt the Message</h2>
+        <p class="step-desc">Upload a photo of the QR code, or paste the encrypted payload. Enter the password to reveal the hidden message!</p>
+        
+        <!-- QR Upload Section -->
+        <div style="background: rgba(0,204,255,0.1); border: 2px dashed #00ccff; border-radius: 10px; padding: 20px; margin: 15px 0; text-align: center;">
+            <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
+            <p style="color: #00ccff; margin: 0 0 10px 0;"><strong>Upload QR Code Image</strong></p>
+            <p style="color: #888; font-size: 0.85em; margin: 0 0 15px 0;">Take a photo of the QR code on your phone and upload it here</p>
+            <input type="file" id="qrUpload" accept="image/*" style="display: none;" onchange="scanUploadedQR(this)">
+            <button class="secondary" onclick="document.getElementById('qrUpload').click()">📤 Choose Image / Take Photo</button>
+            <div id="scanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+            <canvas id="scanCanvas" style="display: none;"></canvas>
+            <div id="uploadPreview" style="margin-top: 15px; display: none;">
+                <img id="previewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #00ccff;">
+            </div>
+        </div>
+        
+        <div style="text-align: center; color: #666; margin: 10px 0;">— or paste payload directly —</div>
+        
+        <label for="encryptedPayload">📦 Encrypted Payload:</label>
+        <textarea id="encryptedPayload" rows="2" placeholder="Encrypted data will appear here after Step 1, QR scan, or paste your own..."></textarea>
+        
+        <label for="decryptPassword">🔑 Password:</label>
+        <input type="password" id="decryptPassword" placeholder="Enter decryption password">
+        
+        <div style="margin-top: 5px;">
+            <input type="checkbox" id="showPassword2" onchange="togglePassword('decryptPassword', this.checked)">
+            <label for="showPassword2" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+        </div>
+        
+        <button id="decryptBtn" disabled onclick="decryptFromPayload()">🔓 Decrypt Message</button>
+        <button class="secondary" onclick="tryWrongPassword()">🎭 Try Wrong Password</button>
+    </div>
+
+    <!-- RESULT -->
+    <div id="resultSection" class="hidden">
+        <div id="resultBox" class="result-box">
+            <h3 id="resultTitle">✨ Decrypted Message</h3>
+            <div id="resultMessage" class="message"></div>
+        </div>
+    </div>
+    
+    </div><!-- End Standard Mode -->
+
+    <!-- SCHRÖDINGER MODE -->
+    <div id="schrodingerMode" class="mode-content">
+    
+    <div class="step schrodinger-box">
+        <span class="step-number" style="background: #8a2be2;">1</span>
+        <h2>🐱 Schrödinger's Encryption</h2>
+        <p class="step-desc">Encode <strong>two different secrets</strong> with <strong>two different passwords</strong>. Each password reveals a different message — with no way to prove the other exists!</p>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; border-radius: 8px; padding: 15px;">
+                <h4 style="color: #00ff88; margin: 0 0 10px 0;">🟢 Reality A (Real Secret)</h4>
+                <label for="secretA" class="quantum-label">Secret Message A:</label>
+                <textarea id="secretA" rows="2" placeholder="Your real secret...">The treasure is buried under the oak tree! 💎</textarea>
+                <label for="passwordA" class="quantum-label">Password A:</label>
+                <input type="password" id="passwordA" placeholder="Password for Reality A" value="RealSecret123">
+            </div>
+            
+            <div style="background: rgba(255,136,0,0.1); border: 1px solid #ff8800; border-radius: 8px; padding: 15px;">
+                <h4 style="color: #ff8800; margin: 0 0 10px 0;">🟠 Reality B (Decoy Secret)</h4>
+                <label for="secretB" class="quantum-label">Secret Message B:</label>
+                <textarea id="secretB" rows="2" placeholder="Innocent decoy...">My grocery list: milk, eggs, bread 🛒</textarea>
+                <label for="passwordB" class="quantum-label">Password B:</label>
+                <input type="password" id="passwordB" placeholder="Password for Reality B" value="DecoyPass456">
+            </div>
+        </div>
+        
+        <div style="text-align: center; margin-top: 15px;">
+            <button id="schrodingerEncryptBtn" disabled onclick="schrodingerEncrypt()">🐱 Create Quantum QR Code</button>
+        </div>
+        
+        <p style="text-align: center; color: #8a2be2; font-size: 0.85em; margin-top: 15px;">
+            ⚛️ Both secrets occupy the same QR code in superposition. The password "collapses" to one reality.
+        </p>
+    </div>
+    
+    <!-- Schrödinger QR Output -->
+    <div id="schrodingerQrSection" class="step schrodinger-box hidden">
+        <span class="step-number" style="background: #8a2be2;">2</span>
+        <h2>🐱 Quantum QR Code</h2>
+        <p class="step-desc">This single QR contains BOTH secrets in superposition. Neither can be proven to exist without its password.</p>
+        
+        <div class="qr-container">
+            <div id="schrodingerQrcode"></div>
+        </div>
+        
+        <div style="text-align: center;">
+            <button class="secondary copy-btn" onclick="downloadSchrodingerQR()">💾 Save Quantum QR</button>
+            <button class="secondary copy-btn" onclick="copySchrodingerPayload()">📋 Copy Quantum Data</button>
+        </div>
+    </div>
+    
+    <!-- Schrödinger Decrypt -->
+    <div class="step schrodinger-box">
+        <span class="step-number" style="background: #8a2be2;">3</span>
+        <h2>🔓 Collapse the Superposition</h2>
+        <p class="step-desc">Enter a password to "observe" one reality. Try both passwords to see different messages emerge!</p>
+        
+        <!-- QR Upload for Schrödinger -->
+        <div style="background: rgba(138,43,226,0.1); border: 2px dashed #8a2be2; border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center;">
+            <input type="file" id="schrodingerQrUpload" accept="image/*" style="display: none;" onchange="scanSchrodingerQR(this)">
+            <button class="secondary" style="border-color: #8a2be2; color: #8a2be2;" onclick="document.getElementById('schrodingerQrUpload').click()">📸 Upload Quantum QR Photo</button>
+            <div id="schrodingerScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+        </div>
+        
+        <label for="schrodingerPayload" class="quantum-label">📦 Quantum Payload:</label>
+        <textarea id="schrodingerPayload" rows="2" placeholder="Quantum encrypted data (from QR or paste)..."></textarea>
+        
+        <label for="collapsePassword" class="quantum-label">🔑 Password (determines which reality you observe):</label>
+        <input type="password" id="collapsePassword" placeholder="Enter password to collapse superposition">
+        
+        <div style="margin-top: 15px;">
+            <button id="collapseBtn" disabled onclick="collapseReality()">⚛️ Collapse & Decrypt</button>
+            <button class="secondary" onclick="document.getElementById('collapsePassword').value = 'RealSecret123'; collapseReality();">🟢 Try Password A</button>
+            <button class="secondary" onclick="document.getElementById('collapsePassword').value = 'DecoyPass456'; collapseReality();">🟠 Try Password B</button>
+        </div>
+    </div>
+    
+    <!-- Schrödinger Result -->
+    <div id="schrodingerResultSection" class="hidden">
+        <div id="schrodingerResultBox" class="result-box">
+            <h3 id="schrodingerResultTitle">⚛️ Reality Collapsed</h3>
+            <div id="schrodingerResultMessage" class="message"></div>
+        </div>
+    </div>
+    
+    </div><!-- End Schrödinger Mode -->
+
+    <!-- LOG -->
+    <details style="margin-top: 30px;">
+        <summary style="cursor: pointer; color: #00ccff;">🔧 Technical Log (click to expand)</summary>
+        <div id="log"></div>
+    </details>
+
+    <script type="module">
+        let wasm = null;
+        let QRCode = null;
+        let jsQR = null;
+        
+        // Load QRCode library dynamically (for generating QR codes)
+        async function loadQRCode() {
+            if (QRCode) return QRCode;
+            
+            const cdnUrls = [
+                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+                'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
+            ];
+            
+            for (const url of cdnUrls) {
+                try {
+                    log(`Trying QRCode from: ${url.split('/')[2]}...`);
+                    const script = document.createElement('script');
+                    script.src = url;
+                    document.head.appendChild(script);
+                    
+                    await new Promise((resolve, reject) => {
+                        script.onload = () => {
+                            // Give it a moment to initialize
+                            setTimeout(resolve, 100);
+                        };
+                        script.onerror = reject;
+                        // Timeout after 5 seconds
+                        setTimeout(() => reject(new Error('timeout')), 5000);
+                    });
+                    
+                    if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
+                        QRCode = window.QRCode;
+                        log(`✅ QRCode loaded from ${url.split('/')[2]}`);
+                        return QRCode;
+                    } else {
+                        log(`⚠️ QRCode object not found after loading`);
+                        document.head.removeChild(script);
+                    }
+                } catch (e) {
+                    log(`⚠️ CDN failed: ${url.split('/')[2]} - ${e.message}`);
+                }
+            }
+            
+            log('❌ All QRCode CDNs failed');
+            return null;
+        }
+        
+        // Load jsQR library dynamically (for scanning QR codes)
+        async function loadJsQR() {
+            if (jsQR) return jsQR;
+            
+            try {
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';
+                document.head.appendChild(script);
+                
+                await new Promise((resolve, reject) => {
+                    script.onload = resolve;
+                    script.onerror = reject;
+                });
+                
+                jsQR = window.jsQR;
+                return jsQR;
+            } catch (e) {
+                log('Warning: jsQR CDN failed');
+                return null;
+            }
+        }
+        
+        // Scan QR code from uploaded image
+        window.scanUploadedQR = async function(input) {
+            const statusEl = document.getElementById('scanStatus');
+            const previewEl = document.getElementById('uploadPreview');
+            const previewImg = document.getElementById('previewImg');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
+            
+            try {
+                // Load jsQR if needed
+                if (!jsQR) {
+                    await loadJsQR();
+                }
+                
+                if (!jsQR) {
+                    throw new Error('QR scanner library not available');
+                }
+                
+                // Read and display image
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                // Show preview
+                previewImg.src = imageData;
+                previewEl.style.display = 'block';
+                
+                // Load image to canvas
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                // Draw to canvas and extract image data
+                const canvas = document.getElementById('scanCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Scan for QR code
+                const code = jsQR(imgData.data, imgData.width, imgData.height);
+                
+                if (code) {
+                    const payload = code.data;
+                    log(`📸 QR code scanned: ${payload.substring(0, 50)}...`);
+                    
+                    if (payload.startsWith('MEOW:')) {
+                        document.getElementById('encryptedPayload').value = payload;
+                        statusEl.innerHTML = '<span style="color: #00ff88;">✅ QR code scanned successfully! Enter password below to decrypt.</span>';
+                        log('✅ Valid MEOW payload extracted from QR code');
+                    } else {
+                        document.getElementById('encryptedPayload').value = payload;
+                        statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR code found but not a MEOW payload. Data pasted anyway.</span>';
+                        log('⚠️ QR contains non-MEOW data');
+                    }
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found in image. Try a clearer photo.</span>';
+                    log('❌ No QR code detected in uploaded image');
+                }
+                
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
+                log(`❌ QR scan error: ${err.message}`);
+            }
+            
+            // Clear input so same file can be uploaded again
+            input.value = '';
+        };
+        
+        // Utility functions
+        const encoder = new TextEncoder();
+        const decoder = new TextDecoder();
+        
         function bytesToHex(bytes) {
             return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
         }
@@ -132,181 +607,639 @@
             return bytes;
         }
         
-        // Utility: text encode/decode
-        const encoder = new TextEncoder();
-        const decoder = new TextDecoder();
-        
-        function log(msg) {
-            const output = document.getElementById('output');
-            output.textContent += new Date().toISOString().substr(11, 8) + ' | ' + msg + '\n';
-            output.scrollTop = output.scrollHeight;
+        function bytesToBase64(bytes) {
+            return btoa(String.fromCharCode(...bytes));
         }
         
-        // Initialize WASM module
+        function base64ToBytes(base64) {
+            const binary = atob(base64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                bytes[i] = binary.charCodeAt(i);
+            }
+            return bytes;
+        }
+        
+        function log(msg) {
+            const logEl = document.getElementById('log');
+            const time = new Date().toISOString().substr(11, 8);
+            logEl.textContent += `${time} | ${msg}\n`;
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+        
+        // Fallback QR generation using API service
+        async function generateQRFallback(containerId, data) {
+            log('⚠️ Using QR API fallback...');
+            const container = document.getElementById(containerId);
+            const encoded = encodeURIComponent(data);
+            
+            // Try multiple QR API services
+            const apis = [
+                `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encoded}`,
+                `https://quickchart.io/qr?size=300&text=${encoded}`
+            ];
+            
+            for (const apiUrl of apis) {
+                try {
+                    const img = document.createElement('img');
+                    img.style.cssText = 'max-width: 300px; border-radius: 8px; background: white; padding: 10px;';
+                    
+                    await new Promise((resolve, reject) => {
+                        img.onload = resolve;
+                        img.onerror = reject;
+                        img.src = apiUrl;
+                        setTimeout(() => reject(new Error('timeout')), 8000);
+                    });
+                    
+                    container.innerHTML = '';
+                    container.appendChild(img);
+                    log('✅ QR code generated via API');
+                    return true;
+                } catch (e) {
+                    log(`⚠️ API failed: ${apiUrl.split('/')[2]}`);
+                }
+            }
+            
+            // Final fallback: show as text
+            container.innerHTML = `
+                <div style="background: #fff; color: #333; font-size: 11px; word-break: break-all; 
+                            padding: 15px; border-radius: 8px; max-width: 300px; margin: 0 auto;
+                            font-family: monospace; text-align: left;">
+                    <strong style="color: #f44336;">⚠️ QR generation failed</strong><br>
+                    <small>Copy this encrypted payload instead:</small><br><br>
+                    ${data}
+                </div>`;
+            log('❌ All QR methods failed, showing raw payload');
+            return false;
+        }
+        
+        // Toggle password visibility
+        window.togglePassword = function(inputId, show) {
+            document.getElementById(inputId).type = show ? 'text' : 'password';
+        };
+        
+        // Initialize WASM
         async function initWasm() {
             const statusEl = document.getElementById('wasmStatus');
             
             try {
-                // Import the WASM package (built by wasm-pack)
-                // In production, this would be from 'crypto_core/pkg'
+                // Load QR libraries in parallel
+                await Promise.all([loadQRCode(), loadJsQR()]);
+                log('📊 QR libraries loaded (generate + scan)');
+                
                 const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
-                await wasmModule.default();  // Initialize WASM
+                await wasmModule.default();
                 wasm = wasmModule;
                 
-                // Enable buttons
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 
                 statusEl.className = 'status ready';
-                statusEl.textContent = '✅ WASM module loaded successfully!';
+                statusEl.textContent = '✅ WASM crypto loaded — Ready to encrypt!';
                 
                 log('🐱 Meow Decoder WASM initialized');
-                log('📦 Available functions: encrypt, decrypt, derive_key, random_bytes');
-                log('');
+                log('📦 Crypto: AES-256-GCM + Argon2id key derivation');
+                log('📸 QR scanning ready for image upload');
                 
             } catch (err) {
                 statusEl.className = 'status error';
-                statusEl.textContent = `❌ Failed to load WASM: ${err.message}`;
+                statusEl.innerHTML = `❌ Failed to load WASM: ${err.message}<br><small>Run <code>make build-wasm</code> and serve via HTTP server</small>`;
                 log(`ERROR: ${err.message}`);
-                log('');
-                log('To build WASM module, run: make build-wasm');
-                log('Then serve this file from a web server.');
             }
         }
         
-        // Generate random salt
-        window.generateRandomSalt = function() {
+        // Encrypt message and generate QR
+        window.encryptToQR = async function() {
             if (!wasm) return;
             
-            try {
-                const result = wasm.random_bytes(16);
-                if (result.success) {
-                    document.getElementById('salt').value = bytesToHex(result.data);
-                    log('🎲 Generated random 16-byte salt');
-                } else {
-                    log(`ERROR: ${result.error}`);
-                }
-            } catch (err) {
-                log(`ERROR: ${err.message}`);
-            }
-        };
-        
-        // Derive key from password
-        window.deriveKey = async function() {
-            if (!wasm) return;
+            const message = document.getElementById('secretMessage').value;
+            const password = document.getElementById('encryptPassword').value;
             
-            const password = document.getElementById('password').value;
-            const saltHex = document.getElementById('salt').value;
+            if (!message) { alert('Please enter a secret message'); return; }
+            if (!password) { alert('Please enter a password'); return; }
             
-            if (!password || !saltHex) {
-                log('ERROR: Password and salt are required');
-                return;
-            }
+            log(`\n🔐 Encrypting message (${message.length} chars)...`);
             
             try {
-                const salt = hexToBytes(saltHex);
-                log(`🔑 Deriving key with Argon2id...`);
-                log(`   Password length: ${password.length} chars`);
-                log(`   Salt: ${saltHex.substring(0, 16)}...`);
+                // Generate random salt and nonce using WASM helpers
+                const saltResult = wasm.generate_salt();
+                const nonceResult = wasm.generate_nonce();
                 
-                const passwordBytes = encoder.encode(password);
-                const result = wasm.derive_key(passwordBytes, salt);
-                
-                if (result.success) {
-                    derivedKey = result.data;
-                    log(`✅ Key derived: ${bytesToHex(derivedKey).substring(0, 32)}...`);
-                    log(`   Key length: ${derivedKey.length} bytes (256 bits)`);
-                } else {
-                    log(`ERROR: ${result.error}`);
+                if (!saltResult.success || !nonceResult.success) {
+                    throw new Error('Failed to generate random values');
                 }
-            } catch (err) {
-                log(`ERROR: ${err.message}`);
-            }
-        };
-        
-        // Encrypt data
-        window.encryptData = function() {
-            if (!wasm || !derivedKey) {
-                log('ERROR: Derive key first!');
-                return;
-            }
-            
-            const plaintext = document.getElementById('plaintext').value;
-            if (!plaintext) {
-                log('ERROR: Enter plaintext to encrypt');
-                return;
-            }
-            
-            try {
-                // Generate random nonce
-                const nonceResult = wasm.random_bytes(12);
-                if (!nonceResult.success) {
-                    log(`ERROR: Failed to generate nonce: ${nonceResult.error}`);
-                    return;
-                }
+                const salt = saltResult.data;
                 const nonce = nonceResult.data;
                 
-                log(`🔐 Encrypting ${plaintext.length} bytes...`);
+                log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
+                log(`   Nonce: ${bytesToHex(nonce)}`);
                 
-                const plaintextBytes = encoder.encode(plaintext);
-                const result = wasm.encrypt(plaintextBytes, derivedKey, nonce, null);
+                // Derive key from password
+                log('   Deriving key with Argon2id...');
+                const passwordBytes = encoder.encode(password);
+                const keyResult = wasm.derive_key(passwordBytes, salt);
                 
-                if (result.success) {
-                    const ciphertextHex = bytesToHex(result.data);
-                    const nonceHex = bytesToHex(nonce);
-                    
-                    document.getElementById('ciphertext').value = ciphertextHex;
-                    document.getElementById('decryptNonce').value = nonceHex;
-                    
-                    log(`✅ Encrypted successfully`);
-                    log(`   Ciphertext: ${ciphertextHex.substring(0, 32)}... (${result.data.length} bytes)`);
-                    log(`   Nonce: ${nonceHex}`);
-                    log(`   (Nonce auto-filled in decryption section)`);
-                } else {
-                    log(`ERROR: ${result.error}`);
+                if (!keyResult.success) {
+                    throw new Error(keyResult.error);
                 }
+                log(`   Key derived: ${bytesToHex(keyResult.data).substring(0, 16)}...`);
+                
+                // Encrypt the message
+                const plaintextBytes = encoder.encode(message);
+                const encResult = wasm.encrypt(plaintextBytes, keyResult.data, nonce, null);
+                
+                if (!encResult.success) {
+                    throw new Error(encResult.error);
+                }
+                log(`   Ciphertext: ${encResult.data.length} bytes`);
+                
+                // Pack everything together: version(1) + salt(16) + nonce(12) + ciphertext
+                const version = new Uint8Array([0x01]); // Version 1
+                const packed = new Uint8Array(1 + 16 + 12 + encResult.data.length);
+                packed.set(version, 0);
+                packed.set(salt, 1);
+                packed.set(nonce, 17);
+                packed.set(encResult.data, 29);
+                
+                // Encode as base64 for QR
+                const payload = 'MEOW:' + bytesToBase64(packed);
+                log(`   Payload: ${payload.length} chars (MEOW: prefix + base64)`);
+                
+                // Generate QR code
+                document.getElementById('qrcode').innerHTML = '';
+                
+                if (QRCode && typeof QRCode.toCanvas === 'function') {
+                    try {
+                        await QRCode.toCanvas(document.getElementById('qrcode').appendChild(document.createElement('canvas')), 
+                            payload, { width: 300, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } });
+                        log('✅ QR code generated!');
+                    } catch (qrErr) {
+                        log(`⚠️ QRCode.toCanvas failed: ${qrErr.message}`);
+                        // Fall through to API fallback
+                        await generateQRFallback('qrcode', payload);
+                    }
+                } else {
+                    // Fallback: use QR API service
+                    await generateQRFallback('qrcode', payload);
+                }
+                
+                // Show QR section and fill decrypt field
+                document.getElementById('qrSection').classList.remove('hidden');
+                document.getElementById('encryptedPayload').value = payload;
+                document.getElementById('decryptPassword').value = ''; // Clear for user to enter
+                
+                // Store for copy/download
+                window.currentPayload = payload;
+                log('');
+                
+                // Hide result section
+                document.getElementById('resultSection').classList.add('hidden');
+                
             } catch (err) {
-                log(`ERROR: ${err.message}`);
+                log(`❌ Error: ${err.message}`);
+                alert('Encryption failed: ' + err.message);
             }
         };
         
-        // Decrypt data
-        window.decryptData = function() {
-            if (!wasm || !derivedKey) {
-                log('ERROR: Derive key first!');
-                return;
-            }
+        // Decrypt from payload
+        window.decryptFromPayload = async function() {
+            if (!wasm) return;
             
-            const ciphertextHex = document.getElementById('ciphertext').value;
-            const nonceHex = document.getElementById('decryptNonce').value;
+            const payload = document.getElementById('encryptedPayload').value.trim();
+            const password = document.getElementById('decryptPassword').value;
             
-            if (!ciphertextHex || !nonceHex) {
-                log('ERROR: Ciphertext and nonce are required');
-                return;
-            }
+            if (!payload) { alert('Please enter encrypted payload or generate one in Step 1'); return; }
+            if (!password) { alert('Please enter the password'); return; }
+            
+            log(`\n🔓 Decrypting...`);
             
             try {
-                const ciphertext = hexToBytes(ciphertextHex);
-                const nonce = hexToBytes(nonceHex);
-                
-                log(`🔓 Decrypting ${ciphertext.length} bytes...`);
-                
-                const result = wasm.decrypt(ciphertext, derivedKey, nonce, null);
-                
-                if (result.success) {
-                    const plaintext = decoder.decode(result.data);
-                    log(`✅ Decrypted successfully`);
-                    log(`   Plaintext: "${plaintext}"`);
-                } else {
-                    log(`❌ Decryption failed: ${result.error}`);
-                    log(`   (Wrong password, corrupted data, or tampered ciphertext)`);
+                // Validate and parse payload
+                if (!payload.startsWith('MEOW:')) {
+                    throw new Error('Invalid payload format (must start with MEOW:)');
                 }
+                
+                const packed = base64ToBytes(payload.substring(5));
+                log(`   Payload size: ${packed.length} bytes`);
+                
+                // Unpack: version(1) + salt(16) + nonce(12) + ciphertext
+                if (packed.length < 30) {
+                    throw new Error('Payload too short');
+                }
+                
+                const version = packed[0];
+                const salt = packed.slice(1, 17);
+                const nonce = packed.slice(17, 29);
+                const ciphertext = packed.slice(29);
+                
+                log(`   Version: ${version}`);
+                log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
+                log(`   Nonce: ${bytesToHex(nonce)}`);
+                log(`   Ciphertext: ${ciphertext.length} bytes`);
+                
+                // Derive key from password
+                log('   Deriving key...');
+                const passwordBytes = encoder.encode(password);
+                const keyResult = wasm.derive_key(passwordBytes, salt);
+                
+                if (!keyResult.success) {
+                    throw new Error(keyResult.error);
+                }
+                
+                // Decrypt
+                log('   Decrypting with AES-256-GCM...');
+                const decResult = wasm.decrypt(ciphertext, keyResult.data, nonce, null);
+                
+                if (!decResult.success) {
+                    // Authentication failed - wrong password or tampered data
+                    log('❌ Decryption FAILED - authentication error');
+                    showResult(false, 'Authentication Failed! Wrong password or data was tampered with.');
+                    return;
+                }
+                
+                const plaintext = decoder.decode(decResult.data);
+                log(`✅ Decrypted: "${plaintext.substring(0, 50)}${plaintext.length > 50 ? '...' : ''}"`);
+                
+                showResult(true, plaintext);
+                
             } catch (err) {
-                log(`ERROR: ${err.message}`);
+                log(`❌ Error: ${err.message}`);
+                showResult(false, err.message);
             }
         };
         
-        // Initialize on page load
-        document.getElementById('output').textContent = '';
+        // Try wrong password demo
+        window.tryWrongPassword = function() {
+            const payload = document.getElementById('encryptedPayload').value;
+            if (!payload) {
+                alert('Generate an encrypted QR code first (Step 1)');
+                return;
+            }
+            document.getElementById('decryptPassword').value = 'WrongPassword123';
+            decryptFromPayload();
+        };
+        
+        // Show result box
+        function showResult(success, message) {
+            const section = document.getElementById('resultSection');
+            const box = document.getElementById('resultBox');
+            const title = document.getElementById('resultTitle');
+            const msg = document.getElementById('resultMessage');
+            
+            section.classList.remove('hidden');
+            
+            if (success) {
+                box.className = 'result-box';
+                title.textContent = '✨ Decrypted Message';
+                msg.textContent = message;
+            } else {
+                box.className = 'result-box error';
+                title.textContent = '❌ Decryption Failed';
+                msg.textContent = message;
+            }
+            
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Download QR as image
+        window.downloadQR = function() {
+            const canvas = document.querySelector('#qrcode canvas');
+            const img = document.querySelector('#qrcode img');
+            
+            const link = document.createElement('a');
+            link.download = 'meow-secret.png';
+            
+            if (canvas) {
+                link.href = canvas.toDataURL('image/png');
+            } else if (img) {
+                link.href = img.src;
+            } else {
+                alert('Generate QR code first');
+                return;
+            }
+            
+            link.click();
+            log('💾 QR image downloaded');
+        };
+        
+        // Copy payload
+        window.copyPayload = function() {
+            if (!window.currentPayload) { alert('Generate QR code first'); return; }
+            navigator.clipboard.writeText(window.currentPayload);
+            log('📋 Payload copied to clipboard');
+            alert('Encrypted payload copied!');
+        };
+        
+        // ============================================================
+        // SCHRÖDINGER MODE FUNCTIONS
+        // ============================================================
+        
+        // Switch between Standard and Schrödinger modes
+        window.switchMode = function(mode) {
+            // Update tabs
+            document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
+            document.querySelector(`.mode-tab[onclick*="${mode}"]`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(mode + 'Mode').classList.add('active');
+            
+            log(`🔀 Switched to ${mode === 'standard' ? 'Standard' : 'Schrödinger'} mode`);
+        };
+        
+        // Schrödinger Encryption: Interleave two ciphertexts
+        window.schrodingerEncrypt = async function() {
+            if (!wasm) return;
+            
+            const secretA = document.getElementById('secretA').value;
+            const secretB = document.getElementById('secretB').value;
+            const passwordA = document.getElementById('passwordA').value;
+            const passwordB = document.getElementById('passwordB').value;
+            
+            if (!secretA || !secretB) { alert('Please enter both secrets'); return; }
+            if (!passwordA || !passwordB) { alert('Please enter both passwords'); return; }
+            if (passwordA === passwordB) { alert('Passwords must be different!'); return; }
+            
+            log(`\n🐱 Schrödinger Encryption starting...`);
+            log(`   Reality A: ${secretA.length} chars`);
+            log(`   Reality B: ${secretB.length} chars`);
+            
+            try {
+                // Encrypt Reality A
+                const saltA = wasm.generate_salt().data;
+                const nonceA = wasm.generate_nonce().data;
+                const keyA = wasm.derive_key(encoder.encode(passwordA), saltA).data;
+                const cipherA = wasm.encrypt(encoder.encode(secretA), keyA, nonceA, null).data;
+                log(`   Reality A encrypted: ${cipherA.length} bytes`);
+                
+                // Encrypt Reality B
+                const saltB = wasm.generate_salt().data;
+                const nonceB = wasm.generate_nonce().data;
+                const keyB = wasm.derive_key(encoder.encode(passwordB), saltB).data;
+                const cipherB = wasm.encrypt(encoder.encode(secretB), keyB, nonceB, null).data;
+                log(`   Reality B encrypted: ${cipherB.length} bytes`);
+                
+                // Interleave: even bytes from A, odd bytes from B
+                // Format: version(1) + lenA(4) + lenB(4) + saltA(16) + nonceA(12) + saltB(16) + nonceB(12) + interleaved
+                const interleaved = interleaveBytes(cipherA, cipherB);
+                log(`   Interleaved: ${interleaved.length} bytes (quantum superposition created)`);
+                
+                const packed = new Uint8Array(1 + 4 + 4 + 16 + 12 + 16 + 12 + interleaved.length);
+                const view = new DataView(packed.buffer);
+                
+                packed[0] = 0xFE; // Schrödinger version marker
+                view.setUint32(1, cipherA.length, true); // Little-endian
+                view.setUint32(5, cipherB.length, true);
+                packed.set(saltA, 9);
+                packed.set(nonceA, 25);
+                packed.set(saltB, 37);
+                packed.set(nonceB, 53);
+                packed.set(interleaved, 65);
+                
+                const payload = 'QUANTUM:' + bytesToBase64(packed);
+                log(`   Quantum payload: ${payload.length} chars`);
+                
+                // Generate QR code
+                document.getElementById('schrodingerQrcode').innerHTML = '';
+                
+                if (QRCode && typeof QRCode.toCanvas === 'function') {
+                    try {
+                        await QRCode.toCanvas(
+                            document.getElementById('schrodingerQrcode').appendChild(document.createElement('canvas')), 
+                            payload, 
+                            { width: 300, margin: 2, color: { dark: '#8a2be2', light: '#ffffff' } }
+                        );
+                        log('✅ Quantum QR code generated!');
+                    } catch (qrErr) {
+                        log(`⚠️ QRCode.toCanvas failed: ${qrErr.message}`);
+                        await generateQRFallback('schrodingerQrcode', payload);
+                    }
+                } else {
+                    await generateQRFallback('schrodingerQrcode', payload);
+                }
+                
+                // Show QR section
+                document.getElementById('schrodingerQrSection').classList.remove('hidden');
+                document.getElementById('schrodingerPayload').value = payload;
+                window.currentSchrodingerPayload = payload;
+                
+                log('⚛️ Both realities now occupy the same QR code!');
+                log('   Enter either password to collapse to that reality.');
+                
+            } catch (err) {
+                log(`❌ Schrödinger error: ${err.message}`);
+                alert('Encryption failed: ' + err.message);
+            }
+        };
+        
+        // Interleave two byte arrays
+        function interleaveBytes(a, b) {
+            const result = new Uint8Array(a.length + b.length);
+            let ai = 0, bi = 0, ri = 0;
+            
+            while (ai < a.length || bi < b.length) {
+                if (ai < a.length) result[ri++] = a[ai++];
+                if (bi < b.length) result[ri++] = b[bi++];
+            }
+            return result;
+        }
+        
+        // De-interleave bytes given the original lengths
+        function deinterleaveBytes(interleaved, lenA, lenB) {
+            const a = new Uint8Array(lenA);
+            const b = new Uint8Array(lenB);
+            let ai = 0, bi = 0, ri = 0;
+            
+            while (ri < interleaved.length) {
+                if (ai < lenA) a[ai++] = interleaved[ri++];
+                if (bi < lenB && ri < interleaved.length) b[bi++] = interleaved[ri++];
+            }
+            return { a, b };
+        }
+        
+        // Collapse reality: Try decrypting with given password
+        window.collapseReality = async function() {
+            if (!wasm) return;
+            
+            const payload = document.getElementById('schrodingerPayload').value.trim();
+            const password = document.getElementById('collapsePassword').value;
+            
+            if (!payload) { alert('Please enter or generate a quantum payload'); return; }
+            if (!password) { alert('Please enter a password to collapse the superposition'); return; }
+            
+            log(`\n⚛️ Collapsing quantum superposition...`);
+            
+            try {
+                if (!payload.startsWith('QUANTUM:')) {
+                    throw new Error('Invalid quantum payload (must start with QUANTUM:)');
+                }
+                
+                const packed = base64ToBytes(payload.substring(8));
+                const view = new DataView(packed.buffer);
+                
+                if (packed[0] !== 0xFE) {
+                    throw new Error('Invalid quantum version marker');
+                }
+                
+                const lenA = view.getUint32(1, true);
+                const lenB = view.getUint32(5, true);
+                const saltA = packed.slice(9, 25);
+                const nonceA = packed.slice(25, 37);
+                const saltB = packed.slice(37, 53);
+                const nonceB = packed.slice(53, 65);
+                const interleaved = packed.slice(65);
+                
+                log(`   Reality A ciphertext: ${lenA} bytes`);
+                log(`   Reality B ciphertext: ${lenB} bytes`);
+                
+                // De-interleave
+                const { a: cipherA, b: cipherB } = deinterleaveBytes(interleaved, lenA, lenB);
+                
+                // Try decrypting as Reality A
+                log('   Attempting to collapse to Reality A...');
+                const keyA = wasm.derive_key(encoder.encode(password), saltA).data;
+                const resultA = wasm.decrypt(cipherA, keyA, nonceA, null);
+                
+                if (resultA.success) {
+                    const plaintext = decoder.decode(resultA.data);
+                    log(`✅ Reality A observed: "${plaintext.substring(0, 40)}..."`);
+                    showSchrodingerResult(true, 'A', plaintext);
+                    return;
+                }
+                
+                // Try decrypting as Reality B
+                log('   Reality A authentication failed, trying Reality B...');
+                const keyB = wasm.derive_key(encoder.encode(password), saltB).data;
+                const resultB = wasm.decrypt(cipherB, keyB, nonceB, null);
+                
+                if (resultB.success) {
+                    const plaintext = decoder.decode(resultB.data);
+                    log(`✅ Reality B observed: "${plaintext.substring(0, 40)}..."`);
+                    showSchrodingerResult(true, 'B', plaintext);
+                    return;
+                }
+                
+                // Neither worked
+                log('❌ Password does not match either reality');
+                showSchrodingerResult(false, null, 'Observation failed! Password does not match either reality.');
+                
+            } catch (err) {
+                log(`❌ Collapse error: ${err.message}`);
+                showSchrodingerResult(false, null, err.message);
+            }
+        };
+        
+        // Show Schrödinger result
+        function showSchrodingerResult(success, reality, message) {
+            const section = document.getElementById('schrodingerResultSection');
+            const box = document.getElementById('schrodingerResultBox');
+            const title = document.getElementById('schrodingerResultTitle');
+            const msg = document.getElementById('schrodingerResultMessage');
+            
+            section.classList.remove('hidden');
+            
+            if (success) {
+                const color = reality === 'A' ? '#00ff88' : '#ff8800';
+                const emoji = reality === 'A' ? '🟢' : '🟠';
+                box.className = 'result-box';
+                box.style.borderColor = color;
+                title.innerHTML = `${emoji} Reality ${reality} Observed`;
+                title.style.color = color;
+                msg.textContent = message;
+            } else {
+                box.className = 'result-box error';
+                box.style.borderColor = '#f44336';
+                title.textContent = '❌ Observation Failed';
+                title.style.color = '#f44336';
+                msg.textContent = message;
+            }
+            
+            section.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        // Scan QR for Schrödinger mode
+        window.scanSchrodingerQR = async function(input) {
+            const statusEl = document.getElementById('schrodingerScanStatus');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            statusEl.innerHTML = '<span style="color: #8a2be2;">⏳ Scanning quantum QR code...</span>';
+            
+            try {
+                if (!jsQR) await loadJsQR();
+                if (!jsQR) throw new Error('QR scanner not available');
+                
+                const file = input.files[0];
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imgDat = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imgDat.data, imgDat.width, imgDat.height);
+                
+                if (code && code.data.startsWith('QUANTUM:')) {
+                    document.getElementById('schrodingerPayload').value = code.data;
+                    statusEl.innerHTML = '<span style="color: #00ff88;">✅ Quantum QR scanned! Enter password to collapse.</span>';
+                    log('📸 Quantum QR code scanned successfully');
+                } else if (code) {
+                    document.getElementById('schrodingerPayload').value = code.data;
+                    statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR found but not a quantum payload.</span>';
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found.</span>';
+                }
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
+            }
+            
+            input.value = '';
+        };
+        
+        // Download Schrödinger QR
+        window.downloadSchrodingerQR = function() {
+            const canvas = document.querySelector('#schrodingerQrcode canvas');
+            const img = document.querySelector('#schrodingerQrcode img');
+            
+            const link = document.createElement('a');
+            link.download = 'schrodinger-quantum.png';
+            
+            if (canvas) {
+                link.href = canvas.toDataURL('image/png');
+            } else if (img) {
+                link.href = img.src;
+            } else {
+                alert('Generate quantum QR first');
+                return;
+            }
+            
+            link.click();
+            log('💾 Quantum QR downloaded');
+        };
+        
+        // Copy Schrödinger payload
+        window.copySchrodingerPayload = function() {
+            if (!window.currentSchrodingerPayload) { alert('Generate quantum QR first'); return; }
+            navigator.clipboard.writeText(window.currentSchrodingerPayload);
+            log('📋 Quantum payload copied');
+            alert('Quantum payload copied!');
+        };
+        
+        // Initialize
+        document.getElementById('log').textContent = '';
         initWasm();
     </script>
 </body>

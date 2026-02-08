@@ -125,6 +125,13 @@ ctap-hid-fido2 = { version = "3.5", optional = true }
 # WASM bindings
 wasm-bindgen = { version = "0.2", optional = true }
 
+# JS interop for WASM
+js-sys = { version = "0.3", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+
+# Compression for WASM (optional)
+flate2 = { version = "1.0", optional = true }
+
 # WASM-compatible getrandom
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.2", features = ["js"] }
@@ -207,7 +214,7 @@ hardware-full = ["hsm", "yubikey", "tpm"]
 # ============================================
 
 # WebAssembly compilation target
-wasm = ["wasm-bindgen", "pure-crypto"]
+wasm = ["wasm-bindgen", "js-sys", "wasm-bindgen-futures", "flate2", "pure-crypto"]
 
 # ============================================
 # Meta Features
