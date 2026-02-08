@@ -41,6 +41,7 @@ def _install_fake_dpg():
     dpg.group = lambda **kwargs: _Ctx()
     dpg.theme = lambda **kwargs: _Ctx()
     dpg.theme_component = lambda *args, **kwargs: _Ctx()
+    dpg.texture_registry = lambda **kwargs: _Ctx()
 
     dpg.add_text = lambda *args, **kwargs: None
     dpg.add_separator = lambda *args, **kwargs: None
@@ -54,8 +55,12 @@ def _install_fake_dpg():
     dpg.add_combo = lambda *args, **kwargs: None
     dpg.add_loading_indicator = lambda *args, **kwargs: None
     dpg.add_image = lambda *args, **kwargs: None
+    dpg.add_raw_texture = lambda *args, **kwargs: None
     dpg.add_theme_color = lambda *args, **kwargs: None
     dpg.add_theme_style = lambda *args, **kwargs: None
+
+    # Texture formats
+    dpg.mvFormat_Float_rgba = 0
 
     dpg.set_value = lambda tag, value: values.__setitem__(tag, value)
     dpg.get_value = lambda tag: values.get(tag)
