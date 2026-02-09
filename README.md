@@ -855,3 +855,11 @@ MIT License — see [LICENSE](LICENSE)
   <a href="SECURITY.md">Catnip Bounty Program</a> ·
   <a href="SUPPORT.md">Cat Help Desk</a>
 </p>
+
+---
+
+<p align="center">
+  <em>Soli Deo Gloria</em>
+  <br>
+  This project is dedicated to God. May He receive all the glory.
+</p>
