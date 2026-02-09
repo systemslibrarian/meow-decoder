@@ -86,7 +86,7 @@
   "postCreateCommand": "pip install -e '.[dev]' && echo '✅ Python dependencies installed'",
   
   // Run after container starts (show welcome message)
-  "postStartCommand": "echo '' && echo '🐱 Welcome to Meow Decoder!' && echo '' && echo '📦 To build WASM module: make build-wasm' && echo '🌐 To run WASM demo:     python3 -m http.server 8080' && echo '                        Then forward port 8080 in the Ports tab' && echo '                        Navigate to /examples/wasm_browser_example.html' && echo '' && echo '🧪 To run tests:        make test' && echo ''",
+  "postStartCommand": "echo '' && echo '🐱 Welcome to Meow Decoder!' && echo '' && echo '🌐 To run WASM demo:  make wasm-demo' && echo '                      Then forward port 8080 in the Ports tab' && echo '                      Navigate to /examples/wasm_browser_example.html' && echo '' && echo '🧪 To run tests:      make test' && echo ''",
 
   // ============================================================
   // CONTAINER OPTIONS

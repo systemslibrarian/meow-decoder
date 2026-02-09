@@ -21,6 +21,7 @@ help:
 	@echo "  make build-rust        - Build Rust crypto_core"
 	@echo "  make build-wasm        - Build WASM bindings"
 	@echo "  make build-wasm-release - Build optimized WASM for production"
+	@echo "  make wasm-demo         - Build WASM + start browser demo server"
 	@echo "  make prepare-deploy    - Prepare WASM demo for hosting"
 	@echo ""
 	@echo "🔒 Security:"
@@ -176,6 +177,19 @@ build-wasm-node:
 	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
 	cd crypto_core && wasm-pack build --target nodejs --release --features wasm
 	@echo "✅ WASM Node.js build complete in crypto_core/pkg/"
+
+# 🌐 WASM demo - Build and start HTTP server
+wasm-demo: build-wasm
+	@echo ""
+	@echo "🐱 Starting WASM Demo Server..."
+	@echo ""
+	@echo "📍 Open in browser: http://localhost:8080/examples/wasm_browser_example.html"
+	@echo ""
+	@echo "💡 In Codespaces: Forward port 8080 in the Ports tab, then open the URL"
+	@echo ""
+	@echo "Press Ctrl+C to stop the server"
+	@echo ""
+	python3 -m http.server 8080
 
 # 📦 Prepare WASM demo for deployment (PythonAnywhere, etc.)
 prepare-deploy:

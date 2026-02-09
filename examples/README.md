@@ -66,6 +66,13 @@ This compiles the Rust crypto core to WebAssembly. The output is cached in `cryp
 
 #### Running the Demo
 
+**Quick Start (recommended):**
+```bash
+make wasm-demo
+```
+This builds WASM (if needed) and starts the server. Open http://localhost:8080/examples/wasm_browser_example.html
+
+**Manual steps:**
 1. **Start a local HTTP server** (from project root):
    ```bash
    python3 -m http.server 8080
