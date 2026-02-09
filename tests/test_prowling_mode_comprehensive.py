@@ -23,7 +23,14 @@ from meow_decoder.prowling_mode import (
 @pytest.fixture
 def prowling_config(tmp_path):
     """Default prowling config with temp file."""
-    return ProwlingConfig(temp_file=tmp_path / "blocks.meow", max_ram_mb=50, block_size=8)
+    # Note: warn_threshold_mb should be less than max_ram_mb for the warning to trigger
+    # before hitting the hard limit
+    return ProwlingConfig(
+        temp_file=tmp_path / "blocks.meow",
+        max_ram_mb=200,  # Hard limit
+        block_size=8,
+        warn_threshold_mb=150,  # Warn when approaching limit
+    )
 
 
 @pytest.fixture
@@ -77,41 +84,36 @@ class TestMemoryProwler:
 
     def test_get_current_ram_handles_psutil_errors(self, monkeypatch, prowling_config):
         import meow_decoder.prowling_mode as pm
-
-        class _AccessDenied(Exception):
-            pass
-
-        access_denied = getattr(getattr(pm, "psutil", None), "AccessDenied", _AccessDenied)
+        
+        # Skip if psutil not available
+        if not pm.HAS_PSUTIL:
+            pytest.skip("psutil not available")
+        
+        import psutil as real_psutil
 
         class DummyProcess:
             def memory_info(self):
-                raise access_denied()
+                raise real_psutil.AccessDenied(pid=1, name="test")
 
-        monkeypatch.setattr(pm, "HAS_PSUTIL", True)
-        monkeypatch.setattr(
-            pm,
-            "psutil",
-            type("P", (), {"Process": lambda: DummyProcess(), "AccessDenied": access_denied}),
-        )
+        # Patch psutil.Process at the module level where it's used
+        monkeypatch.setattr(real_psutil, "Process", lambda: DummyProcess())
         prowler = MemoryProwler(prowling_config)
         assert prowler.get_current_ram_mb() is None
 
     def test_get_available_ram_handles_psutil_errors(self, monkeypatch, prowling_config):
         import meow_decoder.prowling_mode as pm
 
-        class _Error(Exception):
-            pass
+        # Skip if psutil not available
+        if not pm.HAS_PSUTIL:
+            pytest.skip("psutil not available")
 
-        error_type = getattr(getattr(pm, "psutil", None), "Error", _Error)
+        import psutil as real_psutil
 
-        class DummyPsutil:
-            Error = error_type
+        class DummyVirtualMemory:
+            def __init__(self):
+                raise real_psutil.Error("test error")
 
-            def virtual_memory(self):
-                raise error_type()
-
-        monkeypatch.setattr(pm, "HAS_PSUTIL", True)
-        monkeypatch.setattr(pm, "psutil", DummyPsutil())
+        monkeypatch.setattr(real_psutil, "virtual_memory", DummyVirtualMemory)
         prowler = MemoryProwler(prowling_config)
         assert prowler.get_available_ram_mb() is None
 
@@ -196,13 +198,18 @@ class TestDiskBasedKibbleCollector:
         assert not collector.temp_file.exists()
 
     def test_get_reconstructed_data_handles_cleanup_errors(self, collector, monkeypatch):
+        from unittest.mock import patch
+        
         collector.write_post_to_disk(0, b"A" * 8)
         collector.write_post_to_disk(1, b"B" * 8)
         collector.write_post_to_disk(2, b"C" * 8)
-        monkeypatch.setattr(
-            collector.temp_file, "unlink", lambda: (_ for _ in ()).throw(OSError("fail"))
-        )
-        data = collector.get_reconstructed_data(original_length=24)
+        
+        # Mock Path.unlink at the class level to raise OSError
+        def fake_unlink(self, *args, **kwargs):
+            raise OSError("fail")
+        
+        with patch.object(Path, "unlink", fake_unlink):
+            data = collector.get_reconstructed_data(original_length=24)
         assert data.startswith(b"A" * 8)
 
     def test_get_stats_fields(self, collector, monkeypatch):

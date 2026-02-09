@@ -83,25 +83,26 @@ coverage:
     - "assets/*"
     - "formal/*"
     - "mobile/*"
-    - "crypto_core/*"  # Rust side has separate coverage
+    - "crypto_core/*"
+    - "rust_crypto/*"
     - "*.md"
     - ".github/*"
-    - "meow_decoder/*_DEBUG.py"  # Debug modules
-    - "meow_decoder/gui_*.py"  # GUI modules (Tier 3)
-    - "meow_decoder/meow_dashboard*.py"  # Dashboard (Tier 3)
-    - "meow_decoder/hardware_*.py"  # Hardware (Tier 3)
-    - "meow_decoder/pq_*.py"  # Post-quantum (experimental)
-    - "meow_decoder/prowling_mode.py"  # Experimental
-    - "meow_decoder/clowder_*.py"  # Multi-device (Tier 3)
-    - "meow_decoder/bidirectional.py"  # Tier 3
-    - "meow_decoder/webcam_*.py"  # Webcam (Tier 3)
-    - "meow_decoder/logo_eyes.py"  # Cosmetic (Tier 3)
-    - "meow_decoder/ascii_qr.py"  # Cosmetic
-    - "meow_decoder/ninja_cat_ultra.py"  # Tier 3
-    - "meow_decoder/deadmans_switch_cli.py"  # Tier 3
-    - "meow_decoder/profiling_improved.py"  # Profiling
-    - "meow_decoder/meow_encode.py"  # Alternative encoder
-    - "meow_decoder/setup.py"  # Installation
+    - "meow_decoder/*_DEBUG.py"
+    - "meow_decoder/gui_*.py"
+    - "meow_decoder/meow_dashboard*.py"
+    - "meow_decoder/hardware_*.py"
+    - "meow_decoder/pq_*.py"
+    - "meow_decoder/prowling_mode.py"
+    - "meow_decoder/clowder_*.py"
+    - "meow_decoder/bidirectional.py"
+    - "meow_decoder/webcam_*.py"
+    - "meow_decoder/logo_eyes.py"
+    - "meow_decoder/ascii_qr.py"
+    - "meow_decoder/ninja_cat_ultra.py"
+    - "meow_decoder/deadmans_switch_cli.py"
+    - "meow_decoder/profiling_improved.py"
+    - "meow_decoder/meow_encode.py"
+    - "meow_decoder/setup.py"
 
 comment:
   layout: "reach,diff,flags,tree,footer"

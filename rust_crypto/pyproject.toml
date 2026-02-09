@@ -7,12 +7,12 @@ name = "meow_crypto_rs"
 version = "0.1.0"
 description = "Rust crypto backend for Meow Decoder - constant-time, side-channel resistant"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "CC-BY-NC-SA-4.0"}
 requires-python = ">=3.10"
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",

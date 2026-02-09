@@ -522,6 +522,7 @@ class TestFuzzFountain:
 class TestAflFuzzManifest:
     """Tests for AFL++ manifest fuzzing harness."""
 
+    @pytest.mark.skipif(afl_fuzz_manifest.afl is not None, reason="afl module is installed")
     def test_requires_afl(self):
         """Main should fail without afl module."""
         with pytest.raises(RuntimeError, match="afl is required"):
@@ -531,6 +532,7 @@ class TestAflFuzzManifest:
         """Verify module imports correctly."""
         assert hasattr(afl_fuzz_manifest, "unpack_manifest")
 
+    @pytest.mark.skipif(afl_fuzz_manifest.afl is not None, reason="afl module is installed")
     def test_afl_none_when_not_installed(self):
         """afl module should be None when not installed."""
         assert afl_fuzz_manifest.afl is None
@@ -1237,6 +1239,7 @@ class TestFuzzMockedExceptions:
 class TestAtherisInstrumentation:
     """Tests for atheris instrumentation paths using module reload."""
 
+    @pytest.mark.skipif(fuzz_crypto.atheris is not None, reason="atheris module is installed")
     def test_fuzz_modules_load_without_atheris(self):
         """Verify fuzz modules work when atheris is None."""
         # Already tested implicitly, but be explicit

@@ -358,5 +358,5 @@ All verification must pass before merging security-critical changes.
 
 ## License
 
-MIT License - See LICENSE file
+CC BY-NC-SA 4.0 - See [LICENSE](../LICENSE) file
 
