@@ -194,31 +194,34 @@
         .mode-tabs {
             display: flex;
             justify-content: center;
-            gap: 10px;
-            margin: 20px 0;
+            gap: 0;
+            margin: 20px 0 0 0;
         }
         .mode-tab {
-            padding: 15px 30px;
+            padding: 12px 24px;
             background: rgba(255,255,255,0.05);
-            border: 2px solid #333;
-            border-radius: 10px;
+            border: 1px solid #444;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
             cursor: pointer;
             color: #888;
-            transition: all 0.3s;
-            text-align: center;
+            transition: all 0.2s;
+            font-weight: 500;
+            font-size: 0.95em;
+            margin-right: -1px;
         }
-        .mode-tab:hover { border-color: #00ccff; color: #00ccff; }
+        .mode-tab:hover { background: rgba(255,255,255,0.1); color: #00ccff; }
         .mode-tab.active { 
-            background: rgba(0,255,136,0.1); 
-            border-color: #00ff88; 
-            color: #00ff88;
+            background: rgba(0,204,255,0.15); 
+            border-color: #00ccff;
+            border-bottom: 1px solid transparent;
+            color: #00ccff;
+            position: relative;
+            z-index: 1;
         }
-        .mode-tab .icon { font-size: 1.5em; display: block; margin-bottom: 5px; }
-        .mode-tab .label { font-weight: bold; }
-        .mode-tab .desc { font-size: 0.75em; color: #666; margin-top: 3px; }
         
-        .mode-content { display: none; }
-        .mode-content.active { display: block; }
+        .mode-content { display: none !important; visibility: hidden; }
+        .mode-content.active { display: block !important; visibility: visible; }
         
         .schrodinger-box {
             background: linear-gradient(135deg, rgba(138,43,226,0.1) 0%, rgba(0,204,255,0.1) 100%);
@@ -257,17 +260,67 @@
 
     <!-- MODE SELECTION -->
     <div class="mode-tabs">
-        <div class="mode-tab active" onclick="switchMode('standard')">
-            <span class="icon">🔐</span>
-            <span class="label">Standard Mode</span>
-            <span class="desc">One secret, one password</span>
-        </div>
-        <div class="mode-tab" onclick="switchMode('schrodinger')">
-            <span class="icon">🐱</span>
-            <span class="label">Schrödinger Mode</span>
-            <span class="desc">Two secrets, two passwords</span>
-        </div>
+        <div class="mode-tab active" onclick="switchMode('standard')">🔐 Standard</div>
+        <div class="mode-tab" onclick="switchMode('schrodinger')">🐱 Schrödinger</div>
+        <div class="mode-tab" onclick="switchMode('stego')">🖼️ Stego</div>
+        <div class="mode-tab" onclick="switchMode('cat')">😺 Cat Mode</div>
     </div>
+        <!-- CAT MODE -->
+        <div id="catMode" class="mode-content">
+            <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+                <span class="step-number" style="background: #00ccff;">1</span>
+                <h2>😺 Cat Mode: Optical Data Transmission</h2>
+                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! The blink pattern encodes your secret in binary.</p>
+                <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
+                    <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                    <div style="flex:1; min-width:260px;">
+                        <label for="catMessage">🔒 Secret Message:</label>
+                        <textarea id="catMessage" rows="2" placeholder="Type message to transmit..." style="margin-bottom: 10px;">Hello Cat! 🐱</textarea>
+                        
+                        <label for="catPassword">🔑 Password:</label>
+                        <input type="password" id="catPassword" placeholder="Encryption password" value="CatBlink123" style="margin-bottom: 5px;">
+                        <div style="margin-bottom: 15px;">
+                            <input type="checkbox" id="showCatPassword" onchange="togglePassword('catPassword', this.checked)">
+                            <label for="showCatPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+                        </div>
+                        
+                        <label for="catBlinkSpeed">⚡ Blink Speed:</label>
+                        <select id="catBlinkSpeed" style="margin-bottom: 15px;">
+                            <option value="500">Slow (500ms)</option>
+                            <option value="200" selected>Medium (200ms)</option>
+                            <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
+                        </select>
+                        
+                        <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
+                        <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
+                        
+                        <div id="catProgress" style="margin-top: 15px; display: none;">
+                            <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
+                                <div id="catProgressBar" style="background: linear-gradient(90deg, #00ff88, #00ccff); height: 100%; width: 0%; transition: width 0.1s;"></div>
+                            </div>
+                            <p id="catProgressText" style="color: #888; font-size: 0.85em; margin-top: 5px;">Transmitting...</p>
+                        </div>
+                    </div>
+                </div>
+                <div id="catModeResult"></div>
+            </div>
+            
+            <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+                <span class="step-number" style="background: #00ccff;">2</span>
+                <h2>👁️ Watch & Decode</h2>
+                <p class="step-desc">Record the blinking pattern with your camera, then decode it here. Or paste the binary pattern directly.</p>
+                
+                <label for="catBinaryInput">📟 Binary Pattern (from recording):</label>
+                <textarea id="catBinaryInput" rows="2" placeholder="Paste binary like: 01001000 01100101 01101100..." style="margin-bottom: 10px;"></textarea>
+                
+                <label for="catDecodePassword">🔑 Password:</label>
+                <input type="password" id="catDecodePassword" placeholder="Same password used to encode" style="margin-bottom: 10px;">
+                
+                <button id="catDecodeBtn" onclick="catModeDecode()">🔍 Decode Binary</button>
+                <div id="catDecodeResult" class="result-box hidden" style="margin-top: 15px;"></div>
+            </div>
+        </div>
 
     <!-- STANDARD MODE -->
     <div id="standardMode" class="mode-content active">
@@ -446,6 +499,57 @@
     
     </div><!-- End Schrödinger Mode -->
 
+    <!-- STEGO MODE -->
+    <div id="stegoMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+            <span class="step-number" style="background: #00ccff;">1</span>
+            <h2>🖼️ LSB Steganography</h2>
+            <p class="step-desc">Hide your encrypted secret <strong>invisibly</strong> in the pixels of any image using LSB (Least Significant Bit) encoding. The output looks <em>identical</em> to the original!</p>
+
+            <label for="stegoCover">Choose Cover Image (PNG recommended):</label>
+            <input type="file" id="stegoCover" accept="image/png,image/jpeg" style="margin-bottom: 10px;">
+            <div id="stegoCoverPreview" style="margin: 10px 0;"></div>
+
+            <label for="stegoSecret">🔒 Secret Message:</label>
+            <textarea id="stegoSecret" rows="2" placeholder="Type your secret to hide...">This is a hidden message in a cat photo! 🐾</textarea>
+
+            <label for="stegoPassword">🔑 Password:</label>
+            <input type="password" id="stegoPassword" placeholder="Password to protect secret" value="CatStego123">
+
+            <div style="margin-top: 5px;">
+                <input type="checkbox" id="showStegoPassword" onchange="togglePassword('stegoPassword', this.checked)">
+                <label for="showStegoPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+            </div>
+
+            <button id="stegoEncodeBtn" disabled onclick="stegoEncode()">🖼️ Hide Secret in Image (LSB)</button>
+        </div>
+
+        <div id="stegoOutputSection" class="step hidden" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+            <span class="step-number" style="background: #00ccff;">2</span>
+            <h2>🖼️ Stego Image (Invisible!)</h2>
+            <p class="step-desc">This image looks identical to the original but contains your encrypted secret hidden in the pixel LSBs.</p>
+            <div id="stegoImageContainer" style="text-align: center;"></div>
+            <div style="text-align: center;">
+                <button class="secondary copy-btn" onclick="downloadStegoImage()">💾 Save Stego Image (PNG)</button>
+            </div>
+        </div>
+
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+            <span class="step-number" style="background: #00ccff;">3</span>
+            <h2>🔍 Extract Hidden Secret</h2>
+            <p class="step-desc">Upload a stego image (must be PNG - JPEG compression destroys LSB data) and enter the password.</p>
+            <input type="file" id="stegoDecodeInput" accept="image/png" style="margin-bottom: 10px;">
+            <label for="stegoDecodePassword">🔑 Password:</label>
+            <input type="password" id="stegoDecodePassword" placeholder="Password to extract secret">
+            <div style="margin-top: 5px;">
+                <input type="checkbox" id="showStegoDecodePassword" onchange="togglePassword('stegoDecodePassword', this.checked)">
+                <label for="showStegoDecodePassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+            </div>
+            <button id="stegoDecodeBtn" disabled onclick="stegoDecode()">🔍 Extract Secret</button>
+            <div id="stegoDecodeResult" class="result-box hidden" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
     <!-- LOG -->
     <details style="margin-top: 30px;">
         <summary style="cursor: pointer; color: #00ccff;">🔧 Technical Log (click to expand)</summary>
@@ -607,6 +711,12 @@
         const encoder = new TextEncoder();
         const decoder = new TextDecoder();
         
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
         function bytesToHex(bytes) {
             return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
         }
@@ -705,6 +815,7 @@
                 wasm = wasmModule;
                 
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
+                enableStegoButtons();
                 
                 statusEl.className = 'status ready';
                 statusEl.textContent = '✅ WASM crypto loaded — Ready to encrypt!';
@@ -943,20 +1054,551 @@
         };
         
         // ============================================================
+        // STEGO MODE FUNCTIONS
+        // ============================================================
+        
+        // Enable stego buttons (works even without WASM for demo mode)
+        function enableStegoButtons() {
+            document.getElementById('stegoEncodeBtn').disabled = false;
+            document.getElementById('stegoDecodeBtn').disabled = false;
+        }
+        
+        // Enable stego buttons immediately for demo mode
+        enableStegoButtons();
+
+        // Show cover image preview
+        document.getElementById('stegoCover').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            const preview = document.getElementById('stegoCoverPreview');
+            if (!file) { preview.innerHTML = ''; return; }
+            const reader = new FileReader();
+            reader.onload = function(ev) {
+                preview.innerHTML = `<img src="${ev.target.result}" style="max-width: 220px; border-radius: 8px; box-shadow: 0 2px 8px #0003;">`;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // LSB Steganography helper functions
+        function embedLSB(imageData, message) {
+            // Prepend message length (4 bytes) + message
+            const msgBytes = encoder.encode(message);
+            const lenBytes = new Uint8Array(4);
+            new DataView(lenBytes.buffer).setUint32(0, msgBytes.length, false);
+            const fullData = new Uint8Array(4 + msgBytes.length);
+            fullData.set(lenBytes, 0);
+            fullData.set(msgBytes, 4);
+            
+            const data = imageData.data;
+            const maxBytes = Math.floor(data.length / 8); // 1 bit per channel, 8 channels per byte
+            
+            if (fullData.length > maxBytes) {
+                throw new Error(`Message too long! Max ${maxBytes} bytes, got ${fullData.length}`);
+            }
+            
+            let bitIndex = 0;
+            for (let i = 0; i < fullData.length; i++) {
+                for (let bit = 7; bit >= 0; bit--) {
+                    const pixelIndex = bitIndex;
+                    // Skip alpha channel (every 4th value)
+                    const channelIndex = pixelIndex + Math.floor(pixelIndex / 3);
+                    if (channelIndex >= data.length) break;
+                    
+                    const bitValue = (fullData[i] >> bit) & 1;
+                    data[channelIndex] = (data[channelIndex] & 0xFE) | bitValue;
+                    bitIndex++;
+                }
+            }
+            
+            return imageData;
+        }
+        
+        function extractLSB(imageData) {
+            const data = imageData.data;
+            
+            // First extract the length (4 bytes = 32 bits)
+            let lengthBits = [];
+            let bitIndex = 0;
+            for (let i = 0; i < 32; i++) {
+                const channelIndex = bitIndex + Math.floor(bitIndex / 3);
+                if (channelIndex >= data.length) break;
+                lengthBits.push(data[channelIndex] & 1);
+                bitIndex++;
+            }
+            
+            let length = 0;
+            for (let i = 0; i < 32; i++) {
+                length = (length << 1) | lengthBits[i];
+            }
+            
+            if (length <= 0 || length > 100000) {
+                throw new Error('No hidden message found or corrupted data');
+            }
+            
+            // Extract the message bytes
+            const msgBytes = new Uint8Array(length);
+            for (let i = 0; i < length; i++) {
+                let byte = 0;
+                for (let bit = 7; bit >= 0; bit--) {
+                    const channelIndex = bitIndex + Math.floor(bitIndex / 3);
+                    if (channelIndex >= data.length) break;
+                    byte = (byte << 1) | (data[channelIndex] & 1);
+                    bitIndex++;
+                }
+                msgBytes[i] = byte;
+            }
+            
+            return decoder.decode(msgBytes);
+        }
+
+        // Real LSB Stego encode
+        window.stegoEncode = async function() {
+            const fileInput = document.getElementById('stegoCover');
+            const secret = document.getElementById('stegoSecret').value;
+            const password = document.getElementById('stegoPassword').value;
+            if (!fileInput.files[0]) { alert('Choose a cover image'); return; }
+            if (!secret) { alert('Enter a secret message'); return; }
+            if (!password) { alert('Enter a password'); return; }
+
+            log('🖼️ [Stego] Hiding secret in image using LSB...');
+
+            try {
+                let payload;
+                
+                // Try WASM encryption if available, otherwise use plaintext demo
+                if (wasm && wasm.generate_salt) {
+                    const salt = wasm.generate_salt().data;
+                    const nonce = wasm.generate_nonce().data;
+                    const key = wasm.derive_key(encoder.encode(password), salt).data;
+                    const cipher = wasm.encrypt(encoder.encode(secret), key, nonce, null).data;
+                    const version = new Uint8Array([0x01]);
+                    const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
+                    packed.set(version, 0);
+                    packed.set(salt, 1);
+                    packed.set(nonce, 17);
+                    packed.set(cipher, 29);
+                    payload = 'MEOW:' + bytesToBase64(packed);
+                    log('🔐 [Stego] Encrypted with WASM crypto');
+                } else {
+                    // Demo fallback: just base64 encode the secret (NOT secure, just for demo)
+                    payload = 'DEMO:' + btoa(unescape(encodeURIComponent(secret)));
+                    log('⚠️ [Stego] WASM not available, using demo mode (unencrypted)');
+                }
+
+                // Read cover image and embed using LSB
+                const reader = new FileReader();
+                reader.onload = function(ev) {
+                    const img = new Image();
+                    img.onload = function() {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        
+                        try {
+                            // Get image data and embed message
+                            let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            imageData = embedLSB(imageData, payload);
+                            ctx.putImageData(imageData, 0, 0);
+                            
+                            const outUrl = canvas.toDataURL('image/png');
+                            document.getElementById('stegoImageContainer').innerHTML = `
+                                <img src='${outUrl}' style='max-width: 320px; border-radius: 8px; box-shadow: 0 2px 8px #0003;'>
+                                <p style="color: #00ff88; margin-top: 10px;">✅ Secret hidden invisibly in pixels!</p>
+                                <p style="color: #888; font-size: 0.85em;">The image looks identical but contains ${payload.length} hidden characters.</p>
+                            `;
+                            document.getElementById('stegoOutputSection').classList.remove('hidden');
+                            window.currentStegoImageUrl = outUrl;
+                            log(`🖼️ [Stego] LSB steganography complete! Hidden ${payload.length} chars`);
+                        } catch (err) {
+                            log('❌ [Stego] ' + err.message);
+                            alert('Stego encode failed: ' + err.message);
+                        }
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } catch (err) {
+                log('❌ [Stego] Error: ' + err.message);
+                alert('Stego encode failed: ' + err.message);
+            }
+        };
+
+        // Download stego image
+        window.downloadStegoImage = function() {
+            if (!window.currentStegoImageUrl) { alert('Generate stego image first'); return; }
+            const link = document.createElement('a');
+            link.download = 'meow-stego.png';
+            link.href = window.currentStegoImageUrl;
+            link.click();
+            log('💾 Stego image downloaded');
+        };
+
+        // Stego decode (demo: scan QR from image)
+        document.getElementById('stegoDecodeInput').addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            document.getElementById('stegoDecodeBtn').disabled = false;
+        });
+
+        window.stegoDecode = async function() {
+            const fileInput = document.getElementById('stegoDecodeInput');
+            const password = document.getElementById('stegoDecodePassword').value;
+            const resultBox = document.getElementById('stegoDecodeResult');
+            if (!fileInput.files[0]) { alert('Upload a stego image'); return; }
+            if (!password) { alert('Enter password'); return; }
+
+            log('🔍 [Stego] Extracting hidden data using LSB...');
+            try {
+                const reader = new FileReader();
+                reader.onload = async function(ev) {
+                    const img = new Image();
+                    img.onload = async function() {
+                        try {
+                            const canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            const ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            
+                            // Extract hidden payload from LSB
+                            const payload = extractLSB(imgData);
+                            log(`🔍 [Stego] Extracted payload: ${payload.substring(0, 30)}...`);
+                            
+                            if (payload.startsWith('MEOW:')) {
+                                // Encrypted with WASM - decrypt it
+                                if (!wasm || !wasm.derive_key) {
+                                    throw new Error('WASM crypto not available for decryption');
+                                }
+                                const packed = base64ToBytes(payload.substring(5));
+                                const salt = packed.slice(1, 17);
+                                const nonce = packed.slice(17, 29);
+                                const ciphertext = packed.slice(29);
+                                const key = wasm.derive_key(encoder.encode(password), salt).data;
+                                const decResult = wasm.decrypt(ciphertext, key, nonce, null);
+                                if (decResult.success) {
+                                    const plaintext = decoder.decode(decResult.data);
+                                    resultBox.className = 'result-box';
+                                    resultBox.innerHTML = `<h3>✨ Secret Extracted</h3><div class='message'>${plaintext}</div>`;
+                                    resultBox.classList.remove('hidden');
+                                    log('🔍 [Stego] Secret decrypted successfully');
+                                } else {
+                                    resultBox.className = 'result-box error';
+                                    resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>Wrong password.</div>`;
+                                    resultBox.classList.remove('hidden');
+                                    log('❌ [Stego] Wrong password');
+                                }
+                            } else if (payload.startsWith('DEMO:')) {
+                                // Demo mode - base64 decode
+                                const plaintext = decodeURIComponent(escape(atob(payload.substring(5))));
+                                resultBox.className = 'result-box';
+                                resultBox.innerHTML = `<h3>✨ Secret Extracted (Demo Mode)</h3><div class='message'>${plaintext}</div><p style="color:#ff9800; font-size:0.85em;">⚠️ This was not encrypted - demo mode only</p>`;
+                                resultBox.classList.remove('hidden');
+                                log('🔍 [Stego] Demo payload extracted');
+                            } else {
+                                throw new Error('No valid hidden message found');
+                            }
+                        } catch (err) {
+                            resultBox.className = 'result-box error';
+                            resultBox.innerHTML = `<h3>❌ Extraction Failed</h3><div class='message'>${err.message}</div>`;
+                            resultBox.classList.remove('hidden');
+                            log('❌ [Stego] ' + err.message);
+                        }
+                    };
+                    img.src = ev.target.result;
+                };
+                reader.readAsDataURL(fileInput.files[0]);
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `<h3>❌ Error</h3><div class='message'>${err.message}</div>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [Stego] Error: ' + err.message);
+            }
+        };
+
+        // ============================================================
+        // CAT MODE FUNCTIONS
+        // ============================================================
+        
+        let catImg = null;
+        let catBlinkInterval = null;
+        let catOriginalImageData = null;
+        let catTransmitting = false;
+        let catBinaryData = '';
+        
+        // Pre-load cat image and draw on canvas
+        async function initCatCanvas() {
+            const catCanvas = document.getElementById('catCanvas');
+            if (!catCanvas) return;
+            const catCtx = catCanvas.getContext('2d');
+            try {
+                catImg = new Image();
+                catImg.crossOrigin = 'anonymous';
+                catImg.src = '../assets/meow-decoder-logo.png';
+                await new Promise((res, rej) => { 
+                    catImg.onload = res; 
+                    catImg.onerror = () => rej(new Error('Failed to load cat image'));
+                });
+                catCtx.drawImage(catImg, 0, 0, 400, 400);
+                // Store original image data for blinking
+                catOriginalImageData = catCtx.getImageData(0, 0, 400, 400);
+                log('😺 Cat image loaded');
+            } catch (e) {
+                log('❌ Cat image failed to load: ' + e.message);
+            }
+        }
+        
+        // Draw with green pixels on or off (EYES ONLY)
+        function drawWithGreenBlink(showGreen) {
+            const catCanvas = document.getElementById('catCanvas');
+            const catCtx = catCanvas.getContext('2d');
+            
+            if (!catOriginalImageData) return;
+            
+            // Clone the original image data
+            const imgData = new ImageData(
+                new Uint8ClampedArray(catOriginalImageData.data),
+                catOriginalImageData.width,
+                catOriginalImageData.height
+            );
+            const data = imgData.data;
+            const width = catOriginalImageData.width;
+            
+            // Eye regions (tuned for 400x400 canvas of meow-decoder-logo.png)
+            function isInEyeRegion(x, y) {
+                const leftEye = x >= 80 && x <= 175 && y >= 115 && y <= 210;
+                const rightEye = x >= 225 && x <= 320 && y >= 115 && y <= 210;
+                return leftEye || rightEye;
+            }
+            
+            // Process each pixel - find green pixels IN EYE REGIONS and toggle
+            for (let i = 0; i < data.length; i += 4) {
+                const pixelIndex = i / 4;
+                const x = pixelIndex % width;
+                const y = Math.floor(pixelIndex / width);
+                
+                if (!isInEyeRegion(x, y)) continue;
+                
+                const r = data[i];
+                const g = data[i + 1];
+                const a = data[i + 3];
+                
+                if (g > 100 && g > r * 1.3 && a > 100) {
+                    if (!showGreen) {
+                        data[i] = 0;
+                        data[i + 1] = 0;
+                        data[i + 2] = 0;
+                    }
+                }
+            }
+            
+            catCtx.putImageData(imgData, 0, 0);
+        }
+        
+        // Convert bytes to binary string
+        function bytesToBinary(bytes) {
+            return Array.from(bytes).map(b => b.toString(2).padStart(8, '0')).join('');
+        }
+        
+        // Convert binary string to bytes
+        function binaryToBytes(binary) {
+            const bytes = [];
+            for (let i = 0; i < binary.length; i += 8) {
+                bytes.push(parseInt(binary.substr(i, 8), 2));
+            }
+            return new Uint8Array(bytes);
+        }
+        
+        window.catModeEncode = async function() {
+            const message = document.getElementById('catMessage').value;
+            const password = document.getElementById('catPassword').value;
+            const speed = parseInt(document.getElementById('catBlinkSpeed').value);
+            const resultEl = document.getElementById('catModeResult');
+            const progressEl = document.getElementById('catProgress');
+            const progressBar = document.getElementById('catProgressBar');
+            const progressText = document.getElementById('catProgressText');
+            
+            if (!message) { alert('Enter a message to transmit'); return; }
+            if (!password) { alert('Enter a password'); return; }
+            
+            try {
+                // Load cat image if needed
+                if (!catOriginalImageData) {
+                    await initCatCanvas();
+                }
+                
+                // Encrypt the message
+                let payload;
+                if (wasm && wasm.generate_salt) {
+                    const salt = wasm.generate_salt().data;
+                    const nonce = wasm.generate_nonce().data;
+                    const key = wasm.derive_key(encoder.encode(password), salt).data;
+                    const cipher = wasm.encrypt(encoder.encode(message), key, nonce, null).data;
+                    const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
+                    packed[0] = 0x01; // version
+                    packed.set(salt, 1);
+                    packed.set(nonce, 17);
+                    packed.set(cipher, 29);
+                    payload = packed;
+                    log('🔐 [Cat Mode] Encrypted with WASM');
+                } else {
+                    // Demo mode - just encode the message
+                    payload = encoder.encode('DEMO:' + message);
+                    log('⚠️ [Cat Mode] Demo mode (no encryption)');
+                }
+                
+                // Convert to binary with start/end markers
+                const startMarker = '11111111'; // 8 ones = start
+                const endMarker = '00000000';   // 8 zeros = end
+                catBinaryData = startMarker + bytesToBinary(payload) + endMarker;
+                
+                log(`📡 [Cat Mode] Transmitting ${catBinaryData.length} bits at ${speed}ms per bit`);
+                
+                // Show UI
+                document.getElementById('catQrBtn').style.display = 'none';
+                document.getElementById('catStopBtn').style.display = 'inline-block';
+                progressEl.style.display = 'block';
+                catTransmitting = true;
+                
+                // Transmit binary through eye blinks
+                let bitIndex = 0;
+                
+                function transmitBit() {
+                    if (!catTransmitting || bitIndex >= catBinaryData.length) {
+                        // Transmission complete
+                        catModeStop();
+                        resultEl.innerHTML = `
+                            <span style="color:#00ff88">✅ Transmission complete!</span>
+                            <p style="color:#888; font-size:0.85em; margin-top:10px;">Binary pattern (copy for decoding):</p>
+                            <textarea readonly style="width:100%; height:60px; background:#1a1a2e; border:1px solid #00ccff; color:#00ff88; font-family:monospace; font-size:0.8em; padding:8px;">${catBinaryData}</textarea>
+                        `;
+                        log('✅ [Cat Mode] Transmission complete');
+                        return;
+                    }
+                    
+                    const bit = catBinaryData[bitIndex];
+                    drawWithGreenBlink(bit === '1'); // 1 = eyes ON, 0 = eyes OFF
+                    
+                    // Update progress
+                    const progress = ((bitIndex + 1) / catBinaryData.length * 100).toFixed(1);
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `Transmitting bit ${bitIndex + 1} of ${catBinaryData.length} (${progress}%)`;
+                    
+                    bitIndex++;
+                    catBlinkInterval = setTimeout(transmitBit, speed);
+                }
+                
+                resultEl.innerHTML = '<span style="color:#00ccff">📡 Transmitting encrypted message...</span>';
+                transmitBit();
+                
+            } catch (err) {
+                resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${err.message}</span>`;
+                log('❌ [Cat Mode] Error: ' + err.message);
+            }
+        };
+        
+        window.catModeStop = function() {
+            catTransmitting = false;
+            if (catBlinkInterval) {
+                clearTimeout(catBlinkInterval);
+                catBlinkInterval = null;
+            }
+            drawWithGreenBlink(true); // Reset eyes to ON
+            document.getElementById('catQrBtn').style.display = 'inline-block';
+            document.getElementById('catStopBtn').style.display = 'none';
+            document.getElementById('catProgress').style.display = 'none';
+            log('⏹️ [Cat Mode] Stopped');
+        };
+        
+        window.catModeDecode = async function() {
+            const binaryInput = document.getElementById('catBinaryInput').value.replace(/[^01]/g, '');
+            const password = document.getElementById('catDecodePassword').value;
+            const resultBox = document.getElementById('catDecodeResult');
+            
+            if (!binaryInput) { alert('Enter the binary pattern'); return; }
+            if (!password) { alert('Enter the decryption password'); return; }
+            
+            try {
+                // Remove start/end markers if present
+                let binary = binaryInput;
+                if (binary.startsWith('11111111')) binary = binary.substring(8);
+                if (binary.endsWith('00000000')) binary = binary.substring(0, binary.length - 8);
+                
+                // Ensure length is multiple of 8
+                if (binary.length % 8 !== 0) {
+                    throw new Error('Invalid binary pattern (not byte-aligned)');
+                }
+                
+                const bytes = binaryToBytes(binary);
+                log(`🔍 [Cat Mode] Decoding ${bytes.length} bytes`);
+                
+                // Check if it's demo mode
+                const str = decoder.decode(bytes);
+                if (str.startsWith('DEMO:')) {
+                    const message = str.substring(5);
+                    resultBox.className = 'result-box success';
+                    resultBox.innerHTML = `<h3>🔓 Decoded (Demo Mode)</h3><div class='message'>${escapeHtml(message)}</div>`;
+                    resultBox.classList.remove('hidden');
+                    log('✅ [Cat Mode] Demo message decoded');
+                    return;
+                }
+                
+                // Try WASM decryption
+                if (!wasm || !wasm.decrypt) {
+                    throw new Error('WASM not available for decryption');
+                }
+                
+                if (bytes[0] !== 0x01) {
+                    throw new Error('Unknown format version');
+                }
+                
+                const salt = bytes.slice(1, 17);
+                const nonce = bytes.slice(17, 29);
+                const cipher = bytes.slice(29);
+                
+                const key = wasm.derive_key(encoder.encode(password), salt).data;
+                const decrypted = wasm.decrypt(cipher, key, nonce, null);
+                
+                if (!decrypted || decrypted.error) {
+                    throw new Error('Decryption failed - wrong password?');
+                }
+                
+                const message = decoder.decode(decrypted.data);
+                resultBox.className = 'result-box success';
+                resultBox.innerHTML = `<h3>🔓 Decoded Message</h3><div class='message'>${escapeHtml(message)}</div>`;
+                resultBox.classList.remove('hidden');
+                log('✅ [Cat Mode] Message decoded successfully');
+                
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `<h3>❌ Decode Failed</h3><div class='message'>${err.message}</div>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [Cat Mode] Decode error: ' + err.message);
+            }
+        };
+        
+        // Attach Cat Mode button handler
+        document.getElementById('catQrBtn').onclick = window.catModeEncode;
+        document.getElementById('catQrBtn').disabled = false;
+        
+        // Initialize cat canvas
+        initCatCanvas();
+        
+        // ============================================================
         // SCHRÖDINGER MODE FUNCTIONS
         // ============================================================
         
-        // Switch between Standard and Schrödinger modes
+        // Switch between modes
         window.switchMode = function(mode) {
             // Update tabs
             document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
             document.querySelector(`.mode-tab[onclick*="${mode}"]`).classList.add('active');
-            
             // Update content
             document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
             document.getElementById(mode + 'Mode').classList.add('active');
-            
-            log(`🔀 Switched to ${mode === 'standard' ? 'Standard' : 'Schrödinger'} mode`);
+            const modeNames = { standard: 'Standard', schrodinger: 'Schrödinger', stego: 'Stego', cat: 'Cat' };
+            log(`🔀 Switched to ${modeNames[mode] || mode} mode`);
         };
         
         // Schrödinger Encryption: Interleave two ciphertexts
