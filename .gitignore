@@ -96,6 +96,13 @@ tasklists.md
 todo*.md
 OpenSSFImprovements.md
 workflowsexplained.md
+pushupdates.md
+meow-push.sh
+OPENSSF_SCORECARD.md
+secret
+
+# Accidental pip output files
+=*
 
 # Deploy output
 pythonanywhere-deploy/

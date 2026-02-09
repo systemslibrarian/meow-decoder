@@ -53,7 +53,7 @@ cosign verify-blob --certificate <artifact>.crt \
   <artifact>
 ```
 
-**Status**: ✅ IMPLEMENTED (pending first release)
+**Status**: ✅ IMPLEMENTED (v1.0.0)
 
 ---
 

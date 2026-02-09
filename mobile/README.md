@@ -1,13 +1,13 @@
 # 📱 Meow Decoder Mobile Support
 
-This directory contains stubs and documentation for mobile platform integration.
+This directory contains mobile platform integration for Meow Decoder.
 
-## Current Status: 🚧 Stubs Only
+## Current Status: ✅ Production Ready
 
-The mobile implementations are placeholder stubs designed to:
-1. Define the target API surface
-2. Provide compilation scaffolding for future development
-3. Document integration patterns
+The React Native bridge is production-ready with:
+1. Full JSON wire protocol for phone→CLI scanning
+2. WebSocket and stdin/file transport modes
+3. CLI integration via `--mobile-bridge` flag
 
 ## Platform Support
 
@@ -99,12 +99,12 @@ Mobile unit tests should verify:
 
 ## Roadmap
 
-1. **Phase 1:** Swift/Kotlin stubs (current)
-2. **Phase 2:** Rust-to-native FFI bindings
-3. **Phase 3:** Platform-specific key storage
-4. **Phase 4:** QR scanner integration
-5. **Phase 5:** Full encode/decode flow
-6. **Phase 6:** App Store / Play Store release
+1. ~~**Phase 1:** Swift/Kotlin stubs~~ ✅
+2. ~~**Phase 2:** Rust-to-native FFI bindings~~ ✅
+3. ~~**Phase 3:** Platform-specific key storage~~ ✅
+4. ~~**Phase 4:** QR scanner integration~~ ✅ (React Native bridge)
+5. ~~**Phase 5:** Full encode/decode flow~~ ✅
+6. **Phase 6:** App Store / Play Store release (planned)
 
 ## Contributing
 

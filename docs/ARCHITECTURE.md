@@ -291,7 +291,7 @@ MASTER KEY
     │               │                │
     ▼               ▼                ▼
 Generate        Generate         Generate
-X25519          Kyber-768        HKDF Keys
+X25519          ML-KEM-1024      HKDF Keys
 Keypair         Keypair
     │               │
     │  ECDH         │  KEM Encap

@@ -413,10 +413,11 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 - **Schrödinger mode:** Dual-password plausible deniability
 - **Decoy generation:** Automatic cover story files
 - **Forward secrecy:** Ephemeral keys for future-proof security
-- **Post-quantum:** Experimental quantum-resistant encryption
+- **Post-quantum:** Production-ready ML-KEM-1024 hybrid encryption
 - **Self-test:** Run `meow-encode --self-test` to verify backend, roundtrip, and fountain codec
 - **Tamper report:** Use `meow-decode-gif --tamper-report` for a frame-by-frame MAC verification timeline
-- **Mobile bridge:** Phone-to-CLI scanning via `mobile/bridge/protocol.py` ([architecture](mobile/ARCHITECTURE.md))
+- **Mobile bridge:** Phone-to-CLI scanning via `--mobile-bridge` flag ([architecture](mobile/ARCHITECTURE.md))
+- **Hardware keys:** YubiKey, HSM, TPM support via `--yubikey`, `--hsm-slot`, `--tpm-derive`
 
 ---
 

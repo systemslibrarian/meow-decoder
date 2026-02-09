@@ -69,11 +69,11 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ### Hardware Security
 - [x] **HSM Integration**: PKCS#11 interface for hardware key storage
-	- Implemented in `crypto_core` (feature: `hsm`); CLI wiring pending in Python layer
+	- Fully integrated with CLI (`--hsm-slot`, `--hsm-pin`)
 - [x] **YubiKey Support**: FIDO2/PIV for key derivation factor
-	- Implemented in `crypto_core` (feature: `yubikey`); Python auto-detect exists, full CLI wiring pending
+	- Fully integrated with CLI (`--yubikey`, `--yubikey-slot`, `--yubikey-pin`)
 - [x] **TPM 2.0 Binding**: Seal keys to platform state
-	- Implemented in `crypto_core` (feature: `tpm`); Python layer currently uses TPM tooling for derivation
+	- Fully integrated with CLI (`--tpm-derive`, `--tpm-unseal`)
 
 ### Rust Expansion
 

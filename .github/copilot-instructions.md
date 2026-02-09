@@ -50,7 +50,7 @@ Core modules live in `meow_decoder/`, tests in `tests/`, examples in `examples/`
 When editing crypto code, respect manifest version boundaries:
 - **MEOW2**: Base encryption (password-only, no forward secrecy)
 - **MEOW3**: Forward secrecy support (X25519 ephemeral keys optional)
-- **MEOW4**: Post-quantum hybrid (ML-KEM-768 + X25519)
+- **MEOW4**: Post-quantum hybrid (ML-KEM-1024 + X25519)
 
 Check version in [encode.py](../meow_decoder/encode.py) lines 56-73 for proper mode selection.
 
@@ -123,7 +123,7 @@ docker run -it meow-decoder python -m pytest tests/
 - `*_enhanced.py`: Extended feature versions (e.g., crypto_enhanced.py adds length padding)
 - `clowder_*.py`: Multi-device streaming protocols
 - `*_forward_secrecy*.py`: MEOW3 forward secrecy implementations
-- `pq_*.py`: Post-quantum crypto experiments (ML-KEM-768, not yet stable)
+- `pq_*.py`: Post-quantum crypto (ML-KEM-1024, production-ready)
 
 ## Configuration & Tuning
 
@@ -161,7 +161,7 @@ ARGON2_PARALLELISM = 4     # 4 threads
 - `argon2-cffi>=23.1.0`: Argon2id KDF
 - `qrcode[pil]>=7.4.2` + `pyzbar>=0.1.9`: QR encode/decode
 - `opencv-python>=4.8.0`: Webcam capture, image processing
-- `liboqs-python>=0.9.0`: Optional post-quantum crypto (experimental)
+- `liboqs-python>=0.9.0`: Post-quantum crypto (ML-KEM-1024)
 
 ## Examples Worth Reading
 

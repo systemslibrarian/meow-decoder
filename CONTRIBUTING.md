@@ -113,7 +113,7 @@ def encrypt_data(data: bytes, password: str) -> tuple[bytes, bytes]:
 ```
 feat(crypto): add post-quantum hybrid encryption
 
-- Implement ML-KEM-768 + X25519 hybrid key exchange
+- Implement ML-KEM-1024 + X25519 hybrid key exchange
 - Add graceful fallback when liboqs not installed
 - Update config defaults to enable PQ by default
 
@@ -238,7 +238,6 @@ git checkout -b feature/your-feature-name
 - **Questions:** Open a GitHub Discussion (ask the clowder)
 - **Hairballs:** Open a GitHub Issue (report a bug)
 - **Security:** See [SECURITY.md](SECURITY.md) (the Catnip Bounty Program)
-- **Chat:** (Coming soon — the cat café)
 
 ---
 
@@ -246,7 +245,7 @@ git checkout -b feature/your-feature-name
 
 All Cat Herders are recognized in:
 - 📋 Release notes ("Herded by...")
-- 🐾 CONTRIBUTORS.md — the **Official Clowder Roster** (coming soon)
+- 🐾 CONTRIBUTORS.md — the **Official Clowder Roster**
 - 🌿 **Catnip Bounty Hall of Fame** (for security researchers)
 - 🎖️ Special titles for repeat contributors:
   - **Kitten** — First contribution merged

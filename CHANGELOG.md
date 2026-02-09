@@ -77,6 +77,15 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 - Phone stays "dumb" — all crypto on CLI side
 - `tests/test_bridge_protocol.py` (21 tests)
 
+#### Mobile Bridge CLI Integration
+- **New Module**: `meow_decoder/mobile_bridge.py` — CLI handler for phone→CLI scanning
+  - `--mobile-bridge` flag to enable bridge mode
+  - `--bridge-mode {stdin,websocket,file}` for transport selection
+  - `--bridge-port` for WebSocket server port (default 8765)
+  - `--input-frames` for file-based frame import
+  - `--output-request` to generate capture request JSON for mobile app
+- Full integration with `meow-decode-gif` for stdin, WebSocket, and file input modes
+
 #### Short-Term Tasks (ST-1…ST-8)
 - **ST-1**: Quarantined duplicate crypto paths → `meow_decoder/experimental/`
 - **ST-2**: Manifest numeric bounds + decompression-bomb protection (`tests/test_manifest_bounds.py`, 17 tests)

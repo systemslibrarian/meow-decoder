@@ -486,31 +486,30 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 
 ### ⚠️ **Quantum Computer Attacks**
 
-**Current Status:** EXPERIMENTAL but functional
+**Current Status:** Production-ready hybrid encryption
 
 | Aspect | Implementation | Status |
 |--------|---------------|--------|
 | Symmetric encryption | AES-256 (Grover: 128-bit effective) | ✅ Quantum-resistant |
 | Key derivation | Argon2id | ✅ Quantum-resistant |
-| Key exchange | ML-KEM-768 (Kyber) hybrid | ⚠️ EXPERIMENTAL |
+| Key exchange | ML-KEM-1024 (Kyber) + X25519 hybrid | ✅ Production |
 
 **What's Implemented:**
-- `pq_crypto_real.py` with ML-KEM-768 + X25519 hybrid
+- `pq_crypto_real.py` with ML-KEM-1024 + X25519 hybrid (NIST FIPS 203)
 - Graceful fallback if liboqs not installed
 - Security: Safe if EITHER classical OR quantum crypto holds
+- Dilithium3 signatures for quantum-resistant manifest authentication (FIPS 204)
 
-**How to Upgrade to STRONG:**
+**How to Enable PQ Mode:**
 ```bash
 # Install liboqs (requires compilation)
 pip install liboqs-python
 
-# Enable PQ mode in encoding
+# PQ mode is now default, but can be explicitly enabled:
 meow-encode --pq -i secret.pdf -o secret.gif -p "password"
 ```
 
-**Risk Window:** Without PQ mode, stored ciphertexts vulnerable in ~10-20 years when quantum computers mature.
-
-**Upgrade Path:** When ML-KEM is fully standardized (expected 2025-2026), upgrade to STRONG.
+**Note:** ML-KEM-1024 is the highest security level and is now the default.
 
 ---
 
@@ -685,7 +684,7 @@ shred -u /tmp/meow_*
 | Coercion | ✅ UNIQUE | ✅ UNIQUE | Schrödinger mode |
 | Forward Secrecy | ✅ STRONG | ✅ STRONG | X25519 ephemeral |
 | Frame Injection | ✅ STRONG | ✅ STRONG | Per-frame MAC |
-| Post-Quantum | ⚠️ EXPERIMENTAL | ✅ STRONG | Install liboqs |
+| Post-Quantum | ✅ STRONG | ✅ STRONG | ML-KEM-1024 hybrid |
 | Metadata Leak | ✅ IMPLEMENTED | ✅ STRONG | Size padding |
 | Memory Forensics | ⚠️ MODERATE | ⚠️ MODERATE | Platform limit |
 | Timing Attacks | ⚠️ MODERATE | ⚠️ MODERATE | Python limit |
