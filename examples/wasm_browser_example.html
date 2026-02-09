@@ -231,10 +231,6 @@
         .logo { max-width: 350px; width: 100%; display: block; margin: 0 auto 20px; }
         
         /* Cat Mode Animations */
-        @keyframes catPulseTransmit {
-            0%, 100% { box-shadow: 0 0 10px #00ccff, 0 0 20px rgba(0,204,255,0.3); }
-            50% { box-shadow: 0 0 25px #00ccff, 0 0 40px rgba(0,204,255,0.5); }
-        }
         @keyframes catBounce {
             0%, 100% { transform: translateY(0) rotate(0deg); }
             25% { transform: translateY(-8px) rotate(-3deg); }
@@ -257,8 +253,8 @@
             50% { box-shadow: 0 0 25px #ff4444, 0 0 40px #ff4444; }
         }
         #catCanvas.transmitting {
-            animation: catPulseTransmit 0.8s infinite;
             border: 2px solid #00ccff;
+            box-shadow: 0 0 15px rgba(0,204,255,0.4);
         }
         #catCanvas.success {
             animation: catBounce 0.6s ease-in-out 3, catPulseGreen 1s ease-in-out;
