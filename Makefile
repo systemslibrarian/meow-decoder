@@ -2,7 +2,7 @@
 
 .PHONY: help install dev test lint format clean build publish \
 	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tamarin formal-tamarin-duress \
-	formal-verus formal-lean formal-all verify
+	formal-verus formal-lean formal-all verify check-wasm-deps build-wasm build-wasm-release build-wasm-node meow-build
 
 help:
 	@echo "🐱 Meow Decoder - Available Commands:"
@@ -157,37 +157,75 @@ build-rust:
 	@echo "✅ Rust build complete"
 
 # 🌐 WASM build (development)
-build-wasm:
+build-wasm: check-wasm-deps
 	@echo "🌐 Building WASM bindings (development)..."
-	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
 	cd crypto_core && wasm-pack build --target web --dev --features wasm
 	@echo "✅ WASM development build complete in crypto_core/pkg/"
 
+# 🔧 Check and install WASM dependencies
+check-wasm-deps:
+	@echo "🔍 Checking WASM build dependencies..."
+	@if ! command -v cargo >/dev/null 2>&1; then \
+		echo "📦 Rust/Cargo not found. Installing..."; \
+		if command -v apk >/dev/null 2>&1; then \
+			echo "   Detected Alpine Linux - using apk"; \
+			sudo apk add --no-cache rust cargo wasm-pack 2>/dev/null || apk add --no-cache rust cargo wasm-pack; \
+		elif command -v apt-get >/dev/null 2>&1; then \
+			echo "   Detected Debian/Ubuntu - using apt"; \
+			sudo apt-get update && sudo apt-get install -y rustc cargo; \
+			cargo install wasm-pack; \
+		elif command -v brew >/dev/null 2>&1; then \
+			echo "   Detected macOS - using Homebrew"; \
+			brew install rust wasm-pack; \
+		else \
+			echo "❌ Could not detect package manager. Please install Rust manually:"; \
+			echo "   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"; \
+			echo "   cargo install wasm-pack"; \
+			exit 1; \
+		fi; \
+	fi
+	@if ! command -v wasm-pack >/dev/null 2>&1; then \
+		echo "📦 wasm-pack not found. Installing..."; \
+		if command -v apk >/dev/null 2>&1; then \
+			sudo apk add --no-cache wasm-pack 2>/dev/null || apk add --no-cache wasm-pack; \
+		else \
+			cargo install wasm-pack; \
+		fi; \
+	fi
+	@echo "✅ Dependencies ready"
+
 # 🌐 WASM build (production - optimized)
-build-wasm-release:
+build-wasm-release: check-wasm-deps
 	@echo "🌐 Building WASM bindings (production - optimized)..."
-	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
 	cd crypto_core && wasm-pack build --target web --release --features wasm
 	@echo "✅ WASM production build complete in crypto_core/pkg/"
 	@echo "📊 Package size: $$(du -h crypto_core/pkg/*.wasm | cut -f1)"
 
 # 🌐 WASM Node.js build (for server-side use)
-build-wasm-node:
+build-wasm-node: check-wasm-deps
 	@echo "🌐 Building WASM bindings for Node.js..."
-	@command -v wasm-pack >/dev/null 2>&1 || { echo "Installing wasm-pack..."; cargo install wasm-pack; }
 	cd crypto_core && wasm-pack build --target nodejs --release --features wasm
 	@echo "✅ WASM Node.js build complete in crypto_core/pkg/"
 
 # 🐱 meow-build - Build WASM + start HTTP server
 meow-build: build-wasm
 	@echo ""
-	@echo "🐱 Starting Meow Decoder Demo Server..."
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+	@echo "🐱 Meow Decoder Demo Server"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
-	@echo "📍 Open in browser: http://localhost:8080/examples/wasm_browser_example.html"
+	@echo "📍 Local URL: http://localhost:8080/examples/wasm_browser_example.html"
 	@echo ""
-	@echo "💡 In Codespaces: Forward port 8080 in the Ports tab, then open the URL"
+	@echo "💡 In Codespaces/Dev Containers:"
+	@echo "   1. Open the 'Ports' tab in the bottom panel"
+	@echo "   2. Forward port 8080 (right-click → Forward Port)"
+	@echo "   3. Click the forwarded URL + append /examples/wasm_browser_example.html"
+	@echo ""
+	@echo "⚠️  Port 8080 is NOT auto-forwarded by default (for privacy)."
+	@echo "    You must manually forward it to access the demo."
 	@echo ""
 	@echo "Press Ctrl+C to stop the server"
+	@echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 	@echo ""
 	python3 -m http.server 8080
 
