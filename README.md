@@ -188,11 +188,7 @@ start secret.gif     # Windows
 | 🔮 **Post-Quantum** | ML-KEM-1024 (Kyber) + ML-DSA-65 (Dilithium) hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-<<<<<<< HEAD
 | 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--use-hardware-key`) |
-=======
-| 🖥️ **Hardware Keys** | Rust primitives for HSM/YubiKey/TPM ([crypto_core only](crypto_core/README.md) — Python CLI not yet wired) |
->>>>>>> 7b72607 (fix: update hypothesis version and regenerate lock file for CI)
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner app with JSON protocol integration |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
@@ -279,17 +275,6 @@ meow-encode -i secret.pdf -o logo.gif -p "password" \
 
 **Best for:** Making embedded QR codes less visually obvious in specific regions.  
 **NOT for:** Evading forensic detection or professional steganalysis.
-
-### Photographic Cat Camouflage
-<p align="center">
-  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Animated GIF showing hidden QR data inside a looping cat photo texture (steganography example)" width="400">
-</p>
-
-Looks like a normal looping cat GIF. Data hidden in image texture.
-
-**Try it:** This demo contains John 3:16 encrypted. Download and decode with password `JesusIsTheSonOfGod`
-
-**Decoding works the same way** - the decoder automatically extracts QR data from steganographic images.
 
 ---
 
@@ -587,7 +572,6 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ## 🔌 Hardware Security Module Integration
 
-<<<<<<< HEAD
 Meow Decoder supports hardware-backed key storage for high-security environments.
 
 ### Supported Hardware
@@ -627,15 +611,6 @@ meow-decode-gif -i secret.gif -o recovered.pdf --use-hardware-key --yubikey-piv-
 - YubiKey requires physical touch for each operation (anti-malware)
 
 See [crypto_core/README.md](crypto_core/README.md) for Rust API details and advanced configuration.
-=======
-> ⚠️ **Rust crypto_core only** — These primitives are implemented in Rust but **not yet exposed in the Python CLI**. Direct Rust/WASM usage only for now.
-
-- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`)
-- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`)
-- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`)
-
-See [crypto_core/README.md](crypto_core/README.md) for Rust API usage and examples.
->>>>>>> 7b72607 (fix: update hypothesis version and regenerate lock file for CI)
 
 ---
 
