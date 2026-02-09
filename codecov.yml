@@ -1,74 +1,39 @@
 # Codecov configuration for Meow Decoder
-# Focus on security-critical core modules (Tier 1)
+# Focus on security-critical core modules (Tier 1 + Tier 2)
+#
+# IMPORTANT: The coverage.xml uploaded by CI only includes files specified
+# in .coveragerc include list. This codecov.yml configures how Codecov
+# processes and displays that coverage data.
 
 codecov:
   require_ci_to_pass: yes
   notify:
     wait_for_ci: yes
 
+# Coverage flags to separate different types of coverage
+# The python flag corresponds to the flags: python in CI upload
+flags:
+  python:
+    paths:
+      - meow_decoder/
+    carryforward: true
+
 coverage:
   status:
     project:
       default:
+        # Only consider coverage for security-critical modules
         target: auto
         threshold: 1%
         if_ci_failed: error
-        # Focus on Tier 1 security-critical modules
-        paths:
-          - "meow_decoder/crypto.py"
-          - "meow_decoder/crypto_backend.py"
-          - "meow_decoder/constant_time.py"
-          - "meow_decoder/x25519_forward_secrecy.py"
-          - "meow_decoder/forward_secrecy.py"
-          - "meow_decoder/fountain.py"
-          - "meow_decoder/encode.py"
-          - "meow_decoder/decode_gif.py"
-          - "meow_decoder/gif_handler.py"
-          - "meow_decoder/frame_mac.py"
-          - "meow_decoder/schrodinger_encode.py"
-          - "meow_decoder/schrodinger_decode.py"
-          - "meow_decoder/quantum_mixer.py"
-          - "meow_decoder/stego_advanced.py"
-          - "meow_decoder/decoy_generator.py"
-          - "meow_decoder/duress_mode.py"
-          - "meow_decoder/timelock_duress.py"
-          - "meow_decoder/secure_cleanup.py"
-          - "meow_decoder/secure_bridge.py"
-          - "meow_decoder/high_security.py"
-          - "meow_decoder/streaming_crypto.py"
-          - "meow_decoder/double_ratchet.py"
-          - "meow_decoder/multi_secret.py"
-          - "meow_decoder/resume_secured.py"
+        flags:
+          - python
     patch:
       default:
         target: auto
         threshold: 1%
-        # Same list for PR patch coverage
-        paths:
-          - "meow_decoder/crypto.py"
-          - "meow_decoder/crypto_backend.py"
-          - "meow_decoder/constant_time.py"
-          - "meow_decoder/x25519_forward_secrecy.py"
-          - "meow_decoder/forward_secrecy.py"
-          - "meow_decoder/fountain.py"
-          - "meow_decoder/encode.py"
-          - "meow_decoder/decode_gif.py"
-          - "meow_decoder/gif_handler.py"
-          - "meow_decoder/frame_mac.py"
-          - "meow_decoder/schrodinger_encode.py"
-          - "meow_decoder/schrodinger_decode.py"
-          - "meow_decoder/quantum_mixer.py"
-          - "meow_decoder/stego_advanced.py"
-          - "meow_decoder/decoy_generator.py"
-          - "meow_decoder/duress_mode.py"
-          - "meow_decoder/timelock_duress.py"
-          - "meow_decoder/secure_cleanup.py"
-          - "meow_decoder/secure_bridge.py"
-          - "meow_decoder/high_security.py"
-          - "meow_decoder/streaming_crypto.py"
-          - "meow_decoder/double_ratchet.py"
-          - "meow_decoder/multi_secret.py"
-          - "meow_decoder/resume_secured.py"
+        flags:
+          - python
 
   precision: 2
   round: down

@@ -1,3 +1,13 @@
+[![License: CC BY-NC-SA 4.0](https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg)](https://creativecommons.org/licenses/by-nc-sa/4.0/)
+
+The source code is public / visible.
+
+Non-commercial use is allowed under CC BY-NC-SA 4.0.
+
+For **any commercial use** (paid products, SaaS, closed-source integration, consulting projects, etc.) — please contact me first: systemslibrarian@gmail.com (or open an issue labeled "Commercial use").
+
+---
+
 # 🐱 Meow Decoder
 
 <p align="center">
@@ -33,8 +43,8 @@
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
   </a>
-  <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
+  <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+    <img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg" alt="License: CC BY-NC-SA 4.0">
   </a>
   <a href="https://www.python.org/downloads/">
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
@@ -52,6 +62,11 @@
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/🪑%20sit%20level/expert/ff69b4" alt="sit level: expert"></a>
 </p>
 
+<p align="center">
+  <em>The source code is public / visible. Non-commercial use is allowed under CC BY-NC-SA 4.0.</em><br>
+  For <strong>any commercial use</strong> (paid products, SaaS, closed-source integration, consulting projects, etc.) — please contact me first: <a href="mailto:systemslibrarian@gmail.com">systemslibrarian@gmail.com</a> (or open an issue labeled "Commercial use").
+</p>
+
 ---
 
 ## ⚠️ Who This Is For (And Who It Isn't)
@@ -62,8 +77,6 @@
 | You need air-gapped file transfer | You want one-tap phone scanning |
 | You understand command-line tools | You need plug-and-play simplicity |
 | You want to audit the crypto yourself | You need production enterprise support |
-
-**🚫 Not Designed For:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
 **⚖️ Legal Notice:** Meow Decoder is not intended to circumvent law enforcement or legal obligations. Steganography and deniability features are limited and detectable under forensic examination.
 
