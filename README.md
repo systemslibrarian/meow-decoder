@@ -225,7 +225,7 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
 ### 🐱 Cat Mode (Quick Fun Theming)
 
 <p align="center">
-  <img src="assets/cat1.jpg" alt="Cat Mode WASM demo" width="300">
+  <img src="assets/CatMode.png" alt="Cat Mode: Optical Data Transmission demo" width="600">
   <br>
   <em>Cat Mode: Because sometimes you need to smuggle data… but also look adorable doing it.</em>
 </p>
