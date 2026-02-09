@@ -9,6 +9,10 @@
 </p>
 
 <p align="center">
+  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and optional dual-secret plausible deniability.</em>
+</p>
+
+<p align="center">
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml/badge.svg" alt="Security CI">
   </a>
@@ -27,8 +31,8 @@
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU" alt="Python Coverage">
   </a>
-  <a href="tests/TEST_SUITE_README.md">
-    <img src="assets/coverage.svg" alt="Rust Coverage">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags[0]=rust">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
@@ -62,8 +66,6 @@
 | You need air-gapped file transfer | You want one-tap phone scanning |
 | You understand command-line tools | You need plug-and-play simplicity |
 | You want to audit the crypto yourself | You need production enterprise support |
-
-**🚫 Not Designed For:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
 **⚖️ Legal Notice:** Meow Decoder is not intended to circumvent law enforcement or legal obligations. Steganography and deniability features are limited and detectable under forensic examination.
 
@@ -138,36 +140,35 @@ cd meow-decoder
 pip install -e .
 ```
 
-### 2. Encode (Sender)
+### 2. Encode → Transfer → Decode
 
 ```bash
-# Encrypt a file into animated QR GIF
+# Sender: Encrypt file into animated QR GIF
 meow-encode -i secret.pdf -o secret.gif -p "YourStrongPassword123"
-```
 
-### 3. Display & Record
-
-```bash
-# Open the GIF (it loops automatically)
-open secret.gif  # macOS
-xdg-open secret.gif  # Linux
-start secret.gif  # Windows
-```
-
-**Record the screen with your phone camera for 10-15 seconds.**
-
-### 4. Transfer Video
-
-Move the video file to the receiving computer (USB, email, cloud - the video is encrypted garbage without the password).
-
-### 5. Decode (Receiver)
-
-```bash
-# Decrypt from the video recording
+# Receiver: Decrypt from video recording
 meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123"
 ```
 
-**Done!** Your file is recovered with integrity verification.
+<details>
+<summary><strong>📹 Recording & Transfer Details</strong></summary>
+
+**Display the GIF:**
+```bash
+open secret.gif      # macOS
+xdg-open secret.gif  # Linux
+start secret.gif     # Windows
+```
+
+**Record:** Point your phone camera at the screen for 10-15 seconds (GIF loops automatically).
+
+**Transfer:** Move the video to the receiving computer via USB, email, or cloud. The video is encrypted garbage without the password.
+
+**Decode:** Run `meow-decode-gif` as shown above.
+
+</details>
+
+**Done!** File recovered with integrity verification.
 
 ---
 
@@ -183,7 +184,7 @@ meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123
 | 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
+| 🖥️ **Hardware Keys** | Rust primitives for HSM/YubiKey/TPM ([crypto_core only](crypto_core/README.md) — Python CLI not yet wired) |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
@@ -240,7 +241,7 @@ make meow-build
 The WASM demo includes:
 - **Cat Mode** — Optical data transmission through blinking cat eyes (green = 1, dark = 0)
 - **Standard Mode** — QR code encryption/decryption
-- **Schrödinger Mode** — Dual-secret quantum plausible deniability
+- **Schrödinger Mode** — Dual-secret plausible deniability
 - **Stego Mode** — LSB steganography in carrier images
 
 See [examples/README.md](examples/README.md) for full setup instructions.
@@ -291,7 +292,7 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 Encodes **two completely separate secrets** into one GIF. Each password reveals a different reality:
 
 ```bash
-# Encode two secrets in quantum superposition
+# Encode two secrets with dual-secret deniability
 meow-schrodinger-encode \
     --real secret_plans.pdf \
     --decoy vacation_photos.zip \
@@ -578,13 +579,13 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ## 🔌 Hardware Security Status
 
-Hardware security primitives are implemented in the Rust core, with Python CLI wiring still in progress.
+> ⚠️ **Rust crypto_core only** — These primitives are implemented in Rust but **not yet exposed in the Python CLI**. Direct Rust/WASM usage only for now.
 
-- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`).
-- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`).
-- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
+- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`)
+- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`)
+- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`)
 
-Details and examples live in [crypto_core/README.md](crypto_core/README.md).
+See [crypto_core/README.md](crypto_core/README.md) for Rust API usage and examples.
 
 ---
 
