@@ -68,7 +68,7 @@ This compiles the Rust crypto core to WebAssembly. The output is cached in `cryp
 
 **Quick Start (recommended):**
 ```bash
-make wasm-demo
+make meow-build
 ```
 This builds WASM (if needed) and starts the server. Open http://localhost:8080/examples/wasm_browser_example.html
 

@@ -21,7 +21,7 @@ help:
 	@echo "  make build-rust        - Build Rust crypto_core"
 	@echo "  make build-wasm        - Build WASM bindings"
 	@echo "  make build-wasm-release - Build optimized WASM for production"
-	@echo "  make wasm-demo         - Build WASM + start browser demo server"
+	@echo "  make meow-build        - Build WASM + start browser demo server"
 	@echo "  make prepare-deploy    - Prepare WASM demo for hosting"
 	@echo ""
 	@echo "🔒 Security:"
@@ -178,10 +178,10 @@ build-wasm-node:
 	cd crypto_core && wasm-pack build --target nodejs --release --features wasm
 	@echo "✅ WASM Node.js build complete in crypto_core/pkg/"
 
-# 🌐 WASM demo - Build and start HTTP server
-wasm-demo: build-wasm
+# 🐱 meow-build - Build WASM + start HTTP server
+meow-build: build-wasm
 	@echo ""
-	@echo "🐱 Starting WASM Demo Server..."
+	@echo "🐱 Starting Meow Decoder Demo Server..."
 	@echo ""
 	@echo "📍 Open in browser: http://localhost:8080/examples/wasm_browser_example.html"
 	@echo ""

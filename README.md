@@ -593,7 +593,7 @@ This creates `crypto_core/pkg/` with the `.js` and `.wasm` files.
 
 ```bash
 # One command: build WASM + start server
-make wasm-demo
+make meow-build
 
 # Then open: http://localhost:8080/examples/wasm_browser_example.html
 ```
@@ -617,16 +617,16 @@ This repo includes a `.devcontainer/devcontainer.json` for GitHub Codespaces and
 
 **Port Forwarding is Disabled by Default** — This prevents confusing "Cannot GET /" errors and popup spam when opening a Codespace. When you're ready to run the WASM demo:
 
-1. Run: `make wasm-demo`
+1. Run: `make meow-build`
 2. Open the **Ports** tab (bottom panel)
 3. Forward port 8080 (will auto-detect or right-click → Forward Port)
 4. Click the forwarded URL, then navigate to `/examples/wasm_browser_example.html`
 
 | Scenario | Action |
 |----------|--------|
-| First clone | Run `make wasm-demo` (~1-2 min to build, then serves) |
-| Resume/reopen | Built files persist — just `make wasm-demo` starts server |
-| Container rebuild | Re-run `make wasm-demo` |
+| First clone | Run `make meow-build` (~1-2 min to build, then serves) |
+| Resume/reopen | Built files persist — just `make meow-build` starts server |
+| Container rebuild | Re-run `make meow-build` |
 | Rust code changes | Re-run to pick up changes |
 
 > **Why a server?** Browsers block WASM loading from `file://` URLs. The HTTP server provides proper MIME types for `.wasm` files.
