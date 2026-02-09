@@ -270,7 +270,7 @@
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">1</span>
                 <h2>😺 Cat Mode: Optical Data Transmission</h2>
-                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! The blink pattern encodes your secret in binary.</p>
+                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! Green eyes = 1, dark = 0. After transmission, copy the binary pattern to decode below.</p>
                 <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
                     <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
                     <div style="flex:1; min-width:260px;">
@@ -308,11 +308,11 @@
             
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">2</span>
-                <h2>👁️ Watch & Decode</h2>
-                <p class="step-desc">Record the blinking pattern with your camera, then decode it here. Or paste the binary pattern directly.</p>
+                <h2>� Decode Binary</h2>
+                <p class="step-desc"><b>Demo:</b> After transmission completes above, copy the binary pattern and paste it here to decrypt. <br><span style="color:#888; font-size:0.85em;">(In a real scenario, you'd record the blinking eyes with a phone, then manually decode the binary from the video.)</span></p>
                 
-                <label for="catBinaryInput">📟 Binary Pattern (from recording):</label>
-                <textarea id="catBinaryInput" rows="2" placeholder="Paste binary like: 01001000 01100101 01101100..." style="margin-bottom: 10px;"></textarea>
+                <label for="catBinaryInput">📟 Binary Pattern:</label>
+                <textarea id="catBinaryInput" rows="2" placeholder="Paste binary from step 1 (e.g., 11111111 01001000 01100101 ...)" style="margin-bottom: 10px;"></textarea>
                 
                 <label for="catDecodePassword">🔑 Password:</label>
                 <input type="password" id="catDecodePassword" placeholder="Same password used to encode" style="margin-bottom: 10px;">
