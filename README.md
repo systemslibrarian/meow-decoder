@@ -881,9 +881,7 @@ More details and expected results:
 | Intelligence agency | ❌ Not designed for this  |
 | NSA with full resources | ❌ Not designed for this |
 
-**🚫 Not Designed For Use By:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
-
-**📜 Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
+** Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
 
 **Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility. No guarantees.
 
