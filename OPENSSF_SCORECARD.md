@@ -5,7 +5,7 @@ Current scores from [securityscorecards.dev](https://securityscorecards.dev/view
 ## ✅ Completed (Score 10)
 
 - [x] **Fuzzing** (10/10) - Project uses fuzzing
-- [x] **License** (10/10) - MIT license defined
+- [x] **License** (10/10) - CC BY-NC-SA 4.0 license defined
 - [x] **CI-Tests** (10/10) - Tests run before PR merge
 
 ## 🔴 HIGH Priority

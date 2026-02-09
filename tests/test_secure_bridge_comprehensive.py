@@ -25,6 +25,18 @@ import pytest
 from unittest.mock import Mock, patch, MagicMock
 from dataclasses import dataclass
 
+# Check if Rust backend is available for skipping tests
+try:
+    from meow_decoder.secure_bridge import RUST_AVAILABLE
+except ImportError:
+    RUST_AVAILABLE = False
+
+# Skip marker for tests requiring Rust backend attribute patching
+requires_rust_patchable = pytest.mark.skipif(
+    not RUST_AVAILABLE,
+    reason="Rust backend not available - cannot patch meow_crypto_rs"
+)
+
 # ============================================================================
 # Test Fixtures
 # ============================================================================
@@ -611,6 +623,7 @@ class TestCheckRustBackendMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestSecureBridgeErrorHandlingMeow:
     """Tests for error handling in SecureBridge."""
 
@@ -701,6 +714,7 @@ class TestSecureBridgeErrorHandlingMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestMemorySafetyInvariantsMeow:
     """Tests verifying memory safety invariants."""
 
@@ -777,6 +791,7 @@ class TestMemorySafetyInvariantsMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestSecureBridgeEdgeCasesMeow:
     """Tests for edge cases and boundary conditions."""
 
@@ -874,6 +889,7 @@ class TestSecureBridgeEdgeCasesMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestSecureBridgeIntegrationMeow:
     """Integration tests for complete encrypt/decrypt flow."""
 
@@ -971,6 +987,7 @@ class TestSecureBridgeIntegrationMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestTryZeroStringMeow:
     """Tests for _try_zero_string helper method."""
 
@@ -1005,6 +1022,7 @@ class TestTryZeroStringMeow:
 # ============================================================================
 
 
+@requires_rust_patchable
 class TestSecureBridgePerformanceMeow:
     """Performance and stress tests for SecureBridge."""
 
@@ -1046,6 +1064,7 @@ class TestSecureBridgePerformanceMeow:
 
 
 # --- Merged from test_coverage_boost_remaining.py ---
+@requires_rust_patchable
 class TestSecureBridgeBoost:
     def test_create_key_handle_and_encrypt_decrypt(self):
         """Test SecureBridge key handle + encrypt/decrypt roundtrip."""
@@ -1101,6 +1120,7 @@ class TestSecureBridgeBoost:
 # =====================================================
 
 
+@requires_rust_patchable
 class TestSecureBridgeCoverageGaps:
     """Tests targeting specific uncovered lines in secure_bridge.py."""
 

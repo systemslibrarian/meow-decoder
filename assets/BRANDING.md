@@ -330,7 +330,7 @@ setup(
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
+        "License :: Other/Proprietary License",  # CC-BY-NC-SA-4.0
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
@@ -521,7 +521,7 @@ convert -density 300 meow-decoder-logo.svg meow-decoder-logo.png
 
 ## 📄 **License**
 
-Meow Decoder logos are part of the Meow Decoder project and follow the same license (MIT).
+Meow Decoder logos are part of the Meow Decoder project and follow the same license (CC BY-NC-SA 4.0).
 
 **You may:**
 - ✅ Use in documentation

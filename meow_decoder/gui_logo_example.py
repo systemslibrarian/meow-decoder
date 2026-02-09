@@ -176,7 +176,7 @@ def show_about_dialog():
 
         dpg.add_separator()
 
-        dpg.add_text("Licensed under MIT License")
+        dpg.add_text("Licensed under CC BY-NC-SA 4.0")
         dpg.add_text("© 2026 Your Name")
 
         dpg.add_spacing(count=2)

@@ -1,0 +1,52 @@
+# .coveragerc - Coverage.py configuration
+# This file is used by pytest-cov (--cov-config=.coveragerc)
+# Keep in sync with pyproject.toml [tool.coverage.*] sections
+
+[run]
+branch = true
+# WHITELIST: Security-critical files only
+include =
+    meow_decoder/crypto.py
+    meow_decoder/crypto_backend.py
+    meow_decoder/constant_time.py
+    meow_decoder/x25519_forward_secrecy.py
+    meow_decoder/forward_secrecy.py
+    meow_decoder/fountain.py
+    meow_decoder/encode.py
+    meow_decoder/decode_gif.py
+    meow_decoder/gif_handler.py
+    meow_decoder/frame_mac.py
+    meow_decoder/schrodinger_encode.py
+    meow_decoder/schrodinger_decode.py
+    meow_decoder/quantum_mixer.py
+    meow_decoder/stego_advanced.py
+    meow_decoder/decoy_generator.py
+    meow_decoder/duress_mode.py
+    meow_decoder/timelock_duress.py
+    meow_decoder/secure_cleanup.py
+    meow_decoder/secure_bridge.py
+    meow_decoder/high_security.py
+    meow_decoder/streaming_crypto.py
+    meow_decoder/double_ratchet.py
+    meow_decoder/multi_secret.py
+    meow_decoder/resume_secured.py
+
+[report]
+fail_under = 0
+show_missing = true
+skip_covered = false
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    if __name__ == .__main__.:
+    raise NotImplementedError
+    if TYPE_CHECKING:
+    if _TEST_MODE:
+    if verbose:
+    if args.verbose:
+
+[xml]
+output = coverage.xml
+
+[html]
+directory = htmlcov

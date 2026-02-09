@@ -135,4 +135,4 @@ maturin build --release --manylinux 2_17
 
 ## License
 
-MIT OR Apache-2.0 (same as Meow Decoder)
+CC BY-NC-SA 4.0 (same as Meow Decoder)

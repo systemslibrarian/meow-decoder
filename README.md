@@ -33,8 +33,8 @@
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
   </a>
-  <a href="https://github.com/systemslibrarian/meow-decoder/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="MIT License">
+  <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/">
+    <img src="https://img.shields.io/badge/License-CC%20BY--NC--SA%204.0-lightgrey.svg" alt="License: CC BY-NC-SA 4.0">
   </a>
   <a href="https://www.python.org/downloads/">
     <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python 3.10+">
@@ -856,7 +856,9 @@ See the [Cat Herder's Handbook (CONTRIBUTING.md)](CONTRIBUTING.md) for guideline
 
 ## 📄 License
 
-MIT License — see [LICENSE](LICENSE)
+This project is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
+
+See [LICENSE](LICENSE) for the full license text.
 
 ---
 

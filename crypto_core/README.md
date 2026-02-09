@@ -582,7 +582,7 @@ pub fn encrypt(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, Erro
 
 ## License
 
-MIT License - See LICENSE file
+CC BY-NC-SA 4.0 - See [LICENSE](../LICENSE) file
 
 ---
 
@@ -760,4 +760,4 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for development guidelines.
 
 ## License
 
-MIT License - See [LICENSE](../LICENSE) file
+CC BY-NC-SA 4.0 - See [LICENSE](../LICENSE) file

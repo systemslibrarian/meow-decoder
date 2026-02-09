@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Meow Decoder Team"]
 description = "Rust crypto backend for Meow Decoder - constant-time, side-channel resistant"
-license = "MIT"
+license = "CC-BY-NC-SA-4.0"
 readme = "README.md"
 
 [lib]

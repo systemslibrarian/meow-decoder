@@ -293,7 +293,7 @@ class MeowGUI:
                     dpg.add_text("  Production Release", color=(78, 205, 196))
                     dpg.add_text("  Features Stable for v1.0")
 
-                    dpg.add_text("\n📄 License: MIT")
+                    dpg.add_text("\n📄 License: CC BY-NC-SA 4.0")
                     dpg.add_text("© 2026 Meow Decoder Contributors")
 
         # Set primary window

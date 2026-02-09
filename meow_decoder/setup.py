@@ -129,7 +129,7 @@ setup(
         "Intended Audience :: Science/Research",
         "Intended Audience :: Information Technology",
         # License
-        "License :: OSI Approved :: MIT License",
+        "License :: Other/Proprietary License",  # CC-BY-NC-SA-4.0
         # Programming language
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.8",
@@ -169,7 +169,7 @@ setup(
         "forward-secrecy",
     ],
     # Licensing
-    license="MIT",
+    license="CC-BY-NC-SA-4.0",
     # Zip safe
     zip_safe=False,
 )
