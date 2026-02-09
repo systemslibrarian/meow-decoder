@@ -707,6 +707,38 @@ Examples:
         default=None,
         help="Write tamper report as JSON to the given file",
     )
+
+    # ── Mobile Bridge Mode ───────────────────────────────────────────────────
+    parser.add_argument(
+        "--mobile-bridge",
+        action="store_true",
+        help="Enable mobile bridge mode: accept QR frames via JSON protocol",
+    )
+    parser.add_argument(
+        "--bridge-mode",
+        choices=["stdin", "websocket", "file"],
+        default="stdin",
+        help="Bridge transport: stdin (pipe), websocket (server), or file (default: stdin)",
+    )
+    parser.add_argument(
+        "--bridge-port",
+        type=int,
+        default=8765,
+        help="WebSocket server port for bridge mode (default: 8765)",
+    )
+    parser.add_argument(
+        "--input-frames",
+        type=Path,
+        metavar="FILE",
+        help="Read captured frames from JSON file (alternative to --input GIF)",
+    )
+    parser.add_argument(
+        "--output-request",
+        type=Path,
+        metavar="FILE",
+        help="Write capture request JSON for mobile app (then exit)",
+    )
+
     parser.add_argument(
         "--about", "--meow-about", action="store_true", help="Show version and build information"
     )
@@ -744,6 +776,37 @@ Examples:
             args.verbose = True
             print("🐱 Nine Lives retry mode enabled (max 9 attempts on error)")
             print("   Using all nine lives to ensure decoding success!\n")
+
+    # Handle mobile bridge mode
+    if args.mobile_bridge or args.input_frames or args.output_request:
+        from .mobile_bridge import handle_mobile_bridge
+
+        def decode_frames_callback(frames: list[bytes], decode_args):
+            """Decode raw QR frame bytes using fountain decoder."""
+            # This is a simplified callback - full implementation would
+            # integrate with the fountain decoder directly
+            try:
+                from .fountain import FountainDecoder
+                from .crypto import decrypt_to_raw
+
+                # Process frames through fountain decoder
+                decoder = FountainDecoder()
+                for frame_data in frames:
+                    decoder.add_droplet(frame_data)
+
+                if decoder.is_complete():
+                    encrypted = decoder.get_decoded()
+                    plaintext = decrypt_to_raw(encrypted, decode_args.password)
+                    decode_args.output.write_bytes(plaintext)
+                    return True
+                return False
+            except Exception as e:
+                if getattr(decode_args, "verbose", False):
+                    print(f"Decode error: {e}")
+                return False
+
+        handle_mobile_bridge(args, decode_frames_callback)
+        sys.exit(0)
 
     # For normal operation, require input/output
     if not args.about and not args.hardware_status:

@@ -9,6 +9,14 @@
 </p>
 
 <p align="center">
+  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and optional dual-secret plausible deniability.</em>
+</p>
+
+<p align="center">
+  <strong>Why choose this?</strong> Unlike basic QR exfil tools, Meow Decoder adds strong authenticated encryption, forward secrecy, post-quantum resistance, plausible deniability, and coercion resistance — all while keeping the phone as a passive optical relay.
+</p>
+
+<p align="center">
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/security-ci.yml/badge.svg" alt="Security CI">
   </a>
@@ -27,8 +35,8 @@
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU" alt="Python Coverage">
   </a>
-  <a href="tests/TEST_SUITE_README.md">
-    <img src="assets/coverage.svg" alt="Rust Coverage">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags[0]=rust">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
@@ -62,8 +70,6 @@
 | You need air-gapped file transfer | You want one-tap phone scanning |
 | You understand command-line tools | You need plug-and-play simplicity |
 | You want to audit the crypto yourself | You need production enterprise support |
-
-**🚫 Not Designed For:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
 **⚖️ Legal Notice:** Meow Decoder is not intended to circumvent law enforcement or legal obligations. Steganography and deniability features are limited and detectable under forensic examination.
 
@@ -138,36 +144,35 @@ cd meow-decoder
 pip install -e .
 ```
 
-### 2. Encode (Sender)
+### 2. Encode → Transfer → Decode
 
 ```bash
-# Encrypt a file into animated QR GIF
+# Sender: Encrypt file into animated QR GIF
 meow-encode -i secret.pdf -o secret.gif -p "YourStrongPassword123"
-```
 
-### 3. Display & Record
-
-```bash
-# Open the GIF (it loops automatically)
-open secret.gif  # macOS
-xdg-open secret.gif  # Linux
-start secret.gif  # Windows
-```
-
-**Record the screen with your phone camera for 10-15 seconds.**
-
-### 4. Transfer Video
-
-Move the video file to the receiving computer (USB, email, cloud - the video is encrypted garbage without the password).
-
-### 5. Decode (Receiver)
-
-```bash
-# Decrypt from the video recording
+# Receiver: Decrypt from video recording
 meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123"
 ```
 
-**Done!** Your file is recovered with integrity verification.
+<details>
+<summary><strong>📹 Recording & Transfer Details</strong></summary>
+
+**Display the GIF:**
+```bash
+open secret.gif      # macOS
+xdg-open secret.gif  # Linux
+start secret.gif     # Windows
+```
+
+**Record:** Point your phone camera at the screen for 10-15 seconds (GIF loops automatically).
+
+**Transfer:** Move the video to the receiving computer via USB, email, or cloud. The video is encrypted garbage without the password.
+
+**Decode:** Run `meow-decode-gif` as shown above.
+
+</details>
+
+**Done!** File recovered with integrity verification.
 
 ---
 
@@ -180,12 +185,12 @@ meow-decode-gif -i captured_video.mp4 -o recovered.pdf -p "YourStrongPassword123
 | 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
 | 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
 | 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
-| 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
+| 🔮 **Post-Quantum** | ML-KEM-1024 (Kyber) + ML-DSA-65 (Dilithium) hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | Rust core supports HSM/PKCS#11, YubiKey PIV/FIDO2, TPM PCR sealing (CLI wiring pending) |
+| 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--use-hardware-key`) |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
-| 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
+| 📱 **Mobile Bridge** | React Native QR scanner app with JSON protocol integration |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
 
 ---
@@ -240,7 +245,7 @@ make meow-build
 The WASM demo includes:
 - **Cat Mode** — Optical data transmission through blinking cat eyes (green = 1, dark = 0)
 - **Standard Mode** — QR code encryption/decryption
-- **Schrödinger Mode** — Dual-secret quantum plausible deniability
+- **Schrödinger Mode** — Dual-secret plausible deniability
 - **Stego Mode** — LSB steganography in carrier images
 
 See [examples/README.md](examples/README.md) for full setup instructions.
@@ -273,7 +278,7 @@ meow-encode -i secret.pdf -o logo.gif -p "password" \
 
 ### Photographic Cat Camouflage
 <p align="center">
-  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Photographic cat camouflage demo" width="400">
+  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Animated GIF showing hidden QR data inside a looping cat photo texture (steganography example)" width="400">
 </p>
 
 Looks like a normal looping cat GIF. Data hidden in image texture.
@@ -291,7 +296,7 @@ Looks like a normal looping cat GIF. Data hidden in image texture.
 Encodes **two completely separate secrets** into one GIF. Each password reveals a different reality:
 
 ```bash
-# Encode two secrets in quantum superposition
+# Encode two secrets with dual-secret deniability
 meow-schrodinger-encode \
     --real secret_plans.pdf \
     --decoy vacation_photos.zip \
@@ -385,7 +390,7 @@ Meow Decoder builds on ideas from these pioneering projects:
 While inspired by these projects, Meow Decoder adds critical security features:
 
 - 🔐 **Authenticated Encryption** — AES-256-GCM with HMAC (not just encoding)
-- 🔮 **Post-Quantum Ready** — ML-KEM-768 + Dilithium3 hybrid cryptography
+- 🔮 **Post-Quantum Ready** — ML-KEM-1024 + ML-DSA-65 hybrid cryptography
 - 🌊 **Loss-Tolerant** — Fountain codes reconstruct from any ~1.5× k frames
 - 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
@@ -505,7 +510,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
 - **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
 - **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (DEFAULT ON)
-- **Signatures:** Dilithium3 + Ed25519 hybrid (manifest auth)
+- **Signatures:** ML-DSA-65 + Ed25519 hybrid (manifest auth)
 - **Integrity:** HMAC-SHA256 + per-frame MACs
 - **Error Correction:** Luby Transform fountain codes
 
@@ -521,9 +526,9 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
 | Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
 | Forward Secrecy | X25519 ephemeral keys | ✅ Default |
-| Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
+| Post-Quantum | ML-KEM-1024 + ML-DSA-65 | ✅ Default |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
-| Coercion Resistance | Duress passwords | ⚠️ Module only |
+| Coercion Resistance | Duress passwords | ✅ |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
 | Tamper Timeline | Frame-by-frame MAC report | ✅ |
@@ -576,19 +581,121 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ---
 
-## 🔌 Hardware Security Status
+## 🔌 Hardware Security Module Integration
 
-Hardware security primitives are implemented in the Rust core, with Python CLI wiring still in progress.
+Meow Decoder supports hardware-backed key storage for high-security environments.
 
-- **HSM/PKCS#11**: Implemented in crypto_core (feature: `hsm`).
-- **YubiKey PIV/FIDO2**: Implemented in crypto_core (feature: `yubikey`).
-- **TPM 2.0 PCR Sealing**: Implemented in crypto_core (feature: `tpm`).
+### Supported Hardware
 
-Details and examples live in [crypto_core/README.md](crypto_core/README.md).
+| Device | CLI Flag | Description |
+|--------|----------|-------------|
+| **HSM/PKCS#11** | `--hsm-slot=<slot>` | Enterprise HSMs (Thales, Utimaco, SoftHSM) |
+| **YubiKey** | `--yubikey-piv-slot=<9a\|9c\|9d\|9e>` | PIV slots for key storage |
+| **TPM 2.0** | `--tpm-pcr=<0-23>` | Platform-bound keys with PCR sealing |
+
+### Example Usage
+
+```bash
+# Encode with YubiKey (PIV slot 9a = authentication)
+meow-encode -i secret.pdf -o secret.gif --use-hardware-key --yubikey-piv-slot=9a
+
+# Encode with HSM (slot 0)
+meow-encode -i secret.pdf -o secret.gif --use-hardware-key --hsm-slot=0
+
+# Encode with TPM (bind to PCR 7 = Secure Boot state)
+meow-encode -i secret.pdf -o secret.gif --use-hardware-key --tpm-pcr=7
+
+# Decode requires the same hardware present
+meow-decode-gif -i secret.gif -o recovered.pdf --use-hardware-key --yubikey-piv-slot=9a
+```
+
+### How It Works
+
+1. **Key Generation**: Hardware generates a non-exportable key pair
+2. **Key Wrapping**: AES-256 content key is wrapped by hardware public key
+3. **Wrapped Key in Manifest**: GIF manifest stores the wrapped key blob
+4. **Decryption**: Hardware unwraps the content key; plaintext key never leaves the device
+
+**Security Properties:**
+- Private keys **never leave the hardware** — resistant to memory dumps
+- TPM PCR binding ensures decryption only on specific boot configurations
+- YubiKey requires physical touch for each operation (anti-malware)
+
+See [crypto_core/README.md](crypto_core/README.md) for Rust API details and advanced configuration.
 
 ---
 
-## 🌐 WASM Browser Demo (Experimental)
+## 📱 Mobile Bridge (React Native)
+
+The React Native QR scanner app provides a seamless mobile-to-CLI workflow for capturing animated QR codes.
+
+### Installation
+
+```bash
+# iOS
+cd mobile && npx pod-install && npx react-native run-ios
+
+# Android
+cd mobile && npx react-native run-android
+```
+
+### JSON Protocol
+
+The mobile app communicates with the CLI via JSON over stdout/stdin or file exchange:
+
+**Capture Request (CLI → App):**
+```json
+{
+  "action": "capture",
+  "session_id": "uuid-v4",
+  "expected_frames": 45,
+  "timeout_seconds": 60
+}
+```
+
+**Frame Data (App → CLI):**
+```json
+{
+  "session_id": "uuid-v4",
+  "frames": [
+    {"index": 0, "data": "base64...", "timestamp_ms": 1234567890},
+    {"index": 1, "data": "base64...", "timestamp_ms": 1234567950}
+  ],
+  "capture_complete": true,
+  "frames_captured": 45,
+  "frames_missed": 2
+}
+```
+
+**Decode Response (CLI → App):**
+```json
+{
+  "session_id": "uuid-v4",
+  "status": "success",
+  "output_file": "/path/to/recovered.pdf",
+  "integrity_verified": true,
+  "frames_used": 43
+}
+```
+
+### CLI Integration
+
+```bash
+# Export capture request for mobile app
+meow-decode-gif --mobile-bridge --output-request capture_request.json
+
+# Import captured frames from mobile
+meow-decode-gif --mobile-bridge --input-frames captured_frames.json -o recovered.pdf -p "password"
+
+# Or use pipe mode (adb/USB bridge)
+adb shell cat /sdcard/meow_frames.json | meow-decode-gif --mobile-bridge -o recovered.pdf -p "password"
+```
+
+See [mobile/ARCHITECTURE.md](mobile/ARCHITECTURE.md) for full protocol specification and app architecture.
+
+---
+
+## 🌐 WASM Browser Demo
 
 Run the crypto core directly in your browser — no server-side processing, fully client-side encryption.
 

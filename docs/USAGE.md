@@ -101,6 +101,88 @@ If you want, I can add:
 
 ---
 
+## Mobile Bridge (React Native scanner)
+
+The mobile bridge connects phone-based QR scanning directly to the CLI decoder.
+
+### File mode (import from mobile app export)
+
+```bash
+# Read frames exported from mobile app
+meow-decode-gif --mobile-bridge --input-frames frames.json -o out.pdf -p "password"
+```
+
+### WebSocket mode (direct phone connection)
+
+```bash
+# Start WebSocket server, phone connects directly
+meow-decode-gif --mobile-bridge --bridge-mode websocket --bridge-port 8765 -o out.pdf -p "password"
+```
+
+The phone app connects to `ws://<your-ip>:8765` and streams frames in real-time.
+
+### Stdin mode (pipe from adb)
+
+```bash
+# Pipe from Android device
+adb shell cat /sdcard/meow_frames.json | meow-decode-gif --mobile-bridge -o out.pdf -p "password"
+```
+
+### Generate capture request
+
+```bash
+# Create a JSON request for the mobile app
+meow-decode-gif --mobile-bridge --output-request request.json
+```
+
+---
+
+## Hardware Keys (HSM, YubiKey, TPM)
+
+Hardware security modules provide tamper-resistant key storage.
+
+### YubiKey (PIV)
+
+```bash
+# Encode with YubiKey
+meow-encode -i secret.pdf -o secret.gif --yubikey --yubikey-slot 9a
+
+# Decode with YubiKey
+meow-decode-gif -i secret.gif -o out.pdf --yubikey --yubikey-slot 9a
+```
+
+### HSM (PKCS#11)
+
+```bash
+# Encode with HSM slot
+meow-encode -i secret.pdf -o secret.gif --hsm-slot 0 --hsm-pin 123456
+
+# Decode with HSM
+meow-decode-gif -i secret.gif -o out.pdf --hsm-slot 0 --hsm-pin 123456
+```
+
+### TPM 2.0
+
+```bash
+# Derive key from TPM
+meow-encode -i secret.pdf -o secret.gif --tpm-derive
+
+# Unseal with TPM
+meow-decode-gif -i secret.gif -o out.pdf --tpm-unseal
+```
+
+### Auto-detect hardware
+
+```bash
+# Check available hardware
+meow-decode-gif --hardware-status
+
+# Auto-select available hardware
+meow-encode -i secret.pdf -o secret.gif --hardware-auto
+```
+
+---
+
 ## Troubleshooting
 
 ### `pyzbar` / `zbar` errors

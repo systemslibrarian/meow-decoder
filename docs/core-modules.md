@@ -57,6 +57,8 @@ This table summarizes the main Python source files in the `meow_decoder/` packag
 | meow_decoder/x25519_forward_secrecy.py | x25519_forward_secrecy       | Forward secrecy protocol built specifically around X25519 curves.           |
 | meow_decoder/canonical_aad.py          | canonical_aad                | Deterministic AAD construction: `version_byte ∥ fixed-order manifest fields`. |
 | meow_decoder/tamper_report.py          | tamper_report                | Frame-by-frame MAC verification timeline with ASCII rendering and cluster detection. |
+| meow_decoder/mobile_bridge.py          | mobile_bridge                | CLI handler for mobile bridge: stdin, WebSocket, file modes for phone→CLI scanning. |
+| meow_decoder/hardware_integration.py   | hardware_integration         | Bridges CLI to Rust crypto_core for HSM, YubiKey, and TPM hardware keys. |
 | mobile/bridge/protocol.py             | bridge.protocol              | JSON wire protocol for phone→CLI QR scanner bridge (6 message types).       |
 
 **Notes**:

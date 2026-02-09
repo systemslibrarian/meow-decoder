@@ -261,7 +261,7 @@ The project includes **261 Rust tests** across two packages:
 
 | File | Tests | Purpose |
 |------|-------|--------|
-| `src/pure.rs` | 46 | Pure Rust crypto: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-768 |
+| `src/pure.rs` | 46 | Pure Rust crypto: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
 | `tests/comprehensive_tests.rs` | 76 | Core crypto operations via PyO3 bindings |
 | `tests/additional_security_tests.rs` | 29 | Security edge cases, zeroization, failure modes |
 | `tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |

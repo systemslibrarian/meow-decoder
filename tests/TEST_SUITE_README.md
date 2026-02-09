@@ -63,7 +63,7 @@ The test suite was consolidated from 80 files to 66 by:
 | `test_high_security_comprehensive.py` | 34 | High security mode, secure wipe, memory protection |
 | `test_entropy_boost_comprehensive.py` | 90 | Entropy pool, enhanced salt/nonce, hardware entropy |
 | `test_double_ratchet.py` | 27 | Signal-style key ratcheting |
-| `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-768) |
+| `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-1024) |
 | `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
 | `test_pq_signatures.py` | 10 | Post-quantum signatures |
 
@@ -108,7 +108,7 @@ The project includes two Rust crypto packages with **261 total tests**:
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `rust_crypto/src/pure.rs` (unit tests) | 46 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-768 |
+| `rust_crypto/src/pure.rs` (unit tests) | 46 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
 | `rust_crypto/tests/comprehensive_tests.rs` | 76 | Core crypto operations via PyO3 bindings |
 | `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization, failure modes, boundary conditions |
 | `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |

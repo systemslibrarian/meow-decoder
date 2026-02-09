@@ -10,7 +10,7 @@ with Python bindings via PyO3.
 - **HKDF** - HMAC-based Key Derivation Function
 - **HMAC-SHA256** - Keyed-hash message authentication
 - **X25519** - Elliptic curve Diffie-Hellman
-- **ML-KEM-768** - Post-quantum key encapsulation (optional)
+- **ML-KEM-1024** - Post-quantum key encapsulation (NIST FIPS 203)
 - **SecureBuffer** - Automatic memory zeroing
 
 ## Security Properties

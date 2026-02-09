@@ -155,17 +155,15 @@ python -m meow_decoder.schrodinger_encode \
 
 **Result**: Single GIF containing both secrets in superposition
 
-### Decoding (In Development)
+### Decoding
 
 ```bash
-# Will extract one reality based on password
+# Extract one reality based on password
 python -m meow_decoder.schrodinger_decode \
     -i quantum.gif \
     -o output.pdf \
     -p "MyRealSecret123"
 ```
-
-**Note**: Decoder needs architectural refinement (see above)
 
 ## Forensic Resistance
 
