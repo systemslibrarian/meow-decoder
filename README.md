@@ -181,12 +181,12 @@ start secret.gif     # Windows
 | 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
 | 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
 | 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
-| 🔮 **Post-Quantum** | ML-KEM-1024 + Dilithium3 hybrid (DEFAULT) |
+| 🔮 **Post-Quantum** | ML-KEM-1024 (Kyber) + ML-DSA-65 (Dilithium) hybrid (DEFAULT) |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | Rust primitives for HSM/YubiKey/TPM ([crypto_core only](crypto_core/README.md) — Python CLI not yet wired) |
+| 🖥️ **Hardware Keys** | HSM/YubiKey/TPM support *(Rust crypto_core only — CLI integration planned)* |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
-| 📱 **Mobile Bridge** | React Native QR scanner → CLI JSON protocol |
+| 📱 **Mobile Bridge** | React Native QR scanner *(protocol defined — app in development)* |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
 
 ---
@@ -274,7 +274,7 @@ meow-encode -i secret.pdf -o logo.gif -p "password" \
 
 ### Photographic Cat Camouflage
 <p align="center">
-  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Photographic cat camouflage demo" width="400">
+  <img src="assets/demo_camouflage_photo.gif?v=3" alt="Animated GIF showing hidden QR data inside a looping cat photo texture (steganography example)" width="400">
 </p>
 
 Looks like a normal looping cat GIF. Data hidden in image texture.
@@ -386,7 +386,7 @@ Meow Decoder builds on ideas from these pioneering projects:
 While inspired by these projects, Meow Decoder adds critical security features:
 
 - 🔐 **Authenticated Encryption** — AES-256-GCM with HMAC (not just encoding)
-- 🔮 **Post-Quantum Ready** — ML-KEM-768 + Dilithium3 hybrid cryptography
+- 🔮 **Post-Quantum Ready** — ML-KEM-1024 + ML-DSA-65 hybrid cryptography
 - 🌊 **Loss-Tolerant** — Fountain codes reconstruct from any ~1.5× k frames
 - 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
@@ -506,7 +506,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
 - **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
 - **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (DEFAULT ON)
-- **Signatures:** Dilithium3 + Ed25519 hybrid (manifest auth)
+- **Signatures:** ML-DSA-65 + Ed25519 hybrid (manifest auth)
 - **Integrity:** HMAC-SHA256 + per-frame MACs
 - **Error Correction:** Luby Transform fountain codes
 
@@ -522,9 +522,9 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
 | Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
 | Forward Secrecy | X25519 ephemeral keys | ✅ Default |
-| Post-Quantum | ML-KEM-1024 + Dilithium3 | ✅ Default |
+| Post-Quantum | ML-KEM-1024 + ML-DSA-65 | ✅ Default |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
-| Coercion Resistance | Duress passwords | ⚠️ Module only |
+| Coercion Resistance | Duress passwords | ⚠️ Rust core only |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
 | Tamper Timeline | Frame-by-frame MAC report | ✅ |
