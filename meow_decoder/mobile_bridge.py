@@ -57,6 +57,7 @@ except ImportError:
         @property
         def qr_bytes(self) -> bytes:
             import base64
+
             return base64.b64decode(self.qr_bytes_b64)
 
     def parse_phone_message(raw: str):
@@ -165,6 +166,7 @@ def read_frames_from_file(input_path: Path) -> list[bytes]:
         elif isinstance(item, str):
             # Raw base64 strings
             import base64
+
             frames.append((len(frames), base64.b64decode(item)))
 
     # Sort by sequence number
@@ -284,9 +286,7 @@ async def run_websocket_bridge(
                         elapsed = time.time() - start_time
                         sorted_frames = [frames[seq] for seq in sorted(frames.keys())]
 
-                        success, error, size = decode_callback(
-                            sorted_frames, password, output_path
-                        )
+                        success, error, size = decode_callback(sorted_frames, password, output_path)
 
                         result = Result(
                             success=success,
