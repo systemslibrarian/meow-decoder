@@ -224,6 +224,12 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
 
 ### 🐱 Cat Mode (Quick Fun Theming)
 
+<p align="center">
+  <img src="assets/cat1.jpg" alt="Cat Mode WASM demo" width="300">
+  <br>
+  <em>Cat Mode: Because sometimes you need to smuggle data… but also look adorable doing it.</em>
+</p>
+
 ```bash
 # Quick cat-themed encoding with bundled carrier
 meow-encode -i secret.pdf -o meow.gif -p "password" --cat-mode
