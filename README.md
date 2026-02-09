@@ -63,6 +63,8 @@
 | You understand command-line tools | You need plug-and-play simplicity |
 | You want to audit the crypto yourself | You need production enterprise support |
 
+**🚫 Not Designed For:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
+
 **Honest disclaimer:** This is a **developer/research tool**, not a consumer app (yet). It requires Python, command-line comfort, and understanding of what you're doing. If you're looking for a polished mobile experience, check back later or contribute!
 
 ---
@@ -742,9 +744,11 @@ More details and expected results:
 | Script kiddie | ✅ Yes, easily |
 | Skilled hacker (network) | ✅ Yes (no network exposure) |
 | Corporate IT snooping | ✅ Yes (optical bypasses monitoring) |
-| Law enforcement (legal demand) | ⚠️ Maybe (Schrödinger mode helps) |
-| Intelligence agency | ⚠️ Partial (endpoint risk) |
+| Law enforcement (legal demand) | ❌ Not designed for this  |
+| Intelligence agency | ❌ Not designed for this  |
 | NSA with full resources | ❌ Not designed for this |
+
+**🚫 Not Designed For Use By:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
 **Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility.
 
