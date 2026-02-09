@@ -230,6 +230,21 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
   <em>Cat Mode: Because sometimes you need to smuggle data… but also look adorable doing it.</em>
 </p>
 
+**🌐 Try it in your browser!** The Cat Mode demo runs entirely in WebAssembly — no server needed:
+
+```bash
+make meow-build
+# Opens http://localhost:8080/examples/wasm_browser_example.html
+```
+
+The WASM demo includes:
+- **Cat Mode** — Optical data transmission through blinking cat eyes (green = 1, dark = 0)
+- **Standard Mode** — QR code encryption/decryption
+- **Schrödinger Mode** — Dual-secret quantum plausible deniability
+- **Stego Mode** — LSB steganography in carrier images
+
+See [examples/README.md](examples/README.md) for full setup instructions.
+
 ```bash
 # Quick cat-themed encoding with bundled carrier
 meow-encode -i secret.pdf -o meow.gif -p "password" --cat-mode
