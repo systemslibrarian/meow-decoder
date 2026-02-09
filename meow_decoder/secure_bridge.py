@@ -38,14 +38,18 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 import weakref
 
+# Module-level placeholder for Rust backend (needed for patching in tests)
+meow_crypto_rs = None  # type: ignore
+RUST_AVAILABLE = False
+
 # Try to import Rust backend
 try:
-    import meow_crypto_rs
+    import meow_crypto_rs as _meow_crypto_rs
 
+    meow_crypto_rs = _meow_crypto_rs
     RUST_AVAILABLE = True
 except ImportError:
-    meow_crypto_rs = None  # type: ignore
-    RUST_AVAILABLE = False
+    pass  # meow_crypto_rs remains None, RUST_AVAILABLE remains False
 
 
 @dataclass

@@ -12,6 +12,26 @@ from pathlib import Path
 
 import pytest
 
+# Configure Hypothesis to avoid database issues with unhashable types
+from hypothesis import settings, Phase
+
+# Register a CI profile that disables the example database
+settings.register_profile(
+    "ci",
+    max_examples=100,
+    deadline=5000,
+    database=None,  # Disable database to avoid hashing issues
+    phases=[Phase.explicit, Phase.reuse, Phase.generate, Phase.target],
+)
+settings.register_profile(
+    "dev",
+    max_examples=200,
+    deadline=10000,
+    database=None,
+)
+# Load CI profile by default in test environments
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
+
 # Enable test mode for fast Argon2 parameters BEFORE importing meow_decoder modules
 os.environ["MEOW_TEST_MODE"] = "1"
 

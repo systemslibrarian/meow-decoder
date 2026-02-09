@@ -90,8 +90,6 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "-v --strict-markers --cov --cov-report=html --cov-report=term"
-# Hypothesis settings
-hypothesis_settings = { max_examples = 100, deadline = 5000 }
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "security: security-critical tests (crypto, auth, tamper detection)",
