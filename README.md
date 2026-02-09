@@ -739,8 +739,8 @@ More details and expected results:
 
 ### 🎯 Adversary Model
 
-| Adversary | Can Meow Decoder Stop Them? |
-|-----------|------------------------------|
+| Adversary | Can Meow Decoder Stop Them? (No Guarantees) |
+|-----------|---------------------------------------------|
 | Script kiddie | ✅ Yes, easily |
 | Skilled hacker (network) | ✅ Yes (no network exposure) |
 | Corporate IT snooping | ✅ Yes (optical bypasses monitoring) |
@@ -750,7 +750,7 @@ More details and expected results:
 
 **🚫 Not Designed For Use By:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
-**Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility.
+**Bottom line:** Strong crypto, but endpoints and operational security are YOUR responsibility. No guarantees.
 
 ---
 
