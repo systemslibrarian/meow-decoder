@@ -108,12 +108,20 @@ jobs:
 
       - name: Commit coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        env:
+          BADGE_PUSH_TOKEN: ${{ secrets.BADGE_PUSH_TOKEN }}
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add assets/coverage.svg
-          git diff --staged --quiet || git commit -m "chore: update Rust coverage badge [skip ci]"
-          git push
+          if ! git diff --staged --quiet; then
+            git commit -m "chore: update Rust coverage badge [skip ci]"
+            if [ -n "$BADGE_PUSH_TOKEN" ]; then
+              git push https://x-access-token:${BADGE_PUSH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+            else
+              echo "::warning::BADGE_PUSH_TOKEN not set - skipping push to protected branch"
+            fi
+          fi
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.3.1
