@@ -65,6 +65,8 @@
 
 **🚫 Not Designed For:** Law Enforcement or Intelligence Agencies. This tool is built for individual privacy, journalism, activism, and research — not for surveillance or state-sponsored operations.
 
+**⚖️ Legal Notice:** Meow Decoder is not intended to circumvent law enforcement or legal obligations. Steganography and deniability features are limited and detectable under forensic examination.
+
 **Honest disclaimer:** This is a **developer/research tool**, not a consumer app (yet). It requires Python, command-line comfort, and understanding of what you're doing. If you're looking for a polished mobile experience, check back later or contribute!
 
 ---
