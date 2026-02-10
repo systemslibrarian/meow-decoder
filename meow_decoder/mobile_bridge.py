@@ -27,7 +27,7 @@ import time
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Callable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 if TYPE_CHECKING:
     from argparse import Namespace
@@ -47,8 +47,8 @@ class _Frame:
         return base64.b64decode(self.qr_bytes_b64)
 
 
-def _parse_phone_message(raw: str) -> _Frame | dict:
-    data = json.loads(raw)
+def _parse_phone_message(raw: str) -> "_Frame | dict[str, Any]":
+    data: dict[str, Any] = json.loads(raw)
     if data.get("type") == "frame":
         return _Frame(
             seq=data["seq"],

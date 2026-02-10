@@ -38,18 +38,19 @@ from dataclasses import dataclass
 from contextlib import contextmanager
 import weakref
 
-# Module-level placeholder for Rust backend (needed for patching in tests)
-meow_crypto_rs = None  # type: ignore
+# Module-level reference to Rust backend (named _crypto_rs to avoid
+# collision with the actual meow_crypto_rs module which confuses mock.patch)
+_crypto_rs = None  # type: ignore
 RUST_AVAILABLE = False
 
 # Try to import Rust backend
 try:
     import meow_crypto_rs as _meow_crypto_rs
 
-    meow_crypto_rs = _meow_crypto_rs
+    _crypto_rs = _meow_crypto_rs
     RUST_AVAILABLE = True
 except ImportError:
-    pass  # meow_crypto_rs remains None, RUST_AVAILABLE remains False
+    pass  # _crypto_rs remains None, RUST_AVAILABLE remains False
 
 
 @dataclass
@@ -241,7 +242,7 @@ class SecureBridge:
             # Encode password to bytes for Rust backend
             password_bytes = password.encode("utf-8") if isinstance(password, str) else password
 
-            key = meow_crypto_rs.derive_key_argon2id(
+            key = _crypto_rs.derive_key_argon2id(
                 password_bytes,  # Positional for Rust
                 salt,
                 memory_kib,
@@ -280,7 +281,7 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        ciphertext = meow_crypto_rs.aes_gcm_encrypt(
+        ciphertext = _crypto_rs.aes_gcm_encrypt(
             key=handle._key_bytes, nonce=nonce, plaintext=plaintext, aad=aad or b""
         )
 
@@ -304,7 +305,7 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        plaintext = meow_crypto_rs.aes_gcm_decrypt(
+        plaintext = _crypto_rs.aes_gcm_decrypt(
             key=handle._key_bytes, nonce=nonce, ciphertext=ciphertext, aad=aad or b""
         )
 
@@ -324,7 +325,7 @@ class SecureBridge:
         if handle._backend != "rust":
             raise RuntimeError("Rust backend required for SecureBridge")
 
-        return bytes(meow_crypto_rs.hmac_sha256(key=handle._key_bytes, message=data))  # type: ignore[no-any-return]
+        return bytes(_crypto_rs.hmac_sha256(key=handle._key_bytes, message=data))  # type: ignore[no-any-return]
 
     def verify_hmac_with_handle(self, handle: KeyHandle, data: bytes, expected_tag: bytes) -> bool:
         """
@@ -342,7 +343,7 @@ class SecureBridge:
             raise RuntimeError("Rust backend required for SecureBridge")
 
         return bool(
-            meow_crypto_rs.hmac_sha256_verify(
+            _crypto_rs.hmac_sha256_verify(
                 key=handle._key_bytes, message=data, expected_tag=expected_tag
             )
         )  # type: ignore[no-any-return]
@@ -452,7 +453,7 @@ def check_rust_backend() -> Tuple[bool, str]:
     """
     if RUST_AVAILABLE:
         try:
-            info = meow_crypto_rs.backend_info()
+            info = _crypto_rs.backend_info()
             return True, f"Rust backend available: {info}"
         except Exception as e:
             return False, f"Rust backend import succeeded but info failed: {e}"

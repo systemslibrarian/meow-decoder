@@ -98,6 +98,8 @@ def test_backend_info():
 
 
 def test_mlkem_roundtrip():
+    if not hasattr(meow_crypto_rs, "mlkem768_keygen"):
+        pytest.skip("meow_crypto_rs built without pq feature (mlkem768 not available)")
     sk, pk = meow_crypto_rs.mlkem768_keygen()
     ss1, ct = meow_crypto_rs.mlkem768_encapsulate(pk)
     ss2 = meow_crypto_rs.mlkem768_decapsulate(sk, ct)

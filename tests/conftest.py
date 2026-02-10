@@ -20,14 +20,15 @@ settings.register_profile(
     "ci",
     max_examples=100,
     deadline=5000,
-    database=None,  # Disable database to avoid hashing issues
-    phases=[Phase.explicit, Phase.reuse, Phase.generate, Phase.target],
+    database=None,  # Disable database to avoid hashing issues in Hypothesis 6.123+
+    phases=[Phase.explicit, Phase.generate, Phase.target],
 )
 settings.register_profile(
     "dev",
     max_examples=200,
     deadline=10000,
-    database=None,
+    database=None,  # Disable database to avoid hashing issues in Hypothesis 6.123+
+    phases=[Phase.explicit, Phase.generate, Phase.target],
 )
 # Load CI profile by default in test environments
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))

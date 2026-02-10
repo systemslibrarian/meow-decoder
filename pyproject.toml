@@ -190,21 +190,9 @@ exclude_lines = [
 [tool.coverage.html]
 directory = "htmlcov"
 
-[tool.hypothesis]
-# Hypothesis profile for CI (faster)
-profile = "ci"
-
-[tool.hypothesis.profiles.ci]
-max_examples = 100
-deadline = 5000
-
-[tool.hypothesis.profiles.dev]
-max_examples = 200
-deadline = 10000
-
-[tool.hypothesis.profiles.exhaustive]
-max_examples = 1000
-# deadline disabled for exhaustive testing (use hypothesis.settings override)
+# NOTE: Hypothesis profiles are registered in tests/conftest.py with database=None
+# to avoid SimpleNamespace hashing issues in Hypothesis 6.123+.
+# Do NOT add [tool.hypothesis] sections here.
 
 [tool.mypy]
 python_version = "3.10"

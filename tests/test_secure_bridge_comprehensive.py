@@ -33,8 +33,7 @@ except ImportError:
 
 # Skip marker for tests requiring Rust backend attribute patching
 requires_rust_patchable = pytest.mark.skipif(
-    not RUST_AVAILABLE,
-    reason="Rust backend not available - cannot patch meow_crypto_rs"
+    not RUST_AVAILABLE, reason="Rust backend not available - cannot patch meow_crypto_rs"
 )
 
 # ============================================================================
@@ -296,7 +295,7 @@ class TestSecureBridgeMeow:
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             # Reload module to pick up mock
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -317,7 +316,7 @@ class TestSecureBridgeMeow:
         """🐱 Test SecureBridge context manager cleans up handles."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -332,7 +331,7 @@ class TestSecureBridgeMeow:
         """🐱 Test create_key_handle derives key via Rust."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -347,7 +346,7 @@ class TestSecureBridgeMeow:
         """🐱 Test create_key_handle with custom Argon2 parameters."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -366,7 +365,7 @@ class TestSecureBridgeMeow:
         """🐱 Test encrypt_with_handle encrypts via Rust."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -384,7 +383,7 @@ class TestSecureBridgeMeow:
         """🐱 Test encrypt_with_handle works without AAD."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -402,7 +401,7 @@ class TestSecureBridgeMeow:
         """🐱 Test decrypt_with_handle decrypts via Rust."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -420,7 +419,7 @@ class TestSecureBridgeMeow:
         """🐱 Test hmac_with_handle computes HMAC via Rust."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -436,7 +435,7 @@ class TestSecureBridgeMeow:
         """🐱 Test verify_hmac_with_handle verifies via Rust."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -456,7 +455,7 @@ class TestSecureBridgeMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -470,7 +469,7 @@ class TestSecureBridgeMeow:
         """🐱 Test destroy_handle removes handle and zeros key."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -486,7 +485,7 @@ class TestSecureBridgeMeow:
         """🐱 Test cleanup zeros all handles."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -504,7 +503,7 @@ class TestSecureBridgeMeow:
         """🐱 Test cleanup is idempotent (safe to call multiple times)."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -603,7 +602,7 @@ class TestCheckRustBackendMeow:
         """🐱 Test check_rust_backend returns True when Rust available."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import check_rust_backend
 
                     available, message = check_rust_backend()
@@ -631,7 +630,7 @@ class TestSecureBridgeErrorHandlingMeow:
         """🐱 Test encrypt_with_handle raises for non-Rust backend."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge, KeyHandle
 
                     bridge = SecureBridge()
@@ -650,7 +649,7 @@ class TestSecureBridgeErrorHandlingMeow:
         """🐱 Test decrypt_with_handle raises for non-Rust backend."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge, KeyHandle
 
                     bridge = SecureBridge()
@@ -666,7 +665,7 @@ class TestSecureBridgeErrorHandlingMeow:
         """🐱 Test hmac_with_handle raises for non-Rust backend."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge, KeyHandle
 
                     bridge = SecureBridge()
@@ -682,7 +681,7 @@ class TestSecureBridgeErrorHandlingMeow:
         """🐱 Test verify_hmac_with_handle raises for non-Rust backend."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge, KeyHandle
 
                     bridge = SecureBridge()
@@ -700,7 +699,7 @@ class TestSecureBridgeErrorHandlingMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -722,7 +721,7 @@ class TestMemorySafetyInvariantsMeow:
         """🐱 Test key bytes are zeroed when handle is destroyed."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -742,7 +741,7 @@ class TestMemorySafetyInvariantsMeow:
         """🐱 Test multiple handles are independent."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -774,7 +773,7 @@ class TestMemorySafetyInvariantsMeow:
         """🐱 Test garbage collection triggered on cleanup."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with patch("meow_decoder.secure_bridge.gc.collect") as mock_gc:
@@ -799,7 +798,7 @@ class TestSecureBridgeEdgeCasesMeow:
         """🐱 Test encrypting empty plaintext."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -814,7 +813,7 @@ class TestSecureBridgeEdgeCasesMeow:
         """🐱 Test encrypting large plaintext (1 MB)."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -831,7 +830,7 @@ class TestSecureBridgeEdgeCasesMeow:
         """🐱 Test create_key_handle accepts bytes password."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -845,7 +844,7 @@ class TestSecureBridgeEdgeCasesMeow:
         """🐱 Test destroying handle not in handles list is safe."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge, KeyHandle
 
                     bridge = SecureBridge()
@@ -901,7 +900,7 @@ class TestSecureBridgeIntegrationMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -923,7 +922,7 @@ class TestSecureBridgeIntegrationMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -940,7 +939,7 @@ class TestSecureBridgeIntegrationMeow:
         """🐱 Test HMAC sign and verify flow."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -961,7 +960,7 @@ class TestSecureBridgeIntegrationMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -995,7 +994,7 @@ class TestTryZeroStringMeow:
         """🐱 Test _try_zero_string handles string gracefully."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     bridge = SecureBridge()
@@ -1007,7 +1006,7 @@ class TestTryZeroStringMeow:
         """🐱 Test _try_zero_string triggers garbage collection."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with patch("meow_decoder.secure_bridge.gc.collect") as mock_gc:
@@ -1030,7 +1029,7 @@ class TestSecureBridgePerformanceMeow:
         """🐱 Test creating and cleaning many handles."""
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -1050,7 +1049,7 @@ class TestSecureBridgePerformanceMeow:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rust_backend}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rust_backend):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rust_backend):
                     from meow_decoder.secure_bridge import SecureBridge
 
                     with SecureBridge() as bridge:
@@ -1242,7 +1241,7 @@ class TestSecureBridgeCoverageGaps:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rs}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rs):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rs):
                     from meow_decoder.secure_bridge import check_rust_backend
 
                     available, message = check_rust_backend()
@@ -1298,7 +1297,7 @@ class TestSecureBridgeCoverageGaps:
 
         with patch.dict("sys.modules", {"meow_crypto_rs": mock_rs}):
             with patch("meow_decoder.secure_bridge.RUST_AVAILABLE", True):
-                with patch("meow_decoder.secure_bridge.meow_crypto_rs", mock_rs):
+                with patch("meow_decoder.secure_bridge._crypto_rs", mock_rs):
                     # Need to reload to pick up the mock
                     from meow_decoder.secure_bridge import check_rust_backend
 
