@@ -664,8 +664,52 @@
             
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">2</span>
-                <h2>� Decode Binary</h2>
-                <p class="step-desc"><b>Demo:</b> After transmission completes above, copy the binary pattern and paste it here to decrypt. <br><span style="color:#888; font-size:0.85em;">(In a real scenario, you'd record the blinking eyes with a phone, then manually decode the binary from the video.)</span></p>
+                <h2>📹 Decode from Video</h2>
+                <p class="step-desc">Upload a video recording of the blinking cat eyes. The decoder analyzes each frame to detect green (1) or dark (0) eye states and reconstructs the binary message.</p>
+                
+                <div style="display: flex; gap: 20px; align-items: flex-start; flex-wrap: wrap;">
+                    <div style="flex: 1; min-width: 300px;">
+                        <div style="background: rgba(0,204,255,0.1); border: 2px dashed #00ccff; border-radius: 10px; padding: 15px; text-align: center; margin-bottom: 15px;">
+                            <div style="font-size: 1.5em; margin-bottom: 5px;">📹</div>
+                            <p style="color: #00ccff; margin: 0 0 10px 0;"><strong>Upload Cat Video</strong></p>
+                            <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">Record the blinking eyes with your phone, then upload here</p>
+                            <input type="file" id="catVideoUpload" accept="video/*" style="display: none;" onchange="handleCatVideoUpload(this)">
+                            <button class="secondary" onclick="document.getElementById('catVideoUpload').click()" style="border-color: #00ccff; color: #00ccff;">📤 Choose Video</button>
+                            <span id="catVideoInfo" style="margin-left: 10px; color: #888;"></span>
+                        </div>
+                        
+                        <label for="catVideoPassword">🔑 Password:</label>
+                        <input type="password" id="catVideoPassword" placeholder="Same password used to encode" style="margin-bottom: 10px;">
+                        
+                        <label for="catVideoThreshold">🎚️ Detection Sensitivity:</label>
+                        <select id="catVideoThreshold" style="margin-bottom: 15px;">
+                            <option value="80">High (bright video)</option>
+                            <option value="60" selected>Medium (normal)</option>
+                            <option value="40">Low (dark video)</option>
+                        </select>
+                        
+                        <button id="catVideoDecodeBtn" onclick="catVideoAnalyze()" disabled>🔍 Analyze Video</button>
+                        <div id="catVideoProgress" style="margin-top: 15px; display: none;">
+                            <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
+                                <div id="catVideoProgressBar" style="background: linear-gradient(90deg, #00ccff, #00ff88); height: 100%; width: 0%; transition: width 0.1s;"></div>
+                            </div>
+                            <p id="catVideoProgressText" style="color: #888; font-size: 0.85em; margin-top: 5px;">Analyzing frames...</p>
+                        </div>
+                    </div>
+                    
+                    <div style="flex: 1; min-width: 200px;">
+                        <video id="catVideoPreview" width="200" height="200" style="background: #111; border-radius: 8px; display: none;"></video>
+                        <canvas id="catVideoCanvas" width="400" height="400" style="display: none;"></canvas>
+                    </div>
+                </div>
+                
+                <div id="catVideoResult" class="result-box hidden" style="margin-top: 15px;"></div>
+            </div>
+            
+            <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
+                <span class="step-number" style="background: #00ccff;">3</span>
+                <h2>📟 Manual Decode</h2>
+                <p class="step-desc"><b>Alternative:</b> If video analysis doesn't work, manually count the blinks and enter the binary pattern here.</p>
                 
                 <label for="catBinaryInput">📟 Binary Pattern:</label>
                 <textarea id="catBinaryInput" rows="2" placeholder="Paste binary from step 1 (e.g., 11111111 01001000 01100101 ...)" style="margin-bottom: 10px;"></textarea>
@@ -675,6 +719,14 @@
                 
                 <button id="catDecodeBtn" onclick="catModeDecode()">🔍 Decode Binary</button>
                 <div id="catDecodeResult" class="result-box hidden" style="margin-top: 15px;"></div>
+            </div>
+            
+            <!-- Dedication -->
+            <div style="margin-top: 30px; padding: 20px; background: rgba(255,255,255,0.03); border-radius: 12px; border-top: 2px solid #00ccff; text-align: center;">
+                <p style="color: #888; font-size: 0.9em; font-style: italic; margin: 0;">
+                    📡 <em>"Di-dah-dit, dah-di-dah..."</em> — In loving memory of Dad, who taught that messages can travel through light, sound, and the spaces between. 
+                    <br><span style="color: #00ccff;">He knew Morse code by heart. Love you, Dad. Miss you always. 💙</span>
+                </p>
             </div>
         </div>
 
@@ -2299,6 +2351,245 @@
             document.getElementById('catCanvas').classList.remove('transmitting', 'success', 'error');
             log('⏹️ [Cat Mode] Stopped');
         };
+        
+        // ============================================================
+        // CAT VIDEO DECODE FUNCTIONS
+        // ============================================================
+        
+        let catVideoFile = null;
+        
+        window.handleCatVideoUpload = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            catVideoFile = file;
+            document.getElementById('catVideoInfo').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+            document.getElementById('catVideoDecodeBtn').disabled = false;
+            
+            // Show preview
+            const video = document.getElementById('catVideoPreview');
+            video.src = URL.createObjectURL(file);
+            video.style.display = 'block';
+            video.load();
+            
+            log(`📹 [Cat Video] Loaded: ${file.name}`);
+        };
+        
+        window.catVideoAnalyze = async function() {
+            if (!catVideoFile) { alert('Upload a video first'); return; }
+            
+            const password = document.getElementById('catVideoPassword').value;
+            if (!password) { alert('Enter the decryption password'); return; }
+            
+            const threshold = parseInt(document.getElementById('catVideoThreshold').value);
+            const progressEl = document.getElementById('catVideoProgress');
+            const progressBar = document.getElementById('catVideoProgressBar');
+            const progressText = document.getElementById('catVideoProgressText');
+            const resultBox = document.getElementById('catVideoResult');
+            
+            progressEl.style.display = 'block';
+            progressBar.style.width = '0%';
+            progressText.textContent = 'Loading video...';
+            
+            try {
+                const video = document.getElementById('catVideoPreview');
+                const canvas = document.getElementById('catVideoCanvas');
+                const ctx = canvas.getContext('2d');
+                
+                // Wait for video to be ready
+                await new Promise((resolve, reject) => {
+                    video.onloadedmetadata = resolve;
+                    video.onerror = () => reject(new Error('Failed to load video'));
+                    if (video.readyState >= 1) resolve();
+                });
+                
+                const duration = video.duration;
+                const fps = 30; // Analyze at 30 fps
+                const totalFrames = Math.floor(duration * fps);
+                
+                log(`📹 [Cat Video] Analyzing ${totalFrames} frames (${duration.toFixed(2)}s at ${fps} fps)`);
+                progressText.textContent = `Analyzing ${totalFrames} frames...`;
+                
+                // Analyze frames
+                const eyeStates = [];
+                let prevState = null;
+                let stateChanges = [];
+                
+                for (let frameNum = 0; frameNum < totalFrames; frameNum++) {
+                    const time = frameNum / fps;
+                    video.currentTime = time;
+                    
+                    // Wait for frame to be ready
+                    await new Promise(resolve => {
+                        const onSeeked = () => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        };
+                        video.addEventListener('seeked', onSeeked);
+                        // Fallback if seek is immediate
+                        setTimeout(resolve, 50);
+                    });
+                    
+                    // Draw frame to canvas
+                    ctx.drawImage(video, 0, 0, 400, 400);
+                    const imgData = ctx.getImageData(0, 0, 400, 400);
+                    
+                    // Analyze eye regions for green
+                    const greenLevel = analyzeEyeGreen(imgData);
+                    const isGreen = greenLevel > threshold;
+                    
+                    // Track state changes
+                    if (prevState !== isGreen) {
+                        stateChanges.push({
+                            frame: frameNum,
+                            time: time,
+                            state: isGreen ? '1' : '0',
+                            greenLevel: greenLevel
+                        });
+                        prevState = isGreen;
+                    }
+                    
+                    eyeStates.push({ frame: frameNum, greenLevel, isGreen });
+                    
+                    // Update progress
+                    const progress = ((frameNum + 1) / totalFrames * 100).toFixed(1);
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `Frame ${frameNum + 1}/${totalFrames} (${progress}%)`;
+                }
+                
+                log(`📹 [Cat Video] Found ${stateChanges.length} state changes`);
+                
+                // Build binary string from state changes
+                // Group consecutive same-state frames, emit one bit per group
+                let binary = '';
+                for (const change of stateChanges) {
+                    binary += change.state;
+                }
+                
+                progressText.textContent = `Extracted ${binary.length} bits`;
+                log(`📹 [Cat Video] Extracted binary: ${binary.substring(0, 50)}...`);
+                
+                // Try to decode
+                if (binary.length < 16) {
+                    throw new Error(`Only found ${binary.length} bits - video may be too short or unclear`);
+                }
+                
+                // Look for start marker (11111111) and extract payload
+                const startIdx = binary.indexOf('11111111');
+                if (startIdx === -1) {
+                    throw new Error('Could not find start marker (8 consecutive 1s). Try adjusting sensitivity.');
+                }
+                
+                let payload = binary.substring(startIdx);
+                
+                // Remove start marker
+                payload = payload.substring(8);
+                
+                // Find and remove end marker if present
+                const endIdx = payload.indexOf('00000000');
+                if (endIdx !== -1) {
+                    payload = payload.substring(0, endIdx);
+                }
+                
+                // Pad to byte boundary
+                while (payload.length % 8 !== 0) {
+                    payload += '0';
+                }
+                
+                log(`📹 [Cat Video] Payload: ${payload.length} bits`);
+                
+                // Decrypt
+                const bytes = binaryToBytes(payload);
+                
+                // Check for demo mode
+                const str = decoder.decode(bytes);
+                if (str.startsWith('DEMO:')) {
+                    const message = str.substring(5);
+                    resultBox.className = 'result-box success';
+                    resultBox.innerHTML = `<h3>🔓 Decoded from Video (Demo Mode)</h3><div class='message'>${escapeHtml(message)}</div><div class='cat-reaction'>Meow! Video decoded! 📹🐱💚</div>`;
+                    resultBox.classList.remove('hidden');
+                    log('✅ [Cat Video] Demo message decoded from video');
+                    return;
+                }
+                
+                // WASM decryption
+                if (!wasm) {
+                    throw new Error('WASM not available for decryption');
+                }
+                
+                if (bytes[0] !== 0x01) {
+                    throw new Error('Unknown format version');
+                }
+                
+                const salt = bytes.slice(1, 17);
+                const nonce = bytes.slice(17, 29);
+                const cipher = bytes.slice(29);
+                
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const decrypted = await crypto.decrypt(cipher, keyResult.data, nonce, null);
+                
+                if (!decrypted || !decrypted.success) {
+                    throw new Error('Decryption failed - wrong password or corrupted video');
+                }
+                
+                const message = decoder.decode(decrypted.data);
+                resultBox.className = 'result-box success';
+                resultBox.innerHTML = `
+                    <h3>🔓 Decoded from Video</h3>
+                    <div class='message'>${escapeHtml(message)}</div>
+                    <div class='cat-reaction'>Meow! Secret transmitted through cat eyes! 📹🐱💚</div>
+                    <p style="color:#888; font-size:0.85em; margin-top:10px;">Analyzed ${totalFrames} frames, extracted ${binary.length} bits</p>
+                `;
+                resultBox.classList.remove('hidden');
+                log('✅ [Cat Video] Message decoded from video successfully');
+                
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `
+                    <h3>❌ Video Decode Failed</h3>
+                    <div class='message'>${err.message}</div>
+                    <div class='cat-reaction'>Hiss… Try adjusting sensitivity or use manual decode 😿</div>
+                `;
+                resultBox.classList.remove('hidden');
+                log('❌ [Cat Video] Error: ' + err.message);
+            }
+        };
+        
+        // Analyze green level in eye regions
+        function analyzeEyeGreen(imgData) {
+            const data = imgData.data;
+            const width = imgData.width;
+            let greenSum = 0;
+            let pixelCount = 0;
+            
+            // Eye regions (same as encoding)
+            function isInEyeRegion(x, y) {
+                const leftEye = x >= 80 && x <= 175 && y >= 115 && y <= 210;
+                const rightEye = x >= 225 && x <= 320 && y >= 115 && y <= 210;
+                return leftEye || rightEye;
+            }
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const pixelIndex = i / 4;
+                const x = pixelIndex % width;
+                const y = Math.floor(pixelIndex / width);
+                
+                if (!isInEyeRegion(x, y)) continue;
+                
+                const r = data[i];
+                const g = data[i + 1];
+                const a = data[i + 3];
+                
+                if (a > 100) {
+                    // Calculate "greenness" - how much more green than red
+                    const greenness = g - r;
+                    greenSum += Math.max(0, greenness);
+                    pixelCount++;
+                }
+            }
+            
+            return pixelCount > 0 ? greenSum / pixelCount : 0;
+        }
         
         window.catModeDecode = async function() {
             const binaryInput = document.getElementById('catBinaryInput').value.replace(/[^01]/g, '');
