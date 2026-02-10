@@ -32,11 +32,11 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml/badge.svg" alt="Rust Crypto">
   </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU" alt="Python Coverage">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flag=python">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Python Coverage">
   </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags[0]=rust">
-    <img src="https://img.shields.io/codecov/c/github/systemslibrarian/meow-decoder?token=EBYQIEJETU&flag=rust&label=rust" alt="Rust Coverage">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flag=rust">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
