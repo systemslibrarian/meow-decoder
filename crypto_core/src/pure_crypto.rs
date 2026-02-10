@@ -562,12 +562,14 @@ pub mod pq {
 
         /// Generate new ML-KEM-1024 key pair
         /// Returns (secret_key_bytes, public_key_bytes)
+        #[allow(deprecated)] // to_expanded_bytes deprecated but needed for serialization roundtrip
         pub fn generate_keypair() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
             // Generate trait method: generate() uses system RNG via getrandom feature
             let dk = DecapsulationKey::generate();
             let ek = dk.encapsulation_key();
+            // Use expanded bytes format to match from_expanded_bytes() in decapsulate
             Ok((
-                dk.to_bytes().to_vec(),
+                dk.to_expanded_bytes().to_vec(),
                 ek.to_bytes().to_vec(),
             ))
         }

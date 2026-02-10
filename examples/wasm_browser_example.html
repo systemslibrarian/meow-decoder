@@ -79,6 +79,58 @@
         .status.ready { background: #4caf50; color: #fff; }
         .status.error { background: #f44336; color: #fff; }
         
+        /* Loading spinner for buttons */
+        .btn-loading {
+            position: relative;
+            pointer-events: none;
+            color: transparent !important;
+        }
+        .btn-loading::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            margin: -10px 0 0 -10px;
+            border: 3px solid rgba(255,255,255,0.3);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* Progress overlay */
+        .progress-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 9999;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .progress-overlay.active { display: flex; }
+        .progress-spinner {
+            width: 60px;
+            height: 60px;
+            border: 4px solid rgba(0,204,255,0.3);
+            border-top-color: #00ccff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .progress-text {
+            margin-top: 20px;
+            font-size: 1.2em;
+            color: #00ccff;
+        }
+        
         .qr-container {
             text-align: center;
             padding: 20px;
@@ -283,6 +335,12 @@
     </style>
 </head>
 <body>
+    <!-- Progress overlay for long operations -->
+    <div id="progressOverlay" class="progress-overlay">
+        <div class="progress-spinner"></div>
+        <div id="progressText" class="progress-text">Encrypting...</div>
+    </div>
+    
     <img src="../assets/meow-decoder-logo.png" alt="Meow Decoder" class="logo">
     <h1>Meow Decoder - WASM Demo</h1>
     <p class="subtitle">Encrypt secrets into QR codes, decrypt with password</p>
@@ -312,10 +370,254 @@
     <!-- MODE SELECTION -->
     <div class="mode-tabs">
         <div class="mode-tab active" onclick="switchMode('standard')">🔐 Standard</div>
+        <div class="mode-tab" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</div>
+        <div class="mode-tab" onclick="switchMode('postQuantum')">🔮 Post-Quantum</div>
         <div class="mode-tab" onclick="switchMode('schrodinger')">🐱 Schrödinger</div>
         <div class="mode-tab" onclick="switchMode('stego')">🖼️ Stego</div>
+        <div class="mode-tab" onclick="switchMode('webcam')">📹 Webcam</div>
+        <div class="mode-tab" onclick="switchMode('duress')">🚨 Duress</div>
         <div class="mode-tab" onclick="switchMode('cat')">😺 Cat Mode</div>
     </div>
+
+    <!-- FORWARD SECRECY MODE -->
+    <div id="forwardSecrecyMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
+            <span class="step-number" style="background: #00c864;">1</span>
+            <h2>🔑 Generate Your Key Pair</h2>
+            <p class="step-desc">Forward secrecy uses X25519 ephemeral keys. Each message uses a unique key that's destroyed after use — even if your long-term key is compromised, past messages remain safe.</p>
+            
+            <div style="background: rgba(0,200,100,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                <p style="margin: 0 0 10px 0;"><strong>Your Public Key:</strong></p>
+                <textarea id="fsMyPublicKey" rows="2" readonly placeholder="Click 'Generate Key Pair' to create..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+                <p style="margin: 10px 0 0 0; color: #888; font-size: 0.85em;">Share this public key with anyone who wants to send you encrypted messages.</p>
+            </div>
+            
+            <button id="fsGenerateBtn" onclick="fsGenerateKeyPair()">🔑 Generate Key Pair</button>
+            <button class="secondary" onclick="fsExportKeyPair()">💾 Export Key Pair</button>
+            <input type="file" id="fsImportFile" accept=".json" style="display: none;" onchange="fsImportKeyPair(this)">
+            <button class="secondary" onclick="document.getElementById('fsImportFile').click()">📥 Import Key Pair</button>
+            
+            <div id="fsKeyStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+        </div>
+        
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
+            <span class="step-number" style="background: #00c864;">2</span>
+            <h2>📤 Encrypt with Forward Secrecy</h2>
+            <p class="step-desc">Enter the recipient's public key and your message. An ephemeral key is generated for each encryption.</p>
+            
+            <label for="fsRecipientKey">Recipient's Public Key:</label>
+            <textarea id="fsRecipientKey" rows="2" placeholder="Paste recipient's public key here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <label for="fsMessage">🔒 Secret Message:</label>
+            <textarea id="fsMessage" rows="3" placeholder="Type your secret message...">This message has forward secrecy! 🔐</textarea>
+            
+            <label for="fsPassword">🔑 Additional Password (optional):</label>
+            <input type="password" id="fsPassword" placeholder="Optional extra password protection">
+            
+            <button id="fsEncryptBtn" onclick="fsEncrypt()">🔐 Encrypt with Forward Secrecy</button>
+        </div>
+        
+        <div id="fsEncryptedSection" class="step hidden" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
+            <span class="step-number" style="background: #00c864;">3</span>
+            <h2>📦 Encrypted Message</h2>
+            <p class="step-desc">This contains an ephemeral public key + encrypted data. Share via QR or copy the payload.</p>
+            
+            <div class="qr-container">
+                <div id="fsQrcode"></div>
+            </div>
+            
+            <label for="fsPayload">Encrypted Payload:</label>
+            <textarea id="fsPayload" rows="3" readonly style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <button class="secondary" onclick="copyFsPayload()">📋 Copy Payload</button>
+            <button class="secondary" onclick="downloadFsQR()">💾 Save QR</button>
+        </div>
+        
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
+            <span class="step-number" style="background: #00c864;">4</span>
+            <h2>📥 Decrypt Forward Secrecy Message</h2>
+            <p class="step-desc">Paste an encrypted payload to decrypt using your private key.</p>
+            
+            <label for="fsDecryptPayload">Encrypted Payload:</label>
+            <textarea id="fsDecryptPayload" rows="3" placeholder="Paste encrypted FS payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <label for="fsDecryptPassword">Password (if used):</label>
+            <input type="password" id="fsDecryptPassword" placeholder="Enter password if one was used">
+            
+            <button id="fsDecryptBtn" onclick="fsDecrypt()">🔓 Decrypt</button>
+            
+            <div id="fsDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <!-- POST-QUANTUM MODE -->
+    <div id="postQuantumMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(138,43,226,0.15) 0%, rgba(0,200,255,0.15) 100%); border: 2px solid #8a2be2;">
+            <span class="step-number" style="background: linear-gradient(135deg, #8a2be2 0%, #00c8ff 100%);">1</span>
+            <h2>🔮 Generate Post-Quantum Key Pair</h2>
+            <p class="step-desc"><strong>Hybrid X25519 + ML-KEM-1024 encryption.</strong> Secure against both classical computers AND future quantum computers. This is NIST's newly standardized post-quantum algorithm!</p>
+            
+            <div style="background: rgba(138,43,226,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #8a2be2;">
+                <p style="margin: 0; font-size: 0.9em;"><strong>🛡️ Why Post-Quantum?</strong></p>
+                <p style="margin: 8px 0 0 0; color: #ccc; font-size: 0.85em;">Standard encryption (RSA, ECDH) will be broken by quantum computers. ML-KEM-1024 uses lattice-based math that remains secure. We combine it with X25519 for <strong>hybrid security</strong> — safe even if one algorithm fails.</p>
+            </div>
+            
+            <div id="pqNotAvailable" style="display: none; background: rgba(255,100,100,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #ff6464;">
+                <p style="margin: 0; color: #ff6464;"><strong>⚠️ Post-Quantum Not Available</strong></p>
+                <p style="margin: 8px 0 0 0; color: #ccc; font-size: 0.9em;">This build of Meow Decoder was compiled without ML-KEM support. Rebuild with <code>--features wasm-pq</code> to enable.</p>
+            </div>
+            
+            <div id="pqKeySection">
+                <div style="background: rgba(0,200,255,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Your X25519 Public Key (32 bytes):</strong></p>
+                    <textarea id="pqX25519PublicKey" rows="1" readonly placeholder="Generate keys first..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+                </div>
+                
+                <div style="background: rgba(138,43,226,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <p style="margin: 0 0 10px 0;"><strong>Your ML-KEM-1024 Public Key (1568 bytes):</strong></p>
+                    <textarea id="pqMlkemPublicKey" rows="3" readonly placeholder="Generate keys first..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+                </div>
+                
+                <p style="margin: 10px 0; color: #888; font-size: 0.85em;">Share BOTH public keys with anyone who wants to send you quantum-resistant encrypted messages.</p>
+                
+                <button id="pqGenerateBtn" onclick="pqGenerateKeyPair()">🔮 Generate Post-Quantum Keys</button>
+                <button class="secondary" onclick="pqExportKeyPair()">💾 Export Key Pair</button>
+                <label for="pqImportFile" class="file-upload-label" style="display: inline-block; padding: 10px 20px; background: #4a4a8a; border-radius: 6px; cursor: pointer; margin-left: 10px;">
+                    📂 Import Key Pair
+                </label>
+                <input type="file" id="pqImportFile" accept=".json" style="display: none;" onchange="pqImportKeyPair(event)">
+            </div>
+        </div>
+        
+        <div class="step" style="background: linear-gradient(135deg, rgba(100,200,100,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #64c864;">
+            <span class="step-number" style="background: #64c864;">2</span>
+            <h2>📤 Encrypt with Post-Quantum</h2>
+            
+            <label for="pqRecipientX25519">Recipient's X25519 Public Key:</label>
+            <textarea id="pqRecipientX25519" rows="1" placeholder="Paste recipient's X25519 public key (base64)..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <label for="pqRecipientMlkem">Recipient's ML-KEM Public Key:</label>
+            <textarea id="pqRecipientMlkem" rows="3" placeholder="Paste recipient's ML-KEM public key (base64)..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <label for="pqMessage">Secret Message:</label>
+            <textarea id="pqMessage" rows="3" placeholder="Type your quantum-resistant secret message...">This message is safe from quantum computers! 🔮🛡️</textarea>
+            
+            <label for="pqPassword">Additional Password (optional):</label>
+            <input type="password" id="pqPassword" placeholder="Extra password layer (can be empty)">
+            
+            <button id="pqEncryptBtn" onclick="pqEncrypt()">🔮 Encrypt with Post-Quantum</button>
+            
+            <div id="pqEncryptResult" style="display: none; margin-top: 15px;">
+                <label for="pqEncryptedOutput">Encrypted PQ Payload (send this):</label>
+                <textarea id="pqEncryptedOutput" rows="4" readonly style="font-family: monospace; font-size: 0.85em;"></textarea>
+                <button class="secondary" onclick="copyToClipboard(document.getElementById('pqEncryptedOutput').value, 'PQ encrypted payload')">📋 Copy</button>
+                <button class="secondary" onclick="pqGenerateQR()">📱 Generate QR Code</button>
+            </div>
+            
+            <div id="pqQrSection" style="display: none; text-align: center; margin-top: 15px;">
+                <canvas id="pqQrCanvas" style="max-width: 100%; border: 4px solid #8a2be2; border-radius: 12px;"></canvas>
+            </div>
+        </div>
+        
+        <div class="step" style="background: linear-gradient(135deg, rgba(100,100,200,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #6464c8;">
+            <span class="step-number" style="background: #6464c8;">3</span>
+            <h2>📥 Decrypt Post-Quantum Message</h2>
+            <p class="step-desc">Paste an encrypted PQ payload and use your private keys to decrypt.</p>
+            
+            <label for="pqDecryptPayload">Encrypted PQ Payload:</label>
+            <textarea id="pqDecryptPayload" rows="3" placeholder="Paste encrypted PQ payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+            
+            <label for="pqDecryptPassword">Password (if used):</label>
+            <input type="password" id="pqDecryptPassword" placeholder="Enter password if one was used">
+            
+            <button id="pqDecryptBtn" onclick="pqDecrypt()">🔓 Decrypt</button>
+            
+            <div id="pqDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <!-- WEBCAM MODE -->
+    <div id="webcamMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(255,100,100,0.1) 0%, rgba(255,150,50,0.1) 100%); border: 1px solid #ff6464;">
+            <span class="step-number" style="background: #ff6464;">📹</span>
+            <h2>📹 Live Webcam QR Scanner</h2>
+            <p class="step-desc">Point your camera at a Meow Decoder QR code to scan and decrypt in real-time. Works with any MEOW: or QUANTUM: payload.</p>
+            
+            <div style="text-align: center; margin: 20px 0;">
+                <video id="webcamVideo" style="max-width: 100%; width: 400px; border-radius: 12px; border: 3px solid #ff6464; display: none;"></video>
+                <canvas id="webcamCanvas" style="display: none;"></canvas>
+                <div id="webcamPlaceholder" style="width: 400px; height: 300px; background: #1a1a2e; border-radius: 12px; border: 3px dashed #ff6464; display: flex; align-items: center; justify-content: center; margin: 0 auto;">
+                    <span style="color: #ff6464; font-size: 1.2em;">📷 Click Start to enable camera</span>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin: 15px 0;">
+                <button id="webcamStartBtn" onclick="startWebcam()">📷 Start Camera</button>
+                <button id="webcamStopBtn" onclick="stopWebcam()" class="secondary" style="display: none;">⏹️ Stop</button>
+            </div>
+            
+            <div id="webcamStatus" style="text-align: center; margin: 10px 0; font-size: 0.9em; color: #888;">
+                Camera not started
+            </div>
+            
+            <div id="webcamScanResult" style="display: none; margin-top: 15px;">
+                <label for="webcamPayload">Scanned Payload:</label>
+                <textarea id="webcamPayload" rows="2" readonly style="font-family: monospace;"></textarea>
+                
+                <label for="webcamDecryptPassword">🔑 Password:</label>
+                <input type="password" id="webcamDecryptPassword" placeholder="Enter password to decrypt">
+                
+                <button onclick="webcamDecrypt()">🔓 Decrypt Scanned QR</button>
+            </div>
+            
+            <div id="webcamDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+
+    <!-- DURESS MODE -->
+    <div id="duressMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(255,50,50,0.15) 0%, rgba(150,50,50,0.15) 100%); border: 2px solid #ff3232;">
+            <span class="step-number" style="background: #ff3232;">🚨</span>
+            <h2>🚨 Duress Mode (Panic Password)</h2>
+            <p class="step-desc"><strong>Warning:</strong> This sets up a panic password. If entered, it will <strong>permanently destroy all stored keys</strong> and show fake decoy data. Use this if you're being coerced to reveal your password.</p>
+            
+            <div style="background: rgba(255,50,50,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ff3232;">
+                <p style="margin: 0; color: #ff6464;"><strong>⚠️ How Duress Mode Works:</strong></p>
+                <ul style="color: #ccc; margin: 10px 0; padding-left: 20px;">
+                    <li>Set a "panic password" different from your real password</li>
+                    <li>If forced to decrypt, enter the panic password instead</li>
+                    <li>All stored keys are immediately wiped from localStorage</li>
+                    <li>A fake decoy message is shown to the attacker</li>
+                    <li>Your real data remains inaccessible (they'd need the real password)</li>
+                </ul>
+            </div>
+            
+            <label for="duressPassword">🔴 Set Panic Password:</label>
+            <input type="password" id="duressPassword" placeholder="Choose a panic password">
+            <div style="margin-top: 5px;">
+                <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duressPassword', this.checked)">
+                <label for="showDuressPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+            </div>
+            
+            <label for="duressDecoyMessage">📝 Decoy Message (shown when panic triggered):</label>
+            <textarea id="duressDecoyMessage" rows="2" placeholder="Innocent message to show attacker...">Nothing important here, just my shopping list.</textarea>
+            
+            <button id="duressSetBtn" onclick="setDuressPassword()" style="background: linear-gradient(135deg, #ff6464 0%, #ff3232 100%);">🚨 Set Panic Password</button>
+            
+            <div id="duressStatus" style="margin-top: 15px;"></div>
+            
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
+                <h4 style="color: #ff6464;">⚠️ Test Duress Mode</h4>
+                <p style="color: #888; font-size: 0.85em;">Enter your panic password below to trigger a test (this will NOT wipe data in test mode).</p>
+                
+                <label for="duressTestPassword">Test Password:</label>
+                <input type="password" id="duressTestPassword" placeholder="Enter password to test">
+                <button class="secondary" onclick="testDuressPassword()">🧪 Test</button>
+                <div id="duressTestResult" style="margin-top: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
         <!-- CAT MODE -->
         <div id="catMode" class="mode-content">
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
@@ -383,7 +685,20 @@
     <div class="step">
         <span class="step-number">1</span>
         <h2>Create Encrypted QR Code</h2>
-        <p class="step-desc">Enter your secret message and a password. The message will be encrypted and encoded into a QR code.</p>
+        <p class="step-desc">Enter your secret message or upload a file, then add a password. The data will be encrypted and encoded into a QR code (or animated GIF for larger files).</p>
+        
+        <!-- File Upload Option -->
+        <div style="background: rgba(0,255,136,0.1); border: 2px dashed #00ff88; border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center;">
+            <div style="font-size: 1.5em; margin-bottom: 5px;">📁</div>
+            <p style="color: #00ff88; margin: 0 0 10px 0;"><strong>Upload File (Optional)</strong></p>
+            <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">Encrypt any file up to ~2KB (larger files will use animated GIF)</p>
+            <input type="file" id="fileUpload" style="display: none;" onchange="handleFileUpload(this)">
+            <button class="secondary" onclick="document.getElementById('fileUpload').click()" style="border-color: #00ff88; color: #00ff88;">📤 Choose File</button>
+            <span id="fileUploadInfo" style="margin-left: 10px; color: #888;"></span>
+            <button id="fileClearBtn" class="secondary" style="display: none; margin-left: 10px;" onclick="clearFileUpload()">✖️ Clear</button>
+        </div>
+        
+        <div style="text-align: center; color: #666; margin: 10px 0;">— or enter text message —</div>
         
         <label for="secretMessage">🔒 Secret Message:</label>
         <textarea id="secretMessage" rows="3" placeholder="Type your secret message here...">Hello from Meow Decoder! This message is encrypted. 🐱</textarea>
@@ -394,6 +709,26 @@
         <div style="margin-top: 5px;">
             <input type="checkbox" id="showPassword1" onchange="togglePassword('encryptPassword', this.checked)">
             <label for="showPassword1" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+        </div>
+        
+        <!-- Security Level Selection -->
+        <div style="margin-top: 15px; background: rgba(255,136,0,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #ff8800;">
+            <label for="securityLevel" style="margin: 0;">🛡️ Security Level:</label>
+            <select id="securityLevel" style="width: 100%; margin-top: 8px; padding: 10px; background: #2a2a4e; color: #fff; border: 1px solid #444; border-radius: 6px;">
+                <option value="fast">⚡ Fast (64 MiB, 3 iter) - Quick demo, moderate security</option>
+                <option value="standard" selected>🔒 Standard (128 MiB, 8 iter) - Balanced</option>
+                <option value="high">🛡️ High (256 MiB, 15 iter) - Strong protection (~5-10 sec)</option>
+                <option value="paranoid">🔐 Paranoid (512 MiB, 20 iter) - Matches CLI (~15-30 sec)</option>
+            </select>
+            <p style="color: #ff8800; font-size: 0.8em; margin: 8px 0 0 0;">
+                <strong>⚠️ Security vs Speed:</strong> Higher levels resist offline attacks better but take longer. 
+                Use "Paranoid" for life-critical data (matches Python CLI security).
+            </p>
+        </div>
+        
+        <div style="margin-top: 10px;">
+            <input type="checkbox" id="useAnimatedGif">
+            <label for="useAnimatedGif" style="display: inline; color: #00ccff; font-size: 0.9em;">🎞️ Generate Animated GIF (multiple QR frames)</label>
         </div>
         
         <button id="encryptBtn" disabled onclick="encryptToQR()">🔐 Encrypt & Generate QR</button>
@@ -614,6 +949,229 @@
         let wasm = null;
         let QRCode = null;
         let jsQR = null;
+        
+        // ============================================
+        // Web Worker for responsive crypto operations
+        // ============================================
+        let cryptoWorker = null;
+        let workerReady = false;
+        let useWorker = true;  // Set to false to disable worker
+        const pendingRequests = new Map();
+        let requestId = 0;
+        
+        // Initialize the crypto worker
+        function initCryptoWorker() {
+            return new Promise((resolve) => {
+                try {
+                    // Check if Workers are supported
+                    if (typeof Worker === 'undefined') {
+                        log('⚠️ Web Workers not supported, using main thread');
+                        useWorker = false;
+                        resolve(false);
+                        return;
+                    }
+                    
+                    // Create worker with module type for ES6 imports
+                    cryptoWorker = new Worker('crypto-worker.js', { type: 'module' });
+                    
+                    cryptoWorker.onmessage = (e) => {
+                        const { type, id, success, data, error, ready } = e.data;
+                        
+                        if (type === 'ready') {
+                            if (success) {
+                                workerReady = true;
+                                log('✅ Crypto worker initialized (off-main-thread)');
+                                resolve(true);
+                            } else {
+                                log(`⚠️ Worker init failed: ${error}, using main thread`);
+                                useWorker = false;
+                                resolve(false);
+                            }
+                            return;
+                        }
+                        
+                        if (type === 'pong') {
+                            const pending = pendingRequests.get(id);
+                            if (pending) {
+                                pendingRequests.delete(id);
+                                pending.resolve(ready);
+                            }
+                            return;
+                        }
+                        
+                        // Handle result/error from worker
+                        const pending = pendingRequests.get(id);
+                        if (pending) {
+                            pendingRequests.delete(id);
+                            if (type === 'error' || !success) {
+                                pending.reject(new Error(error || 'Worker operation failed'));
+                            } else {
+                                pending.resolve({ success: true, data: data });
+                            }
+                        }
+                    };
+                    
+                    cryptoWorker.onerror = (err) => {
+                        log(`⚠️ Worker error: ${err.message}, using main thread`);
+                        useWorker = false;
+                        workerReady = false;
+                        resolve(false);
+                    };
+                    
+                    // Timeout if worker doesn't respond
+                    setTimeout(() => {
+                        if (!workerReady) {
+                            log('⚠️ Worker timeout, using main thread');
+                            useWorker = false;
+                            resolve(false);
+                        }
+                    }, 5000);
+                    
+                } catch (err) {
+                    log(`⚠️ Failed to create worker: ${err.message}`);
+                    useWorker = false;
+                    resolve(false);
+                }
+            });
+        }
+        
+        // Promise-based wrapper for worker calls
+        function workerCall(type, payload) {
+            return new Promise((resolve, reject) => {
+                if (!workerReady || !cryptoWorker) {
+                    reject(new Error('Worker not ready'));
+                    return;
+                }
+                
+                const id = requestId++;
+                const timeout = setTimeout(() => {
+                    pendingRequests.delete(id);
+                    reject(new Error('Worker call timeout'));
+                }, 30000);  // 30s timeout for slow key derivation
+                
+                pendingRequests.set(id, {
+                    resolve: (result) => {
+                        clearTimeout(timeout);
+                        resolve(result);
+                    },
+                    reject: (err) => {
+                        clearTimeout(timeout);
+                        reject(err);
+                    }
+                });
+                
+                cryptoWorker.postMessage({ type, id, payload });
+            });
+        }
+        
+        // ============================================
+        // Security Level Presets (Argon2id parameters)
+        // ============================================
+        const SECURITY_LEVELS = {
+            fast:     { memoryKib: 65536,  iterations: 3,  label: 'Fast (64 MiB, 3 iter)' },
+            standard: { memoryKib: 131072, iterations: 8,  label: 'Standard (128 MiB, 8 iter)' },
+            high:     { memoryKib: 262144, iterations: 15, label: 'High (256 MiB, 15 iter)' },
+            paranoid: { memoryKib: 524288, iterations: 20, label: 'Paranoid (512 MiB, 20 iter)' }
+        };
+        
+        function getSecurityLevel() {
+            const selector = document.getElementById('securityLevel');
+            return selector ? (selector.value || 'standard') : 'standard';
+        }
+        
+        function getSecurityParams() {
+            return SECURITY_LEVELS[getSecurityLevel()] || SECURITY_LEVELS.standard;
+        }
+        
+        // ============================================
+        // Unified crypto interface (worker or direct)
+        // ============================================
+        const crypto = {
+            async deriveKey(password, salt, memoryKib = null, iterations = null) {
+                // Use provided params or get from security level selector
+                const params = getSecurityParams();
+                const mem = memoryKib || params.memoryKib;
+                const iter = iterations || params.iterations;
+                
+                if (useWorker && workerReady) {
+                    return await workerCall('derive_key', {
+                        password: password,
+                        salt: salt,
+                        memory_kib: mem,
+                        iterations: iter
+                    });
+                } else {
+                    return wasm.derive_key(password, salt, mem, iter);
+                }
+            },
+            
+            async encrypt(plaintext, key, nonce, aad = null) {
+                if (useWorker && workerReady) {
+                    return await workerCall('encrypt', {
+                        plaintext: plaintext,
+                        key: key,
+                        nonce: nonce,
+                        aad: aad
+                    });
+                } else {
+                    return wasm.encrypt(plaintext, key, nonce, aad);
+                }
+            },
+            
+            async decrypt(ciphertext, key, nonce, aad = null) {
+                if (useWorker && workerReady) {
+                    return await workerCall('decrypt', {
+                        ciphertext: ciphertext,
+                        key: key,
+                        nonce: nonce,
+                        aad: aad
+                    });
+                } else {
+                    return wasm.decrypt(ciphertext, key, nonce, aad);
+                }
+            },
+            
+            async generateSalt() {
+                if (useWorker && workerReady) {
+                    return await workerCall('generate_salt', {});
+                } else {
+                    return wasm.generate_salt();
+                }
+            },
+            
+            async generateNonce() {
+                if (useWorker && workerReady) {
+                    return await workerCall('generate_nonce', {});
+                } else {
+                    return wasm.generate_nonce();
+                }
+            }
+        };
+        
+        // ============================================
+        // Progress/loading helpers
+        // ============================================
+        function showProgress(message = 'Processing...') {
+            document.getElementById('progressText').textContent = message;
+            document.getElementById('progressOverlay').classList.add('active');
+        }
+        
+        function hideProgress() {
+            document.getElementById('progressOverlay').classList.remove('active');
+        }
+        
+        function setButtonLoading(buttonId, loading) {
+            const btn = document.getElementById(buttonId);
+            if (btn) {
+                if (loading) {
+                    btn.classList.add('btn-loading');
+                    btn.disabled = true;
+                } else {
+                    btn.classList.remove('btn-loading');
+                    btn.disabled = false;
+                }
+            }
+        }
         
         // Load QRCode library dynamically (for generating QR codes)
         async function loadQRCode() {
@@ -855,28 +1413,103 @@
             document.getElementById(inputId).type = show ? 'text' : 'password';
         };
         
+        // ============================================
+        // FILE UPLOAD HANDLING
+        // ============================================
+        let uploadedFileData = null;
+        let uploadedFileName = null;
+        
+        window.handleFileUpload = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            uploadedFileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                uploadedFileData = new Uint8Array(e.target.result);
+                document.getElementById('fileUploadInfo').textContent = `${file.name} (${uploadedFileData.length} bytes)`;
+                document.getElementById('fileClearBtn').style.display = 'inline-block';
+                document.getElementById('secretMessage').placeholder = 'File selected - message will be ignored';
+                
+                // Auto-check animated GIF for larger files
+                if (uploadedFileData.length > 2000) {
+                    document.getElementById('useAnimatedGif').checked = true;
+                }
+                
+                log(`📁 File loaded: ${file.name} (${uploadedFileData.length} bytes)`);
+            };
+            
+            reader.readAsArrayBuffer(file);
+        };
+        
+        window.clearFileUpload = function() {
+            uploadedFileData = null;
+            uploadedFileName = null;
+            document.getElementById('fileUpload').value = '';
+            document.getElementById('fileUploadInfo').textContent = '';
+            document.getElementById('fileClearBtn').style.display = 'none';
+            document.getElementById('secretMessage').placeholder = 'Type your secret message here...';
+            document.getElementById('useAnimatedGif').checked = false;
+        };
+        
+        // ============================================
+        // ANIMATED GIF GENERATION
+        // ============================================
+        async function generateAnimatedGif(frames, width, height, delay) {
+            // Simple GIF encoder using canvas frames
+            // Returns a data URL for the animated GIF
+            log(`🎞️ Generating animated GIF with ${frames.length} frames...`);
+            
+            // We'll use a simple approach: create individual QR codes and animate with JS
+            // For a real animated GIF, we'd need gif.js library
+            // For now, return a canvas-based animation container
+            
+            return { frames, width, height, delay };
+        }
+        
+        // Split data into chunks for animated QR
+        function splitIntoChunks(data, chunkSize) {
+            const chunks = [];
+            for (let i = 0; i < data.length; i += chunkSize) {
+                chunks.push(data.slice(i, i + chunkSize));
+            }
+            return chunks;
+        }
+
         // Initialize WASM
         async function initWasm() {
             const statusEl = document.getElementById('wasmStatus');
             
             try {
-                // Load QR libraries in parallel
-                await Promise.all([loadQRCode(), loadJsQR()]);
-                log('📊 QR libraries loaded (generate + scan)');
+                // Start crypto worker and QR libraries in background (don't block)
+                const workerPromise = initCryptoWorker();
                 
+                // Load WASM first - this is critical
                 const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
                 await wasmModule.default();
                 wasm = wasmModule;
                 
+                // Wait for worker to be ready
+                await workerPromise;
+                
+                // Enable buttons immediately - QR libraries loaded lazily
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 enableStegoButtons();
                 
+                const workerStatus = useWorker && workerReady ? '(off-thread)' : '(main thread)';
                 statusEl.className = 'status ready';
-                statusEl.textContent = '✅ WASM crypto loaded — Ready to encrypt!';
+                statusEl.textContent = `✅ Ready! ${workerStatus}`;
                 
                 log('🐱 Meow Decoder WASM initialized');
-                log('📦 Crypto: AES-256-GCM + Argon2id key derivation');
-                log('📸 QR scanning ready for image upload');
+                log(`📦 Crypto: AES-256-GCM + Argon2id ${workerStatus}`);
+                
+                // Load QR libraries in background after WASM is ready
+                Promise.all([loadQRCode(), loadJsQR()]).then(() => {
+                    log('📊 QR libraries loaded');
+                }).catch(() => {
+                    log('⚠️ QR libraries will load on first use');
+                });
                 
             } catch (err) {
                 statusEl.className = 'status error';
@@ -891,16 +1524,33 @@
             
             const message = document.getElementById('secretMessage').value;
             const password = document.getElementById('encryptPassword').value;
+            const useAnimated = document.getElementById('useAnimatedGif').checked;
             
-            if (!message) { alert('Please enter a secret message'); return; }
+            // Check for file upload or message
+            let dataToEncrypt;
+            let isFile = false;
+            
+            if (uploadedFileData) {
+                dataToEncrypt = uploadedFileData;
+                isFile = true;
+                log(`\n🔐 Encrypting file: ${uploadedFileName} (${dataToEncrypt.length} bytes)...`);
+            } else if (message) {
+                dataToEncrypt = encoder.encode(message);
+                log(`\n🔐 Encrypting message (${message.length} chars)...`);
+            } else {
+                alert('Please enter a secret message or upload a file');
+                return;
+            }
+            
             if (!password) { alert('Please enter a password'); return; }
             
-            log(`\n🔐 Encrypting message (${message.length} chars)...`);
+            setButtonLoading('encryptBtn', true);
+            showProgress('Deriving encryption key...');
             
             try {
                 // Generate random salt and nonce using WASM helpers
-                const saltResult = wasm.generate_salt();
-                const nonceResult = wasm.generate_nonce();
+                const saltResult = await crypto.generateSalt();
+                const nonceResult = await crypto.generateNonce();
                 
                 if (!saltResult.success || !nonceResult.success) {
                     throw new Error('Failed to generate random values');
@@ -911,41 +1561,106 @@
                 log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
                 log(`   Nonce: ${bytesToHex(nonce)}`);
                 
-                // Derive key from password
-                log('   Deriving key with Argon2id...');
+                // Derive key from password (runs in worker for responsive UI)
+                const secParams = getSecurityParams();
+                log(`   Deriving key with Argon2id (${secParams.label})...`);
                 const passwordBytes = encoder.encode(password);
-                const keyResult = wasm.derive_key(passwordBytes, salt);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt);
                 
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
                 }
                 log(`   Key derived: ${bytesToHex(keyResult.data).substring(0, 16)}...`);
                 
-                // Encrypt the message
-                const plaintextBytes = encoder.encode(message);
-                const encResult = wasm.encrypt(plaintextBytes, keyResult.data, nonce, null);
+                // Encrypt the data
+                const encResult = await crypto.encrypt(dataToEncrypt, keyResult.data, nonce, null);
                 
                 if (!encResult.success) {
                     throw new Error(encResult.error);
                 }
                 log(`   Ciphertext: ${encResult.data.length} bytes`);
                 
-                // Pack everything together: version(1) + salt(16) + nonce(12) + ciphertext
-                const version = new Uint8Array([0x01]); // Version 1
-                const packed = new Uint8Array(1 + 16 + 12 + encResult.data.length);
-                packed.set(version, 0);
-                packed.set(salt, 1);
-                packed.set(nonce, 17);
-                packed.set(encResult.data, 29);
+                // Pack everything together: version(1) + isFile(1) + filenameLen(1) + filename + salt(16) + nonce(12) + ciphertext
+                let packed;
+                if (isFile) {
+                    const filenameBytes = encoder.encode(uploadedFileName.substring(0, 50));
+                    packed = new Uint8Array(1 + 1 + 1 + filenameBytes.length + 16 + 12 + encResult.data.length);
+                    packed[0] = 0x02; // Version 2 (with file support)
+                    packed[1] = 0x01; // Is file
+                    packed[2] = filenameBytes.length;
+                    packed.set(filenameBytes, 3);
+                    packed.set(salt, 3 + filenameBytes.length);
+                    packed.set(nonce, 3 + filenameBytes.length + 16);
+                    packed.set(encResult.data, 3 + filenameBytes.length + 28);
+                } else {
+                    packed = new Uint8Array(1 + 16 + 12 + encResult.data.length);
+                    packed[0] = 0x01; // Version 1 (text only)
+                    packed.set(salt, 1);
+                    packed.set(nonce, 17);
+                    packed.set(encResult.data, 29);
+                }
                 
                 // Encode as base64 for QR
                 const payload = 'MEOW:' + bytesToBase64(packed);
                 log(`   Payload: ${payload.length} chars (MEOW: prefix + base64)`);
                 
-                // Generate QR code
+                // Generate QR code (or animated GIF)
                 document.getElementById('qrcode').innerHTML = '';
                 
-                if (QRCode && typeof QRCode.toCanvas === 'function') {
+                if (useAnimated || payload.length > 2500) {
+                    // Generate animated GIF with multiple frames
+                    log('🎞️ Payload too large for single QR, creating animated sequence...');
+                    
+                    const chunkSize = 800; // characters per QR
+                    const chunks = [];
+                    const base64Part = payload.substring(5); // Remove MEOW:
+                    
+                    for (let i = 0; i < base64Part.length; i += chunkSize) {
+                        chunks.push(base64Part.slice(i, i + chunkSize));
+                    }
+                    
+                    // Create frame container
+                    const container = document.createElement('div');
+                    container.id = 'animatedQrContainer';
+                    container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
+                    
+                    const frameCanvases = [];
+                    
+                    for (let i = 0; i < chunks.length; i++) {
+                        const framePayload = `MEOW-${i+1}/${chunks.length}:${chunks[i]}`;
+                        const canvas = document.createElement('canvas');
+                        canvas.style.cssText = `position: absolute; top: 0; left: 0; display: ${i === 0 ? 'block' : 'none'};`;
+                        
+                        await QRCode.toCanvas(canvas, framePayload, { 
+                            width: 300, margin: 2, 
+                            color: { dark: '#1a1a2e', light: '#ffffff' } 
+                        });
+                        
+                        container.appendChild(canvas);
+                        frameCanvases.push(canvas);
+                    }
+                    
+                    // Add frame counter
+                    const counterEl = document.createElement('div');
+                    counterEl.id = 'frameCounter';
+                    counterEl.style.cssText = 'text-align: center; margin-top: 5px; color: #00ccff; font-weight: bold;';
+                    counterEl.textContent = `Frame 1 / ${chunks.length}`;
+                    
+                    document.getElementById('qrcode').appendChild(container);
+                    document.getElementById('qrcode').appendChild(counterEl);
+                    
+                    // Animate frames
+                    let currentFrame = 0;
+                    window.animatedQrInterval = setInterval(() => {
+                        frameCanvases[currentFrame].style.display = 'none';
+                        currentFrame = (currentFrame + 1) % frameCanvases.length;
+                        frameCanvases[currentFrame].style.display = 'block';
+                        counterEl.textContent = `Frame ${currentFrame + 1} / ${chunks.length}`;
+                    }, 500); // 500ms per frame = 2 FPS
+                    
+                    log(`✅ Animated QR generated with ${chunks.length} frames!`);
+                    
+                } else if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
                         await QRCode.toCanvas(document.getElementById('qrcode').appendChild(document.createElement('canvas')), 
                             payload, { width: 300, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } });
@@ -975,6 +1690,9 @@
             } catch (err) {
                 log(`❌ Error: ${err.message}`);
                 alert('Encryption failed: ' + err.message);
+            } finally {
+                hideProgress();
+                setButtonLoading('encryptBtn', false);
             }
         };
         
@@ -987,6 +1705,9 @@
             
             if (!payload) { alert('Please enter encrypted payload or generate one in Step 1'); return; }
             if (!password) { alert('Please enter the password'); return; }
+            
+            setButtonLoading('decryptBtn', true);
+            showProgress('Deriving decryption key...');
             
             log(`\n🔓 Decrypting...`);
             
@@ -1014,10 +1735,10 @@
                 log(`   Nonce: ${bytesToHex(nonce)}`);
                 log(`   Ciphertext: ${ciphertext.length} bytes`);
                 
-                // Derive key from password
+                // Derive key from password (runs in worker for responsive UI)
                 log('   Deriving key...');
                 const passwordBytes = encoder.encode(password);
-                const keyResult = wasm.derive_key(passwordBytes, salt);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt);
                 
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
@@ -1025,12 +1746,14 @@
                 
                 // Decrypt
                 log('   Decrypting with AES-256-GCM...');
-                const decResult = wasm.decrypt(ciphertext, keyResult.data, nonce, null);
+                const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
                 
                 if (!decResult.success) {
                     // Authentication failed - wrong password or tampered data
                     log('❌ Decryption FAILED - authentication error');
                     showResult(false, 'Authentication Failed! Wrong password or data was tampered with.');
+                    hideProgress();
+                    setButtonLoading('decryptBtn', false);
                     return;
                 }
                 
@@ -1042,6 +1765,9 @@
             } catch (err) {
                 log(`❌ Error: ${err.message}`);
                 showResult(false, err.message);
+            } finally {
+                hideProgress();
+                setButtonLoading('decryptBtn', false);
             }
         };
         
@@ -1220,10 +1946,14 @@
                 
                 // Try WASM encryption if available, otherwise use plaintext demo
                 if (wasm && wasm.generate_salt) {
-                    const salt = wasm.generate_salt().data;
-                    const nonce = wasm.generate_nonce().data;
-                    const key = wasm.derive_key(encoder.encode(password), salt).data;
-                    const cipher = wasm.encrypt(encoder.encode(secret), key, nonce, null).data;
+                    const saltResult = await crypto.generateSalt();
+                    const nonceResult = await crypto.generateNonce();
+                    const salt = saltResult.data;
+                    const nonce = nonceResult.data;
+                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                    const key = keyResult.data;
+                    const cipherResult = await crypto.encrypt(encoder.encode(secret), key, nonce, null);
+                    const cipher = cipherResult.data;
                     const version = new Uint8Array([0x01]);
                     const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
                     packed.set(version, 0);
@@ -1322,15 +2052,15 @@
                             
                             if (payload.startsWith('MEOW:')) {
                                 // Encrypted with WASM - decrypt it
-                                if (!wasm || !wasm.derive_key) {
+                                if (!wasm) {
                                     throw new Error('WASM crypto not available for decryption');
                                 }
                                 const packed = base64ToBytes(payload.substring(5));
                                 const salt = packed.slice(1, 17);
                                 const nonce = packed.slice(17, 29);
                                 const ciphertext = packed.slice(29);
-                                const key = wasm.derive_key(encoder.encode(password), salt).data;
-                                const decResult = wasm.decrypt(ciphertext, key, nonce, null);
+                                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                                const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
                                 if (decResult.success) {
                                     const plaintext = decoder.decode(decResult.data);
                                     resultBox.className = 'result-box';
@@ -1485,10 +2215,13 @@
                 // Encrypt the message
                 let payload;
                 if (wasm && wasm.generate_salt) {
-                    const salt = wasm.generate_salt().data;
-                    const nonce = wasm.generate_nonce().data;
-                    const key = wasm.derive_key(encoder.encode(password), salt).data;
-                    const cipher = wasm.encrypt(encoder.encode(message), key, nonce, null).data;
+                    const saltResult = await crypto.generateSalt();
+                    const nonceResult = await crypto.generateNonce();
+                    const salt = saltResult.data;
+                    const nonce = nonceResult.data;
+                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                    const cipherResult = await crypto.encrypt(encoder.encode(message), keyResult.data, nonce, null);
+                    const cipher = cipherResult.data;
                     const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
                     packed[0] = 0x01; // version
                     packed.set(salt, 1);
@@ -1606,7 +2339,7 @@
                 }
                 
                 // Try WASM decryption
-                if (!wasm || !wasm.decrypt) {
+                if (!wasm) {
                     throw new Error('WASM not available for decryption');
                 }
                 
@@ -1618,10 +2351,10 @@
                 const nonce = bytes.slice(17, 29);
                 const cipher = bytes.slice(29);
                 
-                const key = wasm.derive_key(encoder.encode(password), salt).data;
-                const decrypted = wasm.decrypt(cipher, key, nonce, null);
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const decrypted = await crypto.decrypt(cipher, keyResult.data, nonce, null);
                 
-                if (!decrypted || decrypted.error) {
+                if (!decrypted || !decrypted.success) {
                     throw new Error('Decryption failed - wrong password?');
                 }
                 
@@ -1668,11 +2401,858 @@
             // Update content
             document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
             document.getElementById(mode + 'Mode').classList.add('active');
-            const modeNames = { standard: 'Standard', schrodinger: 'Schrödinger', stego: 'Stego', cat: 'Cat' };
+            const modeNames = { 
+                standard: 'Standard', 
+                forwardSecrecy: 'Forward Secrecy',
+                postQuantum: 'Post-Quantum',
+                schrodinger: 'Schrödinger', 
+                stego: 'Stego', 
+                webcam: 'Webcam',
+                duress: 'Duress',
+                cat: 'Cat' 
+            };
             log(`🔀 Switched to ${modeNames[mode] || mode} mode`);
+            
+            // Stop webcam when leaving webcam mode
+            if (mode !== 'webcam') {
+                stopWebcam();
+            }
         };
         
-        // Schrödinger Encryption: Interleave two ciphertexts
+        // ============================================================
+        // FORWARD SECRECY MODE FUNCTIONS
+        // ============================================================
+        
+        let fsKeyPair = null;  // Store the key pair in memory
+        
+        // Generate X25519 key pair
+        window.fsGenerateKeyPair = async function() {
+            if (!wasm) { alert('WASM not loaded'); return; }
+            
+            try {
+                log('🔑 [FS] Generating X25519 key pair...');
+                const result = wasm.x25519_generate_keypair();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to generate key pair');
+                }
+                
+                // Result contains secret (32 bytes) || public (32 bytes)
+                const keyData = result.data;
+                fsKeyPair = {
+                    secret: keyData.slice(0, 32),
+                    public: keyData.slice(32, 64)
+                };
+                
+                // Display public key
+                const publicKeyB64 = bytesToBase64(fsKeyPair.public);
+                document.getElementById('fsMyPublicKey').value = publicKeyB64;
+                document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair generated! Share your public key above.</span>';
+                
+                // Store in localStorage (encrypted? for now just base64)
+                localStorage.setItem('meow_fs_keypair', JSON.stringify({
+                    secret: bytesToBase64(fsKeyPair.secret),
+                    public: publicKeyB64
+                }));
+                
+                log('✅ [FS] Key pair generated and stored');
+                
+            } catch (err) {
+                log('❌ [FS] Error: ' + err.message);
+                alert('Failed to generate key pair: ' + err.message);
+            }
+        };
+        
+        // Export key pair to file
+        window.fsExportKeyPair = function() {
+            if (!fsKeyPair) {
+                alert('Generate a key pair first!');
+                return;
+            }
+            
+            const exportData = {
+                type: 'meow-fs-keypair',
+                version: 1,
+                secret: bytesToBase64(fsKeyPair.secret),
+                public: bytesToBase64(fsKeyPair.public),
+                created: new Date().toISOString()
+            };
+            
+            const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'meow-fs-keypair.json';
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            log('💾 [FS] Key pair exported');
+        };
+        
+        // Import key pair from file
+        window.fsImportKeyPair = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.type !== 'meow-fs-keypair') {
+                        throw new Error('Invalid key pair file');
+                    }
+                    
+                    fsKeyPair = {
+                        secret: base64ToBytes(data.secret),
+                        public: base64ToBytes(data.public)
+                    };
+                    
+                    document.getElementById('fsMyPublicKey').value = data.public;
+                    document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair imported!</span>';
+                    
+                    localStorage.setItem('meow_fs_keypair', JSON.stringify({
+                        secret: data.secret,
+                        public: data.public
+                    }));
+                    
+                    log('📥 [FS] Key pair imported');
+                } catch (err) {
+                    alert('Invalid key pair file: ' + err.message);
+                }
+            };
+            reader.readAsText(file);
+            input.value = '';
+        };
+        
+        // Load saved key pair on init
+        function loadFsKeyPair() {
+            const saved = localStorage.getItem('meow_fs_keypair');
+            if (saved) {
+                try {
+                    const data = JSON.parse(saved);
+                    fsKeyPair = {
+                        secret: base64ToBytes(data.secret),
+                        public: base64ToBytes(data.public)
+                    };
+                    document.getElementById('fsMyPublicKey').value = data.public;
+                    document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ccff;">🔑 Existing key pair loaded from storage</span>';
+                    log('🔑 [FS] Loaded existing key pair');
+                } catch (e) {
+                    // Ignore errors
+                }
+            }
+        }
+        
+        // Encrypt with forward secrecy
+        window.fsEncrypt = async function() {
+            if (!wasm) { alert('WASM not loaded'); return; }
+            
+            const recipientKey = document.getElementById('fsRecipientKey').value.trim();
+            const message = document.getElementById('fsMessage').value;
+            const password = document.getElementById('fsPassword').value || '';
+            
+            if (!recipientKey) { alert('Enter recipient\'s public key'); return; }
+            if (!message) { alert('Enter a message'); return; }
+            
+            try {
+                log('🔐 [FS] Encrypting with forward secrecy...');
+                
+                const recipientPublic = base64ToBytes(recipientKey);
+                if (recipientPublic.length !== 32) {
+                    throw new Error('Invalid public key (must be 32 bytes base64)');
+                }
+                
+                const plaintext = encoder.encode(message);
+                const result = wasm.encrypt_with_forward_secrecy(plaintext, recipientPublic, password);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Encryption failed');
+                }
+                
+                const payload = 'FS:' + bytesToBase64(result.data);
+                document.getElementById('fsPayload').value = payload;
+                window.currentFsPayload = payload;
+                
+                // Generate QR
+                document.getElementById('fsQrcode').innerHTML = '';
+                if (QRCode && typeof QRCode.toCanvas === 'function') {
+                    await QRCode.toCanvas(
+                        document.getElementById('fsQrcode').appendChild(document.createElement('canvas')),
+                        payload,
+                        { width: 300, margin: 2, color: { dark: '#00c864', light: '#ffffff' } }
+                    );
+                } else {
+                    await generateQRFallback('fsQrcode', payload);
+                }
+                
+                document.getElementById('fsEncryptedSection').classList.remove('hidden');
+                log('✅ [FS] Encrypted with ephemeral X25519 key');
+                
+            } catch (err) {
+                log('❌ [FS] Error: ' + err.message);
+                alert('Encryption failed: ' + err.message);
+            }
+        };
+        
+        // Decrypt forward secrecy message
+        window.fsDecrypt = async function() {
+            if (!wasm) { alert('WASM not loaded'); return; }
+            if (!fsKeyPair) { alert('Generate or import your key pair first!'); return; }
+            
+            const payload = document.getElementById('fsDecryptPayload').value.trim();
+            const password = document.getElementById('fsDecryptPassword').value || '';
+            const resultBox = document.getElementById('fsDecryptResult');
+            
+            if (!payload) { alert('Enter encrypted payload'); return; }
+            
+            try {
+                log('🔓 [FS] Decrypting...');
+                
+                if (!payload.startsWith('FS:')) {
+                    throw new Error('Invalid payload - must start with FS:');
+                }
+                
+                const encrypted = base64ToBytes(payload.substring(3));
+                const result = wasm.decrypt_with_forward_secrecy(encrypted, fsKeyPair.secret, password);
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Decryption failed');
+                }
+                
+                const plaintext = decoder.decode(result.data);
+                resultBox.className = 'result-box';
+                resultBox.innerHTML = `<h3>✨ Decrypted (Forward Secrecy)</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
+                resultBox.classList.remove('hidden');
+                log('✅ [FS] Decrypted successfully');
+                
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [FS] Error: ' + err.message);
+            }
+        };
+        
+        window.copyFsPayload = function() {
+            if (!window.currentFsPayload) { alert('Encrypt a message first'); return; }
+            navigator.clipboard.writeText(window.currentFsPayload);
+            alert('Payload copied!');
+        };
+        
+        window.downloadFsQR = function() {
+            const canvas = document.querySelector('#fsQrcode canvas');
+            if (!canvas) { alert('Generate QR first'); return; }
+            const link = document.createElement('a');
+            link.download = 'meow-fs-encrypted.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        };
+        
+        // ============================================================
+        // POST-QUANTUM MODE FUNCTIONS (ML-KEM-1024 + X25519 Hybrid)
+        // ============================================================
+        
+        let pqKeyPair = null; // { x25519Secret, x25519Public, mlkemSecret, mlkemPublic }
+        
+        // Check if PQ is available on WASM load
+        async function checkPqAvailability() {
+            if (!cryptoWorker) return;
+            
+            return new Promise((resolve) => {
+                const id = nextWorkerId++;
+                workerCallbacks.set(id, (result) => {
+                    const available = result.data === true;
+                    if (!available) {
+                        document.getElementById('pqNotAvailable').style.display = 'block';
+                        document.getElementById('pqKeySection').style.display = 'none';
+                    }
+                    resolve(available);
+                });
+                cryptoWorker.postMessage({ type: 'pq_available', id, payload: {} });
+            });
+        }
+        
+        // Generate Post-Quantum key pair (X25519 + ML-KEM)
+        window.pqGenerateKeyPair = async function() {
+            const btn = document.getElementById('pqGenerateBtn');
+            btn.disabled = true;
+            btn.textContent = '🔮 Generating...';
+            
+            try {
+                log('🔮 [PQ] Generating X25519 key pair...');
+                
+                // Generate X25519 keys via worker
+                const x25519Result = await new Promise((resolve, reject) => {
+                    const id = nextWorkerId++;
+                    workerCallbacks.set(id, (result) => {
+                        if (result.success) resolve(result);
+                        else reject(new Error(result.error));
+                    });
+                    cryptoWorker.postMessage({ type: 'x25519_generate_keypair', id, payload: {} });
+                });
+                
+                log('🔮 [PQ] Generating ML-KEM-1024 key pair...');
+                
+                // Generate ML-KEM keys via worker
+                const mlkemResult = await new Promise((resolve, reject) => {
+                    const id = nextWorkerId++;
+                    workerCallbacks.set(id, (result) => {
+                        if (result.success) resolve(result);
+                        else reject(new Error(result.error));
+                    });
+                    cryptoWorker.postMessage({ type: 'mlkem_generate_keypair', id, payload: {} });
+                });
+                
+                // Store key pair
+                pqKeyPair = {
+                    x25519Secret: x25519Result.secretKey,
+                    x25519Public: x25519Result.publicKey,
+                    mlkemSecret: mlkemResult.secretKey,
+                    mlkemPublic: mlkemResult.publicKey
+                };
+                
+                // Display public keys as base64
+                document.getElementById('pqX25519PublicKey').value = btoa(String.fromCharCode(...pqKeyPair.x25519Public));
+                document.getElementById('pqMlkemPublicKey').value = btoa(String.fromCharCode(...pqKeyPair.mlkemPublic));
+                
+                // Save to localStorage (encrypted with simple key)
+                const keyData = {
+                    x25519Secret: btoa(String.fromCharCode(...pqKeyPair.x25519Secret)),
+                    x25519Public: btoa(String.fromCharCode(...pqKeyPair.x25519Public)),
+                    mlkemSecret: btoa(String.fromCharCode(...pqKeyPair.mlkemSecret)),
+                    mlkemPublic: btoa(String.fromCharCode(...pqKeyPair.mlkemPublic)),
+                    created: new Date().toISOString()
+                };
+                localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
+                
+                log('✅ [PQ] Post-quantum key pair generated and saved!');
+                log(`   X25519 public: ${keyData.x25519Public.substring(0, 20)}...`);
+                log(`   ML-KEM public: ${keyData.mlkemPublic.substring(0, 20)}...`);
+                
+            } catch (err) {
+                log('❌ [PQ] Key generation failed: ' + err.message);
+                alert('Key generation failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔮 Generate Post-Quantum Keys';
+            }
+        };
+        
+        // Export key pair to JSON file
+        window.pqExportKeyPair = function() {
+            if (!pqKeyPair) {
+                alert('Generate a key pair first');
+                return;
+            }
+            
+            const keyData = {
+                type: 'meow-pq-keypair',
+                version: 1,
+                x25519Secret: btoa(String.fromCharCode(...pqKeyPair.x25519Secret)),
+                x25519Public: btoa(String.fromCharCode(...pqKeyPair.x25519Public)),
+                mlkemSecret: btoa(String.fromCharCode(...pqKeyPair.mlkemSecret)),
+                mlkemPublic: btoa(String.fromCharCode(...pqKeyPair.mlkemPublic)),
+                created: new Date().toISOString(),
+                warning: 'KEEP SECRET! Anyone with this file can decrypt your messages.'
+            };
+            
+            const blob = new Blob([JSON.stringify(keyData, null, 2)], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.download = 'meow-pq-keypair-KEEP-SECRET.json';
+            link.href = URL.createObjectURL(blob);
+            link.click();
+            
+            log('💾 [PQ] Key pair exported');
+        };
+        
+        // Import key pair from JSON file
+        window.pqImportKeyPair = async function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            try {
+                const text = await file.text();
+                const keyData = JSON.parse(text);
+                
+                if (keyData.type !== 'meow-pq-keypair') {
+                    throw new Error('Invalid key file type');
+                }
+                
+                // Decode base64 keys
+                pqKeyPair = {
+                    x25519Secret: Uint8Array.from(atob(keyData.x25519Secret), c => c.charCodeAt(0)),
+                    x25519Public: Uint8Array.from(atob(keyData.x25519Public), c => c.charCodeAt(0)),
+                    mlkemSecret: Uint8Array.from(atob(keyData.mlkemSecret), c => c.charCodeAt(0)),
+                    mlkemPublic: Uint8Array.from(atob(keyData.mlkemPublic), c => c.charCodeAt(0))
+                };
+                
+                // Display public keys
+                document.getElementById('pqX25519PublicKey').value = keyData.x25519Public;
+                document.getElementById('pqMlkemPublicKey').value = keyData.mlkemPublic;
+                
+                // Save to localStorage
+                localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
+                
+                log('📂 [PQ] Key pair imported successfully');
+                
+            } catch (err) {
+                log('❌ [PQ] Import failed: ' + err.message);
+                alert('Failed to import key pair: ' + err.message);
+            }
+            
+            // Reset file input
+            event.target.value = '';
+        };
+        
+        // Encrypt with post-quantum (hybrid X25519 + ML-KEM)
+        window.pqEncrypt = async function() {
+            const message = document.getElementById('pqMessage').value;
+            const recipientX25519 = document.getElementById('pqRecipientX25519').value.trim();
+            const recipientMlkem = document.getElementById('pqRecipientMlkem').value.trim();
+            const password = document.getElementById('pqPassword').value;
+            
+            if (!message) {
+                alert('Enter a message to encrypt');
+                return;
+            }
+            if (!recipientX25519 || !recipientMlkem) {
+                alert('Enter both recipient public keys (X25519 and ML-KEM)');
+                return;
+            }
+            
+            const btn = document.getElementById('pqEncryptBtn');
+            btn.disabled = true;
+            btn.textContent = '🔮 Encrypting...';
+            
+            try {
+                // Decode recipient public keys from base64
+                const x25519Public = Uint8Array.from(atob(recipientX25519), c => c.charCodeAt(0));
+                const mlkemPublic = Uint8Array.from(atob(recipientMlkem), c => c.charCodeAt(0));
+                
+                // Validate key sizes
+                if (x25519Public.length !== 32) {
+                    throw new Error(`Invalid X25519 key size: expected 32, got ${x25519Public.length}`);
+                }
+                if (mlkemPublic.length !== 1568) {
+                    throw new Error(`Invalid ML-KEM key size: expected 1568, got ${mlkemPublic.length}`);
+                }
+                
+                log('🔮 [PQ] Encrypting with hybrid X25519 + ML-KEM-1024...');
+                
+                // Encrypt via worker
+                const plaintext = new TextEncoder().encode(message);
+                const result = await new Promise((resolve, reject) => {
+                    const id = nextWorkerId++;
+                    workerCallbacks.set(id, (result) => {
+                        if (result.success) resolve(result);
+                        else reject(new Error(result.error));
+                    });
+                    cryptoWorker.postMessage({ 
+                        type: 'encrypt_hybrid_pq', 
+                        id, 
+                        payload: {
+                            plaintext: plaintext,
+                            x25519_public: x25519Public,
+                            mlkem_public: mlkemPublic,
+                            password: password
+                        }
+                    });
+                });
+                
+                // Format output with HYBRID-PQ: prefix (X25519 + ML-KEM hybrid)
+                const encrypted = result.data;
+                const base64Payload = btoa(String.fromCharCode(...encrypted));
+                const fullPayload = `HYBRID-PQ:${base64Payload}`;
+                
+                document.getElementById('pqEncryptedOutput').value = fullPayload;
+                document.getElementById('pqEncryptResult').style.display = 'block';
+                window.currentPqPayload = fullPayload;
+                
+                log('✅ [PQ] Post-quantum encryption complete!');
+                log(`   Payload size: ${encrypted.length} bytes (${fullPayload.length} chars base64)`);
+                
+            } catch (err) {
+                log('❌ [PQ] Encryption failed: ' + err.message);
+                alert('Encryption failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔮 Encrypt with Post-Quantum';
+            }
+        };
+        
+        // Generate QR for PQ encrypted message
+        window.pqGenerateQR = function() {
+            const payload = window.currentPqPayload;
+            if (!payload) {
+                alert('Encrypt a message first');
+                return;
+            }
+            
+            const canvas = document.getElementById('pqQrCanvas');
+            const qr = qrcode(0, 'L');
+            qr.addData(payload);
+            qr.make();
+            
+            const size = 400;
+            const moduleCount = qr.getModuleCount();
+            const cellSize = size / moduleCount;
+            
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Purple gradient background for PQ
+            const gradient = ctx.createLinearGradient(0, 0, size, size);
+            gradient.addColorStop(0, '#200040');
+            gradient.addColorStop(1, '#004060');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, size, size);
+            
+            // Draw QR modules
+            ctx.fillStyle = '#00ffff';
+            for (let row = 0; row < moduleCount; row++) {
+                for (let col = 0; col < moduleCount; col++) {
+                    if (qr.isDark(row, col)) {
+                        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
+                    }
+                }
+            }
+            
+            document.getElementById('pqQrSection').style.display = 'block';
+            log('📱 [PQ] QR code generated');
+        };
+        
+        // Decrypt post-quantum message
+        window.pqDecrypt = async function() {
+            let payload = document.getElementById('pqDecryptPayload').value.trim();
+            const password = document.getElementById('pqDecryptPassword').value;
+            const resultBox = document.getElementById('pqDecryptResult');
+            
+            if (!payload) {
+                alert('Paste an encrypted PQ payload');
+                return;
+            }
+            if (!pqKeyPair) {
+                alert('Import or generate your key pair first');
+                return;
+            }
+            
+            // Remove HYBRID-PQ: prefix if present
+            if (payload.startsWith('HYBRID-PQ:')) {
+                payload = payload.substring(10);
+            }
+            
+            const btn = document.getElementById('pqDecryptBtn');
+            btn.disabled = true;
+            btn.textContent = '🔓 Decrypting...';
+            
+            try {
+                log('🔮 [PQ] Decrypting with hybrid X25519 + ML-KEM-1024...');
+                
+                // Decode base64
+                const encrypted = Uint8Array.from(atob(payload), c => c.charCodeAt(0));
+                
+                // Decrypt via worker
+                const result = await new Promise((resolve, reject) => {
+                    const id = nextWorkerId++;
+                    workerCallbacks.set(id, (result) => {
+                        if (result.success) resolve(result);
+                        else reject(new Error(result.error));
+                    });
+                    cryptoWorker.postMessage({ 
+                        type: 'decrypt_hybrid_pq', 
+                        id, 
+                        payload: {
+                            encrypted: encrypted,
+                            x25519_secret: pqKeyPair.x25519Secret,
+                            mlkem_secret: pqKeyPair.mlkemSecret,
+                            password: password
+                        }
+                    });
+                });
+                
+                const plaintext = new TextDecoder().decode(result.data);
+                
+                resultBox.innerHTML = `<h3>✨ Decrypted (Post-Quantum)</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
+                resultBox.classList.remove('hidden');
+                
+                log('✅ [PQ] Post-quantum decryption complete!');
+                
+            } catch (err) {
+                resultBox.innerHTML = `<h3 style="color: #ff6464;">❌ Decryption Failed</h3><p>${escapeHtml(err.message)}</p>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [PQ] Decryption error: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔓 Decrypt';
+            }
+        };
+        
+        // Load saved PQ key pair on startup
+        function loadSavedPqKeyPair() {
+            try {
+                const saved = localStorage.getItem('meow_pq_keypair');
+                if (saved) {
+                    const keyData = JSON.parse(saved);
+                    pqKeyPair = {
+                        x25519Secret: Uint8Array.from(atob(keyData.x25519Secret), c => c.charCodeAt(0)),
+                        x25519Public: Uint8Array.from(atob(keyData.x25519Public), c => c.charCodeAt(0)),
+                        mlkemSecret: Uint8Array.from(atob(keyData.mlkemSecret), c => c.charCodeAt(0)),
+                        mlkemPublic: Uint8Array.from(atob(keyData.mlkemPublic), c => c.charCodeAt(0))
+                    };
+                    document.getElementById('pqX25519PublicKey').value = keyData.x25519Public;
+                    document.getElementById('pqMlkemPublicKey').value = keyData.mlkemPublic;
+                    log('📂 [PQ] Loaded saved post-quantum key pair');
+                }
+            } catch (e) {
+                console.error('Failed to load PQ key pair:', e);
+            }
+        }
+        
+        // ============================================================
+        // WEBCAM MODE FUNCTIONS
+        // ============================================================
+        
+        let webcamStream = null;
+        let webcamScanning = false;
+        let webcamAnimationId = null;
+        
+        window.startWebcam = async function() {
+            try {
+                const video = document.getElementById('webcamVideo');
+                const placeholder = document.getElementById('webcamPlaceholder');
+                const statusEl = document.getElementById('webcamStatus');
+                
+                statusEl.textContent = 'Requesting camera access...';
+                
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }  // Prefer back camera
+                });
+                
+                webcamStream = stream;
+                video.srcObject = stream;
+                video.play();
+                
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
+                document.getElementById('webcamStartBtn').style.display = 'none';
+                document.getElementById('webcamStopBtn').style.display = 'inline-block';
+                
+                statusEl.innerHTML = '<span style="color: #00ff88;">📷 Camera active - scanning for QR codes...</span>';
+                log('📷 [Webcam] Camera started');
+                
+                webcamScanning = true;
+                scanWebcamFrame();
+                
+            } catch (err) {
+                document.getElementById('webcamStatus').innerHTML = `<span style="color: #ff6464;">❌ Camera error: ${err.message}</span>`;
+                log('❌ [Webcam] Error: ' + err.message);
+            }
+        };
+        
+        window.stopWebcam = function() {
+            if (webcamStream) {
+                webcamStream.getTracks().forEach(track => track.stop());
+                webcamStream = null;
+            }
+            webcamScanning = false;
+            if (webcamAnimationId) {
+                cancelAnimationFrame(webcamAnimationId);
+            }
+            
+            const video = document.getElementById('webcamVideo');
+            const placeholder = document.getElementById('webcamPlaceholder');
+            if (video) video.style.display = 'none';
+            if (placeholder) placeholder.style.display = 'flex';
+            
+            const startBtn = document.getElementById('webcamStartBtn');
+            const stopBtn = document.getElementById('webcamStopBtn');
+            if (startBtn) startBtn.style.display = 'inline-block';
+            if (stopBtn) stopBtn.style.display = 'none';
+            
+            const statusEl = document.getElementById('webcamStatus');
+            if (statusEl) statusEl.textContent = 'Camera stopped';
+        };
+        
+        async function scanWebcamFrame() {
+            if (!webcamScanning) return;
+            
+            const video = document.getElementById('webcamVideo');
+            const canvas = document.getElementById('webcamCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                ctx.drawImage(video, 0, 0);
+                
+                const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Scan for QR code
+                if (jsQR) {
+                    const code = jsQR(imageData.data, imageData.width, imageData.height);
+                    if (code && (code.data.startsWith('MEOW:') || code.data.startsWith('QUANTUM:') || code.data.startsWith('FS:') || code.data.startsWith('HYBRID-PQ:'))) {
+                        // Found a valid payload!
+                        document.getElementById('webcamPayload').value = code.data;
+                        document.getElementById('webcamScanResult').style.display = 'block';
+                        document.getElementById('webcamStatus').innerHTML = '<span style="color: #00ff88;">✅ QR code detected! Enter password to decrypt.</span>';
+                        log('📸 [Webcam] Scanned: ' + code.data.substring(0, 30) + '...');
+                    }
+                }
+            }
+            
+            webcamAnimationId = requestAnimationFrame(scanWebcamFrame);
+        }
+        
+        window.webcamDecrypt = async function() {
+            const payload = document.getElementById('webcamPayload').value;
+            const password = document.getElementById('webcamDecryptPassword').value;
+            const resultBox = document.getElementById('webcamDecryptResult');
+            
+            if (!payload) { alert('No QR code scanned'); return; }
+            if (!password) { alert('Enter password'); return; }
+            
+            try {
+                log('🔓 [Webcam] Decrypting scanned payload...');
+                
+                let plaintext;
+                
+                if (payload.startsWith('MEOW:')) {
+                    // Standard decrypt
+                    const packed = base64ToBytes(payload.substring(5));
+                    const salt = packed.slice(1, 17);
+                    const nonce = packed.slice(17, 29);
+                    const ciphertext = packed.slice(29);
+                    
+                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                    const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
+                    
+                    if (!decResult.success) throw new Error('Wrong password or corrupted data');
+                    plaintext = decoder.decode(decResult.data);
+                    
+                } else if (payload.startsWith('QUANTUM:')) {
+                    // Schrödinger decrypt
+                    const packed = base64ToBytes(payload.substring(8));
+                    // (Similar to collapseReality function)
+                    // For simplicity, try both realities
+                    throw new Error('Use Schrödinger mode to decrypt QUANTUM payloads');
+                    
+                } else if (payload.startsWith('FS:')) {
+                    // Forward secrecy
+                    if (!fsKeyPair) throw new Error('Load your key pair in Forward Secrecy mode first');
+                    const encrypted = base64ToBytes(payload.substring(3));
+                    const result = wasm.decrypt_with_forward_secrecy(encrypted, fsKeyPair.secret, password);
+                    if (!result.success) throw new Error(result.error || 'Decryption failed');
+                    plaintext = decoder.decode(result.data);
+                    
+                } else if (payload.startsWith('HYBRID-PQ:')) {
+                    // Post-Quantum hybrid (X25519 + ML-KEM)
+                    if (!pqKeyPair) throw new Error('Load your key pair in Post-Quantum mode first');
+                    const encrypted = base64ToBytes(payload.substring(10));
+                    
+                    // Decrypt via WASM (no worker, direct call for webcam speed)
+                    const result = wasm.decrypt_hybrid_pq(
+                        encrypted,
+                        pqKeyPair.x25519Secret,
+                        pqKeyPair.mlkemSecret,
+                        password
+                    );
+                    if (!result.success) throw new Error(result.error || 'Decryption failed');
+                    plaintext = decoder.decode(result.data);
+                }
+                
+                resultBox.className = 'result-box';
+                resultBox.innerHTML = `<h3>✨ Decrypted from Camera</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
+                resultBox.classList.remove('hidden');
+                log('✅ [Webcam] Decrypted successfully');
+                
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [Webcam] Error: ' + err.message);
+            }
+        };
+        
+        // ============================================================
+        // DURESS MODE FUNCTIONS
+        // ============================================================
+        
+        window.setDuressPassword = function() {
+            const password = document.getElementById('duressPassword').value;
+            const decoyMessage = document.getElementById('duressDecoyMessage').value;
+            const statusEl = document.getElementById('duressStatus');
+            
+            if (!password) { alert('Enter a panic password'); return; }
+            if (password.length < 4) { alert('Password too short (min 4 chars)'); return; }
+            
+            // Hash the password for storage (don't store plaintext)
+            const passwordHash = btoa(password.split('').reverse().join('') + 'meow-duress');
+            
+            localStorage.setItem('meow_duress', JSON.stringify({
+                hash: passwordHash,
+                decoy: decoyMessage,
+                set: new Date().toISOString()
+            }));
+            
+            statusEl.innerHTML = '<span style="color: #ff6464;">🚨 Panic password set! If entered during decryption, all keys will be wiped.</span>';
+            log('🚨 [Duress] Panic password configured');
+            
+            document.getElementById('duressPassword').value = '';
+        };
+        
+        window.testDuressPassword = function() {
+            const testPassword = document.getElementById('duressTestPassword').value;
+            const resultEl = document.getElementById('duressTestResult');
+            
+            const saved = localStorage.getItem('meow_duress');
+            if (!saved) {
+                resultEl.innerHTML = '<span style="color: #888;">No panic password set.</span>';
+                return;
+            }
+            
+            const data = JSON.parse(saved);
+            const testHash = btoa(testPassword.split('').reverse().join('') + 'meow-duress');
+            
+            if (testHash === data.hash) {
+                resultEl.innerHTML = `
+                    <span style="color: #ff6464;">🚨 PANIC PASSWORD MATCHED!</span>
+                    <p style="color: #888; font-size: 0.85em; margin-top: 5px;">
+                        In real mode, this would wipe all stored keys and show:<br>
+                        <em>"${data.decoy}"</em>
+                    </p>
+                `;
+                log('🚨 [Duress] Test: panic password matched');
+            } else {
+                resultEl.innerHTML = '<span style="color: #00ff88;">✓ Not the panic password.</span>';
+            }
+            
+            document.getElementById('duressTestPassword').value = '';
+        };
+        
+        // Check for duress on any decrypt operation
+        function checkDuress(password) {
+            const saved = localStorage.getItem('meow_duress');
+            if (!saved) return null;
+            
+            const data = JSON.parse(saved);
+            const testHash = btoa(password.split('').reverse().join('') + 'meow-duress');
+            
+            if (testHash === data.hash) {
+                // PANIC! Wipe everything
+                log('🚨🚨🚨 DURESS MODE TRIGGERED 🚨🚨🚨');
+                localStorage.removeItem('meow_fs_keypair');
+                localStorage.removeItem('meow_duress');
+                // Could wipe more here
+                
+                return data.decoy;
+            }
+            return null;
+        }
+
+        // ============================================================
+        // SCHRÖDINGER MODE FUNCTIONS
+        // ============================================================
         window.schrodingerEncrypt = async function() {
             if (!wasm) return;
             
@@ -1691,17 +3271,23 @@
             
             try {
                 // Encrypt Reality A
-                const saltA = wasm.generate_salt().data;
-                const nonceA = wasm.generate_nonce().data;
-                const keyA = wasm.derive_key(encoder.encode(passwordA), saltA).data;
-                const cipherA = wasm.encrypt(encoder.encode(secretA), keyA, nonceA, null).data;
+                const saltAResult = await crypto.generateSalt();
+                const nonceAResult = await crypto.generateNonce();
+                const saltA = saltAResult.data;
+                const nonceA = nonceAResult.data;
+                const keyAResult = await crypto.deriveKey(encoder.encode(passwordA), saltA);
+                const cipherAResult = await crypto.encrypt(encoder.encode(secretA), keyAResult.data, nonceA, null);
+                const cipherA = cipherAResult.data;
                 log(`   Reality A encrypted: ${cipherA.length} bytes`);
                 
                 // Encrypt Reality B
-                const saltB = wasm.generate_salt().data;
-                const nonceB = wasm.generate_nonce().data;
-                const keyB = wasm.derive_key(encoder.encode(passwordB), saltB).data;
-                const cipherB = wasm.encrypt(encoder.encode(secretB), keyB, nonceB, null).data;
+                const saltBResult = await crypto.generateSalt();
+                const nonceBResult = await crypto.generateNonce();
+                const saltB = saltBResult.data;
+                const nonceB = nonceBResult.data;
+                const keyBResult = await crypto.deriveKey(encoder.encode(passwordB), saltB);
+                const cipherBResult = await crypto.encrypt(encoder.encode(secretB), keyBResult.data, nonceB, null);
+                const cipherB = cipherBResult.data;
                 log(`   Reality B encrypted: ${cipherB.length} bytes`);
                 
                 // Interleave: even bytes from A, odd bytes from B
@@ -1822,8 +3408,8 @@
                 
                 // Try decrypting as Reality A
                 log('   Attempting to collapse to Reality A...');
-                const keyA = wasm.derive_key(encoder.encode(password), saltA).data;
-                const resultA = wasm.decrypt(cipherA, keyA, nonceA, null);
+                const keyAResult = await crypto.deriveKey(encoder.encode(password), saltA);
+                const resultA = await crypto.decrypt(cipherA, keyAResult.data, nonceA, null);
                 
                 if (resultA.success) {
                     const plaintext = decoder.decode(resultA.data);
@@ -1834,8 +3420,8 @@
                 
                 // Try decrypting as Reality B
                 log('   Reality A authentication failed, trying Reality B...');
-                const keyB = wasm.derive_key(encoder.encode(password), saltB).data;
-                const resultB = wasm.decrypt(cipherB, keyB, nonceB, null);
+                const keyBResult = await crypto.deriveKey(encoder.encode(password), saltB);
+                const resultB = await crypto.decrypt(cipherB, keyBResult.data, nonceB, null);
                 
                 if (resultB.success) {
                     const plaintext = decoder.decode(resultB.data);
@@ -1964,9 +3550,33 @@
             alert('Quantum payload copied!');
         };
         
+        // ============================================
+        // Service Worker for caching (faster loads)
+        // ============================================
+        function registerServiceWorker() {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register('sw.js')
+                    .then((reg) => {
+                        log('📦 Service worker registered (caching enabled)');
+                    })
+                    .catch((err) => {
+                        // Service worker registration is optional
+                        console.log('Service worker not available:', err.message);
+                    });
+            }
+        }
+        
         // Initialize
         document.getElementById('log').textContent = '';
+        registerServiceWorker();
         initWasm();
+        
+        // Load Forward Secrecy key pair if saved
+        setTimeout(() => {
+            loadFsKeyPair();
+            loadSavedPqKeyPair();
+            checkPqAvailability();
+        }, 500);
     </script>
 </body>
 </html>

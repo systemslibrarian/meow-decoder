@@ -2,7 +2,7 @@
 
 .PHONY: help install dev test lint format clean build publish \
 	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tamarin formal-tamarin-duress \
-	formal-verus formal-lean formal-all verify check-wasm-deps build-wasm build-wasm-release build-wasm-node meow-build
+	formal-verus formal-lean formal-all verify check-wasm-deps build-wasm build-wasm-release build-wasm-pq build-wasm-node meow-build
 
 help:
 	@echo "🐱 Meow Decoder - Available Commands:"
@@ -19,8 +19,9 @@ help:
 	@echo "📦 Build Targets:"
 	@echo "  make build             - Build Python package"
 	@echo "  make build-rust        - Build Rust crypto_core"
-	@echo "  make build-wasm        - Build WASM bindings"
-	@echo "  make build-wasm-release - Build optimized WASM for production"
+	@echo "  make build-wasm        - Build WASM bindings (dev)"
+	@echo "  make build-wasm-release - Build optimized WASM"
+	@echo "  make build-wasm-pq     - Build WASM with Post-Quantum ML-KEM-1024"
 	@echo "  make meow-build        - Build WASM + start browser demo server"
 	@echo "  make prepare-deploy    - Prepare WASM demo for hosting"
 	@echo ""
@@ -198,8 +199,36 @@ check-wasm-deps:
 build-wasm-release: check-wasm-deps
 	@echo "🌐 Building WASM bindings (production - optimized)..."
 	cd crypto_core && wasm-pack build --target web --release --features wasm
+	@echo "🔧 Running wasm-opt for additional optimization..."
+	@if command -v wasm-opt >/dev/null 2>&1; then \
+		wasm-opt -O3 --strip-debug crypto_core/pkg/crypto_core_bg.wasm -o crypto_core/pkg/crypto_core_bg.wasm; \
+		echo "✅ wasm-opt optimization complete"; \
+	else \
+		echo "⚠️  wasm-opt not found (optional). Install with: cargo install wasm-opt"; \
+		echo "   Skipping additional optimization..."; \
+	fi
 	@echo "✅ WASM production build complete in crypto_core/pkg/"
 	@echo "📊 Package size: $$(du -h crypto_core/pkg/*.wasm | cut -f1)"
+
+# 🔮 WASM build with Post-Quantum ML-KEM-1024 support
+build-wasm-pq: check-wasm-deps
+	@echo "🔮 Building WASM with Post-Quantum ML-KEM-1024 support..."
+	cd crypto_core && wasm-pack build --target web --release --features wasm-pq
+	@echo "🔧 Running wasm-opt for additional optimization..."
+	@if command -v wasm-opt >/dev/null 2>&1; then \
+		wasm-opt -O3 --strip-debug crypto_core/pkg/crypto_core_bg.wasm -o crypto_core/pkg/crypto_core_bg.wasm; \
+		echo "✅ wasm-opt optimization complete"; \
+	else \
+		echo "⚠️  wasm-opt not found (optional). Install with: cargo install wasm-opt"; \
+		echo "   Skipping additional optimization..."; \
+	fi
+	@echo "✅ WASM Post-Quantum build complete in crypto_core/pkg/"
+	@echo "📊 Package size: $$(du -h crypto_core/pkg/*.wasm | cut -f1)"
+	@echo ""
+	@echo "🔮 Post-Quantum features enabled:"
+	@echo "   - ML-KEM-1024 (Kyber) quantum-resistant key exchange"
+	@echo "   - Hybrid X25519 + ML-KEM mode"
+	@echo "   - NIST Level 5 security"
 
 # 🌐 WASM Node.js build (for server-side use)
 build-wasm-node: check-wasm-deps

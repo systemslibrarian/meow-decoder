@@ -32,7 +32,83 @@ from typing import TYPE_CHECKING, Callable, Optional
 if TYPE_CHECKING:
     from argparse import Namespace
 
-# Import protocol messages from mobile/bridge
+
+# Fallback protocol classes (used when bridge.protocol is unavailable)
+@dataclass
+class _Frame:
+    seq: int
+    qr_bytes_b64: str
+    timestamp_ms: int = 0
+
+    @property
+    def qr_bytes(self) -> bytes:
+        import base64
+
+        return base64.b64decode(self.qr_bytes_b64)
+
+
+def _parse_phone_message(raw: str) -> _Frame | dict:
+    data = json.loads(raw)
+    if data.get("type") == "frame":
+        return _Frame(
+            seq=data["seq"],
+            qr_bytes_b64=data["qr_bytes_b64"],
+            timestamp_ms=data.get("timestamp_ms", 0),
+        )
+    return data
+
+
+_MAX_FRAME_BYTES = 4096
+
+
+@dataclass
+class _Ack:
+    seq: int
+    accepted: bool
+    reason: str = ""
+    type: str = "ack"
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+
+@dataclass
+class _Progress:
+    frames_received: int
+    frames_needed: int
+    blocks_decoded: int
+    blocks_total: int
+    percent: float
+    type: str = "progress"
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+
+@dataclass
+class _Result:
+    success: bool
+    output_file: str
+    output_size: int
+    elapsed_s: float
+    error: Optional[str] = None
+    type: str = "result"
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+
+@dataclass
+class _Error:
+    code: str
+    message: str
+    type: str = "error"
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self))
+
+
+# Import protocol messages from mobile/bridge, or use fallbacks
 sys.path.insert(0, str(Path(__file__).parent.parent / "mobile"))
 try:
     from bridge.protocol import (
@@ -47,73 +123,14 @@ try:
         MAX_FRAME_BYTES,
     )
 except ImportError:
-    # Fallback: define minimal protocol classes inline
-    @dataclass
-    class Frame:
-        seq: int
-        qr_bytes_b64: str
-        timestamp_ms: int = 0
-
-        @property
-        def qr_bytes(self) -> bytes:
-            import base64
-
-            return base64.b64decode(self.qr_bytes_b64)
-
-    def parse_phone_message(raw: str):
-        data = json.loads(raw)
-        if data.get("type") == "frame":
-            return Frame(
-                seq=data["seq"],
-                qr_bytes_b64=data["qr_bytes_b64"],
-                timestamp_ms=data.get("timestamp_ms", 0),
-            )
-        return data
-
-    MAX_FRAME_BYTES = 4096
-
-    @dataclass
-    class Ack:
-        seq: int
-        accepted: bool
-        reason: str = ""
-        type: str = "ack"
-
-        def to_json(self) -> str:
-            return json.dumps(asdict(self))
-
-    @dataclass
-    class Progress:
-        frames_received: int
-        frames_needed: int
-        blocks_decoded: int
-        blocks_total: int
-        percent: float
-        type: str = "progress"
-
-        def to_json(self) -> str:
-            return json.dumps(asdict(self))
-
-    @dataclass
-    class Result:
-        success: bool
-        output_file: str
-        output_size: int
-        elapsed_s: float
-        error: Optional[str] = None
-        type: str = "result"
-
-        def to_json(self) -> str:
-            return json.dumps(asdict(self))
-
-    @dataclass
-    class Error:
-        code: str
-        message: str
-        type: str = "error"
-
-        def to_json(self) -> str:
-            return json.dumps(asdict(self))
+    # Use fallback classes
+    Frame = _Frame  # type: ignore[misc,assignment]
+    Ack = _Ack  # type: ignore[misc,assignment]
+    Progress = _Progress  # type: ignore[misc,assignment]
+    Result = _Result  # type: ignore[misc,assignment]
+    Error = _Error  # type: ignore[misc,assignment]
+    parse_phone_message = _parse_phone_message  # type: ignore[assignment]
+    MAX_FRAME_BYTES = _MAX_FRAME_BYTES
 
 
 @dataclass
@@ -154,7 +171,7 @@ def read_frames_from_file(input_path: Path) -> list[bytes]:
     else:
         raise ValueError(f"Invalid frames file format: expected list or dict")
 
-    frames = []
+    frames: list[tuple[int, bytes]] = []
     for item in frames_data:
         if isinstance(item, dict):
             frame = Frame(

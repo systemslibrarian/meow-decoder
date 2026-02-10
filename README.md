@@ -36,7 +36,7 @@
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU" alt="Python Coverage">
   </a>
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags[0]=rust">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
+    <img src="https://img.shields.io/codecov/c/github/systemslibrarian/meow-decoder?token=EBYQIEJETU&flag=rust&label=rust" alt="Rust Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
@@ -242,11 +242,18 @@ make meow-build
 # Opens http://localhost:8080/examples/wasm_browser_example.html
 ```
 
-The WASM demo includes:
-- **Cat Mode** — Optical data transmission through blinking cat eyes (green = 1, dark = 0)
-- **Standard Mode** — QR code encryption/decryption
-- **Schrödinger Mode** — Dual-secret plausible deniability
-- **Stego Mode** — LSB steganography in carrier images
+The WASM demo includes **8 encryption modes**:
+
+| Mode | Description | Security |
+|------|-------------|----------|
+| 🔐 **Standard** | AES-256-GCM + Argon2id | Full parity with CLI (configurable security levels) |
+| 🔑 **Forward Secrecy** | X25519 ephemeral key exchange | Full parity with CLI |
+| 🔮 **Post-Quantum** | ML-KEM-1024 + X25519 hybrid | NIST Level 5 quantum resistance |
+| 🐱 **Schrödinger** | Dual-secret plausible deniability | Full parity with CLI |
+| 🖼️ **Stego** | Visual steganography | Browser-limited carrier size |
+| 📹 **Webcam** | Live QR scanner | All payload types supported |
+| 🚨 **Duress** | Panic password wipe | Destroys localStorage keys |
+| 😺 **Cat Mode** | Blinking cat eyes encoding | Fun camouflage |
 
 See [examples/README.md](examples/README.md) for full setup instructions.
 
@@ -572,6 +579,8 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ## 🔌 Hardware Security Module Integration
 
+> **Current status:** Primitives are fully implemented in the Rust crypto core. Full CLI integration (`--use-hardware-key` etc.) is in final testing and will be available in the next release.
+
 Meow Decoder supports hardware-backed key storage for high-security environments.
 
 ### Supported Hardware
@@ -615,6 +624,8 @@ See [crypto_core/README.md](crypto_core/README.md) for Rust API details and adva
 ---
 
 ## 📱 Mobile Bridge (React Native)
+
+> **Current status:** JSON protocol is fully specified and prototype capture works. Full CLI listener and production-ready React Native app are in active development (coming soon).
 
 The React Native QR scanner app provides a seamless mobile-to-CLI workflow for capturing animated QR codes.
 
@@ -688,6 +699,36 @@ See [mobile/ARCHITECTURE.md](mobile/ARCHITECTURE.md) for full protocol specifica
 
 Run the crypto core directly in your browser — no server-side processing, fully client-side encryption.
 
+### Web Demo vs CLI Feature Parity
+
+| Feature | CLI (Python) | Web Demo (WASM) | Notes |
+|---------|:------------:|:---------------:|-------|
+| AES-256-GCM | ✅ | ✅ | Identical AEAD |
+| Argon2id KDF | ✅ 512 MiB/20 iter | ✅ Configurable | Web: 64-512 MiB selectable |
+| X25519 Forward Secrecy | ✅ | ✅ | Full parity |
+| ML-KEM-1024 Post-Quantum | ✅ | ✅ | Requires `--features wasm-pq` |
+| Schrödinger Mode | ✅ | ✅ | Dual-secret deniability |
+| Fountain Codes | ✅ | ⚠️ | Planned (QR frames only) |
+| GIF Animation | ✅ | ✅ | Multi-frame QR support |
+| Steganography | ✅ Level 1-5 | ⚠️ Level 1-2 | Browser canvas limitations |
+| Hardware Keys | ✅ | ❌ | WebAuthn integration planned |
+| Webcam Decode | ✅ | ✅ | Real-time camera scanner |
+| Duress Mode | ✅ | ✅ | Panic password wipe |
+| File Upload | ✅ | ✅ | Up to ~2KB per QR |
+
+### Security Level Selection
+
+The web demo provides **4 security levels** to balance speed vs. brute-force resistance:
+
+| Level | Memory | Iterations | Time | Use Case |
+|-------|--------|------------|------|----------|
+| ⚡ Fast | 64 MiB | 3 | ~1 sec | Quick demos, low-value data |
+| 🔒 Standard | 128 MiB | 8 | ~3 sec | General use |
+| 🛡️ High | 256 MiB | 15 | ~8 sec | Sensitive data |
+| 🔐 Paranoid | 512 MiB | 20 | ~20 sec | **Matches CLI** — life-critical |
+
+⚠️ **For maximum security matching the Python CLI, select "Paranoid" mode.** This uses identical Argon2id parameters to the command-line tool.
+
 ### Prerequisites
 
 - **Rust** (stable toolchain via [rustup](https://rustup.rs/))
@@ -697,11 +738,11 @@ Run the crypto core directly in your browser — no server-side processing, full
 ### Build the WASM Module
 
 ```bash
-# From repo root (installs wasm-pack if needed)
+# Standard build (X25519 + AES-256-GCM)
 make build-wasm
 
-# Or manually:
-cd crypto_core && wasm-pack build --target web
+# With Post-Quantum ML-KEM-1024 support
+wasm-pack build crypto_core --target web --release --features wasm-pq
 ```
 
 This creates `crypto_core/pkg/` with the `.js` and `.wasm` files.
@@ -777,6 +818,17 @@ pytest --cov=meow_decoder tests/
 
 # Self-test (verifies backend, roundtrip, fountain codec)
 meow-encode --self-test
+
+### 🦀 Rust Test Coverage
+
+To measure Rust code coverage, install and run `cargo-tarpaulin`:
+
+```bash
+cargo install cargo-tarpaulin
+cargo tarpaulin --features "pure-crypto,pq-crypto" --lib --tests
+```
+
+This will print a coverage percentage for the Rust crypto core.
 ```
 
 ### Property-Based Testing

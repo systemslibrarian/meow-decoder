@@ -6,19 +6,33 @@
 
 ---
 
-## ⚡ What You'll Learn
+## 🌐 Option A: Try in Your Browser (No Install!)
 
-In 5 minutes you'll:
-1. Encrypt a file to animated QR GIF (30 sec)
-2. Capture the GIF with your phone (30 sec)
-3. Transfer video to computer (1 min)
-4. Decode back to original file (30 sec)
+Want to test Meow Decoder instantly? Use the **Web Demo**:
 
-**Total time:** 3-5 minutes ⏱️
+```bash
+# Clone and build
+git clone https://github.com/systemslibrarian/meow-decoder.git
+cd meow-decoder
+make build-wasm          # Build WASM module
+make meow-build          # Start local server
+
+# Open http://localhost:8080/examples/wasm_browser_example.html
+```
+
+The web demo includes **8 encryption modes**:
+- 🔐 **Standard** — AES-256-GCM + Argon2id (configurable security levels)
+- 🔑 **Forward Secrecy** — X25519 ephemeral keys
+- 🔮 **Post-Quantum** — ML-KEM-1024 hybrid (quantum-resistant!)
+- 🐱 **Schrödinger** — Dual-secret plausible deniability
+- 📹 **Webcam** — Live QR scanner for decoding
+- 🚨 **Duress** — Panic password that wipes keys
+
+**Security Note:** Select **"Paranoid" security level** (512 MiB, 20 iter) to match CLI security for life-critical data.
 
 ---
 
-## 📋 Prerequisites
+## 📋 Option B: Full CLI Install
 
 **Required:**
 - Python 3.10+ installed

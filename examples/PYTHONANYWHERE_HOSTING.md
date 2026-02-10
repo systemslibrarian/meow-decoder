@@ -2,10 +2,39 @@
 
 This guide explains how to host the Meow Decoder WASM browser demo on [PythonAnywhere](https://www.pythonanywhere.com).
 
+## Features in the Web Demo
+
+The hosted demo provides **8 encryption modes** with industry-standard cryptography:
+
+| Mode | Description | Security Level |
+|------|-------------|----------------|
+| 🔐 **Standard** | AES-256-GCM + Argon2id | Configurable (64-512 MiB) |
+| 🔑 **Forward Secrecy** | X25519 ephemeral keys | Per-message key destruction |
+| 🔮 **Post-Quantum** | ML-KEM-1024 + X25519 hybrid | NIST Level 5 quantum resistance |
+| 🐱 **Schrödinger** | Dual-secret deniability | Two passwords, two secrets |
+| 🖼️ **Stego** | LSB steganography | Visual camouflage |
+| 📹 **Webcam** | Live QR scanner | Real-time decode |
+| 🚨 **Duress** | Panic password | Destroys localStorage keys |
+| 😺 **Cat Mode** | Blinking cat eyes | Fun visual encoding |
+
 ## Prerequisites
 
 - A PythonAnywhere account (free tier works!)
-- The WASM module built locally (`make build-wasm`)
+- The WASM module built locally
+
+### Building the WASM Module
+
+```bash
+# Standard build (X25519 + AES-256-GCM)
+make build-wasm
+
+# OR with Post-Quantum ML-KEM-1024 support (recommended)
+wasm-pack build crypto_core --target web --release --features wasm-pq
+```
+
+⚠️ **For maximum security, build with `--features wasm-pq`** — this enables the Post-Quantum mode with ML-KEM-1024 hybrid encryption.
+
+## Option 1: Static Files Only (Simplest)
 
 ## Option 1: Static Files Only (Simplest)
 
@@ -24,7 +53,9 @@ crypto_core/pkg/           # The built WASM module
 └── ...
 
 examples/
-└── wasm_browser_example.html
+├── wasm_browser_example.html
+├── crypto-worker.js           # Web Worker for responsive UI
+└── sw.js                      # Service worker for caching
 
 assets/
 └── meow-decoder-logo.svg
@@ -40,6 +71,8 @@ assets/
 /home/yourusername/
 └── meow-demo/
     ├── index.html              # Renamed from wasm_browser_example.html
+    ├── crypto-worker.js        # Web Worker for responsive crypto
+    ├── sw.js                   # Service worker for caching
     ├── assets/
     │   └── meow-decoder-logo.svg
     └── crypto_core/
@@ -67,6 +100,18 @@ And change the logo path:
 ```html
 <img src="./assets/meow-decoder-logo.svg" alt="Meow Decoder" class="logo">
 ```
+
+Also edit `crypto-worker.js` — change:
+```javascript
+const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+```
+
+To:
+```javascript
+const wasmModule = await import('./crypto_core/pkg/crypto_core.js');
+```
+
+> **Tip:** The `make prepare-deploy` command does all these path fixes automatically!
 
 ### Step 4: Create a Flask App
 
@@ -140,6 +185,7 @@ cd ~
 git clone https://github.com/systemslibrarian/meow-decoder.git
 mkdir -p meow-demo/crypto_core
 cp meow-decoder/examples/wasm_browser_example.html meow-demo/index.html
+cp meow-decoder/examples/crypto-worker.js meow-demo/
 cp -r meow-decoder/assets meow-demo/
 # Note: You'll need to build WASM locally and upload pkg/ folder
 ```
@@ -271,6 +317,21 @@ const wasmModule = await import('./crypto_core/pkg/crypto_core.js');
 1. Build locally: `make build-wasm`
 2. Upload the entire `crypto_core/pkg/` folder
 
+### Web Worker Not Loading
+
+**Cause:** `crypto-worker.js` not found or path incorrect.
+
+**Symptoms:** Status bar shows `(main thread)` instead of `(off-thread)`, or console shows worker errors.
+
+**Fix:**
+1. Ensure `crypto-worker.js` is uploaded to the same directory as `index.html`
+2. Check the worker's WASM import path matches your deployment:
+   ```javascript
+   // In crypto-worker.js, should be:
+   const wasmModule = await import('./crypto_core/pkg/crypto_core.js');
+   ```
+3. Worker still works if it fails — the demo falls back to main thread crypto
+
 ---
 
 ## File Checklist
@@ -278,12 +339,14 @@ const wasmModule = await import('./crypto_core/pkg/crypto_core.js');
 Before deploying, ensure you have:
 
 - [ ] `index.html` (renamed from `wasm_browser_example.html`)
+- [ ] `crypto-worker.js` (for responsive UI during key derivation)
+- [ ] `sw.js` (service worker for caching - optional but recommended)
 - [ ] `assets/meow-decoder-logo.svg`
 - [ ] `crypto_core/pkg/crypto_core.js`
 - [ ] `crypto_core/pkg/crypto_core_bg.wasm`
 - [ ] `crypto_core/pkg/crypto_core.d.ts`
 - [ ] `crypto_core/pkg/package.json`
-- [ ] Paths updated in HTML to use `./` instead of `../`
+- [ ] Paths updated in HTML and worker to use `./` instead of `../`
 - [ ] Flask app configured with WASM MIME type
 
 ---

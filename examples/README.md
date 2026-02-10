@@ -46,6 +46,24 @@ The `wasm_browser_example.html` demonstrates the crypto core running in the brow
 
 > **Note:** The WASM module (`crypto_core/pkg/` folder) must be built before the demo works.
 
+#### Web Worker for Responsive UI
+
+The demo uses a **Web Worker** (`crypto-worker.js`) to run CPU-intensive cryptographic operations off the main thread. This keeps the UI responsive during key derivation (Argon2id can take 1-2 seconds).
+
+- **Automatic fallback:** If Web Workers aren't supported or fail to load, the demo falls back to running crypto on the main thread
+- **Files involved:**
+  - `examples/crypto-worker.js` — Worker script that loads WASM and handles crypto ops
+  - `examples/wasm_browser_example.html` — Main demo page with worker integration
+
+#### Service Worker Caching
+
+The demo includes a **Service Worker** (`sw.js`) that caches the WASM module and assets for faster repeat loads:
+
+- **First visit:** WASM module is fetched from server and cached
+- **Subsequent visits:** WASM loads instantly from cache
+- **Files involved:**
+  - `examples/sw.js` — Caches WASM, JS, and image assets
+
 #### First Time Setup
 
 ```bash
@@ -113,12 +131,54 @@ The demo simulates a complete air-gap transfer:
 - 📋 **Manual paste:** Copy encrypted payload text instead of using QR
 
 Features demonstrated:
-- 🔑 **Argon2id key derivation** - Password to key
+- 🔑 **Argon2id key derivation** - Password to key (4 security levels: 64-512 MiB)
 - 🔐 **AES-256-GCM encryption** - Encrypt any data
 - 🔓 **Decryption** - Decrypt and verify integrity
 - 📱 **QR code generation** - Encrypted data in scannable format
 - 📸 **QR code scanning** - Decode QR from uploaded photo
-- 🎲 **Secure random generation** - Browser-safe randomness
+- 🎲 **Secure random generation** - Browser-safe randomness via WASM
+
+#### Available Encryption Modes
+
+The web demo provides **8 encryption modes**:
+
+| Mode | Description | Payload Prefix |
+|------|-------------|----------------|
+| 🔐 **Standard** | AES-256-GCM + Argon2id | `MEOW:` |
+| 🔑 **Forward Secrecy** | X25519 ephemeral keys | `FS:` |
+| 🔮 **Post-Quantum** | ML-KEM-1024 + X25519 hybrid | `HYBRID-PQ:` |
+| 🐱 **Schrödinger** | Dual-secret deniability | `QUANTUM:` |
+| 🖼️ **Stego** | LSB steganography | Image-embedded |
+| 📹 **Webcam** | Live QR scanner | All types supported |
+| 🚨 **Duress** | Panic password wipe | Destroys localStorage |
+| 😺 **Cat Mode** | Blinking cat eyes | Visual encoding |
+
+#### Security Level Selection
+
+The web demo lets users choose security strength:
+
+| Level | Memory | Iterations | Approx. Time | Recommendation |
+|-------|--------|------------|--------------|----------------|
+| ⚡ Fast | 64 MiB | 3 | ~1 sec | Quick demos only |
+| 🔒 Standard | 128 MiB | 8 | ~3 sec | General use |
+| 🛡️ High | 256 MiB | 15 | ~8 sec | Sensitive data |
+| 🔐 Paranoid | 512 MiB | 20 | ~20 sec | **Matches CLI** |
+
+⚠️ **For life-critical data, always select "Paranoid"** — this matches the Python CLI's default security parameters.
+
+#### Building with Post-Quantum Support
+
+To enable ML-KEM-1024 post-quantum cryptography:
+
+```bash
+# Standard build (X25519 + AES-256-GCM)
+make build-wasm
+
+# With Post-Quantum ML-KEM-1024 hybrid
+wasm-pack build crypto_core --target web --release --features wasm-pq
+```
+
+The Post-Quantum mode combines X25519 (classical) with ML-KEM-1024 (quantum-resistant) for hybrid security — the message remains secure if either algorithm holds.
 
 ### Node.js Usage
 

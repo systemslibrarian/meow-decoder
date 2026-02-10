@@ -683,6 +683,61 @@ def _create_statistics_tab(self):
 
 ---
 
+## 🌐 **WASM Browser Architecture**
+
+The crypto core is also available as a WebAssembly module for browser-based encryption:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    BROWSER ENVIRONMENT                          │
+├─────────────────────────────────────────────────────────────────┤
+│                                                                 │
+│  ┌───────────────┐    ┌──────────────────┐    ┌─────────────┐ │
+│  │   Main Thread │    │   Web Worker     │    │  Service    │ │
+│  │  (UI)         │<──>│  (crypto-worker) │    │  Worker     │ │
+│  │               │    │                  │    │  (caching)  │ │
+│  │ wasm_browser_ │    │ crypto_core.wasm │    │  sw.js      │ │
+│  │ example.html  │    │ + JS bindings    │    │             │ │
+│  └───────────────┘    └──────────────────┘    └─────────────┘ │
+│         │                      │                               │
+│         ▼                      ▼                               │
+│  ┌──────────────────────────────────────────────────────────┐ │
+│  │                    WASM CRYPTO CORE                       │ │
+│  │  ┌─────────────┐ ┌──────────────┐ ┌───────────────────┐  │ │
+│  │  │ AES-256-GCM │ │ Argon2id KDF │ │ X25519 / ML-KEM   │  │ │
+│  │  │  (AEAD)     │ │ (64-512 MiB) │ │ (hybrid PQ)       │  │ │
+│  │  └─────────────┘ └──────────────┘ └───────────────────┘  │ │
+│  │  Rust → wasm-pack → crypto_core.wasm                      │ │
+│  └──────────────────────────────────────────────────────────┘ │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### **WASM Feature Parity**
+
+| Feature | CLI (Python) | WASM Browser | Notes |
+|---------|:------------:|:------------:|-------|
+| AES-256-GCM | ✅ | ✅ | Identical AEAD |
+| Argon2id | ✅ 512/20 | ✅ Configurable | Web: 4 security levels |
+| X25519 | ✅ | ✅ | Forward secrecy |
+| ML-KEM-1024 | ✅ | ✅ | Requires `wasm-pq` feature |
+| Schrödinger Mode | ✅ | ✅ | Dual-secret deniability |
+| Fountain Codes | ✅ | ⚠️ | QR frames only |
+| Steganography | ✅ Level 1-5 | ⚠️ Level 1-2 | Canvas limitations |
+| Hardware Keys | ✅ | ❌ | WebAuthn planned |
+
+### **Building WASM**
+
+```bash
+# Standard build
+make build-wasm
+
+# With Post-Quantum ML-KEM-1024
+wasm-pack build crypto_core --target web --release --features wasm-pq
+```
+
+---
+
 ## 🐾 **Cat-Themed Architecture Fun Facts**
 
 1. **Hissing** (encryption) happens in `crypto.py` 🔐

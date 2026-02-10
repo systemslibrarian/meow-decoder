@@ -175,6 +175,62 @@ We thank the following security researchers — our **elite Catnip Hunters** �
 
 ---
 
+## 🌐 **WASM Browser Demo Security**
+
+The WASM browser demo provides **identical cryptographic primitives** to the CLI, but with browser-specific considerations:
+
+### **Cryptographic Parity**
+
+| Component | CLI | WASM | Parity |
+|-----------|-----|------|--------|
+| AES-256-GCM | `cryptography` | `aes-gcm` (Rust) | ✅ Identical |
+| Argon2id | `argon2-cffi` | `argon2` (Rust) | ✅ Configurable |
+| X25519 | `cryptography` | `x25519-dalek` | ✅ Identical |
+| ML-KEM-1024 | `liboqs-python` | `ml-kem` (Rust) | ✅ Identical |
+| RNG | OS urandom | `getrandom` (wasm_js) | ✅ Web Crypto API |
+
+### **Security Levels**
+
+The web demo provides 4 Argon2id security levels:
+
+| Level | Memory | Iterations | CLI Equivalent |
+|-------|--------|------------|----------------|
+| Fast | 64 MiB | 3 | No (demo only) |
+| Standard | 128 MiB | 8 | No |
+| High | 256 MiB | 15 | Approaching |
+| **Paranoid** | **512 MiB** | **20** | **✅ Full parity** |
+
+⚠️ **CRITICAL:** For life-critical data, **always select "Paranoid" security level** to match CLI protection.
+
+### **Browser-Specific Risks**
+
+| Risk | Mitigation |
+|------|------------|
+| **JavaScript memory not zeroed** | Use Web Worker isolation; WASM memory separate from JS heap |
+| **Browser extensions** | Use private/incognito mode; disable extensions |
+| **Browser history** | Demo stores keys in localStorage; use Duress mode to wipe |
+| **Screen capture** | Physical security; don't display passwords on screen |
+| **Clipboard sniffing** | Clear clipboard after copying keys |
+
+### **What the Browser Demo Does NOT Provide**
+
+- ❌ Hardware key support (WebAuthn planned)
+- ❌ Guaranteed memory zeroing (best-effort via `zeroize` crate)
+- ❌ Protection from malicious browser extensions
+- ❌ Full steganography (canvas limitations)
+- ❌ Fountain code decode (QR frames only)
+
+### **Recommended Browser Settings**
+
+For maximum security:
+1. Use private/incognito mode
+2. Disable all browser extensions
+3. Clear localStorage after use (or use Duress mode)
+4. Close all other tabs
+5. Use a hardened browser (Firefox with strict settings, Tor Browser)
+
+---
+
 ## 📊 **Metadata Leakage Controls**
 
 ### **What Is Protected:**

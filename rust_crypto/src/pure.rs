@@ -15,7 +15,9 @@ use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
+#[cfg(feature = "pq")]
 use pqcrypto_mlkem::mlkem768;
+#[cfg(feature = "pq")]
 use pqcrypto_traits::kem::{
     Ciphertext as KemCiphertext, PublicKey as KemPublicKey, SecretKey as KemSecretKey,
     SharedSecret as KemSharedSecret,
@@ -49,10 +51,13 @@ pub enum CryptoError {
     /// Invalid HMAC key
     InvalidHmacKey,
     /// Invalid ML-KEM public key
+    #[cfg(feature = "pq")]
     InvalidMlKemPublicKey(String),
     /// Invalid ML-KEM private key
+    #[cfg(feature = "pq")]
     InvalidMlKemPrivateKey(String),
     /// Invalid ML-KEM ciphertext
+    #[cfg(feature = "pq")]
     InvalidMlKemCiphertext(String),
 }
 
@@ -76,8 +81,11 @@ impl std::fmt::Display for CryptoError {
             Self::EncryptionFailed => write!(f, "Encryption failed"),
             Self::DecryptionFailed => write!(f, "Decryption failed - authentication error"),
             Self::InvalidHmacKey => write!(f, "Invalid HMAC key length"),
+            #[cfg(feature = "pq")]
             Self::InvalidMlKemPublicKey(e) => write!(f, "Invalid ML-KEM public key: {}", e),
+            #[cfg(feature = "pq")]
             Self::InvalidMlKemPrivateKey(e) => write!(f, "Invalid ML-KEM private key: {}", e),
+            #[cfg(feature = "pq")]
             Self::InvalidMlKemCiphertext(e) => write!(f, "Invalid ML-KEM ciphertext: {}", e),
         }
     }
@@ -408,6 +416,7 @@ pub fn backend_info() -> String {
 
 /// Generate ML-KEM-768 keypair.
 /// Returns (secret_key, public_key).
+#[cfg(feature = "pq")]
 pub fn mlkem768_keygen() -> (Vec<u8>, Vec<u8>) {
     let (pk, sk) = mlkem768::keypair();
     (sk.as_bytes().to_vec(), pk.as_bytes().to_vec())
@@ -415,6 +424,7 @@ pub fn mlkem768_keygen() -> (Vec<u8>, Vec<u8>) {
 
 /// Encapsulate using ML-KEM-768.
 /// Returns (shared_secret, ciphertext).
+#[cfg(feature = "pq")]
 pub fn mlkem768_encapsulate(public_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
     // Check key length
     if public_key.len() != mlkem768::public_key_bytes() {
@@ -432,6 +442,7 @@ pub fn mlkem768_encapsulate(public_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>), Cry
 }
 
 /// Decapsulate using ML-KEM-768.
+#[cfg(feature = "pq")]
 pub fn mlkem768_decapsulate(private_key: &[u8], ciphertext: &[u8]) -> Result<Vec<u8>, CryptoError> {
     // Check lengths
     if private_key.len() != mlkem768::secret_key_bytes() {
@@ -823,6 +834,7 @@ mod tests {
     // ML-KEM Tests
     // =========================================================================
 
+    #[cfg(feature = "pq")]
     #[test]
     fn test_mlkem768_keygen() {
         let (sk, pk) = mlkem768_keygen();
@@ -830,6 +842,7 @@ mod tests {
         assert!(!pk.is_empty());
     }
 
+    #[cfg(feature = "pq")]
     #[test]
     fn test_mlkem768_roundtrip() {
         let (sk, pk) = mlkem768_keygen();
@@ -838,12 +851,14 @@ mod tests {
         assert_eq!(ss1, ss2);
     }
 
+    #[cfg(feature = "pq")]
     #[test]
     fn test_mlkem768_invalid_public_key() {
         let result = mlkem768_encapsulate(&[0u8; 100]);
         assert!(matches!(result, Err(CryptoError::InvalidMlKemPublicKey(_))));
     }
 
+    #[cfg(feature = "pq")]
     #[test]
     fn test_mlkem768_invalid_private_key() {
         let (_, pk) = mlkem768_keygen();
@@ -855,6 +870,7 @@ mod tests {
         ));
     }
 
+    #[cfg(feature = "pq")]
     #[test]
     fn test_mlkem768_invalid_ciphertext() {
         let (sk, _) = mlkem768_keygen();
@@ -871,7 +887,7 @@ mod tests {
 
     #[test]
     fn test_crypto_error_display() {
-        let errors = vec![
+        let mut errors: Vec<CryptoError> = vec![
             CryptoError::InvalidSaltLength {
                 expected: 16,
                 got: 10,
@@ -892,10 +908,14 @@ mod tests {
             CryptoError::EncryptionFailed,
             CryptoError::DecryptionFailed,
             CryptoError::InvalidHmacKey,
-            CryptoError::InvalidMlKemPublicKey("bad".into()),
-            CryptoError::InvalidMlKemPrivateKey("bad".into()),
-            CryptoError::InvalidMlKemCiphertext("bad".into()),
         ];
+        
+        #[cfg(feature = "pq")]
+        {
+            errors.push(CryptoError::InvalidMlKemPublicKey("bad".into()));
+            errors.push(CryptoError::InvalidMlKemPrivateKey("bad".into()));
+            errors.push(CryptoError::InvalidMlKemCiphertext("bad".into()));
+        }
 
         for err in errors {
             let display = format!("{}", err);

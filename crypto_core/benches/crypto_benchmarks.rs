@@ -149,31 +149,33 @@ fn bench_x25519(c: &mut Criterion) {
 
 #[cfg(feature = "pq-crypto")]
 fn bench_ml_kem(c: &mut Criterion) {
-    use kem::{Decapsulate, Encapsulate};
-    use ml_kem::{KemCore, MlKem768};
+    use kem::{Decapsulate, Encapsulate, Generate};
+    use ml_kem::MlKem768;
+    type Dk768 = ml_kem::DecapsulationKey768;
 
     let mut group = c.benchmark_group("ml_kem_768");
 
-    // Key generation
+    // Key generation (using getrandom feature - no RNG param needed)
     group.bench_function("keygen", |b| {
         b.iter(|| {
-            let (dk, ek) = MlKem768::generate(&mut rand_core::OsRng);
-            (dk, ek)
+            let dk = Dk768::generate();
+            dk
         })
     });
 
     // Pre-generate keypair for encap/decap
-    let (dk, ek) = MlKem768::generate(&mut rand_core::OsRng);
+    let dk = Dk768::generate();
+    let ek = dk.encapsulation_key();
 
     group.bench_function("encapsulate", |b| {
-        b.iter(|| ek.encapsulate(&mut rand_core::OsRng).unwrap())
+        b.iter(|| ek.encapsulate())
     });
 
     // Pre-encapsulate for decap benchmark
-    let (ciphertext, _shared_secret) = ek.encapsulate(&mut rand_core::OsRng).unwrap();
+    let (ciphertext, _shared_secret) = ek.encapsulate();
 
     group.bench_function("decapsulate", |b| {
-        b.iter(|| dk.decapsulate(black_box(&ciphertext)).unwrap())
+        b.iter(|| dk.decapsulate(black_box(&ciphertext)))
     });
 
     group.finish();
@@ -185,28 +187,29 @@ fn bench_ml_kem(c: &mut Criterion) {
 
 #[cfg(feature = "pq-crypto")]
 fn bench_ml_kem_1024(c: &mut Criterion) {
-    use kem::{Decapsulate, Encapsulate};
-    use ml_kem::{KemCore, MlKem1024};
+    use kem::{Decapsulate, Encapsulate, Generate};
+    type Dk1024 = ml_kem::DecapsulationKey1024;
 
     let mut group = c.benchmark_group("ml_kem_1024");
 
     group.bench_function("keygen", |b| {
         b.iter(|| {
-            let (dk, ek) = MlKem1024::generate(&mut rand_core::OsRng);
-            (dk, ek)
+            let dk = Dk1024::generate();
+            dk
         })
     });
 
-    let (dk, ek) = MlKem1024::generate(&mut rand_core::OsRng);
+    let dk = Dk1024::generate();
+    let ek = dk.encapsulation_key();
 
     group.bench_function("encapsulate", |b| {
-        b.iter(|| ek.encapsulate(&mut rand_core::OsRng).unwrap())
+        b.iter(|| ek.encapsulate())
     });
 
-    let (ciphertext, _) = ek.encapsulate(&mut rand_core::OsRng).unwrap();
+    let (ciphertext, _) = ek.encapsulate();
 
     group.bench_function("decapsulate", |b| {
-        b.iter(|| dk.decapsulate(black_box(&ciphertext)).unwrap())
+        b.iter(|| dk.decapsulate(black_box(&ciphertext)))
     });
 
     group.finish();

@@ -338,4 +338,111 @@ mod tests {
         let layers = key_protection_layers();
         assert!(layers.len() >= 4);
     }
+
+    #[test]
+    fn test_atomic_counter_property() {
+        let prop = atomic_counter_property();
+        assert!(prop.contains("AtomicU64"));
+        assert!(prop.contains("fetch_add"));
+        assert!(prop.contains("SeqCst"));
+    }
+
+    #[test]
+    fn test_auth_gated_plaintext_invariant() {
+        let invariant = auth_gated_plaintext_invariant();
+        assert!(invariant.contains("AuthenticatedPlaintext"));
+        assert!(invariant.contains("GCM tag verification"));
+    }
+
+    #[test]
+    fn test_authenticated_plaintext_existential() {
+        let existential = authenticated_plaintext_existential();
+        assert!(existential.contains("AuthenticatedPlaintext"));
+        assert!(existential.contains("GCM authentication"));
+    }
+
+    #[test]
+    fn test_key_zeroization_proof() {
+        let proof = key_zeroization_proof();
+        assert!(proof.contains("ZeroizeOnDrop"));
+        assert!(proof.contains("volatile"));
+        assert!(proof.contains("zeros"));
+    }
+
+    #[test]
+    fn test_no_bypass_proof() {
+        let proof = no_bypass_proof();
+        assert!(proof.contains("encrypt()"));
+        assert!(proof.contains("UniqueNonce"));
+        assert!(proof.contains("consumed"));
+    }
+
+    #[test]
+    fn test_unique_nonce_linearity() {
+        let linearity = unique_nonce_linearity();
+        assert!(linearity.contains("UniqueNonce"));
+        assert!(linearity.contains("!Clone"));
+        assert!(linearity.contains("!Copy"));
+        assert!(linearity.contains("NonceManager"));
+    }
+
+    #[test]
+    fn test_combined_security_argument() {
+        let argument = combined_security_argument();
+        assert!(argument.contains("AES-256-GCM"));
+        assert!(argument.contains("IND-CPA"));
+        assert!(argument.contains("INT-CTXT"));
+        assert!(argument.contains("nonce"));
+    }
+
+    #[test]
+    fn test_nonce_ghost_default() {
+        let ghost = NonceGhost::default();
+        assert!(ghost.allocated.is_empty());
+        assert_eq!(ghost.max_allocated, 0);
+    }
+
+    #[test]
+    fn test_nonce_ghost_clone() {
+        let mut ghost = NonceGhost::default();
+        ghost.allocated.insert(42);
+        ghost.max_allocated = 42;
+        
+        let cloned = ghost.clone();
+        assert!(cloned.allocated.contains(&42));
+        assert_eq!(cloned.max_allocated, 42);
+    }
+
+    #[test]
+    fn test_verification_state_variants() {
+        // Test all variants can be created and debugged
+        let states = [
+            VerificationState::VerusVerified,
+            VerificationState::Tested,
+            VerificationState::TypeEnforced,
+            VerificationState::External,
+            VerificationState::Pending,
+        ];
+        
+        for state in states {
+            let debug_str = format!("{:?}", state);
+            assert!(!debug_str.is_empty());
+        }
+    }
+
+    #[test]
+    fn test_verification_status_struct() {
+        let status = VerificationStatus {
+            id: "TEST-001",
+            name: "Test Property",
+            method: "Unit test",
+            status: VerificationState::Tested,
+        };
+        
+        assert_eq!(status.id, "TEST-001");
+        assert_eq!(status.name, "Test Property");
+        assert_eq!(status.method, "Unit test");
+        let debug_str = format!("{:?}", status);
+        assert!(debug_str.contains("TEST-001"));
+    }
 }

@@ -38,7 +38,9 @@ use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
 use zeroize::Zeroize;
 
+#[cfg(feature = "pq")]
 use pqcrypto_mlkem::mlkem768;
+#[cfg(feature = "pq")]
 use pqcrypto_traits::kem::{
     Ciphertext as KemCiphertext, PublicKey as KemPublicKey, SecretKey as KemSecretKey,
     SharedSecret as KemSharedSecret,
@@ -452,6 +454,7 @@ fn backend_info() -> String {
 // ML-KEM-768 (Post-Quantum) - Kyber
 // =============================================================================
 
+#[cfg(feature = "pq")]
 #[pyfunction]
 fn mlkem768_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let (pk, sk) = mlkem768::keypair();
@@ -461,6 +464,7 @@ fn mlkem768_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound
     ))
 }
 
+#[cfg(feature = "pq")]
 #[pyfunction]
 fn mlkem768_encapsulate<'py>(
     py: Python<'py>,
@@ -484,6 +488,7 @@ fn mlkem768_encapsulate<'py>(
     ))
 }
 
+#[cfg(feature = "pq")]
 #[pyfunction]
 fn mlkem768_decapsulate<'py>(
     py: Python<'py>,
@@ -622,10 +627,13 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(secure_random, m)?)?;
     m.add_function(wrap_pyfunction!(backend_info, m)?)?;
 
-    // Post-quantum stubs
-    m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
-    m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
-    m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+    // Post-quantum (optional - requires pq feature)
+    #[cfg(feature = "pq")]
+    {
+        m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
+        m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
+        m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+    }
 
     // YubiKey (optional)
     m.add_function(wrap_pyfunction!(yubikey_derive_key, m)?)?;

@@ -53,6 +53,48 @@ python -m meow_decoder.decode_gif --input out.gif --output recovered.bin
 
 ---
 
+## 🌐 Browser-Based Encryption (No Install)
+
+For quick testing or when you can't install Python, use the **WASM Web Demo**:
+
+### Setup
+
+```bash
+git clone https://github.com/systemslibrarian/meow-decoder.git
+cd meow-decoder
+
+# Build with Post-Quantum support (recommended)
+wasm-pack build crypto_core --target web --release --features wasm-pq
+
+# Start server
+make meow-build
+# Open: http://localhost:8080/examples/wasm_browser_example.html
+```
+
+### Available Modes
+
+| Mode | Use Case |
+|------|----------|
+| 🔐 Standard | Simple password encryption |
+| 🔑 Forward Secrecy | Each message uses ephemeral key |
+| 🔮 Post-Quantum | Future-proof quantum resistance |
+| 🐱 Schrödinger | Two passwords reveal different secrets |
+| 📹 Webcam | Scan QR codes from camera |
+| 🚨 Duress | Panic password destroys keys |
+
+### Security Level
+
+The web demo lets you choose security strength:
+
+- **Fast** (64 MiB, 3 iter) — Quick demos
+- **Standard** (128 MiB, 8 iter) — General use
+- **High** (256 MiB, 15 iter) — Sensitive data  
+- **Paranoid** (512 MiB, 20 iter) — **Matches CLI** for life-critical data
+
+⚠️ **For maximum security equivalent to the CLI, select "Paranoid" mode.**
+
+---
+
 ## Phone + webcam scanning workflow (screen-to-camera)
 
 This is the “air-gap-ish” flow: **sender displays the QR GIF on a screen**, receiver captures frames with a camera.

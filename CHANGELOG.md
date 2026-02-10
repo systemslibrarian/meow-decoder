@@ -10,6 +10,49 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Added — WASM Browser Demo Enhancements 🌐
+
+#### 8 Encryption Modes in Web Demo
+- **🔐 Standard Mode**: AES-256-GCM + Argon2id with configurable security levels
+- **🔑 Forward Secrecy Mode**: X25519 ephemeral key exchange with full key management
+- **🔮 Post-Quantum Mode**: ML-KEM-1024 + X25519 hybrid encryption (NIST Level 5)
+- **🐱 Schrödinger Mode**: Dual-secret plausible deniability
+- **🖼️ Stego Mode**: LSB steganography embedding
+- **📹 Webcam Mode**: Live QR scanner with real-time decode
+- **🚨 Duress Mode**: Panic password with localStorage key destruction
+- **😺 Cat Mode**: Blinking cat eyes visual encoding
+
+#### Security Level Selection
+- 4 Argon2id security levels: Fast (64 MiB/3), Standard (128 MiB/8), High (256 MiB/15), Paranoid (512 MiB/20)
+- "Paranoid" level matches CLI security parameters exactly
+- UI dropdown in Standard mode encryption panel
+
+#### Post-Quantum WASM Support
+- New `wasm-pq` Cargo feature flag enabling ML-KEM-1024
+- WASM bindings: `mlkem_generate_keypair()`, `mlkem_encapsulate()`, `mlkem_decapsulate()`
+- Hybrid functions: `encrypt_hybrid_pq()`, `decrypt_hybrid_pq()`
+- `pq_available()` runtime check function
+- Uses `getrandom` 0.4 with `wasm_js` feature for WASM compatibility
+
+#### Web Worker Integration
+- `crypto-worker.js` handles all CPU-intensive crypto off main thread
+- Added handlers for X25519, ML-KEM, and hybrid PQ operations
+- Fallback to main thread if workers unavailable
+
+#### Documentation Updates
+- New `docs/WASM_SECURITY.md` — comprehensive WASM security analysis
+- Updated README.md with Web Demo vs CLI feature parity table
+- Updated QUICKSTART.md with browser-first option
+- Updated examples/README.md with all 8 modes documented
+- Updated PYTHONANYWHERE_HOSTING.md with PQ build instructions
+- Updated docs/USAGE.md with browser workflow section
+- Updated docs/ARCHITECTURE.md with WASM architecture diagram
+- Updated SECURITY.md with browser-specific security considerations
+
+#### Build System
+- New `make build-wasm-pq` target for post-quantum WASM builds
+- Updated help text for all WASM targets
+
 ### Security — Supply Chain Hardening 🔒
 
 #### OpenSSF Scorecard Improvements

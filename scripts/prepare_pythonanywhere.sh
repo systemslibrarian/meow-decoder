@@ -22,9 +22,19 @@ mkdir -p "$DEPLOY_DIR/assets"
 # Copy and rename HTML
 cp examples/wasm_browser_example.html "$DEPLOY_DIR/index.html"
 
+# Copy Web Worker
+cp examples/crypto-worker.js "$DEPLOY_DIR/crypto-worker.js"
+
+# Copy Service Worker for caching
+cp examples/sw.js "$DEPLOY_DIR/sw.js"
+
 # Fix paths in the HTML (../ to ./)
 sed -i 's|\.\./crypto_core/pkg|./crypto_core/pkg|g' "$DEPLOY_DIR/index.html"
 sed -i 's|\.\./assets|./assets|g' "$DEPLOY_DIR/index.html"
+
+# Fix worker path in the HTML (already correct, but ensure consistency)
+# Worker uses ../crypto_core/pkg which needs to become ./crypto_core/pkg
+sed -i 's|\.\./crypto_core/pkg|./crypto_core/pkg|g' "$DEPLOY_DIR/crypto-worker.js"
 
 # Copy WASM package
 cp -r crypto_core/pkg/* "$DEPLOY_DIR/crypto_core/pkg/"
@@ -49,6 +59,19 @@ DEMO_DIR = os.path.dirname(os.path.abspath(__file__))
 @app.route('/')
 def index():
     return send_from_directory(DEMO_DIR, 'index.html')
+
+@app.route('/crypto-worker.js')
+def serve_worker():
+    response = send_from_directory(DEMO_DIR, 'crypto-worker.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    return response
+
+@app.route('/sw.js')
+def serve_service_worker():
+    response = send_from_directory(DEMO_DIR, 'sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
 
 @app.route('/assets/<path:filename>')
 def serve_assets(filename):

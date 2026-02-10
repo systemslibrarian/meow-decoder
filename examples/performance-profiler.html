@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Meow Decoder - Performance Profiler</title>
+    <style>
+        body { font-family: monospace; background: #1a1a2e; color: #00ff88; padding: 20px; }
+        .timing { margin: 5px 0; padding: 8px; background: #2a2a3e; border-radius: 4px; }
+        .slow { background: #ff4444; color: white; }
+        .medium { background: #ff9800; color: black; }
+        .fast { background: #4caf50; color: white; }
+        button { padding: 10px 20px; margin: 10px 5px; font-size: 16px; cursor: pointer; }
+        #results { margin-top: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #444; padding: 10px; text-align: left; }
+        th { background: #333; }
+        .breakdown { font-size: 0.9em; color: #888; margin-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>🔬 Meow Decoder Performance Profiler</h1>
+    <p>Measures timing of each crypto operation to identify bottlenecks.</p>
+    
+    <button onclick="runFullBenchmark()">Run Full Benchmark</button>
+    <button onclick="runKeyDerivationTest()">Test Key Derivation Only</button>
+    <button onclick="runEncryptionTest()">Test Encryption Only</button>
+    
+    <div id="status">Loading WASM...</div>
+    <div id="results"></div>
+
+    <script type="module">
+        let wasm = null;
+        const results = [];
+        
+        // Timing helper
+        function time(label, fn) {
+            const start = performance.now();
+            const result = fn();
+            const elapsed = performance.now() - start;
+            return { result, elapsed, label };
+        }
+        
+        async function timeAsync(label, fn) {
+            const start = performance.now();
+            const result = await fn();
+            const elapsed = performance.now() - start;
+            return { result, elapsed, label };
+        }
+        
+        // Display results
+        function showResults(timings) {
+            const resultsEl = document.getElementById('results');
+            let html = '<h2>Timing Results</h2><table><tr><th>Operation</th><th>Time (ms)</th><th>Status</th></tr>';
+            
+            let total = 0;
+            for (const t of timings) {
+                total += t.elapsed;
+                const status = t.elapsed > 1000 ? 'slow' : t.elapsed > 100 ? 'medium' : 'fast';
+                html += `<tr class="${status}">
+                    <td>${t.label}</td>
+                    <td>${t.elapsed.toFixed(2)} ms</td>
+                    <td>${status.toUpperCase()}</td>
+                </tr>`;
+            }
+            
+            html += `<tr style="font-weight:bold"><td>TOTAL</td><td>${total.toFixed(2)} ms</td><td></td></tr>`;
+            html += '</table>';
+            
+            // Add analysis
+            const keyDerivation = timings.find(t => t.label.includes('Key derivation'));
+            if (keyDerivation) {
+                const pct = ((keyDerivation.elapsed / total) * 100).toFixed(1);
+                html += `<h3>Analysis</h3>`;
+                html += `<p>Key derivation is ${pct}% of total time.</p>`;
+                
+                if (keyDerivation.elapsed > 500) {
+                    html += `<p class="timing slow">⚠️ Key derivation is slow (${keyDerivation.elapsed.toFixed(0)}ms). `;
+                    html += `This is expected - Argon2id is intentionally slow for security.</p>`;
+                    html += `<p>The Web Worker keeps UI responsive during this operation.</p>`;
+                }
+            }
+            
+            resultsEl.innerHTML = html;
+        }
+        
+        // Test functions
+        window.runFullBenchmark = async function() {
+            const status = document.getElementById('status');
+            status.textContent = 'Running benchmark...';
+            
+            const timings = [];
+            const encoder = new TextEncoder();
+            const testMessage = 'Hello, this is a test message for benchmarking! '.repeat(10);
+            const password = 'TestPassword123!';
+            
+            try {
+                // 1. Generate salt
+                const saltTiming = await timeAsync('1. Generate salt (16 bytes)', async () => {
+                    return wasm.generate_salt();
+                });
+                timings.push(saltTiming);
+                const salt = saltTiming.result.data;
+                
+                // 2. Generate nonce
+                const nonceTiming = await timeAsync('2. Generate nonce (12 bytes)', async () => {
+                    return wasm.generate_nonce();
+                });
+                timings.push(nonceTiming);
+                const nonce = nonceTiming.result.data;
+                
+                // 3. Key derivation (Argon2id) - THIS IS USUALLY THE BOTTLENECK
+                const keyTiming = await timeAsync('3. Key derivation (Argon2id, 64MiB, 3 iterations)', async () => {
+                    return wasm.derive_key(encoder.encode(password), salt, null, null);
+                });
+                timings.push(keyTiming);
+                const key = keyTiming.result.data;
+                
+                // 4. Encryption (AES-256-GCM)
+                const encryptTiming = await timeAsync(`4. Encryption (AES-256-GCM, ${testMessage.length} bytes)`, async () => {
+                    return wasm.encrypt(encoder.encode(testMessage), key, nonce, null);
+                });
+                timings.push(encryptTiming);
+                const ciphertext = encryptTiming.result.data;
+                
+                // 5. Decryption
+                const decryptTiming = await timeAsync(`5. Decryption (AES-256-GCM, ${ciphertext.length} bytes)`, async () => {
+                    return wasm.decrypt(ciphertext, key, nonce, null);
+                });
+                timings.push(decryptTiming);
+                
+                status.textContent = 'Benchmark complete!';
+                showResults(timings);
+                
+            } catch (err) {
+                status.textContent = 'Error: ' + err.message;
+                console.error(err);
+            }
+        };
+        
+        window.runKeyDerivationTest = async function() {
+            const status = document.getElementById('status');
+            status.textContent = 'Testing key derivation with different parameters...';
+            
+            const timings = [];
+            const encoder = new TextEncoder();
+            const password = 'TestPassword123!';
+            const salt = wasm.generate_salt().data;
+            
+            // Test different Argon2 parameters
+            const configs = [
+                { memory: 8192, iterations: 1, label: '8 MiB, 1 iter (Demo)' },
+                { memory: 16384, iterations: 1, label: '16 MiB, 1 iter' },
+                { memory: 32768, iterations: 2, label: '32 MiB, 2 iter (Fast)' },
+                { memory: 65536, iterations: 3, label: '64 MiB, 3 iter (Default)' },
+            ];
+            
+            for (const cfg of configs) {
+                const t = await timeAsync(`Key derivation: ${cfg.label}`, async () => {
+                    return wasm.derive_key(encoder.encode(password), salt, cfg.memory, cfg.iterations);
+                });
+                timings.push(t);
+            }
+            
+            status.textContent = 'Key derivation test complete!';
+            showResults(timings);
+        };
+        
+        window.runEncryptionTest = async function() {
+            const status = document.getElementById('status');
+            status.textContent = 'Testing encryption with different data sizes...';
+            
+            const timings = [];
+            const encoder = new TextEncoder();
+            const password = 'TestPassword123!';
+            const salt = wasm.generate_salt().data;
+            const nonce = wasm.generate_nonce().data;
+            
+            // Use faster key derivation for this test
+            const key = wasm.derive_key(encoder.encode(password), salt, 8192, 1).data;
+            
+            // Test different data sizes
+            const sizes = [100, 1000, 10000, 50000, 100000];
+            
+            for (const size of sizes) {
+                const data = new Uint8Array(size).fill(65); // Fill with 'A'
+                const t = await timeAsync(`Encrypt ${size.toLocaleString()} bytes`, async () => {
+                    return wasm.encrypt(data, key, nonce, null);
+                });
+                timings.push(t);
+            }
+            
+            status.textContent = 'Encryption test complete!';
+            showResults(timings);
+        };
+        
+        // Initialize
+        async function init() {
+            const status = document.getElementById('status');
+            
+            try {
+                const wasmLoadStart = performance.now();
+                const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+                await wasmModule.default();
+                wasm = wasmModule;
+                const wasmLoadTime = performance.now() - wasmLoadStart;
+                
+                status.innerHTML = `✅ WASM loaded in <strong>${wasmLoadTime.toFixed(0)}ms</strong>. Ready to benchmark!`;
+                
+            } catch (err) {
+                status.textContent = '❌ Failed to load WASM: ' + err.message;
+            }
+        }
+        
+        init();
+    </script>
+</body>
+</html>

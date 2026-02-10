@@ -37,9 +37,9 @@ rand = "0.8"
 rand_core = "0.6"
 getrandom = "0.2"
 
-# Post-quantum (optional - will use feature flag)
-pqcrypto-mlkem = "0.1.1"
-pqcrypto-traits = "0.3.5"
+# Post-quantum (optional - requires C compiler, not available on all platforms)
+pqcrypto-mlkem = { version = "0.1.1", optional = true }
+pqcrypto-traits = { version = "0.3.5", optional = true }
 
 # Serialization
 hex = "0.4"
@@ -50,7 +50,7 @@ proptest = "1.4"
 
 [features]
 default = []
-pq = []  # Enable post-quantum crypto
+pq = ["pqcrypto-mlkem", "pqcrypto-traits"]  # Enable post-quantum crypto
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
 python-tests = []  # Enable tests that require Python bindings
 
