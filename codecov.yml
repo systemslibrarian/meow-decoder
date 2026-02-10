@@ -82,6 +82,7 @@ flags:
   rust:
     paths:
       - crypto_core/src/
+      - rust_crypto/src/
     carryforward: true
 
   # Ignore non-critical paths and external resources
@@ -94,7 +95,8 @@ flags:
     - "formal/*"
     - "mobile/*"
     - "crypto_core/*"
-    - "rust_crypto/*"
+    - "rust_crypto/tests/*"
+    - "rust_crypto/benches/*"
     - "*.md"
     - ".github/*"
     - "meow_decoder/*_DEBUG.py"

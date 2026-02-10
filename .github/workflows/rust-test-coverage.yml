@@ -42,9 +42,9 @@ jobs:
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
-      # Note: rust_crypto is a PyO3 cdylib extension - it cannot be tested standalone with tarpaulin
-      # Its coverage comes from Python tests (tests/test_rust_crypto_backend.py)
-      # We only run tarpaulin on crypto_core (pure Rust)
+      # Note: rust_crypto now has crate-type = ["cdylib", "lib"]
+      # The "lib" target allows tarpaulin to instrument and track coverage.
+      # Tests call through meow_crypto_rs::pure to exercise rust_crypto/src/pure.rs
 
       - name: Run tests with coverage (crypto_core)
         id: tarpaulin
@@ -61,6 +61,23 @@ jobs:
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "Rust coverage: $COVERAGE%"
         working-directory: ./crypto_core
+
+      - name: Run tests with coverage (rust_crypto)
+        id: tarpaulin_rust_crypto
+        run: |
+          cargo tarpaulin \
+            --lib --tests \
+            --features "pq" \
+            --out Lcov \
+            --out Json \
+            --output-dir . \
+            --timeout 300 \
+            --exclude-files "src/lib.rs" 2>&1 | tee tarpaulin-output.txt
+          
+          COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
+          echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
+          echo "rust_crypto coverage: $COVERAGE%"
+        working-directory: ./rust_crypto
 
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
@@ -127,7 +144,7 @@ jobs:
         uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.3.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: ./crypto_core/lcov.info
+          files: ./crypto_core/lcov.info,./rust_crypto/lcov.info
           flags: rust
           name: rust-coverage
           fail_ci_if_error: false
@@ -136,3 +153,8 @@ jobs:
         if: always()
         run: |
           cd crypto_core && cargo test --features "pure-crypto,pq-crypto"
+
+      - name: Run regular tests (rust_crypto, without coverage)
+        if: always()
+        run: |
+          cd rust_crypto && cargo test --features "pq"

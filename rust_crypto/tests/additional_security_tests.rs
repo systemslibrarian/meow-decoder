@@ -1,31 +1,21 @@
 //! Additional Security Tests for Meow Crypto
 //!
 //! These tests focus on:
-//! 1. Zeroize/SecureBuffer behavior verification
-//! 2. Additional AES-GCM failure cases
-//! 3. X25519 edge cases
-//! 4. Argon2id determinism and edge cases
-//! 5. Side-channel resistance verification
+//! 1. Secure memory zeroing via pure::secure_zero
+//! 2. Additional AES-GCM failure cases via pure::aes_gcm_*
+//! 3. X25519 edge cases via pure::x25519_*
+//! 4. Argon2id determinism and edge cases via pure::derive_key_argon2id
+//! 5. Side-channel resistance verification via pure::constant_time_compare
 //!
 //! Run with: `cargo test --test additional_security_tests`
 
+use meow_crypto_rs::pure;
+
+// Raw crate imports only for AAD (Payload) tests not exposed through pure
 use aes_gcm::{
     aead::{Aead, KeyInit, Payload},
     Aes256Gcm, Nonce,
 };
-use argon2::{Algorithm, Argon2, Params, Version};
-use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac};
-use sha2::Sha256;
-use subtle::ConstantTimeEq;
-use x25519_dalek::{PublicKey, StaticSecret};
-use zeroize::Zeroize;
-
-type HmacSha256 = Hmac<Sha256>;
-
-/// Helper function to create HMAC instance with explicit trait disambiguation
-fn create_hmac(key: &[u8]) -> HmacSha256 {
-    <HmacSha256 as HmacKeyInit>::new_from_slice(key).unwrap()
-}
 
 // =============================================================================
 // ZEROIZE / SECURE BUFFER VERIFICATION TESTS
@@ -34,108 +24,74 @@ fn create_hmac(key: &[u8]) -> HmacSha256 {
 mod zeroize_security_tests {
     use super::*;
 
-    /// Verify that zeroize actually clears sensitive data after use
+    /// Verify that secure_zero clears key material
     #[test]
-    fn test_zeroize_key_material_after_use() {
-        // Simulate key derivation then zeroization
+    fn test_secure_zero_key_material_after_use() {
         let mut key = [0x42u8; 32];
-
-        // Use the key for encryption (simulated)
-        let _cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-
-        // Now zeroize
-        key.zeroize();
-
-        // Verify every byte is zero
+        pure::secure_zero(&mut key);
         assert!(
             key.iter().all(|&b| b == 0),
-            "Key material not properly zeroed after zeroize()"
+            "Key material not properly zeroed"
         );
     }
 
-    /// Verify zeroize works on heap-allocated secrets (Vec)
+    /// Verify secure_zero works on heap-allocated secrets
     #[test]
-    fn test_zeroize_vec_complete_clearing() {
+    fn test_secure_zero_vec() {
         let mut secret = vec![0xAAu8; 64];
-        let original_ptr = secret.as_ptr();
-
-        secret.zeroize();
-
-        // Vec::zeroize clears the length (data was zeroed before clearing)
-        assert_eq!(secret.len(), 0, "Vec should be cleared after zeroize");
-
-        // Even though length is 0, we can verify the behavior is secure
-        // by checking capacity wasn't changed (data was in-place zeroed)
-        assert!(secret.capacity() >= 64, "Capacity should be preserved");
-    }
-
-    /// Verify password material can be properly zeroized
-    #[test]
-    fn test_zeroize_password_buffer() {
-        let mut password = String::from("super_secret_password_123!");
-        let original_len = password.len();
-
-        // Zeroize the string's bytes
-        unsafe {
-            password.as_bytes_mut().zeroize();
-        }
-
-        // Verify the underlying bytes are zeroed
-        assert!(
-            password.bytes().all(|b| b == 0),
-            "Password bytes should be zeroed"
-        );
-        assert_eq!(password.len(), original_len, "Length should be preserved");
-    }
-
-    /// Verify nested secret structures can be zeroized
-    #[test]
-    fn test_zeroize_nested_secrets() {
-        struct KeyPair {
-            private: [u8; 32],
-            public: [u8; 32],
-        }
-
-        impl Zeroize for KeyPair {
-            fn zeroize(&mut self) {
-                self.private.zeroize();
-                self.public.zeroize();
-            }
-        }
-
-        let mut kp = KeyPair {
-            private: [0x11u8; 32],
-            public: [0x22u8; 32],
-        };
-
-        kp.zeroize();
-
-        assert!(kp.private.iter().all(|&b| b == 0));
-        assert!(kp.public.iter().all(|&b| b == 0));
-    }
-
-    /// Verify zeroize on a Box<[u8]>
-    #[test]
-    fn test_zeroize_boxed_secret() {
-        let mut secret: Box<[u8]> = vec![0xFFu8; 128].into_boxed_slice();
-
-        secret.zeroize();
-
+        pure::secure_zero(&mut secret);
         assert!(
             secret.iter().all(|&b| b == 0),
-            "Boxed secret should be zeroed"
+            "Vec should be zeroed"
         );
     }
 
-    /// Test zeroize doesn't panic on empty containers
+    /// Verify password material can be properly zeroed
     #[test]
-    fn test_zeroize_empty_containers() {
+    fn test_secure_zero_password_buffer() {
+        let mut password_bytes = b"super_secret_password_123!".to_vec();
+        let original_len = password_bytes.len();
+        pure::secure_zero(&mut password_bytes);
+        assert!(
+            password_bytes.iter().all(|&b| b == 0),
+            "Password bytes should be zeroed"
+        );
+        assert_eq!(password_bytes.len(), original_len, "Length should be preserved");
+    }
+
+    /// Verify nested secret structures can be zeroed
+    #[test]
+    fn test_secure_zero_nested_secrets() {
+        let mut private = [0x11u8; 32];
+        let mut public = [0x22u8; 32];
+
+        pure::secure_zero(&mut private);
+        pure::secure_zero(&mut public);
+
+        assert!(private.iter().all(|&b| b == 0));
+        assert!(public.iter().all(|&b| b == 0));
+    }
+
+    /// Verify secure_zero on a large buffer
+    #[test]
+    fn test_secure_zero_large_buffer() {
+        let mut secret = vec![0xFFu8; 128];
+        pure::secure_zero(&mut secret);
+        assert!(
+            secret.iter().all(|&b| b == 0),
+            "Secret should be zeroed"
+        );
+    }
+
+    /// Test secure_zero doesn't panic on empty containers
+    #[test]
+    fn test_secure_zero_empty_containers() {
         let mut empty_vec: Vec<u8> = Vec::new();
         let mut empty_array: [u8; 0] = [];
 
         // Should not panic
-        empty_vec.zeroize();
-        empty_array.zeroize();
+        pure::secure_zero(&mut empty_vec);
+        pure::secure_zero(&mut empty_array);
 
         assert_eq!(empty_vec.len(), 0);
     }
@@ -155,15 +111,12 @@ mod aes_gcm_failure_tests {
         let nonce = [0x11u8; 12];
         let plaintext = b"This is the secret message";
 
-        let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
+        let ciphertext = pure::aes_gcm_encrypt(&key, &nonce, plaintext, None).unwrap();
 
         // Try decrypting truncated ciphertext (missing auth tag bytes)
         for truncate_by in 1..=16 {
             let truncated = &ciphertext[..ciphertext.len() - truncate_by];
-            let result = cipher.decrypt(Nonce::from_slice(&nonce), truncated);
+            let result = pure::aes_gcm_decrypt(&key, &nonce, truncated, None);
             assert!(
                 result.is_err(),
                 "Truncated by {} bytes should fail",
@@ -179,15 +132,10 @@ mod aes_gcm_failure_tests {
         let nonce = [0x11u8; 12];
         let plaintext = b"Original message";
 
-        let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        let mut ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
-
-        // Append garbage data
+        let mut ciphertext = pure::aes_gcm_encrypt(&key, &nonce, plaintext, None).unwrap();
         ciphertext.extend_from_slice(b"garbage");
 
-        let result = cipher.decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref());
+        let result = pure::aes_gcm_decrypt(&key, &nonce, &ciphertext, None);
         assert!(result.is_err(), "Extended ciphertext should fail");
     }
 
@@ -198,21 +146,15 @@ mod aes_gcm_failure_tests {
         let nonce = [0x11u8; 12];
         let plaintext = b"Sensitive data";
 
-        let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
-
-        // Auth tag is last 16 bytes
+        let ciphertext = pure::aes_gcm_encrypt(&key, &nonce, plaintext, None).unwrap();
         let tag_start = ciphertext.len() - 16;
 
-        // Flip each bit in the auth tag
         for byte_idx in 0..16 {
             for bit_idx in 0..8 {
                 let mut modified = ciphertext.clone();
                 modified[tag_start + byte_idx] ^= 1 << bit_idx;
 
-                let result = cipher.decrypt(Nonce::from_slice(&nonce), modified.as_ref());
+                let result = pure::aes_gcm_decrypt(&key, &nonce, &modified, None);
                 assert!(
                     result.is_err(),
                     "Bit flip at tag byte {} bit {} should fail",
@@ -224,6 +166,7 @@ mod aes_gcm_failure_tests {
     }
 
     /// Test that wrong AAD length fails even with matching prefix
+    /// (Uses raw aes_gcm Payload API since pure doesn't expose AAD)
     #[test]
     fn test_aad_length_mismatch_fails() {
         let key = [0x42u8; 32];
@@ -242,7 +185,6 @@ mod aes_gcm_failure_tests {
             )
             .unwrap();
 
-        // Try with truncated AAD (prefix matches)
         let short_aad = &aad[..10];
         let result = cipher.decrypt(
             Nonce::from_slice(&nonce),
@@ -253,7 +195,6 @@ mod aes_gcm_failure_tests {
         );
         assert!(result.is_err(), "Truncated AAD should fail");
 
-        // Try with extended AAD (original is prefix)
         let mut long_aad = aad.to_vec();
         long_aad.extend_from_slice(b"_extra");
         let result = cipher.decrypt(
@@ -271,21 +212,12 @@ mod aes_gcm_failure_tests {
     fn test_large_plaintext_encryption() {
         let key = [0x42u8; 32];
         let nonce = [0x11u8; 12];
-        // 1 MB plaintext
         let plaintext = vec![0xAAu8; 1024 * 1024];
 
-        let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
+        let ciphertext = pure::aes_gcm_encrypt(&key, &nonce, &plaintext, None).unwrap();
+        assert_eq!(ciphertext.len(), plaintext.len() + 16);
 
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
-
-        assert_eq!(ciphertext.len(), plaintext.len() + 16); // +16 for auth tag
-
-        let decrypted = cipher
-            .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
-            .unwrap();
-
+        let decrypted = pure::aes_gcm_decrypt(&key, &nonce, &ciphertext, None).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 }
@@ -296,26 +228,21 @@ mod aes_gcm_failure_tests {
 
 mod x25519_edge_tests {
     use super::*;
-    use rand::rngs::OsRng;
 
-    /// Test that shared secret is non-trivial (not all zeros or ones)
+    /// Test that shared secret is non-trivial
     #[test]
     fn test_shared_secret_nontrivial() {
         for _ in 0..100 {
-            let alice = StaticSecret::random_from_rng(OsRng);
-            let bob = StaticSecret::random_from_rng(OsRng);
+            let (priv_a, _) = pure::x25519_generate_keypair();
+            let (_, pub_b) = pure::x25519_generate_keypair();
 
-            let shared = alice.diffie_hellman(&PublicKey::from(&bob));
-            let bytes = shared.as_bytes();
+            let shared = pure::x25519_exchange(&priv_a, &pub_b).unwrap();
 
-            // Should not be all zeros
-            assert!(bytes.iter().any(|&b| b != 0x00), "Shared secret all zeros");
-            // Should not be all ones
-            assert!(bytes.iter().any(|&b| b != 0xFF), "Shared secret all ones");
-            // Should have some entropy (not all same byte)
-            let first = bytes[0];
+            assert!(shared.iter().any(|&b| b != 0x00), "Shared secret all zeros");
+            assert!(shared.iter().any(|&b| b != 0xFF), "Shared secret all ones");
+            let first = shared[0];
             assert!(
-                bytes.iter().any(|&b| b != first),
+                shared.iter().any(|&b| b != first),
                 "Shared secret has no entropy"
             );
         }
@@ -326,75 +253,54 @@ mod x25519_edge_tests {
     fn test_public_key_derivation_deterministic() {
         let secret_bytes = [0x42u8; 32];
 
-        let secret1 = StaticSecret::from(secret_bytes);
-        let secret2 = StaticSecret::from(secret_bytes);
+        let public1 = pure::x25519_public_from_private(&secret_bytes).unwrap();
+        let public2 = pure::x25519_public_from_private(&secret_bytes).unwrap();
 
-        let public1 = PublicKey::from(&secret1);
-        let public2 = PublicKey::from(&secret2);
-
-        assert_eq!(
-            public1.as_bytes(),
-            public2.as_bytes(),
-            "Same secret should produce same public key"
-        );
+        assert_eq!(public1, public2, "Same secret should produce same public key");
     }
 
     /// Test key exchange with known test vectors
     #[test]
     fn test_x25519_rfc7748_test_vector() {
-        // RFC 7748 test vector
-        let alice_secret_bytes: [u8; 32] = [
+        let alice_secret: [u8; 32] = [
             0x77, 0x07, 0x6d, 0x0a, 0x73, 0x18, 0xa5, 0x7d, 0x3c, 0x16, 0xc1, 0x72, 0x51, 0xb2,
             0x66, 0x45, 0xdf, 0x4c, 0x2f, 0x87, 0xeb, 0xc0, 0x99, 0x2a, 0xb1, 0x77, 0xfb, 0xa5,
             0x1d, 0xb9, 0x2c, 0x2a,
         ];
 
-        let bob_secret_bytes: [u8; 32] = [
+        let bob_secret: [u8; 32] = [
             0x5d, 0xab, 0x08, 0x7e, 0x62, 0x4a, 0x8a, 0x4b, 0x79, 0xe1, 0x7f, 0x8b, 0x83, 0x80,
             0x0e, 0xe6, 0x6f, 0x3b, 0xb1, 0x29, 0x26, 0x18, 0xb6, 0xfd, 0x1c, 0x2f, 0x8b, 0x27,
             0xff, 0x88, 0xe0, 0xeb,
         ];
 
-        let alice_secret = StaticSecret::from(alice_secret_bytes);
-        let bob_secret = StaticSecret::from(bob_secret_bytes);
+        let pub_a = pure::x25519_public_from_private(&alice_secret).unwrap();
+        let pub_b = pure::x25519_public_from_private(&bob_secret).unwrap();
 
-        let alice_public = PublicKey::from(&alice_secret);
-        let bob_public = PublicKey::from(&bob_secret);
+        let shared_a = pure::x25519_exchange(&alice_secret, &pub_b).unwrap();
+        let shared_b = pure::x25519_exchange(&bob_secret, &pub_a).unwrap();
 
-        let alice_shared = alice_secret.diffie_hellman(&bob_public);
-        let bob_shared = bob_secret.diffie_hellman(&alice_public);
+        assert_eq!(shared_a, shared_b, "Shared secrets must match");
 
-        assert_eq!(
-            alice_shared.as_bytes(),
-            bob_shared.as_bytes(),
-            "Shared secrets must match"
-        );
-
-        // Expected shared secret from RFC 7748
         let expected: [u8; 32] = [
             0x4a, 0x5d, 0x9d, 0x5b, 0xa4, 0xce, 0x2d, 0xe1, 0x72, 0x8e, 0x3b, 0xf4, 0x80, 0x35,
             0x0f, 0x25, 0xe0, 0x7e, 0x21, 0xc9, 0x47, 0xd1, 0x9e, 0x33, 0x76, 0xf0, 0x9b, 0x3c,
             0x1e, 0x16, 0x17, 0x42,
         ];
 
-        assert_eq!(alice_shared.as_bytes(), &expected);
+        assert_eq!(shared_a, expected);
     }
 
-    /// Test that all-zero secret key produces valid (but weak) exchange
+    /// Test that all-zero secret key produces valid exchange
     #[test]
     fn test_zero_secret_key_behavior() {
-        let zero_secret = StaticSecret::from([0u8; 32]);
-        let zero_public = PublicKey::from(&zero_secret);
+        let zero_secret = [0u8; 32];
+        let zero_public = pure::x25519_public_from_private(&zero_secret).unwrap();
+        assert_eq!(zero_public.len(), 32);
 
-        // Zero secret should still produce a valid public key
-        assert_eq!(zero_public.as_bytes().len(), 32);
-
-        // Exchange should work (though cryptographically weak)
-        let other = StaticSecret::random_from_rng(OsRng);
-        let other_public = PublicKey::from(&other);
-
-        let shared = zero_secret.diffie_hellman(&other_public);
-        assert_eq!(shared.as_bytes().len(), 32);
+        let (_, other_pub) = pure::x25519_generate_keypair();
+        let shared = pure::x25519_exchange(&zero_secret, &other_pub).unwrap();
+        assert_eq!(shared.len(), 32);
     }
 }
 
@@ -411,18 +317,8 @@ mod argon2id_edge_tests {
         let password = b"test_password";
         let salt = [0x42u8; 16];
 
-        let params = Params::new(1024, 1, 1, Some(32)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let mut key1 = vec![0u8; 32];
-        let mut key2 = vec![0u8; 32];
-
-        argon2
-            .hash_password_into(password, &salt, &mut key1)
-            .unwrap();
-        argon2
-            .hash_password_into(password, &salt, &mut key2)
-            .unwrap();
+        let key1 = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 32).unwrap();
+        let key2 = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 32).unwrap();
 
         assert_eq!(key1, key2, "Same input should produce same output");
     }
@@ -431,28 +327,17 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_salt_sensitivity() {
         let password = b"same_password";
-
-        let params = Params::new(1024, 1, 1, Some(32)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
         let mut keys = Vec::new();
 
         for salt_byte in 0..10u8 {
             let salt = [salt_byte; 16];
-            let mut key = vec![0u8; 32];
-            argon2
-                .hash_password_into(password, &salt, &mut key)
-                .unwrap();
+            let key = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 32).unwrap();
             keys.push(key);
         }
 
-        // All keys should be unique
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(
-                    keys[i], keys[j],
-                    "Different salts must produce different keys"
-                );
+                assert_ne!(keys[i], keys[j], "Different salts must produce different keys");
             }
         }
     }
@@ -462,33 +347,22 @@ mod argon2id_edge_tests {
     fn test_argon2id_password_sensitivity() {
         let salt = [0x42u8; 16];
 
-        let params = Params::new(1024, 1, 1, Some(32)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let passwords = [
-            b"password1".as_ref(),
-            b"password2".as_ref(),
-            b"Password1".as_ref(),  // Case difference
-            b"password1 ".as_ref(), // Trailing space
+        let passwords: Vec<&[u8]> = vec![
+            b"password1",
+            b"password2",
+            b"Password1",
+            b"password1 ",
         ];
 
         let mut keys = Vec::new();
-
         for password in &passwords {
-            let mut key = vec![0u8; 32];
-            argon2
-                .hash_password_into(password, &salt, &mut key)
-                .unwrap();
+            let key = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 32).unwrap();
             keys.push(key);
         }
 
-        // All keys should be unique
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(
-                    keys[i], keys[j],
-                    "Different passwords must produce different keys"
-                );
+                assert_ne!(keys[i], keys[j], "Different passwords must produce different keys");
             }
         }
     }
@@ -499,21 +373,10 @@ mod argon2id_edge_tests {
         let password = b"password";
         let salt = [0x42u8; 16];
 
-        for output_len in [16, 32, 64, 128] {
-            let params = Params::new(1024, 1, 1, Some(output_len)).unwrap();
-            let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-            let mut key = vec![0u8; output_len];
-            argon2
-                .hash_password_into(password, &salt, &mut key)
-                .unwrap();
-
+        for output_len in [16usize, 32, 64, 128] {
+            let key = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, output_len).unwrap();
             assert_eq!(key.len(), output_len);
-            // Output should have some entropy
-            assert!(
-                key.iter().any(|&b| b != 0),
-                "Output should not be all zeros"
-            );
+            assert!(key.iter().any(|&b| b != 0), "Output should not be all zeros");
         }
     }
 
@@ -521,18 +384,9 @@ mod argon2id_edge_tests {
     #[test]
     fn test_argon2id_empty_password() {
         let salt = [0x42u8; 16];
-
-        let params = Params::new(1024, 1, 1, Some(32)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let mut key = vec![0u8; 32];
-
-        // Empty password should work (not recommended but valid)
-        let result = argon2.hash_password_into(b"", &salt, &mut key);
+        let result = pure::derive_key_argon2id(b"", &salt, 1024, 1, 1, 32);
         assert!(result.is_ok(), "Empty password should be handled");
-
-        // Output should still have entropy
-        assert!(key.iter().any(|&b| b != 0));
+        assert!(result.unwrap().iter().any(|&b| b != 0));
     }
 
     /// Test Unicode password handling
@@ -540,24 +394,11 @@ mod argon2id_edge_tests {
     fn test_argon2id_unicode_password() {
         let salt = [0x42u8; 16];
 
-        let params = Params::new(1024, 1, 1, Some(32)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-
-        let unicode_passwords = [
-            "пароль",     // Russian
-            "パスワード", // Japanese
-            "密码",       // Chinese
-            "🐱🔐🐈",     // Emoji
-        ];
+        let unicode_passwords = ["пароль", "パスワード", "密码", "🐱🔐🐈"];
 
         for password in &unicode_passwords {
-            let mut key = vec![0u8; 32];
-            let result = argon2.hash_password_into(password.as_bytes(), &salt, &mut key);
-            assert!(
-                result.is_ok(),
-                "Unicode password '{}' should work",
-                password
-            );
+            let result = pure::derive_key_argon2id(password.as_bytes(), &salt, 1024, 1, 1, 32);
+            assert!(result.is_ok(), "Unicode password '{}' should work", password);
         }
     }
 }
@@ -575,36 +416,19 @@ mod hmac_additional_tests {
         let key = [0x42u8; 32];
         let message = b"message to authenticate";
 
-        let mut mac = create_hmac(&key);
-        mac.update(message);
-        let tag = mac.finalize().into_bytes();
-
-        // Verify with constant-time comparison
-        let mut mac2 = create_hmac(&key);
-        mac2.update(message);
-        let tag2 = mac2.finalize().into_bytes();
-
-        assert!(bool::from(tag.as_slice().ct_eq(tag2.as_slice())));
+        let tag = pure::hmac_sha256(&key, message).unwrap();
+        assert!(pure::hmac_sha256_verify(&key, message, &tag).unwrap());
     }
 
     /// Test that HMAC detects message modification
     #[test]
     fn test_hmac_detects_modification() {
         let key = [0x42u8; 32];
-        let original_message = b"original message";
-        let modified_message = b"modified message";
 
-        let mut mac = create_hmac(&key);
-        mac.update(original_message);
-        let tag = mac.finalize().into_bytes();
+        let tag_orig = pure::hmac_sha256(&key, b"original message").unwrap();
+        let tag_mod = pure::hmac_sha256(&key, b"modified message").unwrap();
 
-        // Create tag for modified message
-        let mut mac2 = create_hmac(&key);
-        mac2.update(modified_message);
-        let tag2 = mac2.finalize().into_bytes();
-
-        // Tags should differ
-        assert!(!bool::from(tag.as_slice().ct_eq(tag2.as_slice())));
+        assert!(!pure::constant_time_compare(&tag_orig, &tag_mod));
     }
 
     /// Test HMAC with various key lengths
@@ -614,12 +438,7 @@ mod hmac_additional_tests {
 
         for key_len in [16, 32, 64, 128] {
             let key = vec![0x42u8; key_len];
-
-            let mut mac = create_hmac(&key);
-            mac.update(message);
-            let tag = mac.finalize().into_bytes();
-
-            // Tag should always be 32 bytes for SHA-256
+            let tag = pure::hmac_sha256(&key, message).unwrap();
             assert_eq!(tag.len(), 32);
         }
     }
@@ -632,35 +451,27 @@ mod hmac_additional_tests {
 mod constant_time_tests {
     use super::*;
 
-    /// Verify ct_eq returns correct results
+    /// Verify constant_time_compare returns correct results
     #[test]
-    fn test_ct_eq_correctness() {
-        // Equal slices
-        assert!(bool::from(b"hello".ct_eq(b"hello")));
+    fn test_ct_compare_correctness() {
+        assert!(pure::constant_time_compare(b"hello", b"hello"));
+        assert!(!pure::constant_time_compare(b"hello", b"world"));
+        assert!(!pure::constant_time_compare(&[0x00u8], &[0x01u8]));
 
-        // Unequal slices
-        assert!(!bool::from(b"hello".ct_eq(b"world")));
-
-        // Single bit difference
-        assert!(!bool::from([0x00u8].as_slice().ct_eq(&[0x01u8])));
-
-        // Empty slices
-        let empty1: &[u8] = &[];
-        let empty2: &[u8] = &[];
-        assert!(bool::from(empty1.ct_eq(empty2)));
+        let empty: &[u8] = &[];
+        assert!(pure::constant_time_compare(empty, empty));
     }
 
-    /// Test ct_eq with different length slices
+    /// Test constant_time_compare with different length slices
     #[test]
-    fn test_ct_eq_different_lengths() {
-        // Different lengths should not be equal
-        assert!(!bool::from(b"short".ct_eq(b"longer")));
-        assert!(!bool::from(b"".ct_eq(b"nonempty")));
+    fn test_ct_compare_different_lengths() {
+        assert!(!pure::constant_time_compare(b"short", b"longer"));
+        assert!(!pure::constant_time_compare(b"", b"nonempty"));
     }
 
     /// Test that constant-time operations handle large data
     #[test]
-    fn test_ct_eq_large_data() {
+    fn test_ct_compare_large_data() {
         let a = vec![0x42u8; 10000];
         let b = vec![0x42u8; 10000];
         let c = {
@@ -669,8 +480,8 @@ mod constant_time_tests {
             v
         };
 
-        assert!(bool::from(a.as_slice().ct_eq(b.as_slice())));
-        assert!(!bool::from(a.as_slice().ct_eq(c.as_slice())));
+        assert!(pure::constant_time_compare(&a, &b));
+        assert!(!pure::constant_time_compare(&a, &c));
     }
 }
 
@@ -680,7 +491,6 @@ mod constant_time_tests {
 
 mod workflow_tests {
     use super::*;
-    use rand::RngCore;
 
     /// Test complete encrypt-then-MAC workflow
     #[test]
@@ -689,83 +499,57 @@ mod workflow_tests {
         let salt = [0x42u8; 16];
         let plaintext = b"This is a top secret message!";
 
-        // 1. Derive key with Argon2id
-        let params = Params::new(1024, 1, 1, Some(64)).unwrap();
-        let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
-        let mut key_material = vec![0u8; 64];
-        argon2
-            .hash_password_into(password, &salt, &mut key_material)
-            .unwrap();
+        // 1. Derive key material (64 bytes: 32 enc + 32 mac)
+        let key_material =
+            pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 64).unwrap();
 
-        // Split into encryption key and MAC key
         let enc_key = &key_material[..32];
         let mac_key = &key_material[32..];
 
         // 2. Generate random nonce
-        let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
+        let nonce_vec = pure::secure_random(12);
+        let nonce: [u8; 12] = nonce_vec.try_into().unwrap();
 
         // 3. Encrypt
-        let cipher = Aes256Gcm::new_from_slice(enc_key).unwrap();
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
+        let ciphertext = pure::aes_gcm_encrypt(enc_key, &nonce, plaintext, None).unwrap();
 
         // 4. MAC over nonce || ciphertext
-        let mut mac = create_hmac(mac_key);
-        mac.update(&nonce);
-        mac.update(&ciphertext);
-        let tag = mac.finalize().into_bytes();
+        let mut mac_input = Vec::new();
+        mac_input.extend_from_slice(&nonce);
+        mac_input.extend_from_slice(&ciphertext);
+        let tag = pure::hmac_sha256(mac_key, &mac_input).unwrap();
 
         // 5. Verify MAC (receiver side)
-        let mut verify_mac = create_hmac(mac_key);
-        verify_mac.update(&nonce);
-        verify_mac.update(&ciphertext);
-        let verify_tag = verify_mac.finalize().into_bytes();
-
-        assert!(bool::from(tag.as_slice().ct_eq(verify_tag.as_slice())));
+        assert!(pure::hmac_sha256_verify(mac_key, &mac_input, &tag).unwrap());
 
         // 6. Decrypt
-        let decrypted = cipher
-            .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
-            .unwrap();
-
+        let decrypted = pure::aes_gcm_decrypt(enc_key, &nonce, &ciphertext, None).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
     /// Test key exchange + symmetric encryption workflow
     #[test]
     fn test_key_exchange_encryption_workflow() {
-        // Alice and Bob generate keypairs
-        let alice_secret = StaticSecret::random_from_rng(rand::rngs::OsRng);
-        let alice_public = PublicKey::from(&alice_secret);
+        let (priv_a, pub_a) = pure::x25519_generate_keypair();
+        let (priv_b, pub_b) = pure::x25519_generate_keypair();
 
-        let bob_secret = StaticSecret::random_from_rng(rand::rngs::OsRng);
-        let bob_public = PublicKey::from(&bob_secret);
+        let shared_a = pure::x25519_exchange(&priv_a, &pub_b).unwrap();
+        let shared_b = pure::x25519_exchange(&priv_b, &pub_a).unwrap();
+        assert_eq!(shared_a, shared_b);
 
-        // Key exchange
-        let alice_shared = alice_secret.diffie_hellman(&bob_public);
-        let bob_shared = bob_secret.diffie_hellman(&alice_public);
+        // Derive encryption key via HKDF
+        let enc_key = pure::derive_key_hkdf(&shared_a, None, b"meow-enc-v1", 32).unwrap();
 
-        assert_eq!(alice_shared.as_bytes(), bob_shared.as_bytes());
-
-        // Use shared secret as encryption key
-        let enc_key = alice_shared.as_bytes();
-        let mut nonce = [0u8; 12];
-        rand::thread_rng().fill_bytes(&mut nonce);
+        let nonce_vec = pure::secure_random(12);
+        let nonce: [u8; 12] = nonce_vec.try_into().unwrap();
 
         // Alice encrypts
         let plaintext = b"Secret message from Alice";
-        let cipher = Aes256Gcm::new_from_slice(enc_key).unwrap();
-        let ciphertext = cipher
-            .encrypt(Nonce::from_slice(&nonce), plaintext.as_ref())
-            .unwrap();
+        let ciphertext = pure::aes_gcm_encrypt(&enc_key, &nonce, plaintext, None).unwrap();
 
-        // Bob decrypts
-        let bob_cipher = Aes256Gcm::new_from_slice(bob_shared.as_bytes()).unwrap();
-        let decrypted = bob_cipher
-            .decrypt(Nonce::from_slice(&nonce), ciphertext.as_ref())
-            .unwrap();
+        // Bob derives same key and decrypts
+        let bob_enc_key = pure::derive_key_hkdf(&shared_b, None, b"meow-enc-v1", 32).unwrap();
+        let decrypted = pure::aes_gcm_decrypt(&bob_enc_key, &nonce, &ciphertext, None).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
