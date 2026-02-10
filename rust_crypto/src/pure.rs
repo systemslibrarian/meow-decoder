@@ -909,7 +909,7 @@ mod tests {
             CryptoError::DecryptionFailed,
             CryptoError::InvalidHmacKey,
         ];
-        
+
         #[cfg(feature = "pq")]
         {
             errors.push(CryptoError::InvalidMlKemPublicKey("bad".into()));
