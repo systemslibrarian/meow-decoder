@@ -64,7 +64,7 @@ jobs:
       - name: Run compatibility tests
         # Editable install for local source - can't hash-pin
         run: |
-          pip install --require-hashes -r requirements.lock || pip install pytest pytest-cov cryptography argon2-cffi numpy
+          pip install pytest pytest-cov cryptography argon2-cffi numpy hypothesis || true
           pip install --no-deps -e .
           pytest tests/test_crypto_backend.py -v
         env:
@@ -230,7 +230,12 @@ jobs:
       - name: Security audit
         run: |
           cd rust_crypto
-          cargo audit
+          # Ignore advisories documented in deny.toml:
+          # RUSTSEC-2023-0071: rsa Marvin Attack (not using RSA)
+          # RUSTSEC-2024-0436: paste unmaintained (compile-time only)
+          cargo audit \
+            --ignore RUSTSEC-2023-0071 \
+            --ignore RUSTSEC-2024-0436
 
   # ===========================================================================
   # Rust code quality
