@@ -96,7 +96,7 @@ oqs = { version = "0.10", optional = true }
 subtle = { version = "2.5", optional = true }
 
 # Random number generation traits
-rand_core = { version = "0.6", optional = true }
+rand_core = { version = "0.10", optional = true }
 
 # ============================================
 # Hardware Security Dependencies
