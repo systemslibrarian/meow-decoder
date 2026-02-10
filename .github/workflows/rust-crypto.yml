@@ -64,6 +64,7 @@ jobs:
       - name: Run compatibility tests
         # Editable install for local source - can't hash-pin
         run: |
+          pip install --require-hashes -r requirements.lock || pip install pytest pytest-cov cryptography argon2-cffi numpy
           pip install --no-deps -e .
           pytest tests/test_crypto_backend.py -v
         env:
