@@ -2298,50 +2298,58 @@
             }
         }
         
-        // Draw with SOLID green overlays on eyes (high contrast for phone cameras)
+        // Draw eye blink by manipulating pixels in the eye regions only.
+        // Green ON = original image (eyes are already bright green in the logo).
+        // Dark OFF = per-pixel desaturation: zero out the green channel in eye pixels
+        //            so the lenses go dark while preserving the artwork everywhere else.
         function drawWithGreenBlink(showGreen) {
             const catCanvas = document.getElementById('catCanvas');
             const catCtx = catCanvas.getContext('2d');
             
             if (!catOriginalImageData) return;
             
-            // Always start with the original image
-            catCtx.putImageData(catOriginalImageData, 0, 0);
+            // Always start fresh from the original image
+            const frame = new ImageData(
+                new Uint8ClampedArray(catOriginalImageData.data),
+                catOriginalImageData.width,
+                catOriginalImageData.height
+            );
             
-            // Eye center positions and radius (tuned for 400x400 canvas)
-            const eyes = [
-                { cx: 127, cy: 162, rx: 45, ry: 45 },  // Left eye
-                { cx: 272, cy: 162, rx: 45, ry: 45 }   // Right eye
-            ];
-            
-            if (showGreen) {
-                // Bright solid green overlay on eyes - VERY visible
-                catCtx.save();
-                for (const eye of eyes) {
-                    catCtx.beginPath();
-                    catCtx.ellipse(eye.cx, eye.cy, eye.rx, eye.ry, 0, 0, Math.PI * 2);
-                    catCtx.fillStyle = 'rgba(0, 255, 0, 0.85)';
-                    catCtx.fill();
-                    // Add bright green border for extra visibility
-                    catCtx.strokeStyle = '#00ff00';
-                    catCtx.lineWidth = 3;
-                    catCtx.stroke();
+            if (!showGreen) {
+                // Kill the green channel inside the eye lens regions.
+                // The logo's sunglasses lenses are the only strongly-green area,
+                // so this makes them go dark/red without ugly overlay shapes.
+                const data = frame.data;
+                const w = frame.width;
+                
+                // Eye lens centers & radii (tuned for 400×400 canvas)
+                const eyes = [
+                    { cx: 127, cy: 162, rx: 40, ry: 38 },  // Left lens
+                    { cx: 272, cy: 162, rx: 40, ry: 38 }   // Right lens
+                ];
+                
+                for (let y = 100; y < 220; y++) {
+                    for (let x = 70; x < 330; x++) {
+                        // Check if pixel is inside either eye ellipse
+                        let inside = false;
+                        for (const e of eyes) {
+                            const dx = (x - e.cx) / e.rx;
+                            const dy = (y - e.cy) / e.ry;
+                            if (dx * dx + dy * dy <= 1.0) { inside = true; break; }
+                        }
+                        if (!inside) continue;
+                        
+                        const i = (y * w + x) * 4;
+                        // Suppress green, darken overall → lenses go dark
+                        data[i]     = Math.floor(data[i] * 0.15);     // R
+                        data[i + 1] = Math.floor(data[i + 1] * 0.05); // G (nearly zero)
+                        data[i + 2] = Math.floor(data[i + 2] * 0.15); // B
+                        // Alpha stays the same
+                    }
                 }
-                catCtx.restore();
-            } else {
-                // Solid dark overlay on eyes - clearly NOT green
-                catCtx.save();
-                for (const eye of eyes) {
-                    catCtx.beginPath();
-                    catCtx.ellipse(eye.cx, eye.cy, eye.rx, eye.ry, 0, 0, Math.PI * 2);
-                    catCtx.fillStyle = 'rgba(20, 0, 0, 0.9)';
-                    catCtx.fill();
-                    catCtx.strokeStyle = '#330000';
-                    catCtx.lineWidth = 3;
-                    catCtx.stroke();
-                }
-                catCtx.restore();
             }
+            
+            catCtx.putImageData(frame, 0, 0);
         }
         
         // Convert bytes to binary string
@@ -2369,49 +2377,6 @@
             
             if (!message) { alert('Enter a message to transmit'); return; }
             if (!password) { alert('Enter a password'); return; }
-            
-            // Auto-start recording if checkbox is enabled
-            const shouldRecord = document.getElementById('catRecordToggle').checked;
-            if (shouldRecord && !catIsRecording) {
-                try {
-                    const catCanvas = document.getElementById('catCanvas');
-                    const stream = catCanvas.captureStream(30);
-                    catRecordedChunks = [];
-                    
-                    // Find a supported codec
-                    const codecs = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
-                    let mimeType = '';
-                    for (const codec of codecs) {
-                        if (MediaRecorder.isTypeSupported(codec)) { mimeType = codec; break; }
-                    }
-                    
-                    const recorderOptions = { videoBitsPerSecond: 2500000 };
-                    if (mimeType) recorderOptions.mimeType = mimeType;
-                    
-                    catMediaRecorder = new MediaRecorder(stream, recorderOptions);
-                    catMediaRecorder.ondataavailable = (e) => {
-                        if (e.data.size > 0) catRecordedChunks.push(e.data);
-                    };
-                    catMediaRecorder.onstop = () => {
-                        const blob = new Blob(catRecordedChunks, { type: mimeType || 'video/webm' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.getElementById('catVideoDownload');
-                        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
-                        a.href = url;
-                        a.download = 'meow-cat-blink.' + ext;
-                        a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
-                        a.textContent = '⬇️ Download Video (' + (blob.size / 1024).toFixed(1) + ' KB)';
-                        log('🎬 [Cat Mode] Video ready for download (' + (blob.size / 1024).toFixed(1) + ' KB)');
-                    };
-                    
-                    catMediaRecorder.start();
-                    catIsRecording = true;
-                    log('🎬 [Cat Mode] Recording started (' + (mimeType || 'default') + ')');
-                } catch (recErr) {
-                    log('⚠️ [Cat Mode] Recording not available: ' + recErr.message);
-                    // Continue without recording
-                }
-            }
             
             try {
                 // Load cat image if needed
@@ -2442,10 +2407,17 @@
                     log('⚠️ [Cat Mode] Demo mode (no encryption)');
                 }
                 
-                // Convert to binary with start/end markers
-                const startMarker = '11111111'; // 8 ones = start
-                const endMarker = '00000000';   // 8 zeros = end
-                catBinaryData = startMarker + bytesToBinary(payload) + endMarker;
+                // Convert to binary with preamble + start marker + length header.
+                // Preamble (16 zeros) ensures the decoder can distinguish the
+                // real start marker from any static-green period at the
+                // beginning of the video (e.g. during key derivation).
+                // Length header (16 bits) tells the decoder exactly how many
+                // payload bytes follow, avoiding false-positive end-markers
+                // when ciphertext contains 0x00 bytes.
+                const preamble    = '0000000000000000'; // 16 dark bits
+                const startMarker = '11111111';          // 8 ones
+                const lengthBits  = payload.length.toString(2).padStart(16, '0'); // 16-bit length
+                catBinaryData = preamble + startMarker + lengthBits + bytesToBinary(payload);
                 
                 log(`📡 [Cat Mode] Transmitting ${catBinaryData.length} bits at ${speed}ms per bit`);
                 
@@ -2455,6 +2427,49 @@
                 progressEl.style.display = 'block';
                 catTransmitting = true;
                 document.getElementById('catCanvas').classList.add('transmitting');
+                
+                // Start recording NOW (after encryption, right before blinking)
+                // so the video doesn't contain seconds of static green eyes
+                // while the key was being derived.
+                const shouldRecord = document.getElementById('catRecordToggle').checked;
+                if (shouldRecord && !catIsRecording) {
+                    try {
+                        const catCanvas = document.getElementById('catCanvas');
+                        const stream = catCanvas.captureStream(30);
+                        catRecordedChunks = [];
+                        
+                        const codecs = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+                        let mimeType = '';
+                        for (const codec of codecs) {
+                            if (MediaRecorder.isTypeSupported(codec)) { mimeType = codec; break; }
+                        }
+                        
+                        const recorderOptions = { videoBitsPerSecond: 2500000 };
+                        if (mimeType) recorderOptions.mimeType = mimeType;
+                        
+                        catMediaRecorder = new MediaRecorder(stream, recorderOptions);
+                        catMediaRecorder.ondataavailable = (e) => {
+                            if (e.data.size > 0) catRecordedChunks.push(e.data);
+                        };
+                        catMediaRecorder.onstop = () => {
+                            const blob = new Blob(catRecordedChunks, { type: mimeType || 'video/webm' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.getElementById('catVideoDownload');
+                            const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                            a.href = url;
+                            a.download = 'meow-cat-blink.' + ext;
+                            a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
+                            a.textContent = '⬇️ Download Video (' + (blob.size / 1024).toFixed(1) + ' KB)';
+                            log('🎬 [Cat Mode] Video ready for download (' + (blob.size / 1024).toFixed(1) + ' KB)');
+                        };
+                        
+                        catMediaRecorder.start();
+                        catIsRecording = true;
+                        log('🎬 [Cat Mode] Recording started (' + (mimeType || 'default') + ')');
+                    } catch (recErr) {
+                        log('⚠️ [Cat Mode] Recording not available: ' + recErr.message);
+                    }
+                }
                 
                 // Transmit binary through eye blinks
                 let bitIndex = 0;
@@ -2693,29 +2708,42 @@
                     throw new Error(`Only found ${binary.length} bits - video may be too short or unclear`);
                 }
                 
-                // Look for start marker (11111111) and extract payload
-                const startIdx = binary.indexOf('11111111');
+                // Find the REAL start marker: search FORWARD for the preamble→marker
+                // transition (8+ consecutive zeros followed by 11111111).
+                // Forward search avoids matching 0xFF payload bytes that also
+                // look like 11111111 in the binary string.
+                let startIdx = -1;
+                const preambleMarker = binary.match(/0{8,}1{8}/);
+                if (preambleMarker) {
+                    // startIdx = end of the matched region minus the 8 marker bits
+                    startIdx = preambleMarker.index + preambleMarker[0].length - 8;
+                }
+                // Fallback: just use first occurrence
+                if (startIdx === -1) {
+                    startIdx = binary.indexOf('11111111');
+                }
                 if (startIdx === -1) {
                     throw new Error('Could not find start marker (8 consecutive 1s). Try adjusting sensitivity or blink speed.');
                 }
                 
-                let payload = binary.substring(startIdx);
+                log(`📹 [Cat Video] Start marker found at bit ${startIdx} of ${binary.length}`);
                 
-                // Remove start marker
-                payload = payload.substring(8);
+                let afterStart = binary.substring(startIdx + 8); // skip 8-bit start marker
                 
-                // Find and remove end marker if present
-                const endIdx = payload.indexOf('00000000');
-                if (endIdx !== -1) {
-                    payload = payload.substring(0, endIdx);
+                // Read 16-bit length header (number of payload BYTES)
+                if (afterStart.length < 16) {
+                    throw new Error('Stream too short — no length header after start marker');
                 }
+                const payloadByteCount = parseInt(afterStart.substring(0, 16), 2);
+                const payloadBitCount  = payloadByteCount * 8;
+                let payload = afterStart.substring(16, 16 + payloadBitCount);
                 
-                // Pad to byte boundary
+                // Pad to byte boundary if we got slightly fewer bits
                 while (payload.length % 8 !== 0) {
                     payload += '0';
                 }
                 
-                log(`📹 [Cat Video] Payload: ${payload.length} bits`);
+                log(`📹 [Cat Video] Length header: ${payloadByteCount} bytes (${payloadBitCount} bits), got ${payload.length} bits`);
                 
                 // Decrypt
                 const bytes = binaryToBytes(payload);
@@ -2829,17 +2857,40 @@
             if (!password) { alert('Enter the decryption password'); return; }
             
             try {
-                // Remove start/end markers if present
+                // Parse the binary stream: skip preamble, find start marker,
+                // read length header, extract exact payload.
                 let binary = binaryInput;
-                if (binary.startsWith('11111111')) binary = binary.substring(8);
-                if (binary.endsWith('00000000')) binary = binary.substring(0, binary.length - 8);
                 
-                // Ensure length is multiple of 8
-                if (binary.length % 8 !== 0) {
-                    throw new Error('Invalid binary pattern (not byte-aligned)');
+                // Forward search for preamble (8+ zeros) → start marker (8 ones)
+                let markerPos = -1;
+                const preambleMatch = binary.match(/0{8,}1{8}/);
+                if (preambleMatch) {
+                    markerPos = preambleMatch.index + preambleMatch[0].length - 8;
+                }
+                if (markerPos === -1) markerPos = binary.indexOf('11111111');
+                if (markerPos !== -1) {
+                    binary = binary.substring(markerPos + 8); // skip start marker
                 }
                 
-                const bytes = binaryToBytes(binary);
+                // Try reading 16-bit length header
+                let payloadBinary;
+                if (binary.length >= 16) {
+                    const byteCount = parseInt(binary.substring(0, 16), 2);
+                    if (byteCount > 0 && byteCount * 8 <= binary.length - 16 + 8) {
+                        // Valid length header found
+                        payloadBinary = binary.substring(16, 16 + byteCount * 8);
+                    } else {
+                        // Length seems wrong — fall back to raw binary
+                        payloadBinary = binary;
+                    }
+                } else {
+                    payloadBinary = binary;
+                }
+                
+                // Pad to byte boundary
+                while (payloadBinary.length % 8 !== 0) payloadBinary += '0';
+                
+                const bytes = binaryToBytes(payloadBinary);
                 log(`🔍 [Cat Mode] Decoding ${bytes.length} bytes`);
                 
                 // Check if it's demo mode
