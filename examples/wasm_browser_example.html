@@ -681,11 +681,21 @@
                         <label for="catVideoPassword">🔑 Password:</label>
                         <input type="password" id="catVideoPassword" placeholder="Same password used to encode" style="margin-bottom: 10px;">
                         
+                        <label for="catVideoBlinkSpeed">⏱️ Blink Speed (must match encoding):</label>
+                        <select id="catVideoBlinkSpeed" style="margin-bottom: 10px;">
+                            <option value="50">50ms (fast)</option>
+                            <option value="100" selected>100ms (default)</option>
+                            <option value="150">150ms (slow)</option>
+                            <option value="200">200ms (very slow)</option>
+                        </select>
+                        
                         <label for="catVideoThreshold">🎚️ Detection Sensitivity:</label>
                         <select id="catVideoThreshold" style="margin-bottom: 15px;">
-                            <option value="80">High (bright video)</option>
-                            <option value="60" selected>Medium (normal)</option>
-                            <option value="40">Low (dark video)</option>
+                            <option value="20">Very Low (dark video)</option>
+                            <option value="30">Low</option>
+                            <option value="40" selected>Medium (normal)</option>
+                            <option value="60">High (bright video)</option>
+                            <option value="auto">Auto-detect</option>
                         </select>
                         
                         <button id="catVideoDecodeBtn" onclick="catVideoAnalyze()" disabled>🔍 Analyze Video</button>
@@ -2381,7 +2391,8 @@
             const password = document.getElementById('catVideoPassword').value;
             if (!password) { alert('Enter the decryption password'); return; }
             
-            const threshold = parseInt(document.getElementById('catVideoThreshold').value);
+            const thresholdSetting = document.getElementById('catVideoThreshold').value;
+            const blinkSpeedMs = parseInt(document.getElementById('catVideoBlinkSpeed').value);
             const progressEl = document.getElementById('catVideoProgress');
             const progressBar = document.getElementById('catVideoProgressBar');
             const progressText = document.getElementById('catVideoProgressText');
@@ -2404,70 +2415,71 @@
                 });
                 
                 const duration = video.duration;
-                const fps = 30; // Analyze at 30 fps
-                const totalFrames = Math.floor(duration * fps);
+                const fps = 30; // Video analysis fps
+                const blinkIntervalSec = blinkSpeedMs / 1000;
+                const samplesCount = Math.floor(duration / blinkIntervalSec);
                 
-                log(`📹 [Cat Video] Analyzing ${totalFrames} frames (${duration.toFixed(2)}s at ${fps} fps)`);
-                progressText.textContent = `Analyzing ${totalFrames} frames...`;
+                log(`📹 [Cat Video] Analyzing ${samplesCount} bit samples at ${blinkSpeedMs}ms intervals (${duration.toFixed(2)}s video)`);
+                progressText.textContent = `Sampling ${samplesCount} bit positions...`;
                 
-                // Analyze frames
-                const eyeStates = [];
-                let prevState = null;
-                let stateChanges = [];
-                
-                for (let frameNum = 0; frameNum < totalFrames; frameNum++) {
-                    const time = frameNum / fps;
-                    video.currentTime = time;
+                // First pass: collect all green levels for auto-threshold
+                const allGreenLevels = [];
+                for (let i = 0; i < samplesCount; i++) {
+                    const sampleTime = (i + 0.5) * blinkIntervalSec; // Sample middle of each bit period
+                    if (sampleTime >= duration) break;
                     
-                    // Wait for frame to be ready
+                    video.currentTime = sampleTime;
                     await new Promise(resolve => {
                         const onSeeked = () => {
                             video.removeEventListener('seeked', onSeeked);
                             resolve();
                         };
                         video.addEventListener('seeked', onSeeked);
-                        // Fallback if seek is immediate
                         setTimeout(resolve, 50);
                     });
                     
-                    // Draw frame to canvas
                     ctx.drawImage(video, 0, 0, 400, 400);
                     const imgData = ctx.getImageData(0, 0, 400, 400);
-                    
-                    // Analyze eye regions for green
                     const greenLevel = analyzeEyeGreen(imgData);
-                    const isGreen = greenLevel > threshold;
+                    allGreenLevels.push(greenLevel);
                     
-                    // Track state changes
-                    if (prevState !== isGreen) {
-                        stateChanges.push({
-                            frame: frameNum,
-                            time: time,
-                            state: isGreen ? '1' : '0',
-                            greenLevel: greenLevel
-                        });
-                        prevState = isGreen;
-                    }
-                    
-                    eyeStates.push({ frame: frameNum, greenLevel, isGreen });
-                    
-                    // Update progress
-                    const progress = ((frameNum + 1) / totalFrames * 100).toFixed(1);
+                    const progress = ((i + 1) / samplesCount * 50).toFixed(1);
                     progressBar.style.width = progress + '%';
-                    progressText.textContent = `Frame ${frameNum + 1}/${totalFrames} (${progress}%)`;
+                    progressText.textContent = `Pass 1: Sampling ${i + 1}/${samplesCount}`;
                 }
                 
-                log(`📹 [Cat Video] Found ${stateChanges.length} state changes`);
+                // Determine threshold
+                let threshold;
+                const minGreen = Math.min(...allGreenLevels);
+                const maxGreen = Math.max(...allGreenLevels);
+                const greenRange = maxGreen - minGreen;
                 
-                // Build binary string from state changes
-                // Group consecutive same-state frames, emit one bit per group
+                if (thresholdSetting === 'auto') {
+                    // Auto: use midpoint between min and max
+                    threshold = minGreen + (greenRange / 2);
+                    log(`📹 [Cat Video] Auto threshold: ${threshold.toFixed(1)} (range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)})`);
+                } else {
+                    threshold = parseInt(thresholdSetting);
+                }
+                
+                // Check if we have enough contrast
+                if (greenRange < 15) {
+                    throw new Error(`Only 1 state transitions found. Green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)} (threshold: ${threshold.toFixed(1)}). Try "Auto" sensitivity or record the cat image filling more of the screen.`);
+                }
+                
+                // Build binary from sampled states
                 let binary = '';
-                for (const change of stateChanges) {
-                    binary += change.state;
+                for (let i = 0; i < allGreenLevels.length; i++) {
+                    const isGreen = allGreenLevels[i] > threshold;
+                    binary += isGreen ? '1' : '0';
+                    
+                    const progress = (50 + ((i + 1) / allGreenLevels.length * 50)).toFixed(1);
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `Pass 2: Building binary ${i + 1}/${allGreenLevels.length}`;
                 }
                 
                 progressText.textContent = `Extracted ${binary.length} bits`;
-                log(`📹 [Cat Video] Extracted binary: ${binary.substring(0, 50)}...`);
+                log(`📹 [Cat Video] Extracted binary: ${binary.substring(0, 50)}... (green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)}, threshold: ${threshold.toFixed(1)})`);
                 
                 // Try to decode
                 if (binary.length < 16) {
@@ -2477,7 +2489,7 @@
                 // Look for start marker (11111111) and extract payload
                 const startIdx = binary.indexOf('11111111');
                 if (startIdx === -1) {
-                    throw new Error('Could not find start marker (8 consecutive 1s). Try adjusting sensitivity.');
+                    throw new Error('Could not find start marker (8 consecutive 1s). Try adjusting sensitivity or blink speed.');
                 }
                 
                 let payload = binary.substring(startIdx);
