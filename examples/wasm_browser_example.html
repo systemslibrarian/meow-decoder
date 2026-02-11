@@ -715,6 +715,9 @@
                         
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
+                        <button id="catRecordBtn" onclick="catModeEncodeAndRecord()" class="secondary" style="border-color:#ff9800; color:#ff9800;">🎬 Record Test Video</button>
+                        <button id="catRecordStopBtn" onclick="catRecordStop()" class="secondary" style="display:none; border-color:#f44336; color:#f44336;">⏹️ Stop Recording</button>
+                        <a id="catVideoDownload" style="display:none;"></a>
                         
                         <div id="catProgress" style="margin-top: 15px; display: none;">
                             <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
@@ -756,12 +759,17 @@
                         
                         <label for="catVideoThreshold">🎚️ Detection Sensitivity:</label>
                         <select id="catVideoThreshold" style="margin-bottom: 15px;">
+                            <option value="auto" selected>Auto-detect (recommended)</option>
                             <option value="20">Very Low (dark video)</option>
-                            <option value="30">Low</option>
-                            <option value="40" selected>Medium (normal)</option>
-                            <option value="60">High (bright video)</option>
-                            <option value="auto">Auto-detect</option>
+                            <option value="40">Low</option>
+                            <option value="80">Medium</option>
+                            <option value="120">High (bright video)</option>
                         </select>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <input type="checkbox" id="catVideoDebug" checked>
+                            <label for="catVideoDebug" style="display: inline; color: #888; font-size: 0.9em;">Show debug visualization</label>
+                        </div>
                         
                         <button id="catVideoDecodeBtn" onclick="catVideoAnalyze()" disabled>🔍 Analyze Video</button>
                         <div id="catVideoProgress" style="margin-top: 15px; display: none;">
@@ -773,8 +781,9 @@
                     </div>
                     
                     <div style="flex: 1; min-width: 200px;">
-                        <video id="catVideoPreview" width="200" height="200" style="background: #111; border-radius: 8px; display: none;"></video>
+                        <video id="catVideoPreview" width="200" height="200" style="background: #111; border-radius: 8px; display: none;" controls></video>
                         <canvas id="catVideoCanvas" width="400" height="400" style="display: none;"></canvas>
+                        <canvas id="catVideoDebugCanvas" width="500" height="150" style="display: none; margin-top: 10px; background: #111; border-radius: 8px; border: 1px solid #333;"></canvas>
                     </div>
                 </div>
                 
@@ -2287,51 +2296,50 @@
             }
         }
         
-        // Draw with green pixels on or off (EYES ONLY)
+        // Draw with SOLID green overlays on eyes (high contrast for phone cameras)
         function drawWithGreenBlink(showGreen) {
             const catCanvas = document.getElementById('catCanvas');
             const catCtx = catCanvas.getContext('2d');
             
             if (!catOriginalImageData) return;
             
-            // Clone the original image data
-            const imgData = new ImageData(
-                new Uint8ClampedArray(catOriginalImageData.data),
-                catOriginalImageData.width,
-                catOriginalImageData.height
-            );
-            const data = imgData.data;
-            const width = catOriginalImageData.width;
+            // Always start with the original image
+            catCtx.putImageData(catOriginalImageData, 0, 0);
             
-            // Eye regions (tuned for 400x400 canvas of meow-decoder-logo.png)
-            function isInEyeRegion(x, y) {
-                const leftEye = x >= 80 && x <= 175 && y >= 115 && y <= 210;
-                const rightEye = x >= 225 && x <= 320 && y >= 115 && y <= 210;
-                return leftEye || rightEye;
-            }
+            // Eye center positions and radius (tuned for 400x400 canvas)
+            const eyes = [
+                { cx: 127, cy: 162, rx: 45, ry: 45 },  // Left eye
+                { cx: 272, cy: 162, rx: 45, ry: 45 }   // Right eye
+            ];
             
-            // Process each pixel - find green pixels IN EYE REGIONS and toggle
-            for (let i = 0; i < data.length; i += 4) {
-                const pixelIndex = i / 4;
-                const x = pixelIndex % width;
-                const y = Math.floor(pixelIndex / width);
-                
-                if (!isInEyeRegion(x, y)) continue;
-                
-                const r = data[i];
-                const g = data[i + 1];
-                const a = data[i + 3];
-                
-                if (g > 100 && g > r * 1.3 && a > 100) {
-                    if (!showGreen) {
-                        data[i] = 0;
-                        data[i + 1] = 0;
-                        data[i + 2] = 0;
-                    }
+            if (showGreen) {
+                // Bright solid green overlay on eyes - VERY visible
+                catCtx.save();
+                for (const eye of eyes) {
+                    catCtx.beginPath();
+                    catCtx.ellipse(eye.cx, eye.cy, eye.rx, eye.ry, 0, 0, Math.PI * 2);
+                    catCtx.fillStyle = 'rgba(0, 255, 0, 0.85)';
+                    catCtx.fill();
+                    // Add bright green border for extra visibility
+                    catCtx.strokeStyle = '#00ff00';
+                    catCtx.lineWidth = 3;
+                    catCtx.stroke();
                 }
+                catCtx.restore();
+            } else {
+                // Solid dark overlay on eyes - clearly NOT green
+                catCtx.save();
+                for (const eye of eyes) {
+                    catCtx.beginPath();
+                    catCtx.ellipse(eye.cx, eye.cy, eye.rx, eye.ry, 0, 0, Math.PI * 2);
+                    catCtx.fillStyle = 'rgba(20, 0, 0, 0.9)';
+                    catCtx.fill();
+                    catCtx.strokeStyle = '#330000';
+                    catCtx.lineWidth = 3;
+                    catCtx.stroke();
+                }
+                catCtx.restore();
             }
-            
-            catCtx.putImageData(imgData, 0, 0);
         }
         
         // Convert bytes to binary string
@@ -2440,6 +2448,56 @@
             }
         };
         
+        let catMediaRecorder = null;
+        let catRecordedChunks = [];
+        let catIsRecording = false;
+        
+        // Record the canvas as a downloadable WebM video
+        window.catModeEncodeAndRecord = async function() {
+            const catCanvas = document.getElementById('catCanvas');
+            const stream = catCanvas.captureStream(30); // 30fps capture
+            catRecordedChunks = [];
+            
+            catMediaRecorder = new MediaRecorder(stream, {
+                mimeType: 'video/webm;codecs=vp9',
+                videoBitsPerSecond: 2500000
+            });
+            catMediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) catRecordedChunks.push(e.data);
+            };
+            catMediaRecorder.onstop = () => {
+                const blob = new Blob(catRecordedChunks, { type: 'video/webm' });
+                const url = URL.createObjectURL(blob);
+                const a = document.getElementById('catVideoDownload');
+                a.href = url;
+                a.download = 'meow-cat-blink-test.webm';
+                a.style.display = 'inline-block';
+                a.className = 'secondary';
+                a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
+                a.textContent = '⬇️ Download Test Video (' + (blob.size / 1024).toFixed(1) + ' KB)';
+                log('🎬 [Cat Mode] Test video ready for download (' + (blob.size / 1024).toFixed(1) + ' KB)');
+            };
+            
+            catMediaRecorder.start();
+            catIsRecording = true;
+            document.getElementById('catRecordBtn').style.display = 'none';
+            document.getElementById('catRecordStopBtn').style.display = 'inline-block';
+            log('🎬 [Cat Mode] Recording started...');
+            
+            // Start the actual transmission
+            await catModeEncode();
+        };
+        
+        window.catRecordStop = function() {
+            if (catMediaRecorder && catMediaRecorder.state !== 'inactive') {
+                catMediaRecorder.stop();
+            }
+            catIsRecording = false;
+            document.getElementById('catRecordBtn').style.display = 'inline-block';
+            document.getElementById('catRecordStopBtn').style.display = 'none';
+            catModeStop();
+        };
+        
         window.catModeStop = function() {
             catTransmitting = false;
             if (catBlinkInterval) {
@@ -2451,6 +2509,15 @@
             document.getElementById('catStopBtn').style.display = 'none';
             document.getElementById('catProgress').style.display = 'none';
             document.getElementById('catCanvas').classList.remove('transmitting', 'success', 'error');
+            
+            // Auto-stop recording when transmission completes
+            if (catIsRecording && catMediaRecorder && catMediaRecorder.state !== 'inactive') {
+                catMediaRecorder.stop();
+                catIsRecording = false;
+                document.getElementById('catRecordBtn').style.display = 'inline-block';
+                document.getElementById('catRecordStopBtn').style.display = 'none';
+            }
+            
             log('⏹️ [Cat Mode] Stopped');
         };
         
@@ -2527,8 +2594,12 @@
                             resolve();
                         };
                         video.addEventListener('seeked', onSeeked);
-                        setTimeout(resolve, 50);
+                        // Fallback timeout - but give enough time for seek to complete
+                        setTimeout(resolve, 200);
                     });
+                    
+                    // Extra settle time for phone-recorded videos with variable keyframes
+                    await new Promise(r => setTimeout(r, 30));
                     
                     ctx.drawImage(video, 0, 0, 400, 400);
                     const imgData = ctx.getImageData(0, 0, 400, 400);
@@ -2554,10 +2625,14 @@
                     threshold = parseInt(thresholdSetting);
                 }
                 
-                // Check if we have enough contrast
-                if (greenRange < 15) {
-                    throw new Error(`Only 1 state transitions found. Green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)} (threshold: ${threshold.toFixed(1)}). Try "Auto" sensitivity or record the cat image filling more of the screen.`);
+                // Check if we have enough contrast - lowered threshold for phone videos
+                if (greenRange < 5) {
+                    throw new Error(`Insufficient contrast. Green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)} (difference: ${greenRange.toFixed(1)}). Try recording the cat image filling more of the screen, or use the "Record Test Video" button to generate a perfect test video.`);
                 }
+                
+                // Log debug info about green levels
+                log(`📹 [Cat Video] Green levels: min=${minGreen.toFixed(1)}, max=${maxGreen.toFixed(1)}, range=${greenRange.toFixed(1)}, threshold=${threshold.toFixed(1)}`);
+                log(`📹 [Cat Video] First 20 green values: ${allGreenLevels.slice(0, 20).map(v => v.toFixed(1)).join(', ')}`);
                 
                 // Build binary from sampled states
                 let binary = '';
@@ -2571,6 +2646,49 @@
                 }
                 
                 progressText.textContent = `Extracted ${binary.length} bits`;
+                
+                // Draw debug visualization if enabled
+                if (document.getElementById('catVideoDebug') && document.getElementById('catVideoDebug').checked) {
+                    const debugCanvas = document.getElementById('catVideoDebugCanvas');
+                    debugCanvas.style.display = 'block';
+                    const dCtx = debugCanvas.getContext('2d');
+                    const dW = debugCanvas.width;
+                    const dH = debugCanvas.height;
+                    dCtx.clearRect(0, 0, dW, dH);
+                    
+                    // Background
+                    dCtx.fillStyle = '#111';
+                    dCtx.fillRect(0, 0, dW, dH);
+                    
+                    // Draw threshold line
+                    const yScale = dH / (maxGreen + 10);
+                    const xStep = dW / allGreenLevels.length;
+                    
+                    dCtx.strokeStyle = '#ff6464';
+                    dCtx.lineWidth = 1;
+                    dCtx.setLineDash([5, 3]);
+                    dCtx.beginPath();
+                    dCtx.moveTo(0, dH - threshold * yScale);
+                    dCtx.lineTo(dW, dH - threshold * yScale);
+                    dCtx.stroke();
+                    dCtx.setLineDash([]);
+                    
+                    // Draw green levels as bars
+                    for (let i = 0; i < allGreenLevels.length; i++) {
+                        const val = allGreenLevels[i];
+                        const barH = val * yScale;
+                        const x = i * xStep;
+                        dCtx.fillStyle = val > threshold ? '#00ff88' : '#663333';
+                        dCtx.fillRect(x, dH - barH, Math.max(xStep - 1, 1), barH);
+                    }
+                    
+                    // Labels
+                    dCtx.fillStyle = '#888';
+                    dCtx.font = '10px monospace';
+                    dCtx.fillText(`Green levels (red line = threshold ${threshold.toFixed(0)})`, 5, 12);
+                    dCtx.fillText(`Range: ${minGreen.toFixed(1)} - ${maxGreen.toFixed(1)}`, 5, 24);
+                    dCtx.fillText(`Binary: ${binary.substring(0, 60)}...`, 5, dH - 5);
+                }
                 log(`📹 [Cat Video] Extracted binary: ${binary.substring(0, 50)}... (green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)}, threshold: ${threshold.toFixed(1)})`);
                 
                 // Try to decode
@@ -2659,17 +2777,24 @@
             }
         };
         
-        // Analyze green level in eye regions
+        // Analyze green level in eye regions - uses absolute green channel value
+        // and ratio-based detection for robustness against phone camera exposure shifts
         function analyzeEyeGreen(imgData) {
             const data = imgData.data;
             const width = imgData.width;
+            const height = imgData.height;
             let greenSum = 0;
+            let brightnessSum = 0;
             let pixelCount = 0;
             
-            // Eye regions (same as encoding)
+            // Expanded eye regions - proportional to canvas size for scale tolerance
+            // Map from 400x400 reference to actual canvas size
+            const scaleX = width / 400;
+            const scaleY = height / 400;
+            
             function isInEyeRegion(x, y) {
-                const leftEye = x >= 80 && x <= 175 && y >= 115 && y <= 210;
-                const rightEye = x >= 225 && x <= 320 && y >= 115 && y <= 210;
+                const leftEye = x >= 70*scaleX && x <= 185*scaleX && y >= 105*scaleY && y <= 220*scaleY;
+                const rightEye = x >= 215*scaleX && x <= 330*scaleX && y >= 105*scaleY && y <= 220*scaleY;
                 return leftEye || rightEye;
             }
             
@@ -2682,17 +2807,20 @@
                 
                 const r = data[i];
                 const g = data[i + 1];
-                const a = data[i + 3];
+                const b = data[i + 2];
                 
-                if (a > 100) {
-                    // Calculate "greenness" - how much more green than red
-                    const greenness = g - r;
-                    greenSum += Math.max(0, greenness);
-                    pixelCount++;
-                }
+                // Use green channel directly as the primary signal
+                // The solid green overlay makes G very high (~200+) for ON,
+                // and very low (~0-30) for OFF
+                greenSum += g;
+                brightnessSum += (r + g + b) / 3;
+                pixelCount++;
             }
             
-            return pixelCount > 0 ? greenSum / pixelCount : 0;
+            if (pixelCount === 0) return 0;
+            
+            // Return average green value (0-255 scale) - much wider range than before
+            return greenSum / pixelCount;
         }
         
         window.catModeDecode = async function() {

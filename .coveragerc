@@ -4,32 +4,25 @@
 
 [run]
 branch = true
-# WHITELIST: Security-critical files only
-include =
-    meow_decoder/crypto.py
-    meow_decoder/crypto_backend.py
-    meow_decoder/constant_time.py
-    meow_decoder/x25519_forward_secrecy.py
-    meow_decoder/forward_secrecy.py
-    meow_decoder/fountain.py
-    meow_decoder/encode.py
-    meow_decoder/decode_gif.py
-    meow_decoder/gif_handler.py
-    meow_decoder/frame_mac.py
-    meow_decoder/schrodinger_encode.py
-    meow_decoder/schrodinger_decode.py
-    meow_decoder/quantum_mixer.py
-    meow_decoder/stego_advanced.py
-    meow_decoder/decoy_generator.py
-    meow_decoder/duress_mode.py
-    meow_decoder/timelock_duress.py
-    meow_decoder/secure_cleanup.py
-    meow_decoder/secure_bridge.py
-    meow_decoder/high_security.py
-    meow_decoder/streaming_crypto.py
-    meow_decoder/double_ratchet.py
-    meow_decoder/multi_secret.py
-    meow_decoder/resume_secured.py
+source =
+    meow_decoder
+omit =
+    meow_decoder/*_DEBUG.py
+    meow_decoder/gui_*.py
+    meow_decoder/meow_dashboard*.py
+    meow_decoder/hardware_*.py
+    meow_decoder/pq_*.py
+    meow_decoder/prowling_mode.py
+    meow_decoder/clowder_*.py
+    meow_decoder/bidirectional.py
+    meow_decoder/webcam_*.py
+    meow_decoder/logo_eyes.py
+    meow_decoder/ascii_qr.py
+    meow_decoder/ninja_cat_ultra.py
+    meow_decoder/deadmans_switch_cli.py
+    meow_decoder/profiling_improved.py
+    meow_decoder/meow_encode.py
+    meow_decoder/setup.py
 
 [report]
 fail_under = 0

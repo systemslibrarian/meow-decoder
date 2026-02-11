@@ -3,20 +3,8 @@ name: CI - Tests + Coverage
 on:
   push:
     branches: ["main"]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'assets/**'
-      - 'sounds/**'
-      - '.github/CODEOWNERS'
   pull_request:
     branches: ["main"]
-    paths-ignore:
-      - 'docs/**'
-      - '*.md'
-      - 'assets/**'
-      - 'sounds/**'
-      - '.github/CODEOWNERS'
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
@@ -34,10 +22,54 @@ env:
 
 jobs:
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 1: Fast tests (excludes @pytest.mark.slow)
+  # PREFLIGHT: Fast sanity checks — lock files, formatting, lint
+  # Catches the most common failures in <60s before burning CI minutes
+  # ═══════════════════════════════════════════════════════════════════════════
+  preflight:
+    name: "Preflight: Lint + Lock Check"
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # -- Lock file verification (catches hash mismatches early) --
+      - name: Verify lock files are installable
+        run: |
+          pip install --require-hashes -r requirements-pip.lock
+          pip install --dry-run --require-hashes -r requirements.lock 2>&1 | tail -5
+          pip install --dry-run --require-hashes -r requirements-dev.lock 2>&1 | tail -5
+          pip install --dry-run --require-hashes -r requirements-ci.lock 2>&1 | tail -5
+          echo "✅ All lock files verified"
+
+      # -- Install lint tools only --
+      - name: Install lint tools
+        run: |
+          pip install --require-hashes -r requirements-ci.lock
+
+      # -- Fast checks that don't need Rust or system deps --
+      - name: black format check
+        run: black --check --diff meow_decoder/
+
+      - name: flake8 lint
+        run: flake8 meow_decoder/
+
+      - name: mypy type check
+        run: mypy meow_decoder/ --ignore-missing-imports --no-error-summary
+
+      - name: bandit security lint
+        run: bandit -r meow_decoder/ -ll -q || true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # GATE 1: Tests + Coverage (only runs after preflight passes)
   # ═══════════════════════════════════════════════════════════════════════════
   test:
     name: "Gate 1: Tests + Coverage"
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 45
 
@@ -104,10 +136,11 @@ jobs:
           flags: python
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 2: Security coverage ≥ 85% (TIER 1 modules)
+  # GATE 2: Security coverage (only runs after preflight passes)
   # ═══════════════════════════════════════════════════════════════════════════
   security-coverage:
-    name: "Gate 2: Security Coverage ≥85%"
+    name: "Gate 2: Security Coverage"
+    needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -149,60 +182,26 @@ jobs:
             -q --no-header
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 3: Lint + type check (flake8, black, mypy, bandit)
-  # ═══════════════════════════════════════════════════════════════════════════
-  lint:
-    name: "Gate 3: Lint + Type Check"
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.3.0
-        with:
-          python-version: "3.12"
-          cache: "pip"
-
-      - name: Install dependencies
-        run: |
-          pip install --require-hashes -r requirements-pip.lock
-          pip install --require-hashes -r requirements.lock
-          pip install --require-hashes -r requirements-dev.lock
-          pip install --require-hashes -r requirements-ci.lock
-
-      - name: flake8 lint
-        run: flake8 meow_decoder/
-
-      - name: black format check
-        run: black --check --diff meow_decoder/
-
-      - name: mypy type check
-        run: mypy meow_decoder/ --ignore-missing-imports --no-error-summary
-
-      - name: bandit security lint
-        run: bandit -r meow_decoder/ -ll -q || true
-
-  # ═══════════════════════════════════════════════════════════════════════════
-  # Required status check — all 3 gates must pass for merge
+  # Required status check — preflight + both gates must pass
   # ═══════════════════════════════════════════════════════════════════════════
   all-gates:
     name: "All CI Gates"
-    needs: [test, security-coverage, lint]
+    needs: [preflight, test, security-coverage]
     runs-on: ubuntu-latest
     if: always()
     steps:
       - name: Check gate results
         run: |
+          if [[ "${{ needs.preflight.result }}" != "success" ]]; then
+            echo "❌ Preflight (Lint + Lock Check) failed"
+            exit 1
+          fi
           if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "❌ Gate 1 (Tests) failed"
+            echo "❌ Gate 1 (Tests + Coverage) failed"
             exit 1
           fi
           if [[ "${{ needs.security-coverage.result }}" != "success" ]]; then
             echo "❌ Gate 2 (Security Coverage) failed"
             exit 1
           fi
-          if [[ "${{ needs.lint.result }}" != "success" ]]; then
-            echo "❌ Gate 3 (Lint) failed"
-            exit 1
-          fi
-          echo "✅ All 3 CI gates passed"
+          echo "✅ All CI gates passed"
