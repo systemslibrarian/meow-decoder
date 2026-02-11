@@ -22,37 +22,53 @@
 // Pure Rust crypto module (testable without Python)
 pub mod pure;
 
+// =============================================================================
+// Python Bindings (only compiled with "python" feature)
+// =============================================================================
+
+#[cfg(feature = "python")]
 use pyo3::exceptions::PyValueError;
+#[cfg(feature = "python")]
 use pyo3::prelude::*;
+#[cfg(feature = "python")]
 use pyo3::types::PyBytes;
 
+#[cfg(feature = "python")]
 use aes_gcm::{
     aead::{Aead, KeyInit as AeadKeyInit},
     Aes256Gcm, Nonce,
 };
+#[cfg(feature = "python")]
 use argon2::{Algorithm, Argon2, Params, Version};
+#[cfg(feature = "python")]
 use hkdf::Hkdf;
+#[cfg(feature = "python")]
 use hmac::{Hmac, Mac as HmacMac};
+#[cfg(feature = "python")]
 use sha2::{Digest, Sha256};
+#[cfg(feature = "python")]
 use subtle::ConstantTimeEq;
+#[cfg(feature = "python")]
 use x25519_dalek::{PublicKey, StaticSecret};
+#[cfg(feature = "python")]
 use zeroize::Zeroize;
 
-#[cfg(feature = "pq")]
+#[cfg(all(feature = "python", feature = "pq"))]
 use pqcrypto_mlkem::mlkem768;
-#[cfg(feature = "pq")]
+#[cfg(all(feature = "python", feature = "pq"))]
 use pqcrypto_traits::kem::{
     Ciphertext as KemCiphertext, PublicKey as KemPublicKey, SecretKey as KemSecretKey,
     SharedSecret as KemSharedSecret,
 };
 
-#[cfg(feature = "yubikey")]
+#[cfg(all(feature = "python", feature = "yubikey"))]
 use crypto_core::yubikey_piv::{derive_key_with_yubikey, PivSlot, YubiKeyPin, YubiKeyProvider};
 
 // =============================================================================
 // Argon2id Key Derivation
 // =============================================================================
 
+#[cfg(feature = "python")]
 /// Derive a key using Argon2id.
 ///
 /// Args:
@@ -103,6 +119,7 @@ fn derive_key_argon2id<'py>(
 // =============================================================================
 
 /// Derive key using HKDF with SHA-256.
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (ikm, salt, info, output_len))]
 fn derive_key_hkdf<'py>(
@@ -122,6 +139,7 @@ fn derive_key_hkdf<'py>(
 }
 
 /// HKDF-Extract phase only.
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (salt, ikm))]
 fn hkdf_extract<'py>(
@@ -134,6 +152,7 @@ fn hkdf_extract<'py>(
 }
 
 /// HKDF-Expand phase only.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn hkdf_expand<'py>(
     py: Python<'py>,
@@ -165,6 +184,7 @@ fn hkdf_expand<'py>(
 ///
 /// Returns:
 ///     Ciphertext with appended 16-byte auth tag
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (key, nonce, plaintext, aad=None))]
 fn aes_gcm_encrypt<'py>(
@@ -225,6 +245,7 @@ fn aes_gcm_encrypt<'py>(
 ///
 /// Returns:
 ///     Decrypted plaintext
+#[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (key, nonce, ciphertext, aad=None))]
 fn aes_gcm_decrypt<'py>(
@@ -285,9 +306,11 @@ fn aes_gcm_decrypt<'py>(
 // HMAC-SHA256
 // =============================================================================
 
+#[cfg(feature = "python")]
 type HmacSha256 = Hmac<Sha256>;
 
 /// Compute HMAC-SHA256.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn hmac_sha256<'py>(py: Python<'py>, key: &[u8], message: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
     let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
@@ -298,6 +321,7 @@ fn hmac_sha256<'py>(py: Python<'py>, key: &[u8], message: &[u8]) -> PyResult<Bou
 }
 
 /// Verify HMAC-SHA256 in constant time.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn hmac_sha256_verify(key: &[u8], message: &[u8], expected_tag: &[u8]) -> PyResult<bool> {
     let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
@@ -317,6 +341,7 @@ fn hmac_sha256_verify(key: &[u8], message: &[u8], expected_tag: &[u8]) -> PyResu
 // =============================================================================
 
 /// Compute SHA-256 hash.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn sha256<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
     let mut hasher = Sha256::new();
@@ -333,6 +358,7 @@ fn sha256<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
 ///
 /// Returns:
 ///     Tuple of (private_key, public_key), both 32 bytes
+#[cfg(feature = "python")]
 #[pyfunction]
 fn x25519_generate_keypair<'py>(
     py: Python<'py>,
@@ -356,6 +382,7 @@ fn x25519_generate_keypair<'py>(
 ///
 /// Returns:
 ///     32-byte shared secret
+#[cfg(feature = "python")]
 #[pyfunction]
 fn x25519_exchange<'py>(
     py: Python<'py>,
@@ -386,6 +413,7 @@ fn x25519_exchange<'py>(
 }
 
 /// Derive X25519 public key from private key.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn x25519_public_from_private<'py>(
     py: Python<'py>,
@@ -411,6 +439,7 @@ fn x25519_public_from_private<'py>(
 // =============================================================================
 
 /// Constant-time byte comparison.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
     if a.len() != b.len() {
@@ -424,6 +453,7 @@ fn constant_time_compare(a: &[u8], b: &[u8]) -> bool {
 /// Note: In Rust, we use zeroize crate which provides proper memory barriers.
 /// This function is mostly for API completeness - Python bytearrays are mutable
 /// and can be zeroed in place.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn secure_zero(_py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> PyResult<()> {
     // Get mutable access to the bytearray
@@ -436,6 +466,7 @@ fn secure_zero(_py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> P
 }
 
 /// Secure random bytes.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyBytes>> {
     use rand::RngCore;
@@ -445,6 +476,7 @@ fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyByt
 }
 
 /// Get backend info.
+#[cfg(feature = "python")]
 #[pyfunction]
 fn backend_info() -> String {
     format!("meow_crypto_rs v{} (Rust)", env!("CARGO_PKG_VERSION"))
@@ -454,7 +486,7 @@ fn backend_info() -> String {
 // ML-KEM-768 (Post-Quantum) - Kyber
 // =============================================================================
 
-#[cfg(feature = "pq")]
+#[cfg(all(feature = "python", feature = "pq"))]
 #[pyfunction]
 fn mlkem768_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let (pk, sk) = mlkem768::keypair();
@@ -464,7 +496,7 @@ fn mlkem768_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound
     ))
 }
 
-#[cfg(feature = "pq")]
+#[cfg(all(feature = "python", feature = "pq"))]
 #[pyfunction]
 fn mlkem768_encapsulate<'py>(
     py: Python<'py>,
@@ -488,7 +520,7 @@ fn mlkem768_encapsulate<'py>(
     ))
 }
 
-#[cfg(feature = "pq")]
+#[cfg(all(feature = "python", feature = "pq"))]
 #[pyfunction]
 fn mlkem768_decapsulate<'py>(
     py: Python<'py>,
@@ -523,7 +555,7 @@ fn mlkem768_decapsulate<'py>(
 // YubiKey (optional)
 // =============================================================================
 
-#[cfg(feature = "yubikey")]
+#[cfg(all(feature = "python", feature = "yubikey"))]
 fn parse_piv_slot(slot: &str) -> Result<PivSlot, PyErr> {
     match slot.to_ascii_lowercase().as_str() {
         "9a" | "auth" => Ok(PivSlot::Authentication),
@@ -538,7 +570,7 @@ fn parse_piv_slot(slot: &str) -> Result<PivSlot, PyErr> {
     }
 }
 
-#[cfg(feature = "yubikey")]
+#[cfg(all(feature = "python", feature = "yubikey"))]
 #[pyfunction]
 #[pyo3(signature = (password, salt, slot="9d", pin=None))]
 fn yubikey_derive_key<'py>(
@@ -574,7 +606,7 @@ fn yubikey_derive_key<'py>(
     Ok(PyBytes::new(py, &key))
 }
 
-#[cfg(not(feature = "yubikey"))]
+#[cfg(all(feature = "python", not(feature = "yubikey")))]
 #[pyfunction]
 #[pyo3(signature = (password, salt, slot="9d", pin=None))]
 #[allow(unused_variables)]
@@ -595,6 +627,7 @@ fn yubikey_derive_key<'py>(
 // Python Module
 // =============================================================================
 
+#[cfg(feature = "python")]
 #[pymodule]
 fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Argon2id

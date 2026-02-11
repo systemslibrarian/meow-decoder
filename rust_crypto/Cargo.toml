@@ -16,7 +16,8 @@ crate-type = ["cdylib", "lib"]
 crypto_core = { path = "../crypto_core" }
 
 # PyO3 for Python bindings (upgrade to address RUSTSEC-2025-0020)
-pyo3 = { version = "0.27", features = ["extension-module"] }
+# Made optional so cargo-tarpaulin can run without Python linking
+pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
 argon2 = "0.5"              # Argon2id KDF (password hashing)
@@ -50,9 +51,10 @@ proptest = "1.4"
 
 [features]
 default = []
+python = ["pyo3"]  # Enable Python bindings (required for maturin build)
 pq = ["pqcrypto-mlkem", "pqcrypto-traits"]  # Enable post-quantum crypto
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
-python-tests = []  # Enable tests that require Python bindings
+python-tests = ["python"]  # Enable tests that require Python bindings
 
 [profile.release]
 lto = true
@@ -62,4 +64,4 @@ opt-level = 3
 # Maturin config
 [tool.maturin]
 python-source = "python"
-features = ["pyo3/extension-module"]
+features = ["python", "pyo3/extension-module"]
