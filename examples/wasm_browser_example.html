@@ -2438,13 +2438,21 @@
                         const stream = catCanvas.captureStream(30);
                         catRecordedChunks = [];
                         
-                        const codecs = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+                        const codecs = [
+                            'video/mp4;codecs=avc1.42E01E',  // H.264 baseline (best compatibility)
+                            'video/mp4;codecs=avc1',
+                            'video/mp4',
+                            'video/webm;codecs=vp9',
+                            'video/webm;codecs=vp8',
+                            'video/webm'
+                        ];
                         let mimeType = '';
                         for (const codec of codecs) {
                             if (MediaRecorder.isTypeSupported(codec)) { mimeType = codec; break; }
                         }
                         
-                        const recorderOptions = { videoBitsPerSecond: 2500000 };
+                        // High bitrate to minimize compression artifacts in green channel
+                        const recorderOptions = { videoBitsPerSecond: 8000000 };
                         if (mimeType) recorderOptions.mimeType = mimeType;
                         
                         catMediaRecorder = new MediaRecorder(stream, recorderOptions);
@@ -2452,10 +2460,10 @@
                             if (e.data.size > 0) catRecordedChunks.push(e.data);
                         };
                         catMediaRecorder.onstop = () => {
-                            const blob = new Blob(catRecordedChunks, { type: mimeType || 'video/webm' });
+                            const blob = new Blob(catRecordedChunks, { type: mimeType || 'video/mp4' });
                             const url = URL.createObjectURL(blob);
                             const a = document.getElementById('catVideoDownload');
-                            const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                            const ext = mimeType.includes('webm') ? 'webm' : 'mp4';
                             a.href = url;
                             a.download = 'meow-cat-blink.' + ext;
                             a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
@@ -2765,7 +2773,10 @@
                 }
                 
                 if (bytes[0] !== 0x01) {
-                    throw new Error('Unknown format version');
+                    const hexDump = Array.from(bytes.slice(0, Math.min(20, bytes.length))).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                    log(`\u274c [Cat Video] bytes[0]=0x${bytes[0].toString(16).padStart(2,'0')}, first 20 bytes: ${hexDump}`);
+                    log(`\u274c [Cat Video] Binary near marker: ...${binary.substring(Math.max(0, startIdx - 4), Math.min(binary.length, startIdx + 50))}...`);
+                    throw new Error(`Unknown format version (0x${bytes[0].toString(16).padStart(2,'0')}, expected 0x01). Length header: ${payloadByteCount} bytes. First bytes: ${hexDump}`);
                 }
                 
                 const salt = bytes.slice(1, 17);
@@ -2802,49 +2813,48 @@
             }
         };
         
-        // Analyze green level in eye regions - uses absolute green channel value
-        // and ratio-based detection for robustness against phone camera exposure shifts
+        // Analyze green level in eye regions - uses ELLIPTICAL lens regions
+        // matching the exact same regions as drawWithGreenBlink() for maximum contrast.
         function analyzeEyeGreen(imgData) {
             const data = imgData.data;
             const width = imgData.width;
             const height = imgData.height;
             let greenSum = 0;
-            let brightnessSum = 0;
             let pixelCount = 0;
             
-            // Expanded eye regions - proportional to canvas size for scale tolerance
-            // Map from 400x400 reference to actual canvas size
+            // MUST match drawWithGreenBlink() ellipse definitions exactly!
+            // Scale from 400x400 reference to the analysis canvas size.
             const scaleX = width / 400;
             const scaleY = height / 400;
+            const eyes = [
+                { cx: 127 * scaleX, cy: 162 * scaleY, rx: 40 * scaleX, ry: 38 * scaleY },
+                { cx: 272 * scaleX, cy: 162 * scaleY, rx: 40 * scaleX, ry: 38 * scaleY }
+            ];
             
-            function isInEyeRegion(x, y) {
-                const leftEye = x >= 70*scaleX && x <= 185*scaleX && y >= 105*scaleY && y <= 220*scaleY;
-                const rightEye = x >= 215*scaleX && x <= 330*scaleX && y >= 105*scaleY && y <= 220*scaleY;
-                return leftEye || rightEye;
-            }
+            // Only scan the bounding box of the eyes (much faster than full image)
+            const yMin = Math.floor(Math.max(0, (162 - 40) * scaleY));
+            const yMax = Math.ceil(Math.min(height, (162 + 40) * scaleY));
+            const xMin = Math.floor(Math.max(0, (127 - 42) * scaleX));
+            const xMax = Math.ceil(Math.min(width, (272 + 42) * scaleX));
             
-            for (let i = 0; i < data.length; i += 4) {
-                const pixelIndex = i / 4;
-                const x = pixelIndex % width;
-                const y = Math.floor(pixelIndex / width);
-                
-                if (!isInEyeRegion(x, y)) continue;
-                
-                const r = data[i];
-                const g = data[i + 1];
-                const b = data[i + 2];
-                
-                // Use green channel directly as the primary signal
-                // The solid green overlay makes G very high (~200+) for ON,
-                // and very low (~0-30) for OFF
-                greenSum += g;
-                brightnessSum += (r + g + b) / 3;
-                pixelCount++;
+            for (let y = yMin; y < yMax; y++) {
+                for (let x = xMin; x < xMax; x++) {
+                    // Check if pixel is inside either eye ELLIPSE
+                    let inside = false;
+                    for (const e of eyes) {
+                        const dx = (x - e.cx) / e.rx;
+                        const dy = (y - e.cy) / e.ry;
+                        if (dx * dx + dy * dy <= 1.0) { inside = true; break; }
+                    }
+                    if (!inside) continue;
+                    
+                    const i = (y * width + x) * 4;
+                    greenSum += data[i + 1]; // Green channel only
+                    pixelCount++;
+                }
             }
             
             if (pixelCount === 0) return 0;
-            
-            // Return average green value (0-255 scale) - much wider range than before
             return greenSum / pixelCount;
         }
         
@@ -2915,7 +2925,9 @@
                 }
                 
                 if (bytes[0] !== 0x01) {
-                    throw new Error('Unknown format version');
+                    const hexDump = Array.from(bytes.slice(0, Math.min(20, bytes.length))).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                    log(`\u274c [Cat Decode] bytes[0]=0x${bytes[0].toString(16).padStart(2,'0')}, first 20 bytes: ${hexDump}`);
+                    throw new Error(`Unknown format version (0x${bytes[0].toString(16).padStart(2,'0')}, expected 0x01). First bytes: ${hexDump}`);
                 }
                 
                 const salt = bytes.slice(1, 17);
