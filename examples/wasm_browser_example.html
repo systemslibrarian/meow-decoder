@@ -1037,7 +1037,7 @@
                     cryptoWorker = new Worker('crypto-worker.js', { type: 'module' });
                     
                     cryptoWorker.onmessage = (e) => {
-                        const { type, id, success, data, error, ready } = e.data;
+                        const { type, id, success, data, error, ready, secretKey, publicKey, sizes } = e.data;
                         
                         if (type === 'ready') {
                             if (success) {
@@ -1068,7 +1068,8 @@
                             if (type === 'error' || !success) {
                                 pending.reject(new Error(error || 'Worker operation failed'));
                             } else {
-                                pending.resolve({ success: true, data: data });
+                                // Pass through all result fields (data, secretKey, publicKey, sizes, etc.)
+                                pending.resolve({ success: true, data, secretKey, publicKey, sizes });
                             }
                         }
                     };
@@ -2956,20 +2957,24 @@
         // ============================================================
         
         let pqKeyPair = null; // { x25519Secret, x25519Public, mlkemSecret, mlkemPublic }
+        let pqRequestId = 100000; // Start high to avoid conflicts with main requestId
         
         // Check if PQ is available on WASM load
         async function checkPqAvailability() {
             if (!cryptoWorker) return;
             
-            return new Promise((resolve) => {
-                const id = nextWorkerId++;
-                workerCallbacks.set(id, (result) => {
-                    const available = result.data === true;
-                    if (!available) {
-                        document.getElementById('pqNotAvailable').style.display = 'block';
-                        document.getElementById('pqKeySection').style.display = 'none';
-                    }
-                    resolve(available);
+            return new Promise((resolve, reject) => {
+                const id = pqRequestId++;
+                pendingRequests.set(id, {
+                    resolve: (result) => {
+                        const available = result.data === true;
+                        if (!available) {
+                            document.getElementById('pqNotAvailable').style.display = 'block';
+                            document.getElementById('pqKeySection').style.display = 'none';
+                        }
+                        resolve(available);
+                    },
+                    reject
                 });
                 cryptoWorker.postMessage({ type: 'pq_available', id, payload: {} });
             });
@@ -2986,11 +2991,8 @@
                 
                 // Generate X25519 keys via worker
                 const x25519Result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
+                    const id = pqRequestId++;
+                    pendingRequests.set(id, { resolve, reject });
                     cryptoWorker.postMessage({ type: 'x25519_generate_keypair', id, payload: {} });
                 });
                 
@@ -2998,11 +3000,8 @@
                 
                 // Generate ML-KEM keys via worker
                 const mlkemResult = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
+                    const id = pqRequestId++;
+                    pendingRequests.set(id, { resolve, reject });
                     cryptoWorker.postMessage({ type: 'mlkem_generate_keypair', id, payload: {} });
                 });
                 
@@ -3145,11 +3144,8 @@
                 // Encrypt via worker
                 const plaintext = new TextEncoder().encode(message);
                 const result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
+                    const id = pqRequestId++;
+                    pendingRequests.set(id, { resolve, reject });
                     cryptoWorker.postMessage({ 
                         type: 'encrypt_hybrid_pq', 
                         id, 
@@ -3257,11 +3253,8 @@
                 
                 // Decrypt via worker
                 const result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
+                    const id = pqRequestId++;
+                    pendingRequests.set(id, { resolve, reject });
                     cryptoWorker.postMessage({ 
                         type: 'decrypt_hybrid_pq', 
                         id, 

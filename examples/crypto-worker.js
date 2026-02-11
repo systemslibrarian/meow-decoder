@@ -163,14 +163,28 @@ self.onmessage = async function(e) {
             
             case 'x25519_generate_keypair': {
                 // Generate X25519 key pair for forward secrecy
+                // Returns: { secretKey: Uint8Array(32), publicKey: Uint8Array(32) }
                 const result = wasm.x25519_generate_keypair();
-                postMessage({ 
-                    type: 'result', 
-                    id, 
-                    success: result.success, 
-                    data: result.data,
-                    error: result.error 
-                });
+                if (result.success) {
+                    // Keys are packed: secret_key (32) || public_key (32)
+                    const secretKey = result.data.slice(0, 32);
+                    const publicKey = result.data.slice(32);
+                    postMessage({ 
+                        type: 'result', 
+                        id, 
+                        success: true, 
+                        secretKey: secretKey,
+                        publicKey: publicKey
+                    });
+                } else {
+                    postMessage({ 
+                        type: 'result', 
+                        id, 
+                        success: false, 
+                        data: result.data,
+                        error: result.error 
+                    });
+                }
                 break;
             }
             
