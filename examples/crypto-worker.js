@@ -16,8 +16,11 @@ let wasmReady = false;
 // Initialize WASM module inside the worker
 async function initWasm() {
     try {
-        // Import the WASM module - path relative to worker location (examples/)
-        const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+        // Import the WASM module using absolute URL resolution
+        // This works correctly in web workers across different hosting environments
+        // Add cache-busting to ensure latest WASM is loaded
+        const moduleUrl = new URL('./crypto_core.js', import.meta.url).href;
+        const wasmModule = await import(/* @vite-ignore */ moduleUrl);
         await wasmModule.default();
         wasm = wasmModule;
         wasmReady = true;

@@ -6,9 +6,28 @@ Handles QR code generation and reading using qrcode and pyzbar libraries
 import qrcode
 from PIL import Image
 from typing import List, Optional, Tuple
-import cv2
 import numpy as np
-from pyzbar import pyzbar
+
+# cv2 and pyzbar are only needed for QR scanning, not generation.
+# Lazy import to allow the module to work without them installed.
+cv2 = None
+pyzbar = None
+
+
+def _ensure_cv2():
+    global cv2
+    if cv2 is None:
+        import cv2 as _cv2
+
+        cv2 = _cv2
+
+
+def _ensure_pyzbar():
+    global pyzbar
+    if pyzbar is None:
+        from pyzbar import pyzbar as _pyzbar
+
+        pyzbar = _pyzbar
 
 
 class QRCodeGenerator:
@@ -131,6 +150,7 @@ class QRCodeReader:
             img_array = self._preprocess_normal(img_array)
 
         # Decode QR codes
+        _ensure_pyzbar()
         decoded_objects = pyzbar.decode(img_array)
 
         # Extract data and decode base85
@@ -172,6 +192,7 @@ class QRCodeReader:
             frame = self._preprocess_normal(frame)
 
         # Decode QR codes
+        _ensure_pyzbar()
         decoded_objects = pyzbar.decode(frame)
 
         # Extract data and decode base85
@@ -201,6 +222,7 @@ class QRCodeReader:
         Returns:
             Preprocessed image
         """
+        _ensure_cv2()
         # Convert to grayscale if needed
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -220,6 +242,7 @@ class QRCodeReader:
         Returns:
             Preprocessed image
         """
+        _ensure_cv2()
         # Convert to grayscale if needed
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -260,6 +283,7 @@ class WebcamQRReader:
         self.frame_count = 0
 
         # Open webcam
+        _ensure_cv2()
         self.cap = cv2.VideoCapture(device)
         if not self.cap.isOpened():
             raise RuntimeError(f"Failed to open webcam device {device}")

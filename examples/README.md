@@ -150,8 +150,20 @@ The web demo provides **8 encryption modes**:
 | 🐱 **Schrödinger** | Dual-secret deniability | `QUANTUM:` |
 | 🖼️ **Stego** | LSB steganography | Image-embedded |
 | 📹 **Webcam** | Live QR scanner | All types supported |
-| 🚨 **Duress** | Panic password wipe | Destroys localStorage |
+| 🚨 **Duress** | Panic password decoy | `DURESS:` |
 | 😺 **Cat Mode** | Blinking cat eyes | Visual encoding |
+
+#### ⚠️ Browser Demo Limitations
+
+The browser demo is a **simplified reimplementation** of the core cryptographic pipeline in JavaScript/WASM for illustration purposes. It does **not** use the same code paths as the Python CLI tool. Some known differences and limitations:
+
+- **QR library loading** — The demo bundles QR libraries locally (`qrcode.min.js`, `jsQR.js`) but may fall back to CDN. In restricted environments (corporate proxies, some Codespaces), CDN loading can fail. If QR codes don't render, the encrypted payload can still be copied via the "Copy Payload" button.
+- **Duress mode format** — The browser demo uses its own binary packing format for Duress payloads (`DURESS:` prefix), which is not compatible with the CLI's Duress implementation. Payloads created in the browser can only be decrypted in the browser, and vice versa.
+- **No fountain coding** — The browser demo does not implement Luby Transform fountain codes. Large files that exceed QR capacity (~2500 chars) cannot be encoded into a single QR code. The CLI handles this automatically with multi-frame animated GIFs.
+- **Security parameter mismatch** — The default security level in the browser is "Standard" (128 MiB, 8 iterations). The CLI defaults to "Paranoid" (512 MiB, 20 iterations). Select "Paranoid" in the browser dropdown to match CLI-level security.
+- **No steganographic embedding** — The browser Stego mode simulates LSB embedding for demonstration but does not produce real steganographic images compatible with the CLI.
+
+**For production use, always use the command-line tool** (`meow-encode`, `meow-decode-gif`) — it uses the fully tested Python implementation with proper manifest versioning, fountain coding, and comprehensive error handling.
 
 #### Security Level Selection
 

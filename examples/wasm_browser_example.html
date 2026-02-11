@@ -436,7 +436,20 @@
         <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">4</span>
             <h2>📥 Decrypt Forward Secrecy Message</h2>
-            <p class="step-desc">Paste an encrypted payload to decrypt using your private key.</p>
+            <p class="step-desc">Upload a QR code image or paste an encrypted payload to decrypt using your private key.</p>
+            
+            <!-- QR Upload Section for FS -->
+            <div style="background: rgba(0,200,100,0.15); border: 2px dashed #00c864; border-radius: 10px; padding: 20px; margin: 15px 0; text-align: center;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
+                <p style="color: #00c864; margin: 0 0 10px 0;"><strong>Upload Forward Secrecy QR Code</strong></p>
+                <p style="color: #888; font-size: 0.85em; margin: 0 0 15px 0;">Scan an FS: QR code from a photo</p>
+                <input type="file" id="fsQrUpload" accept="image/*" style="display: none;" onchange="scanFsQR(this)">
+                <button class="secondary" onclick="document.getElementById('fsQrUpload').click()" style="border-color: #00c864; color: #00c864;">📤 Choose Image / Take Photo</button>
+                <div id="fsScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+                <canvas id="fsScanCanvas" style="display: none;"></canvas>
+            </div>
+            
+            <div style="text-align: center; color: #666; margin: 10px 0;">— or paste payload directly —</div>
             
             <label for="fsDecryptPayload">Encrypted Payload:</label>
             <textarea id="fsDecryptPayload" rows="3" placeholder="Paste encrypted FS payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
@@ -516,13 +529,32 @@
             
             <div id="pqQrSection" style="display: none; text-align: center; margin-top: 15px;">
                 <canvas id="pqQrCanvas" style="max-width: 100%; border: 4px solid #8a2be2; border-radius: 12px;"></canvas>
+                <div style="margin-top: 10px;">
+                    <button class="secondary" onclick="downloadPqQR()">💾 Save QR Image</button>
+                </div>
             </div>
         </div>
         
         <div class="step" style="background: linear-gradient(135deg, rgba(100,100,200,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #6464c8;">
             <span class="step-number" style="background: #6464c8;">3</span>
             <h2>📥 Decrypt Post-Quantum Message</h2>
-            <p class="step-desc">Paste an encrypted PQ payload and use your private keys to decrypt.</p>
+            <p class="step-desc">Upload a QR code image or paste an encrypted PQ payload, then use your private keys to decrypt.</p>
+            
+            <!-- QR Upload Section for PQ -->
+            <div style="background: rgba(138,43,226,0.15); border: 2px dashed #8a2be2; border-radius: 10px; padding: 20px; margin: 15px 0; text-align: center;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
+                <p style="color: #8a2be2; margin: 0 0 10px 0;"><strong>Upload PQ QR Code Image</strong></p>
+                <p style="color: #888; font-size: 0.85em; margin: 0 0 15px 0;">Scan a HYBRID-PQ QR code from photo</p>
+                <input type="file" id="pqQrUpload" accept="image/*" style="display: none;" onchange="scanPqQR(this)">
+                <button class="secondary" onclick="document.getElementById('pqQrUpload').click()" style="border-color: #8a2be2; color: #8a2be2;">📤 Choose Image / Take Photo</button>
+                <div id="pqScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+                <canvas id="pqScanCanvas" style="display: none;"></canvas>
+                <div id="pqUploadPreview" style="margin-top: 15px; display: none;">
+                    <img id="pqPreviewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #8a2be2;">
+                </div>
+            </div>
+            
+            <div style="text-align: center; color: #666; margin: 10px 0;">— or paste payload directly —</div>
             
             <label for="pqDecryptPayload">Encrypted PQ Payload:</label>
             <textarea id="pqDecryptPayload" rows="3" placeholder="Paste encrypted PQ payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
@@ -576,24 +608,31 @@
 
     <!-- DURESS MODE -->
     <div id="duressMode" class="mode-content">
-        <div class="step" style="background: linear-gradient(135deg, rgba(255,50,50,0.15) 0%, rgba(150,50,50,0.15) 100%); border: 2px solid #ff3232;">
-            <span class="step-number" style="background: #ff3232;">🚨</span>
-            <h2>🚨 Duress Mode (Panic Password)</h2>
-            <p class="step-desc"><strong>Warning:</strong> This sets up a panic password. If entered, it will <strong>permanently destroy all stored keys</strong> and show fake decoy data. Use this if you're being coerced to reveal your password.</p>
+        <div class="step" style="background: linear-gradient(135deg, rgba(255,50,50,0.1) 0%, rgba(150,50,50,0.1) 100%); border: 1px solid #ff6464;">
+            <span class="step-number" style="background: #ff6464;">1</span>
+            <h2>🔐 Encrypt with Duress Protection</h2>
+            <p class="step-desc">Create an encrypted QR code with two passwords. Real password reveals your secret, panic password reveals a decoy.</p>
             
             <div style="background: rgba(255,50,50,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ff3232;">
                 <p style="margin: 0; color: #ff6464;"><strong>⚠️ How Duress Mode Works:</strong></p>
                 <ul style="color: #ccc; margin: 10px 0; padding-left: 20px;">
-                    <li>Set a "panic password" different from your real password</li>
-                    <li>If forced to decrypt, enter the panic password instead</li>
-                    <li>All stored keys are immediately wiped from localStorage</li>
-                    <li>A fake decoy message is shown to the attacker</li>
-                    <li>Your real data remains inaccessible (they'd need the real password)</li>
+                    <li>Set a <strong>real password</strong> to encrypt your actual secret</li>
+                    <li>Set a <strong>panic password</strong> that reveals a fake decoy instead</li>
+                    <li>If forced to decrypt, enter the panic password — attacker sees the decoy</li>
+                    <li>Your real data remains inaccessible without the real password</li>
                 </ul>
             </div>
             
-            <label for="duressPassword">🔴 Set Panic Password:</label>
-            <input type="password" id="duressPassword" placeholder="Choose a panic password">
+            <label for="duressRealMessage">🔒 Real Secret Message:</label>
+            <textarea id="duressRealMessage" rows="2" placeholder="Your actual secret...">The real treasure location is under the oak tree! 💎</textarea>
+            
+            <label for="duressRealPassword">🔑 Real Password:</label>
+            <input type="password" id="duressRealPassword" placeholder="Password to reveal real message" value="">
+            
+            <hr style="border-color: #ff3232; margin: 20px 0; opacity: 0.3;">
+            
+            <label for="duressPassword">🔴 Panic Password:</label>
+            <input type="password" id="duressPassword" placeholder="Choose a different panic password">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duressPassword', this.checked)">
                 <label for="showDuressPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
@@ -602,19 +641,45 @@
             <label for="duressDecoyMessage">📝 Decoy Message (shown when panic triggered):</label>
             <textarea id="duressDecoyMessage" rows="2" placeholder="Innocent message to show attacker...">Nothing important here, just my shopping list.</textarea>
             
-            <button id="duressSetBtn" onclick="setDuressPassword()" style="background: linear-gradient(135deg, #ff6464 0%, #ff3232 100%);">🚨 Set Panic Password</button>
+            <button id="duressEncryptBtn" disabled onclick="duressEncrypt()">🔐 Encrypt & Generate QR</button>
             
-            <div id="duressStatus" style="margin-top: 15px;"></div>
-            
-            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
-                <h4 style="color: #ff6464;">⚠️ Test Duress Mode</h4>
-                <p style="color: #888; font-size: 0.85em;">Enter your panic password below to trigger a test (this will NOT wipe data in test mode).</p>
-                
-                <label for="duressTestPassword">Test Password:</label>
-                <input type="password" id="duressTestPassword" placeholder="Enter password to test">
-                <button class="secondary" onclick="testDuressPassword()">🧪 Test</button>
-                <div id="duressTestResult" style="margin-top: 10px;"></div>
+            <div id="duressQrSection" class="hidden" style="margin-top: 15px; text-align: center;">
+                <canvas id="duressQrCanvas" style="max-width: 100%; border: 4px solid #00ffcc; border-radius: 12px;"></canvas>
+                <div style="margin-top: 10px;">
+                    <button class="secondary" onclick="downloadDuressQR()">💾 Save QR Image</button>
+                    <button class="secondary" onclick="copyDuressPayload()">📋 Copy Payload</button>
+                </div>
+                <p id="duressEncryptedPayload" style="display: none;"></p>
             </div>
+            <div id="duressStatus" style="margin-top: 15px;"></div>
+        </div>
+        
+        <div class="step" style="background: linear-gradient(135deg, rgba(255,50,50,0.1) 0%, rgba(150,50,50,0.1) 100%); border: 1px solid #ff6464;">
+            <span class="step-number" style="background: #ff6464;">2</span>
+            <h2>🔓 Decrypt (Test Both Passwords)</h2>
+            <p class="step-desc">Upload a QR code or paste the encrypted payload. Try both passwords to see the different results!</p>
+            
+            <!-- QR Upload Section for Duress -->
+            <div style="background: rgba(255,50,50,0.15); border: 2px dashed #ff3232; border-radius: 10px; padding: 20px; margin: 15px 0; text-align: center;">
+                <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
+                <p style="color: #ff6464; margin: 0 0 10px 0;"><strong>Upload Duress QR Code</strong></p>
+                <input type="file" id="duressQrUpload" accept="image/*" style="display: none;" onchange="scanDuressQR(this)">
+                <button class="secondary" onclick="document.getElementById('duressQrUpload').click()" style="border-color: #ff6464; color: #ff6464;">📤 Choose Image / Take Photo</button>
+                <div id="duressScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
+                <canvas id="duressScanCanvas" style="display: none;"></canvas>
+            </div>
+            
+            <div style="text-align: center; color: #666; margin: 10px 0;">— or paste payload directly —</div>
+            
+            <label for="duressDecryptPayload">📦 Encrypted Payload:</label>
+            <textarea id="duressDecryptPayload" rows="2" placeholder="Paste encrypted payload or scan QR above..."></textarea>
+            
+            <label for="duressDecryptPassword">🔑 Password:</label>
+            <input type="password" id="duressDecryptPassword" placeholder="Enter real password OR panic password">
+            
+            <button onclick="duressDecrypt()">🔓 Decrypt</button>
+            
+            <div id="duressDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
         </div>
     </div>
 
@@ -683,10 +748,10 @@
                         
                         <label for="catVideoBlinkSpeed">⏱️ Blink Speed (must match encoding):</label>
                         <select id="catVideoBlinkSpeed" style="margin-bottom: 10px;">
-                            <option value="50">50ms (fast)</option>
-                            <option value="100" selected>100ms (default)</option>
-                            <option value="150">150ms (slow)</option>
-                            <option value="200">200ms (very slow)</option>
+                            <option value="500">Slow (500ms)</option>
+                            <option value="200" selected>Medium (200ms)</option>
+                            <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
                         </select>
                         
                         <label for="catVideoThreshold">🎚️ Detection Sensitivity:</label>
@@ -916,7 +981,7 @@
     
     <!-- Schrödinger Decrypt -->
     <div class="step schrodinger-box">
-        <span class="step-number" style="background: #8a2be2;">3</span>
+        <span class="step-number" style="background: #8a2be2;">2</span>
         <h2>🔓 Collapse the Superposition</h2>
         <p class="step-desc">Enter a password to "observe" one reality. Try both passwords to see different messages emerge!</p>
         
@@ -986,7 +1051,7 @@
         </div>
 
         <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
-            <span class="step-number" style="background: #00ccff;">3</span>
+            <span class="step-number" style="background: #00ccff;">2</span>
             <h2>🔍 Extract Hidden Secret</h2>
             <p class="step-desc">Upload a stego image (must be PNG - JPEG compression destroys LSB data) and enter the password.</p>
             <input type="file" id="stegoDecodeInput" accept="image/png" style="margin-bottom: 10px;">
@@ -1034,7 +1099,8 @@
                     }
                     
                     // Create worker with module type for ES6 imports
-                    cryptoWorker = new Worker('crypto-worker.js', { type: 'module' });
+                    // Add cache-busting query parameter to force reload
+                    cryptoWorker = new Worker('crypto-worker.js?v=' + Date.now(), { type: 'module' });
                     
                     cryptoWorker.onmessage = (e) => {
                         const { type, id, success, data, error, ready, secretKey, publicKey, sizes } = e.data;
@@ -1240,15 +1306,18 @@
         async function loadQRCode() {
             if (QRCode) return QRCode;
             
-            const cdnUrls = [
-                'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
+            // Try local file first (bundled in examples/), then CDN fallbacks
+            const urls = [
+                './qrcode.min.js',
+                'https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js',
                 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
                 'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
             ];
             
-            for (const url of cdnUrls) {
+            for (const url of urls) {
                 try {
-                    log(`Trying QRCode from: ${url.split('/')[2]}...`);
+                    const label = url.startsWith('./') ? 'local' : url.split('/')[2];
+                    log(`Trying QRCode from: ${label}...`);
                     const script = document.createElement('script');
                     script.src = url;
                     document.head.appendChild(script);
@@ -1265,18 +1334,19 @@
                     
                     if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
                         QRCode = window.QRCode;
-                        log(`✅ QRCode loaded from ${url.split('/')[2]}`);
+                        log(`✅ QRCode loaded from ${label}`);
                         return QRCode;
                     } else {
                         log(`⚠️ QRCode object not found after loading`);
                         document.head.removeChild(script);
                     }
                 } catch (e) {
-                    log(`⚠️ CDN failed: ${url.split('/')[2]} - ${e.message}`);
+                    const label = url.startsWith('./') ? 'local' : url.split('/')[2];
+                    log(`⚠️ QRCode failed: ${label} - ${e.message}`);
                 }
             }
             
-            log('❌ All QRCode CDNs failed');
+            log('❌ All QRCode sources failed');
             return null;
         }
         
@@ -1284,22 +1354,37 @@
         async function loadJsQR() {
             if (jsQR) return jsQR;
             
-            try {
-                const script = document.createElement('script');
-                script.src = 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js';
-                document.head.appendChild(script);
-                
-                await new Promise((resolve, reject) => {
-                    script.onload = resolve;
-                    script.onerror = reject;
-                });
-                
-                jsQR = window.jsQR;
-                return jsQR;
-            } catch (e) {
-                log('Warning: jsQR CDN failed');
-                return null;
+            // Try local file first, then CDN fallback
+            const urls = [
+                './jsQR.js',
+                'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js'
+            ];
+            
+            for (const url of urls) {
+                try {
+                    const script = document.createElement('script');
+                    script.src = url;
+                    document.head.appendChild(script);
+                    
+                    await new Promise((resolve, reject) => {
+                        script.onload = resolve;
+                        script.onerror = reject;
+                        setTimeout(() => reject(new Error('timeout')), 5000);
+                    });
+                    
+                    if (window.jsQR) {
+                        jsQR = window.jsQR;
+                        const label = url.startsWith('./') ? 'local' : url.split('/')[2];
+                        log(`✅ jsQR loaded from ${label}`);
+                        return jsQR;
+                    }
+                } catch (e) {
+                    // try next
+                }
             }
+            
+            log('Warning: jsQR not available');
+            return null;
         }
         
         // Scan QR code from uploaded image
@@ -1549,7 +1634,13 @@
                 const workerPromise = initCryptoWorker();
                 
                 // Load WASM first - this is critical
-                const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+                // Try local copy first (examples/ dir), then fall back to pkg/ build output
+                let wasmModule;
+                try {
+                    wasmModule = await import('./crypto_core.js');
+                } catch (e) {
+                    wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+                }
                 await wasmModule.default();
                 wasm = wasmModule;
                 
@@ -1696,7 +1787,7 @@
                         
                         await QRCode.toCanvas(canvas, framePayload, { 
                             width: 300, margin: 2, 
-                            color: { dark: '#1a1a2e', light: '#ffffff' } 
+                            color: { dark: '#000000', light: '#ffffff' } 
                         });
                         
                         container.appendChild(canvas);
@@ -1726,7 +1817,7 @@
                 } else if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
                         await QRCode.toCanvas(document.getElementById('qrcode').appendChild(document.createElement('canvas')), 
-                            payload, { width: 300, margin: 2, color: { dark: '#1a1a2e', light: '#ffffff' } });
+                            payload, { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
                         log('✅ QR code generated!');
                     } catch (qrErr) {
                         log(`⚠️ QRCode.toCanvas failed: ${qrErr.message}`);
@@ -2182,7 +2273,7 @@
             try {
                 catImg = new Image();
                 catImg.crossOrigin = 'anonymous';
-                catImg.src = '../assets/meow-decoder-logo.png';
+                catImg.src = './meow-decoder-logo.png';
                 await new Promise((res, rej) => { 
                     catImg.onload = res; 
                     catImg.onerror = () => rej(new Error('Failed to load cat image'));
@@ -2883,7 +2974,7 @@
                     await QRCode.toCanvas(
                         document.getElementById('fsQrcode').appendChild(document.createElement('canvas')),
                         payload,
-                        { width: 300, margin: 2, color: { dark: '#00c864', light: '#ffffff' } }
+                        { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } }
                     );
                 } else {
                     await generateQRFallback('fsQrcode', payload);
@@ -2896,6 +2987,63 @@
                 log('❌ [FS] Error: ' + err.message);
                 alert('Encryption failed: ' + err.message);
             }
+        };
+        
+        // Scan Forward Secrecy QR code from uploaded image
+        window.scanFsQR = async function(input) {
+            const statusEl = document.getElementById('fsScanStatus');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning...</span>';
+            
+            try {
+                if (!jsQR) await loadJsQR();
+                if (!jsQR) throw new Error('QR scanner not available');
+                
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                const canvas = document.getElementById('fsScanCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imgDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imgDataObj.data, imgDataObj.width, imgDataObj.height);
+                
+                if (code) {
+                    document.getElementById('fsDecryptPayload').value = code.data;
+                    if (code.data.startsWith('FS:')) {
+                        statusEl.innerHTML = '<span style="color: #00ff88;">✅ Forward Secrecy QR scanned!</span>';
+                        log('📸 [FS] QR scanned successfully');
+                    } else {
+                        statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR found (not FS format)</span>';
+                        log('⚠️ [FS] QR found but not FS format');
+                    }
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR found in image</span>';
+                    log('❌ [FS] No QR code detected');
+                }
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
+                log('❌ [FS] QR scan error: ' + err.message);
+            }
+            
+            input.value = '';
         };
         
         // Decrypt forward secrecy message
@@ -3180,45 +3328,142 @@
         };
         
         // Generate QR for PQ encrypted message
-        window.pqGenerateQR = function() {
+        window.pqGenerateQR = async function() {
             const payload = window.currentPqPayload;
             if (!payload) {
                 alert('Encrypt a message first');
                 return;
             }
             
-            const canvas = document.getElementById('pqQrCanvas');
-            const qr = qrcode(0, 'L');
-            qr.addData(payload);
-            qr.make();
-            
-            const size = 400;
-            const moduleCount = qr.getModuleCount();
-            const cellSize = size / moduleCount;
-            
-            canvas.width = size;
-            canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            
-            // Purple gradient background for PQ
-            const gradient = ctx.createLinearGradient(0, 0, size, size);
-            gradient.addColorStop(0, '#200040');
-            gradient.addColorStop(1, '#004060');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, size, size);
-            
-            // Draw QR modules
-            ctx.fillStyle = '#00ffff';
-            for (let row = 0; row < moduleCount; row++) {
-                for (let col = 0; col < moduleCount; col++) {
-                    if (qr.isDark(row, col)) {
-                        ctx.fillRect(col * cellSize, row * cellSize, cellSize, cellSize);
-                    }
-                }
+            // Load QRCode library if needed
+            if (!QRCode) {
+                await loadQRCode();
+            }
+            if (!QRCode) {
+                alert('QR library not available. Use "Copy Payload" instead.');
+                return;
             }
             
-            document.getElementById('pqQrSection').style.display = 'block';
-            log('📱 [PQ] QR code generated');
+            const canvas = document.getElementById('pqQrCanvas');
+            
+            // Check if payload fits in a single QR code
+            if (payload.length > 2500) {
+                log('⚠️ [PQ] Payload too large for single QR code, use Copy instead');
+                alert('Payload too large for QR code (' + payload.length + ' chars). Use "Copy" and paste instead.');
+                return;
+            }
+            
+            try {
+                await QRCode.toCanvas(canvas, payload, {
+                    width: 400,
+                    margin: 2,
+                    color: {
+                        dark: '#000000',
+                        light: '#ffffff'
+                    }
+                });
+                
+                document.getElementById('pqQrSection').style.display = 'block';
+                log('📱 [PQ] QR code generated');
+            } catch (err) {
+                log('❌ [PQ] QR generation failed: ' + err.message);
+                alert('QR generation failed: ' + err.message);
+            }
+        };
+        
+        // Download PQ QR as image
+        window.downloadPqQR = function() {
+            const canvas = document.getElementById('pqQrCanvas');
+            if (!canvas || canvas.width === 0) {
+                alert('Generate QR code first');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = 'meow-pq-secret.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            log('💾 [PQ] QR image downloaded');
+        };
+        
+        // Scan PQ QR code from uploaded image
+        window.scanPqQR = async function(input) {
+            const statusEl = document.getElementById('pqScanStatus');
+            const previewEl = document.getElementById('pqUploadPreview');
+            const previewImg = document.getElementById('pqPreviewImg');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
+            
+            try {
+                // Load jsQR if needed
+                if (!jsQR) {
+                    await loadJsQR();
+                }
+                
+                if (!jsQR) {
+                    throw new Error('QR scanner library not available');
+                }
+                
+                // Read and display image
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                // Show preview
+                previewImg.src = imageData;
+                previewEl.style.display = 'block';
+                
+                // Load image to canvas
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                // Draw to canvas and extract image data
+                const canvas = document.getElementById('pqScanCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imgDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                
+                // Scan for QR code
+                const code = jsQR(imgDataObj.data, imgDataObj.width, imgDataObj.height);
+                
+                if (code) {
+                    const payload = code.data;
+                    log(`📸 [PQ] QR code scanned: ${payload.substring(0, 50)}...`);
+                    
+                    if (payload.startsWith('HYBRID-PQ:')) {
+                        document.getElementById('pqDecryptPayload').value = payload;
+                        statusEl.innerHTML = '<span style="color: #00ff88;">✅ PQ QR code scanned! Enter password below to decrypt.</span>';
+                        log('✅ [PQ] Valid HYBRID-PQ payload extracted from QR code');
+                    } else {
+                        document.getElementById('pqDecryptPayload').value = payload;
+                        statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR code found but not a HYBRID-PQ payload. Data pasted anyway.</span>';
+                        log('⚠️ [PQ] QR contains non-PQ data: ' + payload.substring(0, 20));
+                    }
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found in image. Try a clearer photo.</span>';
+                    log('❌ [PQ] No QR code detected in uploaded image');
+                }
+                
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
+                log(`❌ [PQ] QR scan error: ${err.message}`);
+            }
+            
+            // Clear input so same file can be uploaded again
+            input.value = '';
         };
         
         // Decrypt post-quantum message
@@ -3491,10 +3736,12 @@
                 set: new Date().toISOString()
             }));
             
-            statusEl.innerHTML = '<span style="color: #ff6464;">🚨 Panic password set! If entered during decryption, all keys will be wiped.</span>';
-            log('🚨 [Duress] Panic password configured');
+            // Temporarily store the raw password in memory for encryption
+            // (cleared after encrypt or on page reload)
+            window._duressPanicPassword = password;
             
-            document.getElementById('duressPassword').value = '';
+            statusEl.innerHTML = '<span style="color: #ff6464;">🚨 Panic password set! Now encrypt your message in Step 2.</span>';
+            log('🚨 [Duress] Panic password configured');
         };
         
         window.testDuressPassword = function() {
@@ -3545,6 +3792,299 @@
             }
             return null;
         }
+        
+        // Duress mode encryption - encrypts both real and decoy messages
+        window.duressEncrypt = async function() {
+            const realMessage = document.getElementById('duressRealMessage').value;
+            const realPassword = document.getElementById('duressRealPassword').value;
+            const panicPassword = document.getElementById('duressPassword').value;
+            const decoyMessage = document.getElementById('duressDecoyMessage').value;
+            
+            if (!realMessage) { alert('Enter a real secret message'); return; }
+            if (!realPassword) { alert('Enter a real password'); return; }
+            if (!panicPassword) { alert('Enter a panic password'); return; }
+            if (realPassword === panicPassword) { alert('Panic password must be different from real password!'); return; }
+            if (!decoyMessage) { alert('Enter a decoy message'); return; }
+            
+            const btn = document.getElementById('duressEncryptBtn');
+            btn.disabled = true;
+            btn.textContent = '🔐 Encrypting...';
+            
+            try {
+                log('🚨 [Duress] Encrypting with dual-password protection...');
+                
+                // Generate salt and nonce for real message
+                const saltResult = await crypto.generateSalt();
+                const nonceResult = await crypto.generateNonce();
+                if (!saltResult.success || !nonceResult.success) throw new Error('Failed to generate random values');
+                
+                const salt = saltResult.data;
+                const nonce = nonceResult.data;
+                
+                // Derive key and encrypt real message
+                const realPasswordBytes = encoder.encode(realPassword);
+                const realKeyResult = await crypto.deriveKey(realPasswordBytes, salt);
+                if (!realKeyResult.success) throw new Error(realKeyResult.error);
+                
+                const realEncResult = await crypto.encrypt(encoder.encode(realMessage), realKeyResult.data, nonce, null);
+                if (!realEncResult.success) throw new Error(realEncResult.error);
+                
+                // Also encrypt the decoy if panic password is set
+                let decoyEncrypted = null;
+                if (panicPassword && decoyMessage) {
+                    const decoyPasswordBytes = encoder.encode(panicPassword);
+                    const decoyKeyResult = await crypto.deriveKey(decoyPasswordBytes, salt);
+                    if (decoyKeyResult.success) {
+                        const decoyNonceResult = await crypto.generateNonce();
+                        if (decoyNonceResult.success) {
+                            const decoyEncResult = await crypto.encrypt(encoder.encode(decoyMessage), decoyKeyResult.data, decoyNonceResult.data, null);
+                            if (decoyEncResult.success) {
+                                decoyEncrypted = {
+                                    nonce: decoyNonceResult.data,
+                                    ciphertext: decoyEncResult.data
+                                };
+                            }
+                        }
+                    }
+                }
+                
+                // Pack: version(1) + salt(16) + nonce(12) + realLen(2) + ciphertext + [decoy_nonce(12) + decoy_ciphertext]
+                let packed;
+                if (decoyEncrypted) {
+                    const realLen = realEncResult.data.length;
+                    packed = new Uint8Array(1 + 16 + 12 + 2 + realLen + 12 + decoyEncrypted.ciphertext.length);
+                    packed[0] = 0x02; // Version 2: has decoy
+                    packed.set(salt, 1);
+                    packed.set(nonce, 17);
+                    // Store real ciphertext length as 2 bytes (big-endian)
+                    packed[29] = (realLen >> 8) & 0xFF;
+                    packed[30] = realLen & 0xFF;
+                    packed.set(realEncResult.data, 31);
+                    const decoyStart = 31 + realLen;
+                    packed.set(decoyEncrypted.nonce, decoyStart);
+                    packed.set(decoyEncrypted.ciphertext, decoyStart + 12);
+                } else {
+                    packed = new Uint8Array(1 + 16 + 12 + realEncResult.data.length);
+                    packed[0] = 0x01; // Version 1: no decoy
+                    packed.set(salt, 1);
+                    packed.set(nonce, 17);
+                    packed.set(realEncResult.data, 29);
+                }
+                
+                const payload = 'DURESS:' + bytesToBase64(packed);
+                window.currentDuressPayload = payload;
+                
+                log(`🚨 [Duress] Encrypted: ${payload.length} chars`);
+                
+                // Show result section and payload regardless of QR success
+                document.getElementById('duressQrSection').classList.remove('hidden');
+                document.getElementById('duressEncryptedPayload').textContent = payload;
+                document.getElementById('duressDecryptPayload').value = payload;
+                
+                // Generate QR code (non-blocking - encryption still succeeds if QR fails)
+                try {
+                    if (!QRCode) await loadQRCode();
+                    if (QRCode && payload.length <= 2500) {
+                        const canvas = document.getElementById('duressQrCanvas');
+                        await QRCode.toCanvas(canvas, payload, {
+                            width: 400,
+                            margin: 2,
+                            color: { dark: '#000000', light: '#ffffff' }
+                        });
+                    } else if (payload.length > 2500) {
+                        log('⚠️ Payload too large for QR code. Use Copy Payload.');
+                    } else {
+                        log('⚠️ QR library unavailable. Use Copy Payload.');
+                    }
+                } catch (qrErr) {
+                    log('⚠️ QR generation failed: ' + qrErr.message);
+                }
+                
+                log('✅ [Duress] Encrypted with dual-password protection');
+                
+            } catch (err) {
+                log('❌ [Duress] Encryption error: ' + err.message);
+                alert('Encryption failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🔐 Encrypt & Generate QR';
+            }
+        };
+        
+        // Duress mode decryption - tries both passwords
+        window.duressDecrypt = async function() {
+            const payload = document.getElementById('duressDecryptPayload').value.trim();
+            const password = document.getElementById('duressDecryptPassword').value;
+            const resultBox = document.getElementById('duressDecryptResult');
+            
+            if (!payload) { alert('Enter or scan an encrypted payload'); return; }
+            if (!password) { alert('Enter a password'); return; }
+            
+            try {
+                log('🚨 [Duress] Attempting decryption...');
+                
+                // Check if it's a DURESS: payload
+                if (!payload.startsWith('DURESS:') && !payload.startsWith('MEOW:')) {
+                    throw new Error('Invalid payload format (expected DURESS: or MEOW:)');
+                }
+                
+                const prefix = payload.startsWith('DURESS:') ? 'DURESS:' : 'MEOW:';
+                const packed = base64ToBytes(payload.substring(prefix.length));
+                
+                // Extract components
+                const version = packed[0];
+                const salt = packed.slice(1, 17);
+                const nonce = packed.slice(17, 29);
+                
+                log(`🚨 [Duress] Version: 0x${version.toString(16)}, packed: ${packed.length} bytes`);
+                log(`🚨 [Duress] Salt: ${bytesToHex(salt).substring(0, 16)}...`);
+                log(`🚨 [Duress] Nonce: ${bytesToHex(nonce)}`);
+                
+                // Derive key from password
+                const passwordBytes = encoder.encode(password);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt);
+                if (!keyResult.success) throw new Error(keyResult.error);
+                
+                log(`🚨 [Duress] Key derived: ${bytesToHex(keyResult.data).substring(0, 16)}...`);
+                
+                // First try: decrypt as real message
+                let ciphertext;
+                let realLen = 0;
+                if (version === 0x02) {
+                    // Version 2: read 2-byte length, then ciphertext
+                    realLen = (packed[29] << 8) | packed[30];
+                    ciphertext = packed.slice(31, 31 + realLen);
+                    log(`🚨 [Duress] Version 2: realLen=${realLen}, ciphertext=${ciphertext.length} bytes`);
+                } else {
+                    ciphertext = packed.slice(29);
+                    log(`🚨 [Duress] Version 1: ciphertext=${ciphertext.length} bytes`);
+                }
+                
+                // First try: decrypt as real message
+                let realDecrypted = false;
+                try {
+                    let decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
+                    log(`🚨 [Duress] Real decrypt result: success=${decResult.success}`);
+                    
+                    if (decResult.success) {
+                        const message = decoder.decode(decResult.data);
+                        resultBox.innerHTML = `<h3 style="color: #00ff88;">✅ Decrypted (Real Password)</h3><div class="message">${escapeHtml(message)}</div>`;
+                        resultBox.classList.remove('hidden');
+                        log('✅ [Duress] Decrypted with real password');
+                        return;
+                    }
+                } catch (e) {
+                    log(`🚨 [Duress] Real decrypt failed (expected if using panic password): ${e.message}`);
+                }
+                
+                // Second try: if version 2, try decoy section
+                if (version === 0x02 && realLen > 0) {
+                    const decoyStart = 31 + realLen;
+                    log(`🚨 [Duress] Trying decoy: decoyStart=${decoyStart}, remaining=${packed.length - decoyStart} bytes`);
+                    if (decoyStart + 12 < packed.length) {
+                        const decoyNonce = packed.slice(decoyStart, decoyStart + 12);
+                        const decoyCiphertext = packed.slice(decoyStart + 12);
+                        log(`🚨 [Duress] Decoy nonce: ${bytesToHex(decoyNonce)}, ciphertext: ${decoyCiphertext.length} bytes`);
+                        
+                        try {
+                            let decResult = await crypto.decrypt(decoyCiphertext, keyResult.data, decoyNonce, null);
+                            log(`🚨 [Duress] Decoy decrypt result: success=${decResult.success}`);
+                        
+                            if (decResult.success) {
+                                const message = decoder.decode(decResult.data);
+                                resultBox.innerHTML = `<h3 style="color: #ff6464;">🚨 Decrypted (Panic Password)</h3><div class="message">${escapeHtml(message)}</div><p style="color: #ff6464; font-size: 0.85em; margin-top: 10px;">⚠️ This is the DECOY message revealed by the panic password!</p>`;
+                                resultBox.classList.remove('hidden');
+                                log('🚨 [Duress] Decrypted with PANIC password - decoy shown');
+                                return;
+                            }
+                        } catch (e) {
+                            log(`🚨 [Duress] Decoy decrypt also failed: ${e.message}`);
+                        }
+                    }
+                }
+                
+                throw new Error('Decryption failed - wrong password');
+                
+            } catch (err) {
+                resultBox.innerHTML = `<h3 style="color: #f44336;">❌ Decryption Failed</h3><p>${escapeHtml(err.message)}</p>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [Duress] Decryption error: ' + err.message);
+            }
+        };
+        
+        // Download Duress QR
+        window.downloadDuressQR = function() {
+            const canvas = document.getElementById('duressQrCanvas');
+            if (!canvas || canvas.width === 0) { alert('Generate QR first'); return; }
+            
+            const link = document.createElement('a');
+            link.download = 'meow-duress-secret.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            log('💾 [Duress] QR saved');
+        };
+        
+        // Copy Duress payload
+        window.copyDuressPayload = function() {
+            if (!window.currentDuressPayload) { alert('Encrypt first'); return; }
+            navigator.clipboard.writeText(window.currentDuressPayload);
+            log('📋 [Duress] Payload copied');
+            alert('Payload copied!');
+        };
+        
+        // Scan Duress QR
+        window.scanDuressQR = async function(input) {
+            const statusEl = document.getElementById('duressScanStatus');
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning...</span>';
+            
+            try {
+                if (!jsQR) await loadJsQR();
+                if (!jsQR) throw new Error('QR scanner not available');
+                
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                const canvas = document.getElementById('duressScanCanvas');
+                const ctx = canvas.getContext('2d');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                ctx.drawImage(img, 0, 0);
+                
+                const imgDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                const code = jsQR(imgDataObj.data, imgDataObj.width, imgDataObj.height);
+                
+                if (code) {
+                    document.getElementById('duressDecryptPayload').value = code.data;
+                    if (code.data.startsWith('DURESS:')) {
+                        statusEl.innerHTML = '<span style="color: #00ff88;">✅ Duress QR scanned!</span>';
+                    } else {
+                        statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR found (not DURESS format)</span>';
+                    }
+                    log('📸 [Duress] QR scanned');
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR found</span>';
+                }
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
+            }
+            
+            input.value = '';
+        };
 
         // ============================================================
         // SCHRÖDINGER MODE FUNCTIONS
@@ -3614,7 +4154,7 @@
                         await QRCode.toCanvas(
                             document.getElementById('schrodingerQrcode').appendChild(document.createElement('canvas')), 
                             payload, 
-                            { width: 300, margin: 2, color: { dark: '#8a2be2', light: '#ffffff' } }
+                            { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } }
                         );
                         log('✅ Quantum QR code generated!');
                     } catch (qrErr) {
