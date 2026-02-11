@@ -715,8 +715,10 @@
                         
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
-                        <button id="catRecordBtn" onclick="catModeEncodeAndRecord()" class="secondary" style="border-color:#ff9800; color:#ff9800;">🎬 Record Test Video</button>
-                        <button id="catRecordStopBtn" onclick="catRecordStop()" class="secondary" style="display:none; border-color:#f44336; color:#f44336;">⏹️ Stop Recording</button>
+                        <div style="margin-top: 8px;">
+                            <input type="checkbox" id="catRecordToggle" checked>
+                            <label for="catRecordToggle" style="display: inline; color: #ff9800; font-size: 0.9em; cursor: pointer;">🎬 Record video for download</label>
+                        </div>
                         <a id="catVideoDownload" style="display:none;"></a>
                         
                         <div id="catProgress" style="margin-top: 15px; display: none;">
@@ -2368,6 +2370,49 @@
             if (!message) { alert('Enter a message to transmit'); return; }
             if (!password) { alert('Enter a password'); return; }
             
+            // Auto-start recording if checkbox is enabled
+            const shouldRecord = document.getElementById('catRecordToggle').checked;
+            if (shouldRecord && !catIsRecording) {
+                try {
+                    const catCanvas = document.getElementById('catCanvas');
+                    const stream = catCanvas.captureStream(30);
+                    catRecordedChunks = [];
+                    
+                    // Find a supported codec
+                    const codecs = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm', 'video/mp4'];
+                    let mimeType = '';
+                    for (const codec of codecs) {
+                        if (MediaRecorder.isTypeSupported(codec)) { mimeType = codec; break; }
+                    }
+                    
+                    const recorderOptions = { videoBitsPerSecond: 2500000 };
+                    if (mimeType) recorderOptions.mimeType = mimeType;
+                    
+                    catMediaRecorder = new MediaRecorder(stream, recorderOptions);
+                    catMediaRecorder.ondataavailable = (e) => {
+                        if (e.data.size > 0) catRecordedChunks.push(e.data);
+                    };
+                    catMediaRecorder.onstop = () => {
+                        const blob = new Blob(catRecordedChunks, { type: mimeType || 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.getElementById('catVideoDownload');
+                        const ext = mimeType.includes('mp4') ? 'mp4' : 'webm';
+                        a.href = url;
+                        a.download = 'meow-cat-blink.' + ext;
+                        a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
+                        a.textContent = '⬇️ Download Video (' + (blob.size / 1024).toFixed(1) + ' KB)';
+                        log('🎬 [Cat Mode] Video ready for download (' + (blob.size / 1024).toFixed(1) + ' KB)');
+                    };
+                    
+                    catMediaRecorder.start();
+                    catIsRecording = true;
+                    log('🎬 [Cat Mode] Recording started (' + (mimeType || 'default') + ')');
+                } catch (recErr) {
+                    log('⚠️ [Cat Mode] Recording not available: ' + recErr.message);
+                    // Continue without recording
+                }
+            }
+            
             try {
                 // Load cat image if needed
                 if (!catOriginalImageData) {
@@ -2452,52 +2497,6 @@
         let catRecordedChunks = [];
         let catIsRecording = false;
         
-        // Record the canvas as a downloadable WebM video
-        window.catModeEncodeAndRecord = async function() {
-            const catCanvas = document.getElementById('catCanvas');
-            const stream = catCanvas.captureStream(30); // 30fps capture
-            catRecordedChunks = [];
-            
-            catMediaRecorder = new MediaRecorder(stream, {
-                mimeType: 'video/webm;codecs=vp9',
-                videoBitsPerSecond: 2500000
-            });
-            catMediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) catRecordedChunks.push(e.data);
-            };
-            catMediaRecorder.onstop = () => {
-                const blob = new Blob(catRecordedChunks, { type: 'video/webm' });
-                const url = URL.createObjectURL(blob);
-                const a = document.getElementById('catVideoDownload');
-                a.href = url;
-                a.download = 'meow-cat-blink-test.webm';
-                a.style.display = 'inline-block';
-                a.className = 'secondary';
-                a.style.cssText = 'display:inline-block; background:transparent; border:2px solid #00ff88; color:#00ff88; padding:10px 20px; border-radius:6px; text-decoration:none; font-weight:bold; margin-top:10px;';
-                a.textContent = '⬇️ Download Test Video (' + (blob.size / 1024).toFixed(1) + ' KB)';
-                log('🎬 [Cat Mode] Test video ready for download (' + (blob.size / 1024).toFixed(1) + ' KB)');
-            };
-            
-            catMediaRecorder.start();
-            catIsRecording = true;
-            document.getElementById('catRecordBtn').style.display = 'none';
-            document.getElementById('catRecordStopBtn').style.display = 'inline-block';
-            log('🎬 [Cat Mode] Recording started...');
-            
-            // Start the actual transmission
-            await catModeEncode();
-        };
-        
-        window.catRecordStop = function() {
-            if (catMediaRecorder && catMediaRecorder.state !== 'inactive') {
-                catMediaRecorder.stop();
-            }
-            catIsRecording = false;
-            document.getElementById('catRecordBtn').style.display = 'inline-block';
-            document.getElementById('catRecordStopBtn').style.display = 'none';
-            catModeStop();
-        };
-        
         window.catModeStop = function() {
             catTransmitting = false;
             if (catBlinkInterval) {
@@ -2514,8 +2513,6 @@
             if (catIsRecording && catMediaRecorder && catMediaRecorder.state !== 'inactive') {
                 catMediaRecorder.stop();
                 catIsRecording = false;
-                document.getElementById('catRecordBtn').style.display = 'inline-block';
-                document.getElementById('catRecordStopBtn').style.display = 'none';
             }
             
             log('⏹️ [Cat Mode] Stopped');
