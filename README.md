@@ -227,6 +227,7 @@ meow-encode -i secret.pdf -o innocent.gif --stego-level 4 --carrier *.png
 | 3 | Hidden | 1-bit LSB, nearly invisible |
 | 4 | Paranoid | 1-bit LSB + noise obfuscation |
 
+<!--
 ### 🐱 Cat Mode (Quick Fun Theming)
 
 <p align="center">
@@ -263,6 +264,7 @@ meow-encode -i secret.pdf -o meow.gif -p "password" --cat-mode
 ```
 
 ⚠️ **WARNING:** Cat Mode is purely cosmetic camouflage for fun. It does NOT hide QR codes from steganalysis or forensic detection. Use `--stego-level 4` with custom carriers for serious steganography.
+-->
 
 ### 🌿 Green-Region Steganography (`--stego-green`)
 

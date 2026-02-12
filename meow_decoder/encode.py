@@ -51,6 +51,7 @@ def encode_file(
     stego_green: bool = False,
     logo_eyes: bool = False,
     logo_eyes_hidden: bool = False,
+    cat_eyes_blink: bool = False,
     brand_text: Optional[str] = None,
     duress_password: Optional[str] = None,
     hardware_key: Optional[bytes] = None,
@@ -74,6 +75,7 @@ def encode_file(
         stego_green: Restrict embedding to green-dominant pixels only (cosmetic)
         logo_eyes: Use logo-eyes carrier (branded animation with data in eyes)
         logo_eyes_hidden: Hide QR codes in logo eyes using LSB steganography (default: visible)
+        cat_eyes_blink: Only green pixels in cat eyes blink to transmit data (experimental)
         brand_text: Custom brand text for logo-eyes mode (default: 'MEOW')
         duress_password: Optional duress password (triggers emergency response on decode)
         hardware_key: Optional pre-derived 32-byte key from HSM/TPM/hardware
@@ -303,9 +305,13 @@ def encode_file(
         print(f"  QR size: {qr_frames[0].size}")
 
     # Apply logo-eyes carrier if enabled (TIER 3 - optional feature)
-    if logo_eyes:  # pragma: no cover
+    if logo_eyes or cat_eyes_blink:  # pragma: no cover
         if verbose:
-            print(f"\n👁️ Applying logo-eyes carrier...")
+            print(
+                f"\n👁️ Applying logo-eyes carrier..."
+                if logo_eyes
+                else "\n😺 Applying cat eyes blink mode..."
+            )
 
         from .logo_eyes import encode_with_logo_eyes, LogoConfig
 
@@ -314,21 +320,85 @@ def encode_file(
             brand_text=brand_text or "MEOW",
             animate_blink=True,
             visible_qr=not logo_eyes_hidden,  # Default: visible QR codes
+            cat_eyes_blink=cat_eyes_blink,
         )
 
         try:
-            qr_frames = encode_with_logo_eyes(qr_frames, config=logo_config)
+            if cat_eyes_blink:
+                # Calculate number of green pixels per frame (capacity)
+                from PIL import Image as PILImage
+
+                dummy_logo = LogoEyesEncoder(logo_config)._get_scaled_logo()
+                encoder = LogoEyesEncoder(logo_config)
+                # Use manifest_with_mac and all droplet_with_mac as payload
+                payloads = [manifest_with_mac] + [
+                    pack_frame_with_mac(
+                        pack_droplet(fountain.droplet()), frame_master_key, i + 1, salt
+                    )
+                    for i in range(num_droplets)
+                ]
+                # Flatten all payloads into a single bytearray
+                all_bytes = b"".join(payloads)
+                # Get green pixel count per frame
+                green_pixel_coords = []
+                for eye in [encoder.left_eye, encoder.right_eye]:
+                    for dy in range(-eye.radius, eye.radius):
+                        for dx in range(-eye.radius, eye.radius):
+                            if dx * dx + dy * dy <= eye.radius * eye.radius:
+                                x = eye.center_x + dx
+                                y = eye.center_y + dy
+                                if 0 <= x < dummy_logo.size[0] and 0 <= y < dummy_logo.size[1]:
+                                    r, g, b = dummy_logo.getpixel((x, y))[:3]
+                                    if g > r + 30 and g > b + 30:
+                                        green_pixel_coords.append((y, x))
+                bits_per_frame = len(green_pixel_coords)
+                # Split all_bytes into per-frame bit chunks
+                total_bits = len(all_bytes) * 8
+                num_frames = (total_bits + bits_per_frame - 1) // bits_per_frame
+                payload_chunks = []
+                for i in range(num_frames):
+                    start_bit = i * bits_per_frame
+                    end_bit = min(start_bit + bits_per_frame, total_bits)
+                    chunk_bits = []
+                    for bit_idx in range(start_bit, end_bit):
+                        byte_idx = bit_idx // 8
+                        bit_in_byte = 7 - (bit_idx % 8)
+                        chunk_bits.append((all_bytes[byte_idx] >> bit_in_byte) & 1)
+                    # Pad last chunk with zeros if needed
+                    if len(chunk_bits) < bits_per_frame:
+                        chunk_bits += [0] * (bits_per_frame - len(chunk_bits))
+                    # Pack bits into bytes
+                    chunk_bytes = bytearray()
+                    for j in range(0, len(chunk_bits), 8):
+                        b = 0
+                        for k in range(8):
+                            if j + k < len(chunk_bits):
+                                b = (b << 1) | chunk_bits[j + k]
+                            else:
+                                b = b << 1
+                        chunk_bytes.append(b)
+                    payload_chunks.append(bytes(chunk_bytes))
+                # Always generate all frames needed to encode the full payload
+                qr_frames = encode_with_logo_eyes(payload_chunks, config=logo_config)
+            else:
+                qr_frames = encode_with_logo_eyes(qr_frames, config=logo_config)
 
             if verbose:
-                print(f"  ✅ Logo-eyes carrier applied")
+                print(
+                    f"  ✅ Logo-eyes carrier applied"
+                    if logo_eyes
+                    else "  ✅ Cat eyes blink mode applied"
+                )
                 print(f"  🐱 Brand: {logo_config.brand_text}")
                 if logo_eyes_hidden:
                     print(f"  🥷 QR data hidden in eyes (LSB steganography)")
+                elif cat_eyes_blink:
+                    print(f"  😺 Only green pixels in cat eyes blink to transmit data!")
                 else:
                     print(f"  👁️ QR codes visible in animated cat eyes!")
         except Exception as e:
             if verbose:
-                print(f"  ⚠️ Logo-eyes failed: {e}")
+                print(f"  ⚠️ Logo-eyes/cat-eyes-blink failed: {e}")
                 print(f"  Falling back to plain QR codes")
 
     # Apply steganography if enabled (TIER 3 - optional feature)
@@ -1277,6 +1347,7 @@ Nothing to see here. 😶‍🌫️
                         stego_green=args.stego_green,
                         logo_eyes=args.logo_eyes,
                         logo_eyes_hidden=args.logo_eyes_hidden,
+                        cat_eyes_blink=getattr(args, "cat_eyes_blink", False),
                         brand_text=args.brand_text,
                         duress_password=duress_password,
                         hardware_key=hardware_key,
@@ -1309,6 +1380,7 @@ Nothing to see here. 😶‍🌫️
                 stego_green=args.stego_green,
                 logo_eyes=args.logo_eyes,
                 logo_eyes_hidden=args.logo_eyes_hidden,
+                cat_eyes_blink=getattr(args, "cat_eyes_blink", False),
                 brand_text=args.brand_text,
                 duress_password=duress_password,
                 hardware_key=hardware_key,

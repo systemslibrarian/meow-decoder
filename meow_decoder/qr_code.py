@@ -151,6 +151,7 @@ class QRCodeReader:
 
         # Decode QR codes
         _ensure_pyzbar()
+        assert pyzbar is not None
         decoded_objects = pyzbar.decode(img_array)
 
         # Extract data and decode base85
@@ -193,6 +194,7 @@ class QRCodeReader:
 
         # Decode QR codes
         _ensure_pyzbar()
+        assert pyzbar is not None
         decoded_objects = pyzbar.decode(frame)
 
         # Extract data and decode base85
@@ -223,6 +225,7 @@ class QRCodeReader:
             Preprocessed image
         """
         _ensure_cv2()
+        assert cv2 is not None
         # Convert to grayscale if needed
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -243,6 +246,7 @@ class QRCodeReader:
             Preprocessed image
         """
         _ensure_cv2()
+        assert cv2 is not None
         # Convert to grayscale if needed
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -284,6 +288,7 @@ class WebcamQRReader:
 
         # Open webcam
         _ensure_cv2()
+        assert cv2 is not None
         self.cap = cv2.VideoCapture(device)
         if not self.cap.isOpened():
             raise RuntimeError(f"Failed to open webcam device {device}")

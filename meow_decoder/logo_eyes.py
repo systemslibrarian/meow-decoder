@@ -52,6 +52,9 @@ class LogoConfig:
     # Whether to animate (currently just static for readability)
     animate_blink: bool = False
 
+    # If True, only green pixels in the eye regions will blink to transmit data (cat eyes blink mode)
+    cat_eyes_blink: bool = False
+
     # Show QR codes visibly in eyes (True) or use LSB steganography (False)
     visible_qr: bool = True
 
@@ -167,14 +170,14 @@ class LogoEyesEncoder:
 
     def generate_frame(self, qr_frame: Image.Image, frame_index: int) -> Image.Image:
         """
-        Generate a logo-eyes frame with QR data in the eyes.
+        Generate a logo-eyes frame with QR data in the eyes, or with green pixel blinking if cat_eyes_blink is enabled.
 
         Args:
             qr_frame: QR code image to embed
             frame_index: Frame number (for animation)
 
         Returns:
-            Logo frame with QR data in eyes
+            Logo frame with QR data in eyes or blinking green pixels
         """
         # Create base image with background
         img = Image.new("RGB", (self.width, self.height), self.config.background_color)
@@ -188,13 +191,77 @@ class LogoEyesEncoder:
         else:
             img.paste(scaled_logo, (0, 0))
 
-        # Embed QR data in eyes
-        if self.config.visible_qr:
+        # If cat_eyes_blink mode is enabled, only blink green pixels in the eye regions
+        if getattr(self.config, "cat_eyes_blink", False):
+            img = self._embed_blinking_green_pixels(img, qr_frame, frame_index)
+        # Otherwise, use normal logo-eyes QR embedding
+        elif self.config.visible_qr:
             img = self._embed_qr_visible(img, qr_frame)
         else:
             img = self._embed_qr_steganographic(img, qr_frame)
 
         return img
+
+    def _embed_blinking_green_pixels(
+        self, logo: Image.Image, payload_bytes: bytes, frame_index: int
+    ) -> Image.Image:
+        """
+        Blink only green pixels in the eye regions to encode the Meow payload bytes for this frame.
+        The rest of the logo remains static.
+
+        Args:
+            logo: Logo image
+            payload_bytes: Meow payload bytes to embed (for cat_eyes_blink)
+            frame_index: Current frame index
+
+        Returns:
+            Logo frame with blinking green pixels
+        """
+        logo_array = np.array(logo)
+
+        # Compute how many bits we can encode in both eyes (count green pixels)
+        def get_green_pixel_coords(eye: EyeRegion):
+            coords = []
+            for dy in range(-eye.radius, eye.radius):
+                for dx in range(-eye.radius, eye.radius):
+                    if dx * dx + dy * dy <= eye.radius * eye.radius:
+                        x = eye.center_x + dx
+                        y = eye.center_y + dy
+                        if 0 <= x < logo_array.shape[1] and 0 <= y < logo_array.shape[0]:
+                            r, g, b = logo_array[y, x, :3]
+                            if g > r + 30 and g > b + 30:
+                                coords.append((y, x))
+            return coords
+
+        all_coords = get_green_pixel_coords(self.left_eye) + get_green_pixel_coords(self.right_eye)
+        num_bits = len(all_coords)
+
+        # Convert payload bytes to bits
+        payload_bits = []
+        for byte in payload_bytes:
+            for i in range(8):
+                payload_bits.append((byte >> (7 - i)) & 1)
+
+        # Pad with zeros if not enough bits
+        if len(payload_bits) < num_bits:
+            payload_bits += [0] * (num_bits - len(payload_bits))
+
+        # Only use as many bits as we have green pixels
+        payload_bits = payload_bits[:num_bits]
+
+        # Set green pixels according to payload bits
+        for idx, (y, x) in enumerate(all_coords):
+            bit = payload_bits[idx]
+            if bit:
+                logo_array[y, x, 0] = 0
+                logo_array[y, x, 1] = 255
+                logo_array[y, x, 2] = 0
+            else:
+                logo_array[y, x, 0] = 0
+                logo_array[y, x, 1] = 60
+                logo_array[y, x, 2] = 0
+
+        return Image.fromarray(logo_array)
 
     def _embed_qr_visible(self, logo: Image.Image, qr_frame: Image.Image) -> Image.Image:
         """
@@ -363,21 +430,22 @@ class LogoEyesDecoder:
 
 
 def encode_with_logo_eyes(
-    qr_frames: List[Image.Image], config: Optional[LogoConfig] = None
+    payload_chunks: List[bytes], config: Optional[LogoConfig] = None
 ) -> List[Image.Image]:
     """
-    Encode QR frames using logo-eyes carrier.
+    Encode Meow payload chunks using logo-eyes carrier.
+    In cat_eyes_blink mode, payload_chunks are the Meow payload bytes for each frame.
+    In other modes, payload_chunks are QR code images.
 
     Args:
-        qr_frames: List of QR code images
+        payload_chunks: List of payload bytes (cat_eyes_blink) or QR code images (legacy)
         config: Optional logo configuration
 
     Returns:
-        List of logo-eyes frames with embedded QR data
+        List of logo-eyes frames with embedded data
     """
     encoder = LogoEyesEncoder(config)
-
-    return [encoder.generate_frame(qr, i) for i, qr in enumerate(qr_frames)]
+    return [encoder.generate_frame(chunk, i) for i, chunk in enumerate(payload_chunks)]
 
 
 def decode_from_logo_eyes(
