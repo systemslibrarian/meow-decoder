@@ -3077,10 +3077,15 @@
                 demoMode = true;
                 payload = encoder.encode('DEMO:' + message);
             }
+            // Lead-in: 8 dark bits force a clear GREEN→DARK transition
+            // that separates the idle period from the sync marker, making
+            // the decoder's t0 calculation unambiguous even when the phone
+            // camera was recording before the user clicked "Start".
+            const leadIn = '00000000';
             const startMarker = '1010101010101010';
             const endMarker = '0101010101010101';
             return {
-                binary: startMarker + bytesToBinary(payload) + endMarker,
+                binary: leadIn + startMarker + bytesToBinary(payload) + endMarker,
                 demoMode
             };
         }
@@ -3281,6 +3286,96 @@
 
         function syncDecodeFromRuns(runs, bitDuration, markerBits) {
             const rawBinary = buildBinaryFromRuns(runs, bitDuration);
+
+            // --- Idle-period detection ---
+            // When the user records a video, the initial green (state=1)
+            // period BEFORE clicking "Start Transmitting" merges with the
+            // first sync-marker bit (also '1'). This creates a long initial
+            // run that hides the true start of the sync marker.
+            //
+            // Detection: if the first run is much longer than a couple of
+            // bits, it contains an idle period. The first GREEN→DARK state
+            // transition marks the arrival of the second sync-marker bit
+            // ('0'), so t0 = firstTransition - bitDuration.
+            //
+            // We also avoid including the idle run in bit-duration
+            // calibration because its duration/bitCount ratio is distorted.
+
+            const hasIdleRun = runs.length > 16 &&
+                               runs[0].state === '1' &&
+                               runs[0].duration > bitDuration * 3;
+
+            // When an idle run is detected, anchor timing to the first
+            // state transition rather than searching for the marker in
+            // rawBinary (which would straddle the idle/data boundary).
+            if (hasIdleRun && runs.length > 1) {
+                const firstTransition = runs[1].start; // first dark edge
+
+                // Calibrate bit duration from short alternating runs only
+                // (the marker region), skipping the idle run entirely.
+                let calSum = 0, calCount = 0;
+                for (let i = 1; i < Math.min(runs.length, 33); i++) {
+                    const bits = Math.max(1, Math.round(runs[i].duration / bitDuration));
+                    if (bits <= 2) {
+                        calSum += runs[i].duration / bits;
+                        calCount++;
+                    }
+                }
+                const refinedBitDuration = calCount >= 4 ? calSum / calCount : bitDuration;
+
+                // Helper: resample runs at a given t0
+                function resampleFrom(t0start) {
+                    const lastEnd = runs[runs.length - 1].start + runs[runs.length - 1].duration;
+                    const maxBits = Math.max(0, Math.floor((lastEnd - t0start) / refinedBitDuration));
+                    let out = '';
+                    let ri = 0;
+                    for (let i = 0; i < maxBits; i++) {
+                        const t = t0start + (i + 0.5) * refinedBitDuration;
+                        while (ri + 1 < runs.length && t >= runs[ri].start + runs[ri].duration) {
+                            ri++;
+                        }
+                        out += runs[ri].state;
+                    }
+                    return out;
+                }
+
+                // Try two t0 candidates:
+                //  A) Old format: first transmitted bit is '1' (sync marker),
+                //     invisible in idle. t0 = firstTransition − bitDuration.
+                //  B) New format: first transmitted bit is '0' (dark lead-in),
+                //     which IS the firstTransition. t0 = firstTransition.
+                const t0A = firstTransition - refinedBitDuration;
+                const t0B = firstTransition;
+                const binA = resampleFrom(t0A);
+                const binB = resampleFrom(t0B);
+
+                // Pick the candidate that contains the sync marker earliest
+                const idxA = binA.indexOf(markerBits);
+                const idxB = binB.indexOf(markerBits);
+
+                let binary, t0;
+                if (idxA !== -1 && (idxB === -1 || idxA <= idxB)) {
+                    binary = binA; t0 = t0A;
+                } else if (idxB !== -1) {
+                    binary = binB; t0 = t0B;
+                } else {
+                    // Neither found marker — fall back to offset A
+                    binary = binA; t0 = t0A;
+                }
+
+                return {
+                    binary,
+                    rawBinary,
+                    usedSync: true,
+                    markerIndex: binary.indexOf(markerBits),
+                    refinedBitDuration,
+                    t0
+                };
+            }
+
+            // --- Fallback: original marker-search approach ---
+            // Used when there is no long idle run (e.g. self-test, or
+            // recording started exactly at transmission start).
             const markerIndex = rawBinary.indexOf(markerBits);
             if (markerIndex === -1) {
                 return { binary: rawBinary, usedSync: false, markerIndex: -1 };
@@ -3484,6 +3579,12 @@
                 const actualFps = totalFrames / duration;
                 log(`📹 [Cat Video] Captured ${totalFrames} frames during playback (~${actualFps.toFixed(1)} fps)`);
                 catDiagnostics.frames = frameSamples.slice(0, 100); // First 100 frames for diagnostics
+                
+                // Check frames-per-bit is sufficient for reliable decode
+                const framesPerBit = actualFps * (blinkSpeedMs / 1000);
+                if (framesPerBit < 2.0) {
+                    log(`⚠️ [Cat Video] WARNING: Only ${framesPerBit.toFixed(1)} frames per bit (need ≥2). Capture rate ${actualFps.toFixed(1)} fps is too low for ${blinkSpeedMs}ms blink speed. Try a slower blink speed (≥${Math.ceil(2000/actualFps)}ms) or use "Manual Decode" with the stored binary.`);
+                }
                 
                 // Detect frame drops (gaps > 500ms indicate recording issues)
                 let maxGap = 0;
@@ -3844,6 +3945,12 @@
                 }
                 
                 if (hasDebugData) {
+                    // Compute frames-per-bit for actionable advice
+                    const fpb = actualFps * (blinkSpeedMs / 1000);
+                    const lowFpsHint = fpb < 2.5
+                        ? `<li><b>Low capture rate (${actualFps.toFixed(1)} fps / ${fpb.toFixed(1)} frames per bit):</b> Try a slower blink speed (≥${Math.ceil(2500/actualFps)}ms) or record with an external camera app at 30+ fps and upload the file</li>`
+                        : '';
+                    const storedHint = `<li><b>Quick fix:</b> Click "Load into field" in the Manual Decode section below to use the stored original binary</li>`;
                     // Show full error box with debug data
                     resultBox.className = 'result-box error';
                     resultBox.innerHTML = `
@@ -3853,10 +3960,11 @@
                         ${debugBinary}
                         ${compareHtml}
                         <ul style="color:#888; font-size:0.85em; margin-top:10px; text-align:left;">
+                            ${storedHint}
+                            ${lowFpsHint}
                             <li><b>Blink speed mismatch?</b> Make sure the decode speed matches the speed used during encoding</li>
+                            <li><b>Frame gaps?</b> Recording apps may drop frames — use a dedicated camera app at 30 fps</li>
                             <li><b>Video too dark/bright?</b> Try High or Low sensitivity</li>
-                            <li><b>Camera not centered?</b> Eyes must be visible and not cropped</li>
-                            <li><b>Video codec issue?</b> Try recording at higher quality or shorter distance</li>
                         </ul>
                     `;
                     resultBox.classList.remove('hidden');
@@ -3944,10 +4052,13 @@
             try {
                 // Remove start/end markers if present
                 let binary = binaryInput;
-                // Support both new 16-bit markers (0xAAAA/0x5555) and legacy 8-bit markers
+                // Support both new format (dark lead-in + 16-bit marker) and
+                // legacy format (16-bit marker only or 8-bit marker).
+                // New format: 00000000 + 1010101010101010 + payload + 0101010101010101
                 let startIdx = binary.indexOf('1010101010101010');
-                if (startIdx !== -1) binary = binary.substring(startIdx + 16);
-                else {
+                if (startIdx !== -1) {
+                    binary = binary.substring(startIdx + 16);
+                } else {
                     startIdx = binary.indexOf('11111111');
                     if (startIdx !== -1) binary = binary.substring(startIdx + 8);
                 }
