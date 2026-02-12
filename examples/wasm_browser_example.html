@@ -747,7 +747,7 @@
                     
                     <div style="flex: 1; min-width: 300px; text-align: center;">
                         <div style="position: relative; display: inline-block;">
-                            <canvas id="catAnimCanvas" width="400" height="500" style="background: #1a1a2e; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                            <canvas id="catAnimCanvas" width="500" height="750" style="background: #1a1a2e; border-radius: 12px; box-shadow: 0 2px 8px #0003; max-width: 100%;"></canvas>
                         </div>
                     </div>
                 </div>
@@ -4175,14 +4175,15 @@
                 progressText.textContent = 'Generating QR code...';
                 if (!QRCode) await loadQRCode();
                 if (!QRCode) throw new Error('QRCode library failed to load');
-                const tempQR = document.createElement('div');
                 try {
+                    // Generate QR to an offscreen canvas sized to fit the overlay area
+                    const qrDisplaySize = Math.min(canvas.width - 40, 350);
                     QRCode.toCanvas(document.createElement('canvas'), base64, {
                         errorCorrectionLevel: 'M',
                         margin: 2,
-                        width: 300,
+                        width: qrDisplaySize,
                         color: {
-                            dark: '#000000',
+                            dark: '#1a1a2e',
                             light: '#FFFFFF'
                         }
                     }, (err, qrCanvas) => {
@@ -4193,33 +4194,52 @@
                         
                         log(`🧶 [Cat Anim] QR code: ${qrSize}x${qrHeight}px`);
                         
-                        // Get QR image data
+                        // Layout: cat image fills canvas, QR overlays bottom portion
+                        // The cat is crocheting, so the QR appears where its work would be
+                        const canvasW = canvas.width;
+                        const canvasH = canvas.height;
+                        
+                        // Scale cat to fill canvas width
+                        const catAspect = catImg.width / catImg.height;
+                        const catDrawW = canvasW;
+                        const catDrawH = canvasW / catAspect;
+                        const catX = 0;
+                        const catY = 0;
+                        
+                        // QR position: centered in the lower portion of the canvas
+                        // This is where the cat's knitting/crochet work is in the image
+                        const qrX = Math.round((canvasW - qrSize) / 2);
+                        const qrY = Math.round(canvasH - qrHeight - 30);
+                        
+                        // Draw the full cat image as background
+                        ctx.fillStyle = '#1a1a2e';
+                        ctx.fillRect(0, 0, canvasW, canvasH);
+                        ctx.drawImage(catImg, catX, catY, catDrawW, catDrawH);
+                        
+                        // Semi-transparent overlay where QR will appear (shows the "blank" area)
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                        const qrPad = 10;
+                        ctx.beginPath();
+                        ctx.roundRect(qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrHeight + qrPad * 2, 8);
+                        ctx.fill();
+                        
+                        // Light border around QR area
+                        ctx.strokeStyle = '#ff96c8';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.roundRect(qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrHeight + qrPad * 2, 8);
+                        ctx.stroke();
+                        
+                        // Save the base scene (cat + blank QR area) for re-drawing each frame
+                        const baseImageData = ctx.getImageData(0, 0, canvasW, canvasH);
+                        
+                        // Get QR image data for row-by-row reveal
                         const qrCtx = qrCanvas.getContext('2d');
                         const qrImageData = qrCtx.getImageData(0, 0, qrSize, qrHeight);
                         
-                        // Calculate layout
-                        const catHeight = 200;
-                        const catWidth = (catImg.width / catImg.height) * catHeight;
-                        const catX = (canvas.width - catWidth) / 2;
-                        const catY = 20;
+                        progressText.textContent = 'Crocheting...';
                         
-                        const qrX = (canvas.width - qrSize) / 2;
-                        const qrY = catY + catHeight + 20;
-                        
-                        // Clear canvas and draw cat
-                        ctx.fillStyle = '#1a1a2e';
-                        ctx.fillRect(0, 0, canvas.width, canvas.height);
-                        ctx.drawImage(catImg, catX, catY, catWidth, catHeight);
-                        
-                        // Add title text
-                        ctx.fillStyle = '#ff96c8';
-                        ctx.font = 'bold 16px Arial';
-                        ctx.textAlign = 'center';
-                        ctx.fillText('🧶 Crocheting Your QR Code...', canvas.width / 2, qrY - 10);
-                        
-                        progressText.textContent = 'Starting animation...';
-                        
-                        // Animate row-by-row reveal
+                        // Animate row-by-row reveal of QR over the cat's knitting area
                         let currentRow = 0;
                         const totalRows = qrHeight;
                         
@@ -4228,33 +4248,44 @@
                                 // Animation complete
                                 catAnimatedStop();
                                 
-                                // Update title
-                                ctx.fillStyle = '#1a1a2e';
-                                ctx.fillRect(0, qrY - 30, canvas.width, 25);
+                                // Final frame: draw remaining QR rows and completion text
+                                ctx.putImageData(baseImageData, 0, 0);
+                                ctx.putImageData(qrImageData, qrX, qrY);
+                                
+                                // Small label below QR
+                                ctx.fillStyle = 'rgba(0,0,0,0.6)';
+                                ctx.fillRect(0, canvasH - 24, canvasW, 24);
                                 ctx.fillStyle = '#00ff88';
-                                ctx.font = 'bold 16px Arial';
+                                ctx.font = 'bold 13px Arial';
                                 ctx.textAlign = 'center';
-                                ctx.fillText('✅ QR Code Complete!', canvas.width / 2, qrY - 10);
+                                ctx.fillText('✅ Scan this QR to get the encrypted data!', canvasW / 2, canvasH - 8);
                                 
                                 resultEl.innerHTML = `
-                                    <div style=\"background: linear-gradient(135deg, rgba(255,150,200,0.1) 0%, rgba(200,100,255,0.1) 100%); border: 2px solid #ff96c8; border-radius: 10px; padding: 20px; margin-top: 15px;\">
-                                        <h3 style=\"color:#ff96c8; margin:0 0 10px 0;\">✅ Crochet Complete!</h3>
-                                        <p style=\"color:#888; font-size:0.9em; margin:0 0 10px 0;\">🧶 Your encrypted QR code has been crocheted! Scan it with any QR reader to get the encrypted data.</p>
-                                        <button onclick=\"downloadCatAnimCanvas()\" style=\"background: linear-gradient(135deg, #ff96c8 0%, #c864ff 100%); border:none;\">💾 Download Image</button>
+                                    <div style="background: linear-gradient(135deg, rgba(255,150,200,0.1) 0%, rgba(200,100,255,0.1) 100%); border: 2px solid #ff96c8; border-radius: 10px; padding: 20px; margin-top: 15px;">
+                                        <h3 style="color:#ff96c8; margin:0 0 10px 0;">✅ Crochet Complete!</h3>
+                                        <p style="color:#888; font-size:0.9em; margin:0 0 10px 0;">🧶 Your encrypted QR code has been crocheted! Scan it with any QR reader to get the encrypted data.</p>
+                                        <button onclick="downloadCatAnimCanvas()" style="background: linear-gradient(135deg, #ff96c8 0%, #c864ff 100%); border:none; padding: 10px 20px; border-radius: 6px; cursor:pointer; color:#1a1a2e; font-weight:bold;">💾 Download Image</button>
                                     </div>
                                 `;
                                 log('✅ [Cat Anim] Animation complete!');
                                 return;
                             }
                             
-                            // Draw one row of QR code
+                            // Draw one row of QR code onto the canvas
                             ctx.putImageData(qrImageData, qrX, qrY, 0, currentRow, qrSize, 1);
                             
-                            // Draw "needle" cursor at the end of current row
+                            // Draw a small yarn/needle cursor at the right edge of current row
                             ctx.fillStyle = '#ff96c8';
                             ctx.beginPath();
-                            ctx.arc(qrX + qrSize + 5, qrY + currentRow, 3, 0, Math.PI * 2);
+                            ctx.arc(qrX + qrSize + 6, qrY + currentRow, 3, 0, Math.PI * 2);
                             ctx.fill();
+                            // Thin yarn line from cursor back
+                            ctx.strokeStyle = '#ff96c8';
+                            ctx.lineWidth = 1;
+                            ctx.beginPath();
+                            ctx.moveTo(qrX + qrSize + 6, qrY + currentRow);
+                            ctx.lineTo(qrX + qrSize + 18, qrY + currentRow - 5);
+                            ctx.stroke();
                             
                             currentRow++;
                             const progress = (currentRow / totalRows * 100).toFixed(1);
