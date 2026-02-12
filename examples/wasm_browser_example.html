@@ -4171,6 +4171,8 @@
                 
                 // Generate QR code to an off-screen canvas
                 progressText.textContent = 'Generating QR code...';
+                if (!QRCode) await loadQRCode();
+                if (!QRCode) throw new Error('QRCode library failed to load');
                 const tempQR = document.createElement('div');
                 try {
                     QRCode.toCanvas(document.createElement('canvas'), base64, {
