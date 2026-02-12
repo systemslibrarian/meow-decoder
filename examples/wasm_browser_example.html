@@ -4176,8 +4176,23 @@
                 if (!QRCode) await loadQRCode();
                 if (!QRCode) throw new Error('QRCode library failed to load');
                 try {
-                    // Generate QR to an offscreen canvas sized to fit the overlay area
-                    const qrDisplaySize = Math.min(canvas.width - 40, 350);
+                    // The CatCrocheting.png image (1024x1536) has an existing crocheted QR code
+                    // in the center-lower portion. We overlay the new encrypted QR in the same position.
+                    // QR region in the original image: roughly centered, y ≈ 35%-78% of height
+                    // These relative coordinates map the overlay to the existing QR position.
+                    const canvasW = canvas.width;
+                    const canvasH = canvas.height;
+                    
+                    // Relative position of existing QR in CatCrocheting.png
+                    const qrRelCenterX = 0.50;
+                    const qrRelCenterY = 0.56;
+                    const qrRelSize = 0.68; // QR occupies ~68% of canvas width
+                    
+                    // Compute pixel position on canvas
+                    const qrDisplaySize = Math.round(canvasW * qrRelSize);
+                    const qrX = Math.round(canvasW * qrRelCenterX - qrDisplaySize / 2);
+                    const qrY = Math.round(canvasH * qrRelCenterY - qrDisplaySize / 2);
+                    
                     QRCode.toCanvas(document.createElement('canvas'), base64, {
                         errorCorrectionLevel: 'M',
                         margin: 2,
@@ -4192,45 +4207,37 @@
                         const qrSize = qrCanvas.width;
                         const qrHeight = qrCanvas.height;
                         
-                        log(`🧶 [Cat Anim] QR code: ${qrSize}x${qrHeight}px`);
+                        log(`🧶 [Cat Anim] QR code: ${qrSize}x${qrHeight}px, overlay at (${qrX},${qrY})`);
                         
-                        // Layout: cat image fills canvas, QR overlays bottom portion
-                        // The cat is crocheting, so the QR appears where its work would be
-                        const canvasW = canvas.width;
-                        const canvasH = canvas.height;
-                        
-                        // Scale cat to fill canvas width
+                        // Scale cat to fill canvas (cover mode - maintain aspect, fill both dims)
                         const catAspect = catImg.width / catImg.height;
-                        const catDrawW = canvasW;
-                        const catDrawH = canvasW / catAspect;
-                        const catX = 0;
-                        const catY = 0;
-                        
-                        // QR position: centered in the lower portion of the canvas
-                        // This is where the cat's knitting/crochet work is in the image
-                        const qrX = Math.round((canvasW - qrSize) / 2);
-                        const qrY = Math.round(canvasH - qrHeight - 30);
+                        const canvasAspect = canvasW / canvasH;
+                        let catDrawW, catDrawH, catX, catY;
+                        if (catAspect > canvasAspect) {
+                            // Image wider than canvas: fit height, crop width
+                            catDrawH = canvasH;
+                            catDrawW = canvasH * catAspect;
+                            catX = (canvasW - catDrawW) / 2;
+                            catY = 0;
+                        } else {
+                            // Image taller than canvas: fit width, crop height
+                            catDrawW = canvasW;
+                            catDrawH = canvasW / catAspect;
+                            catX = 0;
+                            catY = 0;
+                        }
                         
                         // Draw the full cat image as background
                         ctx.fillStyle = '#1a1a2e';
                         ctx.fillRect(0, 0, canvasW, canvasH);
                         ctx.drawImage(catImg, catX, catY, catDrawW, catDrawH);
                         
-                        // Semi-transparent overlay where QR will appear (shows the "blank" area)
-                        ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
-                        const qrPad = 10;
-                        ctx.beginPath();
-                        ctx.roundRect(qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrHeight + qrPad * 2, 8);
-                        ctx.fill();
+                        // White background behind QR area (covers the old crocheted QR)
+                        const qrPad = 8;
+                        ctx.fillStyle = '#FFFFFF';
+                        ctx.fillRect(qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrHeight + qrPad * 2);
                         
-                        // Light border around QR area
-                        ctx.strokeStyle = '#ff96c8';
-                        ctx.lineWidth = 2;
-                        ctx.beginPath();
-                        ctx.roundRect(qrX - qrPad, qrY - qrPad, qrSize + qrPad * 2, qrHeight + qrPad * 2, 8);
-                        ctx.stroke();
-                        
-                        // Save the base scene (cat + blank QR area) for re-drawing each frame
+                        // Save the base scene (cat + white QR area) for re-drawing each frame
                         const baseImageData = ctx.getImageData(0, 0, canvasW, canvasH);
                         
                         // Get QR image data for row-by-row reveal
@@ -4239,7 +4246,7 @@
                         
                         progressText.textContent = 'Crocheting...';
                         
-                        // Animate row-by-row reveal of QR over the cat's knitting area
+                        // Animate row-by-row reveal of QR replacing the old crocheted QR
                         let currentRow = 0;
                         const totalRows = qrHeight;
                         
@@ -4248,17 +4255,18 @@
                                 // Animation complete
                                 catAnimatedStop();
                                 
-                                // Final frame: draw remaining QR rows and completion text
+                                // Final frame: full QR drawn over the old crocheted QR position
                                 ctx.putImageData(baseImageData, 0, 0);
                                 ctx.putImageData(qrImageData, qrX, qrY);
                                 
                                 // Small label below QR
+                                const labelY = Math.min(qrY + qrHeight + qrPad + 18, canvasH - 4);
                                 ctx.fillStyle = 'rgba(0,0,0,0.6)';
-                                ctx.fillRect(0, canvasH - 24, canvasW, 24);
+                                ctx.fillRect(0, labelY - 14, canvasW, 20);
                                 ctx.fillStyle = '#00ff88';
-                                ctx.font = 'bold 13px Arial';
+                                ctx.font = 'bold 12px Arial';
                                 ctx.textAlign = 'center';
-                                ctx.fillText('✅ Scan this QR to get the encrypted data!', canvasW / 2, canvasH - 8);
+                                ctx.fillText('✅ Scan this QR to get the encrypted data!', canvasW / 2, labelY);
                                 
                                 resultEl.innerHTML = `
                                     <div style="background: linear-gradient(135deg, rgba(255,150,200,0.1) 0%, rgba(200,100,255,0.1) 100%); border: 2px solid #ff96c8; border-radius: 10px; padding: 20px; margin-top: 15px;">
@@ -4271,7 +4279,7 @@
                                 return;
                             }
                             
-                            // Draw one row of QR code onto the canvas
+                            // Draw one row of QR code onto the canvas, replacing the old crocheted QR
                             ctx.putImageData(qrImageData, qrX, qrY, 0, currentRow, qrSize, 1);
                             
                             // Draw a small yarn/needle cursor at the right edge of current row
