@@ -5,7 +5,7 @@
  * This is a performance optimization only - no crypto operations happen here.
  */
 
-const CACHE_NAME = 'meow-decoder-v1';
+const CACHE_NAME = 'meow-decoder-v2';
 
 // Assets to cache on install
 const PRECACHE_ASSETS = [
@@ -64,7 +64,7 @@ self.addEventListener('activate', (event) => {
     );
 });
 
-// Fetch event - serve from cache, fall back to network
+// Fetch event - use appropriate caching strategy per resource type
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
     
@@ -73,7 +73,27 @@ self.addEventListener('fetch', (event) => {
         return;
     }
     
-    // Use cache-first strategy for WASM and static assets
+    // HTML files: ALWAYS network-first (so code changes load immediately)
+    if (url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
+        event.respondWith(
+            fetch(event.request)
+                .then((response) => {
+                    if (response.ok) {
+                        const responseClone = response.clone();
+                        caches.open(CACHE_NAME)
+                            .then((cache) => cache.put(event.request, responseClone));
+                    }
+                    return response;
+                })
+                .catch(() => {
+                    // Network failed - fall back to cache for offline support
+                    return caches.match(event.request);
+                })
+        );
+        return;
+    }
+    
+    // Static assets (WASM, JS, images): cache-first with background revalidation
     if (shouldCache(url.pathname)) {
         event.respondWith(
             caches.match(event.request)
@@ -99,15 +119,13 @@ self.addEventListener('fetch', (event) => {
     }
 });
 
-// Determine if a request should be cached
+// Determine if a request should be cached (static assets only)
 function shouldCache(pathname) {
-    // Cache WASM, JS, and image assets
+    // Cache WASM, JS, and image assets (NOT HTML - handled separately)
     return pathname.endsWith('.wasm') ||
            pathname.endsWith('.js') ||
            pathname.endsWith('.svg') ||
            pathname.endsWith('.png') ||
-           pathname.endsWith('.html') ||
-           pathname === '/' ||
            pathname.includes('/crypto_core/pkg/');
 }
 
