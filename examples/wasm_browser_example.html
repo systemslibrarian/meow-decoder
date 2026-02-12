@@ -3021,11 +3021,11 @@
                 catRecordedChunks = [];
                 catRecordedBlob = null;
                 catMediaRecorder = null;
-                // Calculate frames per bit: at 60Hz display, each rAF = ~16.67ms
-                // speed=50ms → fpb=3, speed=100ms → fpb=6, speed=200ms → fpb=12
-                const DISPLAY_FRAME_MS = 1000 / 60;
-                const framesPerBit = Math.max(2, Math.round(speed / DISPLAY_FRAME_MS));
-                log(`📡 [Cat Mode] Using rAF encoding: ${framesPerBit} display frames per bit (${(framesPerBit * DISPLAY_FRAME_MS).toFixed(1)}ms actual)`);
+                // TIME-BASED encoding: hold each bit for exactly 'speed' ms
+                // using rAF timestamps. This works at ANY display refresh rate
+                // (60Hz, 120Hz, 37Hz throttled, etc.) because we measure
+                // elapsed wall-clock time, not frame counts.
+                log(`📡 [Cat Mode] Using time-based encoding: ${speed}ms per bit`);
                 
                 const wantRecord = document.getElementById('catRecordVideo').checked;
                 if (wantRecord) {
@@ -3075,14 +3075,28 @@
                 }
                 
                 // Transmit binary through eye blinks using requestAnimationFrame
-                // Each bit is held for exactly framesPerBit display frames
-                // This gives frame-exact timing that the decoder can count
+                // Each bit is held for exactly 'speed' milliseconds using
+                // timestamp comparison — works at ANY display refresh rate.
+                // Key design: advance bits BEFORE drawing, and increment
+                // bitStartTime by speed (not set to timestamp) to prevent
+                // cumulative drift from frame timing quantization.
                 let bitIndex = 0;
-                let frameCount = 0;
+                let bitStartTime = null;
                 
-                function transmitFrame() {
+                function transmitFrame(timestamp) {
+                    // Initialize start time on first frame
+                    if (bitStartTime === null) bitStartTime = timestamp;
+                    
+                    // Advance to next bit(s) when 'speed' ms have elapsed
+                    // Using while loop handles very-low-fps edge case
+                    // Using += speed (not = timestamp) prevents drift
+                    while (bitIndex < catBinaryData.length && timestamp - bitStartTime >= speed) {
+                        bitStartTime += speed;
+                        bitIndex++;
+                    }
+                    
                     if (!catTransmitting || bitIndex >= catBinaryData.length) {
-                        // Transmission complete — catModeStop handles recorder stop + download button
+                        // Transmission complete — catModeStop handles recorder stop + download
                         catModeStop();
                         resultEl.innerHTML = `
                             <span style="color:#00ff88">✅ Transmission complete!</span>
@@ -3097,16 +3111,11 @@
                     const bit = catBinaryData[bitIndex];
                     drawWithGreenBlink(bit === '1');
                     
-                    frameCount++;
-                    if (frameCount >= framesPerBit) {
-                        frameCount = 0;
-                        bitIndex++;
-                        // Update progress every 10 bits to avoid DOM thrashing
-                        if (bitIndex % 10 === 0 || bitIndex >= catBinaryData.length) {
-                            const progress = ((bitIndex) / catBinaryData.length * 100).toFixed(1);
-                            progressBar.style.width = progress + '%';
-                            progressText.textContent = `Transmitting bit ${bitIndex} of ${catBinaryData.length} (${progress}%)`;
-                        }
+                    // Update progress every 10 bits to avoid DOM thrashing
+                    if (bitIndex % 10 === 0) {
+                        const progress = ((bitIndex) / catBinaryData.length * 100).toFixed(1);
+                        progressBar.style.width = progress + '%';
+                        progressText.textContent = `Transmitting bit ${bitIndex} of ${catBinaryData.length} (${progress}%)`;
                     }
                     
                     catBlinkInterval = requestAnimationFrame(transmitFrame);
@@ -3331,20 +3340,12 @@
                 // ============================================================
                 // TIME-BASED BIT EXTRACTION
                 // 
-                // The encoder holds each bit for exactly framesPerBit
-                // display frames using requestAnimationFrame. The nominal
-                // bit duration = max(2, round(speed / 16.67)) * 16.67 ms.
+                // The encoder holds each bit for exactly 'speed' ms using
+                // rAF timestamp comparison — independent of display refresh
+                // rate (works at 30Hz, 60Hz, 120Hz, or any throttled rate).
                 //
-                // We use this NOMINAL duration rather than calibrating from
-                // the video because VFR codecs produce systematic timing
-                // bias: the start marker (fast transitions) gets captured
-                // at higher FPS than the payload (long static runs), making
-                // calibrated bitDuration too short and causing long runs
-                // to decode as too many bits.
-                //
-                // The nominal duration is deterministic and matches the
-                // encoder exactly. Video timestamps are used only to
-                // measure run durations, divided by the known bit duration.
+                // The decoder uses speed/1000 as the bit duration directly.
+                // No frame-rate assumptions needed.
                 // ============================================================
                 
                 // Compute time duration of each state run (in seconds)
@@ -3365,12 +3366,11 @@
                     frameCounts.push(nextFrame - stateChanges[i].frame);
                 }
                 
-                // Use NOMINAL bit duration — matches the encoder exactly
-                // framesPerBit = max(2, round(speed / (1000/60)))
-                // bitDuration = framesPerBit * (1000/60) ms
-                const DISPLAY_FRAME_MS_DEC = 1000 / 60;
-                const nominalFpb = Math.max(2, Math.round(blinkSpeedMs / DISPLAY_FRAME_MS_DEC));
-                const bitDuration = (nominalFpb * DISPLAY_FRAME_MS_DEC) / 1000; // seconds
+                // Use DIRECT bit duration — matches the encoder exactly
+                // The encoder holds each bit for blinkSpeedMs using timestamps,
+                // so bitDuration = blinkSpeedMs / 1000 (seconds)
+                // No framesPerBit or refresh rate assumptions needed.
+                const bitDuration = blinkSpeedMs / 1000; // seconds
                 
                 // Log calibration comparison for diagnostics
                 if (timeDurations.length >= 15) {
@@ -3389,11 +3389,11 @@
                     calWindow.sort((a, b) => a - b);
                     const measuredBitDuration = calWindow[Math.floor(calWindow.length / 2)];
                     const drift = ((measuredBitDuration - bitDuration) / bitDuration * 100).toFixed(1);
-                    log(`📹 [Cat Video] Nominal bitDuration=${(bitDuration*1000).toFixed(1)}ms (fpb=${nominalFpb}), measured=${(measuredBitDuration*1000).toFixed(1)}ms (drift=${drift}%)`);
+                    log(`📹 [Cat Video] bitDuration=${(bitDuration*1000).toFixed(1)}ms (speed=${blinkSpeedMs}ms), measured=${(measuredBitDuration*1000).toFixed(1)}ms (drift=${drift}%)`);
                     log(`📹 [Cat Video] First 20 durations (ms): [${timeDurations.slice(0, 20).map(d => (d*1000).toFixed(1)).join(', ')}]`);
                     log(`📹 [Cat Video] First 20 frame counts: [${frameCounts.slice(0, 20).join(', ')}]`);
                 } else {
-                    log(`📹 [Cat Video] Using nominal bitDuration=${(bitDuration*1000).toFixed(1)}ms (fpb=${nominalFpb})`);
+                    log(`📹 [Cat Video] Using bitDuration=${(bitDuration*1000).toFixed(1)}ms (speed=${blinkSpeedMs}ms)`);
                 }
                 
                 // Extract bits by dividing each run's time duration by bitDuration
@@ -3505,7 +3505,7 @@
                     <h3>🔓 Decoded from Video</h3>
                     <div class='message'>${escapeHtml(message)}</div>
                     <div class='cat-reaction'>Meow! Secret transmitted through cat eyes! 📹🐱💚</div>
-                    <p style="color:#888; font-size:0.85em; margin-top:10px;">Captured ${totalFrames} frames (${vw}x${vh}, ~${actualFps.toFixed(0)} fps), ${stateChanges.length} transitions → ${binary.length} bits (${framesPerBitCal} frames/bit, threshold: ${typeof threshold === 'number' ? threshold.toFixed(1) : threshold}${autoThreshold ? ' auto' : ''})</p>
+                    <p style="color:#888; font-size:0.85em; margin-top:10px;">Captured ${totalFrames} frames (${vw}x${vh}, ~${actualFps.toFixed(0)} fps), ${stateChanges.length} transitions → ${binary.length} bits (${(bitDuration*1000).toFixed(0)}ms/bit, threshold: ${typeof threshold === 'number' ? threshold.toFixed(1) : threshold}${autoThreshold ? ' auto' : ''})</p>
                 `;
                 resultBox.classList.remove('hidden');
                 log('✅ [Cat Video] Message decoded from video successfully');
