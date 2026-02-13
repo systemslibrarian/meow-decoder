@@ -196,14 +196,25 @@ function encodePacket(payload, sessionId, sequenceNum) {
     // Payload length (2 bytes)
     writeUint16LE(packet, offset, payload.length);
     offset += 2;
+    // offset = 11
     
-    // Payload
+    // Skip CRC slot (4 bytes) — filled after payload is written
+    offset += 4;
+    // offset = 15
+    
+    // Payload (starts at byte 15, after the full header)
     packet.set(payload, offset);
     offset += payload.length;
     
     // Compute CRC32 over version + session + seq + len + payload
     // (excludes magic number for better error detection)
-    const crcData = packet.slice(2, offset);
+    // Build CRC buffer to match decoder's verification format exactly
+    const crcData = new Uint8Array(1 + 4 + 2 + 2 + payload.length);
+    crcData[0] = PROTOCOL_VERSION;
+    writeUint32LE(crcData, 1, sessionId);
+    writeUint16LE(crcData, 5, sequenceNum);
+    writeUint16LE(crcData, 7, payload.length);
+    crcData.set(payload instanceof Uint8Array ? payload : new Uint8Array(payload), 9);
     const crcValue = crc32(crcData);
     
     // Insert CRC at position 11 (after len, before payload)

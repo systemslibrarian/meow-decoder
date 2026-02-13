@@ -4730,25 +4730,11 @@
                     throw new Error(`Only found ${binary.length} bits from ${stateChanges.length} transitions - video may be too short or unclear. First bits: ${binary}`);
                 }
                 
-                // Step 3: Find and strip start marker
-                let startIdx = binary.indexOf('1010101010101010');
-                let startLen = 16;
-                if (startIdx === -1) {
-                    startIdx = binary.indexOf('11111111');
-                    startLen = 8;
-                }
-                if (startIdx === -1) {
-                    const fuzzyMatch = binary.match(/1{6,}/);
-                    if (fuzzyMatch) {
-                        startIdx = fuzzyMatch.index;
-                        startLen = fuzzyMatch[0].length;
-                        log(`📹 [Cat Video] Fuzzy start marker found at bit ${startIdx} (${startLen} bits)`);
-                    } else {
-                        throw new Error(`Could not find start marker. Got ${binary.length} bits with ${stateChanges.length} transitions. Try adjusting sensitivity or blink speed.`);
-                    }
-                }
-                
-                payload = binary.substring(startIdx + startLen);
+                // NRZ decoder already found the sync word and returns bits
+                // starting AFTER it. The binary is:
+                //   packetData + endMarker(0101010101010101) + trailing noise
+                // No start marker stripping needed — the sync word IS the marker.
+                payload = binary;
                 
                 // Find and remove end marker — use lastIndexOf to avoid false
                 // positives where data bits overlap with the marker pattern
@@ -4810,10 +4796,10 @@
                         // Invalid packet - log and try to skip to next magic number
                         log(`📦 [Cat Mode] Invalid packet at offset ${currentOffset}: ${packetResult.error}`);
                         
-                        // Search for next magic number (0x4D45 = "ME")
+                        // Search for next magic number (0xCAFE = "cat face", LE: 0xFE 0xCA)
                         let foundNext = false;
                         for (let i = 1; i < Math.min(remainingBytes.length - 1, 100); i++) {
-                            if (remainingBytes[i] === 0x4D && remainingBytes[i + 1] === 0x45) {
+                            if (remainingBytes[i] === 0xFE && remainingBytes[i + 1] === 0xCA) {
                                 currentOffset += i;
                                 foundNext = true;
                                 log(`📦 [Cat Mode] Found next magic at offset +${i}`);
