@@ -1,0 +1,458 @@
+{
+  "generatedAt": "2026-02-13T17:13:40.275Z",
+  "goldenVideos": [
+    "cat_mode_golden_empty_hash_100ms.webm",
+    "cat_mode_golden_long_50ms.webm",
+    "cat_mode_golden_short_150ms.webm"
+  ],
+  "errorConfigs": [
+    {
+      "mode": "frame_corruption",
+      "rate": 0.1,
+      "description": "Random 10% of frames rendered black (simulates dropped frames)",
+      "expectedOutcome": "Should detect corruption via CRC errors, report frame loss in diagnostics",
+      "options": {
+        "seed": 42
+      }
+    },
+    {
+      "mode": "timing_jitter",
+      "variance": 0.2,
+      "description": "Variable frame delays ±20% (simulates buffering/lag)",
+      "expectedOutcome": "Should maintain sync via adaptive threshold, may trigger timeout warnings",
+      "options": {
+        "seed": 43
+      }
+    },
+    {
+      "mode": "partial_video",
+      "cutoff": 0.2,
+      "description": "Video cut off after 80% (simulates recording stopped early)",
+      "expectedOutcome": "Should detect incomplete payload, report \"Partial data received\" error"
+    },
+    {
+      "mode": "wrong_roi",
+      "offset": [
+        50,
+        50
+      ],
+      "description": "ROI shifted 50px from correct center (simulates user error)",
+      "expectedOutcome": "Should fail eye detection or detect no valid bits, suggest ROI adjustment"
+    },
+    {
+      "mode": "extreme_lighting",
+      "brightness": 0.3,
+      "description": "Very dim lighting (30% brightness)",
+      "expectedOutcome": "Should struggle with eye detection, may require contrast boost in preprocessing"
+    },
+    {
+      "mode": "extreme_lighting",
+      "brightness": 1.7,
+      "description": "Very bright lighting (170% brightness)",
+      "expectedOutcome": "Should saturate pixels, may fail eye/pupil separation"
+    },
+    {
+      "mode": "resolution_degradation",
+      "scale": 0.5,
+      "description": "Downscaled to 50% resolution and upscaled (simulates low-quality camera)",
+      "expectedOutcome": "Should work with reduced confidence, may increase CRC error rate"
+    }
+  ],
+  "testCases": [
+    {
+      "errorMode": "timing_jitter",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "jitteredPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_timing_jitter.webm",
+      "jitterVariance": 0.2,
+      "totalFrames": 936,
+      "baseFps": 30,
+      "avgFrameDuration": 0.033440733802033426,
+      "minFrameDuration": 0.02666676839192713,
+      "maxFrameDuration": 0.03999684652313443,
+      "effectiveFps": 29.90365001916295,
+      "seed": 43,
+      "checksum": "26d87d89994e3464af656e38f7da54eee64bfc12dd15974cd352b4fbc58b1bcf",
+      "fileSize": 26963,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "timing_jitter",
+        "variance": 0.2,
+        "description": "Variable frame delays ±20% (simulates buffering/lag)",
+        "expectedOutcome": "Should maintain sync via adaptive threshold, may trigger timeout warnings",
+        "options": {
+          "seed": 43
+        }
+      }
+    },
+    {
+      "errorMode": "partial_video",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "truncatedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_partial_video.webm",
+      "cutoffFraction": 0.2,
+      "originalDuration": 31.2,
+      "truncatedDuration": 24.96,
+      "removedDuration": 6.239999999999998,
+      "checksum": "32c915ce5ec2643869effb15c124832dc6b1d37617e19373d7c4ff7b90d39563",
+      "fileSize": 25693,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "partial_video",
+        "cutoff": 0.2,
+        "description": "Video cut off after 80% (simulates recording stopped early)",
+        "expectedOutcome": "Should detect incomplete payload, report \"Partial data received\" error"
+      }
+    },
+    {
+      "errorMode": "wrong_roi",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "croppedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_wrong_roi.webm",
+      "offset": [
+        50,
+        50
+      ],
+      "actualCrop": [
+        0,
+        0
+      ],
+      "originalDimensions": [
+        640,
+        480
+      ],
+      "outputDimensions": [
+        640,
+        480
+      ],
+      "checksum": "125a1f3c09a24fc1a9a31408c8f48688be3238314c3636c0db80186f6e1fd420",
+      "fileSize": 32021,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "wrong_roi",
+        "offset": [
+          50,
+          50
+        ],
+        "description": "ROI shifted 50px from correct center (simulates user error)",
+        "expectedOutcome": "Should fail eye detection or detect no valid bits, suggest ROI adjustment"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 0.3,
+      "condition": "dim",
+      "checksum": "fbb2ee92da8bd3e8e8e4d1e01fe9e39ed630a80479732c8d45d4d783461a4414",
+      "fileSize": 32021,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 0.3,
+        "description": "Very dim lighting (30% brightness)",
+        "expectedOutcome": "Should struggle with eye detection, may require contrast boost in preprocessing"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 1.7,
+      "condition": "bright",
+      "checksum": "32f3541a8dd803a539965c0651ff4e7344996b949d9ce2e6ee5bf15be7e1e972",
+      "fileSize": 32007,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 1.7,
+        "description": "Very bright lighting (170% brightness)",
+        "expectedOutcome": "Should saturate pixels, may fail eye/pupil separation"
+      }
+    },
+    {
+      "errorMode": "resolution_degradation",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_empty_hash_100ms.webm",
+      "degradedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_empty_hash_100ms_ERROR_resolution_degradation.webm",
+      "scaleFactor": 0.5,
+      "originalResolution": [
+        640,
+        480
+      ],
+      "intermediateResolution": [
+        320,
+        240
+      ],
+      "checksum": "2739b6abf6ca5ea650816e8b87f0ef56013b5c25646c3eb0b9fa2ff388cb8671",
+      "fileSize": 32021,
+      "testCaseName": "cat_mode_golden_empty_hash_100ms",
+      "errorConfig": {
+        "mode": "resolution_degradation",
+        "scale": 0.5,
+        "description": "Downscaled to 50% resolution and upscaled (simulates low-quality camera)",
+        "expectedOutcome": "Should work with reduced confidence, may increase CRC error rate"
+      }
+    },
+    {
+      "errorMode": "timing_jitter",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "jitteredPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_timing_jitter.webm",
+      "jitterVariance": 0.2,
+      "totalFrames": 1472,
+      "baseFps": 30,
+      "avgFrameDuration": 0.033307777783252966,
+      "minFrameDuration": 0.02666676839192713,
+      "maxFrameDuration": 0.03999684652313443,
+      "effectiveFps": 30.02301764192736,
+      "seed": 43,
+      "checksum": "88fcf76f371508962cc3da15534f0e0147f3cedd201744537c772fb2ec51b1f8",
+      "fileSize": 41819,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "timing_jitter",
+        "variance": 0.2,
+        "description": "Variable frame delays ±20% (simulates buffering/lag)",
+        "expectedOutcome": "Should maintain sync via adaptive threshold, may trigger timeout warnings",
+        "options": {
+          "seed": 43
+        }
+      }
+    },
+    {
+      "errorMode": "partial_video",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "truncatedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_partial_video.webm",
+      "cutoffFraction": 0.2,
+      "originalDuration": 49.066,
+      "truncatedDuration": 39.25280000000001,
+      "removedDuration": 9.813199999999995,
+      "checksum": "89a106631c7ef8e205b67803c088c2c28f531414574228218992703b3b06bfb0",
+      "fileSize": 40163,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "partial_video",
+        "cutoff": 0.2,
+        "description": "Video cut off after 80% (simulates recording stopped early)",
+        "expectedOutcome": "Should detect incomplete payload, report \"Partial data received\" error"
+      }
+    },
+    {
+      "errorMode": "wrong_roi",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "croppedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_wrong_roi.webm",
+      "offset": [
+        50,
+        50
+      ],
+      "actualCrop": [
+        0,
+        0
+      ],
+      "originalDimensions": [
+        640,
+        480
+      ],
+      "outputDimensions": [
+        640,
+        480
+      ],
+      "checksum": "1f7b2ed2c6761493fb22df0c09c8f7d8f18dd5156510c711924f589e976dd859",
+      "fileSize": 50021,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "wrong_roi",
+        "offset": [
+          50,
+          50
+        ],
+        "description": "ROI shifted 50px from correct center (simulates user error)",
+        "expectedOutcome": "Should fail eye detection or detect no valid bits, suggest ROI adjustment"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 0.3,
+      "condition": "dim",
+      "checksum": "a744f999c49da3632fdb2450a2479f1680c49fd977e1d229693bf8e6d2a8ea97",
+      "fileSize": 50021,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 0.3,
+        "description": "Very dim lighting (30% brightness)",
+        "expectedOutcome": "Should struggle with eye detection, may require contrast boost in preprocessing"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 1.7,
+      "condition": "bright",
+      "checksum": "82dda831daaef4c825531fe788d8352a15d88eacc8dad1895861467920249a23",
+      "fileSize": 49999,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 1.7,
+        "description": "Very bright lighting (170% brightness)",
+        "expectedOutcome": "Should saturate pixels, may fail eye/pupil separation"
+      }
+    },
+    {
+      "errorMode": "resolution_degradation",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_long_50ms.webm",
+      "degradedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_long_50ms_ERROR_resolution_degradation.webm",
+      "scaleFactor": 0.5,
+      "originalResolution": [
+        640,
+        480
+      ],
+      "intermediateResolution": [
+        320,
+        240
+      ],
+      "checksum": "ca25182107787f788bef1458371f9d1e88ba750d4079421f45aadfa9cd093213",
+      "fileSize": 50021,
+      "testCaseName": "cat_mode_golden_long_50ms",
+      "errorConfig": {
+        "mode": "resolution_degradation",
+        "scale": 0.5,
+        "description": "Downscaled to 50% resolution and upscaled (simulates low-quality camera)",
+        "expectedOutcome": "Should work with reduced confidence, may increase CRC error rate"
+      }
+    },
+    {
+      "errorMode": "timing_jitter",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "jitteredPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_timing_jitter.webm",
+      "jitterVariance": 0.2,
+      "totalFrames": 920,
+      "baseFps": 30,
+      "avgFrameDuration": 0.03344421196108497,
+      "minFrameDuration": 0.02666676839192713,
+      "maxFrameDuration": 0.03999684652313443,
+      "effectiveFps": 29.900540074425447,
+      "seed": 43,
+      "checksum": "90ec60c8ff09ee1b4e33cbbeba5438dee30f58ca6a88bb575e7ac47e778ce291",
+      "fileSize": 26501,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "timing_jitter",
+        "variance": 0.2,
+        "description": "Variable frame delays ±20% (simulates buffering/lag)",
+        "expectedOutcome": "Should maintain sync via adaptive threshold, may trigger timeout warnings",
+        "options": {
+          "seed": 43
+        }
+      }
+    },
+    {
+      "errorMode": "partial_video",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "truncatedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_partial_video.webm",
+      "cutoffFraction": 0.2,
+      "originalDuration": 30.666,
+      "truncatedDuration": 24.5328,
+      "removedDuration": 6.133199999999999,
+      "checksum": "74945d04b9c9d2d90610f220347864344f915dc0b4ab1e05b7ee41981c60a21b",
+      "fileSize": 25264,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "partial_video",
+        "cutoff": 0.2,
+        "description": "Video cut off after 80% (simulates recording stopped early)",
+        "expectedOutcome": "Should detect incomplete payload, report \"Partial data received\" error"
+      }
+    },
+    {
+      "errorMode": "wrong_roi",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "croppedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_wrong_roi.webm",
+      "offset": [
+        50,
+        50
+      ],
+      "actualCrop": [
+        0,
+        0
+      ],
+      "originalDimensions": [
+        640,
+        480
+      ],
+      "outputDimensions": [
+        640,
+        480
+      ],
+      "checksum": "a7827838117f2c877de961f5ef1081e537a3177ed64f7bb3703194f4c5300895",
+      "fileSize": 31493,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "wrong_roi",
+        "offset": [
+          50,
+          50
+        ],
+        "description": "ROI shifted 50px from correct center (simulates user error)",
+        "expectedOutcome": "Should fail eye detection or detect no valid bits, suggest ROI adjustment"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 0.3,
+      "condition": "dim",
+      "checksum": "ca22155adde83c292edddd482bdb545408090ffa48d893a8c2f09c31ebcfcc20",
+      "fileSize": 31493,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 0.3,
+        "description": "Very dim lighting (30% brightness)",
+        "expectedOutcome": "Should struggle with eye detection, may require contrast boost in preprocessing"
+      }
+    },
+    {
+      "errorMode": "extreme_lighting",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "adjustedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_extreme_lighting.webm",
+      "brightnessFactor": 1.7,
+      "condition": "bright",
+      "checksum": "87bc4183723e18d3b9957fefe236c993b71c2130faed73f8dd4ca7adacedabcb",
+      "fileSize": 31479,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "extreme_lighting",
+        "brightness": 1.7,
+        "description": "Very bright lighting (170% brightness)",
+        "expectedOutcome": "Should saturate pixels, may fail eye/pupil separation"
+      }
+    },
+    {
+      "errorMode": "resolution_degradation",
+      "originalPath": "/workspaces/meow-decoder/tests/golden/cat_mode_golden_short_150ms.webm",
+      "degradedPath": "/workspaces/meow-decoder/tests/golden/errors/cat_mode_golden_short_150ms_ERROR_resolution_degradation.webm",
+      "scaleFactor": 0.5,
+      "originalResolution": [
+        640,
+        480
+      ],
+      "intermediateResolution": [
+        320,
+        240
+      ],
+      "checksum": "c11af751ab23d1964e7841fb2d5c38264fc597ca574ef08482ecea9d1de8bfed",
+      "fileSize": 31493,
+      "testCaseName": "cat_mode_golden_short_150ms",
+      "errorConfig": {
+        "mode": "resolution_degradation",
+        "scale": 0.5,
+        "description": "Downscaled to 50% resolution and upscaled (simulates low-quality camera)",
+        "expectedOutcome": "Should work with reduced confidence, may increase CRC error rate"
+      }
+    }
+  ],
+  "totalTestCases": 18,
+  "errorModes": 6
+}
