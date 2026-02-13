@@ -612,7 +612,18 @@
         <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">4</span>
             <h2>📥 Decrypt Forward Secrecy Message</h2>
-            <p class="step-desc">Paste an encrypted payload to decrypt using your private key.</p>
+            <p class="step-desc">Upload a QR code image or paste an encrypted payload to decrypt using your private key.</p>
+            
+            <div style="background: rgba(0,200,100,0.1); border: 2px dashed #00c864; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center;">
+                <div style="font-size: 1.5em; margin-bottom: 5px;">📸</div>
+                <p style="color: #00c864; margin: 0 0 8px 0;"><strong>Upload QR Code Image</strong></p>
+                <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">Take a photo of the Forward Secrecy QR code and upload it here</p>
+                <input type="file" id="fsQrUpload" accept="image/*" style="display: none;" onchange="scanQRToField(this, 'fsDecryptPayload', 'fsScanStatus')">
+                <button class="secondary" onclick="document.getElementById('fsQrUpload').click()" style="border-color: #00c864; color: #00c864;">📤 Choose Image / Take Photo</button>
+                <div id="fsScanStatus" style="margin-top: 8px; font-size: 0.9em;"></div>
+            </div>
+            
+            <div style="text-align: center; color: #666; margin: 5px 0;">— or paste payload directly —</div>
             
             <label for="fsDecryptPayload">Encrypted Payload:</label>
             <textarea id="fsDecryptPayload" rows="3" placeholder="Paste encrypted FS payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
@@ -698,7 +709,18 @@
         <div class="step" style="background: linear-gradient(135deg, rgba(100,100,200,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #6464c8;">
             <span class="step-number" style="background: #6464c8;">3</span>
             <h2>📥 Decrypt Post-Quantum Message</h2>
-            <p class="step-desc">Paste an encrypted PQ payload and use your private keys to decrypt.</p>
+            <p class="step-desc">Upload a QR code image or paste an encrypted PQ payload and use your private keys to decrypt.</p>
+            
+            <div style="background: rgba(138,43,226,0.1); border: 2px dashed #8a2be2; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center;">
+                <div style="font-size: 1.5em; margin-bottom: 5px;">📸</div>
+                <p style="color: #8a2be2; margin: 0 0 8px 0;"><strong>Upload QR Code Image</strong></p>
+                <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">Take a photo of the Post-Quantum QR code and upload it here</p>
+                <input type="file" id="pqQrUpload" accept="image/*" style="display: none;" onchange="scanQRToField(this, 'pqDecryptPayload', 'pqScanStatus')">
+                <button class="secondary" onclick="document.getElementById('pqQrUpload').click()" style="border-color: #8a2be2; color: #8a2be2;">📤 Choose Image / Take Photo</button>
+                <div id="pqScanStatus" style="margin-top: 8px; font-size: 0.9em;"></div>
+            </div>
+            
+            <div style="text-align: center; color: #666; margin: 5px 0;">— or paste payload directly —</div>
             
             <label for="pqDecryptPayload">Encrypted PQ Payload:</label>
             <textarea id="pqDecryptPayload" rows="3" placeholder="Paste encrypted PQ payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
@@ -921,6 +943,33 @@
                 
                 <div id="catAnimResult" style="margin-top: 20px;"></div>
             </div>
+            
+            <div class="step" style="background: linear-gradient(135deg, rgba(255,150,200,0.07) 0%, rgba(200,100,255,0.07) 100%); border: 1px solid #ff96c8;">
+                <span class="step-number" style="background: #ff96c8;">2</span>
+                <h2>📥 Decode Cat Animated QR</h2>
+                <p class="step-desc">Upload a photo or screenshot of the crocheted QR code to decrypt the message.</p>
+                
+                <div style="background: rgba(255,150,200,0.1); border: 2px dashed #ff96c8; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center;">
+                    <div style="font-size: 1.5em; margin-bottom: 5px;">📸</div>
+                    <p style="color: #ff96c8; margin: 0 0 8px 0;"><strong>Upload QR Code Image</strong></p>
+                    <p style="color: #888; font-size: 0.85em; margin: 0 0 10px 0;">Take a photo of the crocheted QR code and upload it here</p>
+                    <input type="file" id="catAnimQrUpload" accept="image/*" style="display: none;" onchange="scanQRToField(this, 'catAnimDecryptPayload', 'catAnimScanStatus')">
+                    <button class="secondary" onclick="document.getElementById('catAnimQrUpload').click()" style="border-color: #ff96c8; color: #ff96c8;">📤 Choose Image / Take Photo</button>
+                    <div id="catAnimScanStatus" style="margin-top: 8px; font-size: 0.9em;"></div>
+                </div>
+                
+                <div style="text-align: center; color: #666; margin: 5px 0;">— or paste payload directly —</div>
+                
+                <label for="catAnimDecryptPayload">📦 Encrypted Payload:</label>
+                <textarea id="catAnimDecryptPayload" rows="3" placeholder="Paste encrypted payload from QR scan..." style="font-family: monospace; font-size: 0.85em;"></textarea>
+                
+                <label for="catAnimDecryptPassword">🔑 Password:</label>
+                <input type="password" id="catAnimDecryptPassword" placeholder="Enter decryption password">
+                
+                <button id="catAnimDecryptBtn" onclick="catAnimatedDecode()">🔓 Decrypt</button>
+                
+                <div id="catAnimDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
+            </div>
         </div>
 
         <!-- CAT MODE -->
@@ -949,7 +998,10 @@
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
                             <option value="500">Slow (500ms)</option>
                             <option value="200" selected>Medium (200ms)</option>
+                            <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
                         </select>
+                        <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
                         
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
@@ -998,6 +1050,8 @@
                         <select id="catVideoBlinkSpeed" style="margin-bottom: 10px;">
                             <option value="500">Slow (500ms)</option>
                             <option value="200" selected>Medium (200ms)</option>
+                            <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: 0 0 10px 0;">Must match the speed used during encoding</p>
                         
@@ -1907,6 +1961,196 @@
             
             // Clear input so same file can be uploaded again
             input.value = '';
+        };
+        
+        // ============================================================
+        // GENERIC QR SCAN TO FIELD
+        // Reusable QR scanner that populates any target textarea.
+        // Used by Forward Secrecy, Post-Quantum, Cat Animated decoders.
+        // ============================================================
+        window.scanQRToField = async function(input, targetFieldId, statusElId) {
+            const statusEl = document.getElementById(statusElId);
+            
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
+            
+            try {
+                const reader = new FileReader();
+                const imageData = await new Promise((resolve, reject) => {
+                    reader.onload = (e) => resolve(e.target.result);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(file);
+                });
+                
+                const img = new Image();
+                await new Promise((resolve, reject) => {
+                    img.onload = resolve;
+                    img.onerror = reject;
+                    img.src = imageData;
+                });
+                
+                let qrData = null;
+                
+                // Strategy 1: Native BarcodeDetector
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(img);
+                        if (barcodes.length > 0) {
+                            qrData = barcodes[0].rawValue;
+                            log(`📸 [${targetFieldId}] QR detected via BarcodeDetector`);
+                        }
+                    } catch (e) {
+                        log(`📸 [${targetFieldId}] BarcodeDetector failed: ${e.message}`);
+                    }
+                }
+                
+                // Strategy 2: jsQR multi-scale with binarization fallback
+                if (!qrData) {
+                    if (!jsQR) await loadJsQR();
+                    if (jsQR) {
+                        const canvas = document.createElement('canvas');
+                        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                        
+                        const scales = [1, 0.75, 0.5, 1.5, 2, 3];
+                        for (const scale of scales) {
+                            const w = Math.round(img.width * scale);
+                            const h = Math.round(img.height * scale);
+                            canvas.width = w;
+                            canvas.height = h;
+                            ctx.drawImage(img, 0, 0, w, h);
+                            const imgDat = ctx.getImageData(0, 0, w, h);
+                            const code = jsQR(imgDat.data, imgDat.width, imgDat.height, { inversionAttempts: 'attemptBoth' });
+                            if (code) {
+                                qrData = code.data;
+                                log(`📸 [${targetFieldId}] QR detected at scale ${scale}`);
+                                break;
+                            }
+                        }
+                        
+                        // Try binarization
+                        if (!qrData) {
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            ctx.drawImage(img, 0, 0);
+                            const imgDat = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                            const d = imgDat.data;
+                            for (let i = 0; i < d.length; i += 4) {
+                                const gray = 0.299 * d[i] + 0.587 * d[i+1] + 0.114 * d[i+2];
+                                const val = gray < 128 ? 0 : 255;
+                                d[i] = d[i+1] = d[i+2] = val;
+                            }
+                            ctx.putImageData(imgDat, 0, 0);
+                            const code = jsQR(imgDat.data, imgDat.width, imgDat.height, { inversionAttempts: 'attemptBoth' });
+                            if (code) {
+                                qrData = code.data;
+                                log(`📸 [${targetFieldId}] QR detected after binarization`);
+                            }
+                        }
+                    }
+                }
+                
+                if (qrData) {
+                    document.getElementById(targetFieldId).value = qrData;
+                    statusEl.innerHTML = '<span style="color: #00ff88;">✅ QR code scanned! Payload loaded — enter password and click Decrypt.</span>';
+                    log(`✅ [${targetFieldId}] QR payload extracted (${qrData.length} chars)`);
+                } else {
+                    statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found. Try a clearer photo with good lighting.</span>';
+                    log(`❌ [${targetFieldId}] No QR code detected`);
+                }
+                
+            } catch (err) {
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
+                log(`❌ [${targetFieldId}] QR scan error: ${err.message}`);
+            }
+            
+            input.value = '';
+        };
+        
+        // ============================================================
+        // CAT ANIMATED DECODE
+        // Decrypt a payload from a crocheted QR code image
+        // ============================================================
+        window.catAnimatedDecode = async function() {
+            const payloadEl = document.getElementById('catAnimDecryptPayload');
+            const passwordEl = document.getElementById('catAnimDecryptPassword');
+            const resultEl = document.getElementById('catAnimDecryptResult');
+            
+            const payload = payloadEl.value.trim();
+            const password = passwordEl.value;
+            
+            if (!payload) { alert('Upload a QR image or paste the encrypted payload first'); return; }
+            if (!password) { alert('Enter the decryption password'); return; }
+            
+            resultEl.className = 'result-box';
+            resultEl.classList.remove('hidden');
+            resultEl.innerHTML = '<span style="color:#ff9800;">⏳ Decrypting...</span>';
+            
+            try {
+                // The payload is base64 — decode it
+                let bytes;
+                try {
+                    bytes = Uint8Array.from(atob(payload), c => c.charCodeAt(0));
+                } catch (_) {
+                    // Maybe it's a MEOW: prefixed payload
+                    if (payload.startsWith('MEOW:')) {
+                        bytes = Uint8Array.from(atob(payload.slice(5)), c => c.charCodeAt(0));
+                    } else {
+                        throw new Error('Invalid payload format — expected base64 data from QR scan');
+                    }
+                }
+                
+                // Unpack: try v3 format (with Argon2 params) first, then v1
+                let salt, nonce, cipher;
+                const secParams = getSecurityParams();
+                let memKib = secParams.memoryKib;
+                let iterations = secParams.iterations;
+                
+                if (bytes.length > 6 && bytes[0] === 0x03) {
+                    // v3: version(1) + memKib(4LE) + iter(1) + salt(16) + nonce(12) + cipher(rest)
+                    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+                    memKib = dv.getUint32(1, true);
+                    iterations = bytes[5];
+                    salt = bytes.slice(6, 22);
+                    nonce = bytes.slice(22, 34);
+                    cipher = bytes.slice(34);
+                } else if (bytes.length > 29) {
+                    // v1 fallback: salt(16) + nonce(12) + cipher(rest)
+                    salt = bytes.slice(0, 16);
+                    nonce = bytes.slice(16, 28);
+                    cipher = bytes.slice(28);
+                } else {
+                    throw new Error('Payload too short to contain encrypted data');
+                }
+                
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, memKib, iterations);
+                const decrypted = await crypto.decrypt(cipher, keyResult.data, nonce, null);
+                
+                if (!decrypted || !decrypted.success) {
+                    throw new Error('Decryption failed — wrong password?');
+                }
+                
+                const message = decoder.decode(decrypted.data);
+                
+                resultEl.className = 'result-box success';
+                resultEl.innerHTML = `
+                    <h3>🧶 Decrypted Message</h3>
+                    <div class='message'>${escapeHtml(message)}</div>
+                    <div class='cat-reaction'>The cat's crochet revealed its secret! 🧶🐱</div>
+                `;
+                log(`✅ [Cat Anim] Decrypted: ${message.length} chars`);
+                
+            } catch (err) {
+                resultEl.className = 'result-box error';
+                resultEl.innerHTML = `
+                    <h3>❌ Decryption Failed</h3>
+                    <div class='message'>${err.message}</div>
+                    <p style="color:#888; font-size:0.85em; margin-top:8px;">Check that you're using the correct password and the QR was scanned clearly.</p>
+                `;
+                log(`❌ [Cat Anim] Decrypt error: ${err.message}`);
+            }
         };
         
         // Utility functions
@@ -3144,7 +3388,9 @@
             quality: {},
             decoding: {},
             adaptiveThreshold: {},
-            hysteresis: {}
+            hysteresis: {},
+            greenStats: null,
+            error: null
         };
         
         // Pre-load cat image and draw on canvas
@@ -3469,6 +3715,8 @@
                 }
                 
                 log(`📡 [Cat Mode] Transmitting ${catBinaryData.length} bits at ${speed}ms per bit`);
+                const totalDuration = (catBinaryData.length * speed / 1000).toFixed(1);
+                log(`📡 [Cat Mode] Estimated duration: ${totalDuration}s`);
                 
                 // Show UI
                 document.getElementById('catQrBtn').style.display = 'none';
@@ -3476,6 +3724,52 @@
                 progressEl.style.display = 'block';
                 catTransmitting = true;
                 document.getElementById('catCanvas').classList.add('transmitting');
+                
+                // ============================================================
+                // VIDEO RECORDING via captureStream + MediaRecorder
+                // Records the canvas directly — no phone camera needed.
+                // Uses VP8/WebM for broad support and small file size.
+                // ============================================================
+                const catCanvas = document.getElementById('catCanvas');
+                catRecordedChunks = [];
+                catRecordedBlob = null;
+                
+                try {
+                    const stream = catCanvas.captureStream(30); // 30 fps
+                    const mimeTypes = [
+                        'video/webm;codecs=vp9',
+                        'video/webm;codecs=vp8',
+                        'video/webm',
+                        'video/mp4'
+                    ];
+                    let selectedMime = '';
+                    for (const mime of mimeTypes) {
+                        if (MediaRecorder.isTypeSupported(mime)) {
+                            selectedMime = mime;
+                            break;
+                        }
+                    }
+                    if (selectedMime) {
+                        catMediaRecorder = new MediaRecorder(stream, {
+                            mimeType: selectedMime,
+                            videoBitsPerSecond: 500000 // 500 kbps — small files
+                        });
+                        catMediaRecorder.ondataavailable = (e) => {
+                            if (e.data.size > 0) catRecordedChunks.push(e.data);
+                        };
+                        catMediaRecorder.onstop = () => {
+                            catRecordedBlob = new Blob(catRecordedChunks, { type: selectedMime });
+                            const sizeMB = (catRecordedBlob.size / (1024 * 1024)).toFixed(1);
+                            log(`📹 [Cat Mode] Video recorded: ${sizeMB} MB (${selectedMime})`);
+                        };
+                        catMediaRecorder.start(100); // collect data every 100ms
+                        log(`📹 [Cat Mode] Recording canvas video (${selectedMime}, 500kbps)`);
+                    } else {
+                        log('⚠️ [Cat Mode] MediaRecorder not supported — video download unavailable');
+                    }
+                } catch (recErr) {
+                    log(`⚠️ [Cat Mode] Could not start recording: ${recErr.message}`);
+                }
                 
                 // TIME-BASED encoding: hold each bit for exactly 'speed' ms
                 // using rAF timestamps. This works at ANY display refresh rate
@@ -3505,19 +3799,39 @@
                     }
                     
                     if (!catTransmitting || bitIndex >= catBinaryData.length) {
-                        // Transmission complete — catModeStop handles recorder stop + download
+                        // Transmission complete — stop recorder, show download
+                        if (catMediaRecorder && catMediaRecorder.state === 'recording') {
+                            catMediaRecorder.stop();
+                        }
                         catModeStop();
+                        
+                        // Build download button HTML (will be enabled once blob is ready)
+                        const downloadBtnHtml = catMediaRecorder ? `
+                            <button id="catDownloadVideoBtn" onclick="downloadCatVideo()" style="background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); border:none; margin-right:10px; margin-top:10px;">📹 Download Video</button>
+                            <span id="catVideoSizeInfo" style="color:#888; font-size:0.85em;"></span>
+                        ` : '';
+                        
                         resultEl.innerHTML = `
                             <div style="background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,204,255,0.1) 100%); border: 2px solid #00ff88; border-radius: 10px; padding: 20px; margin-top: 15px;">
                                 <h3 style="color:#00ff88; margin:0 0 10px 0;">✅ Transmission Complete!</h3>
-                                <p style="color:#888; font-size:0.9em; margin:0 0 5px 0;">📡 Binary pattern saved (${catBinaryData.length} bits) — copy and paste into "Manual Decode" section below, or use in video decode if you recorded with a camera:</p>
+                                <p style="color:#888; font-size:0.9em; margin:0 0 5px 0;">📡 ${catBinaryData.length} bits transmitted at ${speed}ms/bit (${(catBinaryData.length * speed / 1000).toFixed(1)}s)</p>
+                                ${downloadBtnHtml}
                                 <textarea id="catEncodedBinary" readonly style="width:100%; height:70px; background:#1a1a2e; border:1px solid #00ccff; color:#00ff88; font-family:monospace; font-size:0.75em; padding:8px; margin:10px 0; resize:vertical;">${catBinaryData}</textarea>
                                 <button onclick="navigator.clipboard.writeText(document.getElementById('catEncodedBinary').value).then(() => { this.textContent='✅ Copied!'; setTimeout(() => this.textContent='📋 Copy Binary', 1000); })" style="background: linear-gradient(135deg, #00ccff 0%, #0088ff 100%); border:none; margin-right:10px;">📋 Copy Binary</button>
                                 <p style="color:#00ccff; font-size:0.85em; margin:15px 0 0 0; padding:10px; background:rgba(0,204,255,0.1); border-left:3px solid #00ccff; border-radius:4px;">
-                                    💡 <strong>Optical transmission:</strong> To test optical transmission, record the blinking eyes with a phone camera or webcam, then upload the video in step 2. Screen recordings may have frame drops.
+                                    💡 <strong>Two ways to decode:</strong> Download the video above and upload it in Step 2, or record the blinking eyes with a phone camera for optical air-gap transmission.
                                 </p>
                             </div>
                         `;
+                        
+                        // Update video size info once blob is ready
+                        if (catRecordedBlob) {
+                            updateCatVideoSizeInfo();
+                        } else if (catMediaRecorder) {
+                            // Blob may arrive shortly after stop
+                            setTimeout(updateCatVideoSizeInfo, 500);
+                        }
+                        
                         log('✅ [Cat Mode] Transmission complete');
                         return;
                     }
@@ -3551,6 +3865,10 @@
                 cancelAnimationFrame(catBlinkInterval);
                 catBlinkInterval = null;
             }
+            // Stop recorder if running (but don't clear blob — needed for download)
+            if (catMediaRecorder && catMediaRecorder.state === 'recording') {
+                try { catMediaRecorder.stop(); } catch (_) {}
+            }
             drawWithGreenBlink(true); // Reset eyes to ON
             document.getElementById('catQrBtn').style.display = 'inline-block';
             document.getElementById('catStopBtn').style.display = 'none';
@@ -3558,6 +3876,35 @@
             document.getElementById('catCanvas').classList.remove('transmitting', 'success', 'error');
             log('⏹️ [Cat Mode] Stopped');
         };
+        
+        // Download the recorded canvas video
+        window.downloadCatVideo = function() {
+            if (!catRecordedBlob) {
+                alert('No video recorded yet. The recording may still be processing — try again in a moment.');
+                return;
+            }
+            const ext = catRecordedBlob.type.includes('mp4') ? 'mp4' : 'webm';
+            const url = URL.createObjectURL(catRecordedBlob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meow-cat-transmission-${Date.now()}.${ext}`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log(`📹 [Cat Mode] Video downloaded (${(catRecordedBlob.size / (1024 * 1024)).toFixed(1)} MB)`);
+        };
+        
+        // Update the video size info after recording completes
+        function updateCatVideoSizeInfo() {
+            const infoEl = document.getElementById('catVideoSizeInfo');
+            if (!infoEl) return;
+            if (catRecordedBlob) {
+                const sizeMB = (catRecordedBlob.size / (1024 * 1024)).toFixed(1);
+                infoEl.textContent = `(${sizeMB} MB)`;
+            } else {
+                infoEl.textContent = '(processing...)';
+                setTimeout(updateCatVideoSizeInfo, 500);
+            }
+        }
         
 
         
@@ -3819,6 +4166,7 @@
             // Declare outside try so catch block can display them for debugging
             let binary = '';
             let payload = '';
+            let compareHtml = '';
             
             progressEl.style.display = 'block';
             progressBar.style.width = '0%';
@@ -3906,8 +4254,9 @@
                 }
                 
                 // Downsample canvas for analysis to improve performance
-                // Cat eyes only need ~400-800px analysis resolution
-                const maxDimension = 1280; // Max 1280px on longest side
+                // Cat eyes only need green channel variation — high resolution is unnecessary.
+                // 480px on the longest side gives ~130k pixels per frame (7x faster than 1280px).
+                const maxDimension = 480; // Max 480px on longest side
                 let canvasWidth, canvasHeight;
                 if (vw > maxDimension || vh > maxDimension) {
                     if (vw > vh) {
@@ -3949,6 +4298,7 @@
                 log(`📹 [Cat Video] Seek-based extraction: ${totalPositions} positions at ${(sampleInterval * 1000).toFixed(1)}ms intervals`);
                 
                 video.pause();
+                const extractionStart = performance.now();
                 
                 for (let i = 0; i < totalPositions; i++) {
                     if (catVideoAnalysisCancelled) throw new Error('Analysis cancelled');
@@ -3982,10 +4332,21 @@
                         roiShrink: weightedResult.roiShrinkFactor
                     });
                     
-                    // Update progress UI
+                    // Update progress UI with time estimate
                     const progress = ((i / totalPositions) * 100).toFixed(1);
                     progressBar.style.width = progress + '%';
-                    progressText.textContent = `Analyzing frame ${i + 1}/${totalPositions} (${progress}%) green=${greenLevel.toFixed(1)}`;
+                    let timeEstimate = '';
+                    if (i > 50) {
+                        const elapsed = (performance.now() - extractionStart) / 1000;
+                        const rate = i / elapsed;
+                        const remaining = Math.ceil((totalPositions - i) / rate);
+                        if (remaining > 5) {
+                            const mins = Math.floor(remaining / 60);
+                            const secs = remaining % 60;
+                            timeEstimate = mins > 0 ? ` ~${mins}m${secs}s remaining` : ` ~${secs}s remaining`;
+                        }
+                    }
+                    progressText.textContent = `Analyzing frame ${i + 1}/${totalPositions} (${progress}%) green=${greenLevel.toFixed(1)}${timeEstimate}`;
                     
                     // Yield to UI every 20 frames to keep browser responsive
                     if (i % 20 === 0) {
@@ -3999,7 +4360,7 @@
                 
                 // Store video metadata for diagnostics (Task 3.3)
                 catDiagnostics.video = {
-                    filename: videoFile ? videoFile.name : 'unknown',
+                    filename: catVideoFile ? catVideoFile.name : 'unknown',
                     fps_reported: 30.0, // Assuming 30fps
                     fps_actual: actualFps,
                     total_frames: totalFrames,
@@ -4015,23 +4376,58 @@
                 const framesPerBit = actualFps * (blinkSpeedMs / 1000);
                 log(`📹 [Cat Video] ${framesPerBit.toFixed(1)} samples per bit (${blinkSpeedMs}ms blink speed)`);
                 
-                // Compute stats and initial threshold estimate
-                const greenLevels = frameSamples.map(s => s.greenLevel);
-                const minGreen = Math.min(...greenLevels);
-                const maxGreen = Math.max(...greenLevels);
-                const avgGreen = greenLevels.reduce((a, b) => a + b, 0) / greenLevels.length;
+                // Compute raw stats BEFORE normalization
+                const rawGreenLevels = frameSamples.map(s => s.greenLevel);
+                const minGreen = Math.min(...rawGreenLevels);
+                const maxGreen = Math.max(...rawGreenLevels);
+                const avgGreen = rawGreenLevels.reduce((a, b) => a + b, 0) / rawGreenLevels.length;
                 const range = maxGreen - minGreen;
                 
-                log(`📹 [Cat Video] Green levels: min=${minGreen.toFixed(2)}, max=${maxGreen.toFixed(2)}, avg=${avgGreen.toFixed(2)}, range=${range.toFixed(2)}`);
+                log(`📹 [Cat Video] Raw green levels: min=${minGreen.toFixed(3)}, max=${maxGreen.toFixed(3)}, avg=${avgGreen.toFixed(3)}, range=${range.toFixed(3)}`);
                 
-                // Initial threshold (will be updated by adaptive threshold)
-                if (autoThreshold) {
-                    threshold = minGreen + range * 0.4;
-                    log(`📹 [Cat Video] Initial threshold: ${threshold.toFixed(2)} (40% of range ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)})`);
+                // Store raw green stats in diagnostics (preserved even on error)
+                catDiagnostics.greenStats = {
+                    minGreen: minGreen.toFixed(3),
+                    maxGreen: maxGreen.toFixed(3),
+                    avgGreen: avgGreen.toFixed(3),
+                    range: range.toFixed(3),
+                    totalFrames: frameSamples.length
+                };
+                
+                if (range < 0.01) {
+                    throw new Error(`No green variation detected (range: ${range.toFixed(4)}). The video may not contain cat eye blinks, or the recording has no visible green signal.`);
                 }
                 
-                if (range < 0.5) {
-                    throw new Error(`No green variation detected (range: ${range.toFixed(2)}). The video may not contain cat eye blinks, or the cat image is too small in the frame.`);
+                // ============================================================
+                // SIGNAL NORMALIZATION
+                // Phone recordings produce very weak green signals (range < 1.0)
+                // because camera auto-white-balance normalizes colors and the
+                // cat eyes are tiny relative to the full frame.
+                // Normalize all green levels to 0-100 scale so the adaptive
+                // threshold, hysteresis, and quality metrics work correctly
+                // regardless of absolute signal strength.
+                // ============================================================
+                const normalizeGreen = (v) => ((v - minGreen) / range) * 100;
+                for (let i = 0; i < frameSamples.length; i++) {
+                    frameSamples[i].rawGreenLevel = frameSamples[i].greenLevel;
+                    frameSamples[i].greenLevel = normalizeGreen(frameSamples[i].greenLevel);
+                }
+                const greenLevels = frameSamples.map(s => s.greenLevel);
+                
+                if (range < 2.0) {
+                    log(`⚠️ [Cat Video] Weak green signal (raw range: ${range.toFixed(3)}). Signal normalized to 0-100 for processing.`);
+                } else {
+                    log(`📹 [Cat Video] Green signal normalized to 0-100 (raw range: ${range.toFixed(2)})`);
+                }
+                log(`📹 [Cat Video] Normalized green: min=0.00, max=100.00, mean=${(greenLevels.reduce((a,b)=>a+b,0)/greenLevels.length).toFixed(2)}`);
+                
+                // Initial threshold in normalized space (will be updated by adaptive threshold)
+                // Always use auto-threshold logic for video decode since manual
+                // threshold values are meaningless after normalization
+                threshold = 40; // 40% of normalized 0-100 range
+                log(`📹 [Cat Video] Initial threshold: ${threshold.toFixed(2)} (40% of normalized range)`);
+                if (!autoThreshold) {
+                    log(`📹 [Cat Video] Note: Manual threshold overridden — normalized signal requires adaptive thresholding`);
                 }
                 
                 // ============================================================
@@ -4178,9 +4574,9 @@
                 
                 if (stateChanges.length < 2) {
                     const sampleLevels = frameSamples.filter((_, i) => i % Math.max(1, Math.floor(frameSamples.length / 20)) === 0)
-                        .map(s => s.greenLevel.toFixed(1)).join(', ');
-                    log(`📹 [Cat Video] Sample green levels: ${sampleLevels}`);
-                    throw new Error(`Only ${stateChanges.length} state transitions found. Green range: ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)}. Try "Auto" sensitivity.`);
+                        .map(s => `${s.greenLevel.toFixed(1)}(raw:${(s.rawGreenLevel||s.greenLevel).toFixed(2)})`).join(', ');
+                    log(`📹 [Cat Video] Sample green levels (normalized/raw): ${sampleLevels}`);
+                    throw new Error(`Only ${stateChanges.length} state transitions found. Raw green range: ${range.toFixed(3)} (${minGreen.toFixed(2)}-${maxGreen.toFixed(2)}). The green blink signal may be too weak to detect through camera recording. Try recording closer to the screen, or use "Auto" sensitivity.`);
                 }
                 
                 // ============================================================
@@ -4308,7 +4704,7 @@
                 
                 progressText.textContent = `Extracted ${binary.length} bits using NRZ decoder (${nrzResult.stats.uncertainPercent.toFixed(1)}% uncertain)`;
 
-                let compareHtml = '';
+                compareHtml = '';
                 try {
                     const original = localStorage.getItem('meow_cat_binary');
                     if (original) {
@@ -4623,12 +5019,17 @@
                 log(`📊 [Quality] Final metrics: ${JSON.stringify(finalMetrics)}`);
                 
             } catch (err) {
-                // Only show the big red error box if we have useful debug data
+                // Preserve error details in diagnostics for export
+                catDiagnostics.error = {
+                    message: err.message,
+                    timestamp: new Date().toISOString(),
+                    stack: err.stack ? err.stack.split('\n').slice(0, 5).join('\n') : null
+                };
+                
+                // Build debug info
                 let debugBinary = '';
-                let hasDebugData = false;
                 
                 if (binary.length > 0) {
-                    hasDebugData = true;
                     debugBinary = `
                         <p style="color:#00ccff; font-size:0.85em; margin-top:12px;">📡 Extracted binary (${binary.length} bits) — compare with original:</p>
                         <textarea readonly style="width:100%; height:70px; background:#1a1a2e; border:1px solid #f44336; color:#ff8888; font-family:monospace; font-size:0.75em; padding:8px; word-break:break-all;">${binary}</textarea>
@@ -4641,9 +5042,19 @@
                     }
                 }
                 
-                // Check if we have compare data
-                if (compareHtml && compareHtml.trim().length > 0) {
-                    hasDebugData = true;
+                // Green stats summary (if available)
+                let greenStatsHtml = '';
+                if (catDiagnostics.greenStats) {
+                    const gs = catDiagnostics.greenStats;
+                    greenStatsHtml = `
+                        <div style="background: rgba(0,204,255,0.1); border: 1px solid #00ccff; border-radius: 6px; padding: 10px; margin: 10px 0;">
+                            <p style="color:#00ccff; margin:0; font-size:0.85em;"><strong>📊 Green Signal Analysis:</strong></p>
+                            <p style="color:#888; font-size:0.8em; margin:4px 0 0 0;">
+                                Raw range: <strong>${gs.range}</strong> (min: ${gs.minGreen}, max: ${gs.maxGreen}, avg: ${gs.avgGreen})
+                                — ${parseFloat(gs.range) < 2.0 ? '<span style="color:#ff8800;">Very weak signal. Try recording closer to the screen with good lighting.</span>' : 'Signal detected but could not be decoded.'}
+                            </p>
+                        </div>
+                    `;
                 }
                 
                 // Add frame drop warning if detected
@@ -4656,38 +5067,29 @@
                                 The video has <strong>${catDiagnostics.frameDrops.count} frame gaps</strong> (max ${catDiagnostics.frameDrops.maxGapMs.toFixed(0)}ms). 
                                 MediaRecorder dropped frames during transmission, making the video unreliable.
                             </p>
-                            <p style="color:#888; font-size:0.85em; margin:8px 0 0 0;">
-                                <strong>Solution:</strong> Copy the original binary pattern from the transmission result and paste it into "Manual Decode" section below.
-                            </p>
                         </div>
                     `;
-                    hasDebugData = true;
                 }
                 
-                if (hasDebugData) {
-                    const lowFpsHint = '';  // Seek-based extraction guarantees sufficient samples
-                    const storedHint = `<li><b>Quick fix:</b> Click "Load into field" in the Manual Decode section below to use the stored original binary</li>`;
-                    // Show full error box with debug data
-                    resultBox.className = 'result-box error';
-                    resultBox.innerHTML = `
-                        <h3>❌ Video Decode Failed</h3>
-                        <div class='message'>${err.message}</div>
-                        ${frameDropWarning}
-                        ${debugBinary}
-                        ${compareHtml}
-                        <ul style="color:#888; font-size:0.85em; margin-top:10px; text-align:left;">
-                            ${storedHint}
-                            ${lowFpsHint}
-                            <li><b>Blink speed mismatch?</b> Make sure the decode speed matches the speed used during encoding</li>
-                            <li><b>Video too dark/bright?</b> Try High or Low sensitivity</li>
-                        </ul>
-                    `;
-                    resultBox.classList.remove('hidden');
-                } else {
-                    // Just show subtle inline error - hide the big red box
-                    resultBox.classList.add('hidden');
-                    progressText.innerHTML = `❌ ${err.message} <span style="color:#888;">— Check console for details or export diagnostics</span>`;
-                }
+                // Always show error prominently — never hide it
+                const storedHint = `<li><b>Quick fix:</b> Click "Load into field" in the Manual Decode section below to use the stored original binary</li>`;
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `
+                    <h3>❌ Video Decode Failed</h3>
+                    <div class='message'>${err.message}</div>
+                    ${greenStatsHtml}
+                    ${frameDropWarning}
+                    ${debugBinary}
+                    ${compareHtml || ''}
+                    <ul style="color:#888; font-size:0.85em; margin-top:10px; text-align:left;">
+                        ${storedHint}
+                        <li><b>Blink speed mismatch?</b> Make sure the decode speed matches the speed used during encoding</li>
+                        <li><b>Weak green signal?</b> Record closer to the screen, avoid reflections, ensure good lighting</li>
+                        <li><b>Phone camera issues?</b> Disable HDR/Night mode, lock exposure if possible</li>
+                        <li><b>Export diagnostics</b> (📋 button) for detailed analysis of what went wrong</li>
+                    </ul>
+                `;
+                resultBox.classList.remove('hidden');
                 
                 log('❌ [Cat Video] Error: ' + err.message);
             } finally {
@@ -5744,12 +6146,20 @@
             if (catDiagnostics.adaptiveThreshold?.distributionType === 'unimodal') {
                 summary.issues.push('Unimodal distribution - no clear on/off states detected');
             }
+            if (catDiagnostics.greenStats && parseFloat(catDiagnostics.greenStats.range) < 2.0) {
+                summary.issues.push('Very weak green signal (range < 2.0) - camera may not capture enough green variation');
+            }
+            if (catDiagnostics.error) {
+                summary.issues.push('Decode error: ' + catDiagnostics.error.message);
+            }
             
             const data = {
-                version: '2.1',
+                version: '2.2',
                 timestamp: timestamp,
                 summary: summary,
                 video: catDiagnostics.video || {},
+                green_stats: catDiagnostics.greenStats || {},
+                error: catDiagnostics.error || null,
                 detection: catDiagnostics.detection || {},
                 quality: catDiagnostics.quality || {},
                 decoding: catDiagnostics.decoding || {},
