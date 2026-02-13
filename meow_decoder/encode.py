@@ -313,7 +313,7 @@ def encode_file(
                 else "\n😺 Applying cat eyes blink mode..."
             )
 
-        from .logo_eyes import encode_with_logo_eyes, LogoConfig
+        from .logo_eyes import encode_with_logo_eyes, LogoConfig, LogoEyesEncoder
 
         # Configure logo - visible_qr is opposite of logo_eyes_hidden
         logo_config = LogoConfig(
