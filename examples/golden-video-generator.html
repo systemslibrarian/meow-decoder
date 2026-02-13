@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Mode Golden Video Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1000px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00ff88; }
+        h2 { color: #00ccff; }
+        .controls {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .preview {
+            background: #000;
+            border: 2px solid #00ff88;
+            border-radius: 8px;
+            padding: 10px;
+            text-align: center;
+        }
+        canvas {
+            border: 1px solid #444;
+            max-width: 100%;
+        }
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            opacity: 0.8;
+        }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .status {
+            background: #16213e;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .info {
+            background: rgba(0, 204, 255, 0.1);
+            border-left: 4px solid #00ccff;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        input[type="number"] {
+            background: #1a1a2e;
+            color: #eee;
+            border: 1px solid #00ccff;
+            padding: 8px;
+            border-radius: 4px;
+            width: 100px;
+        }
+        label {
+            display: inline-block;
+            width: 200px;
+            margin-right: 10px;
+        }
+        .control-group {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐱 Cat Mode Golden Video Generator</h1>
+    
+    <div class="info">
+        <strong>Purpose:</strong> Generate deterministic test videos for CI/CD validation.<br>
+        <strong>Test Payload:</strong> Empty string SHA-256 hash (64 hex chars = 256 bits)<br>
+        <strong>Expected Hash:</strong> <code>e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855</code>
+    </div>
+    
+    <div class="controls">
+        <h2>⚙️ Generation Settings</h2>
+        <div class="control-group">
+            <label>Bit Speed (ms):</label>
+            <input type="number" id="bitSpeed" value="100" min="50" max="500" step="10">
+            <span style="color:#888;">Default: 100ms</span>
+        </div>
+        <div class="control-group">
+            <label>Target FPS:</label>
+            <input type="number" id="targetFps" value="30" min="15" max="60" step="5">
+            <span style="color:#888;">Default: 30 FPS</span>
+        </div>
+        <div class="control-group">
+            <label>Canvas Size:</label>
+            <input type="number" id="canvasWidth" value="640" min="320" max="1920" step="160"> x
+            <input type="number" id="canvasHeight" value="480" min="240" max="1080" step="120">
+        </div>
+        <div class="control-group">
+            <label>Test Payload:</label>
+            <select id="payloadType">
+                <option value="empty_hash">Empty String SHA-256 (Default)</option>
+                <option value="short">Short Message (128 bits)</option>
+                <option value="long">Long Message (512 bits)</option>
+            </select>
+        </div>
+        
+        <button onclick="generateVideo()" id="generateBtn">🎬 Generate Golden Video</button>
+        <button onclick="previewFrame()" id="previewBtn">👁️ Preview Frame</button>
+    </div>
+    
+    <div class="preview">
+        <h2>📺 Preview</h2>
+        <canvas id="previewCanvas" width="640" height="480"></canvas>
+    </div>
+    
+    <div class="status" id="status">
+        Ready to generate golden video. Click "Generate" to start.
+    </div>
+    
+    <script src="cat-mode-protocol.js"></script>
+    <script>
+        // ====================================================================
+        // Test Payloads
+        // ====================================================================
+        
+        const TEST_PAYLOADS = {
+            // Empty string SHA-256 hash (primary test case)
+            empty_hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+            
+            // Short test pattern
+            short: '0123456789abcdef0123456789abcdef',
+            
+            // Long test pattern (64 bytes)
+            long: 'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs!'
+        };
+        
+        // ====================================================================
+        // Cat Face Renderer
+        // ====================================================================
+        
+        class CatFaceRenderer {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+            }
+            
+            clear() {
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+            }
+            
+            drawCatFace(eyeColor = '#00ff00') {
+                this.clear();
+                
+                const cx = this.width / 2;
+                const cy = this.height / 2;
+                const faceRadius = Math.min(this.width, this.height) * 0.35;
+                
+                // Face outline (gray)
+                this.ctx.fillStyle = '#666666';
+                this.ctx.beginPath();
+                this.ctx.arc(cx, cy, faceRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Left ear
+                this.ctx.beginPath();
+                this.ctx.moveTo(cx - faceRadius * 0.7, cy - faceRadius * 0.5);
+                this.ctx.lineTo(cx - faceRadius * 1.1, cy - faceRadius * 1.3);
+                this.ctx.lineTo(cx - faceRadius * 0.3, cy - faceRadius * 0.7);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Right ear
+                this.ctx.beginPath();
+                this.ctx.moveTo(cx + faceRadius * 0.7, cy - faceRadius * 0.5);
+                this.ctx.lineTo(cx + faceRadius * 1.1, cy - faceRadius * 1.3);
+                this.ctx.lineTo(cx + faceRadius * 0.3, cy - faceRadius * 0.7);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Eyes (the important part for Cat Mode!)
+                const eyeY = cy - faceRadius * 0.15;
+                const eyeSpacing = faceRadius * 0.5;
+                const eyeRadius = faceRadius * 0.25;
+                
+                // Left eye
+                this.ctx.fillStyle = eyeColor;
+                this.ctx.beginPath();
+                this.ctx.arc(cx - eyeSpacing, eyeY, eyeRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Right eye
+                this.ctx.beginPath();
+                this.ctx.arc(cx + eyeSpacing, eyeY, eyeRadius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                // Pupils (vertical slits)
+                this.ctx.fillStyle = '#000000';
+                const pupilWidth = eyeRadius * 0.15;
+                const pupilHeight = eyeRadius * 1.2;
+                
+                this.ctx.fillRect(cx - eyeSpacing - pupilWidth/2, eyeY - pupilHeight/2, pupilWidth, pupilHeight);
+                this.ctx.fillRect(cx + eyeSpacing - pupilWidth/2, eyeY - pupilHeight/2, pupilWidth, pupilHeight);
+                
+                // Nose
+                this.ctx.fillStyle = '#ff66aa';
+                this.ctx.beginPath();
+                this.ctx.moveTo(cx, cy + faceRadius * 0.15);
+                this.ctx.lineTo(cx - faceRadius * 0.08, cy + faceRadius * 0.05);
+                this.ctx.lineTo(cx + faceRadius * 0.08, cy + faceRadius * 0.05);
+                this.ctx.closePath();
+                this.ctx.fill();
+                
+                // Mouth
+                this.ctx.strokeStyle = '#444444';
+                this.ctx.lineWidth = 2;
+                this.ctx.beginPath();
+                this.ctx.moveTo(cx, cy + faceRadius * 0.15);
+                this.ctx.lineTo(cx, cy + faceRadius * 0.25);
+                this.ctx.stroke();
+                
+                // Whiskers
+                this.ctx.strokeStyle = '#999999';
+                this.ctx.lineWidth = 1.5;
+                const whiskerY = cy + faceRadius * 0.1;
+                
+                // Left whiskers
+                this.drawWhisker(cx - faceRadius * 0.2, whiskerY, cx - faceRadius * 0.9, whiskerY - faceRadius * 0.2);
+                this.drawWhisker(cx - faceRadius * 0.2, whiskerY, cx - faceRadius * 0.9, whiskerY);
+                this.drawWhisker(cx - faceRadius * 0.2, whiskerY, cx - faceRadius * 0.9, whiskerY + faceRadius * 0.2);
+                
+                // Right whiskers
+                this.drawWhisker(cx + faceRadius * 0.2, whiskerY, cx + faceRadius * 0.9, whiskerY - faceRadius * 0.2);
+                this.drawWhisker(cx + faceRadius * 0.2, whiskerY, cx + faceRadius * 0.9, whiskerY);
+                this.drawWhisker(cx + faceRadius * 0.2, whiskerY, cx + faceRadius * 0.9, whiskerY + faceRadius * 0.2);
+            }
+            
+            drawWhisker(x1, y1, x2, y2) {
+                this.ctx.beginPath();
+                this.ctx.moveTo(x1, y1);
+                this.ctx.lineTo(x2, y2);
+                this.ctx.stroke();
+            }
+        }
+        
+        // ====================================================================
+        // Payload Encoding
+        // ====================================================================
+        
+        function hexToBinary(hexString) {
+            let binary = '';
+            for (let i = 0; i < hexString.length; i++) {
+                const hex = hexString[i];
+                const bin = parseInt(hex, 16).toString(2).padStart(4, '0');
+                binary += bin;
+            }
+            return binary;
+        }
+        
+        function stringToBinary(str) {
+            const encoder = new TextEncoder();
+            const bytes = encoder.encode(str);
+            let binary = '';
+            for (const byte of bytes) {
+                binary += byte.toString(2).padStart(8, '0');
+            }
+            return binary;
+        }
+        
+        function encodePayloadToBits(payload, payloadType) {
+            let bits = '';
+            
+            if (payloadType === 'empty_hash') {
+                // Hex string to binary
+                bits = hexToBinary(payload);
+            } else {
+                // Text string to binary
+                bits = stringToBinary(payload);
+            }
+            
+            // Add protocol framing using CatProtocol
+            const payloadBytes = new TextEncoder().encode(payload);
+            const sessionId = 0x12345678; // Fixed session for golden video
+            const packets = CatProtocol.encodeMessage(payloadBytes, sessionId);
+            
+            // Convert packets to binary
+            let packetBits = '';
+            for (const packet of packets) {
+                for (const byte of packet) {
+                    packetBits += byte.toString(2).padStart(8, '0');
+                }
+            }
+            
+            // Build full transmission:
+            // Lead-in (8 bits dark) + Preamble (32 bits alternating) + Sync (16 bits 0xAA55) + Payload
+            const leadIn = '00000000';
+            const preamble = '10101010101010101010101010101010'; // 32 bits
+            const syncWord = '1010101001010101'; // 0xAA55
+            
+            return leadIn + preamble + syncWord + packetBits;
+        }
+        
+        // ====================================================================
+        // Video Generation
+        // ====================================================================
+        
+        async function generateVideo() {
+            const btn = document.getElementById('generateBtn');
+            const status = document.getElementById('status');
+            
+            btn.disabled = true;
+            status.innerHTML = '⏳ Generating golden video...';
+            
+            try {
+                // Get settings
+                const bitSpeed = parseInt(document.getElementById('bitSpeed').value);
+                const targetFps = parseInt(document.getElementById('targetFps').value);
+                const width = parseInt(document.getElementById('canvasWidth').value);
+                const height = parseInt(document.getElementById('canvasHeight').value);
+                const payloadType = document.getElementById('payloadType').value;
+                const payload = TEST_PAYLOADS[payloadType];
+                
+                // Encode payload to bits
+                const bits = encodePayloadToBits(payload, payloadType);
+                status.innerHTML = `📊 Encoded ${bits.length} bits from payload<br>Rendering ${bits.length} frames...`;
+                
+                await new Promise(r => setTimeout(r, 100)); // Let UI update
+                
+                // Create canvas for rendering
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+                const renderer = new CatFaceRenderer(canvas);
+                
+                // MediaRecorder setup
+                const stream = canvas.captureStream(targetFps);
+                const chunks = [];
+                const mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp8',
+                    videoBitsPerSecond: 2500000
+                });
+                
+                mediaRecorder.ondataavailable = (e) => {
+                    if (e.data.size > 0) {
+                        chunks.push(e.data);
+                    }
+                };
+                
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(chunks, { type: 'video/webm' });
+                    const url = URL.createObjectURL(blob);
+                    
+                    // Download golden video
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `cat_mode_golden_${payloadType}_${bitSpeed}ms.webm`;
+                    a.click();
+                    
+                    status.innerHTML = `✅ Golden video generated!<br>
+                        File: ${a.download}<br>
+                        Frames: ${bits.length}<br>
+                        Duration: ${(bits.length * bitSpeed / 1000).toFixed(1)}s<br>
+                        Size: ${(blob.size / 1024).toFixed(1)} KB<br><br>
+                        <strong>Next steps:</strong><br>
+                        1. Move file to tests/golden/<br>
+                        2. Run test suite to validate decode`;
+                    
+                    btn.disabled = false;
+                };
+                
+                // Start recording
+                mediaRecorder.start();
+                
+                // Render frames
+                const framesPerBit = Math.max(1, Math.round(targetFps * (bitSpeed / 1000)));
+                let frameCount = 0;
+                
+                for (let i = 0; i < bits.length; i++) {
+                    const bit = bits[i];
+                    const eyeColor = bit === '1' ? '#00ff00' : '#003300';
+                    
+                    // Render this bit for required number of frames
+                    for (let f = 0; f < framesPerBit; f++) {
+                        renderer.drawCatFace(eyeColor);
+                        frameCount++;
+                        
+                        // Progress update every 50 frames
+                        if (frameCount % 50 === 0) {
+                            status.innerHTML = `🎬 Rendering frame ${frameCount} / ${bits.length * framesPerBit}<br>Bit ${i} / ${bits.length}`;
+                            await new Promise(r => setTimeout(r, 0)); // Yield to UI
+                        }
+                        
+                        // Wait for frame timing
+                        await new Promise(r => setTimeout(r, 1000 / targetFps));
+                    }
+                }
+                
+                // Stop recording
+                status.innerHTML = '⏳ Finalizing video...';
+                await new Promise(r => setTimeout(r, 100));
+                mediaRecorder.stop();
+                
+            } catch (error) {
+                status.innerHTML = `❌ Error: ${error.message}`;
+                btn.disabled = false;
+            }
+        }
+        
+        function previewFrame() {
+            const canvas = document.getElementById('previewCanvas');
+            const renderer = new CatFaceRenderer(canvas);
+            
+            // Show alternating states
+            const bit = Math.random() > 0.5 ? '1' : '0';
+            const eyeColor = bit === '1' ? '#00ff00' : '#003300';
+            
+            renderer.drawCatFace(eyeColor);
+            
+            document.getElementById('status').innerHTML = `👁️ Preview: Bit=${bit}, Eyes=${eyeColor}`;
+        }
+        
+        // Initial preview
+        window.onload = () => {
+            previewFrame();
+        };
+    </script>
+</body>
+</html>

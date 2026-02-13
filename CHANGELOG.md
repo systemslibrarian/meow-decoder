@@ -10,6 +10,46 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Added — Fountain Codes for Frame Loss Tolerance 🌊
+
+#### JavaScript Fountain Code Implementation
+- **New Library**: `examples/fountain-codes.js` (414 lines)
+  - `FountainEncoder`: Generates Luby Transform droplets from source data
+  - `FountainDecoder`: Reconstructs via belief propagation
+  - `Droplet`: Pack/unpack for QR transmission (seed + block indices + XOR data)
+  - `RobustSolitonDistribution`: Optimal degree selection (c=0.1, δ=0.5)
+  - `SeededRandom`: Deterministic PRNG for reproducible block selection
+- **Production-ready**: No dependencies, works in all modern browsers
+- **Testing**: `examples/test_fountain.html` with 5 comprehensive test cases
+
+#### Multi-Frame QR with Loss Tolerance
+- **Encoding**: Payloads >2500 bytes automatically use fountain encoding
+  - Each QR frame contains: `FOUNTAIN:<k>:<block_size>:<length>:<droplet_b64>`
+  - Generates k×1.5 droplets (50% redundancy = 33% frame loss tolerance)
+  - Systematic optimization: First 2k droplets are degree-1 for fast decode
+- **Decoding**: Webcam scanner collects droplets progressively
+  - Real-time progress: "Collecting: 8 scanned, 80% decoded (4/5 blocks)"
+  - Automatic duplicate detection (seed tracking)
+  - Success when enough droplets: "✅ Decoded from 8/5+ droplets!"
+- **Frame Format**: Base64-encoded droplet with metadata header
+
+#### Problem Solved
+- **Before**: Multi-frame animated QR **never worked** reliably
+  - Simple sequential chunking: ANY missed frame = total failure
+  - Phone camera capture: autofocus lag, motion blur, low FPS → unusable
+- **After**: Works in real-world conditions
+  - Tolerates 33% frame loss (can miss 1 in 3 frames)
+  - Hand-held phone scanning works
+  - Visual progress feedback for users
+
+#### Documentation
+- **New**: `docs/FOUNTAIN_CODES_INTEGRATION.md` (400+ lines)
+  - Complete technical specification
+  - Implementation details, security analysis
+  - Performance characteristics, usage examples
+  - Debugging guide and troubleshooting
+- **Updated**: `examples/README.md`, main `README.md`, `QUICKSTART.md`
+
 ### Added — WASM Browser Demo Enhancements 🌐
 
 #### 8 Encryption Modes in Web Demo

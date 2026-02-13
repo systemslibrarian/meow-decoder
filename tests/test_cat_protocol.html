@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Protocol Unit Tests - Meow Decoder</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+        }
+        h1 { color: #00ff88; text-align: center; }
+        h2 { color: #00ccff; margin-top: 30px; }
+        .test-section {
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #00ccff;
+        }
+        .test-case {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 8px;
+            border-left: 3px solid #666;
+        }
+        .test-case.pass { border-left-color: #4caf50; }
+        .test-case.fail { border-left-color: #f44336; }
+        .test-case.pending { border-left-color: #ff9800; }
+        
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+            color: #1a1a2e;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            margin: 5px;
+            transition: transform 0.2s;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled { background: #444; color: #777; cursor: not-allowed; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            font-size: 0.9em;
+            margin-right: 10px;
+        }
+        .status-badge.pass { background: #4caf50; color: white; }
+        .status-badge.fail { background: #f44336; color: white; }
+        .status-badge.pending { background: #ff9800; color: white; }
+        
+        pre {
+            background: #000;
+            padding: 10px;
+            border-radius: 6px;
+            overflow-x: auto;
+            font-size: 0.85em;
+            color: #0f0;
+        }
+        
+        .summary {
+            text-align: center;
+            font-size: 1.2em;
+            margin: 20px 0;
+            padding: 20px;
+            background: rgba(0, 204, 255, 0.1);
+            border-radius: 10px;
+        }
+        
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            background: #000;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 0.85em;
+            color: #0f0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐱 Cat Protocol Unit Tests</h1>
+    <p style="text-align: center; color: #888;">
+        Comprehensive test suite for <code>cat-mode-protocol.js</code>
+    </p>
+    
+    <div class="test-section">
+        <h2>Test Controls</h2>
+        <button id="runAllTests">▶️ Run All Tests</button>
+        <button id="resetTests">🔄 Reset Tests</button>
+    </div>
+    
+    <div id="summary" class="summary" style="display: none;">
+        <div id="summaryText"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>1️⃣ CRC32 Tests</h2>
+        <div id="crc32Tests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2️⃣ Packet Encoding Tests</h2>
+        <div id="encodingTests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3️⃣ Packet Decoding Tests</h2>
+        <div id="decodingTests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>4️⃣ Corruption Detection Tests</h2>
+        <div id="corruptionTests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>5️⃣ Session Management Tests</h2>
+        <div id="sessionTests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>6️⃣ Multi-Packet Message Tests</h2>
+        <div id="messageTests"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>📋 Test Log</h2>
+        <div id="testLog" class="log"></div>
+    </div>
+    
+    <script src="cat-mode-protocol.js"></script>
+    <script>
+        // Test framework
+        let testResults = [];
+        let testLog = [];
+        
+        function log(message) {
+            testLog.push(`[${new Date().toLocaleTimeString()}] ${message}`);
+            const logDiv = document.getElementById('testLog');
+            logDiv.innerHTML = testLog.slice(-30).join('\n');
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        function createTestCase(container, name, testFn) {
+            const div = document.createElement('div');
+            div.className = 'test-case pending';
+            div.innerHTML = `
+                <span class="status-badge pending">PENDING</span>
+                <strong>${name}</strong>
+                <div class="test-details" style="margin-top: 10px; display: none;"></div>
+            `;
+            container.appendChild(div);
+            
+            return {
+                element: div,
+                async run() {
+                    const badge = div.querySelector('.status-badge');
+                    const details = div.querySelector('.test-details');
+                    
+                    try {
+                        log(`Running: ${name}`);
+                        const result = await testFn();
+                        
+                        if (result.pass) {
+                            badge.textContent = '✅ PASS';
+                            badge.className = 'status-badge pass';
+                            div.className = 'test-case pass';
+                            log(`✅ ${name}`);
+                        } else {
+                            badge.textContent = '❌ FAIL';
+                            badge.className = 'status-badge fail';
+                            div.className = 'test-case fail';
+                            log(`❌ ${name}: ${result.error}`);
+                        }
+                        
+                        if (result.details) {
+                            details.innerHTML = `<pre>${result.details}</pre>`;
+                            details.style.display = 'block';
+                        }
+                        
+                        testResults.push({ name, pass: result.pass, error: result.error });
+                        return result.pass;
+                    } catch (err) {
+                        badge.textContent = '❌ ERROR';
+                        badge.className = 'status-badge fail';
+                        div.className = 'test-case fail';
+                        details.innerHTML = `<pre style="color: #f44;">Error: ${err.message}\n${err.stack}</pre>`;
+                        details.style.display = 'block';
+                        log(`❌ ${name}: ${err.message}`);
+                        testResults.push({ name, pass: false, error: err.message });
+                        return false;
+                    }
+                }
+            };
+        }
+        
+        function arraysEqual(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) return false;
+            }
+            return true;
+        }
+        
+        // ====================================================================
+        // 1. CRC32 Tests
+        // ====================================================================
+        
+        const crc32Tests = [
+            createTestCase(document.getElementById('crc32Tests'), 'CRC32 of empty data', () => {
+                const data = new Uint8Array(0);
+                const crc = CatProtocol.crc32(data);
+                return {
+                    pass: crc === 0,
+                    error: crc !== 0 ? `Expected 0, got ${crc}` : null,
+                    details: `CRC: 0x${crc.toString(16).padStart(8, '0')}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('crc32Tests'), 'CRC32 is deterministic', () => {
+                const data = new TextEncoder().encode('test data');
+                const crc1 = CatProtocol.crc32(data);
+                const crc2 = CatProtocol.crc32(data);
+                return {
+                    pass: crc1 === crc2,
+                    error: crc1 !== crc2 ? 'CRCs do not match' : null,
+                    details: `CRC1: 0x${crc1.toString(16)}\nCRC2: 0x${crc2.toString(16)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('crc32Tests'), 'CRC32 detects single bit flip', () => {
+                const data = new TextEncoder().encode('Hello, World!');
+                const crc1 = CatProtocol.crc32(data);
+                
+                // Flip one bit
+                data[5] ^= 0x01;
+                const crc2 = CatProtocol.crc32(data);
+                
+                return {
+                    pass: crc1 !== crc2,
+                    error: crc1 === crc2 ? 'CRC did not detect bit flip' : null,
+                    details: `Original: 0x${crc1.toString(16)}\nFlipped: 0x${crc2.toString(16)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('crc32Tests'), 'CRC32 detects byte substitution', () => {
+                const data1 = new TextEncoder().encode('Hello, World!');
+                const data2 = new TextEncoder().encode('Hello, Worlx!');
+                const crc1 = CatProtocol.crc32(data1);
+                const crc2 = CatProtocol.crc32(data2);
+                
+                return {
+                    pass: crc1 !== crc2,
+                    error: crc1 === crc2 ? 'CRC did not detect substitution' : null,
+                    details: `"World": 0x${crc1.toString(16)}\n"Worlx": 0x${crc2.toString(16)}`
+                };
+            })
+        ];
+        
+        // ====================================================================
+        // 2. Packet Encoding Tests
+        // ====================================================================
+        
+        const encodingTests = [
+            createTestCase(document.getElementById('encodingTests'), 'Empty payload encodes correctly', () => {
+                const payload = new Uint8Array(0);
+                const sessionId = 0x12345678;
+                const packet = CatProtocol.encodePacket(payload, sessionId, 0);
+                
+                return {
+                    pass: packet.length === CatProtocol.HEADER_SIZE,
+                    error: packet.length !== CatProtocol.HEADER_SIZE ? `Expected ${CatProtocol.HEADER_SIZE} bytes` : null,
+                    details: `Packet size: ${packet.length} bytes\nHex: ${CatProtocol.bytesToHex(packet)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('encodingTests'), 'Magic number is correct', () => {
+                const payload = new Uint8Array([0x01, 0x02, 0x03]);
+                const packet = CatProtocol.encodePacket(payload, 0xAABBCCDD, 0);
+                const magic = packet[0] | (packet[1] << 8);
+                
+                return {
+                    pass: magic === CatProtocol.MAGIC_NUMBER,
+                    error: magic !== CatProtocol.MAGIC_NUMBER ? `Expected 0x${CatProtocol.MAGIC_NUMBER.toString(16)}` : null,
+                    details: `Magic: 0x${magic.toString(16)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('encodingTests'), 'Session ID embedded correctly', () => {
+                const payload = new Uint8Array([1, 2, 3]);
+                const sessionId = 0xDEADBEEF;
+                const packet = CatProtocol.encodePacket(payload, sessionId, 0);
+                
+                const extractedSession = (packet[3] | (packet[4] << 8) | (packet[5] << 16) | (packet[6] << 24)) >>> 0;
+                
+                return {
+                    pass: extractedSession === sessionId,
+                    error: extractedSession !== sessionId ? `Expected 0x${sessionId.toString(16)}` : null,
+                    details: `Session: 0x${extractedSession.toString(16).padStart(8, '0')}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('encodingTests'), 'Sequence number increments', () => {
+                const payload = new Uint8Array([1]);
+                const sessionId = 0x12345678;
+                
+                const packet0 = CatProtocol.encodePacket(payload, sessionId, 0);
+                const packet1 = CatProtocol.encodePacket(payload, sessionId, 1);
+                const packet2 = CatProtocol.encodePacket(payload, sessionId, 2);
+                
+                const seq0 = packet0[7] | (packet0[8] << 8);
+                const seq1 = packet1[7] | (packet1[8] << 8);
+                const seq2 = packet2[7] | (packet2[8] << 8);
+                
+                return {
+                    pass: seq0 === 0 && seq1 === 1 && seq2 === 2,
+                    error: 'Sequence numbers incorrect',
+                    details: `Seq0: ${seq0}, Seq1: ${seq1}, Seq2: ${seq2}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('encodingTests'), 'Large payload encodes', () => {
+                const payload = new Uint8Array(1024);  // Max size
+                for (let i = 0; i < 1024; i++) payload[i] = i & 0xFF;
+                
+                const packet = CatProtocol.encodePacket(payload, 0x11111111, 0);
+                
+                return {
+                    pass: packet.length === CatProtocol.HEADER_SIZE + 1024,
+                    error: 'Unexpected packet size',
+                    details: `Packet size: ${packet.length} bytes`
+                };
+            }),
+            
+            createTestCase(document.getElementById('encodingTests'), 'Oversized payload rejected', () => {
+                const payload = new Uint8Array(1025);  // Too large
+                
+                try {
+                    CatProtocol.encodePacket(payload, 0x12345678, 0);
+                    return { pass: false, error: 'Did not throw error for oversized payload' };
+                } catch (err) {
+                    return {
+                        pass: err.message.includes('too large'),
+                        error: !err.message.includes('too large') ? 'Wrong error message' : null,
+                        details: `Error: ${err.message}`
+                    };
+                }
+            })
+        ];
+        
+        // ====================================================================
+        // 3. Packet Decoding Tests
+        // ====================================================================
+        
+        const decodingTests = [
+            createTestCase(document.getElementById('decodingTests'), 'Valid packet decodes successfully', () => {
+                const payload = new TextEncoder().encode('Hello!');
+                const sessionId = 0xCAFEBABE;
+                const packet = CatProtocol.encodePacket(payload, sessionId, 5);
+                
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: decoded.valid && arraysEqual(decoded.payload, payload),
+                    error: !decoded.valid ? decoded.error : null,
+                    details: `Valid: ${decoded.valid}\nSession: 0x${decoded.sessionId?.toString(16)}\nSeq: ${decoded.sequenceNum}\nPayload: ${new TextDecoder().decode(decoded.payload)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('decodingTests'), 'Encode/decode roundtrip', () => {
+                const originalPayload = new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+                const sessionId = 0x99887766;
+                const seq = 42;
+                
+                const packet = CatProtocol.encodePacket(originalPayload, sessionId, seq);
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                const match = decoded.valid &&
+                             decoded.sessionId === sessionId &&
+                             decoded.sequenceNum === seq &&
+                             arraysEqual(decoded.payload, originalPayload);
+                
+                return {
+                    pass: match,
+                    error: !match ? 'Roundtrip mismatch' : null,
+                    details: `Original: [${Array.from(originalPayload)}]\nDecoded: [${Array.from(decoded.payload || [])}]`
+                };
+            }),
+            
+            createTestCase(document.getElementById('decodingTests'), 'Empty payload roundtrip', () => {
+                const payload = new Uint8Array(0);
+                const packet = CatProtocol.encodePacket(payload, 0x11111111, 0);
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: decoded.valid && decoded.payload.length === 0,
+                    error: !decoded.valid ? decoded.error : null,
+                    details: `Valid: ${decoded.valid}\nPayload length: ${decoded.payload?.length || 'N/A'}`
+                };
+            })
+        ];
+        
+        // ====================================================================
+        // 4. Corruption Detection Tests
+        // ====================================================================
+        
+        const corruptionTests = [
+            createTestCase(document.getElementById('corruptionTests'), 'Corrupted magic number rejected', () => {
+                const payload = new TextEncoder().encode('test');
+                const packet = CatProtocol.encodePacket(payload, 0x12345678, 0);
+                
+                // Corrupt magic number
+                packet[0] = 0xFF;
+                
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: !decoded.valid && decoded.error === 'invalid_magic',
+                    error: decoded.valid ? 'Corrupted magic not detected' : null,
+                    details: `Error: ${decoded.error}\nDetails: ${decoded.details}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('corruptionTests'), 'Corrupted payload rejected (CRC fail)', () => {
+                const payload = new TextEncoder().encode('Important data');
+                const packet = CatProtocol.encodePacket(payload, 0xAAAAAAAA, 0);
+                
+                // Corrupt payload (flip one byte)
+                packet[16] ^= 0xFF;
+                
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    error: decoded.valid ? 'Corrupted payload not detected' : null,
+                    details: `Error: ${decoded.error}\n${decoded.details || ''}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('corruptionTests'), 'Corrupted CRC rejected', () => {
+                const payload = new TextEncoder().encode('test');
+                const packet = CatProtocol.encodePacket(payload, 0x12345678, 0);
+                
+                // Corrupt CRC itself
+                packet[11] ^= 0x01;
+                
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    error: decoded.valid ? 'Corrupted CRC not detected' : null,
+                    details: `Error: ${decoded.error}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('corruptionTests'), 'Truncated packet rejected', () => {
+                const payload = new TextEncoder().encode('test');
+                const packet = CatProtocol.encodePacket(payload, 0x12345678, 0);
+                
+                // Truncate packet
+                const truncated = packet.slice(0, 10);
+                
+                const decoded = CatProtocol.decodePacket(truncated);
+                
+                return {
+                    pass: !decoded.valid && decoded.error === 'packet_too_short',
+                    error: decoded.valid ? 'Truncated packet not detected' : null,
+                    details: `Error: ${decoded.error}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('corruptionTests'), 'Multi-byte corruption detected', () => {
+                const payload = new TextEncoder().encode('This is important data that must not be corrupted');
+                const packet = CatProtocol.encodePacket(payload, 0xDEADBEEF, 0);
+                
+                // Corrupt multiple bytes in payload
+                packet[20] ^= 0xFF;
+                packet[25] ^= 0xFF;
+                packet[30] ^= 0xFF;
+                
+                const decoded = CatProtocol.decodePacket(packet);
+                
+                return {
+                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    error: decoded.valid ? 'Multi-byte corruption not detected' : null,
+                    details: `Error: ${decoded.error}`
+                };
+            })
+        ];
+        
+        // ====================================================================
+        // 5. Session Management Tests
+        // ====================================================================
+        
+        const sessionTests = [
+            createTestCase(document.getElementById('sessionTests'), 'First valid packet locks session', () => {
+                const decoder = new CatProtocol.Decoder();
+                const payload = new TextEncoder().encode('test');
+                const sessionId = 0xABCD1234;
+                const packet = CatProtocol.encodePacket(payload, sessionId, 0);
+                
+                const result = decoder.processPacket(packet);
+                
+                return {
+                    pass: result.accepted && decoder.getSessionId() === sessionId,
+                    error: !result.accepted ? result.error : null,
+                    details: `Locked session: 0x${decoder.getSessionId()?.toString(16) || 'None'}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('sessionTests'), 'Wrong session rejected after lock', () => {
+                const decoder = new CatProtocol.Decoder();
+                const payload = new TextEncoder().encode('test');
+                
+                // First packet locks session
+                const packet1 = CatProtocol.encodePacket(payload, 0x11111111, 0);
+                decoder.processPacket(packet1);
+                
+                // Second packet with different session should be rejected
+                const packet2 = CatProtocol.encodePacket(payload, 0x22222222, 0);
+                const result = decoder.processPacket(packet2);
+                
+                return {
+                    pass: !result.accepted && result.error === 'session_mismatch',
+                    error: result.accepted ? 'Wrong session was accepted' : null,
+                    details: `Error: ${result.error}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('sessionTests'), 'Reset unlocks session', () => {
+                const decoder = new CatProtocol.Decoder();
+                const payload = new TextEncoder().encode('test');
+                
+                // Lock session
+                const packet1 = CatProtocol.encodePacket(payload, 0x11111111, 0);
+                decoder.processPacket(packet1);
+                
+                // Reset
+                decoder.reset();
+                
+                // New session should be accepted
+                const packet2 = CatProtocol.encodePacket(payload, 0x22222222, 0);
+                const result = decoder.processPacket(packet2);
+                
+                return {
+                    pass: result.accepted && decoder.getSessionId() === 0x22222222,
+                    error: !result.accepted ? result.error : null,
+                    details: `New session: 0x${decoder.getSessionId()?.toString(16)}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('sessionTests'), 'Duplicate packets detected', () => {
+                const decoder = new CatProtocol.Decoder();
+                const payload = new TextEncoder().encode('test');
+                const packet = CatProtocol.encodePacket(payload, 0x12345678, 0);
+                
+                // First time: accepted
+                const result1 = decoder.processPacket(packet);
+                
+                // Second time: duplicate
+                const result2 = decoder.processPacket(packet);
+                
+                return {
+                    pass: result1.accepted && !result2.accepted && result2.error === 'duplicate_packet',
+                    error: result2.accepted ? 'Duplicate not detected' : null,
+                    details: `First: ${result1.accepted}\nSecond: ${result2.accepted} (${result2.error})`
+                };
+            })
+        ];
+        
+        // ====================================================================
+        // 6. Multi-Packet Message Tests
+        // ====================================================================
+        
+        const messageTests = [
+            createTestCase(document.getElementById('messageTests'), 'Short message (single packet)', () => {
+                const message = "Hello, World!";
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(message, sessionId);
+                
+                return {
+                    pass: packets.length === 1,
+                    error: packets.length !== 1 ? `Expected 1 packet, got ${packets.length}` : null,
+                    details: `Packets: ${packets.length}\nMessage: "${message}"`
+                };
+            }),
+            
+            createTestCase(document.getElementById('messageTests'), 'Long message (multiple packets)', () => {
+                const message = "A".repeat(1000);  // 1000 bytes
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(message, sessionId, 256);
+                
+                const expectedPackets = Math.ceil(1000 / 256);
+                
+                return {
+                    pass: packets.length === expectedPackets,
+                    error: packets.length !== expectedPackets ? `Expected ${expectedPackets} packets` : null,
+                    details: `Message: ${message.length} bytes\nPackets: ${packets.length} (256 bytes/packet)`
+                };
+            }),
+            
+            createTestCase(document.getElementById('messageTests'), 'Multi-packet roundtrip', () => {
+                const originalMessage = "The quick brown fox jumps over the lazy dog. ".repeat(20);
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(originalMessage, sessionId, 128);
+                
+                const decoder = new CatProtocol.Decoder();
+                let finalResult = null;
+                
+                for (const packet of packets) {
+                    const result = decoder.processPacket(packet);
+                    if (result.complete) {
+                        finalResult = result;
+                        break;
+                    }
+                }
+                
+                const reconstructed = new TextDecoder().decode(finalResult.message);
+                
+                return {
+                    pass: reconstructed === originalMessage,
+                    error: reconstructed !== originalMessage ? 'Message mismatch' : null,
+                    details: `Original: ${originalMessage.length} bytes\nReconstructed: ${reconstructed.length} bytes\nPackets: ${packets.length}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('messageTests'), 'Out-of-order packets reassemble correctly', () => {
+                const message = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789".repeat(10);
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(message, sessionId, 64);
+                
+                // Shuffle packets
+                const shuffled = [...packets].sort(() => Math.random() - 0.5);
+                
+                const decoder = new CatProtocol.Decoder();
+                let finalResult = null;
+                
+                for (const packet of shuffled) {
+                    const result = decoder.processPacket(packet);
+                    if (result.complete) {
+                        finalResult = result;
+                        break;
+                    }
+                }
+                
+                const reconstructed = new TextDecoder().decode(finalResult.message);
+                
+                return {
+                    pass: reconstructed === message,
+                    error: reconstructed !== message ? 'Out-of-order reassembly failed' : null,
+                    details: `Packets: ${packets.length} (shuffled)\nMessage: ${message.length} bytes\nMatch: ${reconstructed === message}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('messageTests'), 'Binary data roundtrip', () => {
+                // Create binary payload
+                const originalData = new Uint8Array(500);
+                for (let i = 0; i < 500; i++) {
+                    originalData[i] = i & 0xFF;
+                }
+                
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(originalData, sessionId, 128);
+                
+                const decoder = new CatProtocol.Decoder();
+                let finalResult = null;
+                
+                for (const packet of packets) {
+                    const result = decoder.processPacket(packet);
+                    if (result.complete) {
+                        finalResult = result;
+                        break;
+                    }
+                }
+                
+                return {
+                    pass: arraysEqual(finalResult.message, originalData),
+                    error: !arraysEqual(finalResult.message, originalData) ? 'Binary data mismatch' : null,
+                    details: `Original: ${originalData.length} bytes\nReconstructed: ${finalResult.message.length} bytes\nPackets: ${packets.length}`
+                };
+            }),
+            
+            createTestCase(document.getElementById('messageTests'), 'Statistics tracked correctly', () => {
+                const message = "Test message";
+                const sessionId = CatProtocol.generateSessionId();
+                const packets = CatProtocol.encodeMessage(message, sessionId, 256);
+                
+                const decoder = new CatProtocol.Decoder();
+                
+                for (const packet of packets) {
+                    decoder.processPacket(packet);
+                }
+                
+                const stats = decoder.getStats();
+                
+                return {
+                    pass: stats.packets_received === packets.length &&
+                          stats.packets_crc_pass === packets.length &&
+                          stats.packets_crc_fail === 0,
+                    error: 'Stats mismatch',
+                    details: `Received: ${stats.packets_received}\nCRC Pass: ${stats.packets_crc_pass}\nCRC Fail: ${stats.packets_crc_fail}`
+                };
+            })
+        ];
+        
+        // ====================================================================
+        // Test Runner
+        // ====================================================================
+        
+        async function runAllTests() {
+            testResults = [];
+            testLog = [];
+            document.getElementById('runAllTests').disabled = true;
+            document.getElementById('summary').style.display = 'none';
+            
+            log('=== Starting Cat Protocol Test Suite ===');
+            
+            const allTests = [
+                ...crc32Tests,
+                ...encodingTests,
+                ...decodingTests,
+                ...corruptionTests,
+                ...sessionTests,
+                ...messageTests
+            ];
+            
+            let passed = 0;
+            let failed = 0;
+            
+            for (const test of allTests) {
+                const result = await test.run();
+                if (result) passed++;
+                else failed++;
+            }
+            
+            const total = passed + failed;
+            const percent = Math.round((passed / total) * 100);
+            
+            log(`=== Test Suite Complete ===`);
+            log(`Passed: ${passed}/${total} (${percent}%)`);
+            
+            // Show summary
+            const summaryDiv = document.getElementById('summary');
+            const summaryText = document.getElementById('summaryText');
+            summaryDiv.style.display = 'block';
+            
+            if (failed === 0) {
+                summaryText.innerHTML = `✅ ALL TESTS PASSED! (${passed}/${total})<br><br>🎉 Cat Protocol is PRODUCTION READY! 🎉`;
+                summaryDiv.style.borderLeft = '4px solid #4caf50';
+            } else {
+                summaryText.innerHTML = `⚠️ ${failed} test(s) failed (${passed}/${total} passed)<br><br>🔧 Fix these before deployment!`;
+                summaryDiv.style.borderLeft = '4px solid #f44336';
+            }
+            
+            document.getElementById('runAllTests').disabled = false;
+        }
+        
+        function resetTests() {
+            testResults = [];
+            testLog = [];
+            document.getElementById('testLog').innerHTML = '';
+            document.getElementById('summary').style.display = 'none';
+            
+            document.querySelectorAll('.test-case').forEach(tc => {
+                tc.className = 'test-case pending';
+                const badge = tc.querySelector('.status-badge');
+                badge.textContent = 'PENDING';
+                badge.className = 'status-badge pending';
+                tc.querySelector('.test-details').style.display = 'none';
+            });
+            
+            log('Tests reset');
+        }
+        
+        // Event listeners
+        document.getElementById('runAllTests').addEventListener('click', runAllTests);
+        document.getElementById('resetTests').addEventListener('click', resetTests);
+        
+        // Display test counts
+        log(`Loaded ${crc32Tests.length} CRC32 tests`);
+        log(`Loaded ${encodingTests.length} encoding tests`);
+        log(`Loaded ${decodingTests.length} decoding tests`);
+        log(`Loaded ${corruptionTests.length} corruption tests`);
+        log(`Loaded ${sessionTests.length} session tests`);
+        log(`Loaded ${messageTests.length} message tests`);
+        log(`Total: ${crc32Tests.length + encodingTests.length + decodingTests.length + corruptionTests.length + sessionTests.length + messageTests.length} tests ready`);
+    </script>
+</body>
+</html>

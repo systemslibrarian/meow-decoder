@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fountain Codes Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1a1a2e; color: #00ff88; }
+        pre { background: #0f0f1e; padding: 15px; border-radius: 8px; }
+        .pass { color: #00ff88; }
+        .fail { color: #ff6464; }
+    </style>
+</head>
+<body>
+    <h1>🐱 Fountain Codes Test Suite</h1>
+    <pre id="output"></pre>
+
+    <script src="fountain-codes.js"></script>
+    <script>
+        const output = document.getElementById('output');
+        
+        function log(msg) {
+            output.textContent += msg + '\n';
+        }
+        
+        function assert(condition, message) {
+            if (condition) {
+                log(`✅ PASS: ${message}`);
+            } else {
+                log(`❌ FAIL: ${message}`);
+                throw new Error(message);
+            }
+        }
+        
+        function arrayEquals(a, b) {
+            if (a.length !== b.length) return false;
+            for (let i = 0; i < a.length; i++) {
+                if (a[i] !== b[i]) return false;
+            }
+            return true;
+        }
+        
+        function runTests() {
+            log('Starting fountain codes tests...\n');
+            
+            // Test 1: Basic encode/decode
+            log('Test 1: Basic encode/decode with no loss');
+            log('----------------------------------------');
+            const testData = new TextEncoder().encode('Hello, Fountain Codes! This is a test message.');
+            const blockSize = 10;
+            const kBlocks = Math.ceil(testData.length / blockSize);
+            
+            log(`Original data: ${testData.length} bytes`);
+            log(`Blocks: ${kBlocks} × ${blockSize} bytes`);
+            
+            const encoder = new FountainEncoder(testData, kBlocks, blockSize);
+            const decoder = new FountainDecoder(kBlocks, blockSize, testData.length);
+            
+            // Collect exactly k blocks (should decode)
+            log(`\nGenerating ${kBlocks} droplets...`);
+            for (let i = 0; i < kBlocks; i++) {
+                const droplet = encoder.generateDroplet(i);
+                decoder.addDroplet(droplet);
+                log(`  Droplet ${i}: degree=${droplet.blockIndices.length}, decoded=${decoder.decodedCount}/${kBlocks}`);
+            }
+            
+            assert(decoder.isComplete(), 'Should decode with exactly k droplets');
+            const recovered = decoder.getData(testData.length);
+            assert(arrayEquals(testData, recovered), 'Recovered data should match original');
+            log(`\n✅ Test 1 PASSED\n`);
+            
+            // Test 2: Decode with redundancy
+            log('\nTest 2: Decode with 50% redundancy (simulating frame loss)');
+            log('----------------------------------------------------------');
+            const decoder2 = new FountainDecoder(kBlocks, blockSize, testData.length);
+            const numDroplets = Math.ceil(kBlocks * 1.5);
+            
+            log(`Generating ${numDroplets} droplets (${Math.round((numDroplets-kBlocks)/kBlocks*100)}% overhead)...`);
+            let decodedAt = -1;
+            for (let i = 0; i < numDroplets; i++) {
+                const droplet = encoder.generateDroplet(i);
+                const complete = decoder2.addDroplet(droplet);
+                log(`  Droplet ${i}: decoded=${decoder2.decodedCount}/${kBlocks}`);
+                if (complete && decodedAt === -1) {
+                    decodedAt = i + 1;
+                }
+            }
+            
+            assert(decoder2.isComplete(), 'Should decode with redundancy');
+            const recovered2 = decoder2.getData(testData.length);
+            assert(arrayEquals(testData, recovered2), 'Recovered data should match original');
+            log(`\n✅ Decoded after ${decodedAt} droplets (efficiency: ${Math.round(kBlocks/decodedAt*100)}%)`);
+            log(`✅ Test 2 PASSED\n`);
+            
+            // Test 3: Droplet pack/unpack
+            log('\nTest 3: Droplet serialization (pack/unpack)');
+            log('-------------------------------------------');
+            const droplet = encoder.generateDroplet(42);
+            const packed = droplet.pack();
+            const unpacked = Droplet.unpack(packed, blockSize);
+            
+            assert(unpacked.seed === droplet.seed, 'Seed should match');
+            assert(unpacked.blockIndices.length === droplet.blockIndices.length, 'Block indices length should match');
+            assert(arrayEquals(unpacked.data, droplet.data), 'Data should match');
+            log(`  Original seed: ${droplet.seed}, degree: ${droplet.blockIndices.length}`);
+            log(`  Unpacked seed: ${unpacked.seed}, degree: ${unpacked.blockIndices.length}`);
+            log(`✅ Test 3 PASSED\n`);
+            
+            // Test 4: Missing frames simulation
+            log('\nTest 4: Frame loss simulation (33% dropped)');
+            log('-------------------------------------------');
+            const decoder3 = new FountainDecoder(kBlocks, blockSize, testData.length);
+            const totalDroplets = Math.ceil(kBlocks * 1.5);
+            const droppedFrames = new Set([2, 5, 8, 11, 14]); // Drop ~33%
+            
+            log(`Total droplets: ${totalDroplets}`);
+            log(`Dropped frames: ${droppedFrames.size} (${Math.round(droppedFrames.size/totalDroplets*100)}%)`);
+            
+            let received = 0;
+            for (let i = 0; i < totalDroplets; i++) {
+                if (droppedFrames.has(i)) {
+                    log(`  Frame ${i}: DROPPED ❌`);
+                    continue;
+                }
+                const droplet = encoder.generateDroplet(i);
+                decoder3.addDroplet(droplet);
+                received++;
+                log(`  Frame ${i}: received ✅ (${decoder3.decodedCount}/${kBlocks} decoded)`);
+            }
+            
+            assert(decoder3.isComplete(), `Should decode despite ${droppedFrames.size} dropped frames`);
+            const recovered3 = decoder3.getData(testData.length);
+            assert(arrayEquals(testData, recovered3), 'Recovered data should match original');
+            log(`\n✅ Decoded from ${received}/${totalDroplets} frames (${droppedFrames.size} dropped)`);
+            log(`✅ Test 4 PASSED\n`);
+            
+            // Test 5: Large data
+            log('\nTest 5: Larger payload (2KB)');
+            log('-----------------------------');
+            const largeData = new Uint8Array(2048);
+            for (let i = 0; i < largeData.length; i++) {
+                largeData[i] = i % 256;
+            }
+            
+            const largeBlockSize = 100;
+            const largeKBlocks = Math.ceil(largeData.length / largeBlockSize);
+            const largeEncoder = new FountainEncoder(largeData, largeKBlocks, largeBlockSize);
+            const largeDecoder = new FountainDecoder(largeKBlocks, largeBlockSize, largeData.length);
+            
+            log(`Data size: ${largeData.length} bytes`);
+            log(`Blocks: ${largeKBlocks} × ${largeBlockSize} bytes`);
+            log(`Generating ${Math.ceil(largeKBlocks * 1.2)} droplets (20% overhead)...`);
+            
+            for (let i = 0; i < Math.ceil(largeKBlocks * 1.2); i++) {
+                const droplet = largeEncoder.generateDroplet(i);
+                largeDecoder.addDroplet(droplet);
+                if (largeDecoder.isComplete()) {
+                    log(`  Decoded at droplet ${i+1}`);
+                    break;
+                }
+            }
+            
+            assert(largeDecoder.isComplete(), 'Should decode large payload');
+            const recoveredLarge = largeDecoder.getData(largeData.length);
+            assert(arrayEquals(largeData, recoveredLarge), 'Large recovered data should match');
+            log(`✅ Test 5 PASSED\n`);
+            
+            log('\n🎉 ALL TESTS PASSED! Fountain codes working correctly.');
+            log('\n📊 Summary:');
+            log('  ✓ Basic encoding/decoding');
+            log('  ✓ Redundancy and overhead');
+            log('  ✓ Droplet serialization');
+            log('  ✓ Frame loss tolerance (33% loss)');
+            log('  ✓ Large payload handling (2KB)');
+            log('\n✅ Ready for production use!');
+        }
+        
+        try {
+            runTests();
+        } catch (err) {
+            log(`\n❌ TEST SUITE FAILED: ${err.message}`);
+            log(`Stack: ${err.stack}`);
+        }
+    </script>
+</body>
+</html>

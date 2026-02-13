@@ -32,11 +32,13 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml/badge.svg" alt="Rust Crypto">
   </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flag=python">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Python Coverage">
+  <!-- Python coverage: meow_decoder/ Python modules -->
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags%5B0%5D=python">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Python Coverage">
   </a>
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flag=rust">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
+  <!-- Rust coverage: crypto_core/ and rust_crypto/ Rust modules -->
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags%5B0%5D=rust">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
@@ -186,7 +188,7 @@ start secret.gif     # Windows
 | 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
 | 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
 | 🔮 **Post-Quantum** | ML-KEM-1024 (Kyber) + ML-DSA-65 (Dilithium) hybrid (DEFAULT) |
-| 📊 **Fountain Codes** | Tolerates 33% frame loss |
+| 📊 **Fountain Codes** | Tolerates 33% frame loss in multi-frame QR (Python + JavaScript) |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
 | 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--use-hardware-key`) |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
@@ -407,7 +409,9 @@ While inspired by these projects, Meow Decoder adds critical security features:
 ### The Data Pipeline
 
 ```
-File → Compress → Encrypt → Fountain Encode → QR Codes → Animated GIF
+File → Compress → Encrypt → Fountain Encode (Luby Transform) → QR Codes → Animated GIF
+
+**Multi-Frame Frame Loss Tolerance:** Payloads >2500 bytes use fountain codes (rateless erasure coding) that allow decoding from ANY ~67% of frames. This solves the "missed frame" problem in phone camera capture—autofocus lag, motion blur, and low framerates no longer cause decoding failure. Works in both Python CLI and JavaScript web demo.
 ```
 
 | Step | What Happens |
@@ -464,7 +468,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 | **Tampering/modification** | AES-GCM authentication + HMAC |
 | **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
 | **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
-| **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) |
+| **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) — Python + JS implementation |
 | **Quantum computers (future)** | Post-quantum crypto (ML-KEM-1024, DEFAULT ON) |
 
 ### ❌ Does NOT Protect Against
@@ -623,6 +627,45 @@ meow-decode-gif -i secret.gif -o recovered.pdf --use-hardware-key --yubikey-piv-
 
 See [crypto_core/README.md](crypto_core/README.md) for Rust API details and advanced configuration.
 
+### WebAuthn Browser Integration (Prototype)
+
+> **Current status:** Prototype implementation available. Basic registration and key derivation working. Full integration with WASM demo in progress.
+
+The browser demo now supports **WebAuthn/FIDO2 hardware security keys** for hardware-backed encryption:
+
+```javascript
+import { HardwareKeyManager } from './webauthn-hardware.js';
+
+const hwManager = new HardwareKeyManager();
+
+// Register a security key (YubiKey, Titan, etc.)
+await hwManager.register("my-username");
+
+// Derive encryption key with hybrid security:
+// - Password (knowledge factor)
+// - Hardware key signature (possession factor + touch)
+const key = await hwManager.deriveKey(password, salt, argon2DeriveFunc);
+```
+
+**Security Model:**
+- 🔐 **Key Isolation**: Private keys never leave the hardware authenticator
+- 👆 **Touch Required**: Physical presence verification for each operation
+- 🔑 **Hybrid Derivation**: XORs hardware signature with Argon2id password key
+- 🛡️ **Multi-Factor**: Combines knowledge (password) + possession (key) + presence (touch)
+
+**Supported Keys:**
+- YubiKey 5 Series (FIDO2)
+- Google Titan Security Key
+- Windows Hello (platform authenticator)
+- Any FIDO2/WebAuthn compatible device
+
+**Implementation Files:**
+- [`examples/webauthn-hardware.js`](examples/webauthn-hardware.js) — Core WebAuthn integration
+- [`docs/WEBAUTHN_INTEGRATION_PLAN.md`](docs/WEBAUTHN_INTEGRATION_PLAN.md) — Full technical specification
+- [`tests/test_webauthn_integration.html`](tests/test_webauthn_integration.html) — Browser-based unit tests
+
+See [WEBAUTHN_INTEGRATION_PLAN.md](docs/WEBAUTHN_INTEGRATION_PLAN.md) for complete implementation details and security analysis.
+
 ---
 
 ## 📱 Mobile Bridge (React Native)
@@ -710,10 +753,10 @@ Run the crypto core directly in your browser — no server-side processing, full
 | X25519 Forward Secrecy | ✅ | ✅ | Full parity |
 | ML-KEM-1024 Post-Quantum | ✅ | ✅ | Requires `--features wasm-pq` |
 | Schrödinger Mode | ✅ | ✅ | Dual-secret deniability |
-| Fountain Codes | ✅ | ⚠️ | Planned (QR frames only) |
-| GIF Animation | ✅ | ✅ | Multi-frame QR support |
+| Fountain Codes | ✅ | ✅ | Full support (Python + JavaScript, 33% frame loss tolerance) |
+| GIF Animation | ✅ | ✅ | Multi-frame QR with fountain codes (loss-tolerant) |
 | Steganography | ✅ Level 1-5 | ⚠️ Level 1-2 | Browser canvas limitations |
-| Hardware Keys | ✅ | ❌ | WebAuthn integration planned |
+| Hardware Keys | ✅ | 🔬 Prototype | WebAuthn/FIDO2 implementation available ([webauthn-hardware.js](examples/webauthn-hardware.js)) |
 | Webcam Decode | ✅ | ✅ | Real-time camera scanner |
 | Duress Mode | ✅ | ✅ | Panic password wipe |
 | File Upload | ✅ | ✅ | Up to ~2KB per QR |

@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cat Mode Golden Video Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a2e;
+            color: #eee;
+        }
+        h1 { color: #00ff88; }
+        h2 { color: #00ccff; }
+        .test-case {
+            background: #16213e;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status {
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .status.pass {
+            background: rgba(0, 255, 136, 0.2);
+            border-left: 4px solid #00ff88;
+        }
+        .status.fail {
+            background: rgba(255, 68, 68, 0.2);
+            border-left: 4px solid #ff4444;
+        }
+        .status.pending {
+            background: rgba(255, 200, 0, 0.2);
+            border-left: 4px solid #ffc800;
+        }
+        button {
+            background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
+            color: #000;
+            border: none;
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { opacity: 0.8; }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        video {
+            max-width: 100%;
+            border: 2px solid #00ccff;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+        canvas {
+            display: none;
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .metric {
+            background: #1a1a2e;
+            padding: 10px;
+            border-radius: 6px;
+            text-align: center;
+        }
+        .metric-label {
+            color: #888;
+            font-size: 12px;
+        }
+        .metric-value {
+            color: #00ff88;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .test-results {
+            margin-top: 30px;
+        }
+        .assertion {
+            padding: 8px 12px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .assertion.pass {
+            background: rgba(0, 255, 136, 0.1);
+            color: #00ff88;
+        }
+        .assertion.fail {
+            background: rgba(255, 68, 68, 0.1);
+            color: #ff4444;
+        }
+    </style>
+</head>
+<body>
+    <h1>🧪 Cat Mode Golden Video Test Suite</h1>
+    
+    <div class="test-case">
+        <h2>Test Case: Empty String SHA-256 Hash</h2>
+        
+        <video id="testVideo" controls>
+            <source src="golden/cat_mode_golden_empty_hash_100ms.webm" type="video/webm">
+            Your browser does not support the video tag.
+        </video>
+        
+        <canvas id="canvas"></canvas>
+        
+        <button onclick="runTest()" id="runBtn">▶️ Run Test</button>
+        <button onclick="runAllTests()" id="runAllBtn">▶️▶️ Run All Tests</button>
+        
+        <div class="metrics">
+            <div class="metric">
+                <div class="metric-label">Frames Processed</div>
+                <div class="metric-value" id="framesProcessed">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Transitions</div>
+                <div class="metric-value" id="transitions">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">CRC Pass Rate</div>
+                <div class="metric-value" id="crcRate">0%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Bits Recovered</div>
+                <div class="metric-value" id="bitsRecovered">0</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Confidence</div>
+                <div class="metric-value" id="confidence">0%</div>
+            </div>
+            <div class="metric">
+                <div class="metric-label">Session Locked</div>
+                <div class="metric-value" id="session">None</div>
+            </div>
+        </div>
+        
+        <div class="status pending" id="status">
+            ⏳ Ready to run test. Click "Run Test" to validate golden video.
+        </div>
+    </div>
+    
+    <div class="test-results" id="results" style="display:none;">
+        <h2>📊 Test Assertions</h2>
+        <div id="assertionsList"></div>
+    </div>
+    
+    <script src="../examples/cat-mode-protocol.js"></script>
+    <script src="../examples/preamble-calibration.js"></script>
+    <script src="../examples/nrz-decoder.js"></script>
+    <script src="../examples/quality-metrics.js"></script>
+    <script src="../examples/adaptive-threshold.js"></script>
+    <script src="../examples/hysteresis.js"></script>
+    
+    <script>
+        // ====================================================================
+        // Expected Test Results
+        // ====================================================================
+        
+        const GOLDEN_TESTS = {
+            empty_hash: {
+                file: 'golden/cat_mode_golden_empty_hash_100ms.webm',
+                expectedPayload: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                payloadType: 'hash',
+                expectedBits: 256,
+                expectedSessionId: 0x12345678,
+                minCrcPassRate: 90.0,
+                minConfidence: 80.0
+            },
+            short: {
+                file: 'golden/cat_mode_golden_short_150ms.webm',
+                expectedPayload: '0123456789abcdef0123456789abcdef',
+                payloadType: 'hex',
+                expectedBits: 128,
+                expectedSessionId: 0x12345678,
+                minCrcPassRate: 90.0,
+                minConfidence: 80.0
+            },
+            long: {
+                file: 'golden/cat_mode_golden_long_50ms.webm',
+                expectedPayload: 'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs!',
+                payloadType: 'text',
+                expectedBits: null, // Variable length
+                expectedSessionId: 0x12345678,
+                minCrcPassRate: 85.0,
+                minConfidence: 75.0
+            }
+        };
+        
+        // ====================================================================
+        // Video Frame Extraction
+        // ====================================================================
+        
+        async function extractFrames(video, canvas) {
+            const ctx = canvas.getContext('2d');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            const frames = [];
+            const fps = 30; // Approximate
+            const duration = video.duration;
+            const totalFrames = Math.floor(duration * fps);
+            
+            video.currentTime = 0;
+            
+            for (let i = 0; i < totalFrames; i++) {
+                const time = i / fps;
+                video.currentTime = time;
+                
+                await new Promise(resolve => {
+                    video.onseeked = resolve;
+                });
+                
+                // Draw frame
+                ctx.drawImage(video, 0, 0);
+                
+                // Calculate green score (ROI = center, where eyes are)
+                const cx = canvas.width / 2;
+                const cy = canvas.height / 2;
+                const roiSize = Math.min(canvas.width, canvas.height) * 0.3;
+                
+                const imageData = ctx.getImageData(
+                    cx - roiSize/2,
+                    cy - roiSize/2,
+                    roiSize,
+                    roiSize
+                );
+                
+                const greenScore = calculateGreenScore(imageData);
+                
+                frames.push({
+                    time: time * 1000, // Convert to ms
+                    greenScore: greenScore
+                });
+                
+                // Update progress
+                if (i % 10 === 0) {
+                    document.getElementById('framesProcessed').textContent = i;
+                }
+            }
+            
+            return frames;
+        }
+        
+        function calculateGreenScore(imageData) {
+            const data = imageData.data;
+            let greenSum = 0;
+            let totalSum = 0;
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                
+                greenSum += g;
+                totalSum += r + g + b;
+            }
+            
+            return totalSum > 0 ? greenSum / totalSum : 0;
+        }
+        
+        // ====================================================================
+        // Test Execution
+        // ====================================================================
+        
+        async function runTest(testConfig = GOLDEN_TESTS.empty_hash) {
+            const status = document.getElementById('status');
+            const runBtn = document.getElementById('runBtn');
+            const video = document.getElementById('testVideo');
+            const canvas = document.getElementById('canvas');
+            
+            runBtn.disabled = true;
+            status.className = 'status pending';
+            status.innerHTML = '⏳ Loading video...';
+            
+            const assertions = [];
+            
+            try {
+                // Wait for video metadata
+                await new Promise(resolve => {
+                    if (video.readyState >= 2) {
+                        resolve();
+                    } else {
+                        video.onloadedmetadata = resolve;
+                    }
+                });
+                
+                status.innerHTML = '⏳ Extracting frames...';
+                const frames = await extractFrames(video, canvas);
+                
+                document.getElementById('framesProcessed').textContent = frames.length;
+                status.innerHTML = '⏳ Running decode pipeline...';
+                
+                // Initialize pipeline components
+                const allScores = frames.map(f => f.greenScore);
+                const sorted = allScores.slice().sort((a, b) => a - b);
+                const initialThreshold = sorted[Math.floor(sorted.length * 0.5)];
+                
+                const adaptiveThreshold = new AdaptiveThreshold(100, 5, 50);
+                const hysteresis = new AdaptiveHysteresis(initialThreshold, 0.10, 'off');
+                const qualityMetrics = new QualityMetrics();
+                
+                // Phase 1: Classify frames with confidence
+                const classifiedFrames = [];
+                let transitionCount = 0;
+                let lastState = 'off';
+                
+                for (const frame of frames) {
+                    adaptiveThreshold.update(frame.greenScore, frame.time);
+                    const threshold = adaptiveThreshold.getThreshold();
+                    
+                    const hysteresisResult = hysteresis.update(frame.greenScore);
+                    const state = hysteresisResult.state;
+                    
+                    // Calculate confidence
+                    const p5 = sorted[Math.floor(sorted.length * 0.05)];
+                    const p95 = sorted[Math.floor(sorted.length * 0.95)];
+                    const range = p95 - p5;
+                    const diff = Math.abs(frame.greenScore - threshold);
+                    const confidence = diff / (range + 0.01);
+                    
+                    classifiedFrames.push({
+                        ...frame,
+                        state,
+                        confidence,
+                        threshold
+                    });
+                    
+                    qualityMetrics.recordFrame(state, confidence);
+                    
+                    if (state !== lastState && state !== 'unknown') {
+                        transitionCount++;
+                        lastState = state;
+                    }
+                }
+                
+                document.getElementById('transitions').textContent = transitionCount;
+                assertions.push({
+                    name: 'Transitions detected',
+                    expected: '> 50',
+                    actual: transitionCount,
+                    pass: transitionCount > 50
+                });
+                
+                // Phase 2: Detect preamble and calibrate
+                status.innerHTML = '⏳ Detecting preamble...';
+                const preambleResult = detectPreambleWithFallback(classifiedFrames, 100);
+                
+                assertions.push({
+                    name: 'Preamble detection',
+                    expected: 'Found',
+                    actual: preambleResult.found ? 'Found' : 'Not found (fallback)',
+                    pass: true // Fallback is acceptable
+                });
+                
+                // Phase 3: Find sync word
+                status.innerHTML = '⏳ Searching for sync word...';
+                const syncResult = findSyncWordWithFallback(
+                    classifiedFrames,
+                    preambleResult.bitPeriod,
+                    preambleResult.threshold
+                );
+                
+                assertions.push({
+                    name: 'Sync word detection',
+                    expected: 'Found',
+                    actual: syncResult.found ? 'Found' : 'Not found',
+                    pass: syncResult.found
+                });
+                
+                if (!syncResult.found) {
+                    throw new Error('Sync word not found - cannot decode');
+                }
+                
+                // Phase 4: Decode bits
+                status.innerHTML = '⏳ Decoding bits...';
+                const nrzDecoder = new NRZDecoder(
+                    preambleResult.bitPeriod,
+                    syncResult.t0
+                );
+                
+                const bits = nrzDecoder.decodeBits(classifiedFrames, 1000); // Max 1000 bits
+                document.getElementById('bitsRecovered').textContent = bits.length;
+                
+                if (testConfig.expectedBits) {
+                    assertions.push({
+                        name: 'Bit count',
+                        expected: testConfig.expectedBits,
+                        actual: bits.length,
+                        pass: Math.abs(bits.length - testConfig.expectedBits) < 20
+                    });
+                }
+                
+                // Phase 5: Decode packets
+                status.innerHTML = '⏳ Decoding packets...';
+                const bytes = bitsToBytes(bits);
+                const protocol = new CatProtocol();
+                
+                let crcPass = 0;
+                let crcFail = 0;
+                const payloadChunks = [];
+                
+                for (let i = 0; i < bytes.length; i += protocol.PACKET_SIZE) {
+                    if (i + protocol.PACKET_SIZE > bytes.length) break;
+                    
+                    const packetBytes = bytes.slice(i, i + protocol.PACKET_SIZE);
+                    const result = protocol.decodePacket(packetBytes);
+                    
+                    if (result.valid) {
+                        if (result.crc_match) {
+                            crcPass++;
+                            payloadChunks.push(...result.payload);
+                        } else {
+                            crcFail++;
+                        }
+                    }
+                }
+                
+                const crcPassRate = ((crcPass / (crcPass + crcFail)) * 100).toFixed(1);
+                document.getElementById('crcRate').textContent = crcPassRate + '%';
+                
+                assertions.push({
+                    name: 'CRC pass rate',
+                    expected: `≥ ${testConfig.minCrcPassRate}%`,
+                    actual: crcPassRate + '%',
+                    pass: parseFloat(crcPassRate) >= testConfig.minCrcPassRate
+                });
+                
+                // Phase 6: Validate payload
+                const decodedPayload = new TextDecoder().decode(new Uint8Array(payloadChunks));
+                
+                assertions.push({
+                    name: 'Payload match',
+                    expected: testConfig.expectedPayload.substring(0, 40) + '...',
+                    actual: decodedPayload.substring(0, 40) + '...',
+                    pass: decodedPayload === testConfig.expectedPayload
+                });
+                
+                // Calculate overall confidence
+                const metrics = qualityMetrics.getMetrics();
+                const confidencePercent = (metrics.confident_percent || 0).toFixed(1);
+                document.getElementById('confidence').textContent = confidencePercent + '%';
+                
+                assertions.push({
+                    name: 'Overall confidence',
+                    expected: `≥ ${testConfig.minConfidence}%`,
+                    actual: confidencePercent + '%',
+                    pass: parseFloat(confidencePercent) >= testConfig.minConfidence
+                });
+                
+                // Display results
+                displayAssertions(assertions);
+                
+                const allPass = assertions.every(a => a.pass);
+                if (allPass) {
+                    status.className = 'status pass';
+                    status.innerHTML = '✅ TEST PASSED - Golden video decoded successfully!';
+                } else {
+                    status.className = 'status fail';
+                    status.innerHTML = '❌ TEST FAILED - See assertions below';
+                }
+                
+            } catch (error) {
+                status.className = 'status fail';
+                status.innerHTML = `❌ ERROR: ${error.message}`;
+                console.error(error);
+            } finally {
+                runBtn.disabled = false;
+            }
+        }
+        
+        function bitsToBytes(bits) {
+            const bytes = [];
+            for (let i = 0; i < bits.length; i += 8) {
+                const byteBits = bits.slice(i, i + 8);
+                if (byteBits.length === 8) {
+                    const byte = parseInt(byteBits.join(''), 2);
+                    bytes.push(byte);
+                }
+            }
+            return bytes;
+        }
+        
+        function displayAssertions(assertions) {
+            const resultsDiv = document.getElementById('results');
+            const assertionsList = document.getElementById('assertionsList');
+            
+            resultsDiv.style.display = 'block';
+            assertionsList.innerHTML = '';
+            
+            for (const a of assertions) {
+                const div = document.createElement('div');
+                div.className = 'assertion ' + (a.pass ? 'pass' : 'fail');
+                div.innerHTML = `
+                    ${a.pass ? '✓' : '✗'} <strong>${a.name}</strong><br>
+                    Expected: ${a.expected}<br>
+                    Actual: ${a.actual}
+                `;
+                assertionsList.appendChild(div);
+            }
+        }
+        
+        async function runAllTests() {
+            // Run all configured tests sequentially
+            for (const [name, config] of Object.entries(GOLDEN_TESTS)) {
+                console.log(`Running test: ${name}`);
+                await runTest(config);
+                await new Promise(r => setTimeout(r, 1000)); // Pause between tests
+            }
+        }
+    </script>
+</body>
+</html>

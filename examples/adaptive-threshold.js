@@ -1,0 +1,352 @@
+/**
+ * 🎯 Adaptive Threshold for Cat Mode Detection
+ * 
+ * Implements sliding-window threshold adaptation using bimodal distribution analysis.
+ * Addresses lighting changes during video capture by continuously recalibrating.
+ * 
+ * Key Features:
+ * - Sliding window (default 100 frames) for recent history
+ * - Histogram-based bimodal peak detection
+ * - Automatic re-calibration every N seconds
+ * - Median Absolute Deviation (MAD) for robust statistics
+ * - Fallback to median if distribution is unimodal
+ * 
+ * Algorithm:
+ * 1. Maintain circular buffer of recent green scores
+ * 2. Every 5 seconds, compute histogram of window
+ * 3. Find two highest peaks (on/off states)
+ * 4. Set threshold to midpoint between peaks
+ * 5. If only one peak found, warn and use median
+ * 
+ * @author Meow Decoder Team
+ * @date 2026-02-13
+ */
+
+// ============================================================================
+// Utility Functions
+// ============================================================================
+
+/**
+ * Compute median of array (non-destructive).
+ */
+function median(arr) {
+    if (arr.length === 0) return 0;
+    const sorted = arr.slice().sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    if (sorted.length % 2 === 0) {
+        return (sorted[mid - 1] + sorted[mid]) / 2;
+    } else {
+        return sorted[mid];
+    }
+}
+
+/**
+ * Compute Median Absolute Deviation (MAD) for robust statistics.
+ * MAD = median(|x_i - median(x)|)
+ */
+function medianAbsoluteDeviation(arr) {
+    if (arr.length === 0) return 0;
+    const med = median(arr);
+    const deviations = arr.map(x => Math.abs(x - med));
+    return median(deviations);
+}
+
+/**
+ * Compute histogram of values.
+ * @param {number[]} values - Input data
+ * @param {number} bins - Number of bins
+ * @param {number} min - Minimum value (default: auto-detect)
+ * @param {number} max - Maximum value (default: auto-detect)
+ * @returns {object} { bins: [{value, count}], binWidth }
+ */
+function computeHistogram(values, bins = 50, min = null, max = null) {
+    if (values.length === 0) {
+        return { bins: [], binWidth: 0 };
+    }
+    
+    // Auto-detect range if not provided
+    if (min === null) min = Math.min(...values);
+    if (max === null) max = Math.max(...values);
+    
+    // Handle case where all values are the same
+    if (min === max) {
+        return {
+            bins: [{ value: min, count: values.length }],
+            binWidth: 0
+        };
+    }
+    
+    const binWidth = (max - min) / bins;
+    const histogram = Array(bins).fill(0).map((_, i) => ({
+        value: min + (i + 0.5) * binWidth,  // Center of bin
+        count: 0
+    }));
+    
+    // Fill histogram
+    for (const val of values) {
+        const binIndex = Math.min(Math.floor((val - min) / binWidth), bins - 1);
+        histogram[binIndex].count++;
+    }
+    
+    return { bins: histogram, binWidth };
+}
+
+/**
+ * Find peaks in histogram using simple local maxima detection.
+ * A peak is a bin with count higher than both neighbors.
+ * @param {object[]} histogram - Array of {value, count}
+ * @param {number} minPeakHeight - Minimum count to be considered a peak (default: 5% of max)
+ * @returns {object[]} Array of {value, height, index}
+ */
+function findPeaks(histogram, minPeakHeight = null) {
+    if (histogram.length < 3) return [];
+    
+    // Auto-set minimum peak height if not provided
+    const maxCount = Math.max(...histogram.map(b => b.count));
+    if (minPeakHeight === null) {
+        minPeakHeight = maxCount * 0.05;  // 5% of max count
+    }
+    
+    const peaks = [];
+    
+    // Find local maxima (higher than both neighbors)
+    for (let i = 1; i < histogram.length - 1; i++) {
+        const current = histogram[i].count;
+        const left = histogram[i - 1].count;
+        const right = histogram[i + 1].count;
+        
+        if (current > left && current > right && current >= minPeakHeight) {
+            peaks.push({
+                value: histogram[i].value,
+                height: current,
+                index: i
+            });
+        }
+    }
+    
+    return peaks;
+}
+
+/**
+ * Find valley (minimum) between two peaks.
+ * This is a more robust threshold than simple midpoint.
+ * @param {object[]} histogram
+ * @param {object} peak1 - First peak {value, height, index}
+ * @param {object} peak2 - Second peak
+ * @returns {number} Value at valley minimum
+ */
+function findValley(histogram, peak1, peak2) {
+    const leftIdx = Math.min(peak1.index, peak2.index);
+    const rightIdx = Math.max(peak1.index, peak2.index);
+    
+    // Find minimum count between peaks
+    let minIdx = leftIdx;
+    let minCount = histogram[leftIdx].count;
+    
+    for (let i = leftIdx + 1; i <= rightIdx; i++) {
+        if (histogram[i].count < minCount) {
+            minCount = histogram[i].count;
+            minIdx = i;
+        }
+    }
+    
+    return histogram[minIdx].value;
+}
+
+// ============================================================================
+// AdaptiveThreshold Class
+// ============================================================================
+
+class AdaptiveThreshold {
+    /**
+     * @param {number} windowSize - Number of frames to keep in sliding window
+     * @param {number} recalibrateSec - Seconds between re-calibrations
+     * @param {number} histogramBins - Number of histogram bins
+     */
+    constructor(windowSize = 100, recalibrateSec = 5, histogramBins = 50) {
+        this.window = [];
+        this.windowSize = windowSize;
+        this.recalibrateInterval = recalibrateSec * 1000; // Convert to ms
+        this.lastCalibration = 0;
+        this.threshold = 0.5; // Initial guess (will be updated)
+        this.histogramBins = histogramBins;
+        
+        // Diagnostics
+        this.calibrationCount = 0;
+        this.lastHistogram = null;
+        this.lastPeaks = null;
+        this.distributionType = 'unknown'; // 'bimodal', 'unimodal', 'uniform'
+        this.confidence = 0; // 0-1, how confident we are in threshold
+    }
+    
+    /**
+     * Update window with new green score and potentially recalibrate.
+     * @param {number} greenScore - Current frame's green score
+     * @param {number} timestamp - Timestamp in milliseconds
+     * @returns {object} { threshold, calibrated, diagnostics }
+     */
+    update(greenScore, timestamp) {
+        // Add to sliding window
+        this.window.push(greenScore);
+        if (this.window.length > this.windowSize) {
+            this.window.shift();
+        }
+        
+        // Check if need to recalibrate
+        let calibrated = false;
+        if (timestamp - this.lastCalibration >= this.recalibrateInterval && this.window.length >= 20) {
+            this.recalibrate();
+            this.lastCalibration = timestamp;
+            calibrated = true;
+        }
+        
+        return {
+            threshold: this.threshold,
+            calibrated: calibrated,
+            diagnostics: this.getDiagnostics()
+        };
+    }
+    
+    /**
+     * Force immediate recalibration.
+     */
+    recalibrate() {
+        if (this.window.length < 10) {
+            console.warn('⚠️ [Adaptive Threshold] Not enough data for calibration');
+            return;
+        }
+        
+        // Compute histogram
+        const histogramData = computeHistogram(this.window, this.histogramBins);
+        this.lastHistogram = histogramData.bins;
+        
+        // Find peaks
+        const peaks = findPeaks(this.lastHistogram);
+        this.lastPeaks = peaks;
+        
+        if (peaks.length >= 2) {
+            // BIMODAL: Two or more peaks detected
+            this.distributionType = 'bimodal';
+            
+            // Sort peaks by height (highest first)
+            const sortedPeaks = peaks.slice().sort((a, b) => b.height - a.height);
+            const peak1 = sortedPeaks[0];
+            const peak2 = sortedPeaks[1];
+            
+            // Use valley between two highest peaks as threshold
+            this.threshold = findValley(this.lastHistogram, peak1, peak2);
+            
+            // Confidence: ratio of peak separation to total range
+            const separation = Math.abs(peak1.value - peak2.value);
+            const range = Math.max(...this.window) - Math.min(...this.window);
+            this.confidence = range > 0 ? Math.min(separation / range, 1.0) : 0;
+            
+            console.log(`✅ [Adaptive Threshold] Bimodal calibration: threshold=${this.threshold.toFixed(3)}, peaks=[${peak1.value.toFixed(3)}, ${peak2.value.toFixed(3)}], confidence=${this.confidence.toFixed(2)}`);
+            
+        } else if (peaks.length === 1) {
+            // UNIMODAL: Only one peak (e.g., all on or all off)
+            this.distributionType = 'unimodal';
+            this.confidence = 0.3; // Low confidence
+            
+            // Use MAD-based threshold: median ± 1.5*MAD
+            const med = median(this.window);
+            const mad = medianAbsoluteDeviation(this.window);
+            
+            // If peak is above median, threshold below it; vice versa
+            const peak = peaks[0];
+            if (peak.value > med) {
+                this.threshold = med - 1.5 * mad;
+            } else {
+                this.threshold = med + 1.5 * mad;
+            }
+            
+            // Clamp to data range
+            this.threshold = Math.max(Math.min(...this.window), Math.min(this.threshold, Math.max(...this.window)));
+            
+            console.warn(`⚠️ [Adaptive Threshold] Unimodal distribution (no clear on/off) - using median ± MAD: threshold=${this.threshold.toFixed(3)}`);
+            
+        } else {
+            // UNIFORM or NOISY: No clear peaks
+            this.distributionType = 'uniform';
+            this.confidence = 0.1; // Very low confidence
+            
+            // Fall back to median
+            this.threshold = median(this.window);
+            
+            console.warn(`⚠️ [Adaptive Threshold] No peaks detected - using median: threshold=${this.threshold.toFixed(3)}`);
+        }
+        
+        this.calibrationCount++;
+    }
+    
+    /**
+     * Get current threshold value.
+     */
+    getThreshold() {
+        return this.threshold;
+    }
+    
+    /**
+     * Get diagnostics for debugging/UI display.
+     */
+    getDiagnostics() {
+        return {
+            threshold: this.threshold,
+            windowSize: this.window.length,
+            windowCapacity: this.windowSize,
+            distributionType: this.distributionType,
+            confidence: this.confidence,
+            calibrationCount: this.calibrationCount,
+            peakCount: this.lastPeaks ? this.lastPeaks.length : 0,
+            lastPeaks: this.lastPeaks ? this.lastPeaks.map(p => ({
+                value: p.value.toFixed(3),
+                height: p.height
+            })) : [],
+            // Statistics
+            median: this.window.length > 0 ? median(this.window).toFixed(3) : 'N/A',
+            mad: this.window.length > 0 ? medianAbsoluteDeviation(this.window).toFixed(3) : 'N/A',
+            min: this.window.length > 0 ? Math.min(...this.window).toFixed(3) : 'N/A',
+            max: this.window.length > 0 ? Math.max(...this.window).toFixed(3) : 'N/A'
+        };
+    }
+    
+    /**
+     * Reset state (e.g., when starting new video analysis).
+     */
+    reset() {
+        this.window = [];
+        this.lastCalibration = 0;
+        this.threshold = 0.5;
+        this.calibrationCount = 0;
+        this.lastHistogram = null;
+        this.lastPeaks = null;
+        this.distributionType = 'unknown';
+        this.confidence = 0;
+    }
+}
+
+// ============================================================================
+// Export
+// ============================================================================
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        AdaptiveThreshold,
+        median,
+        medianAbsoluteDeviation,
+        computeHistogram,
+        findPeaks,
+        findValley
+    };
+}
+
+if (typeof window !== 'undefined') {
+    window.AdaptiveThreshold = AdaptiveThreshold;
+    window.AdaptiveThresholdUtils = {
+        median,
+        medianAbsoluteDeviation,
+        computeHistogram,
+        findPeaks,
+        findValley
+    };
+}

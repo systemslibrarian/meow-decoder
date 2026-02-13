@@ -1,0 +1,42 @@
+{
+  "name": "meow-decoder-cat-mode",
+  "version": "1.0.0",
+  "description": "Optical air-gap file transfer via animated GIF with cat-mode video support",
+  "scripts": {
+    "generate-golden-videos": "node tests/generate_golden_videos.js",
+    "generate-error-tests": "node tests/generate_error_tests.js",
+    "test:golden": "python3 tests/run_golden_test.py",
+    "test:golden:js": "node tests/run_golden_test.js",
+    "test:errors": "python3 tests/run_error_tests.py",
+    "test:errors:js": "node tests/run_error_tests.js",
+    "test:browsers": "playwright test",
+    "test:browsers:chromium": "playwright test --project=chromium",
+    "test:browsers:firefox": "playwright test --project=firefox",
+    "test:browsers:webkit": "playwright test --project=webkit",
+    "test:browsers:mobile": "playwright test --project=mobile-chrome --project=mobile-safari",
+    "serve": "python3 -m http.server 8080",
+    "serve:tests": "cd tests && python3 -m http.server 8765"
+  },
+  "keywords": [
+    "optical",
+    "air-gap",
+    "encryption",
+    "cat-mode",
+    "video-decode",
+    "qr-code"
+  ],
+  "author": "systemslibrarian",
+  "license": "MIT",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "canvas": "^2.11.2",
+    "selenium-webdriver": "^4.16.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/systemslibrarian/meow-decoder.git"
+  }
+}
