@@ -8,12 +8,14 @@ on:
   workflow_dispatch:  # Allows manual trigger from GitHub UI
 
 permissions:
-  contents: write  # Required to push coverage badge
+  contents: read  # Default: read-only (write scoped to job level for badge push)
 
 jobs:
   test-and-coverage:
     name: Test + Tarpaulin Coverage (Ubuntu)
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to push coverage badge (only on main)
 
     steps:
       - name: Checkout repository

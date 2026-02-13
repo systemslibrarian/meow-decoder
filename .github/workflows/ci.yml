@@ -249,7 +249,7 @@ jobs:
 
       - name: Upload error diagnostics
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: error-test-results
           path: tests/golden/errors/test_results.json
@@ -301,7 +301,7 @@ jobs:
 
       - name: Upload test artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: playwright-report
           path: tests/playwright-report/
@@ -309,7 +309,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
           name: playwright-results
           path: tests/playwright-results.json
@@ -366,8 +366,9 @@ jobs:
   # ═══════════════════════════════════════════════════════════════════════════
   all-gates:
     name: "All CI Gates"
-    needs: [preflight, test, cat-mode-golden-test, security-coverage]
+    needs: [preflight, test, cat-mode-golden-test, cat-mode-error-test, cat-mode-cross-browser, security-coverage]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
     steps:
       - name: Check gate results
@@ -381,7 +382,15 @@ jobs:
             exit 1
           fi
           if [[ "${{ needs.cat-mode-golden-test.result }}" != "success" ]]; then
-            echo "❌ Gate 2 (Cat Mode Golden Video) failed"
+            echo "❌ Gate 2a (Cat Mode Golden Video) failed"
+            exit 1
+          fi
+          if [[ "${{ needs.cat-mode-error-test.result }}" != "success" ]]; then
+            echo "❌ Gate 3a (Cat Mode Error Injection) failed"
+            exit 1
+          fi
+          if [[ "${{ needs.cat-mode-cross-browser.result }}" != "success" ]]; then
+            echo "❌ Gate 3b (Cat Mode Cross-Browser) failed"
             exit 1
           fi
           if [[ "${{ needs.security-coverage.result }}" != "success" ]]; then
