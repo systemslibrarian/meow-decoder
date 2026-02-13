@@ -340,6 +340,88 @@
             background: linear-gradient(135deg, rgba(255,68,68,0.2) 0%, rgba(255,136,0,0.2) 100%);
             border: 2px solid #ff4444;
         }
+
+        /* Animated Mode - Video + QR Reveal */
+        .animated-stage {
+            position: relative;
+            width: 500px;
+            max-width: 100%;
+            margin: 0 auto;
+            aspect-ratio: 1 / 1;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 4px 30px rgba(0, 204, 255, 0.2);
+        }
+        .animated-stage video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transition: opacity 1.5s ease;
+        }
+        .animated-stage video.fading { opacity: 0; }
+        .animated-stage .qr-reveal-layer {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            opacity: 0;
+            transition: opacity 2s ease;
+            pointer-events: none;
+            z-index: 2;
+        }
+        .animated-stage .qr-reveal-layer.visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+        .animated-stage .qr-reveal-layer canvas,
+        .animated-stage .qr-reveal-layer img {
+            max-width: 80%;
+            max-height: 80%;
+        }
+        .animated-progress {
+            position: absolute;
+            bottom: 0; left: 0; right: 0;
+            height: 4px;
+            background: rgba(0,0,0,0.4);
+            z-index: 3;
+        }
+        .animated-progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            transition: width 0.3s linear;
+        }
+        .animated-stage .qr-ghost {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1;
+            pointer-events: none;
+        }
+        .animated-stage .qr-ghost canvas,
+        .animated-stage .qr-ghost img {
+            max-width: 70%;
+            max-height: 70%;
+            filter: brightness(2) contrast(0.3);
+            opacity: 0.15;
+        }
+        @keyframes qrPulseReveal {
+            0% { transform: scale(0.9); opacity: 0; }
+            50% { transform: scale(1.02); opacity: 1; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        .animated-stage .qr-reveal-layer.pop canvas,
+        .animated-stage .qr-reveal-layer.pop img {
+            animation: qrPulseReveal 0.8s ease forwards;
+        }
     </style>
 </head>
 <body>
@@ -386,6 +468,91 @@
         <div class="mode-tab" onclick="switchMode('duress')">🚨 Duress</div>
         <div class="mode-tab" onclick="switchMode('cat')">😺 Cat Mode</div>
         <div class="mode-tab" onclick="switchMode('catAnimated')">🧶 Cat Animated</div>
+        <div class="mode-tab" onclick="switchMode('animated')">🎬 Animated</div>
+    </div>
+
+    <!-- GLOBAL SECURITY LEVEL (applies to all modes) -->
+    <div id="globalSecurityBar" style="margin: 0 auto; max-width: 900px; padding: 10px 20px; background: rgba(255,136,0,0.08); border: 1px solid rgba(255,136,0,0.25); border-radius: 8px; display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+        <label for="securityLevel" style="margin: 0; white-space: nowrap; font-size: 0.9em;">🛡️ Security Level:</label>
+        <select id="securityLevel" style="flex: 1; min-width: 200px; padding: 8px 10px; background: #2a2a4e; color: #fff; border: 1px solid #444; border-radius: 6px; font-size: 0.9em;">
+            <option value="fast">⚡ Fast (64 MiB, 3 iter)</option>
+            <option value="standard" selected>🔒 Standard (128 MiB, 8 iter)</option>
+            <option value="high">🛡️ High (256 MiB, 15 iter)</option>
+            <option value="paranoid">🔐 Paranoid (512 MiB, 20 iter)</option>
+        </select>
+        <span style="color: #ff8800; font-size: 0.75em;">⚠️ Higher = slower but stronger. Applies to all modes.</span>
+    </div>
+
+    <!-- ANIMATED MODE -->
+    <div id="animatedMode" class="mode-content">
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #8a2be2;">
+            <span class="step-number" style="background: #8a2be2;">1</span>
+            <h2>🎬 Animated QR Reveal</h2>
+            <p class="step-desc">Watch the cat video while your secret is encrypted. The QR code slowly fades in behind the video, and when the video ends the encrypted QR code is fully revealed.</p>
+
+            <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
+                <div style="flex: 1; min-width: 280px;">
+                    <label for="animatedMessage">🔒 Secret Message:</label>
+                    <textarea id="animatedMessage" rows="2" placeholder="Type your secret message..." style="margin-bottom: 10px;">Hello from the cat video! 🐱🎬</textarea>
+
+                    <div style="background: rgba(0,255,136,0.1); border: 2px dashed #00ff88; border-radius: 10px; padding: 12px; text-align: center; margin-bottom: 10px;">
+                        <p style="color: #00ff88; margin: 0 0 8px 0; font-size: 0.9em;"><strong>📁 Or Upload File</strong></p>
+                        <input type="file" id="animatedFileUpload" style="display: none;" onchange="handleAnimatedFileUpload(this)">
+                        <button class="secondary" onclick="document.getElementById('animatedFileUpload').click()" style="border-color: #00ff88; color: #00ff88; padding: 8px 16px; font-size: 0.85em;">📤 Choose File</button>
+                        <span id="animatedFileInfo" style="margin-left: 8px; color: #888; font-size: 0.85em;"></span>
+                        <button id="animatedFileClearBtn" class="secondary" style="display: none; margin-left: 8px; padding: 4px 10px; font-size: 0.8em;" onclick="clearAnimatedFile()">✖️</button>
+                    </div>
+
+                    <label for="animatedPassword">🔑 Password:</label>
+                    <input type="password" id="animatedPassword" placeholder="Encryption password" value="CatVideo123" style="margin-bottom: 5px;">
+                    <div style="margin-bottom: 15px;">
+                        <input type="checkbox" id="showAnimatedPassword" onchange="togglePassword('animatedPassword', this.checked)">
+                        <label for="showAnimatedPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+                    </div>
+
+                    <button id="animatedStartBtn" disabled onclick="animatedModeStart()">🎬 Encrypt & Play</button>
+                    <button id="animatedReplayBtn" class="secondary" style="display: none;" onclick="animatedModeReplay()">🔄 Replay</button>
+                </div>
+
+                <div style="flex: 1; min-width: 300px;">
+                    <div class="animated-stage" id="animatedStage">
+                        <video id="animatedVideo" muted playsinline preload="none">
+                            <source src="../assets/CatVideo.mp4" type="video/mp4">
+                        </video>
+                        <div class="qr-ghost" id="animatedQrGhost"></div>
+                        <div class="qr-reveal-layer" id="animatedQrReveal"></div>
+                        <div class="animated-progress">
+                            <div class="animated-progress-bar" id="animatedProgressBar"></div>
+                        </div>
+                    </div>
+                    <p id="animatedStatus" style="text-align: center; color: #888; font-size: 0.85em; margin-top: 8px;">Enter a message and click <strong>Encrypt & Play</strong></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #8a2be2;">
+            <span class="step-number" style="background: #8a2be2;">2</span>
+            <h2>🔓 Decrypt</h2>
+            <p class="step-desc">After the QR code is revealed, paste the payload below (or scan the QR) and enter the password to decrypt.</p>
+
+            <label for="animatedDecryptPayload">📦 Encrypted Payload:</label>
+            <textarea id="animatedDecryptPayload" rows="2" placeholder="Payload auto-fills after encrypt, or paste your own..." style="margin-bottom: 10px;"></textarea>
+
+            <label for="animatedDecryptPassword">🔑 Password:</label>
+            <input type="password" id="animatedDecryptPassword" placeholder="Enter the password" style="margin-bottom: 10px;">
+            <div style="margin-bottom: 10px;">
+                <input type="checkbox" id="showAnimatedDecryptPw" onchange="togglePassword('animatedDecryptPassword', this.checked)">
+                <label for="showAnimatedDecryptPw" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+            </div>
+
+            <button id="animatedDecryptBtn" disabled onclick="animatedModeDecrypt()">🔓 Decrypt</button>
+            <div id="animatedDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
+        </div>
+
+        <div style="text-align: center; margin-top: 10px;">
+            <button class="secondary" id="animatedDownloadBtn" style="display: none;" onclick="downloadAnimatedQR()">💾 Save QR Image</button>
+            <button class="secondary" id="animatedCopyBtn" style="display: none;" onclick="copyAnimatedPayload()">📋 Copy Payload</button>
+        </div>
     </div>
 
     <!-- FORWARD SECRECY MODE -->
@@ -925,20 +1092,7 @@
             <label for="showPassword1" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
         </div>
         
-        <!-- Security Level Selection -->
-        <div style="margin-top: 15px; background: rgba(255,136,0,0.1); padding: 15px; border-radius: 8px; border-left: 4px solid #ff8800;">
-            <label for="securityLevel" style="margin: 0;">🛡️ Security Level:</label>
-            <select id="securityLevel" style="width: 100%; margin-top: 8px; padding: 10px; background: #2a2a4e; color: #fff; border: 1px solid #444; border-radius: 6px;">
-                <option value="fast">⚡ Fast (64 MiB, 3 iter) - Quick demo, moderate security</option>
-                <option value="standard" selected>🔒 Standard (128 MiB, 8 iter) - Balanced</option>
-                <option value="high">🛡️ High (256 MiB, 15 iter) - Strong protection (~5-10 sec)</option>
-                <option value="paranoid">🔐 Paranoid (512 MiB, 20 iter) - Matches CLI (~15-30 sec)</option>
-            </select>
-            <p style="color: #ff8800; font-size: 0.8em; margin: 8px 0 0 0;">
-                <strong>⚠️ Security vs Speed:</strong> Higher levels resist offline attacks better but take longer. 
-                Use "Paranoid" for life-critical data (matches Python CLI security).
-            </p>
-        </div>
+        <!-- Security Level is now in the global bar above all tabs -->
         
         <div style="margin-top: 10px;">
             <input type="checkbox" id="useAnimatedGif">
@@ -1304,6 +1458,81 @@
             return SECURITY_LEVELS[getSecurityLevel()] || SECURITY_LEVELS.standard;
         }
         
+        // ============================================
+        // Payload packing helpers (store Argon2 params)
+        // ============================================
+        // Packs encrypted data with Argon2id params so decryption is independent of the selector.
+        // Text: v3 = version(1) + memKib(4 LE) + iter(1) + salt(16) + nonce(12) + ciphertext
+        // File: v4 = version(1) + memKib(4 LE) + iter(1) + isFile(1) + fnLen(1) + filename + salt(16) + nonce(12) + ciphertext
+        function packPayload(salt, nonce, ciphertext, fileName) {
+            const sp = getSecurityParams();
+            if (fileName) {
+                const fnBytes = encoder.encode(fileName.substring(0, 50));
+                const headerLen = 1 + 4 + 1 + 1 + 1 + fnBytes.length;
+                const packed = new Uint8Array(headerLen + 16 + 12 + ciphertext.length);
+                packed[0] = 0x04;
+                const dv = new DataView(packed.buffer);
+                dv.setUint32(1, sp.memoryKib, true);
+                packed[5] = sp.iterations;
+                packed[6] = 0x01;
+                packed[7] = fnBytes.length;
+                packed.set(fnBytes, 8);
+                packed.set(salt, 8 + fnBytes.length);
+                packed.set(nonce, 8 + fnBytes.length + 16);
+                packed.set(ciphertext, 8 + fnBytes.length + 28);
+                return packed;
+            } else {
+                const packed = new Uint8Array(1 + 4 + 1 + 16 + 12 + ciphertext.length);
+                packed[0] = 0x03;
+                const dv = new DataView(packed.buffer);
+                dv.setUint32(1, sp.memoryKib, true);
+                packed[5] = sp.iterations;
+                packed.set(salt, 6);
+                packed.set(nonce, 22);
+                packed.set(ciphertext, 34);
+                return packed;
+            }
+        }
+
+        // Unpacks a MEOW payload, returns { salt, nonce, ciphertext, fileName, memoryKib, iterations }
+        // Supports v1-v4.
+        function unpackPayload(packed) {
+            const ver = packed[0];
+            let salt, nonce, ciphertext, fileName = null;
+            let memoryKib = null, iterations = null;
+
+            if (ver === 0x04) {
+                const dv = new DataView(packed.buffer, packed.byteOffset);
+                memoryKib = dv.getUint32(1, true);
+                iterations = packed[5];
+                const fnLen = packed[7];
+                fileName = decoder.decode(packed.slice(8, 8 + fnLen));
+                salt = packed.slice(8 + fnLen, 8 + fnLen + 16);
+                nonce = packed.slice(8 + fnLen + 16, 8 + fnLen + 28);
+                ciphertext = packed.slice(8 + fnLen + 28);
+            } else if (ver === 0x03) {
+                const dv = new DataView(packed.buffer, packed.byteOffset);
+                memoryKib = dv.getUint32(1, true);
+                iterations = packed[5];
+                salt = packed.slice(6, 22);
+                nonce = packed.slice(22, 34);
+                ciphertext = packed.slice(34);
+            } else if (ver === 0x02) {
+                const fnLen = packed[2];
+                fileName = decoder.decode(packed.slice(3, 3 + fnLen));
+                salt = packed.slice(3 + fnLen, 3 + fnLen + 16);
+                nonce = packed.slice(3 + fnLen + 16, 3 + fnLen + 28);
+                ciphertext = packed.slice(3 + fnLen + 28);
+            } else if (ver === 0x01) {
+                salt = packed.slice(1, 17);
+                nonce = packed.slice(17, 29);
+                ciphertext = packed.slice(29);
+            } else {
+                throw new Error(`Unknown format version: 0x${ver.toString(16).padStart(2, '0')}`);
+            }
+            return { salt, nonce, ciphertext, fileName, memoryKib, iterations, version: ver };
+        }
+
         // ============================================
         // Unified crypto interface (worker or direct)
         // ============================================
@@ -2253,7 +2482,7 @@
                 const secParams = getSecurityParams();
                 log(`   Deriving key with Argon2id (${secParams.label})...`);
                 const passwordBytes = encoder.encode(password);
-                const keyResult = await crypto.deriveKey(passwordBytes, salt);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt, secParams.memoryKib, secParams.iterations);
                 
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
@@ -2268,25 +2497,8 @@
                 }
                 log(`   Ciphertext: ${encResult.data.length} bytes`);
                 
-                // Pack everything together: version(1) + isFile(1) + filenameLen(1) + filename + salt(16) + nonce(12) + ciphertext
-                let packed;
-                if (isFile) {
-                    const filenameBytes = encoder.encode(uploadedFileName.substring(0, 50));
-                    packed = new Uint8Array(1 + 1 + 1 + filenameBytes.length + 16 + 12 + encResult.data.length);
-                    packed[0] = 0x02; // Version 2 (with file support)
-                    packed[1] = 0x01; // Is file
-                    packed[2] = filenameBytes.length;
-                    packed.set(filenameBytes, 3);
-                    packed.set(salt, 3 + filenameBytes.length);
-                    packed.set(nonce, 3 + filenameBytes.length + 16);
-                    packed.set(encResult.data, 3 + filenameBytes.length + 28);
-                } else {
-                    packed = new Uint8Array(1 + 16 + 12 + encResult.data.length);
-                    packed[0] = 0x01; // Version 1 (text only)
-                    packed.set(salt, 1);
-                    packed.set(nonce, 17);
-                    packed.set(encResult.data, 29);
-                }
+                const packed = packPayload(salt, nonce, encResult.data, isFile ? uploadedFileName : null);
+                log(`   Argon2id params stored in payload (v${packed[0]})`);
                 
                 // Encode as base64 for QR
                 const payload = 'MEOW:' + bytesToBase64(packed);
@@ -2300,9 +2512,15 @@
                 
                 // Generate QR code (or animated GIF)
                 document.getElementById('qrcode').innerHTML = '';
+                if (window.animatedQrInterval) { clearInterval(window.animatedQrInterval); window.animatedQrInterval = null; }
                 
-                if (useAnimated || payload.length > 2500) {
-                    // Generate animated GIF with multiple frames
+                const needsMultiFrame = payload.length > 2500;
+                if (useAnimated && !needsMultiFrame) {
+                    log('ℹ️ Payload fits in a single QR — animated multi-frame not needed');
+                }
+                
+                if (needsMultiFrame) {
+                    // Generate animated multi-frame QR sequence
                     log('🎞️ Payload too large for single QR, creating animated sequence...');
                     
                     const chunkSize = 800; // characters per QR
@@ -2429,38 +2647,25 @@
                     throw new Error('Payload too short');
                 }
                 
-                const version = packed[0];
-                let salt, nonce, ciphertext, decodedFileName = null;
-                
-                if (version === 0x02) {
-                    // Version 2: file format
-                    // version(1) + isFile(1) + filenameLen(1) + filename + salt(16) + nonce(12) + ciphertext
-                    const isFile = packed[1];
-                    const filenameLen = packed[2];
-                    decodedFileName = decoder.decode(packed.slice(3, 3 + filenameLen));
-                    salt = packed.slice(3 + filenameLen, 3 + filenameLen + 16);
-                    nonce = packed.slice(3 + filenameLen + 16, 3 + filenameLen + 28);
-                    ciphertext = packed.slice(3 + filenameLen + 28);
-                    log(`   File: ${decodedFileName}`);
-                } else if (version === 0x01) {
-                    // Version 1: text only
-                    // version(1) + salt(16) + nonce(12) + ciphertext
-                    salt = packed.slice(1, 17);
-                    nonce = packed.slice(17, 29);
-                    ciphertext = packed.slice(29);
-                } else {
-                    throw new Error(`Unknown format version: 0x${version.toString(16).padStart(2, '0')}. Expected 0x01 (text) or 0x02 (file).`);
-                }
+                const { salt, nonce, ciphertext, fileName: decodedFileName, memoryKib: storedMemoryKib, iterations: storedIterations, version } = unpackPayload(packed);
+                if (decodedFileName) log(`   File: ${decodedFileName}`);
+                if (storedMemoryKib) log(`   Argon2id params from payload: ${storedMemoryKib} KiB, ${storedIterations} iter`);
+                else log(`   ⚠️ Legacy v${version} format: using current security level for key derivation`);
                 
                 log(`   Version: ${version}`);
                 log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
                 log(`   Nonce: ${bytesToHex(nonce)}`);
                 log(`   Ciphertext: ${ciphertext.length} bytes`);
                 
-                // Derive key from password (runs in worker for responsive UI)
-                log('   Deriving key...');
+                // Derive key from password using stored params (v3/v4) or selector (v1/v2 legacy)
+                if (storedMemoryKib && storedIterations) {
+                    log(`   Deriving key with stored Argon2id params (${storedMemoryKib} KiB, ${storedIterations} iter)...`);
+                } else {
+                    const fallback = getSecurityParams();
+                    log(`   Deriving key with selector params (${fallback.label})...`);
+                }
                 const passwordBytes = encoder.encode(password);
-                const keyResult = await crypto.deriveKey(passwordBytes, salt);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt, storedMemoryKib, storedIterations);
                 
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
@@ -2680,16 +2885,12 @@
                     const nonceResult = await crypto.generateNonce();
                     const salt = saltResult.data;
                     const nonce = nonceResult.data;
-                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                    const stegoSecParams = getSecurityParams();
+                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt, stegoSecParams.memoryKib, stegoSecParams.iterations);
                     const key = keyResult.data;
                     const cipherResult = await crypto.encrypt(encoder.encode(secret), key, nonce, null);
                     const cipher = cipherResult.data;
-                    const version = new Uint8Array([0x01]);
-                    const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
-                    packed.set(version, 0);
-                    packed.set(salt, 1);
-                    packed.set(nonce, 17);
-                    packed.set(cipher, 29);
+                    const packed = packPayload(salt, nonce, cipher, null);
                     payload = 'MEOW:' + bytesToBase64(packed);
                     log('🔐 [Stego] Encrypted with WASM crypto');
                 } else {
@@ -2786,11 +2987,9 @@
                                     throw new Error('WASM crypto not available for decryption');
                                 }
                                 const packed = base64ToBytes(payload.substring(5));
-                                const salt = packed.slice(1, 17);
-                                const nonce = packed.slice(17, 29);
-                                const ciphertext = packed.slice(29);
-                                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
-                                const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
+                                const stegoParsed = unpackPayload(packed);
+                                const keyResult = await crypto.deriveKey(encoder.encode(password), stegoParsed.salt, stegoParsed.memoryKib, stegoParsed.iterations);
+                                const decResult = await crypto.decrypt(stegoParsed.ciphertext, keyResult.data, stegoParsed.nonce, null);
                                 if (decResult.success) {
                                     const plaintext = decoder.decode(decResult.data);
                                     resultBox.className = 'result-box';
@@ -3064,14 +3263,11 @@
                 const nonceResult = await crypto.generateNonce();
                 const salt = saltResult.data;
                 const nonce = nonceResult.data;
-                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const catSecParams = getSecurityParams();
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, catSecParams.memoryKib, catSecParams.iterations);
                 const cipherResult = await crypto.encrypt(encoder.encode(message), keyResult.data, nonce, null);
                 const cipher = cipherResult.data;
-                const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
-                packed[0] = 0x01; // version
-                packed.set(salt, 1);
-                packed.set(nonce, 17);
-                packed.set(cipher, 29);
+                const packed = packPayload(salt, nonce, cipher, null);
                 payload = packed;
             } else {
                 demoMode = true;
@@ -3520,87 +3716,63 @@
                 progressText.textContent = 'Playing video to capture frames...';
                 
                 // ============================================================
-                // PLAYBACK-BASED FRAME CAPTURE
-                // Instead of seeking (unreliable for WebM), play the video
-                // and capture every rendered frame. This gives exact frame data.
+                // SEEK-BASED FRAME CAPTURE (lossless)
+                // Steps through the video frame-by-frame using seeking.
+                // Slower than real-time playback but GUARANTEES every time
+                // position is sampled — no dropped frames, ever.
                 // ============================================================
                 const frameSamples = [];
                 
-                await new Promise((resolve, reject) => {
-                    let frameCount = 0;
+                // Calculate step size: at least 5 samples per blink bit,
+                // capped at ~30 fps equivalent for efficiency
+                const sampleInterval = Math.min(1 / 30, blinkSpeedMs / (5 * 1000));
+                const totalPositions = Math.ceil(duration / sampleInterval) + 1;
+                log(`📹 [Cat Video] Seek-based extraction: ${totalPositions} positions at ${(sampleInterval * 1000).toFixed(1)}ms intervals`);
+                
+                video.pause();
+                
+                for (let i = 0; i < totalPositions; i++) {
+                    if (catVideoAnalysisCancelled) throw new Error('Analysis cancelled');
                     
-                    function captureFrame(now, metadata) {
-                        if (catVideoAnalysisCancelled) { video.pause(); reject(new Error('Analysis cancelled')); return; }
-                        
-                        const time = metadata ? metadata.mediaTime : video.currentTime;
-                        ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-                        const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-                        const greenLevel = analyzeFrameGreen(imgData);
-                        frameSamples.push({ frame: frameCount, time, greenLevel });
-                        frameCount++;
-                        
-                        const progress = Math.min(99, (time / duration * 100)).toFixed(1);
-                        progressBar.style.width = progress + '%';
-                        progressText.textContent = `Capturing frame ${frameCount} (${progress}%) green=${greenLevel.toFixed(1)}`;
-                        
-                        if (!video.paused && !video.ended) {
-                            if (video.requestVideoFrameCallback) {
-                                video.requestVideoFrameCallback(captureFrame);
-                            } else {
-                                requestAnimationFrame(() => captureFrame(performance.now(), null));
-                            }
+                    const targetTime = Math.min(i * sampleInterval, duration);
+                    
+                    // Seek to position and wait for frame to be ready
+                    await new Promise((resolve, reject) => {
+                        const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
+                        video.addEventListener('seeked', onSeeked);
+                        video.onerror = () => reject(new Error('Video seek error'));
+                        video.currentTime = targetTime;
+                        // If already at this time (e.g. start), resolve immediately
+                        if (Math.abs(video.currentTime - targetTime) < 0.001 && video.readyState >= 2) {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
                         }
+                    });
+                    
+                    ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
+                    const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+                    const greenLevel = analyzeFrameGreen(imgData);
+                    frameSamples.push({ frame: i, time: targetTime, greenLevel });
+                    
+                    // Update progress UI
+                    const progress = ((i / totalPositions) * 100).toFixed(1);
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `Analyzing frame ${i + 1}/${totalPositions} (${progress}%) green=${greenLevel.toFixed(1)}`;
+                    
+                    // Yield to UI every 20 frames to keep browser responsive
+                    if (i % 20 === 0) {
+                        await new Promise(r => setTimeout(r, 0));
                     }
-                    
-                    video.onended = () => {
-                        // Capture final frame
-                        ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
-                        const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-                        const greenLevel = analyzeFrameGreen(imgData);
-                        frameSamples.push({ frame: frameCount, time: duration, greenLevel });
-                        resolve();
-                    };
-                    video.onerror = () => reject(new Error('Video playback error'));
-                    
-                    // Start capturing frames then play
-                    video.currentTime = 0;
-                    video.addEventListener('seeked', function onceSeek() {
-                        video.removeEventListener('seeked', onceSeek);
-                        if (video.requestVideoFrameCallback) {
-                            video.requestVideoFrameCallback(captureFrame);
-                        } else {
-                            requestAnimationFrame(() => captureFrame(performance.now(), null));
-                        }
-                        video.play();
-                    }, { once: true });
-                });
+                }
                 
                 const totalFrames = frameSamples.length;
                 const actualFps = totalFrames / duration;
-                log(`📹 [Cat Video] Captured ${totalFrames} frames during playback (~${actualFps.toFixed(1)} fps)`);
+                log(`📹 [Cat Video] Extracted ${totalFrames} frames (~${actualFps.toFixed(1)} samples/sec, ${(sampleInterval * 1000).toFixed(1)}ms step)`);
                 catDiagnostics.frames = frameSamples.slice(0, 100); // First 100 frames for diagnostics
                 
-                // Check frames-per-bit is sufficient for reliable decode
+                // With seek-based extraction, frames-per-bit is deterministic
                 const framesPerBit = actualFps * (blinkSpeedMs / 1000);
-                if (framesPerBit < 2.0) {
-                    log(`⚠️ [Cat Video] WARNING: Only ${framesPerBit.toFixed(1)} frames per bit (need ≥2). Capture rate ${actualFps.toFixed(1)} fps is too low for ${blinkSpeedMs}ms blink speed. Try a slower blink speed (≥${Math.ceil(2000/actualFps)}ms) or use "Manual Decode" with the stored binary.`);
-                }
-                
-                // Detect frame drops (gaps > 500ms indicate recording issues)
-                let maxGap = 0;
-                let gapCount = 0;
-                for (let i = 1; i < frameSamples.length; i++) {
-                    const gap = frameSamples[i].time - frameSamples[i-1].time;
-                    if (gap > 0.5) { // 500ms gap
-                        gapCount++;
-                        maxGap = Math.max(maxGap, gap);
-                    }
-                }
-                if (gapCount > 0) {
-                    log(`⚠️ [Cat Video] WARNING: ${gapCount} frame gaps detected (max: ${(maxGap*1000).toFixed(0)}ms) - video recording missed frames during transmission!`);
-                    catDiagnostics.frameDrops = { count: gapCount, maxGapMs: maxGap * 1000 };
-                    progressText.innerHTML = `<span style="color:#ff8800;">⚠️ Video has ${gapCount} frame gaps (max ${(maxGap*1000).toFixed(0)}ms) - may affect decode accuracy</span>`;
-                }
+                log(`📹 [Cat Video] ${framesPerBit.toFixed(1)} samples per bit (${blinkSpeedMs}ms blink speed)`);
                 
                 // Compute stats and auto-threshold
                 const greenLevels = frameSamples.map(s => s.greenLevel);
@@ -3861,8 +4033,25 @@
                 
                 const ver = bytes[0];
                 let salt, nonce, cipher, decodedFileName = null;
+                let catVideoMemKib = null, catVideoIter = null;
                 
-                if (ver === 0x02) {
+                if (ver === 0x04) {
+                    const dv = new DataView(bytes.buffer, bytes.byteOffset);
+                    catVideoMemKib = dv.getUint32(1, true);
+                    catVideoIter = bytes[5];
+                    const fnLen = bytes[7];
+                    decodedFileName = decoder.decode(bytes.slice(8, 8 + fnLen));
+                    salt = bytes.slice(8 + fnLen, 8 + fnLen + 16);
+                    nonce = bytes.slice(8 + fnLen + 16, 8 + fnLen + 28);
+                    cipher = bytes.slice(8 + fnLen + 28);
+                } else if (ver === 0x03) {
+                    const dv = new DataView(bytes.buffer, bytes.byteOffset);
+                    catVideoMemKib = dv.getUint32(1, true);
+                    catVideoIter = bytes[5];
+                    salt = bytes.slice(6, 22);
+                    nonce = bytes.slice(22, 34);
+                    cipher = bytes.slice(34);
+                } else if (ver === 0x02) {
                     // Version 2: file format
                     const isFile = bytes[1];
                     const filenameLen = bytes[2];
@@ -3876,10 +4065,10 @@
                     nonce = bytes.slice(17, 29);
                     cipher = bytes.slice(29);
                 } else {
-                    throw new Error(`Unknown format version: 0x${ver.toString(16).padStart(2, '0')} (expected 0x01 or 0x02). This usually means the video data is corrupted — try recording at higher quality or adjusting sensitivity.`);
+                    throw new Error(`Unknown format version: 0x${ver.toString(16).padStart(2, '0')}. This usually means the video data is corrupted — try recording at higher quality or adjusting sensitivity.`);
                 }
                 
-                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, catVideoMemKib, catVideoIter);
                 const decrypted = await crypto.decrypt(cipher, keyResult.data, nonce, null);
                 
                 if (!decrypted || !decrypted.success) {
@@ -3945,11 +4134,7 @@
                 }
                 
                 if (hasDebugData) {
-                    // Compute frames-per-bit for actionable advice
-                    const fpb = actualFps * (blinkSpeedMs / 1000);
-                    const lowFpsHint = fpb < 2.5
-                        ? `<li><b>Low capture rate (${actualFps.toFixed(1)} fps / ${fpb.toFixed(1)} frames per bit):</b> Try a slower blink speed (≥${Math.ceil(2500/actualFps)}ms) or record with an external camera app at 30+ fps and upload the file</li>`
-                        : '';
+                    const lowFpsHint = '';  // Seek-based extraction guarantees sufficient samples
                     const storedHint = `<li><b>Quick fix:</b> Click "Load into field" in the Manual Decode section below to use the stored original binary</li>`;
                     // Show full error box with debug data
                     resultBox.className = 'result-box error';
@@ -3963,7 +4148,6 @@
                             ${storedHint}
                             ${lowFpsHint}
                             <li><b>Blink speed mismatch?</b> Make sure the decode speed matches the speed used during encoding</li>
-                            <li><b>Frame gaps?</b> Recording apps may drop frames — use a dedicated camera app at 30 fps</li>
                             <li><b>Video too dark/bright?</b> Try High or Low sensitivity</li>
                         </ul>
                     `;
@@ -4101,8 +4285,25 @@
                 
                 const ver = bytes[0];
                 let salt, nonce, cipher, decodedFileName = null;
+                let catQrMemKib = null, catQrIter = null;
                 
-                if (ver === 0x02) {
+                if (ver === 0x04) {
+                    const dv = new DataView(bytes.buffer, bytes.byteOffset);
+                    catQrMemKib = dv.getUint32(1, true);
+                    catQrIter = bytes[5];
+                    const fnLen = bytes[7];
+                    decodedFileName = decoder.decode(bytes.slice(8, 8 + fnLen));
+                    salt = bytes.slice(8 + fnLen, 8 + fnLen + 16);
+                    nonce = bytes.slice(8 + fnLen + 16, 8 + fnLen + 28);
+                    cipher = bytes.slice(8 + fnLen + 28);
+                } else if (ver === 0x03) {
+                    const dv = new DataView(bytes.buffer, bytes.byteOffset);
+                    catQrMemKib = dv.getUint32(1, true);
+                    catQrIter = bytes[5];
+                    salt = bytes.slice(6, 22);
+                    nonce = bytes.slice(22, 34);
+                    cipher = bytes.slice(34);
+                } else if (ver === 0x02) {
                     // Version 2: file format
                     const isFile = bytes[1];
                     const filenameLen = bytes[2];
@@ -4116,10 +4317,10 @@
                     nonce = bytes.slice(17, 29);
                     cipher = bytes.slice(29);
                 } else {
-                    throw new Error(`Unknown format version: 0x${ver.toString(16).padStart(2, '0')} (expected 0x01 or 0x02). Data may be corrupted.`);
+                    throw new Error(`Unknown format version: 0x${ver.toString(16).padStart(2, '0')}. Data may be corrupted.`);
                 }
                 
-                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, catQrMemKib, catQrIter);
                 const decrypted = await crypto.decrypt(cipher, keyResult.data, nonce, null);
                 
                 if (!decrypted || !decrypted.success) {
@@ -4196,6 +4397,350 @@
         loadStoredCatBinaryInfo();
         
         // ============================================================
+        // ANIMATED MODE FUNCTIONS (Video + QR Reveal)
+        // ============================================================
+
+        let animatedFileData = null;
+        let animatedFileName = null;
+        let animatedPayload = null;
+        let animatedQrCanvas = null;
+        let animatedFrameCanvases = [];
+        let animatedFrameInterval = null;
+
+        window.handleAnimatedFileUpload = function(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                animatedFileData = new Uint8Array(e.target.result);
+                animatedFileName = file.name;
+                document.getElementById('animatedFileInfo').textContent = `${file.name} (${animatedFileData.length} bytes)`;
+                document.getElementById('animatedFileClearBtn').style.display = 'inline';
+                log(`📁 [Animated] File loaded: ${file.name} — file will be used instead of message`);
+            };
+            reader.readAsArrayBuffer(file);
+        };
+
+        window.clearAnimatedFile = function() {
+            animatedFileData = null;
+            animatedFileName = null;
+            document.getElementById('animatedFileUpload').value = '';
+            document.getElementById('animatedFileInfo').textContent = '';
+            document.getElementById('animatedFileClearBtn').style.display = 'none';
+        };
+
+        window.animatedModeStart = async function() {
+            if (!wasm) { alert('WASM not loaded yet'); return; }
+
+            const message = document.getElementById('animatedMessage').value;
+            const password = document.getElementById('animatedPassword').value;
+
+            let dataToEncrypt;
+            let isFile = false;
+
+            if (animatedFileData) {
+                dataToEncrypt = animatedFileData;
+                isFile = true;
+                log(`\n🎬 [Animated] Encrypting file: ${animatedFileName} (${dataToEncrypt.length} bytes)...`);
+            } else if (message) {
+                dataToEncrypt = encoder.encode(message);
+                log(`\n🎬 [Animated] Encrypting message (${message.length} chars)...`);
+            } else {
+                alert('Enter a message or upload a file');
+                return;
+            }
+            if (!password) { alert('Enter a password'); return; }
+
+            const btn = document.getElementById('animatedStartBtn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Encrypting...';
+
+            try {
+                const saltResult = await crypto.generateSalt();
+                const nonceResult = await crypto.generateNonce();
+                if (!saltResult.success || !nonceResult.success) throw new Error('Failed to generate random values');
+                const salt = saltResult.data;
+                const nonce = nonceResult.data;
+
+                const animSecParams = getSecurityParams();
+                const passwordBytes = encoder.encode(password);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt, animSecParams.memoryKib, animSecParams.iterations);
+                if (!keyResult.success) throw new Error(keyResult.error);
+
+                const encResult = await crypto.encrypt(dataToEncrypt, keyResult.data, nonce, null);
+                if (!encResult.success) throw new Error(encResult.error);
+
+                const packed = packPayload(salt, nonce, encResult.data, isFile ? animatedFileName : null);
+                animatedPayload = 'MEOW:' + bytesToBase64(packed);
+                log(`   [Animated] Payload: ${animatedPayload.length} chars`);
+
+                if (!QRCode) await loadQRCode();
+
+                const isLargePayload = animatedPayload.length > 2500;
+                animatedFrameCanvases = [];
+
+                if (isLargePayload) {
+                    // Split into multiple QR frames for large payloads
+                    const chunkSize = 800;
+                    const base64Part = animatedPayload.substring(5); // Remove MEOW:
+                    const chunks = [];
+                    for (let i = 0; i < base64Part.length; i += chunkSize) {
+                        chunks.push(base64Part.slice(i, i + chunkSize));
+                    }
+                    log(`   [Animated] Large payload — split into ${chunks.length} QR frames`);
+
+                    for (let i = 0; i < chunks.length; i++) {
+                        const framePayload = `MEOW-${i+1}/${chunks.length}:${chunks[i]}`;
+                        const canvas = document.createElement('canvas');
+                        if (QRCode && typeof QRCode.toCanvas === 'function') {
+                            await QRCode.toCanvas(canvas, framePayload, {
+                                width: 400, margin: 2,
+                                color: { dark: '#000000', light: '#ffffff' }
+                            });
+                        } else {
+                            const fb = inlineQRToCanvas(framePayload, 400);
+                            if (fb) { canvas.width = fb.width; canvas.height = fb.height; canvas.getContext('2d').drawImage(fb, 0, 0); }
+                        }
+                        animatedFrameCanvases.push(canvas);
+                    }
+                    animatedQrCanvas = animatedFrameCanvases[0];
+                } else {
+                    // Single QR code
+                    const qrCanvas = document.createElement('canvas');
+                    if (QRCode && typeof QRCode.toCanvas === 'function') {
+                        await QRCode.toCanvas(qrCanvas, animatedPayload, {
+                            width: 400, margin: 2,
+                            color: { dark: '#000000', light: '#ffffff' }
+                        });
+                    } else {
+                        const fallback = inlineQRToCanvas(animatedPayload, 400);
+                        if (fallback) {
+                            qrCanvas.width = fallback.width;
+                            qrCanvas.height = fallback.height;
+                            qrCanvas.getContext('2d').drawImage(fallback, 0, 0);
+                        }
+                    }
+                    animatedQrCanvas = qrCanvas;
+                    animatedFrameCanvases.push(qrCanvas);
+                }
+
+                // Set up ghost layer (first frame, faint behind video)
+                const ghostDiv = document.getElementById('animatedQrGhost');
+                ghostDiv.innerHTML = '';
+                const ghostClone = animatedFrameCanvases[0].cloneNode(true);
+                ghostClone.getContext('2d').drawImage(animatedFrameCanvases[0], 0, 0);
+                ghostDiv.appendChild(ghostClone);
+
+                // Set up reveal layer
+                const revealDiv = document.getElementById('animatedQrReveal');
+                revealDiv.innerHTML = '';
+                revealDiv.classList.remove('visible', 'pop');
+                if (animatedFrameCanvases.length === 1) {
+                    const revealClone = animatedFrameCanvases[0].cloneNode(true);
+                    revealClone.getContext('2d').drawImage(animatedFrameCanvases[0], 0, 0);
+                    revealDiv.appendChild(revealClone);
+                } else {
+                    // For multi-frame, build an animated container
+                    const container = document.createElement('div');
+                    container.style.cssText = 'position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center;';
+                    const counterEl = document.createElement('div');
+                    counterEl.style.cssText = 'position:absolute; bottom:8px; left:0; right:0; text-align:center; color:#8a2be2; font-weight:bold; font-size:0.9em; text-shadow: 0 0 4px #fff;';
+                    counterEl.textContent = `Frame 1 / ${animatedFrameCanvases.length}`;
+
+                    const frameEls = animatedFrameCanvases.map((c, i) => {
+                        const clone = c.cloneNode(true);
+                        clone.getContext('2d').drawImage(c, 0, 0);
+                        clone.style.cssText = `max-width:80%; max-height:80%; display:${i === 0 ? 'block' : 'none'};`;
+                        container.appendChild(clone);
+                        return clone;
+                    });
+                    container.appendChild(counterEl);
+                    revealDiv.appendChild(container);
+
+                    // Store for animation after reveal
+                    revealDiv._frameEls = frameEls;
+                    revealDiv._counterEl = counterEl;
+                    revealDiv._totalFrames = animatedFrameCanvases.length;
+                }
+
+                document.getElementById('animatedDecryptPayload').value = animatedPayload;
+
+                animatedPlayVideo();
+                log('✅ [Animated] Encryption complete — video playing');
+
+            } catch (err) {
+                log('❌ [Animated] Error: ' + err.message);
+                alert('Encryption failed: ' + err.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🎬 Encrypt & Play';
+            }
+        };
+
+        function animatedPlayVideo() {
+            const video = document.getElementById('animatedVideo');
+            const ghost = document.getElementById('animatedQrGhost');
+            const reveal = document.getElementById('animatedQrReveal');
+            const progressBar = document.getElementById('animatedProgressBar');
+            const statusEl = document.getElementById('animatedStatus');
+
+            // Stop any previous frame animation
+            if (animatedFrameInterval) { clearInterval(animatedFrameInterval); animatedFrameInterval = null; }
+
+            video.classList.remove('fading');
+            reveal.classList.remove('visible', 'pop');
+            ghost.style.opacity = '0';
+            progressBar.style.width = '0%';
+            video.currentTime = 0;
+            statusEl.innerHTML = '🎬 <strong>Playing...</strong> Watch the cat while your secret encrypts';
+
+            video.play().catch(() => {
+                video.muted = true;
+                video.play();
+            });
+
+            const progressInterval = setInterval(() => {
+                if (video.paused && video.currentTime === 0) {
+                    clearInterval(progressInterval);
+                    return;
+                }
+                const pct = (video.currentTime / video.duration) * 100;
+                progressBar.style.width = pct + '%';
+
+                if (pct > 40) {
+                    const ghostOpacity = Math.min((pct - 40) / 60, 0.35);
+                    ghost.style.opacity = ghostOpacity.toString();
+                }
+            }, 100);
+
+            video.onended = function() {
+                clearInterval(progressInterval);
+                progressBar.style.width = '100%';
+                video.classList.add('fading');
+
+                setTimeout(() => {
+                    reveal.classList.add('visible', 'pop');
+                    ghost.style.opacity = '0';
+                    document.getElementById('animatedDownloadBtn').style.display = 'inline';
+                    document.getElementById('animatedCopyBtn').style.display = 'inline';
+                    document.getElementById('animatedReplayBtn').style.display = 'inline';
+
+                    // Start frame animation for multi-frame QR
+                    if (reveal._frameEls && reveal._frameEls.length > 1) {
+                        let curFrame = 0;
+                        statusEl.innerHTML = `✅ <strong>QR Frames Cycling</strong> — Frame 1 / ${reveal._totalFrames}`;
+                        animatedFrameInterval = setInterval(() => {
+                            reveal._frameEls[curFrame].style.display = 'none';
+                            curFrame = (curFrame + 1) % reveal._frameEls.length;
+                            reveal._frameEls[curFrame].style.display = 'block';
+                            reveal._counterEl.textContent = `Frame ${curFrame + 1} / ${reveal._totalFrames}`;
+                            statusEl.innerHTML = `✅ <strong>QR Frames Cycling</strong> — Frame ${curFrame + 1} / ${reveal._totalFrames}`;
+                        }, 500);
+                    } else {
+                        statusEl.innerHTML = '✅ <strong>QR Code Revealed!</strong> Scan it or copy the payload to decrypt';
+                    }
+                }, 500);
+            };
+
+            video.onerror = function() {
+                clearInterval(progressInterval);
+                reveal.classList.add('visible', 'pop');
+                statusEl.innerHTML = '⚠️ Video failed to load — QR code shown directly';
+                document.getElementById('animatedDownloadBtn').style.display = 'inline';
+                document.getElementById('animatedCopyBtn').style.display = 'inline';
+            };
+        }
+
+        window.animatedModeReplay = function() {
+            if (!animatedQrCanvas) { alert('Encrypt something first'); return; }
+            animatedPlayVideo();
+        };
+
+        window.animatedModeDecrypt = async function() {
+            if (!wasm) return;
+            const payload = document.getElementById('animatedDecryptPayload').value.trim();
+            const password = document.getElementById('animatedDecryptPassword').value;
+            if (!payload) { alert('No payload to decrypt'); return; }
+            if (!password) { alert('Enter the password'); return; }
+
+            const resultBox = document.getElementById('animatedDecryptResult');
+            try {
+                if (!payload.startsWith('MEOW:')) throw new Error('Invalid payload (must start with MEOW:)');
+                const packed = base64ToBytes(payload.substring(5));
+                const version = packed[0];
+                let salt, nonce, ciphertext, fileName = null;
+                let animMemKib = null, animIter = null;
+
+                if (version === 0x04) {
+                    const dv = new DataView(packed.buffer, packed.byteOffset);
+                    animMemKib = dv.getUint32(1, true);
+                    animIter = packed[5];
+                    const fnLen = packed[7];
+                    fileName = decoder.decode(packed.slice(8, 8 + fnLen));
+                    salt = packed.slice(8 + fnLen, 8 + fnLen + 16);
+                    nonce = packed.slice(8 + fnLen + 16, 8 + fnLen + 28);
+                    ciphertext = packed.slice(8 + fnLen + 28);
+                } else if (version === 0x03) {
+                    const dv = new DataView(packed.buffer, packed.byteOffset);
+                    animMemKib = dv.getUint32(1, true);
+                    animIter = packed[5];
+                    salt = packed.slice(6, 22);
+                    nonce = packed.slice(22, 34);
+                    ciphertext = packed.slice(34);
+                } else if (version === 0x02) {
+                    const fnLen = packed[2];
+                    fileName = decoder.decode(packed.slice(3, 3 + fnLen));
+                    salt = packed.slice(3 + fnLen, 3 + fnLen + 16);
+                    nonce = packed.slice(3 + fnLen + 16, 3 + fnLen + 28);
+                    ciphertext = packed.slice(3 + fnLen + 28);
+                } else {
+                    salt = packed.slice(1, 17);
+                    nonce = packed.slice(17, 29);
+                    ciphertext = packed.slice(29);
+                }
+
+                const passwordBytes = encoder.encode(password);
+                const keyResult = await crypto.deriveKey(passwordBytes, salt, animMemKib, animIter);
+                if (!keyResult.success) throw new Error(keyResult.error);
+                const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
+                if (!decResult.success) throw new Error(decResult.error || 'Wrong password');
+
+                if (fileName) {
+                    resultBox.className = 'result-box';
+                    resultBox.innerHTML = `<h3>✅ File Decrypted</h3><div class="message">${fileName} (${decResult.data.length} bytes)</div>`;
+                } else {
+                    const text = decoder.decode(decResult.data);
+                    resultBox.className = 'result-box';
+                    resultBox.innerHTML = `<h3>✨ Decrypted Message</h3><div class="message">${text}</div>`;
+                }
+                resultBox.classList.remove('hidden');
+                log('✅ [Animated] Decrypted successfully');
+            } catch (err) {
+                resultBox.className = 'result-box error';
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class="message">${err.message}</div>`;
+                resultBox.classList.remove('hidden');
+                log('❌ [Animated] Decrypt error: ' + err.message);
+            }
+        };
+
+        window.downloadAnimatedQR = function() {
+            if (!animatedQrCanvas) return;
+            const url = animatedQrCanvas.toDataURL('image/png');
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'meow-animated-qr.png';
+            a.click();
+        };
+
+        window.copyAnimatedPayload = function() {
+            if (!animatedPayload) return;
+            navigator.clipboard.writeText(animatedPayload).then(() => {
+                log('📋 [Animated] Payload copied');
+                alert('Payload copied to clipboard!');
+            });
+        };
+
+        // ============================================================
         // CAT ANIMATED MODE - Crochet QR Code Animation
         // ============================================================
         let catAnimInterval = null;
@@ -4266,16 +4811,13 @@
                 const nonceResult = await crypto.generateNonce();
                 const salt = saltResult.data;
                 const nonce = nonceResult.data;
-                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const catAnimSecParams = getSecurityParams();
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, catAnimSecParams.memoryKib, catAnimSecParams.iterations);
                 const cipherResult = await crypto.encrypt(messageBytes, keyResult.data, nonce, null);
                 const cipher = cipherResult.data;
                 
-                // Pack into payload
-                const packed = new Uint8Array(1 + 16 + 12 + cipher.length);
-                packed[0] = 0x01; // version
-                packed.set(salt, 1);
-                packed.set(nonce, 17);
-                packed.set(cipher, 29);
+                // Pack into payload (v3 with Argon2 params)
+                const packed = packPayload(salt, nonce, cipher, null);
                 
                 // Convert to base64
                 const base64 = btoa(String.fromCharCode(...packed));
@@ -4292,10 +4834,11 @@
                     const canvasW = canvas.width;
                     const canvasH = canvas.height;
                     
-                    // Position & angle of the existing crocheted QR in CatCrocheting.png
-                    const qrRelCenterX = 0.50;  // horizontal center
-                    const qrRelCenterY = 0.55;  // vertical center
-                    const qrRelSize = 0.62;     // QR width as fraction of canvas width
+                    // Position & angle tuned to sit over the crocheted QR pattern
+                    // in CatCrocheting.png (fabric region y≈0.53-0.75 in the image).
+                    const qrRelCenterX = 0.52;  // slightly right of center (matches crochet fabric)
+                    const qrRelCenterY = 0.64;  // center of crocheted QR fabric region
+                    const qrRelSize = 0.50;     // 50% of canvas width – covers the crocheted QR area
                     const qrAngle = -3 * Math.PI / 180; // ~3° CCW tilt matching the crochet
                     
                     const qrDisplaySize = Math.round(canvasW * qrRelSize);
@@ -4512,7 +5055,8 @@
                 webcam: 'Webcam',
                 duress: 'Duress',
                 cat: 'Cat',
-                catAnimated: 'Cat Animated'
+                catAnimated: 'Cat Animated',
+                animated: 'Animated'
             };
             log(`🔀 Switched to ${modeNames[mode] || mode} mode`);
             
@@ -4524,6 +5068,15 @@
             // Stop cat animation when leaving cat animated mode
             if (mode !== 'catAnimated' && typeof catAnimatedStop === 'function') {
                 catAnimatedStop();
+            }
+            // Pause animated video when leaving animated mode
+            if (mode !== 'animated') {
+                const vid = document.getElementById('animatedVideo');
+                if (vid) vid.pause();
+                if (typeof animatedFrameInterval !== 'undefined' && animatedFrameInterval) {
+                    clearInterval(animatedFrameInterval);
+                    animatedFrameInterval = null;
+                }
             }
         };
         
@@ -5244,14 +5797,12 @@
                 let plaintext;
                 
                 if (payload.startsWith('MEOW:')) {
-                    // Standard decrypt
+                    // Standard decrypt — use unpackPayload for v1-v4 support
                     const packed = base64ToBytes(payload.substring(5));
-                    const salt = packed.slice(1, 17);
-                    const nonce = packed.slice(17, 29);
-                    const ciphertext = packed.slice(29);
+                    const parsed = unpackPayload(packed);
                     
-                    const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
-                    const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
+                    const keyResult = await crypto.deriveKey(encoder.encode(password), parsed.salt, parsed.memoryKib, parsed.iterations);
+                    const decResult = await crypto.decrypt(parsed.ciphertext, keyResult.data, parsed.nonce, null);
                     
                     if (!decResult.success) throw new Error('Wrong password or corrupted data');
                     plaintext = decoder.decode(decResult.data);
@@ -5370,7 +5921,8 @@
                 const nonce = nonceResult.data;
                 
                 // Derive key from REAL password
-                const realKeyResult = await crypto.deriveKey(encoder.encode(realPassword), salt);
+                const duressSecParams = getSecurityParams();
+                const realKeyResult = await crypto.deriveKey(encoder.encode(realPassword), salt, duressSecParams.memoryKib, duressSecParams.iterations);
                 if (!realKeyResult.success) throw new Error(realKeyResult.error);
                 log('   ✅ Real encryption key derived');
                 
@@ -5415,10 +5967,13 @@
                 const decoyBytes = encoder.encode(decoyMessage || 'Nothing to see here.');
                 const decoyLen = Math.min(decoyBytes.length, 65535); // 2-byte length
                 
-                // Pack: version(1) + salt(16) + nonce(12) + duressTag(32) + decoyLen(2) + decoyBytes + ciphertext
-                const packed = new Uint8Array(1 + 16 + 12 + 32 + 2 + decoyLen + encResult.data.length);
+                // Pack: version(1) + memKib(4 LE) + iter(1) + salt(16) + nonce(12) + duressTag(32) + decoyLen(2) + decoyBytes + ciphertext
+                const packed = new Uint8Array(1 + 4 + 1 + 16 + 12 + 32 + 2 + decoyLen + encResult.data.length);
                 let offset = 0;
-                packed[offset++] = 0x10; // Duress version
+                packed[offset++] = 0x11; // Duress version 2 (with Argon2 params)
+                const duressDV = new DataView(packed.buffer);
+                duressDV.setUint32(offset, duressSecParams.memoryKib, true); offset += 4;
+                packed[offset++] = duressSecParams.iterations;
                 packed.set(salt, offset); offset += 16;
                 packed.set(nonce, offset); offset += 12;
                 packed.set(duressTag, offset); offset += 32;
@@ -5532,7 +6087,16 @@
                 // Unpack
                 let offset = 0;
                 const version = packed[offset++];
-                if (version !== 0x10) throw new Error(`Unknown duress version: 0x${version.toString(16)}`);
+                let duressMemKib = null, duressIter = null;
+                
+                if (version === 0x11) {
+                    // Duress v2: has Argon2 params
+                    const dv = new DataView(packed.buffer, packed.byteOffset);
+                    duressMemKib = dv.getUint32(offset, true); offset += 4;
+                    duressIter = packed[offset++];
+                } else if (version !== 0x10) {
+                    throw new Error(`Unknown duress version: 0x${version.toString(16)}`);
+                }
                 
                 const salt = packed.slice(offset, offset + 16); offset += 16;
                 const nonce = packed.slice(offset, offset + 12); offset += 12;
@@ -5541,7 +6105,8 @@
                 const decoyBytes = packed.slice(offset, offset + decoyLen); offset += decoyLen;
                 const ciphertext = packed.slice(offset);
                 
-                log(`   Version: 0x${version.toString(16)} (Duress v1)`);
+                log(`   Version: 0x${version.toString(16)} (Duress ${version === 0x11 ? 'v2' : 'v1'})`);
+                if (duressMemKib) log(`   Argon2id params: ${duressMemKib} KiB, ${duressIter} iter`);
                 log(`   Duress tag: ${bytesToHex(storedDuressTag).substring(0,16)}...`);
                 log(`   Decoy: ${decoyLen} bytes`);
                 log(`   Ciphertext: ${ciphertext.length} bytes`);
@@ -5627,7 +6192,7 @@
                 log('   Not the panic password — attempting real decryption...');
                 showProgress('Deriving decryption key...');
                 
-                const keyResult = await crypto.deriveKey(encoder.encode(password), salt);
+                const keyResult = await crypto.deriveKey(encoder.encode(password), salt, duressMemKib, duressIter);
                 if (!keyResult.success) throw new Error(keyResult.error);
                 
                 const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
@@ -5739,12 +6304,14 @@
             log(`   Reality B: ${secretB.length} chars`);
             
             try {
+                const schrodingerSecParams = getSecurityParams();
+                
                 // Encrypt Reality A
                 const saltAResult = await crypto.generateSalt();
                 const nonceAResult = await crypto.generateNonce();
                 const saltA = saltAResult.data;
                 const nonceA = nonceAResult.data;
-                const keyAResult = await crypto.deriveKey(encoder.encode(passwordA), saltA);
+                const keyAResult = await crypto.deriveKey(encoder.encode(passwordA), saltA, schrodingerSecParams.memoryKib, schrodingerSecParams.iterations);
                 const cipherAResult = await crypto.encrypt(encoder.encode(secretA), keyAResult.data, nonceA, null);
                 const cipherA = cipherAResult.data;
                 log(`   Reality A encrypted: ${cipherA.length} bytes`);
@@ -5754,27 +6321,29 @@
                 const nonceBResult = await crypto.generateNonce();
                 const saltB = saltBResult.data;
                 const nonceB = nonceBResult.data;
-                const keyBResult = await crypto.deriveKey(encoder.encode(passwordB), saltB);
+                const keyBResult = await crypto.deriveKey(encoder.encode(passwordB), saltB, schrodingerSecParams.memoryKib, schrodingerSecParams.iterations);
                 const cipherBResult = await crypto.encrypt(encoder.encode(secretB), keyBResult.data, nonceB, null);
                 const cipherB = cipherBResult.data;
                 log(`   Reality B encrypted: ${cipherB.length} bytes`);
                 
                 // Interleave: even bytes from A, odd bytes from B
-                // Format: version(1) + lenA(4) + lenB(4) + saltA(16) + nonceA(12) + saltB(16) + nonceB(12) + interleaved
+                // Format: version(1) + memKib(4) + iter(1) + lenA(4) + lenB(4) + saltA(16) + nonceA(12) + saltB(16) + nonceB(12) + interleaved
                 const interleaved = interleaveBytes(cipherA, cipherB);
                 log(`   Interleaved: ${interleaved.length} bytes (quantum superposition created)`);
                 
-                const packed = new Uint8Array(1 + 4 + 4 + 16 + 12 + 16 + 12 + interleaved.length);
+                const packed = new Uint8Array(1 + 4 + 1 + 4 + 4 + 16 + 12 + 16 + 12 + interleaved.length);
                 const view = new DataView(packed.buffer);
                 
-                packed[0] = 0xFE; // Schrödinger version marker
-                view.setUint32(1, cipherA.length, true); // Little-endian
-                view.setUint32(5, cipherB.length, true);
-                packed.set(saltA, 9);
-                packed.set(nonceA, 25);
-                packed.set(saltB, 37);
-                packed.set(nonceB, 53);
-                packed.set(interleaved, 65);
+                packed[0] = 0xFF; // Schrödinger version 2 (with Argon2 params)
+                view.setUint32(1, schrodingerSecParams.memoryKib, true);
+                packed[5] = schrodingerSecParams.iterations;
+                view.setUint32(6, cipherA.length, true);
+                view.setUint32(10, cipherB.length, true);
+                packed.set(saltA, 14);
+                packed.set(nonceA, 30);
+                packed.set(saltB, 42);
+                packed.set(nonceB, 58);
+                packed.set(interleaved, 70);
                 
                 const payload = 'QUANTUM:' + bytesToBase64(packed);
                 log(`   Quantum payload: ${payload.length} chars`);
@@ -5858,17 +6427,28 @@
                 const packed = base64ToBytes(payload.substring(8));
                 const view = new DataView(packed.buffer);
                 
-                if (packed[0] !== 0xFE) {
+                if (packed[0] !== 0xFE && packed[0] !== 0xFF) {
                     throw new Error('Invalid quantum version marker');
                 }
                 
-                const lenA = view.getUint32(1, true);
-                const lenB = view.getUint32(5, true);
-                const saltA = packed.slice(9, 25);
-                const nonceA = packed.slice(25, 37);
-                const saltB = packed.slice(37, 53);
-                const nonceB = packed.slice(53, 65);
-                const interleaved = packed.slice(65);
+                let qMemKib = null, qIter = null;
+                let headerOffset = 1;
+                
+                if (packed[0] === 0xFF) {
+                    // v2: has Argon2 params
+                    qMemKib = view.getUint32(1, true);
+                    qIter = packed[5];
+                    headerOffset = 6;
+                    log(`   Argon2id params: ${qMemKib} KiB, ${qIter} iter`);
+                }
+                
+                const lenA = view.getUint32(headerOffset, true);
+                const lenB = view.getUint32(headerOffset + 4, true);
+                const saltA = packed.slice(headerOffset + 8, headerOffset + 24);
+                const nonceA = packed.slice(headerOffset + 24, headerOffset + 36);
+                const saltB = packed.slice(headerOffset + 36, headerOffset + 52);
+                const nonceB = packed.slice(headerOffset + 52, headerOffset + 64);
+                const interleaved = packed.slice(headerOffset + 64);
                 
                 log(`   Reality A ciphertext: ${lenA} bytes`);
                 log(`   Reality B ciphertext: ${lenB} bytes`);
@@ -5880,7 +6460,7 @@
                 log('   Attempting to collapse to Reality A...');
                 let resultA = null;
                 try {
-                    const keyAResult = await crypto.deriveKey(encoder.encode(password), saltA);
+                    const keyAResult = await crypto.deriveKey(encoder.encode(password), saltA, qMemKib, qIter);
                     resultA = await crypto.decrypt(cipherA, keyAResult.data, nonceA, null);
                 } catch (e) {
                     log('   Reality A decryption threw: ' + e.message);
@@ -5898,7 +6478,7 @@
                 log('   Reality A authentication failed, trying Reality B...');
                 let resultB = null;
                 try {
-                    const keyBResult = await crypto.deriveKey(encoder.encode(password), saltB);
+                    const keyBResult = await crypto.deriveKey(encoder.encode(password), saltB, qMemKib, qIter);
                     resultB = await crypto.decrypt(cipherB, keyBResult.data, nonceB, null);
                 } catch (e) {
                     log('   Reality B decryption threw: ' + e.message);
