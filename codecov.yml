@@ -79,11 +79,6 @@ flags:
     paths:
       - meow_decoder/
     carryforward: true
-  rust:
-    paths:
-      - crypto_core/src/
-      - rust_crypto/src/
-    carryforward: true
 
 # Ignore non-critical paths and external resources
 ignore:

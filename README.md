@@ -32,13 +32,8 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml/badge.svg" alt="Rust Crypto">
   </a>
-  <!-- Python coverage: meow_decoder/ Python modules -->
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags%5B0%5D=python">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Python Coverage">
-  </a>
-  <!-- Rust coverage: crypto_core/ and rust_crypto/ Rust modules -->
-  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder?flags%5B0%5D=rust">
-    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=rust" alt="Rust Coverage">
+  <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
+    <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Coverage">
   </a>
   <a href="https://securityscorecards.dev/viewer/?uri=github.com/systemslibrarian/meow-decoder">
     <img src="https://api.securityscorecards.dev/projects/github.com/systemslibrarian/meow-decoder/badge" alt="OpenSSF Scorecard">
