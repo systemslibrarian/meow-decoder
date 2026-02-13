@@ -3,6 +3,7 @@
  * 
  * Implements Non-Return-to-Zero (NRZ) decoding for cat mode video:
  * - Sync word detection (0xAA55 = 1010101010101010) for bit boundary alignment
+ * - 8-bit sync fallback (0xAA) for short videos (Task 5.2.1)
  * - Bit sampling at fixed time intervals (midpoint of each bit window)
  * - Low-confidence bit voting (sample 3-5 times, majority wins)
  * - Fail-fast diagnostics when sync not found
@@ -12,66 +13,83 @@
  * We decode by sampling at t₀ + (n + 0.5) × bitPeriod, NOT by clustering durations.
  * 
  * @author Meow Decoder Production Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 /**
- * Find sync word (0xAA55) in bit stream
+ * Find sync word in bit stream, with 8-bit fallback for short videos (Task 5.2.1)
  * 
- * Searches for the 16-bit sync pattern by trying different phase offsets.
- * The sync word marks the start of the actual payload data.
+ * Tries 16-bit sync (0xAA55) first, then falls back to 8-bit sync (0xAA)
+ * if the video is too short for a full sync word to be present.
  * 
  * @param {object[]} frames - Array of frames with {time, state, confidence, greenScore}
  * @param {number} bitPeriod - Bit duration in seconds
  * @param {number} startSearchTime - Time to start searching (after preamble)
  * @param {number} maxSearchDuration - Maximum time to search in seconds (default 5.0s)
- * @returns {object|null} {t0: startTime, confidence: number} or null
+ * @param {object} options - {shortVideoMode: bool, allowShortSync: bool}
+ * @returns {object|null} {t0, confidence, syncBits, samples} or null
  */
-function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration = 5.0) {
-    const syncPattern = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]; // 0xAA55
+function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration = 5.0, options = {}) {
+    const { shortVideoMode = false, allowShortSync = true } = options;
+    const syncPattern16 = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]; // 0xAA55
+    const syncPattern8 = [1, 0, 1, 0, 1, 0, 1, 0]; // 0xAA (8-bit)
     const searchEndTime = startSearchTime + maxSearchDuration;
     
-    // Try different phase offsets (sample every bitPeriod/10 for precision)
-    const phaseStep = bitPeriod / 10;
-    let bestMatch = null;
-    let bestScore = 0;
-    
-    for (let t0 = startSearchTime; t0 < searchEndTime; t0 += phaseStep) {
-        // Sample 16 bits starting at this phase
-        const samples = sampleBits(frames, t0, bitPeriod, 16);
-        
-        // Count matching bits
-        let matches = 0;
-        for (let i = 0; i < syncPattern.length; i++) {
-            if (samples[i] === syncPattern[i]) {
-                matches++;
-            }
-        }
-        
-        const score = matches / syncPattern.length;
-        
-        if (score > bestScore) {
-            bestScore = score;
-            bestMatch = { t0, confidence: score, samples };
-        }
-        
-        // Perfect match - stop searching
-        if (score === 1.0) {
-            break;
+    // Try 16-bit sync first (unless in explicit short video mode)
+    if (!shortVideoMode) {
+        const result16 = searchForPattern(frames, syncPattern16, bitPeriod, startSearchTime, searchEndTime);
+        if (result16 && result16.confidence >= 0.75) {
+            console.log(`🔍 [Sync] Found 16-bit sync at t=${(result16.t0 * 1000).toFixed(1)}ms (${(result16.confidence * 100).toFixed(1)}% match)`);
+            return { ...result16, syncBits: 16 };
         }
     }
     
-    // Require at least 75% match (12/16 bits)
-    if (bestMatch && bestScore >= 0.75) {
-        console.log(`🔍 [Sync] Found at t=${(bestMatch.t0 * 1000).toFixed(1)}ms (${(bestScore * 100).toFixed(1)}% match)`);
-        return bestMatch;
+    // Fallback to 8-bit sync (Task 5.2.1)
+    if (allowShortSync || shortVideoMode) {
+        const result8 = searchForPattern(frames, syncPattern8, bitPeriod, startSearchTime, searchEndTime);
+        if (result8 && result8.confidence >= 0.75) {
+            console.log(`🔍 [Sync] Found 8-bit sync (fallback) at t=${(result8.t0 * 1000).toFixed(1)}ms (${(result8.confidence * 100).toFixed(1)}% match)`);
+            return { ...result8, syncBits: 8 };
+        }
     }
     
     return null;
 }
 
 /**
- * Find sync word with fail-fast diagnostics
+ * Search for a specific bit pattern in frames
+ * @private
+ */
+function searchForPattern(frames, pattern, bitPeriod, startTime, endTime) {
+    const phaseStep = bitPeriod / 10;
+    let bestMatch = null;
+    let bestScore = 0;
+    
+    for (let t0 = startTime; t0 < endTime; t0 += phaseStep) {
+        const samples = sampleBits(frames, t0, bitPeriod, pattern.length);
+        
+        let matches = 0;
+        for (let i = 0; i < pattern.length; i++) {
+            if (samples[i] === pattern[i]) {
+                matches++;
+            }
+        }
+        
+        const score = matches / pattern.length;
+        
+        if (score > bestScore) {
+            bestScore = score;
+            bestMatch = { t0, confidence: score, samples };
+        }
+        
+        if (score === 1.0) break;
+    }
+    
+    return bestMatch;
+}
+
+/**
+ * Find sync word with fail-fast diagnostics and 8-bit fallback (Task 5.2.1)
  * 
  * Wraps findSyncWord with helpful error messages when sync not found.
  * Provides actionable suggestions for the user.
@@ -80,19 +98,22 @@ function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration 
  * @param {number} bitPeriod - Bit duration in seconds  
  * @param {number} threshold - Current threshold value
  * @param {number} startSearchTime - Time to start searching
- * @returns {object} {found: boolean, t0: number|null, error: string|null, diagnostics: object|null}
+ * @param {object} options - {shortVideoMode: bool}
+ * @returns {object} {found, t0, confidence, syncBits, error, diagnostics}
  */
-function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime = 0) {
-    console.log(`🔍 [Sync] Searching for sync word (0xAA55) starting at t=${(startSearchTime * 1000).toFixed(1)}ms...`);
+function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime = 0, options = {}) {
+    const { shortVideoMode = false } = options;
+    console.log(`🔍 [Sync] Searching for sync word starting at t=${(startSearchTime * 1000).toFixed(1)}ms${shortVideoMode ? ' (short video mode)' : ''}...`);
     
-    const result = findSyncWord(frames, bitPeriod, startSearchTime, 5.0);
+    const result = findSyncWord(frames, bitPeriod, startSearchTime, 5.0, { shortVideoMode, allowShortSync: true });
     
     if (result) {
-        console.log(`✅ [Sync] Sync word found at t=${(result.t0 * 1000).toFixed(1)}ms`);
+        console.log(`✅ [Sync] ${result.syncBits}-bit sync word found at t=${(result.t0 * 1000).toFixed(1)}ms`);
         return {
             found: true,
             t0: result.t0,
             confidence: result.confidence,
+            syncBits: result.syncBits,
             error: null,
             diagnostics: null
         };
@@ -298,24 +319,28 @@ function resolveUnknownBits(bits, frames, t0, bitPeriod, policy = 'vote') {
 }
 
 /**
- * Decode payload from frames using NRZ timing
+ * Decode payload from frames using NRZ timing with adaptive sync (Task 5.2.1)
  * 
- * Main NRZ decoding function that:
- * 1. Finds sync word
- * 2. Samples bits at fixed intervals
- * 3. Resolves uncertain bits
- * 4. Converts to binary string
+ * Enhanced NRZ decoding that:
+ * 1. Checks video duration and warns if too short
+ * 2. Finds sync word (16-bit or 8-bit fallback)
+ * 3. Samples bits at fixed intervals
+ * 4. Resolves uncertain bits
+ * 5. Converts to binary string
  * 
  * @param {object[]} frames - Array of frames
  * @param {number} bitPeriod - Bit duration in seconds
  * @param {number} threshold - Current threshold
  * @param {number} startSearchTime - Time to start sync search
  * @param {number} maxBits - Maximum bits to decode (safety limit)
- * @returns {object} {success: boolean, binary: string, t0: number, stats: object}
+ * @param {object} options - {shortVideoMode: bool}
+ * @returns {object} {success, binary, t0, stats, shortVideoMode, syncBits}
  */
-function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 100000) {
-    // Find sync word
-    const syncResult = findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime);
+function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 100000, options = {}) {
+    const { shortVideoMode = false } = options;
+    
+    // Find sync word (with 8-bit fallback for short videos)
+    const syncResult = findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime, { shortVideoMode });
     
     if (!syncResult.found) {
         return {
@@ -327,7 +352,8 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
         };
     }
     
-    const t0 = syncResult.t0 + (16 * bitPeriod); // Skip sync word itself (16 bits)
+    const syncBits = syncResult.syncBits || 16;
+    const t0 = syncResult.t0 + (syncBits * bitPeriod); // Skip sync word itself
     
     // Calculate maximum bits to decode based on available video duration
     const lastFrameTime = frames[frames.length - 1].time;
@@ -335,7 +361,7 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
     const maxAvailableBits = Math.floor(availableDuration / bitPeriod);
     const numBits = Math.min(maxBits, maxAvailableBits);
     
-    console.log(`📡 [NRZ] Decoding ${numBits} bits starting at t=${(t0 * 1000).toFixed(1)}ms`);
+    console.log(`📡 [NRZ] Decoding ${numBits} bits starting at t=${(t0 * 1000).toFixed(1)}ms (${syncBits}-bit sync)`);
     
     // Sample bits
     const bits = sampleBits(frames, t0, bitPeriod, numBits, 0.15);
@@ -357,11 +383,14 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
         binary,
         t0,
         syncConfidence: syncResult.confidence,
+        syncBits,
+        shortVideoMode: shortVideoMode || syncBits === 8,
         stats: {
             totalBits: numBits,
             uncertainBits: uncertainCount,
             uncertainPercent: parseFloat(uncertainPercent),
-            bitPeriod: bitPeriod * 1000 // Convert to ms for display
+            bitPeriod: bitPeriod * 1000, // Convert to ms for display
+            syncBits
         }
     };
 }
@@ -371,6 +400,7 @@ if (typeof window !== 'undefined') {
     window.NRZDecoder = {
         findSyncWord,
         findSyncWordWithFallback,
+        searchForPattern,
         sampleBits,
         findNearestFrame,
         voteWithinBitWindow,
@@ -384,6 +414,7 @@ if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         findSyncWord,
         findSyncWordWithFallback,
+        searchForPattern,
         sampleBits,
         findNearestFrame,
         voteWithinBitWindow,

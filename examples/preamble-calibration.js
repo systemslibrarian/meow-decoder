@@ -9,58 +9,142 @@
  * This auto-calibration eliminates the need for manual threshold tuning
  * and makes cat mode robust to different lighting conditions.
  * 
+ * Task 5.2.1: Added adaptive early preamble termination and video duration
+ * pre-check for short video (<5s) robustness.
+ * 
  * @author Meow Decoder Production Team
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 /**
- * Detect preamble region in frame sequence
+ * Pre-check video duration before attempting decode (Task 5.2.1)
+ * 
+ * Short videos (<5s) have limited payload capacity because the preamble
+ * and sync word consume ~4.8s of overhead at 100ms/bit. This function
+ * warns the user before wasting time on a doomed decode attempt.
+ * 
+ * @param {number} durationSec - Video duration in seconds
+ * @param {number} bitPeriodMs - Bit period in milliseconds (default 100)
+ * @returns {object} {ok: boolean, message: string|null, maxPayloadBits: number}
+ */
+function checkVideoDuration(durationSec, bitPeriodMs = 100) {
+    const bitPeriodSec = bitPeriodMs / 1000;
+    // Minimum overhead: lead-in(8) + preamble(16 adaptive) + sync(8 short) = 32 bits
+    const minOverheadBits = 32;
+    const minOverheadSec = minOverheadBits * bitPeriodSec;
+    
+    // Full overhead: lead-in(8) + preamble(32) + sync(16) = 56 bits 
+    const fullOverheadBits = 56;
+    const fullOverheadSec = fullOverheadBits * bitPeriodSec;
+    
+    const maxPayloadBits = Math.floor((durationSec - minOverheadSec) / bitPeriodSec);
+    
+    if (durationSec < minOverheadSec + bitPeriodSec) {
+        return {
+            ok: false,
+            maxPayloadBits: 0,
+            message: `⚠️ Video is ${durationSec.toFixed(1)}s but needs at least ${(minOverheadSec + bitPeriodSec).toFixed(1)}s. Record for longer!`,
+            suggestion: 'Add 2-3 seconds before and after the message',
+            shortVideoMode: false
+        };
+    }
+    
+    if (durationSec < fullOverheadSec + bitPeriodSec * 8) {
+        // Short video: will use adaptive preamble + 8-bit sync
+        return {
+            ok: true,
+            maxPayloadBits,
+            message: `📹 Short video (${durationSec.toFixed(1)}s) - using fast-start mode (reduced preamble + 8-bit sync)`,
+            suggestion: null,
+            shortVideoMode: true
+        };
+    }
+    
+    return {
+        ok: true,
+        maxPayloadBits: Math.floor((durationSec - fullOverheadSec) / bitPeriodSec),
+        message: null,
+        suggestion: null,
+        shortVideoMode: false
+    };
+}
+
+/**
+ * Detect preamble region in frame sequence with adaptive early termination
  * 
  * Searches for sustained alternating pattern (1010...) at the start of transmission.
- * The preamble is 32 bits = 3.2 seconds at 100ms/bit, providing robust calibration data.
+ * Supports early termination: if 16+ consecutive alternations are stable, stops early
+ * instead of requiring the full 32-bit preamble. This reduces overhead from 3.2s to
+ * as little as 1.6s, critical for short (<5s) videos.
  * 
  * @param {object[]} frames - Array of frames with {time, state, greenScore}
  * @param {number} minTransitionRate - Minimum transition rate (default 0.7 = 70%)
- * @param {number} minDuration - Minimum preamble duration in seconds (default 2.0s)
- * @returns {object|null} {start: frameIndex, end: frameIndex, transitionRate, duration} or null
+ * @param {number} minDuration - Minimum preamble duration in seconds (default 0.8s for adaptive)
+ * @param {object} options - {earlyTermination: bool, minAlternations: number}
+ * @returns {object|null} {start, end, transitionRate, duration, earlyTerminated, confidence}
  */
-function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 2.0) {
-    if (frames.length < 20) {
+function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 0.8, options = {}) {
+    const { earlyTermination = true, minAlternations = 16 } = options;
+    
+    if (frames.length < 10) {
         return null;
     }
     
-    // Search for alternating pattern in early frames (first 30% of video)
-    const searchRange = Math.min(frames.length, Math.floor(frames.length * 0.3));
+    // Search for alternating pattern in early frames (first 40% of video for short videos)
+    const searchRange = Math.min(frames.length, Math.floor(frames.length * 0.4));
     
-    for (let start = 0; start < searchRange - 20; start++) {
-        // Try different window sizes
-        for (let windowSize = 20; windowSize <= Math.min(100, searchRange - start); windowSize += 10) {
-            const windowFrames = frames.slice(start, start + windowSize);
-            const duration = windowFrames[windowFrames.length - 1].time - windowFrames[0].time;
-            
-            if (duration < minDuration) {
-                continue; // Too short
+    for (let start = 0; start < searchRange - 10; start++) {
+        // Count consecutive alternations from this starting point
+        let alternations = 0;
+        let endIdx = start;
+        let consecutiveAlts = 0;
+        let maxConsecutiveAlts = 0;
+        
+        for (let i = start + 1; i < Math.min(start + 100, searchRange); i++) {
+            if (frames[i].state !== frames[i - 1].state &&
+                frames[i].state !== 'unknown' &&
+                frames[i - 1].state !== 'unknown') {
+                alternations++;
+                consecutiveAlts++;
+                endIdx = i;
+            } else {
+                maxConsecutiveAlts = Math.max(maxConsecutiveAlts, consecutiveAlts);
+                consecutiveAlts = 0;
             }
             
-            // Count transitions
-            let transitions = 0;
-            for (let i = 1; i < windowFrames.length; i++) {
-                if (windowFrames[i].state !== windowFrames[i - 1].state && 
-                    windowFrames[i].state !== 'unknown' && 
-                    windowFrames[i - 1].state !== 'unknown') {
-                    transitions++;
+            // Early termination: if we have enough stable alternations, stop early
+            if (earlyTermination && consecutiveAlts >= minAlternations) {
+                const duration = frames[endIdx].time - frames[start].time;
+                if (duration >= minDuration) {
+                    const transitionRate = alternations / (endIdx - start);
+                    console.log(`📡 [Preamble] Early termination at frames ${start}-${endIdx} (${consecutiveAlts} alternations, ${(transitionRate * 100).toFixed(1)}% rate, ${duration.toFixed(2)}s)`);
+                    return {
+                        start,
+                        end: endIdx + 1,
+                        transitionRate,
+                        duration,
+                        earlyTerminated: true,
+                        confidence: consecutiveAlts >= 24 ? 'high' : 'medium'
+                    };
                 }
             }
+        }
+        
+        // Full window check (original behavior)
+        maxConsecutiveAlts = Math.max(maxConsecutiveAlts, consecutiveAlts);
+        if (alternations > 0) {
+            const duration = frames[endIdx].time - frames[start].time;
+            const transitionRate = alternations / (endIdx - start);
             
-            const transitionRate = transitions / (windowFrames.length - 1);
-            
-            if (transitionRate >= minTransitionRate) {
-                console.log(`📡 [Preamble] Detected at frames ${start}-${start + windowSize} (${(transitionRate * 100).toFixed(1)}% transitions, ${duration.toFixed(2)}s)`);
-                return { 
-                    start, 
-                    end: start + windowSize,
+            if (transitionRate >= minTransitionRate && duration >= minDuration) {
+                console.log(`📡 [Preamble] Detected at frames ${start}-${endIdx} (${(transitionRate * 100).toFixed(1)}% transitions, ${duration.toFixed(2)}s)`);
+                return {
+                    start,
+                    end: endIdx + 1,
                     transitionRate,
-                    duration
+                    duration,
+                    earlyTerminated: false,
+                    confidence: maxConsecutiveAlts >= 24 ? 'high' : (maxConsecutiveAlts >= 16 ? 'medium' : 'low')
                 };
             }
         }
@@ -241,6 +325,7 @@ if (typeof window !== 'undefined') {
         detectPreamble,
         learnFromPreamble,
         detectPreambleWithFallback,
+        checkVideoDuration,
         median,
         mean,
         standardDeviation
@@ -253,6 +338,7 @@ if (typeof module !== 'undefined' && module.exports) {
         detectPreamble,
         learnFromPreamble,
         detectPreambleWithFallback,
+        checkVideoDuration,
         median,
         mean,
         standardDeviation

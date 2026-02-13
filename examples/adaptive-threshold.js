@@ -10,13 +10,15 @@
  * - Automatic re-calibration every N seconds
  * - Median Absolute Deviation (MAD) for robust statistics
  * - Fallback to median if distribution is unimodal
+ * - Task 5.2.2: Gradient compensation (linear detrending)
  * 
  * Algorithm:
  * 1. Maintain circular buffer of recent green scores
- * 2. Every 5 seconds, compute histogram of window
+ * 2. Every 1 second (reduced from 5s), compute histogram of window
  * 3. Find two highest peaks (on/off states)
  * 4. Set threshold to midpoint between peaks
- * 5. If only one peak found, warn and use median
+ * 5. If gradient detected, apply linear detrending
+ * 6. If only one peak found, warn and use median
  * 
  * @author Meow Decoder Team
  * @date 2026-02-13
@@ -156,20 +158,196 @@ function findValley(histogram, peak1, peak2) {
 // ============================================================================
 // AdaptiveThreshold Class
 // ============================================================================
+// GradientCompensator Class (Task 5.2.2)
+// ============================================================================
+
+/**
+ * Detects and compensates for gradual lighting gradients during video capture.
+ * 
+ * Uses linear regression on recent green scores to detect trends and
+ * apply detrending when the slope exceeds a threshold. This prevents
+ * the adaptive threshold from drifting slowly and losing calibration.
+ * 
+ * @example
+ * const compensator = new GradientCompensator();
+ * compensator.update(0.65, 1.0);
+ * compensator.update(0.68, 1.5);
+ * const adjusted = compensator.compensate(0.72, 2.0);
+ * // adjusted ≈ 0.65 if linear trend detected
+ */
+class GradientCompensator {
+    /**
+     * @param {number} maxWindow - Maximum number of frames in regression window
+     * @param {number} slopeThreshold - Minimum slope to trigger compensation (default 0.01 = 1%/s)
+     */
+    constructor(maxWindow = 100, slopeThreshold = 0.01) {
+        this.recentScores = [];
+        this.recentTimes = [];
+        this.maxWindow = maxWindow;
+        this.slopeThreshold = slopeThreshold;
+        
+        // Cached regression
+        this._cachedSlope = 0;
+        this._cachedIntercept = 0;
+        this._cacheValid = false;
+        this._lastCacheSize = 0;
+        
+        // Diagnostics
+        this.compensationActive = false;
+        this.totalCompensations = 0;
+    }
+    
+    /**
+     * Add a new score/time observation.
+     * @param {number} score - Green score (0-1 range)
+     * @param {number} time - Timestamp in seconds
+     */
+    update(score, time) {
+        this.recentScores.push(score);
+        this.recentTimes.push(time);
+        
+        if (this.recentScores.length > this.maxWindow) {
+            this.recentScores.shift();
+            this.recentTimes.shift();
+        }
+        
+        // Invalidate cache when data changes
+        if (this.recentScores.length !== this._lastCacheSize) {
+            this._cacheValid = false;
+        }
+    }
+    
+    /**
+     * Compute linear regression (least-squares fit).
+     * Returns slope (m) and intercept (b) for y = mx + b.
+     * @returns {object} {slope, intercept, r2}
+     */
+    detectTrend() {
+        const n = this.recentScores.length;
+        if (n < 10) return { slope: 0, intercept: 0, r2: 0 };
+        
+        if (this._cacheValid && this._lastCacheSize === n) {
+            return { slope: this._cachedSlope, intercept: this._cachedIntercept, r2: 0 };
+        }
+        
+        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
+        
+        for (let i = 0; i < n; i++) {
+            const x = this.recentTimes[i];
+            const y = this.recentScores[i];
+            sumX += x;
+            sumY += y;
+            sumXY += x * y;
+            sumX2 += x * x;
+            sumY2 += y * y;
+        }
+        
+        const denom = n * sumX2 - sumX * sumX;
+        if (Math.abs(denom) < 1e-10) {
+            return { slope: 0, intercept: sumY / n, r2: 0 };
+        }
+        
+        const slope = (n * sumXY - sumX * sumY) / denom;
+        const intercept = (sumY - slope * sumX) / n;
+        
+        // R² (coefficient of determination) - how well the line fits
+        const meanY = sumY / n;
+        const ssTotal = sumY2 - n * meanY * meanY;
+        const ssResidual = sumY2 - intercept * sumY - slope * sumXY;
+        const r2 = ssTotal > 0 ? 1 - ssResidual / ssTotal : 0;
+        
+        // Cache result
+        this._cachedSlope = slope;
+        this._cachedIntercept = intercept;
+        this._cacheValid = true;
+        this._lastCacheSize = n;
+        
+        return { slope, intercept, r2: Math.max(0, Math.min(1, r2)) };
+    }
+    
+    /**
+     * Compensate a score for detected gradient.
+     * Removes the linear trend if slope exceeds threshold.
+     * @param {number} score - Raw green score
+     * @param {number} time - Timestamp in seconds
+     * @returns {number} Compensated score
+     */
+    compensate(score, time) {
+        const { slope, intercept, r2 } = this.detectTrend();
+        
+        // Only compensate if:
+        // 1. Significant slope (above threshold)
+        // 2. Good fit (R² > 0.3) to avoid compensating noise
+        if (Math.abs(slope) > this.slopeThreshold && r2 > 0.3) {
+            const baseline = intercept + slope * this.recentTimes[0]; // Value at start
+            const expectedDrift = slope * (time - this.recentTimes[0]);
+            const compensated = score - expectedDrift;
+            
+            if (!this.compensationActive) {
+                console.log(`🌈 [Gradient] Compensation activated: slope=${slope.toFixed(4)}/s, R²=${r2.toFixed(2)}`);
+            }
+            this.compensationActive = true;
+            this.totalCompensations++;
+            
+            return compensated;
+        }
+        
+        if (this.compensationActive && Math.abs(slope) <= this.slopeThreshold) {
+            console.log(`🌈 [Gradient] Compensation deactivated: slope=${slope.toFixed(4)}/s (below threshold)`);
+            this.compensationActive = false;
+        }
+        
+        return score; // No compensation needed
+    }
+    
+    /**
+     * Get diagnostics for debugging/UI display.
+     */
+    getDiagnostics() {
+        const { slope, intercept, r2 } = this.detectTrend();
+        return {
+            windowSize: this.recentScores.length,
+            slope: slope.toFixed(5),
+            intercept: intercept.toFixed(3),
+            r2: r2.toFixed(3),
+            compensationActive: this.compensationActive,
+            totalCompensations: this.totalCompensations,
+            slopeThreshold: this.slopeThreshold
+        };
+    }
+    
+    /**
+     * Reset state.
+     */
+    reset() {
+        this.recentScores = [];
+        this.recentTimes = [];
+        this._cacheValid = false;
+        this.compensationActive = false;
+        this.totalCompensations = 0;
+    }
+}
+
+// ============================================================================
+// AdaptiveThreshold Class
+// ============================================================================
 
 class AdaptiveThreshold {
     /**
      * @param {number} windowSize - Number of frames to keep in sliding window
-     * @param {number} recalibrateSec - Seconds between re-calibrations
+     * @param {number} recalibrateSec - Seconds between re-calibrations (default 1s, reduced from 5s per Task 5.2.2)
      * @param {number} histogramBins - Number of histogram bins
      */
-    constructor(windowSize = 100, recalibrateSec = 5, histogramBins = 50) {
+    constructor(windowSize = 100, recalibrateSec = 1, histogramBins = 50) {
         this.window = [];
         this.windowSize = windowSize;
         this.recalibrateInterval = recalibrateSec * 1000; // Convert to ms
         this.lastCalibration = 0;
         this.threshold = 0.5; // Initial guess (will be updated)
         this.histogramBins = histogramBins;
+        
+        // Task 5.2.2: Gradient compensator
+        this.gradientCompensator = new GradientCompensator();
         
         // Diagnostics
         this.calibrationCount = 0;
@@ -181,18 +359,24 @@ class AdaptiveThreshold {
     
     /**
      * Update window with new green score and potentially recalibrate.
+     * Task 5.2.2: Also applies gradient compensation.
      * @param {number} greenScore - Current frame's green score
      * @param {number} timestamp - Timestamp in milliseconds
-     * @returns {object} { threshold, calibrated, diagnostics }
+     * @returns {object} { threshold, calibrated, compensatedScore, diagnostics }
      */
     update(greenScore, timestamp) {
-        // Add to sliding window
-        this.window.push(greenScore);
+        // Task 5.2.2: Update gradient compensator and apply detrending
+        const timeSec = timestamp / 1000;
+        this.gradientCompensator.update(greenScore, timeSec);
+        const compensatedScore = this.gradientCompensator.compensate(greenScore, timeSec);
+        
+        // Add compensated score to sliding window
+        this.window.push(compensatedScore);
         if (this.window.length > this.windowSize) {
             this.window.shift();
         }
         
-        // Check if need to recalibrate
+        // Check if need to recalibrate (every 1s per Task 5.2.2, was 5s)
         let calibrated = false;
         if (timestamp - this.lastCalibration >= this.recalibrateInterval && this.window.length >= 20) {
             this.recalibrate();
@@ -203,6 +387,7 @@ class AdaptiveThreshold {
         return {
             threshold: this.threshold,
             calibrated: calibrated,
+            compensatedScore,
             diagnostics: this.getDiagnostics()
         };
     }
@@ -288,6 +473,7 @@ class AdaptiveThreshold {
     
     /**
      * Get diagnostics for debugging/UI display.
+     * Task 5.2.2: Includes gradient compensation metrics.
      */
     getDiagnostics() {
         return {
@@ -306,7 +492,9 @@ class AdaptiveThreshold {
             median: this.window.length > 0 ? median(this.window).toFixed(3) : 'N/A',
             mad: this.window.length > 0 ? medianAbsoluteDeviation(this.window).toFixed(3) : 'N/A',
             min: this.window.length > 0 ? Math.min(...this.window).toFixed(3) : 'N/A',
-            max: this.window.length > 0 ? Math.max(...this.window).toFixed(3) : 'N/A'
+            max: this.window.length > 0 ? Math.max(...this.window).toFixed(3) : 'N/A',
+            // Task 5.2.2: Gradient metrics
+            gradient: this.gradientCompensator.getDiagnostics()
         };
     }
     
@@ -322,6 +510,7 @@ class AdaptiveThreshold {
         this.lastPeaks = null;
         this.distributionType = 'unknown';
         this.confidence = 0;
+        this.gradientCompensator.reset();
     }
 }
 
@@ -332,6 +521,7 @@ class AdaptiveThreshold {
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         AdaptiveThreshold,
+        GradientCompensator,
         median,
         medianAbsoluteDeviation,
         computeHistogram,
@@ -342,6 +532,7 @@ if (typeof module !== 'undefined' && module.exports) {
 
 if (typeof window !== 'undefined') {
     window.AdaptiveThreshold = AdaptiveThreshold;
+    window.GradientCompensator = GradientCompensator;
     window.AdaptiveThresholdUtils = {
         median,
         medianAbsoluteDeviation,

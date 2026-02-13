@@ -3398,21 +3398,33 @@
             // camera was recording before the user clicked "Start".
             const leadIn = '00000000';
             
-            // Preamble: 0.5-1.0s of alternating 1010... for auto-calibration (Task 1.2)
-            // At 100ms per bit = 10 bits/sec
-            // 32 bits = 3.2 seconds (reasonable for learning distributions)
-            const preamble = '10101010101010101010101010101010'; // 32 bits
+            // Task 5.2.1: Adaptive preamble + sync based on payload size
+            // Estimate total required bits to decide preamble/sync length
+            const payloadBits = packetsBinary.length;
+            const shortMessage = payloadBits < 200; // ~25 bytes
             
-            // Sync word: 0xAA55 for bit boundary alignment
-            const syncWord = '1010101010101010'; // 16 bits = 0xAA55
+            // Preamble: Use 16-bit for short messages, 32-bit for longer ones
+            const preamble = shortMessage
+                ? '1010101010101010' // 16 bits (1.6s @ 100ms)
+                : '10101010101010101010101010101010'; // 32 bits (3.2s @ 100ms)
+            
+            // Sync word: Use 8-bit for short messages, 16-bit for longer ones
+            const syncWord = shortMessage
+                ? '10101010'         // 8 bits = 0xAA
+                : '1010101010101010'; // 16 bits = 0xAA55
             
             const endMarker = '0101010101010101';
             
+            const totalBinary = leadIn + preamble + syncWord + packetsBinary + endMarker;
+            
             return {
-                binary: leadIn + preamble + syncWord + packetsBinary + endMarker,
+                binary: totalBinary,
                 demoMode,
                 sessionId,
-                packetCount: packets.length
+                packetCount: packets.length,
+                shortVideoMode: shortMessage,
+                preambleBits: preamble.length,
+                syncBits: syncWord.length
             };
         }
         
@@ -3927,6 +3939,9 @@
                 // ============================================================
                 const frameSamples = [];
                 
+                // Task 5.2.3: Dynamic ROI state (shrinks toward center for low-confidence frames)
+                const catRoiState = { shrinkFactor: 0, adjustments: 0 };
+                
                 // Calculate step size: at least 5 samples per blink bit,
                 // capped at ~30 fps equivalent for efficiency
                 const sampleInterval = Math.min(1 / 30, blinkSpeedMs / (5 * 1000));
@@ -3955,8 +3970,17 @@
                     
                     ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
                     const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-                    const greenLevel = analyzeFrameGreen(imgData);
-                    frameSamples.push({ frame: i, time: targetTime, greenLevel });
+                    
+                    // Task 5.2.3: Use confidence-weighted analysis with Gaussian mask
+                    const weightedResult = analyzeFrameGreenWeighted(imgData, catRoiState);
+                    const greenLevel = weightedResult.greenLevel;
+                    frameSamples.push({
+                        frame: i,
+                        time: targetTime,
+                        greenLevel,
+                        confidence: weightedResult.confidence,
+                        roiShrink: weightedResult.roiShrinkFactor
+                    });
                     
                     // Update progress UI
                     const progress = ((i / totalPositions) * 100).toFixed(1);
@@ -4160,15 +4184,33 @@
                 }
                 
                 // ============================================================
-                // NRZ TIMING DECODER (Task 1.2)
+                // NRZ TIMING DECODER (Task 1.2 + Task 5.2.1)
                 // 
                 // Uses preamble detection for auto-calibration, then finds
                 // sync word and samples bits at fixed time intervals.
+                // Task 5.2.1: Adaptive preamble + 8-bit sync fallback for
+                // short videos, with duration pre-check.
                 // ============================================================
                 
                 const bitDuration = blinkSpeedMs / 1000; // seconds (from UI)
                 
+                // Task 5.2.1: Video duration pre-check
+                const videoDuration = frameSamples.length > 0
+                    ? frameSamples[frameSamples.length - 1].time - frameSamples[0].time
+                    : 0;
+                const durationCheck = PreambleCalibration.checkVideoDuration(videoDuration, blinkSpeedMs);
+                let shortVideoMode = durationCheck.shortVideoMode || false;
+                
+                if (!durationCheck.ok) {
+                    log(`⚠️ [Duration] ${durationCheck.message}`);
+                    throw new Error(durationCheck.message);
+                }
+                if (durationCheck.message) {
+                    log(`📹 [Duration] ${durationCheck.message}`);
+                }
+                
                 // Try to detect preamble for auto-calibration
+                // Task 5.2.1: Reduced minDuration for short videos
                 const preambleResult = PreambleCalibration.detectPreambleWithFallback(
                     frameSamples,
                     blinkSpeedMs,
@@ -4176,7 +4218,7 @@
                 );
                 
                 if (preambleResult.found) {
-                    log(`✅ [Preamble] Auto-calibration successful`);
+                    log(`✅ [Preamble] Auto-calibration successful${preambleResult.preamble && preambleResult.preamble.earlyTerminated ? ' (early termination)' : ''}`);
                     // Use learned threshold if different from current
                     if (Math.abs(preambleResult.threshold - threshold) > 0.1) {
                         log(`📊 [Preamble] Updating threshold: ${threshold.toFixed(2)} → ${preambleResult.threshold.toFixed(2)}`);
@@ -4187,23 +4229,36 @@
                     }
                 } else {
                     log(`⚠️ [Preamble] Using fallback: UI speed + percentile threshold`);
+                    // If preamble not found and video is short, try short video mode
+                    if (videoDuration < 6.0) {
+                        shortVideoMode = true;
+                        log(`📹 [Duration] Enabling short video mode (${videoDuration.toFixed(1)}s)`);
+                    }
                 }
                 
-                // Estimate where sync word should start (after lead-in + preamble)
-                // Lead-in = 8 bits, Preamble = 32 bits, so sync starts at ~40 bits
+                // Task 5.2.1: Adaptive sync search start based on detected preamble
                 const leadInBits = 8;
-                const preambleBits = 32;
+                let preambleBits;
+                if (preambleResult.found && preambleResult.preamble) {
+                    // Use actual detected preamble end
+                    preambleBits = Math.round(preambleResult.preamble.duration / bitDuration);
+                } else if (shortVideoMode) {
+                    preambleBits = 16; // Short preamble assumption
+                } else {
+                    preambleBits = 32; // Full preamble
+                }
                 const syncStartTime = (leadInBits + preambleBits) * bitDuration;
                 
-                log(`🔍 [NRZ] Starting sync word search at t=${(syncStartTime * 1000).toFixed(1)}ms`);
+                log(`🔍 [NRZ] Starting sync word search at t=${(syncStartTime * 1000).toFixed(1)}ms (preamble=${preambleBits}bits${shortVideoMode ? ', short mode' : ''})`);
                 
-                // Decode using NRZ timing
+                // Decode using NRZ timing (Task 5.2.1: with short video mode support)
                 const nrzResult = NRZDecoder.decodeNRZ(
                     frameSamples,
                     preambleResult.bitRate || bitDuration,
                     threshold,
                     syncStartTime,
-                    100000 // max bits
+                    100000, // max bits
+                    { shortVideoMode }
                 );
                 
                 if (!nrzResult.success) {
@@ -4237,10 +4292,18 @@
                     type: 'nrz',
                     t0: nrzResult.t0,
                     syncConfidence: nrzResult.syncConfidence,
+                    syncBits: nrzResult.syncBits || 16,
+                    shortVideoMode: nrzResult.shortVideoMode || false,
                     bitLength: binary.length,
                     uncertainBits: nrzResult.stats.uncertainBits,
                     uncertainPercent: nrzResult.stats.uncertainPercent,
-                    bitPeriod: nrzResult.stats.bitPeriod
+                    bitPeriod: nrzResult.stats.bitPeriod,
+                    // Task 5.2.3: ROI confidence metrics
+                    roiAdjustments: catRoiState.adjustments,
+                    roiFinalShrink: catRoiState.shrinkFactor.toFixed(2),
+                    avgConfidence: frameSamples.length > 0
+                        ? (frameSamples.reduce((s, f) => s + (f.confidence || 0), 0) / frameSamples.length).toFixed(3)
+                        : 'N/A'
                 };
                 
                 progressText.textContent = `Extracted ${binary.length} bits using NRZ decoder (${nrzResult.stats.uncertainPercent.toFixed(1)}% uncertain)`;
@@ -4696,6 +4759,162 @@
         function analyzeEyeGreen(imgData) {
             return analyzeFrameGreen(imgData);
         }
+        
+        // ============================================================
+        // Task 5.2.3: Eye Region Confidence Masking
+        //
+        // Gaussian-weighted green scoring that weights center pixels
+        // more heavily, with dynamic ROI shrinking when confidence
+        // drops below threshold.
+        // ============================================================
+        
+        /**
+         * Create 2D Gaussian mask for ROI weighting (Task 5.2.3)
+         * Center pixels get weight ~1.0, edges get lower weights.
+         * @param {number} cols - Grid columns
+         * @param {number} rows - Grid rows  
+         * @param {number} sigma - Gaussian sigma (0.3 = moderate falloff)
+         * @returns {Float32Array} Weights for each grid cell
+         */
+        function createGaussianMask(cols, rows, sigma = 0.3) {
+            const mask = new Float32Array(cols * rows);
+            const cx = (cols - 1) / 2;
+            const cy = (rows - 1) / 2;
+            
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const dx = (c - cx) / cols;
+                    const dy = (r - cy) / rows;
+                    const dist2 = dx * dx + dy * dy;
+                    mask[r * cols + c] = Math.exp(-dist2 / (2 * sigma * sigma));
+                }
+            }
+            
+            return mask;
+        }
+        
+        /**
+         * Confidence-weighted green analysis with Gaussian mask (Task 5.2.3)
+         * 
+         * Like analyzeFrameGreen but applies a 2D Gaussian mask to weight
+         * center cells more heavily. Also returns a confidence score and
+         * per-quadrant breakdown for multi-ROI voting.
+         * 
+         * @param {ImageData} imgData - Frame image data
+         * @param {object} roiState - Mutable state for dynamic ROI adjustment
+         * @returns {object} {greenLevel, confidence, quadrants, roiShrinkFactor}
+         */
+        function analyzeFrameGreenWeighted(imgData, roiState = null) {
+            const data = imgData.data;
+            const width = imgData.width;
+            const height = imgData.height;
+            
+            // Dynamic ROI: shrink toward center if low confidence
+            const shrink = roiState ? roiState.shrinkFactor || 0 : 0;
+            const xStart = Math.floor(width * shrink / 2);
+            const yStart = Math.floor(height * shrink / 2);
+            const xEnd = width - xStart;
+            const yEnd = height - yStart;
+            const roiWidth = xEnd - xStart;
+            const roiHeight = yEnd - yStart;
+            
+            const cellSize = 20;
+            const cols = Math.max(1, Math.floor(roiWidth / cellSize));
+            const rows = Math.max(1, Math.floor(roiHeight / cellSize));
+            const cellCount = cols * rows;
+            const cellSum = new Float32Array(cellCount);
+            const cellPix = new Uint32Array(cellCount);
+            
+            // Pre-compute Gaussian mask
+            const mask = createGaussianMask(cols, rows, 0.3);
+            
+            for (let i = 0; i < data.length; i += 4) {
+                const pixelIndex = i / 4;
+                const x = pixelIndex % width;
+                const y = Math.floor(pixelIndex / width);
+                
+                // Skip pixels outside shrunken ROI
+                if (x < xStart || x >= xEnd || y < yStart || y >= yEnd) continue;
+                
+                const r = data[i];
+                const g = data[i + 1];
+                const b = data[i + 2];
+                const greenness = g - Math.max(r, b);
+                if (greenness <= 0) continue;
+                
+                const cx = Math.min(cols - 1, Math.floor((x - xStart) / cellSize));
+                const cy = Math.min(rows - 1, Math.floor((y - yStart) / cellSize));
+                const idx = cy * cols + cx;
+                cellSum[idx] += greenness;
+                cellPix[idx] += 1;
+            }
+            
+            // Weighted top-N scoring with Gaussian mask
+            const topN = 6;
+            let weightedSum = 0;
+            let weightTotal = 0;
+            const cellAvgs = [];
+            
+            for (let i = 0; i < cellCount; i++) {
+                if (cellPix[i] === 0) continue;
+                const avg = cellSum[i] / cellPix[i];
+                cellAvgs.push({ avg, weight: mask[i], idx: i });
+            }
+            
+            // Sort by weighted average (descending)
+            cellAvgs.sort((a, b) => (b.avg * b.weight) - (a.avg * a.weight));
+            
+            const topCells = cellAvgs.slice(0, topN);
+            for (const cell of topCells) {
+                weightedSum += cell.avg * cell.weight;
+                weightTotal += cell.weight;
+            }
+            
+            const greenLevel = weightTotal > 0 ? weightedSum / weightTotal : 0;
+            
+            // Confidence: ratio of weighted score to unweighted score
+            const unweightedSum = topCells.reduce((s, c) => s + c.avg, 0);
+            const unweightedAvg = topCells.length > 0 ? unweightedSum / topCells.length : 0;
+            const confidence = unweightedAvg > 0 ? Math.min(greenLevel / unweightedAvg, 1.0) : 0;
+            
+            // Multi-ROI: per-quadrant breakdown
+            const midCol = Math.floor(cols / 2);
+            const midRow = Math.floor(rows / 2);
+            const quadrants = [0, 0, 0, 0]; // TL, TR, BL, BR
+            const quadCounts = [0, 0, 0, 0];
+            
+            for (const cell of cellAvgs) {
+                const r = Math.floor(cell.idx / cols);
+                const c = cell.idx % cols;
+                const q = (r < midRow ? 0 : 2) + (c < midCol ? 0 : 1);
+                quadrants[q] += cell.avg;
+                quadCounts[q]++;
+            }
+            
+            for (let q = 0; q < 4; q++) {
+                quadrants[q] = quadCounts[q] > 0 ? quadrants[q] / quadCounts[q] : 0;
+            }
+            
+            // Dynamic ROI adjustment (shrink if low confidence)
+            if (roiState) {
+                if (confidence < 0.5 && roiState.shrinkFactor < 0.4) {
+                    roiState.shrinkFactor = Math.min(0.4, roiState.shrinkFactor + 0.05);
+                    roiState.adjustments++;
+                } else if (confidence > 0.7 && roiState.shrinkFactor > 0) {
+                    roiState.shrinkFactor = Math.max(0, roiState.shrinkFactor - 0.02);
+                }
+            }
+            
+            return {
+                greenLevel,
+                confidence,
+                quadrants,
+                roiShrinkFactor: shrink,
+                cellCount: cellAvgs.length,
+                topCellWeights: topCells.map(c => c.weight.toFixed(2))
+            };
+        }
+        
         
         window.catModeDecode = async function() {
             const binaryInput = document.getElementById('catBinaryInput').value.replace(/[^01]/g, '');
