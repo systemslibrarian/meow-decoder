@@ -15,15 +15,18 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Manifest versions: MEOW2 (base), MEOW3 (forward secrecy), MEOW4 (post-quantum)
    - HMAC-SHA256 authentication with domain separation
 
-2. **Fountain Coding** ([fountain.py](../meow_decoder/fountain.py))
+2. **Fountain Coding** ([fountain.py](../meow_decoder/fountain.py), [fountain-codes.js](../examples/fountain-codes.js))
    - Luby Transform rateless codes with Robust Soliton distribution
    - Enables decoding from any ~1.5× k_blocks (tolerates 33% frame loss)
    - Droplets XOR multiple blocks using reproducible seed-based selection
+   - **JavaScript implementation** for web demo (414 lines, production-ready)
+   - Frame format: `FOUNTAIN:<k>:<block_size>:<length>:<droplet_b64>`
 
 3. **Encoding/Decoding** ([encode.py](../meow_decoder/encode.py), [decode_gif.py](../meow_decoder/decode_gif.py))
    - Frame 0 = manifest (collar tag), Frame 1+ = fountain droplets
    - QR codes at 600×600 pixels, 10 FPS default
    - Optional steganography modes: photographic cat camouflage, logo-eyes carrier
+   - **Web Demo**: Multi-frame QR with real-time fountain decoding in webcam scanner
 
 4. **Forward Secrecy** ([forward_secrecy.py](../meow_decoder/forward_secrecy.py), [x25519_forward_secrecy.py](../meow_decoder/x25519_forward_secrecy.py))
    - Optional X25519 ephemeral key exchange (MEOW3)
@@ -102,6 +105,91 @@ docker-compose up --build  # Runs full integration tests
 docker run -it meow-decoder python -m pytest tests/
 ```
 
+## Fountain Codes - Frame Loss Tolerance
+
+### Python Implementation ([fountain.py](../meow_decoder/fountain.py))
+- **506 lines** implementing Luby Transform codes
+- `RobustSolitonDistribution`: Optimal degree selection (c=0.1, δ=0.5)
+- `FountainEncoder`: Generate unlimited droplets from source blocks
+- `FountainDecoder`: Belief propagation reconstruction
+
+### JavaScript Implementation ([examples/fountain-codes.js](../examples/fountain-codes.js))
+- **414 lines** for web demo (production-ready, no dependencies)
+- Identical algorithm to Python version for compatibility
+- Classes: `FountainEncoder`, `FountainDecoder`, `Droplet`, `RobustSolitonDistribution`, `SeededRandom`
+- Integrated into `wasm_browser_example.html` webcam scanner
+
+### Frame Format
+```
+FOUNTAIN:<k_blocks>:<block_size>:<original_length>:<base64_droplet>
+
+Example: FOUNTAIN:5:600:2847:AABgAC...
+         ↑        ↑ ↑   ↑    ↑
+         marker   │ │   │    droplet data (seed + indices + XOR)
+                  │ │   original payload length
+                  │ block size in bytes
+                  number of source blocks
+```
+
+### Key Properties
+- **Rateless**: Can generate unlimited droplets until decode succeeds
+- **Loss-tolerant**: Decode from ANY ~67% of frames (with 1.5× redundancy)
+- **Stateless**: No need to track which specific frames were received
+- **Efficient**: Systematic optimization (first 2k droplets are degree-1)
+
+### Integration Points
+
+**Python CLI:**
+```python
+from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
+# Encode
+encoder = FountainEncoder(data, k_blocks=10, block_size=800)
+droplets = encoder.generateDroplets(15)  # 1.5× redundancy
+
+# Decode
+decoder = FountainDecoder(k_blocks=10, block_size=800, original_length=7843)
+for droplet in received_droplets:
+    if decoder.addDroplet(droplet):
+        break  # Complete!
+recovered = decoder.getData()
+```
+
+**JavaScript Web Demo:**
+```javascript
+// Encode (wasm_browser_example.html line ~2540)
+const encoder = new FountainEncoder(payloadBytes, kBlocks, blockSize);
+const numDroplets = Math.ceil(kBlocks * 1.5);
+for (let i = 0; i < numDroplets; i++) {
+    const droplet = encoder.generateDroplet(i);
+    const framePayload = `FOUNTAIN:${kBlocks}:${blockSize}:${length}:${bytesToBase64(droplet.pack())}`;
+    // Generate QR from framePayload
+}
+
+// Decode (scanWebcamFrame line ~5800)
+if (code.data.startsWith('FOUNTAIN:')) {
+    const [_, k, blockSize, length, dropletB64] = code.data.split(':');
+    const decoder = new FountainDecoder(parseInt(k), parseInt(blockSize), parseInt(length));
+    const droplet = Droplet.unpack(base64ToBytes(dropletB64), blockSize);
+    if (decoder.addDroplet(droplet) && decoder.isComplete()) {
+        const payload = decoder.getData();  // Success!
+    }
+}
+```
+
+### Testing
+- **Python**: `tests/test_fountain.py` - comprehensive unit tests
+- **JavaScript**: `examples/test_fountain.html` - browser-based test suite
+- Run both: `pytest tests/test_fountain.py` and open test_fountain.html in browser
+
+### Performance Tuning
+- **block_size**: 600-800 bytes balances QR capacity vs frame count
+- **redundancy**: 1.5× (50% overhead) tolerates 33% loss; 2.0× tolerates 50% loss
+- **Systematic optimization**: First 2k droplets are degree-1, dramatically improves decode speed
+
+### Security Note
+Fountain codes operate on **already-encrypted** ciphertext. They are information-theoretic erasure codes, not encryption. Observing partial droplets reveals nothing about plaintext. No security regression from adding fountain encoding.
+
 ## Common Gotchas
 
 1. **pyzbar dependency**: Requires system library (`libzbar0` on Ubuntu, `brew install zbar` on macOS)
@@ -112,7 +200,8 @@ docker run -it meow-decoder python -m pytest tests/
 
 ## Documentation Deep-Dives
 
-- [ARCHITECTURE.md](../docs/ARCHITECTURE.md): Full data flow diagrams, component interactions (700 lines)
+- [ARCHITECTURE.md](../docs/ARCHITECTURE.md): Full data flow diagrams, component interactions (750+ lines)
+- [FOUNTAIN_CODES_INTEGRATION.md](../docs/FOUNTAIN_CODES_INTEGRATION.md): Complete fountain codes technical spec (400+ lines)
 - [SCHRODINGER.md](../docs/SCHRODINGER.md): Quantum plausible deniability theory, security proofs
 - [THREAT_MODEL.md](../docs/THREAT_MODEL.md): Attack surface, what's protected vs. limitations
 - [QUICKSTART.md](../QUICKSTART.md): 5-minute phone capture demo, step-by-step usage
@@ -166,5 +255,10 @@ ARGON2_PARALLELISM = 4     # 4 threads
 ## Examples Worth Reading
 
 - [examples/basic_encode.py](../examples/basic_encode.py): Minimal encoding example
+- [examples/demo_schrodinger.py](../examples/demo_schrodinger.py): Dual-secret workflow
+- [examples/test_fountain.html](../examples/test_fountain.html): Browser-based fountain code tests
+- [examples/fountain-codes.js](../examples/fountain-codes.js): JavaScript LT implementation
+- [tests/test_e2e.py](../tests/test_e2e.py): Full encode→decode roundtrip patterns
+- [tests/test_fountain.py](../tests/test_fountain.py): Python fountain code unit tests
 - [examples/demo_schrodinger.py](../examples/demo_schrodinger.py): Dual-secret workflow
 - [tests/test_e2e.py](../tests/test_e2e.py): Full encode→decode roundtrip patterns

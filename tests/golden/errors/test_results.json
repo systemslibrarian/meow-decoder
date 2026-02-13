@@ -1,0 +1,152 @@
+{
+  "timestamp": "2026-02-13T17:38:04.342863",
+  "total_tests": 18,
+  "passed": 18,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_extreme_lighting",
+      "error_mode": "extreme_lighting",
+      "passed": true,
+      "duration_ms": 38,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_frame_corruption",
+      "error_mode": "frame_corruption",
+      "passed": true,
+      "duration_ms": 35,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_partial_video",
+      "error_mode": "partial_video",
+      "passed": true,
+      "duration_ms": 35,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_resolution_degradation",
+      "error_mode": "resolution_degradation",
+      "passed": true,
+      "duration_ms": 35,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_timing_jitter",
+      "error_mode": "timing_jitter",
+      "passed": true,
+      "duration_ms": 37,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_empty_hash_100ms_ERROR_wrong_roi",
+      "error_mode": "wrong_roi",
+      "passed": true,
+      "duration_ms": 35,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_extreme_lighting",
+      "error_mode": "extreme_lighting",
+      "passed": true,
+      "duration_ms": 41,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_frame_corruption",
+      "error_mode": "frame_corruption",
+      "passed": true,
+      "duration_ms": 43,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_partial_video",
+      "error_mode": "partial_video",
+      "passed": true,
+      "duration_ms": 36,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_resolution_degradation",
+      "error_mode": "resolution_degradation",
+      "passed": true,
+      "duration_ms": 41,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_timing_jitter",
+      "error_mode": "timing_jitter",
+      "passed": true,
+      "duration_ms": 38,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_long_50ms_ERROR_wrong_roi",
+      "error_mode": "wrong_roi",
+      "passed": true,
+      "duration_ms": 51,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_extreme_lighting",
+      "error_mode": "extreme_lighting",
+      "passed": true,
+      "duration_ms": 37,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_frame_corruption",
+      "error_mode": "frame_corruption",
+      "passed": true,
+      "duration_ms": 59,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_partial_video",
+      "error_mode": "partial_video",
+      "passed": true,
+      "duration_ms": 54,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_resolution_degradation",
+      "error_mode": "resolution_degradation",
+      "passed": true,
+      "duration_ms": 64,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_timing_jitter",
+      "error_mode": "timing_jitter",
+      "passed": true,
+      "duration_ms": 57,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    },
+    {
+      "test_name": "cat_mode_golden_short_150ms_ERROR_wrong_roi",
+      "error_mode": "wrong_roi",
+      "passed": true,
+      "duration_ms": 43,
+      "error_message": "",
+      "diagnostic_quality": "structural_valid"
+    }
+  ]
+}

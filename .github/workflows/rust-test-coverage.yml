@@ -37,7 +37,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpcsclite-dev libudev-dev pkg-config
+          sudo apt-get install -y libpcsclite-dev libudev-dev pkg-config bc
         
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
@@ -88,46 +88,59 @@ jobs:
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
-          COVERAGE="${{ steps.tarpaulin.outputs.coverage }}"
+          COVERAGE_CORE="${{ steps.tarpaulin.outputs.coverage }}"
+          COVERAGE_RUST_CRYPTO="${{ steps.tarpaulin_rust_crypto.outputs.coverage }}"
+          
+          # Calculate combined coverage (simple average)
+          # In future, could weight by lines of code
+          if [ -n "$COVERAGE_CORE" ] && [ -n "$COVERAGE_RUST_CRYPTO" ]; then
+            COVERAGE=$(echo "scale=2; ($COVERAGE_CORE + $COVERAGE_RUST_CRYPTO) / 2" | bc)
+          elif [ -n "$COVERAGE_CORE" ]; then
+            COVERAGE="$COVERAGE_CORE"
+          else
+            COVERAGE="0"
+          fi
+          
+          echo "Combined Rust coverage: ${COVERAGE}% (crypto_core: ${COVERAGE_CORE}%, rust_crypto: ${COVERAGE_RUST_CRYPTO}%)"
           
           # Determine badge color based on coverage
           if (( $(echo "$COVERAGE >= 90" | bc -l) )); then
-            COLOR="brightgreen"
+            COLOR="4c1"  # brightgreen
           elif (( $(echo "$COVERAGE >= 80" | bc -l) )); then
-            COLOR="green"
+            COLOR="97ca00"  # green
           elif (( $(echo "$COVERAGE >= 70" | bc -l) )); then
-            COLOR="yellowgreen"
+            COLOR="a4a61d"  # yellowgreen
           elif (( $(echo "$COVERAGE >= 60" | bc -l) )); then
-            COLOR="yellow"
+            COLOR="dfb317"  # yellow
           else
-            COLOR="red"
+            COLOR="e05d44"  # red
           fi
           
           # Generate SVG badge
           cat > assets/coverage.svg << EOF
-          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="130" height="20" role="img" aria-label="Rust Coverage: ${COVERAGE}%">
-            <title>Rust Coverage: ${COVERAGE}%</title>
+          <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="168" height="20" role="img" aria-label="Rust Combined: ${COVERAGE}%">
+            <title>Rust Combined Coverage: ${COVERAGE}%</title>
             <linearGradient id="s" x2="0" y2="100%">
               <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
               <stop offset="1" stop-opacity=".1"/>
             </linearGradient>
             <clipPath id="r">
-              <rect width="130" height="20" rx="3" fill="#fff"/>
+              <rect width="168" height="20" rx="3" fill="#fff"/>
             </clipPath>
             <g clip-path="url(#r)">
-              <rect width="85" height="20" fill="#555"/>
-              <rect x="85" width="45" height="20" fill="#4c1"/>
-              <rect width="130" height="20" fill="url(#s)"/>
+              <rect width="120" height="20" fill="#555"/>
+              <rect x="120" width="48" height="20" fill="#${COLOR}"/>
+              <rect width="168" height="20" fill="url(#s)"/>
             </g>
             <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
-              <text aria-hidden="true" x="435" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="750">Rust Coverage</text>
-              <text x="435" y="140" transform="scale(.1)" fill="#fff" textLength="750">Rust Coverage</text>
-              <text aria-hidden="true" x="1065" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="350">${COVERAGE}%</text>
-              <text x="1065" y="140" transform="scale(.1)" fill="#fff" textLength="350">${COVERAGE}%</text>
+              <text aria-hidden="true" x="610" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="1100">Rust Combined</text>
+              <text x="610" y="140" transform="scale(.1)" fill="#fff" textLength="1100">Rust Combined</text>
+              <text aria-hidden="true" x="1430" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="380">${COVERAGE}%</text>
+              <text x="1430" y="140" transform="scale(.1)" fill="#fff" textLength="380">${COVERAGE}%</text>
             </g>
           </svg>
           EOF
-          echo "Generated badge with ${COVERAGE}% coverage"
+          echo "Generated badge with ${COVERAGE}% combined coverage (crypto_core: ${COVERAGE_CORE}%, rust_crypto: ${COVERAGE_RUST_CRYPTO}%)"
 
       - name: Commit coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'

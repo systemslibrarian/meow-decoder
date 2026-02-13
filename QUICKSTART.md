@@ -25,8 +25,11 @@ The web demo includes **8 encryption modes**:
 - 🔑 **Forward Secrecy** — X25519 ephemeral keys
 - 🔮 **Post-Quantum** — ML-KEM-1024 hybrid (quantum-resistant!)
 - 🐱 **Schrödinger** — Dual-secret plausible deniability
-- 📹 **Webcam** — Live QR scanner for decoding
+- 📹 **Webcam** — Live QR scanner with **fountain code decoder** (tolerates 33% frame loss!)
 - 🚨 **Duress** — Panic password that wipes keys
+
+**NEW: Frame Loss Tolerance** 🎯  
+Multi-frame QR codes (large payloads) now use JavaScript fountain codes! Scan with your phone camera and the decoder automatically collects droplets, showing real-time progress: "Collected 8/10 droplets, 73% decoded". No need to scan perfectly—works even if you miss 1 in 3 frames.
 
 **Security Note:** Select **"Paranoid" security level** (512 MiB, 20 iter) to match CLI security for life-critical data.
 
@@ -89,7 +92,7 @@ meow-encode -i secret.txt -o secret.gif -p "demo123"
 🐱 Encoding secret.txt...
 ✅ Encrypted (AES-256-GCM)
 ✅ Fountain coded (12 droplets needed)
-✅ Generated 18 QR frames (1.5x redundancy)
+✅ Generated 18 QR frames (1.5x redundancy = 33% frame loss tolerance)
 ✅ Saved to secret.gif
 
 File size: 4.2 KB

@@ -46,6 +46,31 @@ The `wasm_browser_example.html` demonstrates the crypto core running in the brow
 
 > **Note:** The WASM module (`crypto_core/pkg/` folder) must be built before the demo works.
 
+### Fountain Codes for Frame Loss Tolerance
+
+**NEW:** Multi-frame QR codes now use fountain codes to tolerate missing frames!
+
+The `fountain-codes.js` library implements Luby Transform rateless codes, allowing multi-frame animated QR codes to be decoded even if **up to 33% of frames are missed** during phone camera capture.
+
+**Test the fountain codes:**
+
+```bash
+cd examples/
+python3 -m http.server 8080
+```
+
+Then open:
+- http://localhost:8080/test_fountain.html - Run automated test suite
+- http://localhost:8080/wasm_browser_example.html - Try multi-frame QR with camera
+
+**How it works:**
+1. Large payloads (>2500 bytes) automatically use fountain encoding
+2. Each QR frame contains a "droplet" (XOR of multiple data blocks)
+3. Decoder collects droplets and uses belief propagation to reconstruct data
+4. Can decode from ANY subset of frames (no need to scan all)
+
+See [docs/FOUNTAIN_CODES_INTEGRATION.md](../docs/FOUNTAIN_CODES_INTEGRATION.md) for technical details.
+
 #### Web Worker for Responsive UI
 
 The demo uses a **Web Worker** (`crypto-worker.js`) to run CPU-intensive cryptographic operations off the main thread. This keeps the UI responsive during key derivation (Argon2id can take 1-2 seconds).

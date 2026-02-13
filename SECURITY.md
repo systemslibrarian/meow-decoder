@@ -218,7 +218,7 @@ The web demo provides 4 Argon2id security levels:
 - ❌ Guaranteed memory zeroing (best-effort via `zeroize` crate)
 - ❌ Protection from malicious browser extensions
 - ❌ Full steganography (canvas limitations)
-- ❌ Fountain code decode (QR frames only)
+- ✅ **Fountain code decode for multi-frame QR** (IMPLEMENTED — tolerates 33% frame loss!)
 
 ### **Recommended Browser Settings**
 

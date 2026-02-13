@@ -47,6 +47,9 @@ ENV/
 *.swo
 .DS_Store
 
+# Node.js
+node_modules/
+
 # Meow Decoder Specific
 *.gif
 !assets/*.gif

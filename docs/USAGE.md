@@ -8,6 +8,8 @@ At a high level:
 2. **Transmit** that GIF (file transfer) **or** display it on a screen.
 3. **Decode** by reading frames back (from the GIF file or a webcam capture) and reconstructing the original bytes.
 
+**🌊 Frame Loss Tolerance:** Multi-frame QR codes (payloads >2500 bytes) use fountain codes (Luby Transform rateless erasure coding) that allow decoding from ANY ~67% of frames. This means you can miss up to 33% of frames during phone camera capture (due to autofocus lag, motion blur, low framerates) and still decode successfully. Works in both Python CLI and JavaScript web demo.
+
 > Tip: If you just want a working end-to-end demo, use Docker:
 >
 > ```bash
@@ -79,8 +81,27 @@ make meow-build
 | 🔑 Forward Secrecy | Each message uses ephemeral key |
 | 🔮 Post-Quantum | Future-proof quantum resistance |
 | 🐱 Schrödinger | Two passwords reveal different secrets |
-| 📹 Webcam | Scan QR codes from camera |
+| 📹 Webcam | Scan QR codes from camera (with fountain code frame loss tolerance!) |
 | 🚨 Duress | Panic password destroys keys |
+
+### 🌊 Fountain Codes in Web Demo
+
+**NEW:** The webcam scanner now supports multi-frame QR codes with frame loss tolerance!
+
+**How it works:**
+1. Large payloads (>2500 bytes) generate animated QR with fountain-encoded droplets
+2. Each frame contains a self-contained droplet (not sequential chunks)
+3. Webcam scanner collects droplets as they're seen
+4. Real-time progress: "Collecting: 8 scanned, 80% decoded (4/5 blocks)"
+5. Success when enough droplets collected (typically ~1.2-1.5× minimum needed)
+
+**Benefits:**
+- ✅ Works with hand-held phone cameras (motion tolerant)
+- ✅ Tolerates autofocus lag and frame drops
+- ✅ No "perfect scan" required—just point and wait
+- ✅ Visual feedback shows decode progress in real-time
+
+See [docs/FOUNTAIN_CODES_INTEGRATION.md](FOUNTAIN_CODES_INTEGRATION.md) for technical details.
 
 ### Security Level
 
@@ -222,6 +243,187 @@ meow-decode-gif --hardware-status
 # Auto-select available hardware
 meow-encode -i secret.pdf -o secret.gif --hardware-auto
 ```
+
+---
+
+## 🐱 Cat Mode: Optical Air-Gap File Transfer
+
+Cat Mode enables secure file transfer via animated blinking cat eyes displayed on screen and captured by phone camera. This provides a true air-gapped data channel with visual verification.
+
+### Quick Start
+
+1. **Load the web demo** (`examples/wasm_browser_example.html`)
+2. **Switch to Cat Mode** tab
+3. **Enter your message** and set blink speed (default 100ms works well)
+4. **Click "Start Blinking"** - cat eyes will blink the encoded message
+5. **Record with phone camera** (10-15 seconds, include 2-3 extra seconds)
+6. **Upload video** in Step 2
+7. **Click "Analyze Video"** to decode
+
+### Best Practices for Recording
+
+#### 📹 Video Capture Settings
+
+- **Resolution:** 1080p or 720p (higher is better for accuracy)
+- **Frame Rate:** 30 FPS minimum, 60 FPS ideal
+- **Duration:** Record 2-3 seconds BEYOND message end
+- **Stability:** Hold phone steady (use tripod if available)
+- **Format:** MP4 or WebM (avoid heavy compression)
+
+#### 💡 Lighting Conditions
+
+- **Even, diffuse lighting** - avoid harsh shadows
+- **No glare** on screen - angle camera slightly if needed
+- **Consistent brightness** - avoid flickering lights
+- **Screen brightness:** 80-100% for best green detection
+- **Background:** Dark room reduces ambient light interference
+
+#### 📐 Camera Position
+
+- **Distance:** 30-60 cm (12-24 inches) from screen
+- **Angle:** Perpendicular to screen (0-15° tilt max)
+- **Focus:** Center cat face in frame, eyes clearly visible
+- **Avoid:** Autofocus hunting during recording (tap to lock focus)
+
+### Recording Checklist
+
+✅ Screen brightness at 80%+  
+✅ Dark background behind screen  
+✅ Phone held steady or on tripod  
+✅ Cat face centered in frame  
+✅ No glare on screen  
+✅ Recording started BEFORE blinking begins  
+✅ Recording continued 2-3 seconds AFTER blinking ends  
+✅ Focus locked (no autofocus during recording)
+
+### Decoding Workflow
+
+1. **Upload Video** - Select your recorded MP4/WebM file
+2. **Auto-Detection** - System analyzes green levels automatically
+3. **Live Metrics** - Watch real-time confidence and CRC stats
+4. **Decode Success** - Message appears if >85% frames confident
+
+### Understanding Live Metrics
+
+| Metric | Meaning | Good Value |
+|--------|---------|------------|
+| **Frames** | Total frames analyzed | > 300 |
+| **Confident** | % frames with clear on/off | > 80% |
+| **Transitions** | State changes detected | ≈ bit_count |
+| **Bits** | Binary data recovered | Expected length |
+| **CRC Pass** | Packets validated | > 85% |
+| **CRC Fail** | Corrupted packets | < 15% |
+| **Session** | Locked session ID | Hex value |
+| **Wrong Session** | Rejected foreign packets | 0 |
+
+### Troubleshooting Guide
+
+#### Problem: Low Confidence % (< 70%)
+
+**Likely Causes:**
+- Uneven lighting (shadows, glare)
+- Wrong threshold (manual override may help)
+- Cat face too small in frame
+- Out of focus or motion blur
+
+**Solutions:**
+1. Re-record with better lighting
+2. Adjust screen brightness to 100%
+3. Move camera closer (but not too close)
+4. Use manual focus lock on phone
+5. Try "Auto" sensitivity if stuck
+
+#### Problem: High CRC Fail Rate (> 20%)
+
+**Likely Causes:**
+- Timing jitter (frame rate drops)
+- Compression artifacts
+- Fast blink speed for low frame rate camera
+- Phone dropped frames during recording
+
+**Solutions:**
+1. Use shorter messages (reduces error accumulation)
+2. Slow down blink speed to 150ms or 200ms
+3. Record in higher quality (less compression)
+4. Close other apps during recording
+5. Re-record if phone overheated
+
+#### Problem: No Transitions Detected
+
+**Likely Causes:**
+- Wrong ROI (not targeting eyes)
+- Static video (no blinking)
+- Extreme over/underexposure
+
+**Solutions:**
+1. Manually select ROI around cat eyes
+2. Verify blinking animation is visible on screen
+3. Check screen brightness not at 0%
+4. Try different camera exposure settings
+
+#### Problem: Session Lock Failures
+
+**Likely Causes:**
+- Multiple transmission sources in frame
+- Recording started mid-transmission
+- Interference from other screens
+
+**Solutions:**
+1. Ensure only ONE cat animation visible
+2. Start recording BEFORE blinking begins
+3. Block other screens from camera view
+4. Use "Reset Session" button and try again
+
+### Optimal Conditions Summary
+
+| Parameter | Optimal Value | Acceptable Range |
+|-----------|---------------|------------------|
+| Distance | 40-50 cm | 30-60 cm |
+| Screen Brightness | 90-100% | 80-100% |
+| Ambient Light | Dim | Dark to moderate |
+| Video Resolution | 1080p | 720p-1080p |
+| Frame Rate | 60 FPS | 30-60 FPS |
+| Blink Speed | 100ms | 80-150ms |
+| Recording Extra Time | 3 seconds | 2-5 seconds |
+
+### Diagnostics Export
+
+After decoding (successful or failed), click **"📋 Export Diagnostics (JSON)"** to save comprehensive analysis:
+
+**JSON Export includes:**
+- Video metadata (resolution, FPS, duration)
+- Frame-by-frame green scores
+- Adaptive threshold calibrations
+- Hysteresis state transitions
+- CRC validation results
+- Quality confidence metrics
+- Human-readable recommendations
+
+**CSV Export** (📊 Export Frames) provides per-frame data for analysis in Excel/Python:
+```csv
+frame,timestamp_ms,green_score,state,confidence,stable
+0,0.0,47.234,off,0.920,true
+1,33.3,149.821,on,0.954,true
+2,66.7,151.003,on,0.961,true
+```
+
+### Advanced: Manual Threshold Tuning
+
+If auto-detection fails:
+
+1. **Note the green levels** in console log (min/max range)
+2. **Estimate threshold** = min + (max - min) × 0.4
+3. **(Not yet implemented: manual slider)**
+4. Retry analysis with adjusted threshold
+
+### Security Considerations for Cat Mode
+
+- ✅ **Air-gapped:** No network, Bluetooth, or NFC involved
+- ✅ **Visual verification:** You can see the data transfer happen
+- ✅ **Single-use transmission:** Each video is unique
+- ⚠️ **Shoulder surfing:** Record in private location
+- ⚠️ **Camera security:** Ensure phone not compromised
+- ⚠️ **Screen recording prevention:** Some apps block screen capture
 
 ---
 

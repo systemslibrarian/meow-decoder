@@ -1014,12 +1014,57 @@
                         
                         <button id="catVideoDecodeBtn" onclick="catVideoAnalyze()" disabled>🔍 Analyze Video</button>
                         <button id="catVideoCancelBtn" onclick="cancelCatVideoAnalysis()" style="display: none; background: linear-gradient(135deg, #ff6464 0%, #ff3232 100%);">✖️ Cancel</button>
-                        <button class="secondary" onclick="exportCatDiagnostics()" style="margin-left: 10px;">📋 Export Diagnostics</button>
+                        <button class="secondary" onclick="exportCatDiagnostics()" style="margin-left: 10px;">📋 Export Diagnostics (JSON)</button>
+                        <button class="secondary" onclick="exportCatDiagnosticsCSV()" style="margin-left: 5px;">📊 Export Frames (CSV)</button>
                         <div id="catVideoProgress" style="margin-top: 15px; display: none;">
                             <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
                                 <div id="catVideoProgressBar" style="background: linear-gradient(90deg, #00ccff, #00ff88); height: 100%; width: 0%; transition: width 0.1s;"></div>
                             </div>
                             <p id="catVideoProgressText" style="color: #888; font-size: 0.85em; margin-top: 5px;">Analyzing frames...</p>
+                            
+                            <!-- LIVE UI COUNTERS (Task 2.4 + Task 1.4) -->
+                            <div id="catLiveCounters" style="display: none; background: rgba(0,255,136,0.05); border: 1px solid #00ff88; border-radius: 8px; padding: 12px; margin-top: 10px;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                    <p style="color:#00ff88; font-weight:bold; margin:0; font-size:0.9em;">📊 Live Decode Metrics</p>
+                                    <div style="display: flex; align-items: center; gap: 8px;">
+                                        <span id="sessionLockStatus" style="display: none; font-size: 0.75em; color: #ffaa44; background: rgba(255,170,68,0.15); padding: 3px 8px; border-radius: 4px; border: 1px solid #ffaa44;">
+                                            🔒 Locked
+                                        </span>
+                                        <button id="resetSessionBtn" style="display: none; background: #ff6464; color: #fff; border: none; border-radius: 4px; padding: 4px 10px; font-size: 0.75em; cursor: pointer; font-weight: bold; transition: background 0.2s;" onclick="resetDecoderSession()" onmouseover="this.style.background='#ff4444'" onmouseout="this.style.background='#ff6464'">
+                                            Reset Session
+                                        </button>
+                                    </div>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.8em;">
+                                    <div>
+                                        <span style="color:#88caff;">Frames:</span> <span id="liveFramesTotal" style="color:#fff; font-weight:bold;">0</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">Confident:</span> <span id="liveFramesConfident" style="color:#00ff88; font-weight:bold;">0%</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">Transitions:</span> <span id="liveTransitions" style="color:#fff; font-weight:bold;">0</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">Bits:</span> <span id="liveBits" style="color:#fff; font-weight:bold;">0</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">CRC Pass:</span> <span id="liveCrcPass" style="color:#00ff88; font-weight:bold;">0</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">CRC Fail:</span> <span id="liveCrcFail" style="color:#ff6464; font-weight:bold;">0</span>
+                                    </div>
+                                    <div style="grid-column: 1 / -1;">
+                                        <span style="color:#88caff;">Session:</span> <span id="liveSession" style="color:#ffaa44; font-weight:bold; font-family:monospace; font-size:0.75em;">-</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">Threshold:</span> <span id="liveThreshold" style="color:#fff; font-weight:bold;">0.0</span>
+                                    </div>
+                                    <div>
+                                        <span style="color:#88caff;">Wrong Session:</span> <span id="liveWrongSession" style="color:#ff6464; font-weight:bold;">0</span>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
@@ -1320,10 +1365,36 @@
         <div id="log"></div>
     </details>
 
+    <!-- FOUNTAIN CODES - Loss-tolerant encoding for frame drops -->
+    <script src="fountain-codes.js"></script>
+    
+    <!-- CAT MODE PROTOCOL - CRC32 packet framing -->
+    <script src="cat-mode-protocol.js"></script>
+    
+    <!-- CAT MODE QUALITY METRICS - Confidence gating (Task 1.3) -->
+    <script src="quality-metrics.js"></script>
+    
+    <!-- CAT MODE PREAMBLE CALIBRATION - Auto-threshold learning (Task 1.2) -->
+    <script src="preamble-calibration.js"></script>
+    
+    <!-- CAT MODE NRZ DECODER - NRZ timing decoder (Task 1.2) -->
+    <script src="nrz-decoder.js"></script>
+    
+    <!-- CAT MODE ADAPTIVE THRESHOLD - Sliding window threshold adaptation (Task 2.1) -->
+    <script src="adaptive-threshold.js"></script>
+    
+    <!-- CAT MODE HYSTERESIS - Schmitt trigger for noise resistance (Task 2.2) -->
+    <script src="hysteresis.js"></script>
+
     <script type="module">
         let wasm = null;
         let QRCode = null;
         let jsQR = null;
+        
+        // FOUNTAIN DECODER STATE - For multi-frame QR collection
+        let fountainDecoder = null;
+        let fountainParams = null; // {kBlocks, blockSize, originalLength}
+        let collectedDropletSeeds = new Set(); // Track which droplets we've already collected
         
         // ============================================
         // Web Worker for responsive crypto operations
@@ -2520,34 +2591,47 @@
                 }
                 
                 if (needsMultiFrame) {
-                    // Generate animated multi-frame QR sequence
-                    log('🎞️ Payload too large for single QR, creating animated sequence...');
+                    // Generate animated multi-frame QR sequence WITH FOUNTAIN CODES
+                    log('🎞️ Payload too large for single QR, using fountain codes for frame-loss tolerance...');
                     
-                    const chunkSize = 800; // characters per QR
-                    const chunks = [];
-                    const base64Part = payload.substring(5); // Remove MEOW:
+                    // FOUNTAIN ENCODING - Loss-tolerant rateless code
+                    const payloadBytes = encoder.encode(payload); // Full MEOW: payload
+                    const blockSize = 600; // Bytes per fountain block (fits in QR with overhead)
+                    const kBlocks = Math.ceil(payloadBytes.length / blockSize);
+                    const redundancy = 1.5; // 50% overhead = can lose 33% of frames
+                    const numDroplets = Math.ceil(kBlocks * redundancy);
                     
-                    for (let i = 0; i < base64Part.length; i += chunkSize) {
-                        chunks.push(base64Part.slice(i, i + chunkSize));
-                    }
+                    log(`   📦 Payload: ${payloadBytes.length} bytes → ${kBlocks} blocks × ${blockSize} bytes`);
+                    log(`   ⛲ Fountain encoding: generating ${numDroplets} droplets (${Math.round(redundancy*100)}% redundancy)`);
+                    log(`   ✅ Can decode with ANY ${kBlocks} droplets! Frame loss tolerant.`);
+                    
+                    // Create fountain encoder
+                    const fountainEncoder = new FountainEncoder(payloadBytes, kBlocks, blockSize);
+                    
+                    // Generate droplets and pack into QR frames
+                    const frameCanvases = [];
+                    const useQRCodeLib = QRCode && typeof QRCode.toCanvas === 'function';
                     
                     // Create frame container
                     const container = document.createElement('div');
                     container.id = 'animatedQrContainer';
                     container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
                     
-                    const frameCanvases = [];
-                    const useQRCodeLib = QRCode && typeof QRCode.toCanvas === 'function';
-                    
-                    for (let i = 0; i < chunks.length; i++) {
-                        const framePayload = `MEOW-${i+1}/${chunks.length}:${chunks[i]}`;
+                    for (let i = 0; i < numDroplets; i++) {
+                        const droplet = fountainEncoder.generateDroplet(i);
+                        const packedDroplet = droplet.pack();
+                        
+                        // Base64 encode droplet with metadata header
+                        const dropletB64 = bytesToBase64(packedDroplet);
+                        const framePayload = `FOUNTAIN:${kBlocks}:${blockSize}:${payloadBytes.length}:${dropletB64}`;
                         
                         if (useQRCodeLib) {
                             const canvas = document.createElement('canvas');
                             canvas.style.cssText = `position: absolute; top: 0; left: 0; display: ${i === 0 ? 'block' : 'none'};`;
                             await QRCode.toCanvas(canvas, framePayload, { 
                                 width: 300, margin: 2, 
-                                color: { dark: '#000000', light: '#ffffff' } 
+                                color: { dark: '#000000', light: '#ffffff' },
+                                errorCorrectionLevel: 'M'
                             });
                             container.appendChild(canvas);
                             frameCanvases.push(canvas);
@@ -2562,13 +2646,20 @@
                         }
                     }
                     
+                    // Add info box
+                    const infoEl = document.createElement('div');
+                    infoEl.id = 'fountainInfo';
+                    infoEl.style.cssText = 'text-align: center; margin-top: 5px; color: #888; font-size: 0.85em;';
+                    infoEl.innerHTML = `⛲ <strong>Fountain Coded</strong> - ${kBlocks} blocks, ${numDroplets} droplets`;
+                    
                     // Add frame counter
                     const counterEl = document.createElement('div');
                     counterEl.id = 'frameCounter';
-                    counterEl.style.cssText = 'text-align: center; margin-top: 5px; color: #00ccff; font-weight: bold;';
-                    counterEl.textContent = `Frame 1 / ${chunks.length}`;
+                    counterEl.style.cssText = 'text-align: center; margin-top: 2px; color: #00ccff; font-weight: bold;';
+                    counterEl.textContent = `Frame 1 / ${numDroplets}`;
                     
                     document.getElementById('qrcode').appendChild(container);
+                    document.getElementById('qrcode').appendChild(infoEl);
                     document.getElementById('qrcode').appendChild(counterEl);
                     
                     // Animate frames
@@ -2577,10 +2668,10 @@
                         frameCanvases[currentFrame].style.display = 'none';
                         currentFrame = (currentFrame + 1) % frameCanvases.length;
                         frameCanvases[currentFrame].style.display = 'block';
-                        counterEl.textContent = `Frame ${currentFrame + 1} / ${chunks.length}`;
+                        counterEl.textContent = `Frame ${currentFrame + 1} / ${numDroplets}`;
                     }, 500); // 500ms per frame = 2 FPS
                     
-                    log(`✅ Animated QR generated with ${chunks.length} frames!`);
+                    log(`✅ Fountain-coded animation generated! Can scan ANY ${kBlocks}+ frames to decode.`);
                     
                 } else if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
@@ -3043,7 +3134,18 @@
         let catMediaRecorder = null;
         let catRecordedChunks = [];
         let catRecordedBlob = null;
-        let catDiagnostics = { frames: [], transitions: [], runs: [], decode: {} };
+        let catDiagnostics = { 
+            frames: [], 
+            transitions: [], 
+            runs: [], 
+            decode: {},
+            video: {},
+            detection: {},
+            quality: {},
+            decoding: {},
+            adaptiveThreshold: {},
+            hysteresis: {}
+        };
         
         // Pre-load cat image and draw on canvas
         async function initCatCanvas() {
@@ -3273,16 +3375,44 @@
                 demoMode = true;
                 payload = encoder.encode('DEMO:' + message);
             }
+            
+            // ============================================================
+            // PACKET FRAMING with CRC32 (Task 1.1)
+            // Wrap encrypted payload in packets with session ID and CRC
+            // ============================================================
+            const sessionId = CatProtocol.generateSessionId();
+            const maxChunkSize = 256; // 256 bytes per packet (balance between overhead and reliability)
+            const packets = CatProtocol.encodeMessage(payload, sessionId, maxChunkSize);
+            
+            log(`📦 [Cat Mode] Payload wrapped in ${packets.length} packet(s) with session ID 0x${sessionId.toString(16).padStart(8, '0')}`);
+            
+            // Convert packets to binary string
+            let packetsBinary = '';
+            for (const packet of packets) {
+                packetsBinary += bytesToBinary(packet);
+            }
+            
             // Lead-in: 8 dark bits force a clear GREEN→DARK transition
             // that separates the idle period from the sync marker, making
             // the decoder's t0 calculation unambiguous even when the phone
             // camera was recording before the user clicked "Start".
             const leadIn = '00000000';
-            const startMarker = '1010101010101010';
+            
+            // Preamble: 0.5-1.0s of alternating 1010... for auto-calibration (Task 1.2)
+            // At 100ms per bit = 10 bits/sec
+            // 32 bits = 3.2 seconds (reasonable for learning distributions)
+            const preamble = '10101010101010101010101010101010'; // 32 bits
+            
+            // Sync word: 0xAA55 for bit boundary alignment
+            const syncWord = '1010101010101010'; // 16 bits = 0xAA55
+            
             const endMarker = '0101010101010101';
+            
             return {
-                binary: leadIn + startMarker + bytesToBinary(payload) + endMarker,
-                demoMode
+                binary: leadIn + preamble + syncWord + packetsBinary + endMarker,
+                demoMode,
+                sessionId,
+                packetCount: packets.length
             };
         }
         
@@ -3443,12 +3573,40 @@
         };
         
         let catVideoAnalysisCancelled = false;
+        let currentPacketDecoder = null;  // Task 1.4: Global reference for session reset
 
         window.cancelCatVideoAnalysis = function() {
             catVideoAnalysisCancelled = true;
             const progressText = document.getElementById('catVideoProgressText');
             if (progressText) progressText.textContent = 'Cancelling...';
             log('📹 [Cat Video] Analysis cancelled by user');
+        };
+        
+        // Task 1.4: Session reset handler
+        window.resetDecoderSession = function() {
+            if (currentPacketDecoder) {
+                const oldSessionId = currentPacketDecoder.getSessionId();
+                currentPacketDecoder.reset();
+                log(`🔓 [Cat Video] Session unlocked (was 0x${oldSessionId ? oldSessionId.toString(16).padStart(8, '0') : 'none'})`);
+                
+                // Update UI
+                document.getElementById('liveSession').textContent = '-';
+                document.getElementById('sessionLockStatus').style.display = 'none';
+                document.getElementById('resetSessionBtn').style.display = 'none';
+                document.getElementById('liveWrongSession').textContent = '0';
+                
+                // Show feedback
+                const progressText = document.getElementById('catVideoProgressText');
+                if (progressText) {
+                    const oldText = progressText.textContent;
+                    progressText.innerHTML = '<span style="color:#ff8800;">🔓 Session reset - ready to accept new session</span>';
+                    setTimeout(() => {
+                        if (progressText.textContent.includes('Session reset')) {
+                            progressText.textContent = oldText;
+                        }
+                    }, 2000);
+                }
+            }
         };
 
         function buildRunsFromBinary(binary, bitDuration) {
@@ -3657,6 +3815,52 @@
             analyzeBtn.disabled = true;
             cancelBtn.style.display = 'inline-block';
             
+            // ============================================================
+            // LIVE UI COUNTERS (Task 2.4)
+            // Show real-time metrics during decode for tuning visibility
+            // ============================================================
+            const liveCountersEl = document.getElementById('catLiveCounters');
+            let lastCounterUpdate = 0;
+            const COUNTER_UPDATE_INTERVAL = 100; // ms (update every 100ms to avoid UI lag)
+            
+            function updateLiveCounters(metrics, threshold, sessionId = null, bitsRecovered = 0, decoderStats = null) {
+                const now = Date.now();
+                if (now - lastCounterUpdate < COUNTER_UPDATE_INTERVAL) {
+                    return; // Throttle updates to avoid performance impact
+                }
+                lastCounterUpdate = now;
+                
+                document.getElementById('liveFramesTotal').textContent = metrics.frames_total;
+                document.getElementById('liveFramesConfident').textContent = metrics.confidence_percent + '%';
+                document.getElementById('liveTransitions').textContent = metrics.transitions_detected;
+                document.getElementById('liveBits').textContent = bitsRecovered;
+                document.getElementById('liveCrcPass').textContent = metrics.crc_passes;
+                document.getElementById('liveCrcFail').textContent = metrics.crc_fails;
+                document.getElementById('liveThreshold').textContent = threshold.toFixed(2);
+                
+                // Session ID display (Task 1.4)
+                const sessionIdLocked = sessionId !== null && sessionId !== undefined;
+                if (sessionIdLocked) {
+                    document.getElementById('liveSession').textContent = '0x' + sessionId.toString(16).padStart(8, '0');
+                    document.getElementById('sessionLockStatus').style.display = 'inline-block';
+                    document.getElementById('resetSessionBtn').style.display = 'inline-block';
+                } else {
+                    document.getElementById('liveSession').textContent = '-';
+                    document.getElementById('sessionLockStatus').style.display = 'none';
+                    document.getElementById('resetSessionBtn').style.display = 'none';
+                }
+                
+                // Wrong session counter (Task 1.4)
+                if (decoderStats && decoderStats.packets_wrong_session !== undefined) {
+                    document.getElementById('liveWrongSession').textContent = decoderStats.packets_wrong_session;
+                } else {
+                    document.getElementById('liveWrongSession').textContent = '0';
+                }
+            }
+            
+            // Show live counters
+            liveCountersEl.style.display = 'block';
+            
             try {
                 const video = document.getElementById('catVideoPreview');
                 const canvas = document.getElementById('catVideoCanvas');
@@ -3768,13 +3972,26 @@
                 const totalFrames = frameSamples.length;
                 const actualFps = totalFrames / duration;
                 log(`📹 [Cat Video] Extracted ${totalFrames} frames (~${actualFps.toFixed(1)} samples/sec, ${(sampleInterval * 1000).toFixed(1)}ms step)`);
+                
+                // Store video metadata for diagnostics (Task 3.3)
+                catDiagnostics.video = {
+                    filename: videoFile ? videoFile.name : 'unknown',
+                    fps_reported: 30.0, // Assuming 30fps
+                    fps_actual: actualFps,
+                    total_frames: totalFrames,
+                    duration_sec: duration,
+                    resolution: `${vw}x${vh}`,
+                    canvas_resolution: `${canvasWidth}x${canvasHeight}`,
+                    sample_interval_ms: (sampleInterval * 1000).toFixed(1)
+                };
+                
                 catDiagnostics.frames = frameSamples.slice(0, 100); // First 100 frames for diagnostics
                 
                 // With seek-based extraction, frames-per-bit is deterministic
                 const framesPerBit = actualFps * (blinkSpeedMs / 1000);
                 log(`📹 [Cat Video] ${framesPerBit.toFixed(1)} samples per bit (${blinkSpeedMs}ms blink speed)`);
                 
-                // Compute stats and auto-threshold
+                // Compute stats and initial threshold estimate
                 const greenLevels = frameSamples.map(s => s.greenLevel);
                 const minGreen = Math.min(...greenLevels);
                 const maxGreen = Math.max(...greenLevels);
@@ -3783,34 +4000,153 @@
                 
                 log(`📹 [Cat Video] Green levels: min=${minGreen.toFixed(2)}, max=${maxGreen.toFixed(2)}, avg=${avgGreen.toFixed(2)}, range=${range.toFixed(2)}`);
                 
+                // Initial threshold (will be updated by adaptive threshold)
                 if (autoThreshold) {
                     threshold = minGreen + range * 0.4;
-                    log(`📹 [Cat Video] Auto threshold: ${threshold.toFixed(2)} (40% of range ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)})`);
+                    log(`📹 [Cat Video] Initial threshold: ${threshold.toFixed(2)} (40% of range ${minGreen.toFixed(1)}-${maxGreen.toFixed(1)})`);
                 }
                 
                 if (range < 0.5) {
                     throw new Error(`No green variation detected (range: ${range.toFixed(2)}). The video may not contain cat eye blinks, or the cat image is too small in the frame.`);
                 }
                 
-                // Classify frames
-                for (const sample of frameSamples) {
-                    sample.isGreen = sample.greenLevel > threshold;
+                // ============================================================
+                // ADAPTIVE THRESHOLD (Task 2.1)
+                // Initialize sliding window threshold that adapts to lighting changes
+                // ============================================================
+                const adaptiveThreshold = new AdaptiveThreshold(
+                    100,  // windowSize: last 100 frames
+                    5,    // recalibrateSec: re-calibrate every 5 seconds
+                    50    // histogramBins: 50 bins for peak detection
+                );
+                log(`📊 [Adaptive] Initialized with 100-frame window, 5-second recalibration`);
+                
+                // ============================================================
+                // HYSTERESIS (Task 2.2)
+                // Initialize Schmitt trigger to prevent state flicker
+                // ============================================================
+                const hysteresisMargin = 0.10; // 10% hysteresis margin
+                const adaptiveHysteresis = new AdaptiveHysteresis(threshold, hysteresisMargin, 'off');
+                log(`🔄 [Hysteresis] Initialized with ${(hysteresisMargin * 100).toFixed(0)}% margin (±${(threshold * hysteresisMargin).toFixed(2)} around threshold)`);
+                
+                // ============================================================
+                // CONFIDENCE GATING & QUALITY METRICS (Task 1.3)
+                // Apply per-frame confidence scoring to filter noisy detections
+                // ============================================================
+                const qualityMetrics = new QualityMetrics();
+                
+                // Estimate on/off means using percentiles for initial classification
+                const sorted = greenLevels.slice().sort((a, b) => a - b);
+                const p10 = sorted[Math.floor(sorted.length * 0.10)];
+                const p90 = sorted[Math.floor(sorted.length * 0.90)];
+                const estimatedOffMean = p10;
+                const estimatedOnMean = p90;
+                
+                log(`📊 [Quality] Initial estimates: off=${estimatedOffMean.toFixed(2)}, on=${estimatedOnMean.toFixed(2)}, threshold=${threshold.toFixed(2)}`);
+                
+                // Classify all frames with FULL PIPELINE: adaptive threshold → hysteresis → confidence
+                const confidenceMargin = 0.15; // 15% minimum confidence
+                let hysteresisZoneCount = 0;
+                for (let i = 0; i < frameSamples.length; i++) {
+                    const sample = frameSamples[i];
+                    
+                    // 1. Update adaptive threshold with current frame (Task 2.1)
+                    const adaptiveResult = adaptiveThreshold.update(sample.greenLevel, sample.time * 1000);
+                    if (adaptiveResult.calibrated) {
+                        threshold = adaptiveResult.threshold;
+                        const diag = adaptiveResult.diagnostics;
+                        log(`🎯 [Adaptive] Recalibrated #${diag.calibrationCount}: threshold=${threshold.toFixed(3)}, type=${diag.distributionType}, confidence=${diag.confidence.toFixed(2)}, peaks=${diag.peakCount}`);
+                    }
+                    
+                    // 2. Apply hysteresis using adaptive threshold (Task 2.2)
+                    const hysteresisResult = adaptiveHysteresis.update(sample.greenLevel, threshold);
+                    if (hysteresisResult.inHysteresisZone) {
+                        hysteresisZoneCount++;
+                    }
+                    
+                    // Use hysteresis state for classification
+                    const classification = CatQuality.classifyFrameWithPercentiles(
+                        sample.greenLevel,
+                        threshold,  // Adaptive threshold
+                        greenLevels,
+                        confidenceMargin
+                    );
+                    
+                    // Override state with hysteresis result (more stable)
+                    sample.state = hysteresisResult.state;
+                    sample.confidence = classification.confidence;
+                    sample.isGreen = hysteresisResult.state === 'on';
+                    sample.inHysteresisZone = hysteresisResult.inHysteresisZone;
+                    
+                    qualityMetrics.recordFrame({
+                        state: sample.state,
+                        confidence: sample.confidence
+                    });
                 }
                 
-                // Find state transitions
+                // Log diagnostics
+                const finalDiag = adaptiveThreshold.getDiagnostics();
+                log(`📊 [Adaptive] Final: threshold=${finalDiag.threshold.toFixed(3)}, type=${finalDiag.distributionType}, confidence=${finalDiag.confidence.toFixed(2)}, calibrations=${finalDiag.calibrationCount}`);
+                if (finalDiag.distributionType === 'unimodal' || finalDiag.distributionType === 'uniform') {
+                    log(`⚠️ [Adaptive] Warning: ${finalDiag.distributionType} distribution detected - may indicate poor lighting or static scene`);
+                }
+                
+                const hysteresisDiag = adaptiveHysteresis.getDiagnostics();
+                log(`🔄 [Hysteresis] Final: state=${hysteresisDiag.state}, transitions=${hysteresisDiag.transitionCount}, zone hits=${hysteresisZoneCount}/${frameSamples.length} (${(hysteresisZoneCount/frameSamples.length*100).toFixed(1)}%)`);
+                log(`🔄 [Hysteresis] Thresholds: LOW=${hysteresisDiag.low}, HIGH=${hysteresisDiag.high}, margin=${hysteresisDiag.margin}`);
+                
+                // Store adaptive threshold and hysteresis diagnostics (Task 3.3)
+                catDiagnostics.adaptiveThreshold = finalDiag;
+                catDiagnostics.hysteresis = {
+                    ...hysteresisDiag,
+                    zone_hit_count: hysteresisZoneCount,
+                    zone_hit_percent: (hysteresisZoneCount / frameSamples.length * 100).toFixed(1)
+                };
+                
+                const metrics = qualityMetrics.getSummary();
+                log(`📊 [Quality] Frame confidence: ${metrics.frames_confident}/${metrics.frames_total} (${metrics.confidence_percent}%), uncertain: ${metrics.frames_uncertain}`);
+                
+                if (metrics.frames_confident < metrics.frames_total * 0.5) {
+                    log(`⚠️ [Quality] Warning: Only ${metrics.confidence_percent}% confident frames - may indicate poor lighting or wrong threshold`);
+                }
+                
+                // Store quality metrics (Task 3.3)
+                catDiagnostics.quality = {
+                    ...metrics,
+                    confidence_avg: metrics.frames_confident > 0 ? (metrics.confidence_percent / 100).toFixed(2) : 0,
+                    overall_score: metrics.confidence_percent.toFixed(1)
+                };
+                
+                // Find state transitions with consecutive sample gating
                 const stateChanges = [];
-                let prevState = null;
+                const stateBuffer = [];
+                const requiredConsecutive = 3; // Require 3 consecutive frames to confirm state
+                let lastStableState = null;
+                
                 for (const sample of frameSamples) {
-                    if (prevState !== sample.isGreen) {
+                    if (sample.state === 'unknown') {
+                        continue; // Skip uncertain frames
+                    }
+                    
+                    const stableState = CatQuality.getStableState(sample.state, stateBuffer, requiredConsecutive);
+                    
+                    if (stableState !== null && stableState !== lastStableState) {
+                        // State transition confirmed
                         stateChanges.push({
                             time: sample.time,
                             frame: sample.frame,
-                            state: sample.isGreen ? '1' : '0',
-                            greenLevel: sample.greenLevel
+                            state: stableState === 'on' ? '1' : '0',
+                            greenLevel: sample.greenLevel,
+                            confidence: sample.confidence
                         });
-                        prevState = sample.isGreen;
+                        lastStableState = stableState;
                     }
                 }
+                
+                qualityMetrics.transitions_detected = stateChanges.length;
+                
+                // Update live counters after transition detection
+                updateLiveCounters(qualityMetrics.getSummary(), threshold, null, 0);
                 
                 log(`📹 [Cat Video] Found ${stateChanges.length} state transitions`);
                 catDiagnostics.transitions = stateChanges.slice(0, 50); // First 50 transitions
@@ -3824,110 +4160,90 @@
                 }
                 
                 // ============================================================
-                // TIME-BASED BIT EXTRACTION
+                // NRZ TIMING DECODER (Task 1.2)
                 // 
-                // The encoder holds each bit for exactly 'speed' ms using
-                // rAF timestamp comparison — independent of display refresh
-                // rate (works at 30Hz, 60Hz, 120Hz, or any throttled rate).
-                //
-                // The decoder uses speed/1000 as the bit duration directly.
-                // No frame-rate assumptions needed.
+                // Uses preamble detection for auto-calibration, then finds
+                // sync word and samples bits at fixed time intervals.
                 // ============================================================
                 
-                // Compute time duration of each state run (in seconds)
-                const timeDurations = [];
-                for (let i = 0; i < stateChanges.length; i++) {
-                    const nextTime = (i + 1 < stateChanges.length)
-                        ? stateChanges[i + 1].time
-                        : duration; // video duration in seconds
-                    timeDurations.push(nextTime - stateChanges[i].time);
-                }
+                const bitDuration = blinkSpeedMs / 1000; // seconds (from UI)
                 
-                // Also compute frame counts for diagnostic logging
-                const frameCounts = [];
-                for (let i = 0; i < stateChanges.length; i++) {
-                    const nextFrame = (i + 1 < stateChanges.length)
-                        ? stateChanges[i + 1].frame
-                        : totalFrames;
-                    frameCounts.push(nextFrame - stateChanges[i].frame);
-                }
+                // Try to detect preamble for auto-calibration
+                const preambleResult = PreambleCalibration.detectPreambleWithFallback(
+                    frameSamples,
+                    blinkSpeedMs,
+                    greenLevels
+                );
                 
-                // Use DIRECT bit duration — matches the encoder exactly
-                // The encoder holds each bit for blinkSpeedMs using timestamps,
-                // so bitDuration = blinkSpeedMs / 1000 (seconds)
-                // No framesPerBit or refresh rate assumptions needed.
-                const bitDuration = blinkSpeedMs / 1000; // seconds
-                
-                // Log calibration comparison for diagnostics
-                if (timeDurations.length >= 15) {
-                    let bestStart = 0;
-                    let bestScore = Infinity;
-                    for (let start = 0; start <= Math.min(timeDurations.length - 10, 30); start++) {
-                        const w = timeDurations.slice(start, start + 10);
-                        const med = [...w].sort((a, b) => a - b)[5];
-                        const score = w.reduce((s, v) => s + Math.abs(v - med), 0);
-                        if (score < bestScore && med > 0.001) {
-                            bestScore = score;
-                            bestStart = start;
-                        }
+                if (preambleResult.found) {
+                    log(`✅ [Preamble] Auto-calibration successful`);
+                    // Use learned threshold if different from current
+                    if (Math.abs(preambleResult.threshold - threshold) > 0.1) {
+                        log(`📊 [Preamble] Updating threshold: ${threshold.toFixed(2)} → ${preambleResult.threshold.toFixed(2)}`);
+                        threshold = preambleResult.threshold;
+                        
+                        // Re-classify frames with new threshold if preamble changed it significantly
+                        // (This is optional - only needed if preamble threshold is very different)
                     }
-                    const calWindow = timeDurations.slice(bestStart, bestStart + 15);
-                    calWindow.sort((a, b) => a - b);
-                    const measuredBitDuration = calWindow[Math.floor(calWindow.length / 2)];
-                    const drift = ((measuredBitDuration - bitDuration) / bitDuration * 100).toFixed(1);
-                    log(`📹 [Cat Video] bitDuration=${(bitDuration*1000).toFixed(1)}ms (speed=${blinkSpeedMs}ms), measured=${(measuredBitDuration*1000).toFixed(1)}ms (drift=${drift}%)`);
-                    log(`📹 [Cat Video] First 20 durations (ms): [${timeDurations.slice(0, 20).map(d => (d*1000).toFixed(1)).join(', ')}]`);
-                    log(`📹 [Cat Video] First 20 frame counts: [${frameCounts.slice(0, 20).join(', ')}]`);
                 } else {
-                    log(`📹 [Cat Video] Using bitDuration=${(bitDuration*1000).toFixed(1)}ms (speed=${blinkSpeedMs}ms)`);
+                    log(`⚠️ [Preamble] Using fallback: UI speed + percentile threshold`);
                 }
                 
-                // Merge short runs (noise) before bit expansion
-                const minRun = Math.max(0.05, bitDuration * 0.35); // seconds
-                const mergedRuns = [];
-                let carry = null;
-                for (let i = 0; i < stateChanges.length; i++) {
-                    const runState = stateChanges[i].state;
-                    let runStart = stateChanges[i].time;
-                    let duration = timeDurations[i];
-                    if (carry) {
-                        duration += carry.duration;
-                        runStart = carry.start;
-                        carry = null;
-                    }
-                    if (duration < minRun) {
-                        carry = { duration, start: runStart };
-                        continue;
-                    }
-                    if (mergedRuns.length && mergedRuns[mergedRuns.length - 1].state === runState) {
-                        mergedRuns[mergedRuns.length - 1].duration += duration;
-                    } else {
-                        mergedRuns.push({ state: runState, duration, start: runStart });
-                    }
-                }
-                if (carry && mergedRuns.length) {
-                    mergedRuns[mergedRuns.length - 1].duration += carry.duration;
+                // Estimate where sync word should start (after lead-in + preamble)
+                // Lead-in = 8 bits, Preamble = 32 bits, so sync starts at ~40 bits
+                const leadInBits = 8;
+                const preambleBits = 32;
+                const syncStartTime = (leadInBits + preambleBits) * bitDuration;
+                
+                log(`🔍 [NRZ] Starting sync word search at t=${(syncStartTime * 1000).toFixed(1)}ms`);
+                
+                // Decode using NRZ timing
+                const nrzResult = NRZDecoder.decodeNRZ(
+                    frameSamples,
+                    preambleResult.bitRate || bitDuration,
+                    threshold,
+                    syncStartTime,
+                    100000 // max bits
+                );
+                
+                if (!nrzResult.success) {
+                    // Show sync failure diagnostics
+                    const diagHtml = `
+                        <div style="background: rgba(255,100,100,0.15); border: 2px solid #ff6464; border-radius: 8px; padding: 12px; margin: 10px 0;">
+                            <p style="color:#ff6464; margin:0; font-weight:bold;">❌ Sync Word Not Found</p>
+                            <p style="color:#ffaa44; font-size:0.85em; margin:8px 0 0 0;">
+                                Could not find sync word (0xAA55) in video. This usually means:
+                            </p>
+                            <ul style="color:#888; font-size:0.85em; margin:8px 0 0 0; padding-left:20px;">
+                                ${nrzResult.diagnostics.likely_causes.map(c => `<li>${c}</li>`).join('')}
+                            </ul>
+                            <p style="color:#00ff88; font-size:0.85em; margin:8px 0 0 0; font-weight:bold;">Try these fixes:</p>
+                            <ul style="color:#888; font-size:0.85em; margin:8px 0 0 0; padding-left:20px;">
+                                ${nrzResult.diagnostics.suggestions.map(s => `<li>${s}</li>`).join('')}
+                            </ul>
+                        </div>
+                    `;
+                    
+                    throw new Error(`Sync word not found. ${diagHtml}`);
                 }
                 
-                catDiagnostics.runs = mergedRuns.slice(0, 50); // First 50 runs
-                log(`📹 [Cat Video] First 10 runs: ${JSON.stringify(mergedRuns.slice(0, 10).map(r => ({ s: r.state, dur: (r.duration*1000).toFixed(1), bits: Math.round(r.duration / bitDuration) })))}`);
-
-                const markerBits = '1010101010101010';
-                const syncResult = syncDecodeFromRuns(mergedRuns, bitDuration, markerBits);
-                binary = syncResult.binary;
-
-                if (syncResult.usedSync) {
-                    log(`📹 [Cat Video] Sync decode: raw=${syncResult.rawBinary.length} bits, sync=${binary.length} bits, marker=${syncResult.markerIndex}`);
-                    log(`📹 [Cat Video] Sync timing: t0=${(syncResult.t0*1000).toFixed(1)}ms, bit=${(syncResult.refinedBitDuration*1000).toFixed(1)}ms`);
-                    catDiagnostics.decode = { type: 'sync', rawLen: syncResult.rawBinary.length, syncLen: binary.length, markerIdx: syncResult.markerIndex, t0: syncResult.t0, bitDur: syncResult.refinedBitDuration };
-                } else {
-                    log(`📹 [Cat Video] Extracted: ${binary.length} bits from ${mergedRuns.length} runs (${(bitDuration*1000).toFixed(1)}ms/bit, minRun=${(minRun*1000).toFixed(1)}ms)`);
-                    catDiagnostics.decode = { type: 'direct', len: binary.length, runs: mergedRuns.length, bitDur: bitDuration, minRun };
-                }
+                binary = nrzResult.binary;
+                
+                log(`✅ [NRZ] Decoded ${binary.length} bits (${nrzResult.stats.uncertainBits} uncertain = ${nrzResult.stats.uncertainPercent.toFixed(1)}%)`);
                 log(`📹 [Cat Video] First 80 bits: ${binary.substring(0, 80)}`);
                 log(`📹 [Cat Video] Last 40 bits: ${binary.substring(Math.max(0, binary.length - 40))}`);
                 
-                progressText.textContent = `Extracted ${binary.length} bits from ${stateChanges.length} transitions`;
+                catDiagnostics.decode = {
+                    type: 'nrz',
+                    t0: nrzResult.t0,
+                    syncConfidence: nrzResult.syncConfidence,
+                    bitLength: binary.length,
+                    uncertainBits: nrzResult.stats.uncertainBits,
+                    uncertainPercent: nrzResult.stats.uncertainPercent,
+                    bitPeriod: nrzResult.stats.bitPeriod
+                };
+                
+                progressText.textContent = `Extracted ${binary.length} bits using NRZ decoder (${nrzResult.stats.uncertainPercent.toFixed(1)}% uncertain)`;
 
                 let compareHtml = '';
                 try {
@@ -3999,8 +4315,143 @@
                 
                 log(`📹 [Cat Video] Payload: ${payload.length} bits`);
                 
-                // Decrypt
-                const bytes = binaryToBytes(payload);
+                // Update live counters with bits recovered
+                updateLiveCounters(qualityMetrics.getSummary(), threshold, null, payload.length);
+                
+                // Convert binary to bytes
+                let bytes = binaryToBytes(payload);
+                
+                // ============================================================
+                // PACKET DECODING with CRC32 (Task 1.1)
+                // Validate and reconstruct packets with session locking
+                // ============================================================
+                const packetDecoder = new CatProtocol.Decoder();
+                currentPacketDecoder = packetDecoder;  // Task 1.4: Store for session reset
+                let currentOffset = 0;
+                let packetsProcessed = 0;
+                let crcPasses = 0;
+                let crcFails = 0;
+                
+                log(`📦 [Cat Mode] Processing ${bytes.length} bytes as packets...`);
+                
+                // Process all packets in the byte array
+                while (currentOffset < bytes.length) {
+                    // Try to decode packet at current offset
+                    const remainingBytes = bytes.slice(currentOffset);
+                    
+                    if (remainingBytes.length < 15) {
+                        // Not enough bytes for a complete packet header
+                        log(`📦 [Cat Mode] ${remainingBytes.length} bytes remaining (too small for packet), stopping`);
+                        break;
+                    }
+                    
+                    const packetResult = CatProtocol.decodePacket(remainingBytes);
+                    
+                    if (!packetResult.valid) {
+                        // Invalid packet - log and try to skip to next magic number
+                        log(`📦 [Cat Mode] Invalid packet at offset ${currentOffset}: ${packetResult.error}`);
+                        
+                        // Search for next magic number (0x4D45 = "ME")
+                        let foundNext = false;
+                        for (let i = 1; i < Math.min(remainingBytes.length - 1, 100); i++) {
+                            if (remainingBytes[i] === 0x4D && remainingBytes[i + 1] === 0x45) {
+                                currentOffset += i;
+                                foundNext = true;
+                                log(`📦 [Cat Mode] Found next magic at offset +${i}`);
+                                break;
+                            }
+                        }
+                        
+                        if (!foundNext) {
+                            log(`📦 [Cat Mode] No more valid packets found, stopping`);
+                            break;
+                        }
+                        continue;
+                    }
+                    
+                    // Valid packet structure - now process through decoder
+                    const processResult = packetDecoder.processPacket(remainingBytes);
+                    packetsProcessed++;
+                    
+                    // Track CRC results (Task 1.4)
+                    if (processResult.accepted) {
+                        crcPasses++;
+                        qualityMetrics.recordCRC(true);
+                        const lockedSession = packetDecoder.getSessionId();
+                        log(`📦 [Cat Mode] Packet accepted ✅${lockedSession ? ` (session 0x${lockedSession.toString(16).padStart(8, '0')})` : ''}`);
+                    } else {
+                        // Packet rejected (could be CRC fail, wrong session, duplicate, etc.)
+                        if (processResult.error === 'crc_mismatch' || processResult.error === 'invalid_magic' || processResult.error === 'packet_too_short') {
+                            crcFails++;
+                            qualityMetrics.recordCRC(false);
+                            log(`📦 [Cat Mode] Packet CRC/validation failed ❌: ${processResult.error}`);
+                        } else if (processResult.error === 'session_mismatch') {
+                            log(`📦 [Cat Mode] Packet from different session rejected ⚠️`);
+                        } else if (processResult.error === 'duplicate_packet') {
+                            log(`📦 [Cat Mode] Duplicate packet rejected ⚠️`);
+                        } else {
+                            log(`📦 [Cat Mode] Packet rejected: ${processResult.error}`);
+                        }
+                    }
+                    
+                    // Update live counters with session ID and decoder stats (Task 1.4)
+                    const decoderStats = packetDecoder.getStats();
+                    const lockedSessionId = packetDecoder.getSessionId();
+                    updateLiveCounters(qualityMetrics.getSummary(), threshold, lockedSessionId, payload.length, decoderStats);
+                    
+                    // Advance offset by packet size (header + payload)
+                    currentOffset += packetResult.packet_size;
+                    
+                    // Check if message is complete
+                    if (processResult.complete) {
+                        bytes = processResult.message;
+                        log(`📦 [Cat Mode] ✅ Message complete! Reconstructed ${bytes.length} bytes from ${packetsProcessed} packets (${crcPasses} pass, ${crcFails} fail)`);
+                        break;
+                    }
+                }
+                
+                const stats = packetDecoder.getStats();
+                log(`📦 [Cat Mode] Session stats: received=${stats.packets_received}, CRC pass=${stats.packets_crc_pass}, CRC fail=${stats.packets_crc_fail}, duplicates=${stats.packets_duplicate}, wrong_session=${stats.packets_wrong_session}`);
+                
+                // Store decoding diagnostics (Task 3.3)
+                const decodeEndTime = performance.now();
+                const decodeDuration = decodeEndTime - (catDiagnostics.decode_start_time || decodeEndTime);
+                catDiagnostics.decoding = {
+                    sync_word_found: true, // NRZ decoder found sync
+                    transitions_detected: stateChanges.length,
+                    bits_recovered: payload.length,
+                    packets_total: packetsProcessed,
+                    packets_received: stats.packets_received,
+                    packets_crc_pass: stats.packets_crc_pass,
+                    packets_crc_fail: stats.packets_crc_fail,
+                    packets_duplicate: stats.packets_duplicate,
+                    packets_wrong_session: stats.packets_wrong_session,
+                    packets_missing: packetsProcessed - stats.packets_received,
+                    success_rate: stats.packets_received > 0 ? (stats.packets_crc_pass / stats.packets_received * 100).toFixed(1) : 0,
+                    bit_rate_detected: (payload.length / duration).toFixed(2),
+                    decode_duration_ms: decodeDuration.toFixed(0),
+                    session_id: packetDecoder.getSessionId() ? '0x' + packetDecoder.getSessionId().toString(16).padStart(8, '0') : null
+                };
+                
+                // Store detection parameters (Task 3.3)
+                catDiagnostics.detection = {
+                    roi_detected: 'manual', // TODO: add auto-detection flag when Task 2.3 implemented
+                    threshold_method: 'adaptive_sliding',
+                    threshold_initial: catDiagnostics.quality.frames_total > 0 ? threshold.toFixed(3) : 'N/A',
+                    threshold_final: finalDiag.threshold,
+                    confident_frames: metrics.frames_confident,
+                    confident_percent: metrics.confidence_percent,
+                    uncertain_frames: metrics.frames_uncertain,
+                    hysteresis_margin: parseFloat(hysteresisDiag.margin) / 100 || 0.1
+                };
+                
+                // Check if message is complete
+                const receivedKeys = Array.from(packetDecoder.receivedPackets.keys()).sort((a, b) => a - b);
+                const isComplete = receivedKeys.length > 0 && receivedKeys.every((seq, idx) => seq === idx);
+                
+                if (!isComplete || receivedKeys.length === 0) {
+                    throw new Error(`Incomplete message: ${stats.packets_received} packets received but message not complete. CRC fails: ${stats.packets_crc_fail}. Try adjusting threshold or re-recording.`);
+                }
                 
                 // Populate manual decode input with extracted binary for copy/compare
                 try {
@@ -4079,17 +4530,34 @@
                 const resolutionInfo = (canvasWidth !== vw || canvasHeight !== vh) 
                     ? `${vw}x${vh} → ${canvasWidth}x${canvasHeight} downsampled` 
                     : `${vw}x${vh}`;
+                    
+                // Get final quality metrics
+                const finalMetrics = qualityMetrics.getSummary();
+                const qualityHtml = `
+                    <div style="background: rgba(0,255,136,0.1); border-radius: 6px; padding: 10px; margin-top: 10px;">
+                        <p style="color:#00ff88; font-weight:bold; margin:0 0 5px 0;">📊 Quality Metrics (Task 1.3)</p>
+                        <p style="color:#88ff88; font-size:0.85em; margin:3px 0;">
+                            Confident frames: ${finalMetrics.frames_confident}/${finalMetrics.frames_total} (${finalMetrics.confidence_percent}%)<br>
+                            Transitions: ${finalMetrics.transitions_detected}<br>
+                            CRC: ${finalMetrics.crc_passes} pass / ${finalMetrics.crc_fails} fail (${finalMetrics.crc_pass_rate}%)<br>
+                            Overall quality: ${finalMetrics.quality_score}/100
+                        </p>
+                    </div>
+                `;
+                    
                 resultBox.className = 'result-box success';
                 resultBox.innerHTML = `
                     <h3>🔓 Decoded from Video</h3>
                     <div class='message'>${escapeHtml(message)}</div>
                     <div class='cat-reaction'>Meow! Secret transmitted through cat eyes! 📹🐱💚</div>
                     <p style="color:#888; font-size:0.85em; margin-top:10px;">Captured ${totalFrames} frames (${resolutionInfo}, ~${actualFps.toFixed(0)} fps), ${stateChanges.length} transitions → ${binary.length} bits (${(bitDuration*1000).toFixed(0)}ms/bit, threshold: ${typeof threshold === 'number' ? threshold.toFixed(1) : threshold}${autoThreshold ? ' auto' : ''})</p>
+                    ${qualityHtml}
                     ${compareHtml}
                     ${decodedBinaryHtml}
                 `;
                 resultBox.classList.remove('hidden');
                 log('✅ [Cat Video] Message decoded from video successfully');
+                log(`📊 [Quality] Final metrics: ${JSON.stringify(finalMetrics)}`);
                 
             } catch (err) {
                 // Only show the big red error box if we have useful debug data
@@ -4162,8 +4630,12 @@
             } finally {
                 const analyzeBtn = document.getElementById('catVideoDecodeBtn');
                 const cancelBtn = document.getElementById('catVideoCancelBtn');
+                const liveCountersEl = document.getElementById('catLiveCounters');
+                
                 if (analyzeBtn) analyzeBtn.disabled = false;
                 if (cancelBtn) cancelBtn.style.display = 'none';
+                if (liveCountersEl) liveCountersEl.style.display = 'none'; // Hide live counters when done
+                
                 catVideoAnalysisCancelled = false;
             }
         };
@@ -5014,16 +5486,71 @@
         };
         
         window.exportCatDiagnostics = function() {
+            // Comprehensive diagnostics export (Task 3.3)
+            const timestamp = new Date().toISOString();
+            
+            // Prepare per-frame data (limit to first 500 frames to avoid huge files)
+            const perFrameData = (catDiagnostics.frames || []).slice(0, 500).map(f => ({
+                frame: f.frame || 0,
+                timestamp_ms: ((f.time || 0) * 1000).toFixed(1),
+                green_score: (f.greenLevel || 0).toFixed(3),
+                threshold: (catDiagnostics.detection?.threshold_final || 0).toFixed(3),
+                state: f.state || 'unknown',
+                confidence: (f.confidence || 0).toFixed(3),
+                stable: !f.inHysteresisZone,
+                in_hysteresis_zone: f.inHysteresisZone || false
+            }));
+            
+            // Human-readable summary
+            const summary = {
+                decode_success: catDiagnostics.decoding?.packets_received > 0,
+                overall_quality: catDiagnostics.quality?.overall_score || 'N/A',
+                recommendation: catDiagnostics.quality?.confidence_percent > 80 ? 'Excellent capture quality' :
+                                catDiagnostics.quality?.confidence_percent > 60 ? 'Good capture, minor issues' :
+                                catDiagnostics.quality?.confidence_percent > 40 ? 'Poor capture, re-record recommended' :
+                                'Very poor capture, check lighting and ROI',
+                issues: []
+            };
+            
+            // Detect common issues
+            if (catDiagnostics.quality?.confidence_percent < 70) {
+                summary.issues.push('Low frame confidence - check lighting and threshold');
+            }
+            if (catDiagnostics.decoding?.packets_crc_fail > catDiagnostics.decoding?.packets_crc_pass * 0.2) {
+                summary.issues.push('High CRC failure rate - consider re-recording');
+            }
+            if (catDiagnostics.decoding?.packets_wrong_session > 0) {
+                summary.issues.push('Multiple sessions detected - ensure single transmission');
+            }
+            if (catDiagnostics.adaptiveThreshold?.distributionType === 'unimodal') {
+                summary.issues.push('Unimodal distribution - no clear on/off states detected');
+            }
+            
             const data = {
-                timestamp: new Date().toISOString(),
-                stored: {
-                    binary: localStorage.getItem('meow_cat_binary'),
+                version: '2.1',
+                timestamp: timestamp,
+                summary: summary,
+                video: catDiagnostics.video || {},
+                detection: catDiagnostics.detection || {},
+                quality: catDiagnostics.quality || {},
+                decoding: catDiagnostics.decoding || {},
+                adaptive_threshold: catDiagnostics.adaptiveThreshold || {},
+                hysteresis: catDiagnostics.hysteresis || {},
+                transitions: (catDiagnostics.transitions || []).slice(0, 100),
+                per_frame: perFrameData,
+                storage: {
+                    binary: localStorage.getItem('meow_cat_binary')?.substring(0, 200) || null,
                     timestamp: localStorage.getItem('meow_cat_binary_ts'),
                     speed: localStorage.getItem('meow_cat_speed_ms')
                 },
-                diagnostics: catDiagnostics,
-                logExcerpt: document.getElementById('log') ? document.getElementById('log').textContent.split('\n').filter(l => l.includes('[Cat')).slice(-100).join('\n') : 'no log'
+                log_excerpt: document.getElementById('log') ? 
+                    document.getElementById('log').textContent.split('\n')
+                        .filter(l => l.includes('[Cat') || l.includes('[Adaptive') || l.includes('[Hysteresis') || l.includes('[Quality'))
+                        .slice(-200).join('\n') : 
+                    'no log'
             };
+            
+            // JSON export
             const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -5031,7 +5558,39 @@
             a.download = `meow-cat-diagnostics-${Date.now()}.json`;
             a.click();
             URL.revokeObjectURL(url);
-            log('📋 [Cat Mode] Diagnostics exported');
+            log('📋 [Cat Mode] Diagnostics exported (JSON)');
+        };
+        
+        // CSV export for per-frame data (Task 3.3)
+        window.exportCatDiagnosticsCSV = function() {
+            const frames = (catDiagnostics.frames || []).slice(0, 1000); // Max 1000 frames for CSV
+            
+            if (frames.length === 0) {
+                alert('No frame data available to export');
+                return;
+            }
+            
+            // CSV header
+            let csv = 'frame,timestamp_ms,green_score,state,confidence,stable\n';
+            
+            // CSV rows
+            for (const f of frames) {
+                csv += `${f.frame || 0},`;
+                csv += `${((f.time || 0) * 1000).toFixed(1)},`;
+                csv += `${(f.greenLevel || 0).toFixed(3)},`;
+                csv += `${f.state || 'unknown'},`;
+                csv += `${(f.confidence || 0).toFixed(3)},`;
+                csv += `${!f.inHysteresisZone}\n`;
+            }
+            
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `meow-cat-frames-${Date.now()}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            log('📋 [Cat Mode] Frame data exported (CSV)');
         };
         
         // ============================================================
@@ -5739,6 +6298,11 @@
                 cancelAnimationFrame(webcamAnimationId);
             }
             
+            // Reset fountain decoder state
+            fountainDecoder = null;
+            fountainParams = null;
+            collectedDropletSeeds.clear();
+            
             const video = document.getElementById('webcamVideo');
             const placeholder = document.getElementById('webcamPlaceholder');
             if (video) video.style.display = 'none';
@@ -5770,7 +6334,57 @@
                 // Scan for QR code
                 if (jsQR) {
                     const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    if (code && (code.data.startsWith('MEOW:') || code.data.startsWith('QUANTUM:') || code.data.startsWith('FS:') || code.data.startsWith('HYBRID-PQ:'))) {
+                    
+                    // Handle FOUNTAIN-coded multi-frame QR
+                    if (code && code.data.startsWith('FOUNTAIN:')) {
+                        const parts = code.data.split(':');
+                        if (parts.length >= 5) {
+                            const kBlocks = parseInt(parts[1]);
+                            const blockSize = parseInt(parts[2]);
+                            const originalLength = parseInt(parts[3]);
+                            const dropletB64 = parts[4];
+                            
+                            // Initialize decoder if needed
+                            if (!fountainDecoder || fountainParams?.kBlocks !== kBlocks) {
+                                fountainDecoder = new FountainDecoder(kBlocks, blockSize, originalLength);
+                                fountainParams = {kBlocks, blockSize, originalLength};
+                                collectedDropletSeeds.clear();
+                                log(`⛲ [Fountain] Started collecting: need ${kBlocks} droplets for ${originalLength} bytes`);
+                            }
+                            
+                            // Unpack and add droplet
+                            const packedDroplet = base64ToBytes(dropletB64);
+                            const droplet = Droplet.unpack(packedDroplet, blockSize);
+                            
+                            // Skip duplicate droplets
+                            if (!collectedDropletSeeds.has(droplet.seed)) {
+                                collectedDropletSeeds.add(droplet.seed);
+                                const isComplete = fountainDecoder.addDroplet(droplet);
+                                
+                                const progress = fountainDecoder.getProgress();
+                                const statusEl = document.getElementById('webcamStatus');
+                                statusEl.innerHTML = `<span style="color: #00ff88;">⛲ Collecting droplets: ${collectedDropletSeeds.size} scanned, ${Math.round(progress*100)}% decoded (${fountainDecoder.decodedCount}/${kBlocks} blocks)</span>`;
+                                
+                                if (isComplete) {
+                                    // DECODE COMPLETE!
+                                    const recoveredBytes = fountainDecoder.getData(originalLength);
+                                    const payload = decoder.decode(recoveredBytes);
+                                    
+                                    document.getElementById('webcamPayload').value = payload;
+                                    document.getElementById('webcamScanResult').style.display = 'block';
+                                    statusEl.innerHTML = `<span style="color: #00ff88;">✅ Fountain decode complete! Scanned ${collectedDropletSeeds.size} droplets. Enter password to decrypt.</span>`;
+                                    log(`✅ [Fountain] Decoded from ${collectedDropletSeeds.size}/${kBlocks}+ droplets (${Math.round(collectedDropletSeeds.size/kBlocks*100)}% efficiency)`);
+                                    
+                                    // Reset for next scan
+                                    fountainDecoder = null;
+                                    fountainParams = null;
+                                    collectedDropletSeeds.clear();
+                                }
+                            }
+                        }
+                    }
+                    // Handle single-frame QR codes
+                    else if (code && (code.data.startsWith('MEOW:') || code.data.startsWith('QUANTUM:') || code.data.startsWith('FS:') || code.data.startsWith('HYBRID-PQ:'))) {
                         // Found a valid payload!
                         document.getElementById('webcamPayload').value = code.data;
                         document.getElementById('webcamScanResult').style.display = 'block';
