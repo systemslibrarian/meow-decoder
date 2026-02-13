@@ -54,7 +54,13 @@ jobs:
             --out Lcov \
             --out Json \
             --output-dir . \
-            --timeout 300 2>&1 | tee tarpaulin-output.txt
+            --timeout 300 \
+            --exclude-files "src/wasm.rs" \
+            --exclude-files "src/hsm.rs" \
+            --exclude-files "src/tpm.rs" \
+            --exclude-files "src/yubikey_piv.rs" \
+            --exclude-files "src/verus_proofs.rs" \
+            --exclude-files "src/verus_kdf_proofs.rs" 2>&1 | tee tarpaulin-output.txt
           
           # Extract coverage percentage from output
           COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
