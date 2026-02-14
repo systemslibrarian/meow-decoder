@@ -44,6 +44,8 @@ help:
 	@echo "  make formal-tamarin-duress - Run Tamarin duress OE (diff mode)"
 	@echo "  make formal-tamarin-pq     - Run Tamarin MEOW4 PQ duress OE"
 	@echo "  make formal-tamarin-docker - Run Tamarin via Docker (no native Maude)"
+	@echo "  make formal-negative-tamarin-pq     - Run Tamarin PQ negative tests (should FAIL)"
+	@echo "  make formal-negative-tamarin-docker - Run Tamarin PQ negative tests via Docker"
 	@echo "  make formal-verus          - Run Verus proofs"
 	@echo "  make formal-verus-docker   - Run Verus via Docker (nightly toolchain)"
 	@echo "  make formal-lean           - Build Lean 4 proofs"
@@ -158,6 +160,20 @@ formal-lean-sorry:
 	else \
 		echo "✅ No unapproved sorry statements found."; \
 	fi
+
+# Negative tests: variants that should FAIL (verify positive models are correct)
+formal-negative-tamarin-pq:
+	@echo "🔴 Running Tamarin PQ NEGATIVE tests (should FAIL)..."
+	@echo "Test 1: KEM ct not bound to HMAC → diffEquivLemma should FAIL"
+	@cd formal/tamarin && tamarin-prover --diff MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy --prove || echo "✅ Test 1 failed as expected"
+	@echo "Test 2: Non-uniform failure observables → PQ_Failure_Uniform_Observable should FAIL"
+	@cd formal/tamarin && tamarin-prover --diff MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove || echo "✅ Test 2 failed as expected"
+
+formal-negative-tamarin-docker:
+	@echo "🔴 Running Tamarin PQ NEGATIVE tests via Docker..."
+	docker run --rm meow-tamarin bash -c "\
+		tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy --prove || echo '✅ Test 1 failed as expected'; \
+		tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove || echo '✅ Test 2 failed as expected'"
 
 formal-all: formal-proverif formal-tla formal-tla-fountain formal-tla-streaming formal-tamarin-duress formal-verus formal-lean
 	@echo ""
