@@ -1,0 +1,57 @@
+{
+  "name": "Meow Decoder",
+  "short_name": "Meow",
+  "description": "Secure optical air-gap file transfer via animated QR codes",
+  "start_url": "./wasm_browser_example.html",
+  "display": "standalone",
+  "background_color": "#1a1a2e",
+  "theme_color": "#00ff88",
+  "orientation": "any",
+  "categories": ["security", "utilities", "productivity"],
+  "icons": [
+    {
+      "src": "../assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/meow-icon-128.svg",
+      "sizes": "128x128",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../assets/meow-decoder-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "../assets/MeowDecoderDemo.png",
+      "sizes": "1200x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Meow Decoder main interface"
+    }
+  ],
+  "share_target": {
+    "action": "./wasm_browser_example.html",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "files": [
+        {
+          "name": "file",
+          "accept": ["image/gif", "video/webm", "video/mp4"]
+        }
+      ]
+    }
+  },
+  "permissions_policy": {
+    "camera": ["self"],
+    "microphone": []
+  }
+}
