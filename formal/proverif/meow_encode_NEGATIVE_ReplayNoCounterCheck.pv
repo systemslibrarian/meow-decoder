@@ -1,3 +1,27 @@
+(******************************************************************************)
+(* NEGATIVE TEST VARIANT: Replay Without Counter Check                        *)
+(*                                                                            *)
+(* PURPOSE: Demonstrate vulnerability when nonce tracking is removed          *)
+(*                                                                            *)
+(* CHANGES FROM POSITIVE MODEL:                                               *)
+(*   Line ~602-625: Removed `get accepted_nonces` table check                 *)
+(*   Line ~615: Removed `insert accepted_nonces` table insert                 *)
+(*   Line ~620: Removed `event RejectFrame` on replay detection               *)
+(*                                                                            *)
+(* EXPECTED BEHAVIOR:                                                         *)
+(*   - Same frame (nonce, salt, tag) can be accepted multiple times           *)
+(*   - No RejectFrame events emitted (replay detection disabled)              *)
+(*   - Attacker can replay captured frames indefinitely                       *)
+(*                                                                            *)
+(* VERIFICATION RESULT:                                                       *)
+(*   $ proverif meow_encode_NEGATIVE_ReplayNoCounterCheck.pv                  *)
+(*   Query not (event(RejectFrame(...)) && event(DecoderOutputReal(...))) TRUE*)
+(*   (Trivially true because RejectFrame never emitted)                       *)
+(*                                                                            *)
+(* KEY INSIGHT: Table-based nonce tracking is NECESSARY for replay protection *)
+(*                                                                            *)
+(* Created: 2026-02-14                                                        *)
+(******************************************************************************)
 (* ========================================================================== *)
 (* ProVerif Model of Meow-Encode/Decode Protocol                              *)
 (*                                                                            *)
@@ -599,31 +623,19 @@ let DecoderReal(sid: sessionid, pwd: password) =
     
     event DecoderReceivedFrame(sid, fnum, n, s);
     
-    (* REPLAY DETECTION: Check if (nonce, salt) already accepted *)
-    (* ProVerif tables provide persistent state across process instances *)
-    get accepted_nonces(=n, =s) in
-    (
-        (* Replay detected: nonce+salt seen before *)
-        event ReplayAttemptDetected(sid, n);
-        event RejectFrame(sid, n, s);
-        (* FAIL-CLOSED: No decryption, no plaintext output *)
-        (* Control flow stops here - attacker gets no data *)
-        0
-    )
-    else
-    (
-        (* First time seeing this (nonce, salt) - proceed with decryption *)
-        insert accepted_nonces(n, s);
-        
-        (* Decrypt using AEAD (will fail if tampered - authentication built-in) *)
-        let pt = aes_gcm_decrypt(k, n, ct, aad) in
-        
-        (* Authentication successful: both HMAC and AEAD verified *)
-        event AcceptedFrame(sid, n, s, frame_mac_val);
-        event DecoderAuthenticated(sid, n, s);
-        event DecoderOutputReal(sid, pt);
-        event DecoderFinished(sid)
-    ).
+    
+    (**************************************************************************)
+    (* VULNERABILITY: NO REPLAY DETECTION - Negative Test                      *)
+    (* Removed: get accepted_nonces, insert accepted_nonces, RejectFrame       *)
+    (**************************************************************************)
+    
+    (* Decrypt without checking for replay *)
+    let pt = aes_gcm_decrypt(k, n, ct, aad) in
+    
+    event AcceptedFrame(sid, n, s, frame_mac_val);
+    event DecoderAuthenticated(sid, n, s);
+    event DecoderOutputReal(sid, pt);
+    event DecoderFinished(sid).
 
 (* ========================================================================== *)
 (* DECODER PROCESS - DURESS PASSWORD                                          *)
