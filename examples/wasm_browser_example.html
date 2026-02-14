@@ -2163,6 +2163,99 @@
             return div.innerHTML;
         }
         
+        /**
+         * Transform technical error messages to user-friendly guidance.
+         * Returns { title, message, suggestions } for display.
+         */
+        function getUserFriendlyError(err) {
+            const msg = (err.message || err).toLowerCase();
+            
+            // Mapping of error patterns to user-friendly guidance
+            const errorMap = [
+                {
+                    patterns: ['video too short', 'too few bits', 'not enough samples'],
+                    title: '📹 Video Too Short',
+                    message: 'The video recording is too short to contain the complete message.',
+                    suggestions: [
+                        'Record for at least 5-10 seconds',
+                        'Include the full blinking sequence from start to finish',
+                        'Start recording BEFORE the blink animation begins'
+                    ]
+                },
+                {
+                    patterns: ['sync word', 'sync not found', 'no sync detected', 'preamble not found'],
+                    title: '🔄 Sync Pattern Not Found',
+                    message: 'Could not find the start of the message in the video.',
+                    suggestions: [
+                        'Make sure the cat\'s eyes are clearly visible and filling most of the frame',
+                        'The eyes should be blinking green — check that you recorded the correct screen area',
+                        'Avoid recording when there\'s glare or reflections on your screen'
+                    ]
+                },
+                {
+                    patterns: ['no signal', 'weak signal', 'green signal', 'range'],
+                    title: '📶 Weak or No Signal',
+                    message: 'Could not detect the blinking green signal in the video.',
+                    suggestions: [
+                        'Move your phone closer to the screen',
+                        'Ensure the cat\'s eyes are centered and clearly visible',
+                        'Improve lighting — avoid dark rooms',
+                        'Turn off HDR and Night Mode on your camera'
+                    ]
+                },
+                {
+                    patterns: ['crc', 'checksum', 'packet'],
+                    title: '💾 Data Corruption Detected',
+                    message: 'Some data was corrupted during transmission.',
+                    suggestions: [
+                        'Hold your phone steadier while recording',
+                        'Record at a higher frame rate if possible (60fps is best)',
+                        'Try moving slightly closer to the screen',
+                        'Make sure the screen isn\'t flickering (some monitors have refresh issues)'
+                    ]
+                },
+                {
+                    patterns: ['wrong password', 'decryption failed', 'authentication'],
+                    title: '🔑 Wrong Password',
+                    message: 'The password does not match the encrypted message.',
+                    suggestions: [
+                        'Double-check the password — it is case-sensitive',
+                        'Try re-typing the password carefully',
+                        'Passwords with spaces or special characters must be exact'
+                    ]
+                },
+                {
+                    patterns: ['timeout', 'timed out', 'took too long'],
+                    title: '⏱️ Decode Timed Out',
+                    message: 'Processing took too long and was stopped.',
+                    suggestions: [
+                        'Try with a shorter video (trim unnecessary parts)',
+                        'Close other browser tabs to free up memory',
+                        'Refresh the page and try again'
+                    ]
+                }
+            ];
+            
+            // Find matching error pattern
+            for (const entry of errorMap) {
+                if (entry.patterns.some(p => msg.includes(p))) {
+                    return entry;
+                }
+            }
+            
+            // Default fallback for unrecognized errors
+            return {
+                title: '❌ Decode Failed',
+                message: err.message || 'An unexpected error occurred.',
+                suggestions: [
+                    'Check that the video is clear and well-lit',
+                    'Make sure the blink speed setting matches the original',
+                    'Try recording again from closer to the screen',
+                    'Use the "Export Diagnostics" button for technical details'
+                ]
+            };
+        }
+        
         function bytesToHex(bytes) {
             return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
         }
@@ -5049,21 +5142,34 @@
                 
                 // Always show error prominently — never hide it
                 const storedHint = `<li><b>Quick fix:</b> Click "Load into field" in the Manual Decode section below to use the stored original binary</li>`;
+                
+                // Use user-friendly error transformation
+                const friendlyError = getUserFriendlyError(err);
+                const suggestionsHtml = friendlyError.suggestions.map(s => `<li>${s}</li>`).join('');
+                
                 resultBox.className = 'result-box error';
                 resultBox.innerHTML = `
-                    <h3>❌ Video Decode Failed</h3>
-                    <div class='message'>${err.message}</div>
+                    <h3>${friendlyError.title}</h3>
+                    <div class='message' style='font-size: 1.1em; margin-bottom: 12px;'>${friendlyError.message}</div>
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 12px; margin: 12px 0;">
+                        <p style="color:#ffcc00; font-weight:bold; margin:0 0 8px 0;">💡 What to try:</p>
+                        <ul style="color:#aaa; font-size:0.9em; margin:0; padding-left:20px; text-align:left;">
+                            ${suggestionsHtml}
+                        </ul>
+                    </div>
                     ${greenStatsHtml}
                     ${frameDropWarning}
                     ${debugBinary}
                     ${compareHtml || ''}
-                    <ul style="color:#888; font-size:0.85em; margin-top:10px; text-align:left;">
-                        ${storedHint}
-                        <li><b>Blink speed mismatch?</b> Make sure the decode speed matches the speed used during encoding</li>
-                        <li><b>Weak green signal?</b> Record closer to the screen, avoid reflections, ensure good lighting</li>
-                        <li><b>Phone camera issues?</b> Disable HDR/Night mode, lock exposure if possible</li>
-                        <li><b>Export diagnostics</b> (📋 button) for detailed analysis of what went wrong</li>
-                    </ul>
+                    <details style="margin-top:12px; color:#666; font-size:0.85em;">
+                        <summary style="cursor:pointer; color:#888;">Technical details</summary>
+                        <p style="margin:5px 0 0 0; font-family:monospace; color:#ff8888;">${escapeHtml(err.message)}</p>
+                        <ul style="color:#666; font-size:0.9em; margin-top:8px; text-align:left; padding-left:20px;">
+                            ${storedHint}
+                            <li><b>Blink speed mismatch?</b> Make sure the decode speed matches encoding</li>
+                            <li><b>Export diagnostics</b> (📋 button) for detailed analysis</li>
+                        </ul>
+                    </details>
                 `;
                 resultBox.classList.remove('hidden');
                 
@@ -5408,8 +5514,19 @@
                 log('✅ [Cat Mode] Message decoded successfully');
                 
             } catch (err) {
+                const friendlyError = getUserFriendlyError(err);
+                const suggestionsHtml = friendlyError.suggestions.slice(0, 3).map(s => `<li>${s}</li>`).join('');
+                
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Decode Failed</h3><div class='message'>${err.message}</div><div class='cat-reaction'>Hiss… Wrong password or tampered QR 😿</div>`;
+                resultBox.innerHTML = `
+                    <h3>${friendlyError.title}</h3>
+                    <div class='message'>${friendlyError.message}</div>
+                    <div style="background: rgba(255,255,255,0.05); border-radius: 8px; padding: 10px; margin: 10px 0;">
+                        <p style="color:#ffcc00; font-size:0.9em; margin:0 0 6px 0;"><b>💡 Try this:</b></p>
+                        <ul style="color:#aaa; font-size:0.85em; margin:0; padding-left:18px;">${suggestionsHtml}</ul>
+                    </div>
+                    <div class='cat-reaction'>Hiss… Let's try again 😿</div>
+                `;
                 resultBox.classList.remove('hidden');
                 // Sad cat animation
                 const catCanvas = document.getElementById('catCanvas');

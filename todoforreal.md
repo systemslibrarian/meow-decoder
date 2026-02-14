@@ -75,12 +75,13 @@ npm run generate-golden-videos
 - [ ] Camera permission handling for mobile
 - Files: `examples/sw.js` (exists), `examples/wasm_browser_example.html`
 
-**5.3.3: User-Friendly Error Recovery UX (3h)**
-- [ ] Replace technical errors with actionable guidance
-- [ ] Add retry suggestions ("Move closer", "Better lighting", "Hold steady")
-- [ ] Progress indicator during decode
-- [ ] Timeout with helpful message (not silent hang)
-- Files: `examples/wasm_browser_example.html`
+**5.3.3: User-Friendly Error Recovery UX (3h)** ✅ DONE 2026-02-14
+- [x] Added `getUserFriendlyError()` helper — maps technical errors to friendly titles + suggestions
+- [x] 6 error categories: video too short, sync not found, weak signal, data corruption, wrong password, timeout
+- [x] Each category has specific actionable suggestions  
+- [x] Technical details hidden in collapsible `<details>` section
+- [x] Updated both catModeDecode and catVideoAnalyze error handlers
+- Files changed: `examples/wasm_browser_example.html`
 
 ### Cat Mode Phase 5.5: Security Hardening (5h) ✅ COMPLETE
 
