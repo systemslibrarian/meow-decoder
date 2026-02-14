@@ -70,12 +70,12 @@ npm run generate-golden-videos
 - [ ] Target: <2s decode for typical payload
 - Files: `examples/wasm_browser_example.html`
 
-**5.3.2: Mobile PWA Integration (4h)**
-- [ ] Add `manifest.json` for installable PWA
-- [ ] Add service worker for offline capability
-- [ ] Test on iOS Safari + Chrome Android
-- [ ] Camera permission handling for mobile
-- Files: `examples/sw.js` (exists), `examples/wasm_browser_example.html`
+**5.3.2: Mobile PWA Integration (4h)** ✅ DONE 2026-02-14
+- [x] Add `manifest.json` for installable PWA — icons, share_target, camera permissions
+- [x] Add service worker for offline capability — WASM/static asset caching
+- [x] iOS home screen support (apple-mobile-web-app-capable meta tags)
+- [ ] Test on iOS Safari + Chrome Android — needs physical device
+- Files: `examples/manifest.json` (new), `examples/sw.js`, `examples/wasm_browser_example.html`
 
 **5.3.3: User-Friendly Error Recovery UX (3h)** ✅ DONE 2026-02-14
 - [x] Added `getUserFriendlyError()` helper — maps technical errors to friendly titles + suggestions
