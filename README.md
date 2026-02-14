@@ -29,9 +29,6 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml/badge.svg" alt="Fuzzing">
   </a>
-  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml">
-    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-crypto.yml/badge.svg" alt="Rust Crypto">
-  </a>
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU&flag=python" alt="Coverage">
   </a>
@@ -858,18 +855,6 @@ pytest --cov=meow_decoder tests/
 
 # Self-test (verifies backend, roundtrip, fountain codec)
 meow-encode --self-test
-
-### 🦀 Rust Test Coverage
-
-To measure Rust code coverage, install and run `cargo-tarpaulin`:
-
-```bash
-cargo install cargo-tarpaulin
-cargo tarpaulin --features "pure-crypto,pq-crypto" --lib --tests
-```
-
-This will print a coverage percentage for the Rust crypto core.
-```
 
 ### Property-Based Testing
 
