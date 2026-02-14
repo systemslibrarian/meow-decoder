@@ -154,7 +154,7 @@ Go through each section and mark items as:
 ### 5.2 Integration Tests
 | Check | Status | Notes |
 |-------|--------|-------|
-| Full encode/decode roundtrip | ✅ | tests/test_e2e.py |
+| Full encode/decode roundtrip | ✅ | tests/test_encode.py, tests/test_decode_gif.py |
 | Forward secrecy roundtrip | ✅ | With receiver keys |
 | Steganography roundtrip | ⚠️ | Partial |
 | Hardware mock tests | 🔄 | TODO |

@@ -258,7 +258,7 @@ ARGON2_PARALLELISM = 4     # 4 threads
 - [examples/demo_schrodinger.py](../examples/demo_schrodinger.py): Dual-secret workflow
 - [examples/test_fountain.html](../examples/test_fountain.html): Browser-based fountain code tests
 - [examples/fountain-codes.js](../examples/fountain-codes.js): JavaScript LT implementation
-- [tests/test_e2e.py](../tests/test_e2e.py): Full encode→decode roundtrip patterns
+- [tests/test_encode.py](../tests/test_encode.py): Encoding pipeline and roundtrip patterns
+- [tests/test_decode_gif.py](../tests/test_decode_gif.py): GIF decoding and frame extraction
 - [tests/test_fountain.py](../tests/test_fountain.py): Python fountain code unit tests
 - [examples/demo_schrodinger.py](../examples/demo_schrodinger.py): Dual-secret workflow
-- [tests/test_e2e.py](../tests/test_e2e.py): Full encode→decode roundtrip patterns

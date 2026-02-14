@@ -1,0 +1,32 @@
+# Formal Verification Docker Image — Verus Prover (nightly)
+# Used by `make formal-verus-docker` for CI environments where
+# native Verus is unavailable (e.g., Alpine Linux / musl libc).
+#
+# Verus requires a specific nightly Rust toolchain and only runs on glibc.
+
+FROM rust:1.82-bookworm
+
+# Install Verus dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    z3 \
+    cmake \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Verus from source
+RUN git clone --depth 1 https://github.com/verus-lang/verus.git /opt/verus \
+    && cd /opt/verus/source \
+    && ./tools/get-z3.sh \
+    && . ./tools/activate \
+    && vargo build --release 2>/dev/null || true
+
+ENV PATH="/opt/verus/source/target-verus/release:${PATH}"
+
+WORKDIR /crypto_core
+
+# Copy only the Rust crypto_core crate
+COPY crypto_core/ /crypto_core/
+COPY Cargo.toml /Cargo.toml
+
+# Default: verify the crypto_core proofs
+CMD ["verus", "src/lib.rs"]

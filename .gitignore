@@ -110,3 +110,4 @@ secret
 # Deploy output
 pythonanywhere-deploy/
 *.zip
+formal/lean/.lake/

@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-02-13  
 **Phase:** Phase 5 Week 1 Complete  
-**Total Test Coverage:** 2,620 tests (Python) + 261 tests (Rust) = **2,881 total tests**
+**Total Test Coverage:** 2,413 tests (Python) + 261 tests (Rust) = **2,674 total tests**
 
 ---
 
@@ -132,7 +132,7 @@ python3 tests/run_error_tests.py
 
 ## 🔐 Security Test Suite (Python)
 
-**Total:** 2,620+ tests across 66 files  
+**Total:** 2,413+ tests across 87 files  
 **Coverage:** 92% overall, 97%+ for crypto-critical modules
 
 ### Tier 1: Crypto-Critical (95-100% coverage)
@@ -162,7 +162,7 @@ python3 tests/run_error_tests.py
 | `test_sidechannel.py` | 11 | Side-channel resistance |
 | `test_forward_secrecy.py` | 34 | X25519 ephemeral keys |
 | `test_duress_mode.py` | 57 | Decoy data, plausible deniability |
-| `test_schrodinger_comprehensive.py` | 32 | Dual-secret quantum superposition |
+| `test_schrodinger.py` | 40 | Dual-secret quantum superposition |
 | `test_pq_crypto_real.py` | 10 | ML-KEM-1024 post-quantum |
 
 **What They Test:**
@@ -193,7 +193,8 @@ python3 tests/run_error_tests.py
 
 | Module | Tests | Purpose |
 |--------|-------|---------|
-| `test_e2e.py` | 15 | End-to-end workflows |
+| `test_encode.py` | 63 | Encoding pipeline, QR generation, roundtrips |
+| `test_decode_gif.py` | 49 | GIF decoding, frame extraction |
 | `test_property_based.py` | 20 | Hypothesis fuzzing |
 | `test_fuzz_targets.py` | 122 | Comprehensive fuzzing |
 
@@ -428,7 +429,7 @@ cd crypto_core && cargo tarpaulin --out Html
 - Re-run: `npm run generate-golden-videos`
 
 **Gate 3: Integration Tests**
-- Check: `pytest tests/test_e2e.py` output
+- Check: `pytest tests/test_encode.py tests/test_decode_gif.py` output
 - Fix: Pipeline issues (encode/decode)
 - Re-run: `make integration-test`
 
@@ -458,7 +459,7 @@ cd crypto_core && cargo tarpaulin --out Html
 
 | Document | Purpose |
 |----------|---------|
-| `tests/TEST_SUITE_README.md` | Complete test inventory (80 files, 2,881 tests) |
+| `tests/TEST_SUITE_README.md` | Complete test inventory (87 files, 2,674 tests) |
 | `tests/TESTING_OVERVIEW.md` | This file - high-level testing infrastructure |
 | `tests/golden/README.md` | Golden video test cases and checksums |
 | `tests/golden/errors/README.md` | Error injection test matrix (1,399 lines) |

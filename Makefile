@@ -1,8 +1,10 @@
 # 🐱 Meow Decoder - Makefile
 
 .PHONY: help install dev test lint format clean build publish \
-	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tamarin formal-tamarin-duress \
-	formal-verus formal-lean formal-all verify check-wasm-deps build-wasm build-wasm-release build-wasm-pq build-wasm-node meow-build
+	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tla-streaming \
+	formal-tamarin formal-tamarin-duress formal-tamarin-docker \
+	formal-verus formal-verus-docker formal-lean formal-lean-sorry formal-all formal-ci \
+	verify check-wasm-deps build-wasm build-wasm-release build-wasm-pq build-wasm-node meow-build
 
 help:
 	@echo "🐱 Meow Decoder - Available Commands:"
@@ -36,11 +38,16 @@ help:
 	@echo "  make formal-proverif-html  - ProVerif HTML report"
 	@echo "  make formal-tla            - Run TLA+ main model (MeowEncode)"
 	@echo "  make formal-tla-fountain   - Run TLA+ fountain model (MeowFountain)"
+	@echo "  make formal-tla-streaming  - Run TLA+ streaming model (MeowStreaming)"
 	@echo "  make formal-tamarin        - Run Tamarin basic equivalence"
 	@echo "  make formal-tamarin-duress - Run Tamarin duress OE (diff mode)"
+	@echo "  make formal-tamarin-docker - Run Tamarin via Docker (no native Maude)"
 	@echo "  make formal-verus          - Run Verus proofs"
+	@echo "  make formal-verus-docker   - Run Verus via Docker (nightly toolchain)"
 	@echo "  make formal-lean           - Build Lean 4 proofs"
+	@echo "  make formal-lean-sorry     - Check for unapproved sorry"
 	@echo "  make formal-all            - Run all formal checks"
+	@echo "  make formal-ci             - CI gate (skips unavailable tools)"
 	@echo "  make verify                - Run full verification suite"
 	@echo ""
 	@echo "🐾 Strong cat passwords only! 😺"
@@ -95,11 +102,15 @@ formal-proverif-html:
 
 formal-tla:
 	@echo "📐 Running TLA+ main model (MeowEncode.tla)..."
-	cd formal/tla && java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
+	cd formal/tla && tlc -config MeowEncode.cfg MeowEncode.tla
 
 formal-tla-fountain:
 	@echo "📐 Running TLA+ fountain model (MeowFountain.tla)..."
-	cd formal/tla && java -jar tla2tools.jar -config MeowFountain.cfg MeowFountain.tla
+	cd formal/tla && tlc -config MeowFountain.cfg MeowFountain.tla
+
+formal-tla-streaming:
+	@echo "📐 Running TLA+ streaming model (MeowStreaming.tla)..."
+	cd formal/tla && tlc -config MeowStreaming.cfg MeowStreaming.tla
 
 formal-tamarin:
 	@echo "🟣 Running Tamarin basic equivalence..."
@@ -109,18 +120,85 @@ formal-tamarin-duress:
 	@echo "🟣 Running Tamarin duress observational equivalence (diff mode)..."
 	cd formal/tamarin && tamarin-prover --diff MeowDuressEquiv.spthy --prove
 
+formal-tamarin-docker:
+	@echo "🟣 Running Tamarin duress OE via Docker..."
+	docker build -f formal/Dockerfile.tamarin -t meow-tamarin . \
+		&& docker run --rm meow-tamarin
+
 formal-verus:
 	@echo "🟢 Running Verus implementation proofs..."
 	cd crypto_core && verus src/lib.rs
+
+formal-verus-docker:
+	@echo "🟢 Running Verus proofs via Docker (nightly)..."
+	docker build -f formal/Dockerfile.verus -t meow-verus . \
+		&& docker run --rm meow-verus
 
 formal-lean:
 	@echo "🔷 Building Lean 4 fountain code proofs..."
 	cd formal/lean && lake build
 
-formal-all: formal-proverif formal-tla formal-tla-fountain formal-tamarin-duress formal-verus formal-lean
+formal-lean-sorry:
+	@echo "🔷 Checking for unapproved sorry in Lean files..."
+	@SORRY_COUNT=$$(grep -rn 'sorry' formal/lean/ --include='*.lean' \
+		--exclude-dir='.lake' --exclude-dir='lake-packages' \
+		| grep -v -e 'AXIOM:' -e 'APPROVED:' | wc -l); \
+	if [ "$$SORRY_COUNT" -gt 0 ]; then \
+		echo "❌ Found $$SORRY_COUNT unapproved sorry statement(s):"; \
+		grep -rn 'sorry' formal/lean/ --include='*.lean' \
+			--exclude-dir='.lake' --exclude-dir='lake-packages' \
+			| grep -v -e 'AXIOM:' -e 'APPROVED:'; \
+		exit 1; \
+	else \
+		echo "✅ No unapproved sorry statements found."; \
+	fi
+
+formal-all: formal-proverif formal-tla formal-tla-fountain formal-tla-streaming formal-tamarin-duress formal-verus formal-lean
 	@echo ""
 	@echo "✅ All formal verification complete!"
 	@echo "📊 See docs/formal_coverage.md for coverage matrix"
+
+\# CI-friendly target: runs available tools, skips missing ones, fails on errors
+formal-ci:
+	@echo "🔬 Running CI formal verification gates..."
+	@FAIL=0; \
+	if command -v proverif >/dev/null 2>&1; then \
+		echo "── ProVerif ──"; \
+		$(MAKE) formal-proverif || FAIL=1; \
+	else echo "⏭️  ProVerif not available, skipping"; fi; \
+	if command -v tlc >/dev/null 2>&1 || (command -v java >/dev/null 2>&1 && [ -f ~/tla/tla2tools.jar ]); then \
+		echo "── TLA+ (MeowEncode) ──"; \
+		$(MAKE) formal-tla || FAIL=1; \
+		echo "── TLA+ (MeowFountain) ──"; \
+		$(MAKE) formal-tla-fountain || FAIL=1; \
+		echo "── TLA+ (MeowStreaming) ──"; \
+		$(MAKE) formal-tla-streaming || FAIL=1; \
+	else echo "⏭️  TLA+ (java) not available, skipping"; fi; \
+	if command -v tamarin-prover >/dev/null 2>&1; then \
+		echo "── Tamarin (native) ──"; \
+		$(MAKE) formal-tamarin-duress || FAIL=1; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo "── Tamarin (Docker) ──"; \
+		$(MAKE) formal-tamarin-docker || FAIL=1; \
+	else echo "⏭️  Tamarin not available (no native or Docker), skipping"; fi; \
+	if command -v verus >/dev/null 2>&1; then \
+		echo "── Verus (native) ──"; \
+		$(MAKE) formal-verus || FAIL=1; \
+	elif command -v docker >/dev/null 2>&1; then \
+		echo "── Verus (Docker, nightly) ──"; \
+		$(MAKE) formal-verus-docker || FAIL=1; \
+	else echo "⏭️  Verus not available (no native or Docker), skipping"; fi; \
+	if command -v lake >/dev/null 2>&1; then \
+		echo "── Lean 4 ──"; \
+		$(MAKE) formal-lean || FAIL=1; \
+		echo "── Lean sorry gate ──"; \
+		$(MAKE) formal-lean-sorry || FAIL=1; \
+	else echo "⏭️  Lean not available, skipping"; fi; \
+	if [ "$$FAIL" -ne 0 ]; then \
+		echo "❌ Formal verification FAILED"; exit 1; \
+	else \
+		echo "✅ All available formal checks passed!"; \
+	fi
 
 verify:
 	bash ./scripts/verify_all.sh

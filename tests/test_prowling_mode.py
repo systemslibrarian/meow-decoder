@@ -84,11 +84,11 @@ class TestMemoryProwler:
 
     def test_get_current_ram_handles_psutil_errors(self, monkeypatch, prowling_config):
         import meow_decoder.prowling_mode as pm
-        
+
         # Skip if psutil not available
         if not pm.HAS_PSUTIL:
             pytest.skip("psutil not available")
-        
+
         import psutil as real_psutil
 
         class DummyProcess:
@@ -199,15 +199,15 @@ class TestDiskBasedKibbleCollector:
 
     def test_get_reconstructed_data_handles_cleanup_errors(self, collector, monkeypatch):
         from unittest.mock import patch
-        
+
         collector.write_post_to_disk(0, b"A" * 8)
         collector.write_post_to_disk(1, b"B" * 8)
         collector.write_post_to_disk(2, b"C" * 8)
-        
+
         # Mock Path.unlink at the class level to raise OSError
         def fake_unlink(self, *args, **kwargs):
             raise OSError("fail")
-        
+
         with patch.object(Path, "unlink", fake_unlink):
             data = collector.get_reconstructed_data(original_length=24)
         assert data.startswith(b"A" * 8)

@@ -12,17 +12,17 @@ from typing import Optional
 import time
 
 # Import our cat modules
-from config import MeowConfig, EncodingConfig
-from crypto import (
-    hiss_secret,  # encrypt_file_bytes
-    compute_collar_tag_auth,  # compute_manifest_hmac
-    pack_collar_tag,  # pack_manifest
-    CollarTag,  # Manifest
-    verify_catnip,  # verify_keyfile
+from meow_decoder.config import MeowConfig, EncodingConfig
+from meow_decoder.crypto import (
+    encrypt_file_bytes as hiss_secret,
+    compute_manifest_hmac as compute_collar_tag_auth,
+    pack_manifest as pack_collar_tag,
+    Manifest as CollarTag,
+    verify_keyfile as verify_catnip,
 )
-from fountain import CatnipFountain, pack_kibble  # FountainEncoder, pack_droplet
-from qr_code import PawPrintMaker  # QRCodeGenerator
-from gif_handler import YarnBallMaker  # GIFEncoder
+from meow_decoder.fountain import FountainEncoder as CatnipFountain, pack_droplet as pack_kibble
+from meow_decoder.qr_code import QRCodeGenerator as PawPrintMaker
+from meow_decoder.gif_handler import GIFEncoder as YarnBallMaker
 
 
 def hiss_file_into_yarn_ball(
@@ -69,7 +69,9 @@ def hiss_file_into_yarn_ball(
     if verbose:
         print("😼 Hissing secrets into encrypted form...")
 
-    compressed, sha256, salt, nonce, hissed = hiss_secret(secret_data, password, catnip)
+    compressed, sha256, salt, nonce, hissed, _ephemeral_pk, _enc_key = hiss_secret(
+        secret_data, password, catnip
+    )
 
     if verbose:
         print(
@@ -134,7 +136,7 @@ def hiss_file_into_yarn_ball(
 
     # Remaining paws: kibbles from fountain
     for i in range(num_kibbles):
-        kibble = fountain.drop_kibble()  # droplet()
+        kibble = fountain.droplet()
         kibble_bytes = pack_kibble(kibble)
 
         paw = paw_maker.generate(kibble_bytes)
@@ -152,7 +154,7 @@ def hiss_file_into_yarn_ball(
         print("\n🧶 Weaving yarn ball...")
 
     yarn_maker = YarnBallMaker(fps=config.fps, loop=0)
-    yarn_size = yarn_maker.create_yarn_ball(paw_prints, output_path, optimize=True)
+    yarn_size = yarn_maker.create_gif(paw_prints, output_path, optimize=True)
 
     elapsed = time.time() - start_time
 

@@ -195,8 +195,8 @@ if not LIBOQS_AVAILABLE:
 ```
 
 ### Test Coverage
-- `test_pq_hybrid_fail_closed.py` line 7-15: `test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable()`
-- `test_pq_hybrid_fail_closed.py` line 18-30: Classical-only allowed when PQ not requested
+- `test_pq_hybrid.py` line 7-15: `test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable()`
+- `test_pq_hybrid.py` line 18-30: Classical-only allowed when PQ not requested
 
 **Score: 10/10** — Fail-closed properly enforced with tests
 
@@ -314,11 +314,11 @@ class PythonCryptoBackend:
 | `test_invariant_aad_modification_rejected` | AAD tampering detected | [test_invariants.py#L102-125](../tests/test_invariants.py) | ✅ |
 | `test_invariant_roundtrip_preserves_data` | Multiple patterns tested | [test_invariants.py#L157-195](../tests/test_invariants.py) | ✅ |
 | `test_nonce_reuse_detected` | Forced reuse raises RuntimeError | [test_security.py#L235-260](../tests/test_security.py) | ✅ |
-| `test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable` | PQ fail-closed | [test_pq_hybrid_fail_closed.py#L7-15](../tests/test_pq_hybrid_fail_closed.py) | ✅ |
+| `test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable` | PQ fail-closed | [test_pq_hybrid.py#L7-15](../tests/test_pq_hybrid.py) | ✅ |
 
 ### Control Channel Tests
-- `test_control_channel_bug.py` line 24: 64-bit counters with `struct.pack('>Q', 1)`
-- `test_control_channel_bug.py` line 48-76: Replay attack rejection verified
+- `test_bidirectional.py` line 24: 64-bit counters with `struct.pack('>Q', 1)`
+- `test_bidirectional.py` line 48-76: Replay attack rejection verified
 
 **Score: 10/10** — Comprehensive critical path coverage
 
@@ -392,7 +392,7 @@ except AttributeError:
 
 | Failure Scenario | Expected Behavior | Evidence | Status |
 |------------------|-------------------|----------|--------|
-| **Wrong Password** | HMAC verification fails before decryption | [test_grok_security.py#L616-631](../tests/test_grok_security.py) | ✅ |
+| **Wrong Password** | HMAC verification fails before decryption | [test_security.py#L616-631](../tests/test_security.py) | ✅ |
 | **Modified Ciphertext** | GCM tag verification fails | [test_adversarial.py#L88-102](../tests/test_adversarial.py) — `test_fuzz_ciphertext_bytes` | ✅ |
 | **Nonce Reuse Attempt** | RuntimeError raised | [crypto.py#L93-95](../meow_decoder/crypto.py) — `_register_nonce_use()` | ✅ |
 | **Truncated Manifest** | ValueError on unpack | [crypto.py#L590-600](../meow_decoder/crypto.py) — `unpack_manifest()` | ✅ |
@@ -403,7 +403,7 @@ except AttributeError:
 ### Test Evidence for Replay Protection
 
 ```python
-# test_control_channel_bug.py lines 48-76:
+# test_bidirectional.py lines 48-76:
 class TestReplayProtection:
     def test_replay_attack_rejected(self):
         # Verify that replayed frames are rejected
@@ -509,8 +509,8 @@ This section explicitly separates what this audit verified from code vs. what is
 | Frame MACs derive from encryption key via HKDF | [frame_mac.py#L30-52](../meow_decoder/frame_mac.py) | **HIGH** |
 | PQ hybrid fails closed if liboqs unavailable | [pq_hybrid.py#L143-144](../meow_decoder/pq_hybrid.py) | **HIGH** |
 | Python crypto fallback raises RuntimeError | [crypto_backend.py#L47-78](../meow_decoder/crypto_backend.py) | **HIGH** |
-| Wrong password rejected (7 tests) | [test_grok_security.py](../tests/test_grok_security.py), [test_invariants.py](../tests/test_invariants.py) | **HIGH** |
-| Replay attacks rejected (2 test classes) | [test_adversarial.py#L200-230](../tests/test_adversarial.py), [test_control_channel_bug.py#L45-80](../tests/test_control_channel_bug.py) | **HIGH** |
+| Wrong password rejected (7 tests) | [test_security.py](../tests/test_security.py), [test_invariants.py](../tests/test_invariants.py) | **HIGH** |
+| Replay attacks rejected (2 test classes) | [test_adversarial.py#L200-230](../tests/test_adversarial.py), [test_bidirectional.py#L45-80](../tests/test_bidirectional.py) | **HIGH** |
 
 ### ⚠️ Assumed (Based on Libraries)
 
@@ -573,10 +573,10 @@ This section explicitly separates what this audit verified from code vs. what is
 - `meow_decoder/hardware_keys.py` — 566 lines (new this revision)
 - `tests/test_security.py` — 2647 lines (400 read)
 - `tests/test_invariants.py` — 267 lines (200 read)
-- `tests/test_pq_hybrid_fail_closed.py` — 43 lines (complete)
-- `tests/test_control_channel_bug.py` — 292 lines (80 read)
+- `tests/test_pq_hybrid.py` — 43 lines (complete)
+- `tests/test_bidirectional.py` — 292 lines (80 read)
 - `tests/test_adversarial.py` — 473 lines (100 read, new this revision)
-- `tests/test_grok_security.py` — 700+ lines (grep searched)
+- `tests/test_security.py` — 700+ lines (grep searched)
 - `formal/README.md` — 355 lines (50 read, new this revision)
 
 **Verification Method:**

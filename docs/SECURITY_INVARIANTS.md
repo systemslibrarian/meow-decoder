@@ -32,7 +32,7 @@ Invariants are verified through:
 **Verification:**
 - `tests/test_property_based.py::TestEncryptDecryptInvariants::test_aes_gcm_roundtrip_*`
 - `tests/test_property_based.py::TestEncryptDecryptInvariants::test_file_encrypt_decrypt_roundtrip`
-- `tests/test_e2e.py::test_encode_decode_roundtrip`
+- `tests/test_encode.py` / `tests/test_decode_gif.py` (encode-decode roundtrip)
 
 **Failure Impact:** Data corruption, unrecoverable files.
 
@@ -109,7 +109,7 @@ if ephemeral_public_key:
 **Verification:**
 - `tests/test_invariants.py::TestSecurityInvariants::test_invariant_aad_modification_rejected`
 - `tests/test_security.py::TestTamperDetection::test_manifest_tampering`
-- `tests/test_canonical_aad.py` — deterministic construction, backward compat, roundtrip
+- `tests/test_crypto.py` — deterministic construction, backward compat, roundtrip
 
 **Failure Impact:** Length oracle attacks, version downgrade attacks.
 
@@ -124,7 +124,7 @@ backend == "rust"
 **Description:** The Rust backend is mandatory; Python fallback is disabled. This preserves constant-time guarantees; memory zeroing is guaranteed in Rust (via `zeroize` crate), best-effort in Python.
 
 **Verification:**
-- `tests/test_crypto_backend_rust.py::TestBackendAvailability::test_rust_backend_available`
+- `tests/test_crypto_backend.py::TestBackendAvailability::test_rust_backend_available`
 - `tests/conftest.py` enforces Rust backend availability
 
 **Failure Impact:** Loss of constant-time guarantees and guaranteed Rust-side memory zeroing (security regression).
@@ -256,7 +256,7 @@ backend == "rust"
 - SHA-256 hash verification of decrypted data
 
 **Verification:**
-- `tests/test_e2e.py::test_wrong_password`
+- `tests/test_encode.py` / `tests/test_decode_gif.py` (wrong password rejection)
 - `tests/test_invariants.py::test_invariant_wrong_password_rejected`
 
 **Failure Impact:** Silent data corruption, oracle attacks.

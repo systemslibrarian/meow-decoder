@@ -229,7 +229,7 @@ feature is enabled. This is documented in requirements.txt:
 
 ## Phase 2: Verification & Testing ✅ COMPLETED
 
-All Phase 2 security tests have been implemented in `tests/test_phase2_security.py`:
+All Phase 2 security tests have been merged into `tests/test_security.py` and `tests/test_frame_mac.py` (originally `test_phase2_security.py`):
 
 | ID | Task | Priority | Status |
 |----|------|----------|--------|
@@ -285,12 +285,12 @@ All changes maintain these security invariants:
 
 Run all security tests:
 ```bash
-MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py tests/test_phase2_security.py -v
+MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py -v
 ```
 
 Phase 2 tests specifically:
 ```bash
-MEOW_TEST_MODE=1 pytest tests/test_phase2_security.py -v
+MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py -v
 ```
 
 ---
@@ -359,7 +359,7 @@ grep -A10 "TIMING-01\|TIMING-02" meow_decoder/schrodinger_decode.py
 
 **Finding** (GAP-04): Schrödinger mode adversarial testing was limited.
 
-**Resolution**: Created comprehensive test suite in `tests/test_phase3_schrodinger_security.py`:
+**Resolution**: Created comprehensive test suite, now in `tests/test_schrodinger.py` (originally `test_phase3_schrodinger_security.py`):
 
 **TestSchrodingerTimingResistance**:
 - `test_both_argon2id_derivations_run` - Verifies decode works after timing fix
@@ -383,11 +383,11 @@ grep -A10 "TIMING-01\|TIMING-02" meow_decoder/schrodinger_decode.py
 - `test_password_independence` - One password reveals nothing about other reality
 
 **Files Created**:
-- `tests/test_phase3_schrodinger_security.py` (~350 lines)
+- `tests/test_schrodinger.py` (~350 lines, originally `test_phase3_schrodinger_security.py`)
 
 **Verification**:
 ```bash
-MEOW_TEST_MODE=1 pytest tests/test_phase3_schrodinger_security.py -v
+MEOW_TEST_MODE=1 pytest tests/test_schrodinger.py -v
 ```
 
 **Status**: ✅ RESOLVED
@@ -412,12 +412,12 @@ All changes maintain these security invariants:
 Run all security tests:
 ```bash
 MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py \
-    tests/test_phase2_security.py tests/test_phase3_schrodinger_security.py -v
+    tests/test_schrodinger.py -v
 ```
 
 Phase 3 tests specifically:
 ```bash
-MEOW_TEST_MODE=1 pytest tests/test_phase3_schrodinger_security.py -v
+MEOW_TEST_MODE=1 pytest tests/test_schrodinger.py -v
 ```
 
 ---
@@ -433,7 +433,7 @@ and manifest version migration.
 **Finding** (GAP-01, HIGH): Need automated statistical timing analysis with
 Welch's t-test methodology to detect constant-time violations.
 
-**Resolution**: Created `tests/test_phase4_dudect_timing.py` implementing
+**Resolution**: Created tests now in `tests/test_sidechannel.py` (originally `test_phase4_dudect_timing.py`) implementing
 dudect-style statistical timing analysis:
 
 **Methodology**:
@@ -462,7 +462,7 @@ dudect-style statistical timing analysis:
 - `DUDECT-09`: Simple vs complex password timing
 
 **Files Created**:
-- `tests/test_phase4_dudect_timing.py` (~400 lines, 9 tests)
+- `tests/test_sidechannel.py` (~400 lines, 9 tests; originally `test_phase4_dudect_timing.py`)
 
 **Status**: ✅ RESOLVED
 
@@ -473,7 +473,7 @@ dudect-style statistical timing analysis:
 **Finding** (GAP-02, HIGH): Need comprehensive tests for ML-KEM-768 + X25519 hybrid
 mode to verify proper key encapsulation and encryption.
 
-**Resolution**: Created `tests/test_phase4_pq_integration.py` with full PQ testing:
+**Resolution**: Created tests now in `tests/test_pq_crypto_real.py` and `tests/test_pq_hybrid.py` (originally `test_phase4_pq_integration.py`) with full PQ testing:
 
 **Test Classes**:
 
@@ -501,7 +501,7 @@ mode to verify proper key encapsulation and encryption.
 - `PQ-13`: Non-PQ files decode without PQ library
 
 **Files Created**:
-- `tests/test_phase4_pq_integration.py` (~400 lines, 13 tests)
+- `tests/test_pq_crypto_real.py` and `tests/test_pq_hybrid.py` (~400 lines, 13 tests; originally `test_phase4_pq_integration.py`)
 
 **Status**: ✅ RESOLVED
 
@@ -512,7 +512,7 @@ mode to verify proper key encapsulation and encryption.
 **Finding** (GAP-05, MEDIUM): Duress password handling needs automated timing
 analysis to verify constant-time operation.
 
-**Resolution**: Created `tests/test_phase4_duress_timing.py` with comprehensive
+**Resolution**: Created tests now in `tests/test_duress_mode.py` (originally `test_phase4_duress_timing.py`) with comprehensive
 duress timing analysis:
 
 **Test Classes**:
@@ -538,7 +538,7 @@ duress timing analysis:
 - `DURESS-10`: Full duress flow timing analysis
 
 **Files Created**:
-- `tests/test_phase4_duress_timing.py` (~400 lines, 10 tests)
+- `tests/test_duress_mode.py` (~400 lines, 10 tests; originally `test_phase4_duress_timing.py`)
 
 **Status**: ✅ RESOLVED
 
@@ -550,7 +550,7 @@ duress timing analysis:
 (MEOW2 → MEOW3 → MEOW4) to ensure backward compatibility and prevent
 version downgrade attacks.
 
-**Resolution**: Created `tests/test_phase4_manifest_migration.py` with
+**Resolution**: Created tests now in `tests/test_crypto.py` (originally `test_phase4_manifest_migration.py`) with
 comprehensive manifest version testing:
 
 **Test Classes**:
@@ -602,7 +602,7 @@ comprehensive manifest version testing:
 - `MIGR-30`: Maximum k_blocks handled
 
 **Files Created**:
-- `tests/test_phase4_manifest_migration.py` (~500 lines, 30 tests)
+- `tests/test_crypto.py` (~500 lines, 30 tests; originally `test_phase4_manifest_migration.py`)
 
 **Status**: ✅ RESOLVED
 
@@ -612,10 +612,10 @@ comprehensive manifest version testing:
 
 | GAP ID | Priority | Description | Test File | Tests |
 |--------|----------|-------------|-----------|-------|
-| GAP-01 | HIGH | Statistical timing (dudect) | test_phase4_dudect_timing.py | 9 |
-| GAP-02 | HIGH | PQ integration tests | test_phase4_pq_integration.py | 13 |
-| GAP-05 | MEDIUM | Duress timing automation | test_phase4_duress_timing.py | 10 |
-| GAP-06 | LOW | Cross-version migration | test_phase4_manifest_migration.py | 30 |
+| GAP-01 | HIGH | Statistical timing (dudect) | test_sidechannel.py | 9 |
+| GAP-02 | HIGH | PQ integration tests | test_pq_crypto_real.py / test_pq_hybrid.py | 13 |
+| GAP-05 | MEDIUM | Duress timing automation | test_duress_mode.py | 10 |
+| GAP-06 | LOW | Cross-version migration | test_crypto.py | 30 |
 
 **Total Phase 4 Tests**: 62 new tests across 4 test files
 
@@ -641,14 +641,15 @@ All changes maintain these security invariants:
 Run all security tests:
 ```bash
 MEOW_TEST_MODE=1 pytest tests/test_security.py tests/test_frame_mac.py \
-    tests/test_phase2_security.py tests/test_phase3_schrodinger_security.py \
-    tests/test_phase4_dudect_timing.py tests/test_phase4_pq_integration.py \
-    tests/test_phase4_duress_timing.py tests/test_phase4_manifest_migration.py -v
+    tests/test_schrodinger.py tests/test_sidechannel.py \
+    tests/test_pq_crypto_real.py tests/test_pq_hybrid.py \
+    tests/test_duress_mode.py tests/test_crypto.py -v
 ```
 
 Phase 4 tests specifically:
 ```bash
-MEOW_TEST_MODE=1 pytest tests/test_phase4_*.py -v
+MEOW_TEST_MODE=1 pytest tests/test_sidechannel.py tests/test_pq_crypto_real.py \
+    tests/test_pq_hybrid.py tests/test_duress_mode.py tests/test_crypto.py -v
 ```
 
 ---

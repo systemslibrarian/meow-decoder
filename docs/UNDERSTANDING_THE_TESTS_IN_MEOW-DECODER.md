@@ -59,43 +59,43 @@ These tests ensure data flows correctly through the pipeline without corruption 
 
 | Test File | What It Tests |
 |-----------|---------------|
-| `test_schrodinger_comprehensive.py` | Dual-secret quantum superposition encoding |
-| `test_quantum_mixer_comprehensive.py` | Reality entanglement, statistical indistinguishability |
+| `test_schrodinger.py` | Dual-secret quantum superposition encoding |
+| `test_quantum_mixer.py` | Reality entanglement, statistical indistinguishability |
 | `test_duress_mode.py` | Coercion-resistant decoy passwords |
 | `test_timelock_duress.py` | Time-lock puzzles, dead-man's switch |
-| `test_deadmans_switch_cli_comprehensive.py` | CLI for timed release features |
+| `test_deadmans_switch_cli.py` | CLI for timed release features |
 | `test_double_ratchet.py` | Signal-style double ratchet protocol |
-| `test_multi_secret_comprehensive.py` | N-level plausible deniability (16+ secrets) |
+| `test_multi_secret.py` | N-level plausible deniability (16+ secrets) |
 | `test_stego_advanced.py` | LSB steganography, carrier images |
-| `test_ninja_cat_ultra_comprehensive.py` | Maximum stealth encoding |
-| `test_entropy_boost_comprehensive.py` | Multi-source entropy collection |
+| `test_ninja_cat_ultra.py` | Maximum stealth encoding |
+| `test_entropy_boost.py` | Multi-source entropy collection |
 | `test_hardware_keys.py` | TPM 2.0, YubiKey, smart card support |
 | `test_hardware_integration.py` | Hardware security module detection |
-| `test_merkle_tree_comprehensive.py` | Merkle root integrity verification |
+| `test_merkle_tree.py` | Merkle root integrity verification |
 | `test_secure_cleanup.py` | Memory wiping, key destruction |
-| `test_secure_bridge_comprehensive.py` | Rust-Python FFI security |
+| `test_secure_bridge.py` | Rust-Python FFI security |
 
 ### TIER 4: Utility & UI Tests 🛠️
 
 | Test File | What It Tests |
 |-----------|---------------|
-| `test_cat_utils_comprehensive.py` | Cat-themed utilities, Nine Lives retry |
-| `test_catnip_fountain_comprehensive.py` | Catnip-flavored fountain codes |
-| `test_progress_modules_comprehensive.py` | Progress bars, status indicators |
-| `test_ascii_qr_comprehensive.py` | ASCII QR code rendering |
-| `test_bidirectional_comprehensive.py` | Two-way communication protocols |
-| `test_clowder_comprehensive.py` | Multi-device streaming (Clowder mode) |
-| `test_logo_and_gui_comprehensive.py` | Logo-eyes carrier, GUI components |
-| `test_dashboard_gui_comprehensive.py` | Dashboard interface |
-| `test_webcam_modules_comprehensive.py` | Webcam capture, live decoding |
-| `test_decoy_generator_comprehensive.py` | Convincing decoy file generation |
-| `test_high_security_comprehensive.py` | Paranoid mode, ultra-hardened settings |
-| `test_security_warnings_comprehensive.py` | Warning suppression, user alerts |
-| `test_debug_modules_comprehensive.py` | Debug logging, verbose output |
-| `test_prowling_mode_comprehensive.py` | Low-memory streaming mode |
-| `test_streaming_crypto_comprehensive.py` | Large file streaming encryption |
-| `test_resume_secured_comprehensive.py` | Encrypted resume/checkpoint files |
-| `test_profiling_improved_comprehensive.py` | Performance profiling |
+| `test_cat_utils.py` | Cat-themed utilities, Nine Lives retry |
+| `test_catnip_fountain.py` | Catnip-flavored fountain codes |
+| `test_progress_modules.py` | Progress bars, status indicators |
+| `test_ascii_qr.py` | ASCII QR code rendering |
+| `test_bidirectional.py` | Two-way communication protocols |
+| `test_clowder.py` | Multi-device streaming (Clowder mode) |
+| `test_logo_and_gui.py` | Logo-eyes carrier, GUI components |
+| `test_dashboard_gui.py` | Dashboard interface |
+| `test_webcam_modules.py` | Webcam capture, live decoding |
+| `test_decoy_generator.py` | Convincing decoy file generation |
+| `test_high_security.py` | Paranoid mode, ultra-hardened settings |
+| `test_security_warnings.py` | Warning suppression, user alerts |
+| `test_debug_modules.py` | Debug logging, verbose output |
+| `test_prowling_mode.py` | Low-memory streaming mode |
+| `test_streaming_crypto.py` | Large file streaming encryption |
+| `test_resume_secured.py` | Encrypted resume/checkpoint files |
+| `test_profiling_improved.py` | Performance profiling |
 
 ### TIER 5: Coverage Boost & Cat Error Tests 📈
 
@@ -115,9 +115,9 @@ Targeted tests added in February 2026 to reach 95% codecov:
 
 | Test File | What It Tests |
 |-----------|---------------|
-| `test_manifest_bounds.py` | ST-2: Manifest numeric bounds, decompression-bomb protection, ephemeral pubkey validation (17 tests) |
-| `test_canonical_aad.py` | MT-1: Canonical AAD construction, deterministic ordering, backward compat, roundtrip (10 tests) |
-| `test_timing_harness.py` | MT-5: Statistical timing comparison for correct/wrong password, duress/real (varies) |
+| `test_crypto.py` | ST-2: Manifest numeric bounds, decompression-bomb protection, ephemeral pubkey validation (17 tests) |
+| `test_crypto.py` | MT-1: Canonical AAD construction, deterministic ordering, backward compat, roundtrip (10 tests) |
+| `test_crypto.py` | MT-5: Statistical timing comparison for correct/wrong password, duress/real (varies) |
 | `test_tamper_report.py` | MT-7: TamperReport class, ASCII timeline, cluster detection, JSON export (19 tests) |
 | `test_bridge_protocol.py` | MT-8: Mobile bridge wire protocol, 6 message types, parser validation (21 tests) |
 
@@ -191,12 +191,12 @@ If the code is ugly but passes every adversarial test with zero security violati
 | Test Type | Description | Example Files |
 |-----------|-------------|---------------|
 | **Property-based / fuzz-style** | Generates thousands of weird binary inputs, invalid keys, truncated streams | `test_property_based.py`, `test_adversarial.py` |
-| **Fault injection** | Mock Rust panics, side-channel errors, or import failures | `test_crypto_backend.py`, `test_secure_bridge_comprehensive.py` |
-| **Time mocking** | Jump forward/backward in time for timelock/duress tests | `test_timelock_duress.py`, `test_deadmans_switch_cli_comprehensive.py` |
+| **Fault injection** | Mock Rust panics, side-channel errors, or import failures | `test_crypto_backend.py`, `test_secure_bridge.py` |
+| **Time mocking** | Jump forward/backward in time for timelock/duress tests | `test_timelock_duress.py`, `test_deadmans_switch_cli.py` |
 | **Exception forcing** | Deliberately trigger errors to ensure uniform handling | `test_security.py`, `test_duress_mode.py` |
 | **Rust–Python boundary** | Check that secrets don't leak across the FFI bridge | `test_crypto_backend.py`, `test_constant_time.py` |
 | **Adversarial inputs** | Corrupted GIF frames, wrong headers, replayed nonces | `test_adversarial.py`, `test_frame_mac.py` |
-| **Statistical tests** | Verify cryptographic indistinguishability | `test_quantum_mixer_comprehensive.py` |
+| **Statistical tests** | Verify cryptographic indistinguishability | `test_quantum_mixer.py` |
 
 ---
 
@@ -217,7 +217,7 @@ open htmlcov/index.html
 pytest tests/test_property_based.py -v --hypothesis-seed=0
 
 # Run a specific test module
-pytest tests/test_schrodinger_comprehensive.py -v
+pytest tests/test_schrodinger.py -v
 
 # Run tests matching a pattern
 pytest tests/ -k "duress" -v

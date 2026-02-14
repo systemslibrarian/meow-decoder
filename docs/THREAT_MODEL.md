@@ -341,7 +341,110 @@ pytest tests/test_sidechannel.py -v
 
 ---
 
-## 🎯 **REALISTIC THREAT MODEL SCOPE**
+## � **STEGANOGRAPHY THREAT MODEL**
+
+Meow Decoder offers optional steganographic carrier modes that embed QR frames
+within photographic or branded imagery. This section defines the adversary model,
+attack surface, and security boundaries for these modes.
+
+> **Non-goal reminder:** Full steganographic indistinguishability under forensic
+> analysis is explicitly out-of-scope (see [Non-Goals](#non-goals)). Stego modes
+> provide *cosmetic cover* against casual observation, not against a determined
+> forensic analyst with access to the carrier image.
+
+### Adversary Capabilities
+
+| Adversary | Capabilities | In Scope? |
+|-----------|-------------|-----------|
+| **Casual observer** | Sees GIF on screen/phone; no domain expertise | ✅ Yes — stego defeats this |
+| **Automated scanner** | Content-type sniffing, file-header inspection | ✅ Yes — GIF header is valid |
+| **Statistical analyst** | Chi-squared, RS analysis, sample pairs | ⚠️ Partial — some modes vulnerable |
+| **ML classifier** | Trained CNN/GAN steganalysis (e.g., SRNet, YeNet) | ❌ No — not designed to resist |
+| **Known-carrier attacker** | Has original un-embedded carrier image | ❌ No — trivially detectable |
+| **Forensic lab** | Full toolchain: EnCase, Autopsy, StegExpose, binwalk | ❌ No — will detect embedding |
+
+### Carrier Modes
+
+| Mode | Implementation | Visual Cover | Detection Resistance |
+|------|---------------|-------------|---------------------|
+| **Plain QR** | Standard black/white QR frames | ❌ None — obviously encoded data | ❌ None |
+| **Cat camouflage** | QR embedded in cat-photo carrier frames | ✅ Casual — looks like cat GIF | ⚠️ Low — LSB patterns detectable |
+| **Logo-eyes** | QR data placed in eye regions of branded logo | ✅ Casual — looks like animated logo | ⚠️ Low — spatial anomaly in eyes |
+| **Cat-eyes blink** | Green pixel blinking pattern over cat image | ✅ Good — subtle visual change | ⚠️ Moderate — temporal analysis reveals |
+
+### Known Attack Vectors Against Steganographic Modes
+
+#### 1. Statistical Detection (Chi-Squared / RS Analysis)
+
+**Attack:** Measure deviations from expected pixel-value distributions in least-significant bits.
+
+**Vulnerability:** Cat camouflage mode embeds QR data into LSBs of carrier images. Tools like `StegExpose` or `zsteg` can detect non-random LSB distributions with high confidence for embedding rates > 0.5 bits/pixel.
+
+**Mitigation:** None implemented. The QR payload is large relative to carrier image capacity, resulting in high embedding rates that are statistically detectable.
+
+**Status:** ⚠️ Known limitation — documented, not mitigated.
+
+#### 2. Machine Learning Steganalysis
+
+**Attack:** Train a convolutional neural network (e.g., SRNet, Zhu-Net) on Meow-encoded vs clean GIFs.
+
+**Vulnerability:** The fixed QR structure creates a learnable spatial signature. Even with carrier randomization, the QR error-correction patterns are distinctive.
+
+**Mitigation:** None. ML steganalysis is beyond the design scope. An adversary who knows the tool exists can train a classifier with near-100% accuracy.
+
+**Status:** ❌ Out of scope.
+
+#### 3. Temporal Pattern Analysis
+
+**Attack:** Analyze frame-to-frame pixel differences in the GIF. Normal cat GIFs have smooth temporal coherence; Meow-encoded GIFs show abrupt frame-by-frame changes in QR regions.
+
+**Vulnerability:** QR content changes every frame (fountain code droplets), creating temporal discontinuities that are trivially distinguishable from natural animation.
+
+**Mitigation:** Cat-eyes blink mode reduces the embedded region to a small area, making temporal anomalies less conspicuous. However, periodic blinking patterns are still detectable via frequency analysis.
+
+**Status:** ⚠️ Partially mitigated by reducing embedding footprint.
+
+#### 4. File Structure / Metadata Analysis
+
+**Attack:** Inspect GIF structure, frame timing, color palette, and metadata for anomalies.
+
+**Vulnerability:** Meow-encoded GIFs use uniform 100ms frame timing (10 FPS) and may have unusual color palettes (QR black/white mixed with photo colors). Frame count may be unusually high for a "cat photo."
+
+**Mitigation:** Valid GIF headers and structure. No Meow-specific metadata in file. Frame timing is configurable.
+
+**Status:** ⚠️ Header valid, but frame count/timing patterns may be suspicious.
+
+#### 5. Known-Carrier Attack
+
+**Attack:** Adversary obtains (or generates) the original un-embedded carrier image and computes pixel differences.
+
+**Vulnerability:** Trivially reveals all embedded data locations. XOR of carrier and stego image shows exact QR frame positions.
+
+**Mitigation:** None possible — this is a fundamental limitation of all steganographic systems.
+
+**Status:** ❌ Fundamental — cannot be mitigated.
+
+### Security Boundaries for Steganography
+
+| Property | Guaranteed? | Notes |
+|----------|------------|-------|
+| **Cryptographic confidentiality** | ✅ Yes | AES-256-GCM protects payload regardless of stego mode |
+| **Casual visual cover** | ✅ Yes | Non-expert observers see cat photos / logos |
+| **Automated content-filter bypass** | ✅ Likely | Valid GIF, no flagged keywords/headers |
+| **Resist forensic steganalysis** | ❌ No | Statistical and ML detectors will identify embedding |
+| **Resist targeted investigation** | ❌ No | Known tool → known carrier patterns |
+| **Plausible deniability of stego** | ❌ No | Stego does NOT provide deniability — use Schrödinger mode |
+
+### Recommendations
+
+1. **Do not rely on steganography for security.** It provides cosmetic cover only.
+2. **For plausible deniability**, use Schrödinger mode (dual-secret quantum superposition), which provides cryptographic deniability independent of visual carrier.
+3. **For maximum stealth**, combine stego carrier with Schrödinger mode and operational security (no tool binaries on device, ephemeral boot media).
+4. **Assume stego is broken** if the adversary knows Meow Decoder exists and can obtain sample outputs.
+
+---
+
+## �🎯 **REALISTIC THREAT MODEL SCOPE**
 
 ### **Who This Tool IS Designed For:**
 

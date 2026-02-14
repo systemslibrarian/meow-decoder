@@ -224,7 +224,7 @@ SealKey ==
     /\ encoderState = "Idle"  \* Cannot seal mid-encoding
     /\ keyState' = "sealed"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
-                   pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   pcrValues, decoderState, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 UnsealKey ==
@@ -233,14 +233,14 @@ UnsealKey ==
        THEN keyState' = "unsealed"
        ELSE keyState' = "failed"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
-                   pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   pcrValues, decoderState, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 TamperPlatform ==
     /\ keyState = "sealed"
     /\ pcrValues' = "tampered"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, usedNonces,
-                   keyState, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames, decoderOutput,
+                   keyState, decoderState, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 -----------------------------------------------------------------------------
@@ -253,7 +253,7 @@ AttackerDrop ==
         /\ channel' = SubSeq(channel, 1, i-1) \o SubSeq(channel, i+1, Len(channel))
         /\ attackerActions' = Append(attackerActions, "drop")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames, 
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker replays a previously captured frame
@@ -263,7 +263,7 @@ AttackerReplay ==
         /\ channel' = Append(channel, f)
         /\ attackerActions' = Append(attackerActions, "replay")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker reorders frames in channel
@@ -275,7 +275,7 @@ AttackerReorder ==
            IN channel' = [channel EXCEPT ![i] = channel[j], ![j] = temp]
         /\ attackerActions' = Append(attackerActions, "reorder")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker duplicates a frame
@@ -285,7 +285,7 @@ AttackerDuplicate ==
         /\ channel' = channel \o <<channel[i]>>
         /\ attackerActions' = Append(attackerActions, "duplicate")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 \* Attacker tampers with a frame (corrupts ciphertext or tag)
@@ -298,7 +298,7 @@ AttackerTamper ==
            IN channel' = [channel EXCEPT ![i] = tamperedFrame]
         /\ attackerActions' = Append(attackerActions, "tamper")
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderSession, receivedFrames,
+                   usedNonces, keyState, pcrValues, decoderState, decoderSession, receivedFrames,
                    decoderOutput, authResult, attackerFrames>>
 
 -----------------------------------------------------------------------------
@@ -310,7 +310,7 @@ DecoderStartReceive ==
     /\ Len(channel) > 0
     /\ decoderState' = "Receive"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Receive a frame from channel
@@ -326,7 +326,7 @@ DecoderReceiveFrame ==
            THEN decoderSession' = frame.sessionId
            ELSE decoderSession' = decoderSession
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderState, decoderOutput, authResult,
+                   usedNonces, keyState, pcrValues, decoderState, decoderOutput, authResult,
                    attackerFrames, attackerActions>>
 
 \* Transition to frame decoding when enough frames received
@@ -335,7 +335,7 @@ DecoderStartDecode ==
     /\ Len(receivedFrames) >= MaxFrames \div 2  \* Fountain code: need ~67%
     /\ decoderState' = "FrameDecode"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Decode fountain frames (verify frame MACs first)
@@ -343,7 +343,7 @@ DecoderFrameDecode ==
     /\ decoderState = "FrameDecode"
     /\ decoderState' = "Decrypt"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Decrypt and authenticate (CRITICAL: Authentication check)
@@ -380,7 +380,7 @@ DecoderDecrypt(password) ==
                 /\ decoderState' = "OutputReal"
                 /\ decoderOutput' = "real"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, attackerFrames,
+                usedNonces, keyState, pcrValues, decoderSession, receivedFrames, attackerFrames,
                 attackerActions, channel>>
 
 \* Output real plaintext (only from OutputReal state)
@@ -389,7 +389,7 @@ DecoderOutputReal ==
     /\ decoderOutput = "real"
     /\ decoderState' = "Done"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Output decoy (only from OutputDecoy state)
@@ -398,7 +398,7 @@ DecoderOutputDecoy ==
     /\ decoderOutput = "decoy"
     /\ decoderState' = "Done"
     /\ UNCHANGED <<encoderState, encoderSession, encoderNonce, encoderFrames,
-                   usedNonces, keyState, pcrValues, requestedCryptoMode, activeCryptoMode, decoderSession, receivedFrames, decoderOutput,
+                   usedNonces, keyState, pcrValues, decoderSession, receivedFrames, decoderOutput,
                    authResult, attackerFrames, attackerActions, channel>>
 
 \* Error handling
@@ -564,24 +564,6 @@ KeyDerivationRequiresUnsealedOrSoftware ==
 AttackerCannotForgeUnseal == TRUE  \* Structural guarantee
 
 (****************************************************************************)
-(* INVARIANT 14: MEOW4 never silently falls back to classical-only          *)
-(*                                                                          *)
-(* When post-quantum hybrid mode is requested (requestedCryptoMode =        *)
-(* "pq_hybrid"), the active mode MUST also be "pq_hybrid" once key          *)
-(* derivation completes. The system MUST error rather than silently          *)
-(* downgrading to classical mode.                                           *)
-(*                                                                          *)
-(* Models pq_hybrid.py line ~145:                                           *)
-(*   raise RuntimeError("Post-quantum requested but liboqs unavailable")    *)
-(*                                                                          *)
-(* This is the fail-closed property: no silent downgrade from PQ to         *)
-(* classical. Either PQ hybrid runs or the system refuses to encode.        *)
-(****************************************************************************)
-MEOW4NeverFallsBackToClassical ==
-    (requestedCryptoMode = "pq_hybrid" /\ activeCryptoMode /= "none") =>
-    activeCryptoMode = "pq_hybrid"
-
-(****************************************************************************)
 (* Combined Safety Property                                                 *)
 (****************************************************************************)
 Safety ==
@@ -598,7 +580,6 @@ Safety ==
     /\ FailedUnsealBlocksDecrypt
     /\ KeyDerivationRequiresUnsealedOrSoftware
     /\ AttackerCannotForgeUnseal
-    /\ MEOW4NeverFallsBackToClassical
 
 -----------------------------------------------------------------------------
 (* LIVENESS PROPERTIES (optional, for completeness) *)
@@ -621,6 +602,5 @@ THEOREM Spec => []NoRealOutputWithoutUnsealedKey
 THEOREM Spec => []SealedKeyNeverInChannel
 THEOREM Spec => []FailedUnsealBlocksDecrypt
 THEOREM Spec => []KeyDerivationRequiresUnsealedOrSoftware
-THEOREM Spec => []MEOW4NeverFallsBackToClassical
 
 =============================================================================

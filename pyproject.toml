@@ -98,6 +98,7 @@ markers = [
     "fuzz: fuzz / property-based tests (may be slow)",
     "integration: end-to-end integration tests",
     "cat: cat-themed error and UX tests",
+    "deprecated: tests for deprecated modules scheduled for removal (deselect with '-m \"not deprecated\"')",
 ]
 
 [tool.coverage.run]

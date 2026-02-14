@@ -4,15 +4,17 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 80 test files, 2359 test methods across Python tests + 261 Rust tests.
+**Current stats (February 2026):** 87 test files, 2413 Python tests + 261 Rust tests = **2674 total**.
 
-### Phase 0 Consolidation (February 2026)
+### Consolidation History (February 2026)
 
-The test suite was consolidated from 80 files to 66 by:
-- Merging 14 secondary test files into their primary module-specific test files
-- Decomposing 2 large omnibus coverage-boost files (135 tests total) into 20+ module-specific targets
-- All test methods preserved — zero tests lost during consolidation
-- 10 class name collisions resolved with `Boost` suffix renames
+**Phase 0:** Merged 14 secondary test files into primary module-specific files; decomposed 2 large omnibus coverage-boost files into 20+ module-specific targets; resolved 10 class name collisions with `Boost` suffix renames.
+
+**Phase 1 (1-to-1 mapping):** Merged all 25 `*_comprehensive.py` files into their corresponding `test_<module>.py` counterparts:
+- 16 identical duplicates deleted (content already in the 1-to-1 file)
+- 8 files appended in full (unique tests added to existing file)
+- 1 file (schrodinger) merged with conflict resolution (duplicate class skipped, unique method added)
+- Every `meow_decoder/*.py` module now has a matching `tests/test_*.py` — zero gaps
 
 ## Test Files (Current)
 
@@ -25,7 +27,7 @@ The test suite was consolidated from 80 files to 66 by:
 | `test_crypto_enhanced.py` | 87 | Enhanced crypto with secure memory, SecureBytes |
 | `test_constant_time.py` | 45 | Constant-time comparison, secure memset, timing consistency |
 | `test_frame_mac.py` | 11 | Frame MAC authentication, key derivation, pack/unpack |
-| `test_streaming_crypto_comprehensive.py` | 113 | Streaming encryption, MAC authentication, memory monitoring |
+| `test_streaming_crypto.py` | 113 | Streaming encryption, MAC authentication, memory monitoring |
 | `test_fountain.py` | 12 | Fountain code encoding/decoding, droplet generation |
 
 ### TIER 2: Core Pipeline Tests (90%+ coverage target)
@@ -39,6 +41,7 @@ The test suite was consolidated from 80 files to 66 by:
 | `test_config.py` | 17 | EncodingConfig, MeowConfig, DuressConfig |
 | `test_spec_v12.py` | 37 | Spec v1.2 encode/decode, key management, steganography |
 | `test_metadata_obfuscation.py` | 17 | Length padding, corruption detection |
+| `test_coverage_gaps_phase1.py` | 79 | Cross-module coverage gaps (streaming crypto, schrodinger, manifests) |
 
 ### TIER 3: Security Features Tests
 
@@ -55,25 +58,28 @@ The test suite was consolidated from 80 files to 66 by:
 | `test_forward_secrecy_x25519.py` | 7 | Legacy X25519 compat |
 | `test_duress_mode.py` | 57 | Duress mode, decoy data, timing equalization |
 | `test_timelock_duress.py` | 32 | Timelock puzzles, countdown duress, deadman switch |
-| `test_schrodinger_comprehensive.py` | 32 | Schrödinger dual-secret encode/decode |
-| `test_quantum_mixer_comprehensive.py` | 76 | Quantum entanglement/collapse, statistical tests |
-| `test_multi_secret_comprehensive.py` | 84 | Multi-secret encoding, Merkle trees, indistinguishability |
-| `test_secure_bridge_comprehensive.py` | 60 | Rust secure bridge, key handles, HMAC |
+| `test_schrodinger.py` | 40 | Schrödinger dual-secret encode/decode (merged from comprehensive) |
+| `test_quantum_mixer.py` | 97 | Quantum entanglement/collapse, statistical tests (merged from comprehensive) |
+| `test_multi_secret.py` | 84 | Multi-secret encoding, Merkle trees, indistinguishability |
+| `test_secure_bridge.py` | 60 | Rust secure bridge, key handles, HMAC |
 | `test_secure_cleanup.py` | 13 | Sensitive buffer registration, cleanup |
-| `test_high_security_comprehensive.py` | 34 | High security mode, secure wipe, memory protection |
-| `test_entropy_boost_comprehensive.py` | 90 | Entropy pool, enhanced salt/nonce, hardware entropy |
+| `test_high_security.py` | 34 | High security mode, secure wipe, memory protection |
+| `test_entropy_boost.py` | 90 | Entropy pool, enhanced salt/nonce, hardware entropy |
 | `test_double_ratchet.py` | 27 | Signal-style key ratcheting |
 | `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-1024) |
 | `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
 | `test_pq_signatures.py` | 10 | Post-quantum signatures |
+| `test_pq_crypto.py` | 3 | Post-quantum module imports (pq_crypto_real, pq_hybrid, pq_signatures) |
+| `test_schrodinger_encode.py` | 1 | Schrödinger encoder module import |
+| `test_schrodinger_decode.py` | 1 | Schrödinger decoder module import |
 
 ### TIER 4: UI/Integration/Infrastructure Tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
 | `test_cat_errors.py` | 51 | Cat-themed error system, fur_ball_error, pounce_on_errors |
-| `test_cat_utils_comprehensive.py` | 78 | PurrLogger, NineLivesRetry, CatBreed, ASCII art |
-| `test_catnip_fountain_comprehensive.py` | 14 | Catnip fountain encoder/decoder |
+| `test_cat_utils.py` | 78 | PurrLogger, NineLivesRetry, CatBreed, ASCII art |
+| `test_catnip_fountain.py` | 14 | Catnip fountain encoder/decoder |
 | `test_tamper_report.py` | 19 | TamperReport rendering, JSON export |
 | `test_bridge_protocol.py` | 21 | Mobile bridge wire protocol |
 | `test_fuzz_targets.py` | 122 | Comprehensive fuzz harness testing |
@@ -83,22 +89,41 @@ The test suite was consolidated from 80 files to 66 by:
 | `test_hardware_keys.py` | 44 | Hardware key management |
 | `test_stego_advanced.py` | 16 | Advanced steganography modes |
 | `test_meow_encode.py` | 5 | CLI encode integration |
-| `test_decoy_generator_comprehensive.py` | 12 | Decoy data generation |
-| `test_merkle_tree_comprehensive.py` | 78 | Merkle tree construction/verification |
-| `test_ninja_cat_ultra_comprehensive.py` | 30 | Ninja cat encoding mode |
-| `test_prowling_mode_comprehensive.py` | 21 | Prowling mode steganography |
-| `test_resume_secured_comprehensive.py` | 62 | Secure resume/checkpoint |
-| `test_profiling_improved_comprehensive.py` | 60 | Performance profiling |
-| `test_progress_modules_comprehensive.py` | 7 | Progress tracking |
-| `test_ascii_qr_comprehensive.py` | 6 | ASCII QR rendering |
-| `test_bidirectional_comprehensive.py` | 6 | Bidirectional transfer |
-| `test_clowder_comprehensive.py` | 3 | Clowder multi-device |
-| `test_dashboard_gui_comprehensive.py` | 2 | Dashboard GUI |
-| `test_deadmans_switch_cli_comprehensive.py` | 5 | Dead man's switch CLI |
-| `test_debug_modules_comprehensive.py` | 4 | Debug module variants |
-| `test_logo_and_gui_comprehensive.py` | 3 | Logo/GUI rendering |
-| `test_security_warnings_comprehensive.py` | 4 | Security warning display |
-| `test_webcam_modules_comprehensive.py` | 2 | Webcam capture modules |
+| `test_decoy_generator.py` | 12 | Decoy data generation |
+| `test_merkle_tree.py` | 78 | Merkle tree construction/verification |
+| `test_ninja_cat_ultra.py` | 37 | Ninja cat encoding mode (merged from comprehensive) |
+| `test_prowling_mode.py` | 21 | Prowling mode steganography |
+| `test_resume_secured.py` | 62 | Secure resume/checkpoint |
+| `test_profiling_improved.py` | 60 | Performance profiling |
+| `test_progress_modules.py` | 16 | Progress tracking (merged from comprehensive) |
+| `test_ascii_qr.py` | 12 | ASCII QR rendering (merged from comprehensive) |
+| `test_bidirectional.py` | 6 | Bidirectional transfer |
+| `test_clowder.py` | 7 | Clowder multi-device (merged from comprehensive) |
+| `test_dashboard_gui.py` | 2 | Dashboard GUI |
+| `test_deadmans_switch_cli.py` | 5 | Dead man's switch CLI |
+| `test_debug_modules.py` | 9 | Debug module variants (merged from comprehensive) |
+| `test_logo_and_gui.py` | 11 | Logo/GUI rendering (comprehensive was subset) |
+| `test_security_warnings.py` | 4 | Security warning display |
+| `test_webcam_modules.py` | 8 | Webcam capture modules (merged from comprehensive) |
+| `test_clowder_decode.py` | 3 | Clowder decode module, password hashing |
+| `test_clowder_encode.py` | 2 | Clowder encode module, ClowderManifest |
+| `test_clowder_modules.py` | 9 | Clowder modules coverage (decode, encode, 95% target) |
+| `test_crypto_DEBUG.py` | 2 | Debug crypto module import, Manifest class |
+| `test_encode_DEBUG.py` | 2 | Debug encode module import, encode_file |
+| `test_decode_webcam_with_resume.py` | 1 | Webcam decode with resume module import |
+| `test_gui.py` | 6 | GUI module imports (dashboard, enhanced, logo) |
+| `test_gui_logo_example.py` | 2 | GUI logo example module |
+| `test_gui_modules.py` | 6 | GUI modules coverage (logo window, dpg handling) |
+| `test_hardware.py` | 8 | Hardware integration, HardwareSecurityProvider |
+| `test_hardware_modules.py` | 10 | Hardware modules coverage (capabilities, providers) |
+| `test_logo_eyes.py` | 3 | Logo eyes encoder, LogoConfig |
+| `test_meow_dashboard_demo.py` | 2 | Dashboard demo module import |
+| `test_meow_gui_enhanced.py` | 2 | Enhanced GUI module, MeowGuiEnhanced |
+| `test_mobile_bridge.py` | 22 | Mobile bridge CLI handler, protocol data classes, BLE/USB |
+| `test_progress.py` | 8 | Progress bar module, ProgressBar class |
+| `test_progress_bar.py` | 3 | progress_bar module import, ProgressBar |
+| `test_setup.py` | 1 | Package setup.py/pyproject.toml validation |
+| `test_webcam_enhanced.py` | 1 | Enhanced webcam module import |
 
 ### Rust Crypto Backend Tests
 
@@ -177,39 +202,24 @@ cargo test -p crypto_core --test security_properties  # Security properties
 cargo tarpaulin -p crypto_core --skip-clean  # 97.9% coverage
 ```
 
-### February 2026 Coverage Expansion (Completed)
+### February 2026 Coverage Expansion (Completed & Merged)
 
-Additional comprehensive suites added to close remaining gaps and complete todo-feb.md:
+25 `*_comprehensive.py` test suites were created to close remaining gaps. These have since been merged into their corresponding 1-to-1 `test_<module>.py` files (Phase 1 consolidation). Tests now live directly in: `test_decoy_generator.py`, `test_high_security.py`, `test_security_warnings.py`, `test_cat_utils.py`, `test_progress_modules.py`, `test_ascii_qr.py`, `test_bidirectional.py`, `test_clowder.py`, `test_schrodinger.py`, `test_catnip_fountain.py`, `test_debug_modules.py`, `test_logo_and_gui.py`, `test_dashboard_gui.py`, `test_deadmans_switch_cli.py`, `test_webcam_modules.py`, and others.
 
-- `tests/test_decoy_generator_comprehensive.py`
-- `tests/test_high_security_comprehensive.py`
-- `tests/test_security_warnings_comprehensive.py`
-- `tests/test_cat_utils_comprehensive.py`
-- `tests/test_progress_modules_comprehensive.py`
-- `tests/test_ascii_qr_comprehensive.py`
-- `tests/test_bidirectional_comprehensive.py`
-- `tests/test_clowder_comprehensive.py`
-- `tests/test_schrodinger_comprehensive.py`
-- `tests/test_catnip_fountain_comprehensive.py`
-- `tests/test_debug_modules_comprehensive.py`
-- `tests/test_logo_and_gui_comprehensive.py`
-- `tests/test_dashboard_gui_comprehensive.py`
-- `tests/test_deadmans_switch_cli_comprehensive.py`
-- `tests/test_webcam_modules_comprehensive.py`
+**Naming convention:** Every `meow_decoder/<module>.py` has a corresponding `tests/test_<module>.py`. No `*_comprehensive.py` files remain.
 
 ### February 2026 Coverage Boost (95% Target)
 
 Targeted coverage boost tests — originally in standalone files, now consolidated into module-specific test files
 (Phase 0 consolidation, February 2026):
 
-| Original File | Tests | Merged Into |
-|------|-------|-------------|
-| `test_coverage_boost_cat_utils.py` | 66 | `test_cat_utils_comprehensive.py` |
-| `test_coverage_boost_spec_v12.py` | 28 | `test_spec_v12.py` |
-| `test_coverage_boost_catnip.py` | 10 | `test_catnip_fountain_comprehensive.py` |
-| `test_coverage_boost_schrodinger.py` | 18 | `test_schrodinger_comprehensive.py` |
-| `test_coverage_boost_remaining.py` | 67 | Decomposed into 20 module-specific files |
-| `test_coverage_boost_extras.py` | 69 | Decomposed into 14 module-specific files |
+These standalone coverage-boost files were merged into their module-specific test files during Phase 0 consolidation:
+- `test_coverage_boost_cat_utils.py` (66 tests) → `test_cat_utils.py`
+- `test_coverage_boost_spec_v12.py` (28 tests) → `test_spec_v12.py`
+- `test_coverage_boost_catnip.py` (10 tests) → `test_catnip_fountain.py`
+- `test_coverage_boost_schrodinger.py` (18 tests) → `test_schrodinger.py`
+- `test_coverage_boost_remaining.py` (67 tests) → decomposed into 20 module-specific files
+- `test_coverage_boost_extras.py` (69 tests) → decomposed into 14 module-specific files
 
 ### February 2026 Cat-Themed Error System
 
@@ -222,23 +232,21 @@ Targeted coverage boost tests — originally in standalone files, now consolidat
 Test suites for completed roadmap tasks — originally standalone, now merged into module-specific files
 (Phase 0 consolidation, February 2026):
 
-| Original File | Tests | Merged Into | Purpose |
-|------|-------|-------------|---------|
-| `test_manifest_bounds.py` | 17 | `test_crypto.py` | **ST-2:** Manifest numeric bounds checking, decompression-bomb protection |
-| `test_canonical_aad.py` | 10 | `test_crypto.py` | **MT-1:** Canonical AAD construction, backward compatibility |
-| `test_timing_harness.py` | varies | `test_crypto.py` | **MT-5:** Statistical timing comparison |
-| `test_tamper_report.py` | 19 | *(unchanged — standalone)* | **MT-7:** TamperReport class |
-| `test_bridge_protocol.py` | 21 | *(unchanged — standalone)* | **MT-8:** Mobile bridge wire protocol |
+These standalone roadmap-task files were merged into module-specific test files during Phase 0 consolidation:
+- `test_manifest_bounds.py` (17 tests, **ST-2**) → `test_crypto.py`
+- `test_canonical_aad.py` (10 tests, **MT-1**) → `test_crypto.py`
+- `test_timing_harness.py` (**MT-5**) → `test_crypto.py`
+- `test_tamper_report.py` (19 tests, **MT-7**) — standalone (still exists)
+- `test_bridge_protocol.py` (21 tests, **MT-8**) — standalone (still exists)
 
 ### February 2026 Security Audit (audit1.md)
 
 Security regression tests — originally standalone, now merged into module-specific files
 (Phase 0 consolidation, February 2026):
 
-| Original File | Tests | Merged Into | Purpose |
-|------|-------|-------------|---------|
-| `test_streaming_crypto_security.py` | 14 | `test_streaming_crypto_comprehensive.py` | **CRIT-01 Fix:** Encrypt-then-MAC authentication |
-| `test_duress_timing_security.py` | 12 | `test_duress_mode.py` | **HIGH-02 Fix:** Timing equalization for duress mode |
+These standalone security-audit files were merged into module-specific test files during Phase 0 consolidation:
+- `test_streaming_crypto_security.py` (14 tests, **CRIT-01**) → `test_streaming_crypto.py`
+- `test_duress_timing_security.py` (12 tests, **HIGH-02**) → `test_duress_mode.py`
 
 #### CRIT-01: AES-CTR Without Authentication (FIXED)
 
@@ -316,7 +324,7 @@ fail_under = 35  # Incrementally increase to 80%+
 | **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
 | **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
-**Status:** Test suite consolidated (Phase 0 complete). 64 test files, ~2261 Python test methods.
+**Status:** Test suite consolidated (Phase 0 + Phase 1 complete). 87 test files, 2413 Python tests. All `*_comprehensive.py` files merged into 1-to-1 counterparts.
 
 ## Running Tests
 
@@ -326,7 +334,7 @@ fail_under = 35  # Incrementally increase to 80%+
 pytest tests/ -v --cov=meow_decoder --cov-report=term-missing
 
 # Run only security-critical tests (TIER 1)
-pytest tests/test_crypto.py tests/test_crypto_backend.py tests/test_constant_time.py tests/test_frame_mac.py tests/test_streaming_crypto_comprehensive.py -v
+pytest tests/test_crypto.py tests/test_crypto_backend.py tests/test_constant_time.py tests/test_frame_mac.py tests/test_streaming_crypto.py -v
 
 # Run with HTML coverage report
 pytest tests/ --cov=meow_decoder --cov-report=html
@@ -368,11 +376,11 @@ cargo test --test proptest_crypto             # 23 property tests
 
 ### CLI Tests
 
-1. ✅ **Help text** (`test_cli.py`)
-2. ✅ **Missing required arguments** (`test_cli.py`)
-3. ✅ **Nonexistent input file** (`test_cli.py`)
-4. ✅ **Empty password rejection** (`test_cli.py`)
-5. ✅ **Exit codes** (`test_cli.py`)
+1. ✅ **Help text** (`test_meow_encode.py`)
+2. ✅ **Missing required arguments** (`test_encode.py`)
+3. ✅ **Nonexistent input file** (`test_encode.py`)
+4. ✅ **Empty password rejection** (`test_crypto.py`)
+5. ✅ **Exit codes** (`test_meow_encode.py`)
 
 ### Fuzz/Property Tests
 

@@ -1,0 +1,23 @@
+# Formal Verification Docker Image — Tamarin Prover
+# Used by `make formal-tamarin-docker` for CI environments where
+# native Tamarin is unavailable (e.g., Alpine Linux / musl libc).
+#
+# Tamarin requires Maude, which is only available on glibc systems.
+# This container provides a Debian-based environment with both installed.
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    tamarin-prover \
+    maude \
+    graphviz \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /formal
+
+# Copy only the Tamarin models
+COPY formal/tamarin/ /formal/tamarin/
+
+# Default: run duress OE verification
+CMD ["tamarin-prover", "--diff", "/formal/tamarin/MeowDuressEquiv.spthy", "--prove"]

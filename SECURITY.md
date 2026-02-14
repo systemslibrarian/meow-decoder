@@ -2,7 +2,7 @@
 
 **Project:** Meow Decoder  
 **Version:** 1.0  
-**Last Updated:** 2026-01-28
+**Last Updated:** 2026-02-14
 
 > *"A cat always lands on its feet — and always verifies its HMAC."*
 
@@ -169,7 +169,7 @@ We thank the following security researchers — our **elite Catnip Hunters** �
    - Key zeroing helps but not perfect
    - **Mitigation:** Disable swap, use encrypted RAM disk, power off after use
 
-7. **Endpoint Security**
+8. **Endpoint Security**
    - Cannot protect against compromised OS/malware
    - **Mitigation:** Clean, hardened endpoints (Qubes OS, Tails)
 
@@ -450,7 +450,7 @@ Meow Decoder implements **fail-closed** behavior for manifest integrity. Any mod
     - Invalid frames silently dropped during decoding
     - **DoS protection: Malicious frames rejected before fountain decode**
 
-**Tested Attack Vectors (see `tests/test_tamper_detection.py`):**
+**Tested Attack Vectors (see `tests/test_security.py::TestTamperDetection`):**
 - ✅ Flip 1 bit in salt → Decryption fails
 - ✅ Flip 1 bit in nonce → Decryption fails
 - ✅ Flip 1 bit in lengths → Decryption fails
@@ -467,7 +467,7 @@ Meow Decoder implements **fail-closed** behavior for manifest integrity. Any mod
 
 **Proof:**
 ```python
-# From tests/test_tamper_detection.py (342 lines of tests)
+# From tests/test_security.py (TestTamperDetection class)
 def test_single_bit_flip_in_all_fields():
     """Flip 1 bit in every manifest field → all fail."""
     for field in ['salt', 'nonce', 'orig_len', 'comp_len', 'cipher_len', 'sha256', 'hmac']:
@@ -600,20 +600,20 @@ We're particularly interested in reports for:
 ## 📚 **Security Resources**
 
 ### **Threat Model**
-Read [THREAT_MODEL.md](THREAT_MODEL.md) for:
+Read [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) for:
 - What we protect against (7 categories)
 - What we don't protect against (7 categories)
 - Adversary model analysis
 - Security configuration guide
 
-### **Manifest Versioning**
-Read [MANIFEST_VERSIONING.md](MANIFEST_VERSIONING.md) for:
-- Formal format specifications
+### **Protocol Specification**
+Read [docs/PROTOCOL.md](docs/PROTOCOL.md) for:
+- Manifest format specifications
 - Version compatibility matrix
 - Security considerations per version
 
 ### **Architecture**
-Read [ARCHITECTURE.md](ARCHITECTURE.md) for:
+Read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for:
 - System architecture diagram
 - Data flow analysis
 - Security boundaries
@@ -703,6 +703,6 @@ After a fix is released:
 
 ---
 
-**Last Updated:** 2026-01-28  
+**Last Updated:** 2026-02-14  
 **Version:** 1.0.0  
 **Status:** Security-Reviewed (Internal Review) — Catnip Bounty Open

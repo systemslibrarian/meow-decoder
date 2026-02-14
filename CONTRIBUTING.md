@@ -151,7 +151,8 @@ mypy meow_decoder/
 | `test_crypto.py` | Core encryption/decryption |
 | `test_security.py` | Security properties (125+ tests) |
 | `test_adversarial.py` | Attack resistance |
-| `test_e2e.py` | End-to-end roundtrip |
+| `test_encode.py` | Encoding pipeline, QR generation |
+| `test_decode_gif.py` | GIF decoding, frame extraction |
 | `test_fountain.py` | Fountain code encoding |
 
 ### Adding Tests
