@@ -1321,13 +1321,14 @@ class TestCatMocked:
         # This tests the graceful fallback
         monitor = MemoryMonitor()
 
-        with patch("meow_decoder.streaming_crypto.psutil", None):
-            # Should not crash, may return None or default
-            try:
-                result = monitor.get_available_memory_mb()
-                # If it works, great; if returns None, also fine
-            except (ImportError, AttributeError):
-                pass  # Expected
+        # Simulate psutil unavailability by setting has_psutil=False
+        orig = monitor.has_psutil
+        try:
+            monitor.has_psutil = False
+            result = monitor.get_available_memory_mb()
+            assert result is None
+        finally:
+            monitor.has_psutil = orig
 
     def test_cat_file_write_error(self, temp_test_file):
         """Test handling of file write errors."""

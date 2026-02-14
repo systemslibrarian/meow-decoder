@@ -389,6 +389,7 @@ class TestKeyManagement:
 
     def test_ed25519_pk_to_x25519_pk(self):
         """Test Ed25519 public key to X25519 conversion."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.key_management import SoftwareBackend, ed25519_pk_to_x25519_pk
 
         backend = SoftwareBackend()
@@ -398,6 +399,7 @@ class TestKeyManagement:
 
     def test_ed25519_sk_to_x25519_sk(self):
         """Test Ed25519 secret key to X25519 conversion."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.key_management import SoftwareBackend, ed25519_sk_to_x25519_sk
 
         backend = SoftwareBackend()
@@ -479,6 +481,7 @@ class TestMultiTier:
 
     def test_encode_decode_single_tier_roundtrip(self):
         """Full encode → decode roundtrip with 1 tier."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.multi_tier import encode_multi_tier, decode_multi_tier
 
         sender_sk, sender_pk = self._generate_ed25519_keypair_raw()
@@ -501,6 +504,7 @@ class TestMultiTier:
 
     def test_encode_decode_multi_tier_roundtrip(self):
         """Full roundtrip with 3 tiers."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.multi_tier import encode_multi_tier, decode_multi_tier
 
         sender_sk, sender_pk = self._generate_ed25519_keypair_raw()
@@ -543,6 +547,7 @@ class TestMultiTier:
 
     def test_decode_wrong_recipient(self):
         """Decoding with wrong recipient key should fail."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.multi_tier import encode_multi_tier, decode_multi_tier
 
         sender_sk, sender_pk = self._generate_ed25519_keypair_raw()
@@ -557,6 +562,7 @@ class TestMultiTier:
 
     def test_decode_tier_out_of_range(self):
         """Accessing invalid tier index should fail."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.multi_tier import encode_multi_tier, decode_multi_tier
 
         sender_sk, sender_pk = self._generate_ed25519_keypair_raw()
@@ -590,6 +596,7 @@ class TestMultiTier:
 class TestSpecV12EncodeDecodeSmallGaps:
     def test_encode_decode_roundtrip(self):
         """Test spec_v12 encode/decode roundtrip."""
+        pytest.importorskip("nacl")
         from meow_decoder.spec_v12.encode import encode_file
         from meow_decoder.spec_v12.decode import decode_file
         from meow_decoder.spec_v12.key_management import SoftwareBackend

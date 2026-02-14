@@ -17,26 +17,29 @@ class TestDecodeWebcamWithResume:
         except ImportError as e:
             pytest.skip(f"decode_webcam_with_resume not available: {e}")
 
-    @patch("cv2.VideoCapture")
-    def test_webcam_decoder_init(self, mock_capture):
+    def test_webcam_decoder_init(self):
         """Test WebcamDecoder initialization."""
-        mock_capture.return_value.isOpened.return_value = True
-        mock_capture.return_value.read.return_value = (
-            True,
-            np.zeros((480, 640, 3), dtype=np.uint8),
-        )
+        cv2 = pytest.importorskip("cv2")
 
-        try:
-            from meow_decoder.decode_webcam_with_resume import WebcamDecoder
+        with patch("cv2.VideoCapture") as mock_capture:
+            mock_capture.return_value.isOpened.return_value = True
+            mock_capture.return_value.read.return_value = (
+                True,
+                np.zeros((480, 640, 3), dtype=np.uint8),
+            )
 
-            decoder = WebcamDecoder(device=0)
-            assert decoder is not None
-        except (ImportError, AttributeError):
-            pytest.skip("WebcamDecoder not available")
+            try:
+                from meow_decoder.decode_webcam_with_resume import WebcamDecoder
 
-    @patch("cv2.VideoCapture")
-    def test_resume_state_save_load(self, mock_capture):
+                decoder = WebcamDecoder(device=0)
+                assert decoder is not None
+            except (ImportError, AttributeError):
+                pytest.skip("WebcamDecoder not available")
+
+    def test_resume_state_save_load(self):
         """Test resume state persistence."""
+        cv2 = pytest.importorskip("cv2")
+
         try:
             from meow_decoder.decode_webcam_with_resume import ResumeState
             import tempfile
@@ -70,38 +73,46 @@ class TestWebcamEnhanced:
         except ImportError as e:
             pytest.skip(f"webcam_enhanced not available: {e}")
 
-    @patch("cv2.VideoCapture")
-    def test_enhanced_capture(self, mock_capture):
+    def test_enhanced_capture(self):
         """Test enhanced capture functionality."""
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
-        mock_capture.return_value = mock_cap
+        cv2 = pytest.importorskip("cv2")
 
-        try:
-            from meow_decoder.webcam_enhanced import EnhancedWebcamCapture
+        from unittest.mock import patch, MagicMock
 
-            capture = EnhancedWebcamCapture(device=0)
-            assert capture is not None
+        with patch("cv2.VideoCapture") as mock_capture:
+            mock_cap = MagicMock()
+            mock_cap.isOpened.return_value = True
+            mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+            mock_capture.return_value = mock_cap
 
-            frame = capture.read_frame()
-            assert frame is not None or frame is False
-        except (ImportError, AttributeError):
-            pytest.skip("EnhancedWebcamCapture not available")
+            try:
+                from meow_decoder.webcam_enhanced import EnhancedWebcamCapture
 
-    @patch("cv2.VideoCapture")
-    def test_preprocessing_modes(self, mock_capture):
-        """Test different preprocessing modes."""
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-        mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
-        mock_capture.return_value = mock_cap
-
-        try:
-            from meow_decoder.webcam_enhanced import EnhancedWebcamCapture
-
-            for mode in ["normal", "aggressive", "adaptive"]:
-                capture = EnhancedWebcamCapture(device=0, preprocessing=mode)
+                capture = EnhancedWebcamCapture(device=0)
                 assert capture is not None
-        except (ImportError, AttributeError, TypeError):
-            pytest.skip("Preprocessing modes not available")
+
+                frame = capture.read_frame()
+                assert frame is not None or frame is False
+            except (ImportError, AttributeError):
+                pytest.skip("EnhancedWebcamCapture not available")
+
+    def test_preprocessing_modes(self):
+        """Test different preprocessing modes."""
+        cv2 = pytest.importorskip("cv2")
+
+        from unittest.mock import patch, MagicMock
+
+        with patch("cv2.VideoCapture") as mock_capture:
+            mock_cap = MagicMock()
+            mock_cap.isOpened.return_value = True
+            mock_cap.read.return_value = (True, np.zeros((480, 640, 3), dtype=np.uint8))
+            mock_capture.return_value = mock_cap
+
+            try:
+                from meow_decoder.webcam_enhanced import EnhancedWebcamCapture
+
+                for mode in ["normal", "aggressive", "adaptive"]:
+                    capture = EnhancedWebcamCapture(device=0, preprocessing=mode)
+                    assert capture is not None
+            except (ImportError, AttributeError, TypeError):
+                pytest.skip("Preprocessing modes not available")

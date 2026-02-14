@@ -19,15 +19,8 @@ class TestGuiLogoExample:
             except ImportError:
                 pass  # Expected when dearpygui unavailable
 
-    @patch("meow_decoder.gui_logo_example.dpg", create=True)
-    def test_create_logo_window(self, mock_dpg):
+    def test_create_logo_window(self):
         """Test logo window creation."""
-        mock_dpg.create_context = MagicMock()
-        mock_dpg.create_viewport = MagicMock()
-        mock_dpg.window = MagicMock(
-            return_value=MagicMock(__enter__=MagicMock(), __exit__=MagicMock())
-        )
-
         try:
             from meow_decoder.gui_logo_example import create_logo_window
 
@@ -48,8 +41,7 @@ class TestMeowDashboardDemo:
         except ImportError:
             pytest.skip("Dashboard demo dependencies not available")
 
-    @patch("meow_decoder.meow_dashboard_demo.dpg", create=True)
-    def test_demo_functions_exist(self, mock_dpg):
+    def test_demo_functions_exist(self):
         """Test demo functions are defined."""
         try:
             from meow_decoder.meow_dashboard_demo import main
@@ -71,8 +63,7 @@ class TestMeowGuiEnhanced:
         except ImportError:
             pytest.skip("Enhanced GUI dependencies not available")
 
-    @patch("meow_decoder.meow_gui_enhanced.dpg", create=True)
-    def test_enhanced_gui_class(self, mock_dpg):
+    def test_enhanced_gui_class(self):
         """Test enhanced GUI class exists."""
         try:
             from meow_decoder.meow_gui_enhanced import MeowGuiEnhanced

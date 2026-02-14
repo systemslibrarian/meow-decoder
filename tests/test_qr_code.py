@@ -26,6 +26,8 @@ def test_qr_generator_invalid_error_correction_defaults_to_m():
 
 
 def test_qr_reader_read_image_base85(monkeypatch):
+    pytest.importorskip("cv2")
+    qr_code._ensure_pyzbar()
     payload = b"hello"
     encoded = base64.b85encode(payload)
 
@@ -43,6 +45,8 @@ def test_qr_reader_read_image_base85(monkeypatch):
 
 
 def test_qr_reader_read_image_fallback_raw(monkeypatch):
+    pytest.importorskip("cv2")
+    qr_code._ensure_pyzbar()
     raw = b"\xff\xfe"
 
     class DummyObj:
@@ -59,6 +63,8 @@ def test_qr_reader_read_image_fallback_raw(monkeypatch):
 
 
 def test_qr_reader_read_image_aggressive_str_fallback(monkeypatch):
+    pytest.importorskip("cv2")
+    qr_code._ensure_pyzbar()
     import base64
 
     class DummyObj:
@@ -76,6 +82,8 @@ def test_qr_reader_read_image_aggressive_str_fallback(monkeypatch):
 
 
 def test_qr_reader_read_frame_base85(monkeypatch):
+    pytest.importorskip("cv2")
+    qr_code._ensure_pyzbar()
     payload = b"frame"
     encoded = base64.b85encode(payload)
 
@@ -93,6 +101,8 @@ def test_qr_reader_read_frame_base85(monkeypatch):
 
 
 def test_qr_reader_read_frame_grayscale(monkeypatch):
+    pytest.importorskip("cv2")
+    qr_code._ensure_pyzbar()
     payload = b"gray"
     encoded = base64.b85encode(payload)
 
@@ -110,6 +120,7 @@ def test_qr_reader_read_frame_grayscale(monkeypatch):
 
 
 def test_preprocess_normal_and_aggressive():
+    pytest.importorskip("cv2")
     reader = QRCodeReader(preprocessing="normal")
     color = np.zeros((10, 10, 3), dtype=np.uint8)
 
@@ -121,6 +132,7 @@ def test_preprocess_normal_and_aggressive():
 
 
 def test_webcam_reader_read_next_and_release(monkeypatch):
+    pytest.importorskip("cv2")
     frames = [np.zeros((10, 10, 3), dtype=np.uint8), np.zeros((10, 10, 3), dtype=np.uint8)]
 
     class DummyCap:
@@ -153,6 +165,8 @@ def test_webcam_reader_read_next_and_release(monkeypatch):
 
 
 def test_webcam_reader_read_continuous(monkeypatch):
+    cv2_mod = pytest.importorskip("cv2")
+
     class DummyCap:
         def __init__(self):
             self.released = False
@@ -188,6 +202,8 @@ def test_webcam_reader_read_continuous(monkeypatch):
 
 
 def test_webcam_reader_init_fails_when_closed(monkeypatch):
+    cv2_mod = pytest.importorskip("cv2")
+
     class DummyCap:
         def isOpened(self):
             return False

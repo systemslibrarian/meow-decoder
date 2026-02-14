@@ -488,6 +488,7 @@ class TestSchrodingerDecodeExtras:
 
     def test_decode_file_verbose_no_qr(self, tmp_path):
         """decode_file verbose mode with blank frames (no QR codes)."""
+        pytest.importorskip("cv2")
         from meow_decoder.schrodinger_decode import schrodinger_decode_file
         from PIL import Image
 

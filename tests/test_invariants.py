@@ -146,6 +146,7 @@ class TestCriticalInvariants:
 
         Critical: Data corruption is unacceptable.
         """
+        pytest.importorskip("cv2")
         # Test various data patterns
         test_cases = [
             b"",  # Empty

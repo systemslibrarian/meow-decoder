@@ -924,25 +924,19 @@ class TestSecureBridgeCoverageGaps(unittest.TestCase):
         from meow_decoder import secure_bridge as sb
 
         orig = sb.RUST_AVAILABLE
-        orig_mod = sys.modules.get("meow_crypto_rs")
+        orig_crypto_rs = sb._crypto_rs
         try:
             sb.RUST_AVAILABLE = True
             mock_mod = MagicMock()
             mock_mod.backend_info.side_effect = Exception("no info")
-            sys.modules["meow_crypto_rs"] = mock_mod
-            sb.meow_crypto_rs = mock_mod
+            sb._crypto_rs = mock_mod
 
             avail, msg = sb.check_rust_backend()
             self.assertFalse(avail)
             self.assertIn("info failed", msg)
         finally:
             sb.RUST_AVAILABLE = orig
-            if orig_mod is not None:
-                sys.modules["meow_crypto_rs"] = orig_mod
-            elif "meow_crypto_rs" in sys.modules:
-                del sys.modules["meow_crypto_rs"]
-            if hasattr(sb, "meow_crypto_rs"):
-                delattr(sb, "meow_crypto_rs")
+            sb._crypto_rs = orig_crypto_rs
 
     def test_secure_password_context_manager(self):
         """secure_password context manager."""

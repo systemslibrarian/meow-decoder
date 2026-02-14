@@ -205,6 +205,7 @@ class TestProfilerMeow:
 
 
 def test_profiling_improved_module_main_runs():
+    pytest.importorskip("colorama")
     runpy.run_module("meow_decoder.profiling_improved", run_name="__main__")
 
     def test_profile_function_decorator_meow(self, fresh_profiler):

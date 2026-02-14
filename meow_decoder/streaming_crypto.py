@@ -363,8 +363,8 @@ class MemoryMonitor:
         available_mb = self.get_available_memory_mb()
 
         if available_mb is None:
-            # No psutil, use conservative default
-            return 65536  # 64 KB
+            # No psutil, use conservative default (clamped to caller's range)
+            return max(min(65536, max_chunk), min_chunk)
 
         # Use 10% of available memory, capped at max_chunk
         optimal = min(int(available_mb * 0.1 * 1024 * 1024), max_chunk)
