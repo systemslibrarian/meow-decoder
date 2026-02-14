@@ -174,9 +174,9 @@ graph TB
 | **Replay Resistance** | ✅ | ✅ | - | - | - |
 | **Loss Tolerance** | ✅ | - | - | - | ✅ |
 | **Observational Equiv (MEOW3)** | - | ⚠️ | ✅ | - | - |
-| **Observational Equiv (MEOW4 PQ)** | - | - | ✅† | - | - |
-| **Failure-Trace Parity** | - | - | ✅† | - | - |
-| **Post-Quantum (ML-KEM)** | ✅ | ✅ | ✅† | - | - |
+| **Observational Equiv (MEOW4 PQ)** | - | - | 🚨† | - | - |
+| **Failure-Trace Parity** | - | - | 🚨† | - | - |
+| **Post-Quantum (ML-KEM)** | ✅ | ✅ | 🚨† | - | - |
 | **Streaming (AES-CTR + EtM)** | ✅ | - | - | - | - |
 | **Steganography** | - | - | - | - | - |
 | **Axiom Quarantine** | - | - | - | - | ✅ |
@@ -184,6 +184,7 @@ graph TB
 **Legend:**
 - ✅ Formally verified (or proved)
 - ✅† CI-Docker required (Tamarin/Maude unavailable on musl — use `make formal-tamarin-docker`)
+- 🚨† **ESCALATION NEEDED** — Model complete, verification blocked by toolchain (see [PQ_DURESS_OE_STATUS.md](PQ_DURESS_OE_STATUS.md))
 - ⚠️ Partial coverage or external assumption
 - `-` Not covered (out of scope or gap)
 
