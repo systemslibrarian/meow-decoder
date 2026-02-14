@@ -466,7 +466,7 @@ cd crypto_core && cargo tarpaulin --out Html
 | `tests/golden/errors/manifest.json` | Machine-readable test metadata |
 | `docs/UNDERSTANDING_THE_TESTS_IN_MEOW-DECODER.md` | Deep dive on test philosophy and patterns |
 | `PHASE_5_WEEK_1_QUICKSTART.md` | Quick start guide for Phase 5 Week 1 |
-| `PHASE_5_WEEK_1_COMPLETE.md` | Completion summary and next steps |
+| `todoforreal.md` | Consolidated project TODO — what really needs to be done |
 
 ---
 
