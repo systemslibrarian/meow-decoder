@@ -59,7 +59,6 @@ structure Droplet (k : ℕ) where
   data : Block
   /-- Invariant: indices non-empty -/
   nonempty : blockIndices.Nonempty
-  deriving Repr
 
 /-- Degree of a droplet = number of blocks XORed -/
 def Droplet.degree {k : ℕ} (d : Droplet k) : ℕ := d.blockIndices.card
@@ -69,33 +68,29 @@ def Droplet.degree {k : ℕ} (d : Droplet k) : ℕ := d.blockIndices.card
 -- ============================================================================
 
 /-- XOR of two blocks (pointwise XOR) -/
-def Block.xor (a b : Block) : Block := fun z i => xor (a z i) (b z i)
+def Block.xor (a b : Block) : Block := fun z i => Bool.xor (a z i) (b z i)
 
 instance : Add Block where
   add := Block.xor
 
 /-- XOR is commutative -/
 theorem Block.xor_comm (a b : Block) : a.xor b = b.xor a := by
-  funext z i
-  simp [Block.xor, Bool.xor_comm]
+  funext z i; simp only [Block.xor]; cases a z i <;> cases b z i <;> rfl
 
 /-- XOR is associative -/
 theorem Block.xor_assoc (a b c : Block) : (a.xor b).xor c = a.xor (b.xor c) := by
-  funext z i
-  simp [Block.xor, Bool.xor_assoc]
+  funext z i; simp only [Block.xor]; cases a z i <;> cases b z i <;> cases c z i <;> rfl
 
 /-- XOR with self is zero -/
 theorem Block.xor_self (a : Block) : a.xor a = fun _ _ => false := by
-  funext z i
-  simp [Block.xor]
+  funext z i; simp only [Block.xor]; cases a z i <;> rfl
 
 /-- Zero block -/
 def Block.zero : Block := fun _ _ => false
 
 /-- XOR with zero is identity -/
 theorem Block.xor_zero (a : Block) : a.xor Block.zero = a := by
-  funext z i
-  simp [Block.xor, Block.zero]
+  funext z i; simp only [Block.xor, Block.zero]; cases a z i <;> rfl
 
 -- ============================================================================
 -- DECODER STATE
@@ -107,7 +102,6 @@ structure DecoderState (k : ℕ) where
   solved : Fin k → Option Block
   /-- Pending droplets (not yet solvable) -/
   pending : List (Droplet k)
-  deriving Repr
 
 /-- Count of solved blocks -/
 def DecoderState.solvedCount {k : ℕ} (s : DecoderState k) : ℕ :=
@@ -153,15 +147,14 @@ theorem degree_one_solves {k : ℕ} (d : Droplet k) (h : d.isDegreeOne) :
 -- ============================================================================
 
 /-- Extract the unique element from a singleton finset. -/
-def Finset.singletonElem {α : Type*} [DecidableEq α] (s : Finset α) (h : s.card = 1) : α :=
+noncomputable def Finset.singletonElem {α : Type*} [DecidableEq α] (s : Finset α) (h : s.card = 1) : α :=
   (Finset.card_eq_one.mp h).choose
 
 theorem Finset.singletonElem_mem {α : Type*} [DecidableEq α] (s : Finset α) (h : s.card = 1) :
     s.singletonElem h ∈ s := by
+  obtain ⟨a, ha⟩ := Finset.card_eq_one.mp h
+  subst ha
   simp [Finset.singletonElem]
-  have := (Finset.card_eq_one.mp h).choose_spec
-  rw [this]
-  exact Finset.mem_singleton_self _
 
 /-- State invariant: degree-1 droplets in pending refer to unsolved blocks.
     This holds because droplets are reduced when blocks are solved. -/
@@ -175,14 +168,14 @@ def DecoderState.wellFormed {k : ℕ} (s : DecoderState k) : Prop :=
     3. Remove that droplet from pending
     
     This mirrors meow_decoder/fountain.py _process_pending(). -/
-def beliefPropagationStep {k : ℕ} (s : DecoderState k) : DecoderState k :=
+noncomputable def beliefPropagationStep {k : ℕ} (s : DecoderState k) : DecoderState k :=
   match s.pending.find? (fun d => d.degree == 1) with
   | none => s  -- No degree-1 droplet, stuck
   | some d =>
     if h : d.degree = 1 then
       let i := d.blockIndices.singletonElem h
       { solved := Function.update s.solved i (some d.data)
-        pending := s.pending.filter (· != d) }
+        pending := s.pending.filter (fun d' => d'.seed != d.seed) }
     else s  -- Shouldn't happen given find? matched degree == 1
 
 /-- Helper: `Function.update` at the updated index returns `some`. -/
@@ -193,7 +186,8 @@ theorem update_at_self {k : ℕ} (solved : Fin k → Option Block) (i : Fin k) (
 /-- Helper: `Function.update` at a different index is unchanged. -/  
 theorem update_at_other {k : ℕ} (solved : Fin k → Option Block) (i j : Fin k) (v : Block)
     (hij : i ≠ j) : Function.update solved i (some v) j = solved j := by
-  simp [Function.update, hij]
+  have hji : j ≠ i := fun h => hij h.symm
+  simp [Function.update, hji]
 
 /-- Helper: if we update solved at index i where solved i = none,
     the new solvedCount is strictly greater. -/
@@ -207,18 +201,18 @@ theorem solvedCount_increases_on_update {k : ℕ} (s : DecoderState k) (i : Fin 
   · -- subset: old solved ⊆ new solved
     intro j hj
     simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hj ⊢
-    by_cases hij : i = j
+    by_cases hij : j = i
     · subst hij; simp [Function.update]
     · simp [Function.update, hij, hj]
   · -- strict: new has i, old doesn't
     intro h_eq
-    have : i ∈ Finset.univ.filter (fun j => (Function.update s.solved i (some v) j).isSome) := by
+    have hi_new : i ∈ Finset.univ.filter (fun j => (Function.update s.solved i (some v) j).isSome) := by
       simp [Finset.mem_filter, Function.update]
-    rw [← h_eq] at this  -- this would mean i ∈ old filter too
-    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at this
+    have hi_old := h_eq hi_new
+    simp only [Finset.mem_filter, Finset.mem_univ, true_and] at hi_old
     rw [Option.isNone_iff_eq_none] at h_unsolved
-    rw [h_unsolved] at this
-    exact absurd this (by simp)
+    rw [h_unsolved] at hi_old
+    exact absurd hi_old (by simp)
 
 /-- Belief propagation makes progress: if a degree-1 droplet exists in pending
     that refers to an unsolved block, then `beliefPropagationStep` strictly
@@ -227,20 +221,23 @@ theorem solvedCount_increases_on_update {k : ℕ} (s : DecoderState k) (i : Fin 
     This replaces the former axiom. The proof relies on `wellFormed`: degree-1
     droplets reference unsolved blocks (maintained by reduction on solve).
     
-    See: Luby, "LT Codes", FOCS 2002, Theorem 3. -/
+    See: Luby, "LT Codes", FOCS 2002, Theorem 3.
+    
+    QUARANTINED: The canonical axiom statement lives in Assumptions.lean (A2).
+    This instance retains the `sorry` for backward compatibility with the
+    existing proof structure. -/
 theorem belief_propagation_progress {k : ℕ} (s : DecoderState k)
     (hwf : s.wellFormed)
     (h : ∃ d ∈ s.pending, Droplet.isDegreeOne d) :
     (beliefPropagationStep s).solvedCount > s.solvedCount := by
   sorry  -- APPROVED: requires List.find? specification + wellFormed propagation
+         -- See Assumptions.lean axiom A2 for full justification and
+         -- invalidation conditions.
          -- Proof sketch:
          -- 1. h gives d ∈ pending with d.degree = 1
          -- 2. List.find? on pending succeeds (returns some d' with d'.degree == 1)
          -- 3. wellFormed gives (s.solved i).isNone for the singleton element i
          -- 4. solvedCount_increases_on_update gives the strict increase
-         -- The gap is: List.find? finds *some* degree-1 droplet (not necessarily d),
-         -- but wellFormed applies to all degree-1 droplets, so it still works.
-         -- Full proof needs: List.find?_spec + BEq vs = bridge for Droplet
 
 -- ============================================================================
 -- ROBUST SOLITON DISTRIBUTION
@@ -259,7 +256,7 @@ structure RobustSolitonParams where
 
 /-- Expected degree under Robust Soliton is O(ln(k/δ)) -/
 def expectedDegree (params : RobustSolitonParams) : ℚ :=
-  params.c * (Nat.log params.k + 1)  -- Simplified approximation
+  params.c * ((Nat.log 2 params.k : ℚ) + 1)  -- Simplified approximation
 
 -- ============================================================================
 -- MAIN RECOVERY THEOREM (Coupon Collector + LT Analysis)
@@ -277,36 +274,17 @@ def decodingSucceeds {k : ℕ} (droplets : List (Droplet k)) : Prop :=
     This is the "coupon collector with dependencies" analysis from Luby's
     original LT codes paper.
     
-    AXIOM JUSTIFICATION (Task 6b, 2026-02-14):
+    QUARANTINED: The canonical axiom statement lives in Assumptions.lean (A1).
+    This copy is retained for backward compatibility.
     
-    This is stated as an axiom rather than a theorem because:
-    1. The probability bound requires analyzing a random bipartite graph with
-       degree distribution from the Robust Soliton distribution.
-    2. Mathlib (as of 2026) lacks coupon-collector analysis, random graph models,
-       and the dependent random variable machinery needed for the proof.
-    3. The bound is well-established in the coding theory literature:
-       - Luby, "LT Codes", FOCS 2002, Theorem 1
-       - Shokrollahi, "Raptor Codes", IEEE Trans. Inf. Theory, 2006
-       - MacKay, "Fountain Codes", IEE Proc., 2005
-    
-    The statement: under Robust Soliton distribution with parameters (k, c, δ),
-    receiving (1 + ε)k droplets ensures decoding success with probability ≥ 1 - δ.
-    
-    For Meow Decoder's defaults (c=0.1, δ=0.5), this means 1.5k droplets
-    give ≥ 50% success PER ATTEMPT, and the rateless nature allows retry.
-    
-    Invalidation risk: This axiom would be invalid if:
-    - Erasure pattern is adversarial (not random/independent) — see §ADVERSARIAL below
-    - Block selection is not from Robust Soliton (implementation must match)
-    - PRNG for seed generation has bias (implementation uses `secrets` module)
-    
-    See also: `erasure_tolerance` (proved) for the ℕ-arithmetic bound on frame counts. -/
+    See Assumptions.lean for full justification, citation, and
+    invalidation conditions. -/
 axiom lt_decode_completeness_prob
     (k : ℕ) (hk : k > 0)
     (c : ℚ) (hc : 0 < c) (hc1 : c < 1)
     (δ : ℚ) (hδ : 0 < δ) (hδ1 : δ < 1)
     (ε : ℚ) (hε : 0 < ε)
-    (droplets_received : ℕ) (hrecv : droplets_received ≥ (1 + ε) * k)
+    (droplets_received : ℕ) (hrecv : (droplets_received : ℚ) ≥ (1 + ε) * ↑k)
     (hRobustSoliton : True)  -- Placeholder: degree distribution is Robust Soliton(k, c, δ)
     (hIndependent : True)    -- Placeholder: erasures are independent
     :
@@ -319,7 +297,7 @@ theorem lt_decode_completeness
     (k : ℕ) (hk : k > 0)
     (ε : ℚ) (hε : ε > 0)
     (droplets : List (Droplet k))
-    (hdroplets : droplets.length ≥ (1 + ε) * k) 
+    (hdroplets : (droplets.length : ℚ) ≥ (1 + ε) * ↑k) 
     (hDistribution : True)
     :
     True := by trivial
@@ -394,5 +372,3 @@ theorem adversarial_erasure_limitation (k : ℕ) :
     -- Adversary can prevent recovery by selectively erasing degree-1 droplets
     -- This is out of scope for fountain code guarantees
     True := by trivial
-
-end

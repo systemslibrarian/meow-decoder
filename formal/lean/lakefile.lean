@@ -16,6 +16,10 @@ lean_lib «FountainCodes» where
   globs := #[.one `FountainCodes]
   moreLinkArgs := #[]
 
+lean_lib «Assumptions» where
+  globs := #[.one `Assumptions]
+  moreLinkArgs := #[]
+
 /-- Check all proofs -/
 lean_exe «check» where
   root := `FountainCodes

@@ -50,26 +50,96 @@ password or the duress password, because the observable outputs are identically 
 
 ---
 
-## Tamarin Diff-Equivalence Model
+## Failure-Trace Parity
 
-The primary observational equivalence proof is in [`formal/tamarin/MeowDuressEquiv.spthy`](../formal/tamarin/MeowDuressEquiv.spthy):
+> **Goal:** All authentication-failure paths produce **identical observables**
+> regardless of the underlying reason for failure. An adversary observing a
+> rejection cannot learn whether the attempt used the wrong real password,
+> wrong duress password, a corrupted KEM ciphertext, a downgrade, or a
+> truncated manifest.
+
+### Failure-Observable Requirements
+
+| Observable | Required Behaviour | Verified By |
+|-----------|-------------------|-------------|
+| **Error code** | Identical constant string for all reject paths (`error_auth_failed`) | Tamarin: `Reject_PQ` rules emit `Out('error_auth_failed')`; Python: `AuthenticationError("Authentication failed")` |
+| **Timing class** | All reject paths run Argon2id + HMAC-verify before returning | Implementation: timing equalization in `constant_time.py` |
+| **Frame count** | Reject produces zero output frames (no success frames emitted) | Tamarin: `PQ_Failure_Uniform_Observable` lemma — reject → ¬DecodedReal ∧ ¬DuressTriggered |
+| **Termination** | All reject paths terminate without output | Tamarin: reject rules produce only `Out('error_auth_failed')`, never session state |
+| **Retry behaviour** | No retry limit difference between paths | Implementation: decoder always accepts new input after reject |
+
+### Failure Modes Covered
+
+| Failure Mode | Tamarin Rule | Identical Observable |
+|-------------|-------------|---------------------|
+| Wrong password (neither real nor duress) | `Decode_PQ_WrongPassword` | `Out('error_auth_failed')` |
+| Corrupted KEM ciphertext | `Decode_PQ_CorruptKEM` | `Out('error_auth_failed')` |
+| Version downgrade (MEOW3 in MEOW4 session) | `Decode_PQ_Downgrade` | `Out('error_auth_failed')` |
+| Tampered manifest MAC | Implicit (HMAC verify fails → process halts) | No output (ProVerif: `DecoderAuthenticated` never fires) |
+| Tampered frame MAC | Implicit (frame MAC verify fails → process halts) | No output (ProVerif: `AcceptedFrame` never fires) |
+
+### Formal Evidence
+
+1. **Tamarin `PQ_Failure_Uniform_Observable`** ([MeowDuressEquivPQ.spthy](../formal/tamarin/MeowDuressEquivPQ.spthy)):
+   Proves that for ALL `Reject_PQ(session, reason)` events, regardless of `reason`,
+   neither `DecodedReal_PQ` nor `DuressTriggered_PQ` fires — the session produces
+   only the error output and terminates.
+
+2. **Tamarin `PQ_Downgrade_Never_Succeeds`**: Proves that a downgrade attempt
+   (sending MEOW3 payload to a MEOW4 session) never leads to acceptance.
+
+3. **ProVerif Query 6a/6b**: Proves no plaintext output without prior authentication.
+   Any failure in HMAC/AEAD verification means the process halts before output.
+
+### Gap: Timing Equalization
+
+The implementation uses `constant_time.py::equalize_timing()` to mask timing differences
+between success and failure paths. This is NOT formally verified — it relies on:
+- Python `time.sleep()` accuracy (~1ms)
+- Constant-time HMAC comparison (`secrets.compare_digest`)
+- Argon2id running to completion on all paths (including wrong password)
+
+A formal timing model would require a real-time process calculus (e.g., timed CSP),
+which is out of scope for the current verification infrastructure.
+
+---
+
+## Tamarin Diff-Equivalence Models
+
+### MEOW3 Model
+
+The base observational equivalence proof is in [`formal/tamarin/MeowDuressEquiv.spthy`](../formal/tamarin/MeowDuressEquiv.spthy):
 
 - **`diffEquivLemma`**: Proves that an adversary cannot distinguish a real-password session from a duress-password session by observing the channel.
 - **Scope**: Covers manifest construction, encryption, authentication, output path.
 - **Limitations**: Does not cover timing, file size, or frame count (these are out-of-scope for symbolic models).
 
-### Verified Properties (Tamarin)
+### MEOW4 PQ Model
 
-| Lemma | Property | Status |
-|-------|----------|--------|
-| `diffEquivLemma` | Observational equivalence (real ≈ duress) | Proved |
-| `Duress_Never_Outputs_Real` | Duress path → no real plaintext | Proved |
-| `Real_Never_Triggers_Duress` | Real path → no duress action | Proved |
-| `Real_Password_Secret` | Real password not leaked | Proved |
-| `Duress_Password_Secret` | Duress password not leaked | Proved |
-| `Real_Secret_Confidentiality` | Plaintext confidentiality | Proved |
-| `RealPath_trace` | Sanity (real path executable) | Proved |
-| `DuressPath_trace` | Sanity (duress path executable) | Proved |
+The post-quantum duress OE proof is in [`formal/tamarin/MeowDuressEquivPQ.spthy`](../formal/tamarin/MeowDuressEquivPQ.spthy):
+
+- **`diffEquivLemma`**: Observational equivalence under hybrid KEM (X25519 + ML-KEM-1024).
+- **Failure-trace rules**: `Decode_PQ_WrongPassword`, `Decode_PQ_CorruptKEM`, `Decode_PQ_Downgrade` — all produce identical `Out('error_auth_failed')`.
+- **KEM integrity**: `PQ_KEM_Ct_Integrity` — decoder accepted same KEM ct encoder sent.
+
+### Verified Properties (Tamarin — Combined)
+
+| Lemma | Property | Model | Status |
+|-------|----------|-------|--------|
+| `diffEquivLemma` | OE (real ≈ duress) | MEOW3 | Proved |
+| `Duress_Never_Outputs_Real` | Duress → no real plaintext | MEOW3 | Proved |
+| `Real_Never_Triggers_Duress` | Real → no duress action | MEOW3 | Proved |
+| `Real_Password_Secret` | Real password not leaked | MEOW3 | Proved |
+| `Duress_Password_Secret` | Duress password not leaked | MEOW3 | Proved |
+| `Real_Secret_Confidentiality` | Plaintext confidentiality | MEOW3 | Proved |
+| `RealPath_trace` | Sanity (real path executable) | MEOW3 | Proved |
+| `DuressPath_trace` | Sanity (duress path executable) | MEOW3 | Proved |
+| `diffEquivLemma` | OE (real ≈ duress) under hybrid KEM | MEOW4 | CI-Docker |
+| `PQ_Duress_Never_Outputs_Real` | Duress → no real plaintext | MEOW4 | CI-Docker |
+| `PQ_Real_Never_Triggers_Duress` | Real → no duress action | MEOW4 | CI-Docker |
+| `PQ_KEM_Ct_Integrity` | KEM ct matches sent ct | MEOW4 | CI-Docker |
+| `PQ_Failure_Uniform_Observable` | All rejects → same observable | MEOW4 | CI-Docker |
+| `PQ_Downgrade_Never_Succeeds` | MEOW3→MEOW4 downgrade blocked | MEOW4 | CI-Docker |
 
 ---
 

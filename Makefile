@@ -2,8 +2,9 @@
 
 .PHONY: help install dev test lint format clean build publish \
 	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tla-streaming \
-	formal-tamarin formal-tamarin-duress formal-tamarin-docker \
+	formal-tamarin formal-tamarin-duress formal-tamarin-pq formal-tamarin-docker \
 	formal-verus formal-verus-docker formal-lean formal-lean-sorry formal-all formal-ci \
+	formal-negative-tla formal-negative-proverif formal-negative-tamarin formal-negative \
 	verify check-wasm-deps build-wasm build-wasm-release build-wasm-pq build-wasm-node meow-build
 
 help:
@@ -41,6 +42,7 @@ help:
 	@echo "  make formal-tla-streaming  - Run TLA+ streaming model (MeowStreaming)"
 	@echo "  make formal-tamarin        - Run Tamarin basic equivalence"
 	@echo "  make formal-tamarin-duress - Run Tamarin duress OE (diff mode)"
+	@echo "  make formal-tamarin-pq     - Run Tamarin MEOW4 PQ duress OE"
 	@echo "  make formal-tamarin-docker - Run Tamarin via Docker (no native Maude)"
 	@echo "  make formal-verus          - Run Verus proofs"
 	@echo "  make formal-verus-docker   - Run Verus via Docker (nightly toolchain)"
@@ -120,8 +122,12 @@ formal-tamarin-duress:
 	@echo "🟣 Running Tamarin duress observational equivalence (diff mode)..."
 	cd formal/tamarin && tamarin-prover --diff MeowDuressEquiv.spthy --prove
 
+formal-tamarin-pq:
+	@echo "🟣 Running Tamarin MEOW4 PQ duress OE (diff mode)..."
+	cd formal/tamarin && tamarin-prover --diff MeowDuressEquivPQ.spthy --prove
+
 formal-tamarin-docker:
-	@echo "🟣 Running Tamarin duress OE via Docker..."
+	@echo "🟣 Running Tamarin duress OE via Docker (MEOW3 + MEOW4)..."
 	docker build -f formal/Dockerfile.tamarin -t meow-tamarin . \
 		&& docker run --rm meow-tamarin
 

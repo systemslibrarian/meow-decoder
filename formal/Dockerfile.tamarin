@@ -19,5 +19,7 @@ WORKDIR /formal
 # Copy only the Tamarin models
 COPY formal/tamarin/ /formal/tamarin/
 
-# Default: run duress OE verification
-CMD ["tamarin-prover", "--diff", "/formal/tamarin/MeowDuressEquiv.spthy", "--prove"]
+# Default: run MEOW3 duress OE, then MEOW4 PQ duress OE
+CMD ["bash", "-c", \
+    "tamarin-prover --diff /formal/tamarin/MeowDuressEquiv.spthy --prove && \
+     tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ.spthy --prove"]

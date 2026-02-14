@@ -245,6 +245,13 @@ event TamperDetected(sessionid).                     (* HMAC/AEAD verification f
 event EncoderSentPQ(sessionid, salt, kem_ciphertext).  (* Encoder sent manifest with this KEM ct *)
 event DecoderAcceptedPQ(sessionid, salt, kem_ciphertext). (* Decoder authenticated with this KEM ct *)
 
+(* Frame-level injective correspondence events.
+   These bind cryptographic content (nonce, salt, frame MAC tag) so that
+   each AcceptedFrame must correspond to a unique SentFrame — replayed
+   frames would need a distinct SentFrame, which doesn't exist.            *)
+event SentFrame(nonce, salt, hmac).              (* encoder: sent frame with nonce, salt, MAC tag *)
+event AcceptedFrame(nonce, salt, hmac).           (* decoder: accepted frame with nonce, salt, MAC tag *)
+
 (* ========================================================================== *)
 (* SECRETS TO PROTECT                                                         *)
 (* ========================================================================== *)
@@ -339,6 +346,38 @@ query sid: sessionid, n: nonce, s: salt;
 (* Stronger replay query: nonce binding *)
 query sid: sessionid, n: nonce, s: salt;
     event(DecoderAuthenticated(sid, n, s)) ==> event(EncoderGeneratedNonce(sid, n)).
+
+(* ------------------------------------------------------------------------- *)
+(* Query 4c: FRAME CORRESPONDENCE (non-injective)                              *)
+(*                                                                            *)
+(* For each accepted frame (identified by nonce + salt + MAC tag), there      *)
+(* exists a corresponding sent frame. This removes session-ID coupling and    *)
+(* uses cryptographic content (nonce, salt, MAC) as the binding:              *)
+(*                                                                            *)
+(*   - The MAC tag is derived from the encryption key (unknown to attacker)   *)
+(*   - The nonce is fresh per session (new n: nonce)                          *)
+(*   - The salt is fresh per session (new s: salt)                            *)
+(*   - Together (n, s, tag) uniquely identifies an encoder run               *)
+(*                                                                            *)
+(* This query is expected TRUE: the attacker cannot forge a valid MAC, so    *)
+(* every accepted frame must have been sent by a legitimate encoder.          *)
+(* ------------------------------------------------------------------------- *)
+query n: nonce, s: salt, tag: hmac;
+    event(AcceptedFrame(n, s, tag)) ==> event(SentFrame(n, s, tag)).
+
+(* Query 4d: INJECTIVE FRAME CORRESPONDENCE                                   *)
+(*                                                                            *)
+(* Stronger version: each AcceptedFrame maps to a UNIQUE SentFrame.          *)
+(* This is expected FALSE under the ! replication model because multiple      *)
+(* decoder instances can each accept the same replayed frame. This is NOT    *)
+(* a security issue — it reflects the protocol design where the decoder      *)
+(* doesn't track sessions. The actual replay protection is:                  *)
+(*   1. AEAD ensures no forgery (covered by secrecy queries)                 *)
+(*   2. Nonce uniqueness prevents key+nonce reuse (covered by TLA+)          *)
+(*   3. In implementation, stateful nonce tracking detects replays            *)
+(* ------------------------------------------------------------------------- *)
+query n: nonce, s: salt, tag: hmac;
+    event(AcceptedFrame(n, s, tag)) ==> inj-event(SentFrame(n, s, tag)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 5: DURESS MODE SAFETY                                                *)
@@ -498,6 +537,7 @@ let Encoder(sid: sessionid, pwd: password, pt: plaintext) =
     (* Send on public channel (attacker can intercept, replay, modify) *)
     event EncoderSentFrame(sid, Frame0);
     event EncoderSentFrame(sid, Frame1);
+    event SentFrame(n, s, frame_mac_val);
     out(pub, (manifest_msg, data_frame));
     
     event EncoderFinished(sid).
@@ -546,6 +586,7 @@ let DecoderReal(sid: sessionid, pwd: password) =
     let pt = aes_gcm_decrypt(k, n, ct, aad) in
     
     (* Authentication successful: both HMAC and AEAD verified *)
+    event AcceptedFrame(n, s, frame_mac_val);
     event DecoderAuthenticated(sid, n, s);
     event DecoderOutputReal(sid, pt);
     event DecoderFinished(sid).
@@ -648,6 +689,7 @@ let EncoderWithFS(sid: sessionid, pwd: password, pt: plaintext, receiver_pub: pu
     let data_frame = frame(Frame1, ct, frame_mac_val) in
     
     (* Send ephemeral public key with message *)
+    event SentFrame(n, s, frame_mac_val);
     out(pub, (ephemeral_pub, manifest_msg, data_frame));
     
     event EncoderFinished(sid).
@@ -695,6 +737,7 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
     (* Decrypt with combined key (password + ECDH) *)
     let pt = aes_gcm_decrypt(combined_key, n, ct, aad) in
     
+    event AcceptedFrame(n, s, frame_mac_val);
     event DecoderAuthenticated(sid, n, s);
     event DecoderOutputReal(sid, pt);
     event DecoderFinished(sid).
@@ -770,6 +813,7 @@ let EncoderPQ(sid: sessionid, pwd: password, pt: plaintext,
     event EncoderSentPQ(sid, s, pq_ct);
     event EncoderSentFrame(sid, Frame0);
     event EncoderSentFrame(sid, Frame1);
+    event SentFrame(n, s, frame_mac_val);
     out(pub, (manifest_msg, data_frame));
 
     event EncoderFinished(sid).
@@ -831,6 +875,7 @@ let EncoderPQ_LeakedKEM(sid: sessionid, pwd: password,
     let frame_mac_val = hmac_sha256(fk, frame_data) in
     let data_frame = frame(Frame1, ct, frame_mac_val) in
 
+    event SentFrame(n, s, frame_mac_val);
     out(pub, (manifest_msg, data_frame)).
 
 (* ========================================================================== *)
@@ -889,6 +934,7 @@ let DecoderPQ(sid: sessionid, pwd: password,
     (* Decrypt with combined key *)
     let pt = aes_gcm_decrypt(combined_key, n, ct, aad) in
 
+    event AcceptedFrame(n, s, frame_mac_val);
     event DecoderAuthenticated(sid, n, s);
     event DecoderOutputReal(sid, pt);
     event DecoderFinished(sid).
