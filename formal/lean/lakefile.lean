@@ -20,6 +20,10 @@ lean_lib «Assumptions» where
   globs := #[.one `Assumptions]
   moreLinkArgs := #[]
 
+lean_lib «DomainSeparation» where
+  globs := #[.one `DomainSeparation]
+  moreLinkArgs := #[]
+
 /-- Check all proofs -/
 lean_exe «check» where
   root := `FountainCodes
