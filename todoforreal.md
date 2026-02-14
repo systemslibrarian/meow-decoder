@@ -13,7 +13,7 @@
 | Cat Mode Phases 1-3 (core decode) | ✅ 14/14 tasks | 92% decode, 94% CRC. See todocatmode.md |
 | Cat Mode Phase 5.1 (CI hardening) | ✅ Code complete | golden-video-lib.js, error_injection_lib.js, playwright.config.js, all generated videos exist |
 | Cat Mode Phase 5.2 (failure mode fixes) | ✅ Code complete | GradientCompensator, adaptive preamble, Gaussian confidence masking all in code |
-| ChatGPT hardening | ⚠️ 5/8 done | DecodeError enum, memory budget, entropy validation exist. **Monte Carlo tests do NOT exist** (prior doc was incorrect). Frame reorder/duplicate tests not found. |
+| ChatGPT hardening | ✅ 7/8 done | DecodeError enum, memory budget, entropy validation, Monte Carlo tests ✅, frame reorder/duplicate tests ✅. CI threshold gate pending. |
 | Formal verification (17/26) | ✅ See todo-formal.md | Lean proofs, ProVerif PQ, TLA+ streaming. 9 blocked/deferred |
 | Python test suite | ✅ 87 files, 2413 tests | 1-to-1 module mapping, all passing |
 | Rust crypto crate | ✅ 151 tests | Verus proofs, 110 formal verification tests |
@@ -111,9 +111,9 @@ npm run generate-golden-videos
 
 | Item | Est. | Notes |
 |------|------|-------|
-| Monte Carlo fountain stress test | 3h | **NOT DONE** — todofromchatgpt.md claimed this was done but no test exists. Run 1000 trials at 30%/50% drop, verify ≥99.5% success rate. |
-| Frame reorder + duplicate injection tests | 2h | **NOT DONE** — also claimed but not found. Add to test_fountain.py |
-| CI threshold gate (fail if fountain success <99.5%) | 1h | Add after Monte Carlo tests exist |
+| Monte Carlo fountain stress test | ✅ | DONE 2026-02-14: `tests/test_fountain_montecarlo.py` — 1000 trials at 30%/50% loss, statistical properties, efficiency bounds |
+| Frame reorder + duplicate injection tests | ✅ | DONE 2026-02-14: Included in `test_fountain_montecarlo.py` — TestFrameReorderAndDuplicates class |
+| CI threshold gate (fail if fountain success <99.5%) | 1h | Add pytest marker or threshold check to CI |
 | Cut v1.1.0 release | 2h | Significant unreleased work. Tag when P0+P1 done |
 | Auto ROI detection (face/eye tracking) | 4h | todocatmode Task 2.3, marked Optional |
 | Multi-speed adaptive encoding | 4h | todocatmode Task 4.1, data-driven |
