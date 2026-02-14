@@ -362,11 +362,49 @@ jobs:
             -q --no-header
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # GATE 4: Slow Tests (Monte Carlo stress tests for fountain codes)
+  # Validates statistical guarantees of LT codes - runs 1000s of trials
+  # ═══════════════════════════════════════════════════════════════════════════
+  slow-tests:
+    name: "Gate 4: Slow Tests (Monte Carlo)"
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
+
+      - name: Install Python dependencies
+        run: |
+          pip install --require-hashes -r requirements-pip.lock
+          pip install --require-hashes -r requirements.lock
+          pip install --require-hashes -r requirements-dev.lock
+
+      - name: Run slow tests (Monte Carlo fountain stress)
+        run: |
+          echo "🎲 Running Monte Carlo fountain code stress tests..."
+          echo "   - 1000 trials at 30% packet loss (≥99.5% success)"
+          echo "   - 1000 trials at 50% packet loss (≥85-99% success)"
+          echo "   - 500 trials at 70% loss (graceful degradation)"
+          pytest -m slow tests/test_fountain_montecarlo.py \
+            --override-ini="addopts=" \
+            -v --tb=short
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # Required status check — preflight + all gates must pass
   # ═══════════════════════════════════════════════════════════════════════════
   all-gates:
     name: "All CI Gates"
-    needs: [preflight, test, cat-mode-golden-test, cat-mode-error-test, cat-mode-cross-browser, security-coverage]
+    needs: [preflight, test, cat-mode-golden-test, cat-mode-error-test, cat-mode-cross-browser, security-coverage, slow-tests]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     if: always()
@@ -395,6 +433,10 @@ jobs:
           fi
           if [[ "${{ needs.security-coverage.result }}" != "success" ]]; then
             echo "❌ Gate 3 (Security Coverage) failed"
+            exit 1
+          fi
+          if [[ "${{ needs.slow-tests.result }}" != "success" ]]; then
+            echo "❌ Gate 4 (Slow Tests - Monte Carlo) failed"
             exit 1
           fi
           echo "✅ All CI gates passed"

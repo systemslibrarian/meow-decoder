@@ -9,6 +9,7 @@ Reference: Luby, M. "LT Codes" FOCS 2002 - success probability ≥ 1-δ
 with (1+ε)k received droplets under Robust Soliton(k, c, δ).
 
 Run with: pytest tests/test_fountain_montecarlo.py -v
+Run in CI: pytest -m slow tests/test_fountain_montecarlo.py -v
 """
 
 import pytest
@@ -144,6 +145,7 @@ def run_monte_carlo(
     return success_rate, results
 
 
+@pytest.mark.slow
 class TestMonteCarlo30PercentLoss:
     """Monte Carlo tests at 30% packet loss rate."""
 
@@ -194,6 +196,7 @@ class TestMonteCarlo30PercentLoss:
         )
 
 
+@pytest.mark.slow
 class TestMonteCarlo50PercentLoss:
     """Monte Carlo tests at 50% packet loss rate."""
 
@@ -242,6 +245,7 @@ class TestMonteCarlo50PercentLoss:
         )
 
 
+@pytest.mark.slow
 class TestMonteCarloExtreme:
     """Extreme loss scenarios to validate failure modes."""
 
