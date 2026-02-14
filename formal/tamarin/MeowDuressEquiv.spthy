@@ -172,10 +172,9 @@ lemma DuressPath_trace:
     & DuressTriggered(session) @ j  
     & i < j"
 
-// The main observational equivalence (verified by diff-equivalence mode)
-// Run with: tamarin-prover --diff MeowDuressEquiv.spthy
-diffEquivLemma:
-  "true"
+// Observational equivalence is checked automatically by Tamarin's --diff mode.
+// The diff() terms in Decode_Real_Password and Decode_Duress_Password rules
+// define the two systems. Run: tamarin-prover --diff MeowDuressEquiv.spthy --prove
 
 // ============================================================================
 // AUXILIARY LEMMAS

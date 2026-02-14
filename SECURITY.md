@@ -49,19 +49,44 @@ We use multiple formal methods with **conservative claims**:
 
 | Method | What it proves | Assumptions |
 |---|---|---|
-| **TLA+ (TLC)** | State‑machine safety invariants (auth‑then‑output, replay rejection, duress behavior) | Abstract crypto; bounded model checking |
-| **ProVerif** | Symbolic secrecy/authentication properties under Dolev‑Yao attacker | Perfect cryptography; symbolic model |
-| **Tamarin (optional)** | Minimal observational equivalence check (real vs decoy abstraction) | Abstract crypto; minimal model |
-| **Verus** | Crypto wrapper invariants (nonce uniqueness, auth‑then‑output, key zeroization) | AES‑GCM security, correct RNG |
+| **TLA+ (TLC)** | 23 state‑machine safety invariants across 3 models (auth‑then‑output, replay rejection, duress separation, PQ downgrade prevention, streaming EtM) | Abstract crypto; bounded model checking (finite state space) |
+| **ProVerif** | Symbolic secrecy, authentication, duress safety, PQ hybrid confidentiality, classical‑fallback secrecy under Dolev‑Yao attacker (17 queries) | Perfect cryptography; symbolic model; session ID binding is structural, not cryptographic |
+| **Tamarin (diff mode)** | Observational equivalence for MEOW3 duress and MEOW4 PQ hybrid duress; KEM ct integrity; failure uniformity; downgrade blocking (11+ lemmas per model). 2 negative tests prove harness catches violations. | Abstract crypto; Dolev‑Yao attacker; KEM modeled symbolically |
+| **Verus** | Rust crypto wrapper invariants: nonce uniqueness, auth‑then‑output, key zeroization, domain separation (10 properties) | AES‑GCM primitive security; correct OS RNG |
+| **Lean 4** | Fountain code XOR algebra, erasure tolerance bounds (11 theorems). 2 axioms quarantined with justifications. | Axioms: LT decode completeness (Luby FOCS 2002), belief propagation progress |
 
-**Not proven:** AES‑GCM primitive correctness, side‑channel resistance, or compromised host resilience.
+### Computational Gap Statement
+
+All formal verification is **symbolic** (Dolev‑Yao attacker model). No computational
+(game‑based) reductions have been performed. Specifically:
+
+1. **AES‑256‑GCM** security is assumed (IND‑CPA + INT‑CTXT) — not reduced from
+   any hardness assumption in our models.
+2. **Argon2id** memory‑hardness is assumed — no formal proof that the KDF resists
+   ASIC/GPU attacks at the configured cost parameters.
+3. **X25519** CDH hardness is assumed in the Tamarin/ProVerif models.
+4. **ML‑KEM‑1024** IND‑CCA2 security is assumed — the KEM is modeled symbolically
+   with an equation‑based abstraction (`kem_decap(sk, kem_encap_ct(pk(sk), r)) = kem_encap_ss(pk(sk), r)`).
+5. **Hybrid combiner** (`HKDF(X25519_ss || ML-KEM_ss, info="meow_hybrid_pq_v1")`)
+   provides dual‑PRF security if either component is secure — this follows
+   from HKDF's PRF property under standard assumptions (Krawczyk 2010), but
+   we have no formal proof of the reduction.
+6. **Side‑channel resistance** is entirely out of scope of all models.
+
+**Bottom line:** The symbolic proofs verify protocol *logic* (no auth bypass, no
+secret leakage, duress OE, PQ binding). They do **not** verify cryptographic
+*primitive* security or implementation correctness beyond what Verus checks.
+
+**Not proven:** AES‑GCM primitive correctness, side‑channel resistance, compromised host resilience, steganography detection resistance.
 
 **Reproduce:**
 ```bash
-make verify
+make formal-all      # All tools locally
+make formal-ci       # CI-friendly (Docker for Tamarin/Verus)
 ```
 
 Report: [docs/formal_methods_report.md](docs/formal_methods_report.md)
+Coverage map: [docs/formal_coverage.md](docs/formal_coverage.md)
 
 ---
 

@@ -169,7 +169,93 @@ All failures must be **safe and boring**: no partial plaintext and no detailed o
 
 ---
 
-## 11. References
+## 11. MEOW4 Post‑Quantum Hybrid Mode
+
+### 11.1 KEM Algorithm
+- **Algorithm:** ML‑KEM‑1024 (FIPS 203 / Kyber1024).
+- **Ciphertext size:** 1568 bytes (ML‑KEM‑1024).
+- **Shared secret:** 32 bytes.
+
+> **Implementation note (2026‑02‑14):** The manifest serialisation in
+> `crypto.py` currently reserves 1088 bytes for PQ ciphertext—the size of
+> ML‑KEM‑**768**, not ML‑KEM‑1024.  Until this is corrected, the
+> full MEOW4 encode pipeline is **not wired up**.  The Tamarin and
+> ProVerif models verify the target design; the implementation gap is
+> tracked in `todo-formal.md`.
+
+### 11.2 Hybrid Key Derivation
+
+```
+classical_ss = X25519(ephemeral_sk, receiver_pk)        // 32 bytes
+pq_ss        = ML-KEM-1024.Decaps(receiver_sk, kem_ct)  // 32 bytes
+combined_ikm = classical_ss || pq_ss                     // 64 bytes
+
+shared_secret = HKDF-SHA256(
+    salt  = "",
+    ikm   = combined_ikm,
+    info  = "meow_hybrid_pq_v1",
+    len   = 32
+)
+```
+
+- Classical‑only fallback uses `info = "meow_classical_only_v1"`.
+- The combined secret provides IND‑CCA2 security if **either**
+  X25519 or ML‑KEM‑1024 is unbroken (dual‑PRF combiner via HKDF).
+
+### 11.3 KEM Ciphertext Binding
+
+The KEM ciphertext and ephemeral public key are bound to the manifest
+via HMAC‑SHA256 over `MANIFEST_CORE_WITH_OPTIONALS` (§5), which includes
+the PQ ciphertext bytes.
+
+```
+HMAC_INPUT includes: ... || EPHEMERAL_PK (32) || PQ_CIPHERTEXT (1568)
+```
+
+> **Note:** The KEM ciphertext is **not** independently bound in the
+> AES‑GCM AAD (`build_canonical_aad` does not accept a `pq_ciphertext`
+> parameter).  This is acceptable because the manifest HMAC—verified
+> before any decryption—covers the ciphertext.  An attacker who
+> substitutes or truncates the KEM ciphertext will fail HMAC
+> verification and hit the uniform `error_auth_failed` path.
+
+### 11.4 Downgrade Prevention
+
+A MEOW4 session **MUST NOT** silently fall back to MEOW3.
+
+- The encoder selects the manifest version before encryption; a MEOW4
+  manifest includes the 1568‑byte PQ ciphertext field, making its wire
+  length (≥1267 bytes) unambiguously distinguishable from MEOW3 (147 or
+  179 bytes).
+- If the decoder receives a manifest whose length does not include the PQ
+  field, it MUST parse it as MEOW3 (not MEOW4).  The expected combined
+  key will not match the AEAD tag, causing hard fail.
+
+> **Implementation gap (2026‑02‑14):** The decoder has no "expected
+> version" configuration—it accepts whatever manifest version it
+> receives.  A MitM who replaces a MEOW4 GIF with a MEOW3 GIF forged
+> under a different key would succeed if and only if they know the
+> password.  Since the password is the root trust anchor in the
+> password‑only threat model, this is not a practical downgrade;
+> however, a future version SHOULD allow the receiver to pin to MEOW4.
+
+### 11.5 Formal Verification Coverage
+
+| Property | Tool | Model | Status |
+|---|---|---|---|
+| PQ OE (real ≈ duress) | Tamarin `--diff` | `MeowDuressEquivPQ.spthy` | CI‑gated |
+| Hybrid KEM binding | ProVerif | `meow_encode.pv` (EncoderPQ) | Verified |
+| KEM ct in AAD | ProVerif | `meow_encode.pv` L828 | Verified |
+| Downgrade blocked | Tamarin | `MeowDuressEquivPQ.spthy` (Decode_PQ_Downgrade) | CI‑gated |
+| Downgrade fail‑closed | TLA+ | `MeowEncode.tla` (`MEOW4NeverFallsBackToClassical`) | Verified |
+| KEM ct integrity | Tamarin | `MeowDuressEquivPQ.spthy` (`PQ_KEM_Ct_Integrity`) | CI‑gated |
+| Failure uniformity | Tamarin | `MeowDuressEquivPQ.spthy` (`PQ_Failure_Uniform_Observable`) | CI‑gated |
+| No KEM binding → OE fails | Tamarin negative | `NEGATIVE_NoKEMBinding.spthy` | CI‑gated |
+| Leaked failure reason → uniformity fails | Tamarin negative | `NEGATIVE_LeaksFailureReason.spthy` | CI‑gated |
+
+---
+
+## 12. References
 
 - Manifest/crypto: meow_decoder/crypto.py
 - Frame MAC: meow_decoder/frame_mac.py

@@ -164,7 +164,7 @@ formal-lean-sorry:
 # Negative tests: variants that should FAIL (verify positive models are correct)
 formal-negative-tamarin-pq:
 	@echo "🔴 Running Tamarin PQ NEGATIVE tests (should FAIL)..."
-	@echo "Test 1: KEM ct not bound to HMAC → diffEquivLemma should FAIL"
+	@echo "Test 1: KEM ct not bound to HMAC → diff-equivalence should FAIL"
 	@cd formal/tamarin && tamarin-prover --diff MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy --prove || echo "✅ Test 1 failed as expected"
 	@echo "Test 2: Non-uniform failure observables → PQ_Failure_Uniform_Observable should FAIL"
 	@cd formal/tamarin && tamarin-prover --diff MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove || echo "✅ Test 2 failed as expected"

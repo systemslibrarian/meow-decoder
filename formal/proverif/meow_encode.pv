@@ -154,7 +154,10 @@ reduc forall sk: kem_privkey, r: bitstring;
 (* === Hybrid Key Combination (X25519 || ML-KEM via HKDF) === *)
 (* Models: HKDF-SHA256(IKM = x25519_ss || kem_ss, info = "meow_hybrid_pq_v1") *)
 (* This is the concatenate-then-KDF combiner from pq_hybrid.py *)
-fun hkdf_hybrid(key, key): key.
+(* Info string parameter ensures domain separation between hybrid/classical modes *)
+fun hkdf_hybrid(key, key, bitstring): key.
+const hkdf_info_hybrid: bitstring.   (* = "meow_hybrid_pq_v1" *)
+const hkdf_info_classical: bitstring. (* = "meow_classical_only_v1" *)
 
 (* === Nonce Generation (cryptographically random, 96-bit) === *)
 (* Each encryption uses a fresh random nonce; never reused per key *)
@@ -813,7 +816,7 @@ let EncoderPQ(sid: sessionid, pwd: password, pt: plaintext,
     let base_key = argon2id(pwd, s) in
 
     (* Hybrid key combination: HKDF(X25519_ss || ML-KEM_ss, "meow_hybrid_pq_v1") *)
-    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss) in
+    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss, hkdf_info_hybrid) in
 
     (* Combine password-derived key with hybrid shared secret *)
     let combined_key = hkdf_expand(base_key, key_to_bits(hybrid_shared)) in
@@ -888,7 +891,7 @@ let EncoderPQ_LeakedKEM(sid: sessionid, pwd: password,
     let base_key = argon2id(pwd, s) in
 
     (* Hybrid combination still uses both components *)
-    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss) in
+    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss, hkdf_info_hybrid) in
     let combined_key = hkdf_expand(base_key, key_to_bits(hybrid_shared)) in
 
     (* Tag the classical_fallback_marker with the combined key.
@@ -943,7 +946,7 @@ let DecoderPQ(sid: sessionid, pwd: password,
     let base_key = argon2id(pwd, s) in
 
     (* Hybrid key combination (same formula as encoder) *)
-    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss) in
+    let hybrid_shared = hkdf_hybrid(classical_shared, pq_ss, hkdf_info_hybrid) in
 
     (* Combine password-derived key with hybrid shared secret *)
     let combined_key = hkdf_expand(base_key, key_to_bits(hybrid_shared)) in

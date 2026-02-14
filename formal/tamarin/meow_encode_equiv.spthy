@@ -17,8 +17,8 @@ rule Send:
 
 // Observational equivalence (minimal): attacker cannot distinguish m1 vs m2
 // under the same key in this abstraction.
-
-equiv lemma RealDecoy_Indistinguishable:
-  "true"
+// NOTE: Use tamarin-prover --diff to verify this model.
+// Diff equivalence is checked automatically by Tamarin in --diff mode
+// via the diff() terms in the Send rule above.
 
 end

@@ -69,6 +69,7 @@ def build_canonical_aad(
     sha256_hash: bytes,
     magic: bytes,
     ephemeral_public_key: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """Build canonical Additional Authenticated Data for AES-GCM.
 
@@ -77,7 +78,7 @@ def build_canonical_aad(
 
     Layout (deterministic, fixed-order):
         ``AAD_VERSION || le_u64(orig_len) || le_u64(comp_len)
-          || salt || sha256 || magic [|| ephemeral_pk]``
+          || salt || sha256 || magic [|| ephemeral_pk] [|| pq_ciphertext]``
 
     Args:
         orig_len:  Original (uncompressed) file length.
@@ -86,6 +87,7 @@ def build_canonical_aad(
         sha256_hash: 32-byte SHA-256 of the original data.
         magic:     Manifest magic bytes (e.g. b"MEOW3").
         ephemeral_public_key: 32-byte X25519 ephemeral key (forward secrecy).
+        pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes, post-quantum hybrid).
 
     Returns:
         Deterministic AAD bytestring.
@@ -97,6 +99,8 @@ def build_canonical_aad(
     aad += magic
     if ephemeral_public_key is not None:
         aad += ephemeral_public_key
+    if pq_ciphertext is not None:
+        aad += pq_ciphertext
     return aad
 
 
@@ -118,9 +122,9 @@ class Manifest:
         ephemeral_public_key: Optional X25519 ephemeral public key for forward secrecy (32 bytes)
                              None = password-only mode
                              Present = forward secrecy mode
-        pq_ciphertext: Optional ML-KEM-768 ciphertext for post-quantum (1088 bytes)
+        pq_ciphertext: Optional ML-KEM-1024 ciphertext for post-quantum (1568 bytes)
                       None = classical-only mode
-                      Present = PQ hybrid mode (X25519 + ML-KEM-768)
+                      Present = PQ hybrid mode (X25519 + ML-KEM-1024)
     """
 
     salt: bytes
@@ -319,6 +323,7 @@ def encrypt_file_bytes(
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
     precomputed_salt: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -463,6 +468,7 @@ def encrypt_file_bytes(
             sha256_hash=sha,
             magic=MAGIC,
             ephemeral_public_key=ephemeral_public_key,
+            pq_ciphertext=pq_ciphertext,
         )
 
         # Best-effort nonce reuse guard (per-process)
@@ -502,6 +508,7 @@ def decrypt_to_raw(
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
@@ -594,6 +601,7 @@ def decrypt_to_raw(
                 sha256_hash=sha256,
                 magic=MAGIC,
                 ephemeral_public_key=ephemeral_public_key,
+                pq_ciphertext=pq_ciphertext,
             )
         else:
             aad = None  # Backwards compatibility (no AAD)
@@ -682,20 +690,20 @@ def pack_manifest(m: Manifest) -> bytes:
         (base 115 bytes) +
         ephemeral_public_key (32 bytes)
 
-    Format (with forward secrecy + PQ, 1235 bytes):
+    Format (with forward secrecy + PQ, 1715 bytes):
         (base with FS 147 bytes) +
-        pq_ciphertext (1088 bytes)
+        pq_ciphertext (1568 bytes)
 
     Args:
         m: Manifest object
 
     Returns:
-        Serialized manifest bytes (115, 147, or 1235 bytes)
+        Serialized manifest bytes (115, 147, or 1715 bytes)
 
     Notes:
         - Password-only mode: 115 bytes (MEOW2 backward compat)
         - Forward secrecy mode: 147 bytes (MEOW3)
-        - PQ hybrid mode: 1235 bytes (MEOW4)
+        - PQ hybrid mode: 1715 bytes (MEOW4)
     """
     base = (
         MAGIC
@@ -717,8 +725,8 @@ def pack_manifest(m: Manifest) -> bytes:
 
     # Add PQ ciphertext if PQ hybrid enabled
     if m.pq_ciphertext is not None:
-        if len(m.pq_ciphertext) != 1088:
-            raise ValueError(f"PQ ciphertext must be 1088 bytes, got {len(m.pq_ciphertext)}")
+        if len(m.pq_ciphertext) != 1568:
+            raise ValueError(f"PQ ciphertext must be 1568 bytes, got {len(m.pq_ciphertext)}")
         base = base + m.pq_ciphertext
 
     # Add duress tag if present (32 bytes) - ALWAYS LAST for easy detection
@@ -748,14 +756,14 @@ def unpack_manifest(b: bytes) -> Manifest:
         - 115 bytes = password-only mode (MEOW2, legacy)
         - 147 bytes = forward secrecy mode (MEOW3)
         - 179 bytes = forward secrecy + duress (MEOW3 + duress tag)
-        - 1235 bytes = PQ hybrid mode (MEOW4)
-        - 1267 bytes = PQ hybrid + duress (MEOW4 + duress tag)
+        - 1715 bytes = PQ hybrid mode (MEOW4)
+        - 1747 bytes = PQ hybrid + duress (MEOW4 + duress tag)
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
     fs_duress_len = fs_len + 32  # 179 bytes (with FS + duress)
-    pq_len = fs_len + 1088  # 1235 bytes (with PQ ciphertext)
-    pq_duress_len = pq_len + 32  # 1267 bytes (with PQ + duress)
+    pq_len = fs_len + 1568  # 1715 bytes (with PQ ciphertext, ML-KEM-1024)
+    pq_duress_len = pq_len + 32  # 1747 bytes (with PQ + duress)
 
     valid_sizes = [min_len, fs_len, fs_duress_len, pq_len, pq_duress_len]
 
@@ -801,9 +809,9 @@ def unpack_manifest(b: bytes) -> Manifest:
         off += 32
 
     if len(b) >= pq_len:
-        # PQ hybrid mode - extract PQ ciphertext
-        pq_ciphertext = b[off : off + 1088]
-        off += 1088
+        # PQ hybrid mode - extract PQ ciphertext (ML-KEM-1024)
+        pq_ciphertext = b[off : off + 1568]
+        off += 1568
 
     # Check for duress tag (last 32 bytes if size matches duress variant)
     if len(b) == fs_duress_len or len(b) == pq_duress_len:
@@ -834,8 +842,8 @@ def unpack_manifest(b: bytes) -> Manifest:
     if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
     # Validate PQ ciphertext length
-    if pq_ciphertext is not None and len(pq_ciphertext) != 1088:  # pragma: no cover
-        raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1088)")
+    if pq_ciphertext is not None and len(pq_ciphertext) != 1568:  # pragma: no cover
+        raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1568)")
 
     return Manifest(
         salt=salt,

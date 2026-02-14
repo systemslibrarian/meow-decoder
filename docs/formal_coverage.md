@@ -1,7 +1,10 @@
 # 📊 Formal Verification Coverage Map
 
 **Status:** Living document tracking formal verification coverage  
-**Last Updated:** February 2026 (v2.2 — all tasks synchronized)
+**Last Updated:** February 2026 (v2.3 — Tamarin syntax fix, computational gap statement)
+
+> **This is the canonical coverage map.** For reproduction instructions and expected
+> tool outputs, see [formal_methods_report.md](formal_methods_report.md) (also at v2.3).
 
 This document provides a visual map of which protocol components are covered by which formal verification tools, along with explicit assumptions and gaps.
 
@@ -279,14 +282,17 @@ event(DecoderOutputDecoy(sid, pt)) ==> event(DecoderAuthenticatedDuress(sid, n, 
 - `formal/tamarin/MeowDuressEquivPQ.spthy` - MEOW4 PQ duress OE model (hybrid KEM + failure traces)
 
 **MEOW3 Verified Properties:**
-- `diffEquivLemma` - Real vs duress outputs indistinguishable
+- Diff-equivalence via `diff()` terms — Real vs duress outputs indistinguishable (`--diff` mode)
 - `Duress_Never_Outputs_Real` - Separation of paths
+- `Real_Never_Triggers_Duress` - No false positives
 - `Real_Password_Secret` - Password never leaked
+- `Duress_Password_Secret` - Duress password never leaked
 - `Real_Secret_Confidentiality` - Secret protected
 
 **MEOW4 PQ Model Properties:**
-- `diffEquivLemma` - PQ OE under hybrid X25519 + ML-KEM-1024
+- Diff-equivalence via `diff()` terms — PQ OE under hybrid X25519 + ML-KEM-1024 (`--diff` mode)
 - `PQ_Duress_Never_Outputs_Real` - Duress → no real plaintext under PQ
+- `PQ_Real_Never_Triggers_Duress` - No false positives
 - `PQ_KEM_Ct_Integrity` - Decoder accepted same KEM ct encoder sent
 - `PQ_Failure_Uniform_Observable` - All reject paths produce identical observable
 - `PQ_Downgrade_Never_Succeeds` - MEOW3→MEOW4 downgrade blocked

@@ -162,6 +162,51 @@ def encode_file(
         encrypt_kwargs["precomputed_key"] = hardware_key
         encrypt_kwargs["precomputed_salt"] = hardware_salt
 
+    # Post-quantum hybrid encapsulation (MEOW4)
+    pq_ciphertext = None
+    if use_pq and receiver_public_key is not None:
+        try:
+            from .pq_hybrid import hybrid_encapsulate, check_pq_available
+        except ImportError:
+            from meow_decoder.pq_hybrid import hybrid_encapsulate, check_pq_available
+
+        available, msg = check_pq_available()
+        if not available:
+            raise RuntimeError(f"Post-quantum mode requested but unavailable: {msg}")
+
+        # receiver_public_key is X25519 (32 bytes); for full PQ we also need
+        # a PQ public key. If not provided separately, we generate a keypair
+        # and include PQ ct in manifest (receiver will need the PQ secret key).
+        # For air-gap transfers, receiver pre-shares their hybrid public keys.
+        pq_shared_secret, eph_classical_pub, pq_ciphertext, _ = hybrid_encapsulate(
+            receiver_classical_public=receiver_public_key,
+            receiver_pq_public=None,  # TODO: Accept receiver PQ public key via CLI
+        )
+
+        if pq_ciphertext is not None:
+            # PQ hybrid mode: use the hybrid shared secret as the encryption key
+            encrypt_kwargs["precomputed_key"] = pq_shared_secret
+            encrypt_kwargs["precomputed_salt"] = None  # Salt will be generated fresh
+            # Don't do a separate X25519 exchange inside encrypt_file_bytes
+            encrypt_kwargs["receiver_public_key"] = None
+            encrypt_kwargs["pq_ciphertext"] = pq_ciphertext
+            if verbose:
+                print(
+                    f"  🔮 PQ hybrid: ML-KEM-1024 ciphertext generated ({len(pq_ciphertext)} bytes)"
+                )
+        else:
+            # Classical-only fallback (liboqs generated classical-only secret)
+            encrypt_kwargs["precomputed_key"] = pq_shared_secret
+            encrypt_kwargs["precomputed_salt"] = None
+            encrypt_kwargs["receiver_public_key"] = None
+            if verbose:
+                print(f"  ℹ️  PQ hybrid: Classical-only fallback (no PQ ciphertext)")
+    elif use_pq:
+        if verbose:
+            print(
+                f"  ⚠️  PQ mode requested but no receiver public key; using password-only encryption"
+            )
+
     comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
         **encrypt_kwargs
     )
@@ -206,6 +251,7 @@ def encode_file(
         k_blocks=k_blocks,
         hmac=b"\x00" * 32,  # Placeholder
         ephemeral_public_key=ephemeral_public_key,  # Forward secrecy support
+        pq_ciphertext=pq_ciphertext,  # Post-quantum hybrid support (MEOW4)
         duress_tag=duress_tag,  # Duress password support (authenticated)
     )
 

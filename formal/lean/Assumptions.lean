@@ -9,7 +9,7 @@
   
   | ID | Name | Justification | Invalidation Risk |
   |----|------|---------------|-------------------|
-  | A1 | `lt_decode_completeness_prob` | Luby FOCS 2002 Thm 1; well-established in coding theory | Adversarial erasures, non-RS degree distribution, biased PRNG |
+  | A1 | `lt_decode_completeness_prob` | Luby FOCS 2002 Thm 1; states k ≤ droplets_received (necessary condition) | Adversarial erasures, non-RS degree distribution, biased PRNG |
   | A2 | `belief_propagation_progress` | Proved modulo List.find? spec bridge (APPROVED sorry) | None — proof sketch complete, only Lean library gap remains |
   
   ## Review Policy
@@ -87,7 +87,11 @@ noncomputable def beliefPropagationStep' {k : ℕ} (s : DecoderState' k) : Decod
     - PRNG for seed generation has detectable bias
     
     **Meow-Decoder defaults:** c=0.1, δ=0.5 → 1.5k droplets give ≥ 50%
-    success per attempt. Rateless retry makes cumulative success ≈ 1. -/
+    success per attempt. Rateless retry makes cumulative success ≈ 1.
+    
+    **Note:** This axiom now states a meaningful bound (k ≤ droplets_received)
+    rather than concluding `True`. The full probabilistic statement
+    Pr[success] ≥ 1 - δ requires a probability monad not yet available in Lean. -/
 axiom lt_decode_completeness_prob
     (k : ℕ) (hk : k > 0)
     (c : ℚ) (hc : 0 < c) (hc1 : c < 1)
@@ -97,7 +101,7 @@ axiom lt_decode_completeness_prob
     (hRobustSoliton : True)   -- Placeholder: degree distribution is RS(k, c, δ)
     (hIndependent : True)     -- Placeholder: erasures are independent
     :
-    True  -- AXIOM: Pr[decode succeeds | ≥(1+ε)k received, RS(k,c,δ)] ≥ 1 - δ
+    k ≤ droplets_received  -- AXIOM: necessary condition for decode success
 
 -- ============================================================================
 -- AXIOM A2: Belief Propagation Progress (Approved Sorry)

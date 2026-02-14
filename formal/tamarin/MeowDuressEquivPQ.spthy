@@ -254,9 +254,9 @@ lemma PQ_DuressPath_trace:
     & DuressTriggered_PQ(session) @ j
     & i < j"
 
-// Main diff-equivalence (run with --diff)
-diffEquivLemma:
-  "true"
+// Observational equivalence is checked automatically by Tamarin's --diff mode.
+// The diff() terms in Decode_PQ_Real and Decode_PQ_Duress rules define the
+// two systems. Run: tamarin-prover --diff MeowDuressEquivPQ.spthy --prove
 
 // ============================================================================
 // AUXILIARY LEMMAS

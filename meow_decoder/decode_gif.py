@@ -529,6 +529,7 @@ def decode_gif(
             yubikey_slot=yubikey_slot,
             yubikey_pin=yubikey_pin,
             precomputed_key=precomputed_key,
+            pq_ciphertext=manifest.pq_ciphertext,
         )
 
         if verbose and manifest.ephemeral_public_key:

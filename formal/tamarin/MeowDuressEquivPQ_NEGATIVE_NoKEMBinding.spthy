@@ -125,9 +125,9 @@ lemma PQ_KEM_Ct_Integrity:
     & AcceptedKEMCt(session, ct) @ j
     ==> i < j"
 
-// This should also FAIL (attacker can substitute KEM ct)
-diffEquivLemma:
-  "true"
+// Observational equivalence is checked automatically by Tamarin's --diff mode.
+// With KEM ct unbound, the attacker can substitute it, so diff-equivalence
+// should FAIL. Run: tamarin-prover --diff ... --prove
 
 restriction Eq:
   "All x y #i. Eq(x, y) @ i ==> x = y"
