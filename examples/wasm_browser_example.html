@@ -504,7 +504,7 @@
                     </div>
 
                     <label for="animatedPassword">🔑 Password:</label>
-                    <input type="password" id="animatedPassword" placeholder="Encryption password" value="CatVideo123" style="margin-bottom: 5px;">
+                    <input type="password" id="animatedPassword" placeholder="Encryption password" style="margin-bottom: 5px;">
                     <div style="margin-bottom: 15px;">
                         <input type="checkbox" id="showAnimatedPassword" onchange="togglePassword('animatedPassword', this.checked)">
                         <label for="showAnimatedPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
@@ -821,14 +821,14 @@
             <textarea id="duressSecretMessage" rows="3" placeholder="Type your secret message here...">Top secret project plans — do not share!</textarea>
             
             <label for="duressRealPassword">🔑 Real Password:</label>
-            <input type="password" id="duressRealPassword" placeholder="Password for real decryption" value="RealSecret123">
+            <input type="password" id="duressRealPassword" placeholder="Password for real decryption">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressReal" onchange="togglePassword('duressRealPassword', this.checked)">
                 <label for="showDuressReal" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
             
             <label for="duressPassword" style="color: #ff6464;">🚨 Panic Password:</label>
-            <input type="password" id="duressPassword" placeholder="Password that triggers decoy + key wipe" value="NothingHere99">
+            <input type="password" id="duressPassword" placeholder="Password that triggers decoy + key wipe">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duressPassword', this.checked)">
                 <label for="showDuressPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
@@ -910,7 +910,7 @@
                         <textarea id="catAnimMessage" rows="2" placeholder="Type message to crochet..." style="margin-bottom: 10px;">Hello from the crocheting cat! 🧶</textarea>
                         
                         <label for="catAnimPassword">🔑 Password:</label>
-                        <input type="password" id="catAnimPassword" placeholder="Encryption password" value="CrochetSecret123" style="margin-bottom: 5px;">
+                        <input type="password" id="catAnimPassword" placeholder="Encryption password" style="margin-bottom: 5px;">
                         <div style="margin-bottom: 15px;">
                             <input type="checkbox" id="showCatAnimPassword" onchange="togglePassword('catAnimPassword', this.checked)">
                             <label for="showCatAnimPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
@@ -988,7 +988,7 @@
                         <textarea id="catMessage" rows="2" placeholder="Type message to transmit..." style="margin-bottom: 10px;">Hello Cat! 🐱</textarea>
                         
                         <label for="catPassword">🔑 Password:</label>
-                        <input type="password" id="catPassword" placeholder="Encryption password" value="CatBlink123" style="margin-bottom: 5px;">
+                        <input type="password" id="catPassword" placeholder="Encryption password" style="margin-bottom: 5px;">
                         <div style="margin-bottom: 15px;">
                             <input type="checkbox" id="showCatPassword" onchange="togglePassword('catPassword', this.checked)">
                             <label for="showCatPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
@@ -4211,8 +4211,8 @@
                 }
                 
                 // Wrong session counter (Task 1.4)
-                if (decoderStats && decoderStats.packets_wrong_session !== undefined) {
-                    document.getElementById('liveWrongSession').textContent = decoderStats.packets_wrong_session;
+                if (decoderStats && decoderStats.packets_rejected !== undefined) {
+                    document.getElementById('liveWrongSession').textContent = decoderStats.packets_rejected;
                 } else {
                     document.getElementById('liveWrongSession').textContent = '0';
                 }
@@ -4825,18 +4825,10 @@
                         const lockedSession = packetDecoder.getSessionId();
                         log(`📦 [Cat Mode] Packet accepted ✅${lockedSession ? ` (session 0x${lockedSession.toString(16).padStart(8, '0')})` : ''}`);
                     } else {
-                        // Packet rejected (could be CRC fail, wrong session, duplicate, etc.)
-                        if (processResult.error === 'crc_mismatch' || processResult.error === 'invalid_magic' || processResult.error === 'packet_too_short') {
-                            crcFails++;
-                            qualityMetrics.recordCRC(false);
-                            log(`📦 [Cat Mode] Packet CRC/validation failed ❌: ${processResult.error}`);
-                        } else if (processResult.error === 'session_mismatch') {
-                            log(`📦 [Cat Mode] Packet from different session rejected ⚠️`);
-                        } else if (processResult.error === 'duplicate_packet') {
-                            log(`📦 [Cat Mode] Duplicate packet rejected ⚠️`);
-                        } else {
-                            log(`📦 [Cat Mode] Packet rejected: ${processResult.error}`);
-                        }
+                        // Packet rejected — generic error for security (no failure-type leak)
+                        crcFails++;
+                        qualityMetrics.recordCRC(false);
+                        log(`📦 [Cat Mode] Packet rejected ❌`);
                     }
                     
                     // Update live counters with session ID and decoder stats (Task 1.4)
@@ -4856,7 +4848,7 @@
                 }
                 
                 const stats = packetDecoder.getStats();
-                log(`📦 [Cat Mode] Session stats: received=${stats.packets_received}, CRC pass=${stats.packets_crc_pass}, CRC fail=${stats.packets_crc_fail}, duplicates=${stats.packets_duplicate}, wrong_session=${stats.packets_wrong_session}`);
+                log(`📦 [Cat Mode] Session stats: received=${stats.packets_received}, accepted=${stats.packets_accepted}, rejected=${stats.packets_rejected}`);
                 
                 // Store decoding diagnostics (Task 3.3)
                 const decodeEndTime = performance.now();
@@ -4867,12 +4859,10 @@
                     bits_recovered: payload.length,
                     packets_total: packetsProcessed,
                     packets_received: stats.packets_received,
-                    packets_crc_pass: stats.packets_crc_pass,
-                    packets_crc_fail: stats.packets_crc_fail,
-                    packets_duplicate: stats.packets_duplicate,
-                    packets_wrong_session: stats.packets_wrong_session,
-                    packets_missing: packetsProcessed - stats.packets_received,
-                    success_rate: stats.packets_received > 0 ? (stats.packets_crc_pass / stats.packets_received * 100).toFixed(1) : 0,
+                    packets_accepted: stats.packets_accepted,
+                    packets_rejected: stats.packets_rejected,
+                    packets_missing: packetsProcessed - stats.packets_accepted,
+                    success_rate: stats.packets_received > 0 ? (stats.packets_accepted / stats.packets_received * 100).toFixed(1) : 0,
                     bit_rate_detected: (payload.length / duration).toFixed(2),
                     decode_duration_ms: decodeDuration.toFixed(0),
                     session_id: packetDecoder.getSessionId() ? '0x' + packetDecoder.getSessionId().toString(16).padStart(8, '0') : null
@@ -4895,7 +4885,7 @@
                 const isComplete = receivedKeys.length > 0 && receivedKeys.every((seq, idx) => seq === idx);
                 
                 if (!isComplete || receivedKeys.length === 0) {
-                    throw new Error(`Incomplete message: ${stats.packets_received} packets received but message not complete. CRC fails: ${stats.packets_crc_fail}. Try adjusting threshold or re-recording.`);
+                    throw new Error(`Incomplete message: ${stats.packets_accepted} packets accepted, ${stats.packets_rejected} rejected. Try adjusting threshold or re-recording.`);
                 }
                 
                 // Populate manual decode input with extracted binary for copy/compare
@@ -6123,11 +6113,11 @@
             if (catDiagnostics.quality?.confidence_percent < 70) {
                 summary.issues.push('Low frame confidence - check lighting and threshold');
             }
-            if (catDiagnostics.decoding?.packets_crc_fail > catDiagnostics.decoding?.packets_crc_pass * 0.2) {
-                summary.issues.push('High CRC failure rate - consider re-recording');
+            if (catDiagnostics.decoding?.packets_rejected > catDiagnostics.decoding?.packets_accepted * 0.2) {
+                summary.issues.push('High packet rejection rate - consider re-recording');
             }
-            if (catDiagnostics.decoding?.packets_wrong_session > 0) {
-                summary.issues.push('Multiple sessions detected - ensure single transmission');
+            if (catDiagnostics.decoding?.packets_rejected > 0 && catDiagnostics.decoding?.packets_accepted === 0) {
+                summary.issues.push('All packets rejected - check signal quality');
             }
             if (catDiagnostics.adaptiveThreshold?.distributionType === 'unimodal') {
                 summary.issues.push('Unimodal distribution - no clear on/off states detected');
@@ -6154,13 +6144,15 @@
                 transitions: (catDiagnostics.transitions || []).slice(0, 100),
                 per_frame: perFrameData,
                 storage: {
-                    binary: localStorage.getItem('meow_cat_binary')?.substring(0, 200) || null,
+                    binary_present: !!localStorage.getItem('meow_cat_binary'),
+                    binary_length: (localStorage.getItem('meow_cat_binary') || '').length,
                     timestamp: localStorage.getItem('meow_cat_binary_ts'),
                     speed: localStorage.getItem('meow_cat_speed_ms')
                 },
                 log_excerpt: document.getElementById('log') ? 
                     document.getElementById('log').textContent.split('\n')
                         .filter(l => l.includes('[Cat') || l.includes('[Adaptive') || l.includes('[Hysteresis') || l.includes('[Quality'))
+                        .filter(l => !/password|secret|key|token/i.test(l))
                         .slice(-200).join('\n') : 
                     'no log'
             };
@@ -6284,10 +6276,14 @@
                 document.getElementById('fsMyPublicKey').value = publicKeyB64;
                 document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair generated! Share your public key above.</span>';
                 
-                // Store in localStorage (encrypted? for now just base64)
+                // WARNING: Secret key stored in localStorage as base64.
+                // This is NOT encrypted — acceptable for a demo/prototype but
+                // production deployments should use IndexedDB with SubtleCrypto
+                // wrapping (AES-GCM keyed by a user passphrase or WebAuthn).
                 localStorage.setItem('meow_fs_keypair', JSON.stringify({
                     secret: bytesToBase64(fsKeyPair.secret),
-                    public: publicKeyB64
+                    public: publicKeyB64,
+                    _warning: 'Secret key stored unencrypted — demo only'
                 }));
                 
                 log('✅ [FS] Key pair generated and stored');
@@ -6305,23 +6301,29 @@
                 return;
             }
             
+            // Warn user about secret key in export
+            if (!confirm('⚠️ WARNING: This file contains your SECRET KEY.\n\nAnyone with this file can decrypt your messages.\nStore it securely and never share it.\n\nContinue with export?')) {
+                return;
+            }
+            
             const exportData = {
                 type: 'meow-fs-keypair',
                 version: 1,
                 secret: bytesToBase64(fsKeyPair.secret),
                 public: bytesToBase64(fsKeyPair.public),
-                created: new Date().toISOString()
+                created: new Date().toISOString(),
+                warning: 'KEEP SECRET! Anyone with this file can decrypt your messages.'
             };
             
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'meow-fs-keypair.json';
+            a.download = 'meow-fs-keypair-KEEP-SECRET.json';
             a.click();
             URL.revokeObjectURL(url);
             
-            log('💾 [FS] Key pair exported');
+            log('💾 [FS] Key pair exported (contains secret key — store securely!)');
         };
         
         // Import key pair from file
@@ -6551,13 +6553,17 @@
                 document.getElementById('pqX25519PublicKey').value = bytesToBase64(pqKeyPair.x25519Public);
                 document.getElementById('pqMlkemPublicKey').value = bytesToBase64(pqKeyPair.mlkemPublic);
                 
-                // Save to localStorage (encrypted with simple key)
+                // WARNING: Secret keys stored in localStorage as base64.
+                // This is NOT encrypted — acceptable for a demo/prototype but
+                // production deployments should use IndexedDB with SubtleCrypto
+                // wrapping (AES-GCM keyed by a user passphrase or WebAuthn).
                 const keyData = {
                     x25519Secret: bytesToBase64(pqKeyPair.x25519Secret),
                     x25519Public: bytesToBase64(pqKeyPair.x25519Public),
                     mlkemSecret: bytesToBase64(pqKeyPair.mlkemSecret),
                     mlkemPublic: bytesToBase64(pqKeyPair.mlkemPublic),
-                    created: new Date().toISOString()
+                    created: new Date().toISOString(),
+                    _warning: 'Secret keys stored unencrypted — demo only'
                 };
                 localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
                 
@@ -6581,6 +6587,11 @@
                 return;
             }
             
+            // Warn user about secret keys in export
+            if (!confirm('⚠️ WARNING: This file contains your SECRET KEYS (X25519 + ML-KEM).\n\nAnyone with this file can decrypt your messages.\nStore it securely and never share it.\n\nContinue with export?')) {
+                return;
+            }
+            
             const keyData = {
                 type: 'meow-pq-keypair',
                 version: 1,
@@ -6598,7 +6609,7 @@
             link.href = URL.createObjectURL(blob);
             link.click();
             
-            log('💾 [PQ] Key pair exported');
+            log('💾 [PQ] Key pair exported (contains secret keys — store securely!)');
         };
         
         // Import key pair from JSON file
@@ -7475,14 +7486,20 @@
             }
         };
         
-        window.setDuressPassword = function() {
+        window.setDuressPassword = async function() {
             // Legacy: still supports setting a global duress password for other modes
             const password = document.getElementById('duressPassword').value;
             const decoyMessage = document.getElementById('duressDecoyMessage').value;
             if (!password) { alert('Enter a panic password'); return; }
-            const passwordHash = btoa(password.split('').reverse().join('') + 'meow-duress');
+            // Use SHA-256 via SubtleCrypto (not reversible like the old btoa approach)
+            const encoder = new TextEncoder();
+            const data = encoder.encode(password + 'meow-duress-salt-v2');
+            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem('meow_duress', JSON.stringify({
                 hash: passwordHash,
+                version: 2,
                 decoy: decoyMessage,
                 set: new Date().toISOString()
             }));
@@ -7494,12 +7511,17 @@
         };
         
         // Check for duress on any decrypt operation
-        function checkDuress(password) {
+        async function checkDuress(password) {
             const saved = localStorage.getItem('meow_duress');
             if (!saved) return null;
             
             const data = JSON.parse(saved);
-            const testHash = btoa(password.split('').reverse().join('') + 'meow-duress');
+            // Use SHA-256 via SubtleCrypto (matches setDuressPassword v2)
+            const encoder = new TextEncoder();
+            const hashData = encoder.encode(password + 'meow-duress-salt-v2');
+            const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
+            const hashArray = Array.from(new Uint8Array(hashBuffer));
+            const testHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             
             if (testHash === data.hash) {
                 // PANIC! Wipe everything

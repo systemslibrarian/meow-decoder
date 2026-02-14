@@ -13,6 +13,9 @@
  * We decode by sampling at t₀ + (n + 0.5) × bitPeriod, NOT by clustering durations.
  * 
  * @author Meow Decoder Production Team
+
+// Set to true for verbose sync/decode logging
+const NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
  * @version 1.1.0
  */
 
@@ -39,7 +42,7 @@ function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration 
     if (!shortVideoMode) {
         const result16 = searchForPattern(frames, syncPattern16, bitPeriod, startSearchTime, searchEndTime);
         if (result16 && result16.confidence >= 0.75) {
-            console.log(`🔍 [Sync] Found 16-bit sync at t=${(result16.t0 * 1000).toFixed(1)}ms (${(result16.confidence * 100).toFixed(1)}% match)`);
+            NRZ_DEBUG && console.log(`🔍 [Sync] Found 16-bit sync at t=${(result16.t0 * 1000).toFixed(1)}ms (${(result16.confidence * 100).toFixed(1)}% match)`);
             return { ...result16, syncBits: 16 };
         }
     }
@@ -48,7 +51,7 @@ function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration 
     if (allowShortSync || shortVideoMode) {
         const result8 = searchForPattern(frames, syncPattern8, bitPeriod, startSearchTime, searchEndTime);
         if (result8 && result8.confidence >= 0.75) {
-            console.log(`🔍 [Sync] Found 8-bit sync (fallback) at t=${(result8.t0 * 1000).toFixed(1)}ms (${(result8.confidence * 100).toFixed(1)}% match)`);
+            NRZ_DEBUG && console.log(`🔍 [Sync] Found 8-bit sync (fallback) at t=${(result8.t0 * 1000).toFixed(1)}ms (${(result8.confidence * 100).toFixed(1)}% match)`);
             return { ...result8, syncBits: 8 };
         }
     }
@@ -103,12 +106,12 @@ function searchForPattern(frames, pattern, bitPeriod, startTime, endTime) {
  */
 function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime = 0, options = {}) {
     const { shortVideoMode = false } = options;
-    console.log(`🔍 [Sync] Searching for sync word starting at t=${(startSearchTime * 1000).toFixed(1)}ms${shortVideoMode ? ' (short video mode)' : ''}...`);
+    NRZ_DEBUG && console.log(`🔍 [Sync] Searching for sync word starting at t=${(startSearchTime * 1000).toFixed(1)}ms${shortVideoMode ? ' (short video mode)' : ''}...`);
     
     const result = findSyncWord(frames, bitPeriod, startSearchTime, 5.0, { shortVideoMode, allowShortSync: true });
     
     if (result) {
-        console.log(`✅ [Sync] ${result.syncBits}-bit sync word found at t=${(result.t0 * 1000).toFixed(1)}ms`);
+        NRZ_DEBUG && console.log(`✅ [Sync] ${result.syncBits}-bit sync word found at t=${(result.t0 * 1000).toFixed(1)}ms`);
         return {
             found: true,
             t0: result.t0,
@@ -142,8 +145,8 @@ function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime 
         }
     };
     
-    console.log('❌ [Sync] Sync word not found - decode cannot proceed');
-    console.log('📋 [Sync] Diagnostics:', JSON.stringify(diagnostics, null, 2));
+    NRZ_DEBUG && console.log('❌ [Sync] Sync word not found - decode cannot proceed');
+    NRZ_DEBUG && console.log('📋 [Sync] Diagnostics:', JSON.stringify(diagnostics, null, 2));
     
     return {
         found: false,
@@ -361,7 +364,7 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
     const maxAvailableBits = Math.floor(availableDuration / bitPeriod);
     const numBits = Math.min(maxBits, maxAvailableBits);
     
-    console.log(`📡 [NRZ] Decoding ${numBits} bits starting at t=${(t0 * 1000).toFixed(1)}ms (${syncBits}-bit sync)`);
+    NRZ_DEBUG && console.log(`📡 [NRZ] Decoding ${numBits} bits starting at t=${(t0 * 1000).toFixed(1)}ms (${syncBits}-bit sync)`);
     
     // Sample bits
     const bits = sampleBits(frames, t0, bitPeriod, numBits, 0.15);
@@ -370,7 +373,7 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
     const uncertainCount = bits.filter(b => b === '?').length;
     const uncertainPercent = (uncertainCount / numBits * 100).toFixed(1);
     
-    console.log(`📡 [NRZ] Sampled ${numBits} bits, ${uncertainCount} uncertain (${uncertainPercent}%)`);
+    NRZ_DEBUG && console.log(`📡 [NRZ] Sampled ${numBits} bits, ${uncertainCount} uncertain (${uncertainPercent}%)`);
     
     // Resolve uncertain bits using voting
     const resolvedBits = resolveUnknownBits(bits, frames, t0, bitPeriod, 'vote');

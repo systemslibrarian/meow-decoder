@@ -2,10 +2,9 @@
 
 /**
  * Headless test runner for Cat Mode golden video validation
- * Runs test_cat_mode_golden.html in headless Chrome and reports results
+ * Uses Playwright to run test_cat_mode_golden.html and reports results
  */
 
-const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -25,13 +24,11 @@ const TIMEOUT_MS = 120000; // 2 minutes
 function startServer() {
     const server = http.createServer((req, res) => {
         let filePath = path.join(__dirname, '..', req.url);
-        
-        // Default to index.html
+
         if (req.url === '/') {
             filePath = path.join(__dirname, '..', 'tests', 'test_cat_mode_golden.html');
         }
-        
-        // Security: prevent directory traversal
+
         const resolvedPath = path.resolve(filePath);
         const projectRoot = path.resolve(__dirname, '..');
         if (!resolvedPath.startsWith(projectRoot)) {
@@ -39,15 +36,14 @@ function startServer() {
             res.end('Forbidden');
             return;
         }
-        
+
         fs.readFile(filePath, (err, data) => {
             if (err) {
                 res.writeHead(404, { 'Content-Type': 'text/plain' });
                 res.end('Not Found: ' + req.url);
                 return;
             }
-            
-            // Determine content type
+
             const ext = path.extname(filePath);
             const contentTypes = {
                 '.html': 'text/html',
@@ -57,13 +53,13 @@ function startServer() {
                 '.webm': 'video/webm',
                 '.mp4': 'video/mp4'
             };
-            
+
             const contentType = contentTypes[ext] || 'application/octet-stream';
             res.writeHead(200, { 'Content-Type': contentType });
             res.end(data);
         });
     });
-    
+
     return new Promise((resolve) => {
         server.listen(PORT, () => {
             console.log(`✓ Test server running on http://localhost:${PORT}`);
@@ -73,111 +69,125 @@ function startServer() {
 }
 
 // ====================================================================
-// Headless Chrome Test Runner
+// Playwright Test Runner
 // ====================================================================
 
 async function runHeadlessTest() {
-    console.log('\n🧪 Running Cat Mode Golden Video Test in Headless Chrome\n');
-    
-    // Start HTTP server
+    console.log('\n🧪 Running Cat Mode Golden Video Test via Playwright\n');
+
     const server = await startServer();
-    
+
     try {
-        // Find Chrome/Chromium executable
-        const chromePaths = [
-            '/usr/bin/google-chrome',
-            '/usr/bin/chromium-browser',
-            '/usr/bin/chromium',
-            '/snap/bin/chromium',
-            process.env.CHROME_BIN
-        ].filter(Boolean);
-        
-        let chromePath = null;
-        for (const p of chromePaths) {
-            if (fs.existsSync(p)) {
-                chromePath = p;
-                break;
+        let chromium;
+        try {
+            chromium = require('@playwright/test').chromium;
+        } catch {
+            try {
+                chromium = require('playwright-core').chromium;
+            } catch {
+                throw new Error('Playwright not installed. Run: npm install @playwright/test');
             }
         }
-        
-        if (!chromePath) {
-            throw new Error('Chrome/Chromium not found. Install with: apt-get install chromium-browser');
-        }
-        
-        console.log(`✓ Using Chrome: ${chromePath}\n`);
-        
-        // Run headless Chrome
-        const chromeArgs = [
-            '--headless',
-            '--disable-gpu',
-            '--no-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-software-rasterizer',
-            '--run-all-compositor-stages-before-draw',
-            '--virtual-time-budget=120000', // 2 minutes virtual time
-            '--dump-dom',
-            TEST_URL
-        ];
-        
-        const chrome = spawn(chromePath, chromeArgs);
-        
-        let stdout = '';
-        let stderr = '';
-        
-        chrome.stdout.on('data', (data) => {
-            stdout += data.toString();
+
+        const browser = await chromium.launch({
+            headless: true,
+            executablePath: process.env.CHROME_BIN || '/usr/bin/chromium-browser',
+            args: ['--no-sandbox', '--disable-dev-shm-usage', '--disable-gpu']
         });
-        
-        chrome.stderr.on('data', (data) => {
-            stderr += data.toString();
+
+        const page = await browser.newPage();
+
+        // Collect console messages
+        const consoleLogs = [];
+        page.on('console', msg => {
+            consoleLogs.push(msg.text());
         });
-        
-        const exitCode = await new Promise((resolve) => {
-            chrome.on('close', resolve);
-            
-            setTimeout(() => {
-                console.error('❌ Test timeout after 2 minutes');
-                chrome.kill();
-                resolve(1);
-            }, TIMEOUT_MS);
+
+        page.on('pageerror', err => {
+            console.error('  [page error]', err.message);
         });
-        
-        // Parse test results from DOM output
-        const results = parseTestResults(stdout);
-        
+
+        await page.goto(TEST_URL, { waitUntil: 'domcontentloaded', timeout: 30000 });
+
+        // Run all tests by calling the page's runAllTests function
+        await page.evaluate(() => {
+            if (typeof runAllTests === 'function') {
+                return runAllTests();
+            }
+            const btn = document.getElementById('runBtn') || document.querySelector('button');
+            if (btn) btn.click();
+        });
+
+        // Wait for results to appear
+        await page.waitForFunction(() => {
+            const status = document.querySelector('.status');
+            return status && (status.classList.contains('pass') || status.classList.contains('fail'));
+        }, { timeout: TIMEOUT_MS });
+
+        // Extract assertions from the DOM
+        const results = await page.evaluate(() => {
+            const assertionDivs = document.querySelectorAll('.assertion');
+            const assertions = [];
+            for (const div of assertionDivs) {
+                const pass = div.classList.contains('pass');
+                const strong = div.querySelector('strong');
+                const text = div.textContent;
+                const expectedMatch = text.match(/Expected:\s*(.*?)(?:\n|Actual:)/s);
+                const actualMatch = text.match(/Actual:\s*(.*?)$/s);
+                assertions.push({
+                    name: strong ? strong.textContent : 'Unknown',
+                    expected: expectedMatch ? expectedMatch[1].trim() : 'N/A',
+                    actual: actualMatch ? actualMatch[1].trim() : 'N/A',
+                    pass
+                });
+            }
+            const status = document.querySelector('.status');
+            const allPass = status ? status.classList.contains('pass') : false;
+            return { assertions, allPass };
+        });
+
+        await browser.close();
+
         // Print results
         console.log('\n' + '='.repeat(70));
         console.log('📊 Test Results');
         console.log('='.repeat(70) + '\n');
-        
+
         if (results.assertions.length > 0) {
             for (const assertion of results.assertions) {
                 const icon = assertion.pass ? '✓' : '✗';
                 const color = assertion.pass ? '\x1b[32m' : '\x1b[31m';
                 const reset = '\x1b[0m';
-                
+
                 console.log(`${color}${icon}${reset} ${assertion.name}`);
                 console.log(`  Expected: ${assertion.expected}`);
                 console.log(`  Actual:   ${assertion.actual}`);
                 console.log('');
             }
+        } else {
+            console.log('No assertions captured from DOM. Console output:');
+            for (const log of consoleLogs) {
+                console.log('  [console]', log);
+            }
         }
-        
+
         console.log('='.repeat(70));
-        
+
         if (results.allPass) {
             console.log('\x1b[32m✅ ALL TESTS PASSED\x1b[0m\n');
             return 0;
         } else {
             console.log('\x1b[31m❌ SOME TESTS FAILED\x1b[0m\n');
-            console.log('Failed assertions:');
-            for (const assertion of results.assertions.filter(a => !a.pass)) {
-                console.log(`  - ${assertion.name}`);
+            if (results.assertions.length > 0) {
+                console.log('Failed assertions:');
+                for (const a of results.assertions.filter(a => !a.pass)) {
+                    console.log(`  - ${a.name}: expected=${a.expected}, actual=${a.actual}`);
+                }
             }
             console.log('');
             return 1;
         }
-        
+
     } catch (error) {
         console.error('\n❌ Test execution failed:', error.message);
         return 1;
@@ -185,49 +195,6 @@ async function runHeadlessTest() {
         server.close();
         console.log('✓ Test server stopped\n');
     }
-}
-
-// ====================================================================
-// Results Parser
-// ====================================================================
-
-function parseTestResults(htmlOutput) {
-    const assertions = [];
-    let allPass = false;
-    
-    // Look for assertion elements in HTML
-    const assertionRegex = /<div class="assertion (pass|fail)"[^>]*>(.*?)<\/div>/gs;
-    const matches = [...htmlOutput.matchAll(assertionRegex)];
-    
-    for (const match of matches) {
-        const pass = match[1] === 'pass';
-        const content = match[2];
-        
-        // Extract name, expected, actual
-        const nameMatch = content.match(/<strong>(.*?)<\/strong>/);
-        const expectedMatch = content.match(/Expected: (.*?)(?:<br>|$)/);
-        const actualMatch = content.match(/Actual: (.*?)$/);
-        
-        if (nameMatch) {
-            assertions.push({
-                name: nameMatch[1],
-                expected: expectedMatch ? expectedMatch[1].replace(/<[^>]*>/g, '').trim() : 'N/A',
-                actual: actualMatch ? actualMatch[1].replace(/<[^>]*>/g, '').trim() : 'N/A',
-                pass
-            });
-        }
-    }
-    
-    // Check for overall pass status
-    if (htmlOutput.includes('TEST PASSED')) {
-        allPass = true;
-    } else if (htmlOutput.includes('TEST FAILED')) {
-        allPass = false;
-    } else if (assertions.length > 0) {
-        allPass = assertions.every(a => a.pass);
-    }
-    
-    return { assertions, allPass };
 }
 
 // ====================================================================

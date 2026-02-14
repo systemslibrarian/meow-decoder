@@ -357,7 +357,7 @@
                 
                 // Phase 2: Detect preamble and calibrate
                 status.innerHTML = '⏳ Detecting preamble...';
-                const preambleResult = detectPreambleWithFallback(classifiedFrames, 100);
+                const preambleResult = detectPreambleWithFallback(classifiedFrames, 100, allScores);
                 
                 assertions.push({
                     name: 'Preamble detection',

@@ -429,9 +429,9 @@
                 const decoded = CatProtocol.decodePacket(packet);
                 
                 return {
-                    pass: !decoded.valid && decoded.error === 'invalid_magic',
+                    pass: !decoded.valid && decoded.error === 'packet_invalid',
                     error: decoded.valid ? 'Corrupted magic not detected' : null,
-                    details: `Error: ${decoded.error}\nDetails: ${decoded.details}`
+                    details: `Error: ${decoded.error}`
                 };
             }),
             
@@ -445,9 +445,9 @@
                 const decoded = CatProtocol.decodePacket(packet);
                 
                 return {
-                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    pass: !decoded.valid && decoded.error === 'packet_invalid',
                     error: decoded.valid ? 'Corrupted payload not detected' : null,
-                    details: `Error: ${decoded.error}\n${decoded.details || ''}`
+                    details: `Error: ${decoded.error}`
                 };
             }),
             
@@ -461,7 +461,7 @@
                 const decoded = CatProtocol.decodePacket(packet);
                 
                 return {
-                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    pass: !decoded.valid && decoded.error === 'packet_invalid',
                     error: decoded.valid ? 'Corrupted CRC not detected' : null,
                     details: `Error: ${decoded.error}`
                 };
@@ -477,7 +477,7 @@
                 const decoded = CatProtocol.decodePacket(truncated);
                 
                 return {
-                    pass: !decoded.valid && decoded.error === 'packet_too_short',
+                    pass: !decoded.valid && decoded.error === 'packet_invalid',
                     error: decoded.valid ? 'Truncated packet not detected' : null,
                     details: `Error: ${decoded.error}`
                 };
@@ -495,7 +495,7 @@
                 const decoded = CatProtocol.decodePacket(packet);
                 
                 return {
-                    pass: !decoded.valid && decoded.error === 'crc_mismatch',
+                    pass: !decoded.valid && decoded.error === 'packet_invalid',
                     error: decoded.valid ? 'Multi-byte corruption not detected' : null,
                     details: `Error: ${decoded.error}`
                 };
@@ -535,7 +535,7 @@
                 const result = decoder.processPacket(packet2);
                 
                 return {
-                    pass: !result.accepted && result.error === 'session_mismatch',
+                    pass: !result.accepted && result.error === 'packet_rejected',
                     error: result.accepted ? 'Wrong session was accepted' : null,
                     details: `Error: ${result.error}`
                 };
@@ -575,7 +575,7 @@
                 const result2 = decoder.processPacket(packet);
                 
                 return {
-                    pass: result1.accepted && !result2.accepted && result2.error === 'duplicate_packet',
+                    pass: result1.accepted && !result2.accepted && result2.error === 'packet_rejected',
                     error: result2.accepted ? 'Duplicate not detected' : null,
                     details: `First: ${result1.accepted}\nSecond: ${result2.accepted} (${result2.error})`
                 };
@@ -709,10 +709,10 @@
                 
                 return {
                     pass: stats.packets_received === packets.length &&
-                          stats.packets_crc_pass === packets.length &&
-                          stats.packets_crc_fail === 0,
+                          stats.packets_accepted === packets.length &&
+                          stats.packets_rejected === 0,
                     error: 'Stats mismatch',
-                    details: `Received: ${stats.packets_received}\nCRC Pass: ${stats.packets_crc_pass}\nCRC Fail: ${stats.packets_crc_fail}`
+                    details: `Received: ${stats.packets_received}\nAccepted: ${stats.packets_accepted}\nRejected: ${stats.packets_rejected}`
                 };
             })
         ];

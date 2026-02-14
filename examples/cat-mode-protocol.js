@@ -87,14 +87,25 @@ function crc32(data) {
 }
 
 /**
- * Verify CRC32 checksum.
+ * Constant-time 32-bit integer comparison.
+ * Uses XOR to avoid timing side-channels from short-circuit evaluation.
+ * @param {number} a - First 32-bit integer
+ * @param {number} b - Second 32-bit integer
+ * @returns {boolean} True if equal
+ */
+function constantTimeEqual32(a, b) {
+    return ((a ^ b) >>> 0) === 0;
+}
+
+/**
+ * Verify CRC32 checksum (constant-time comparison).
  * @param {Uint8Array} data - Data to verify
  * @param {number} expectedCrc - Expected CRC value
  * @returns {boolean} True if CRC matches
  */
 function verifyCrc32(data, expectedCrc) {
     const computedCrc = crc32(data);
-    return computedCrc === expectedCrc;
+    return constantTimeEqual32(computedCrc, expectedCrc);
 }
 
 // ============================================================================
@@ -268,99 +279,74 @@ function encodeMessage(message, sessionId = null, maxPayloadPerPacket = 256) {
 
 /**
  * Decode and validate a single packet.
+ * 
+ * Security hardening: All checks are coalesced to avoid timing side-channels.
+ * CRC is always computed regardless of earlier validation failures.
+ * Error responses use a generic message to prevent information leakage.
+ * 
  * @param {Uint8Array} packetBytes - Raw packet bytes
  * @returns {object} Decoded packet or error
  */
 function decodePacket(packetBytes) {
-    // Minimum packet size check
+    // Minimum packet size check (safe — reveals no secret state)
     if (packetBytes.length < HEADER_SIZE) {
         return {
             valid: false,
-            error: 'packet_too_short',
-            details: `Expected at least ${HEADER_SIZE} bytes, got ${packetBytes.length}`
+            error: 'packet_invalid'
         };
     }
     
     let offset = 0;
     
-    // Validate magic number
+    // Parse all header fields unconditionally
     const magic = readUint16LE(packetBytes, offset);
     offset += 2;
     
-    if (magic !== MAGIC_NUMBER) {
-        return {
-            valid: false,
-            error: 'invalid_magic',
-            details: `Expected 0x${MAGIC_NUMBER.toString(16)}, got 0x${magic.toString(16)}`
-        };
-    }
-    
-    // Protocol version
     const version = packetBytes[offset++];
     
-    if (version !== PROTOCOL_VERSION) {
-        return {
-            valid: false,
-            error: 'unknown_version',
-            details: `Expected v${PROTOCOL_VERSION}, got v${version}`
-        };
-    }
-    
-    // Session ID
     const sessionId = readUint32LE(packetBytes, offset);
     offset += 4;
     
-    // Sequence number
     const sequenceNum = readUint16LE(packetBytes, offset);
     offset += 2;
     
-    // Payload length
     const payloadLen = readUint16LE(packetBytes, offset);
     offset += 2;
     
-    // Validate payload length
-    if (payloadLen > MAX_PAYLOAD_SIZE) {
-        return {
-            valid: false,
-            error: 'payload_too_large',
-            details: `Payload length ${payloadLen} exceeds max ${MAX_PAYLOAD_SIZE}`
-        };
-    }
-    
-    // CRC32
     const crcExpected = readUint32LE(packetBytes, offset);
     offset += 4;
     
+    // Validate all fields without early return
+    let valid = true;
+    valid = valid && constantTimeEqual32(magic, MAGIC_NUMBER);
+    valid = valid && (version === PROTOCOL_VERSION);
+    valid = valid && (payloadLen <= MAX_PAYLOAD_SIZE);
+    
     // Validate total packet size
     const expectedSize = HEADER_SIZE + payloadLen;
-    if (packetBytes.length !== expectedSize) {
-        return {
-            valid: false,
-            error: 'size_mismatch',
-            details: `Expected ${expectedSize} bytes, got ${packetBytes.length}`
-        };
-    }
+    valid = valid && (packetBytes.length === expectedSize);
     
-    // Extract payload
-    const payload = packetBytes.slice(offset, offset + payloadLen);
+    // Always compute CRC, even if other checks failed (prevents timing oracle).
+    // Use clamped payload length to avoid OOB reads on malformed packets.
+    const safePayloadLen = Math.min(payloadLen, Math.max(0, packetBytes.length - HEADER_SIZE), MAX_PAYLOAD_SIZE);
+    const payload = packetBytes.slice(offset, offset + safePayloadLen);
     
-    // Verify CRC32 (over version + session + seq + len + payload)
-    const crcData = new Uint8Array(1 + 4 + 2 + 2 + payloadLen);
+    const crcData = new Uint8Array(1 + 4 + 2 + 2 + safePayloadLen);
     crcData[0] = version;
     writeUint32LE(crcData, 1, sessionId);
     writeUint16LE(crcData, 5, sequenceNum);
     writeUint16LE(crcData, 7, payloadLen);
-    crcData.set(payload, 9);
+    if (safePayloadLen > 0) {
+        crcData.set(payload, 9);
+    }
     
     const crcComputed = crc32(crcData);
+    valid = valid && constantTimeEqual32(crcComputed, crcExpected);
     
-    if (crcComputed !== crcExpected) {
+    if (!valid) {
         return {
             valid: false,
-            error: 'crc_mismatch',
-            details: `Expected 0x${crcExpected.toString(16)}, computed 0x${crcComputed.toString(16)}`,
-            sessionId: sessionId,
-            sequenceNum: sequenceNum
+            error: 'packet_invalid'
         };
     }
     
@@ -392,63 +378,58 @@ class CatProtocolDecoder {
         this.expectedPackets = null;  // Total expected (unknown initially)
         this.stats = {
             packets_received: 0,
-            packets_crc_pass: 0,
-            packets_crc_fail: 0,
-            packets_duplicate: 0,
-            packets_wrong_session: 0
+            packets_accepted: 0,
+            packets_rejected: 0
         };
     }
     
     /**
      * Process a single packet.
+     * 
+     * Security hardening: Error responses use generic messages to prevent
+     * side-channel enumeration of failure modes.
+     * 
      * @param {Uint8Array} packetBytes
      * @returns {object} Processing result
      */
     processPacket(packetBytes) {
+        this.stats.packets_received++;
         const decoded = decodePacket(packetBytes);
         
-        // Invalid packet
+        // Invalid packet (CRC, magic, version, size — all coalesced)
         if (!decoded.valid) {
-            if (decoded.error === 'crc_mismatch') {
-                this.stats.packets_crc_fail++;
-            }
+            this.stats.packets_rejected++;
             return {
                 accepted: false,
-                error: decoded.error,
-                details: decoded.details
+                error: 'packet_rejected'
             };
         }
-        
-        this.stats.packets_crc_pass++;
         
         // Session locking
         if (this.lockedSessionId === null) {
             // First valid packet locks session
             this.lockedSessionId = decoded.sessionId;
-            console.log(`🔒 Session locked: 0x${decoded.sessionId.toString(16).padStart(8, '0')}`);
-        } else if (decoded.sessionId !== this.lockedSessionId) {
-            // Wrong session
-            this.stats.packets_wrong_session++;
+        } else if (!constantTimeEqual32(decoded.sessionId, this.lockedSessionId)) {
+            // Wrong session — generic error, no session ID leak
+            this.stats.packets_rejected++;
             return {
                 accepted: false,
-                error: 'session_mismatch',
-                details: `Expected 0x${this.lockedSessionId.toString(16)}, got 0x${decoded.sessionId.toString(16)}`
+                error: 'packet_rejected'
             };
         }
         
         // Check for duplicate
         if (this.receivedPackets.has(decoded.sequenceNum)) {
-            this.stats.packets_duplicate++;
+            this.stats.packets_rejected++;
             return {
                 accepted: false,
-                error: 'duplicate_packet',
-                sequenceNum: decoded.sequenceNum
+                error: 'packet_rejected'
             };
         }
         
         // Store packet
         this.receivedPackets.set(decoded.sequenceNum, decoded.payload);
-        this.stats.packets_received++;
+        this.stats.packets_accepted++;
         
         // Check if complete (all sequence numbers from 0 to max received)
         const maxSeq = Math.max(...this.receivedPackets.keys());
@@ -535,6 +516,7 @@ const CatProtocol = {
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
+    constantTimeEqual32,
     module.exports = CatProtocol;
 }
 
