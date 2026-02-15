@@ -104,7 +104,9 @@ def test_hiss_file_into_yarn_ball_smoke(tmp_path, monkeypatch):
     input_path.write_bytes(b"hello")
     output_path = tmp_path / "out.gif"
 
-    stats = meow.hiss_file_into_yarn_ball(input_path, output_path, password="pw", verbose=False)
+    stats = meow.hiss_file_into_yarn_ball(
+        input_path, output_path, password="password", verbose=False
+    )
     assert output_path.exists()
     assert stats["output_size"] > 0
     assert stats["paw_prints"] >= 1
@@ -115,7 +117,7 @@ def test_main_missing_input(monkeypatch, tmp_path):
     monkeypatch.setattr(
         sys,
         "argv",
-        ["meow-encode", "-i", str(tmp_path / "nope.bin"), "-o", str(out_gif), "-p", "pw"],
+        ["meow-encode", "-i", str(tmp_path / "nope.bin"), "-o", str(out_gif), "-p", "password"],
     )
 
     with pytest.raises(SystemExit) as e:
@@ -156,7 +158,7 @@ def test_main_catnip_missing(monkeypatch, tmp_path):
             "-o",
             str(out_gif),
             "-p",
-            "pw",
+            "password",
             "--catnip",
             str(tmp_path / "nope"),
         ],
@@ -199,7 +201,7 @@ def test_main_happy_path_and_shred(monkeypatch, tmp_path):
             "-o",
             str(out_gif),
             "-p",
-            "pw",
+            "password",
             "--shred-source",
         ],
     )

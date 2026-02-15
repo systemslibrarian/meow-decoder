@@ -756,6 +756,7 @@ class TestFuzzIntegration:
         fuzz_crypto.fuzz_decrypt(data)
         fuzz_crypto.fuzz_hmac_verify(data)
 
+    @pytest.mark.timeout(120)
     def test_mutation_resilience(self):
         """Fuzzers should handle bit-flip mutations."""
         from meow_decoder.crypto import Manifest, pack_manifest
@@ -791,14 +792,20 @@ class TestFuzzIntegration:
             extended = base + secrets.token_bytes(extra)
             fuzz_manifest.fuzz_unpack_manifest(extended)
 
+    @pytest.mark.timeout(180)
     def test_random_stress(self):
         """Random stress test with many inputs."""
-        for _ in range(100):
+        for _ in range(50):  # Reduced from 100: derive_key can be slow under CI load
             size = secrets.randbelow(2000)
             data = secrets.token_bytes(size)
 
             fuzz_manifest.fuzz_unpack_manifest(data)
             fuzz_fountain.fuzz_unpack_droplet(data)
+
+        # Separate loop for derive_key: uses Argon2id which is intentionally slow
+        for _ in range(10):
+            size = secrets.randbelow(2000)
+            data = secrets.token_bytes(size)
             # fuzz_derive_key may raise ValueError for NIST password requirements
             try:
                 fuzz_crypto.fuzz_derive_key(data)

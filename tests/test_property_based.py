@@ -437,17 +437,28 @@ class TestManifestInvariants:
 class TestFrameMACInvariants:
     """Property: frame MACs are secure and deterministic."""
 
+    # Pre-derive key ONCE to avoid calling Argon2id per Hypothesis example.
+    # This is safe: the property under test is MAC behavior, not KDF behavior.
+    _salt = secrets.token_bytes(16)
+    _enc_key = None
+    _master_key = None
+
+    @classmethod
+    def _ensure_keys(cls):
+        if cls._enc_key is None:
+            cls._enc_key = derive_key("testpassword123", cls._salt)
+            cls._master_key = derive_frame_master_key(cls._enc_key, cls._salt)
+
     @given(data=small_data_strategy, frame_index=st.integers(min_value=0, max_value=10000))
     @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
     def test_frame_mac_pack_unpack_roundtrip(self, data, frame_index):
         """pack_frame_with_mac then unpack should preserve data."""
-        password = "testpassword123"
-        salt = secrets.token_bytes(16)
-        enc_key = derive_key(password, salt)
-        master_key = derive_frame_master_key(enc_key, salt)
+        self._ensure_keys()
 
-        packed = pack_frame_with_mac(data, master_key, frame_index, salt)
-        is_valid, unpacked = unpack_frame_with_mac(packed, master_key, frame_index, salt)
+        packed = pack_frame_with_mac(data, self._master_key, frame_index, self._salt)
+        is_valid, unpacked = unpack_frame_with_mac(
+            packed, self._master_key, frame_index, self._salt
+        )
 
         assert is_valid is True
         assert unpacked == data
@@ -456,14 +467,11 @@ class TestFrameMACInvariants:
     @settings(max_examples=50)
     def test_frame_mac_deterministic(self, frame_index):
         """Same inputs should produce same MAC."""
+        self._ensure_keys()
         data = b"Test frame data"
-        password = "testpassword123"
-        salt = secrets.token_bytes(16)
-        enc_key = derive_key(password, salt)
-        master_key = derive_frame_master_key(enc_key, salt)
 
-        mac1 = compute_frame_mac(data, master_key, frame_index, salt)
-        mac2 = compute_frame_mac(data, master_key, frame_index, salt)
+        mac1 = compute_frame_mac(data, self._master_key, frame_index, self._salt)
+        mac2 = compute_frame_mac(data, self._master_key, frame_index, self._salt)
 
         assert mac1 == mac2
 
@@ -475,15 +483,12 @@ class TestFrameMACInvariants:
     def test_different_frame_index_different_mac(self, frame_index1, frame_index2):
         """Different frame indices should produce different MACs."""
         assume(frame_index1 != frame_index2)
+        self._ensure_keys()
 
         data = b"Test frame data"
-        password = "testpassword123"
-        salt = secrets.token_bytes(16)
-        enc_key = derive_key(password, salt)
-        master_key = derive_frame_master_key(enc_key, salt)
 
-        mac1 = compute_frame_mac(data, master_key, frame_index1, salt)
-        mac2 = compute_frame_mac(data, master_key, frame_index2, salt)
+        mac1 = compute_frame_mac(data, self._master_key, frame_index1, self._salt)
+        mac2 = compute_frame_mac(data, self._master_key, frame_index2, self._salt)
 
         assert mac1 != mac2
 
@@ -491,13 +496,10 @@ class TestFrameMACInvariants:
     @settings(max_examples=64)
     def test_frame_mac_detects_any_bit_flip(self, bit_position):
         """Any single bit flip in data should invalidate MAC."""
+        self._ensure_keys()
         data = b"Test data for bit flip detection12"  # 36 bytes
-        password = "testpassword123"
-        salt = secrets.token_bytes(16)
-        enc_key = derive_key(password, salt)
-        master_key = derive_frame_master_key(enc_key, salt)
 
-        packed = pack_frame_with_mac(data, master_key, 0, salt)
+        packed = pack_frame_with_mac(data, self._master_key, 0, self._salt)
 
         # Flip bit in the data portion (after MAC)
         byte_pos = MAC_SIZE + (bit_position // 8)
@@ -506,5 +508,5 @@ class TestFrameMACInvariants:
             flipped = bytearray(packed)
             flipped[byte_pos] ^= 1 << bit_in_byte
 
-            is_valid, _ = unpack_frame_with_mac(bytes(flipped), master_key, 0, salt)
+            is_valid, _ = unpack_frame_with_mac(bytes(flipped), self._master_key, 0, self._salt)
             assert is_valid is False

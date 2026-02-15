@@ -294,6 +294,13 @@ class TestSchrodingerManifestEdgeCases:
 class TestSchrodingerDecodeData:
     """Test schrodinger_decode_data directly."""
 
+    @pytest.fixture(autouse=True)
+    def _fast_kdf(self, monkeypatch):
+        """Replace slow Argon2id with fast SHA-256 for unit tests."""
+        monkeypatch.setattr(crypto, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_encode, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_decode, "derive_key", _fast_derive_key)
+
     def test_decode_data_reality_a(self):
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
         from meow_decoder.schrodinger_decode import schrodinger_decode_data
@@ -532,6 +539,13 @@ class TestSchrodingerDecodeMain:
 class TestSchrodingerDecodeExtras:
     """Extra decode tests for untested branches."""
 
+    @pytest.fixture(autouse=True)
+    def _fast_kdf(self, monkeypatch):
+        """Replace slow Argon2id with fast SHA-256 for unit tests."""
+        monkeypatch.setattr(crypto, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_encode, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_decode, "derive_key", _fast_derive_key)
+
     def test_decode_data_corrupted_superposition(self):
         """Corrupted superposition should return None (hits except branches)."""
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
@@ -680,6 +694,13 @@ class TestSchrodingerDecodeMainExtras:
 # =====================================================
 class TestSchrodingerEncodeExtras:
     """Additional encode tests for uncovered branches."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_kdf(self, monkeypatch):
+        """Replace slow Argon2id with fast SHA-256 for unit tests."""
+        monkeypatch.setattr(crypto, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_encode, "derive_key", _fast_derive_key)
+        monkeypatch.setattr(schrodinger_decode, "derive_key", _fast_derive_key)
 
     def test_encode_data_various_block_sizes(self):
         """Test with different block sizes to exercise padding branches."""
