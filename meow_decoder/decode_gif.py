@@ -382,6 +382,12 @@ def decode_gif(
     # Now derive frame MAC key if we detected MACs
     mac_stats = frame_mac.FrameMACStats()
 
+    # Detect ratchet mode from manifest mode_byte
+    from meow_decoder.crypto import MODE_RATCHET
+
+    _has_ratchet = bool(manifest.mode_byte & MODE_RATCHET)
+    decoder_ratchet = None
+
     if has_frame_macs:
         if verbose:
             print("\n🔒 Frame MAC verification enabled (DoS protection)")
@@ -392,6 +398,25 @@ def decode_gif(
         frame_master_key = frame_mac.derive_frame_master_key(
             bytes(encryption_key_buf), manifest.salt
         )
+
+        # Initialize decoder ratchet if ratchet mode is active (BEFORE zeroizing key)
+        if _has_ratchet:
+            from .ratchet import DecoderRatchet
+
+            # Only droplet frames are ratchet-encrypted (manifest is not)
+            total_droplet_frames = len(qr_data_list) - 1  # exclude manifest
+            decoder_ratchet = DecoderRatchet(
+                root_key=bytes(encryption_key_buf),
+                salt=manifest.salt,
+                k_blocks=manifest.k_blocks,
+                block_size=manifest.block_size,
+                total_frames=total_droplet_frames,
+            )
+            if verbose:
+                print(
+                    f"  🔐 Per-frame ratchet decryption enabled (MSR v1, {total_droplet_frames} droplet frames)"
+                )
+
         # Best-effort zeroization of encryption key material
         try:
             from .crypto_backend import get_default_backend
@@ -481,6 +506,16 @@ def decode_gif(
             else:
                 droplet_bytes = qr_data
 
+            # Ratchet-decrypt the frame if ratchet mode is active
+            if decoder_ratchet is not None:
+                try:
+                    droplet_bytes = decoder_ratchet.decrypt(droplet_bytes)
+                except ValueError as ve:
+                    droplets_rejected += 1
+                    if verbose and droplets_rejected <= 5:
+                        print(f"  ⚠️  Frame {idx + 1}: Ratchet decrypt failed: {ve}")
+                    continue
+
             # Unpack droplet from verified bytes
             droplet = unpack_droplet(droplet_bytes, manifest.block_size)
             decoder.add_droplet(droplet)
@@ -495,6 +530,12 @@ def decode_gif(
             if verbose:
                 print(f"  Warning: Failed to process droplet: {e}")
             continue
+
+    # Finalize ratchet (zeroize remaining state)
+    if decoder_ratchet is not None:
+        decoder_ratchet.finalize()
+        if verbose:
+            print(f"  ✓ Decoder ratchet finalized, all keys zeroized")
 
     if not decoder.is_complete():
         raise RuntimeError(

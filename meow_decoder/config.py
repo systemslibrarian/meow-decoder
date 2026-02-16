@@ -68,6 +68,7 @@ class EncodingConfig:
     # Security options (🐱 NINE LIVES MODE - NOW DEFAULT!)
     enable_forward_secrecy: bool = True  # ✅ Enable per-block keys (RECOMMENDED)
     ratchet_interval: int = 100  # Blocks between ratchet steps
+    enable_ratchet: bool = False  # Per-frame symmetric ratchet (MSR v1)
     enable_stego: bool = False  # Enable steganography
     stealth_level: int = 2  # Stealth level (1-4)
     enable_animation: bool = False  # Animated carriers

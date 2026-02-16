@@ -171,11 +171,13 @@ class Manifest:
 #   0x02 = MEOW2: password-only, no forward secrecy
 #   0x03 = MEOW3: X25519 forward secrecy
 #   0x04 = MEOW4: X25519 + ML-KEM-1024 post-quantum hybrid
+#   0x10 flag = per-frame symmetric ratchet (OR'd with version)
 #   0x80 flag = duress mode (OR'd with version)
 MODE_LEGACY = 0x00
 MODE_MEOW2 = 0x02
 MODE_MEOW3 = 0x03
 MODE_MEOW4 = 0x04
+MODE_RATCHET = 0x10  # Per-frame symmetric ratchet flag (OR'd with version)
 MODE_DURESS = 0x80  # Duress flag (OR'd with version)
 
 _VALID_MODE_BYTES = {
@@ -185,6 +187,13 @@ _VALID_MODE_BYTES = {
     MODE_MEOW2 | MODE_DURESS,
     MODE_MEOW3 | MODE_DURESS,
     MODE_MEOW4 | MODE_DURESS,
+    # Ratchet combinations (per-frame symmetric ratchet)
+    MODE_MEOW2 | MODE_RATCHET,
+    MODE_MEOW3 | MODE_RATCHET,
+    MODE_MEOW4 | MODE_RATCHET,
+    MODE_MEOW2 | MODE_RATCHET | MODE_DURESS,
+    MODE_MEOW3 | MODE_RATCHET | MODE_DURESS,
+    MODE_MEOW4 | MODE_RATCHET | MODE_DURESS,
 }
 
 

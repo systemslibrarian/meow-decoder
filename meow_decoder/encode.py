@@ -146,12 +146,18 @@ def encode_file(
         print(f"  Size: {len(raw_data):,} bytes")
 
     # FIX-D3: Compute mode_byte from manifest_version and duress state
-    from meow_decoder.crypto import MODE_MEOW2, MODE_MEOW3, MODE_MEOW4, MODE_DURESS
+    from meow_decoder.crypto import MODE_MEOW2, MODE_MEOW3, MODE_MEOW4, MODE_DURESS, MODE_RATCHET
 
     _version_to_mode = {2: MODE_MEOW2, 3: MODE_MEOW3, 4: MODE_MEOW4}
     _mode = _version_to_mode.get(manifest_version, MODE_MEOW3)
     if duress_password:
         _mode |= MODE_DURESS
+    # Per-frame symmetric ratchet (MSR v1)
+    _use_ratchet = getattr(config, "enable_ratchet", False)
+    if _use_ratchet:
+        _mode |= MODE_RATCHET
+        if verbose:
+            print("  🔐 Per-frame symmetric ratchet enabled (MSR v1)")
 
     # Encrypt data with forward secrecy support
     if verbose:
@@ -325,6 +331,22 @@ def encode_file(
     # Use a mutable buffer for best-effort zeroing after use
     encryption_key_buf = bytearray(encryption_key)
     frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), salt)
+
+    # Initialize per-frame ratchet if enabled (BEFORE zeroizing encryption key)
+    encoder_ratchet = None
+    if _use_ratchet:
+        from .ratchet import EncoderRatchet
+
+        encoder_ratchet = EncoderRatchet(
+            root_key=bytes(encryption_key_buf),
+            salt=salt,
+            k_blocks=k_blocks,
+            block_size=config.block_size,
+            total_frames=num_droplets,  # Only droplet frames are ratchet-encrypted
+        )
+        if verbose:
+            print(f"  Ratchet initialized: {num_droplets} droplet frames, per-frame AES-256-GCM")
+
     # Best-effort zeroization of encryption key material
     try:
         from .crypto_backend import get_default_backend
@@ -346,7 +368,11 @@ def encode_file(
 
     qr_frames = []
 
-    # First frame: manifest (with MAC)
+    # First frame: manifest (MAC'd but NOT ratchet-encrypted)
+    # The manifest must be readable before ratchet initialization (decoder needs
+    # mode_byte, salt, k_blocks from the manifest to set up the ratchet).
+    # Manifest confidentiality is not needed — it contains only metadata, and
+    # is authenticated by HMAC. The ratchet protects payload frames (droplets).
     manifest_with_mac = pack_frame_with_mac(manifest_bytes, frame_master_key, 0, salt)
     manifest_qr = qr_generator.generate(manifest_with_mac)
     qr_frames.append(manifest_qr)
@@ -354,10 +380,11 @@ def encode_file(
 
     if verbose:
         print(
-            f"  Frame 0: Manifest ({len(manifest_bytes)} bytes + {len(manifest_with_mac) - len(manifest_bytes)} byte MAC)"
+            f"  Frame 0: Manifest ({len(manifest_bytes)} bytes + "
+            f"{len(manifest_with_mac) - len(manifest_bytes)} byte MAC)"
         )
 
-    # Remaining frames: droplets (with MACs)
+    # Remaining frames: droplets (optionally ratchet-encrypted, then MAC'd)
     progress_bar = ProgressBar(
         num_droplets, desc="Generating Droplets", unit="droplets", disable=not verbose
     )
@@ -366,12 +393,23 @@ def encode_file(
         droplet = fountain.droplet()
         droplet_bytes = pack_droplet(droplet)
 
-        # Add MAC to droplet
-        droplet_with_mac = pack_frame_with_mac(droplet_bytes, frame_master_key, i + 1, salt)
+        # Optionally encrypt with per-frame ratchet
+        frame_data = droplet_bytes
+        if encoder_ratchet is not None:
+            frame_data = encoder_ratchet.encrypt_next(droplet_bytes)
+
+        # Add MAC to (possibly encrypted) frame data
+        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key, i + 1, salt)
 
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
         mac_stats.record_valid()
+
+    # Finalize ratchet (zeroize remaining chain state)
+    if encoder_ratchet is not None:
+        encoder_ratchet.finalize()
+        if verbose:
+            print(f"  ✓ Ratchet finalized, all chain keys zeroized")
 
     if verbose:
         print(f"  Total QR codes: {len(qr_frames)} (all with frame MACs)")
