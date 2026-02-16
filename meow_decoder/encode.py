@@ -337,15 +337,24 @@ def encode_file(
     if _use_ratchet:
         from .ratchet import EncoderRatchet
 
+        _rekey_interval = getattr(config, "rekey_beacon_interval", 0)
         encoder_ratchet = EncoderRatchet(
             root_key=bytes(encryption_key_buf),
             salt=salt,
             k_blocks=k_blocks,
             block_size=config.block_size,
             total_frames=num_droplets,  # Only droplet frames are ratchet-encrypted
+            rekey_interval=_rekey_interval,
+            receiver_public_key=receiver_public_key,
         )
         if verbose:
-            print(f"  Ratchet initialized: {num_droplets} droplet frames, per-frame AES-256-GCM")
+            _beacon_msg = (
+                f", rekey beacons every {_rekey_interval} frames" if _rekey_interval > 0 else ""
+            )
+            print(
+                f"  \U0001f43e Paw state initialized: {num_droplets} frames, "
+                f"per-frame AES-256-GCM{_beacon_msg}"
+            )
 
     # Best-effort zeroization of encryption key material
     try:

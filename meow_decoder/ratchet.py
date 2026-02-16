@@ -97,6 +97,19 @@ MAX_FRAME_INDEX = 0xFFFFFFFF
 # Maximum number of skipped message keys to cache (DoS bound for decoder)
 MAX_SKIP_KEYS = 2000
 
+# ── Rekey Beacon Constants ───────────────────────────────────────────────────
+# Sender rekey beacons inject fresh entropy at periodic intervals.
+# Two modes:
+#   1. KEM mode (MEOW3/4): X25519 ephemeral → receiver. Attacker with chain_key
+#      + GIF but NOT receiver_private_key cannot derive enhanced message keys.
+#   2. Plaintext mode (MEOW2): Random beacon in frame header. Protects against
+#      memory-only compromise (attacker has chain_key but NOT the GIF).
+
+REKEY_BEACON_INFO = b"meow_ratchet_rekey_v1"
+REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
+REKEY_BEACON_SIZE = 32  # X25519 public key or random entropy
+DEFAULT_REKEY_INTERVAL = 0  # 0 = disabled; recommended: 32
+
 
 # ── Secure Memory Helpers ────────────────────────────────────────────────────
 
@@ -121,6 +134,68 @@ def _hkdf_derive(key_material: bytes, salt: bytes, info: bytes, length: int = 32
         salt=salt,
         info=info,
     ).derive(key_material)
+
+
+def _mix_beacon(message_key: bytes, beacon_secret: bytes, salt: bytes) -> bytes:
+    """Mix rekey beacon entropy into a message key.
+
+    Combines the ratchet-derived message key with fresh beacon entropy
+    using HKDF. The resulting key requires knowledge of BOTH the chain
+    state AND the beacon secret (which may be KEM-derived).
+    """
+    combined = message_key + beacon_secret
+    return _hkdf_derive(combined, salt, REKEY_BEACON_INFO, 32)
+
+
+def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[bytes, bytes]:
+    """Generate X25519 KEM rekey beacon.
+
+    Returns:
+        (shared_secret, ephemeral_public_bytes) — shared_secret is mixed
+        into the message key; ephemeral_public is embedded in the frame.
+    """
+    from cryptography.hazmat.primitives.asymmetric.x25519 import (
+        X25519PrivateKey,
+        X25519PublicKey,
+    )
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PublicFormat,
+    )
+
+    ephemeral_private = X25519PrivateKey.generate()
+    ephemeral_public = ephemeral_private.public_key()
+
+    receiver_pub = X25519PublicKey.from_public_bytes(receiver_public_key)
+    raw_shared = ephemeral_private.exchange(receiver_pub)
+
+    shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
+
+    ephemeral_public_bytes = ephemeral_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
+    return shared_secret, ephemeral_public_bytes
+
+
+def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: bytes) -> bytes:
+    """Recover shared secret from X25519 KEM rekey beacon.
+
+    Args:
+        ephemeral_public_bytes: 32-byte ephemeral public key from frame header
+        receiver_private_key: Receiver's X25519 private key
+
+    Returns:
+        32-byte shared secret to mix into message key
+    """
+    from cryptography.hazmat.primitives.asymmetric.x25519 import (
+        X25519PrivateKey,
+        X25519PublicKey,
+    )
+
+    eph_pub = X25519PublicKey.from_public_bytes(ephemeral_public_bytes)
+    priv = X25519PrivateKey.from_private_bytes(receiver_private_key)
+    raw_shared = priv.exchange(eph_pub)
+
+    shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
+    return shared_secret
 
 
 # ── Data Structures ──────────────────────────────────────────────────────────
@@ -455,7 +530,14 @@ class EncoderRatchet:
     """
 
     def __init__(
-        self, root_key: bytes, salt: bytes, k_blocks: int, block_size: int, total_frames: int
+        self,
+        root_key: bytes,
+        salt: bytes,
+        k_blocks: int,
+        block_size: int,
+        total_frames: int,
+        rekey_interval: int = 0,
+        receiver_public_key: Optional[bytes] = None,
     ):
         """
         Initialize encoder ratchet.
@@ -466,6 +548,8 @@ class EncoderRatchet:
             k_blocks: Number of fountain source blocks
             block_size: Fountain block size in bytes
             total_frames: Total number of frames to encrypt
+            rekey_interval: Frames between rekey beacons (0 = disabled)
+            receiver_public_key: X25519 public key for KEM beacons (optional)
         """
         self._state = init_ratchet(root_key, salt)
         self._salt = salt
@@ -474,6 +558,14 @@ class EncoderRatchet:
         self._total_frames = total_frames
         self._frames_encrypted = 0
         self._finalized = False
+        self._rekey_interval = rekey_interval
+        self._receiver_public_key = receiver_public_key
+
+    def _is_rekey_frame(self, frame_index: int) -> bool:
+        """Check if this frame index is a rekey beacon point."""
+        return (
+            self._rekey_interval > 0 and frame_index > 0 and frame_index % self._rekey_interval == 0
+        )
 
     @property
     def position(self) -> int:
@@ -504,8 +596,23 @@ class EncoderRatchet:
         message_key_bytes, self._state = ratchet_step(self._state)
         message_key_buf = bytearray(message_key_bytes)
 
+        # Rekey beacon: inject fresh entropy at periodic intervals
+        beacon_header = b""
+        if self._is_rekey_frame(frame_index):
+            if self._receiver_public_key is not None:
+                # KEM beacon: attacker needs receiver_private_key to recover
+                beacon_secret, eph_pub = _generate_kem_beacon(self._receiver_public_key)
+                beacon_header = eph_pub
+            else:
+                # Plaintext beacon: protects against memory-only compromise
+                beacon_secret = os.urandom(REKEY_BEACON_SIZE)
+                beacon_header = beacon_secret
+            enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
+            _secure_zero(message_key_buf)
+            message_key_buf = bytearray(enhanced_key)
+
         try:
-            # Encrypt frame with derived key
+            # Encrypt frame with (potentially beacon-enhanced) key
             encrypted = encrypt_frame(
                 frame_data=frame_data,
                 message_key=bytes(message_key_buf),
@@ -515,6 +622,13 @@ class EncoderRatchet:
                 block_size=self._block_size,
                 total_frames=self._total_frames,
             )
+
+            # Insert beacon after frame_index header if present
+            if beacon_header:
+                encrypted = (
+                    encrypted[:FRAME_INDEX_SIZE] + beacon_header + encrypted[FRAME_INDEX_SIZE:]
+                )
+
             self._frames_encrypted += 1
             return encrypted
         finally:
@@ -571,7 +685,14 @@ class DecoderRatchet:
     """
 
     def __init__(
-        self, root_key: bytes, salt: bytes, k_blocks: int, block_size: int, total_frames: int
+        self,
+        root_key: bytes,
+        salt: bytes,
+        k_blocks: int,
+        block_size: int,
+        total_frames: int,
+        rekey_interval: int = 0,
+        receiver_private_key: Optional[bytes] = None,
     ):
         """
         Initialize decoder ratchet.
@@ -582,6 +703,8 @@ class DecoderRatchet:
             k_blocks: Number of fountain source blocks
             block_size: Fountain block size in bytes
             total_frames: Total number of expected frames
+            rekey_interval: Frames between rekey beacons (0 = disabled)
+            receiver_private_key: X25519 private key for KEM beacons (optional)
         """
         self._state = init_ratchet(root_key, salt)
         self._salt = salt
@@ -591,6 +714,14 @@ class DecoderRatchet:
         self._skipped_keys: Dict[int, bytearray] = {}  # frame_index → message_key
         self._consumed_indices: set = set()  # Track consumed frame indices
         self._finalized = False
+        self._rekey_interval = rekey_interval
+        self._receiver_private_key = receiver_private_key
+
+    def _is_rekey_frame(self, frame_index: int) -> bool:
+        """Check if this frame index is a rekey beacon point."""
+        return (
+            self._rekey_interval > 0 and frame_index > 0 and frame_index % self._rekey_interval == 0
+        )
 
     @property
     def position(self) -> int:
@@ -684,9 +815,32 @@ class DecoderRatchet:
                     f"Key is irrecoverable (forward secrecy)."
                 )
 
+            # Handle rekey beacon: extract beacon and enhance message key
+            actual_frame = encrypted_frame
+            if self._is_rekey_frame(frame_index):
+                if len(encrypted_frame) < FRAME_INDEX_SIZE + REKEY_BEACON_SIZE + GCM_TAG_SIZE:
+                    raise ValueError(f"Beacon frame too short: {len(encrypted_frame)} bytes")
+                beacon_data = encrypted_frame[
+                    FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + REKEY_BEACON_SIZE
+                ]
+                # Reconstruct frame without beacon for decrypt_frame
+                actual_frame = (
+                    encrypted_frame[:FRAME_INDEX_SIZE]
+                    + encrypted_frame[FRAME_INDEX_SIZE + REKEY_BEACON_SIZE :]
+                )
+                # Derive beacon secret
+                if self._receiver_private_key is not None:
+                    beacon_secret = _recover_kem_beacon(beacon_data, self._receiver_private_key)
+                else:
+                    beacon_secret = beacon_data
+                # Mix beacon into message key
+                enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
+                _secure_zero(message_key_buf)
+                message_key_buf = bytearray(enhanced_key)
+
             # Decrypt the frame
             plaintext = decrypt_frame(
-                encrypted_frame=encrypted_frame,
+                encrypted_frame=actual_frame,
                 message_key=bytes(message_key_buf),
                 expected_index=frame_index,
                 salt=self._salt,
@@ -774,3 +928,25 @@ class KeyDeletionReport:
             elif event["action"] == "zeroize":
                 zeroized.add(key_id)
         return derived == zeroized
+
+
+# ── Tasteful Meow API Layer ─────────────────────────────────────────────────
+# Cat-themed public aliases for the wrapper/demo layer.
+# Core crypto internals remain serious. The edge gets the cat. 🐱
+
+# Type aliases
+PawState = RatchetState
+WhiskerKeys = FrameKeys
+
+# Function aliases
+bury_in_litter = _secure_zero
+knead_subkey = derive_frame_keys
+
+
+def prime_cat(password_key: bytes, salt: bytes) -> "PawState":
+    """Initialize a ratchet from the Prime Cat (root key).
+
+    This is the tasteful meow alias for init_ratchet().
+    Use this at the wrapper/demo layer. Core crypto uses init_ratchet().
+    """
+    return init_ratchet(password_key, salt)

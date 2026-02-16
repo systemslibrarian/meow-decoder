@@ -405,16 +405,23 @@ def decode_gif(
 
             # Only droplet frames are ratchet-encrypted (manifest is not)
             total_droplet_frames = len(qr_data_list) - 1  # exclude manifest
+            _rekey_interval = getattr(config, "rekey_beacon_interval", 0) if config else 0
             decoder_ratchet = DecoderRatchet(
                 root_key=bytes(encryption_key_buf),
                 salt=manifest.salt,
                 k_blocks=manifest.k_blocks,
                 block_size=manifest.block_size,
                 total_frames=total_droplet_frames,
+                rekey_interval=_rekey_interval,
+                receiver_private_key=receiver_private_key,
             )
             if verbose:
+                _beacon_msg = (
+                    f", rekey beacons every {_rekey_interval} frames" if _rekey_interval > 0 else ""
+                )
                 print(
-                    f"  🔐 Per-frame ratchet decryption enabled (MSR v1, {total_droplet_frames} droplet frames)"
+                    f"  🐾 Paw state decryption enabled "
+                    f"(MSR v1, {total_droplet_frames} frames{_beacon_msg})"
                 )
 
         # Best-effort zeroization of encryption key material
@@ -531,11 +538,11 @@ def decode_gif(
                 print(f"  Warning: Failed to process droplet: {e}")
             continue
 
-    # Finalize ratchet (zeroize remaining state)
+    # Finalize ratchet (bury keys in litter 🐱)
     if decoder_ratchet is not None:
         decoder_ratchet.finalize()
         if verbose:
-            print(f"  ✓ Decoder ratchet finalized, all keys zeroized")
+            print("  ✓ Paw state finalized, all whisker keys buried in litter")
 
     if not decoder.is_complete():
         raise RuntimeError(

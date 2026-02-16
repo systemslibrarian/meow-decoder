@@ -69,6 +69,7 @@ class EncodingConfig:
     enable_forward_secrecy: bool = True  # ✅ Enable per-block keys (RECOMMENDED)
     ratchet_interval: int = 100  # Blocks between ratchet steps
     enable_ratchet: bool = False  # Per-frame symmetric ratchet (MSR v1)
+    rekey_beacon_interval: int = 0  # Sender rekey beacon interval (0=off, 32=recommended)
     enable_stego: bool = False  # Enable steganography
     stealth_level: int = 2  # Stealth level (1-4)
     enable_animation: bool = False  # Animated carriers
@@ -100,6 +101,7 @@ class DecodingConfig:
     enable_resume: bool = True  # Enable resume functionality
     resume_password: Optional[str] = None  # Password for encrypted resume
     save_interval: int = 10  # Save resume every N droplets
+    rekey_beacon_interval: int = 0  # Sender rekey beacon interval (must match encoder)
 
     # Steganography
     enable_stego: bool = False  # Decode from steganography

@@ -35,6 +35,10 @@ from meow_decoder.ratchet import (
     RATCHET_MSG_INFO,
     RATCHET_ROOT_INFO,
     RATCHET_STEP_INFO,
+    REKEY_BEACON_INFO,
+    REKEY_BEACON_KEM_INFO,
+    REKEY_BEACON_SIZE,
+    DEFAULT_REKEY_INTERVAL,
     DecoderRatchet,
     EncoderRatchet,
     FrameKeys,
@@ -47,6 +51,7 @@ from meow_decoder.ratchet import (
     ratchet_step,
     _hkdf_derive,
     _secure_zero,
+    _mix_beacon,
 )
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -1362,3 +1367,534 @@ class TestBoundaryConditions:
         decoder.finalize()
 
         assert dec == b""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MSR v1 — The 6 Critical Security Invariants
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMSRv1SecurityInvariants:
+    """The 6 mandatory security invariants for MSR v1 correctness.
+
+    These tests prove the ratchet meets its security contract. If any
+    of these fail, the protocol has a critical vulnerability.
+    """
+
+    def test_backward_secrecy_compromised_key_N_cannot_decrypt_prior(self, root_key, salt):
+        """Compromise frame N key → frames < N stay undecryptable.
+
+        Simulate: attacker extracts message_key[5] from memory.
+        Prove: cannot decrypt frames 0-4 with message_key[5].
+        """
+        total = 10
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        encrypted = [encoder.encrypt_next(f"frame_{i}".encode()) for i in range(total)]
+        encoder.finalize()
+
+        # Re-derive message keys to simulate compromise of key[5]
+        state = init_ratchet(root_key, salt)
+        msg_keys = []
+        for _ in range(total):
+            mk, state = ratchet_step(state)
+            msg_keys.append(mk)
+
+        compromised_key = msg_keys[5]  # Attacker has this
+
+        # Attempt to decrypt earlier frames with compromised key
+        for i in range(5):
+            with pytest.raises(Exception):
+                decrypt_frame(
+                    encrypted_frame=encrypted[i],
+                    message_key=compromised_key,
+                    expected_index=i,
+                    salt=salt,
+                    k_blocks=3,
+                    block_size=800,
+                    total_frames=total,
+                )
+
+        # Verify the compromised key DOES decrypt its own frame
+        plaintext = decrypt_frame(
+            encrypted_frame=encrypted[5],
+            message_key=compromised_key,
+            expected_index=5,
+            salt=salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+        )
+        assert plaintext == b"frame_5"
+
+    def test_jump_ahead_dos_bound(self, root_key, salt):
+        """Attacker sends frame index far ahead → decode fails fast / bounded work.
+
+        An adversary crafts a frame claiming index MAX_SKIP_KEYS+100.
+        The decoder must reject it immediately (bounded computation).
+        """
+        total = MAX_SKIP_KEYS + 200
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+
+        # Craft adversarial frame with extremely high index
+        fake_index = MAX_SKIP_KEYS + 100
+        fake_frame = struct.pack(">I", fake_index) + secrets.token_bytes(48)
+
+        import time
+
+        start = time.monotonic()
+        with pytest.raises(ValueError, match="skip|DoS"):
+            decoder.decrypt(fake_frame)
+        elapsed = time.monotonic() - start
+
+        # Must complete in < 1 second (bounded work, not O(MAX_SKIP_KEYS) real crypto)
+        assert elapsed < 1.0, f"DoS bound violated: took {elapsed:.2f}s"
+        decoder.finalize()
+
+    def test_out_of_order_fountain_shuffle_succeeds(self, root_key, salt):
+        """Shuffle all droplet frames → decode MUST succeed (fountain compat).
+
+        All frames arrive, but in fully random order. Every single one
+        must decrypt correctly. This is the core fountain code contract.
+        """
+        import random
+
+        total = 30
+        frames = [secrets.token_bytes(400) for _ in range(total)]
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=5, block_size=400, total_frames=total)
+        encrypted = [encoder.encrypt_next(f) for f in frames]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=5, block_size=400, total_frames=total)
+        indices = list(range(total))
+        random.shuffle(indices)
+
+        results = {}
+        for i in indices:
+            results[i] = decoder.decrypt(encrypted[i])
+        decoder.finalize()
+
+        for i in range(total):
+            assert results[i] == frames[i], f"Frame {i} corrupted after OOO delivery"
+
+    def test_replay_rejection_deterministic(self, root_key, salt):
+        """Replay same encrypted frame → rejected deterministically.
+
+        Must raise ValueError (not silently ignore or return stale data).
+        The replay detection is frame-index-based, not content-based.
+        """
+        total = 5
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        encrypted = [encoder.encrypt_next(f"f{i}".encode()) for i in range(total)]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+
+        # First decrypt succeeds
+        result = decoder.decrypt(encrypted[2])
+        assert result == b"f2"
+
+        # Replay: exact same bytes → ValueError
+        with pytest.raises(ValueError, match="[Rr]eplay"):
+            decoder.decrypt(encrypted[2])
+
+        # Different frame still works
+        result1 = decoder.decrypt(encrypted[1])
+        assert result1 == b"f1"
+
+        decoder.finalize()
+
+    def test_cross_session_replay_rejection(self):
+        """Same frame bytes under different session salt → rejected.
+
+        Proves: salt binding in AAD prevents cross-session frame replay.
+        An attacker who captures session A's GIF cannot inject those frames
+        into session B's decoder.
+        """
+        root_key = secrets.token_bytes(32)
+        salt_a = secrets.token_bytes(16)
+        salt_b = secrets.token_bytes(16)
+
+        # Encode under session A
+        encoder = EncoderRatchet(root_key, salt_a, k_blocks=3, block_size=800, total_frames=3)
+        encrypted_a = [encoder.encrypt_next(f"sa_{i}".encode()) for i in range(3)]
+        encoder.finalize()
+
+        # Attempt to decode ALL session A frames under session B (different salt)
+        decoder = DecoderRatchet(root_key, salt_b, k_blocks=3, block_size=800, total_frames=3)
+        for enc in encrypted_a:
+            with pytest.raises(Exception):  # GCM InvalidTag or ValueError
+                decoder.decrypt(enc)
+        decoder.finalize()
+
+    def test_nonce_uniqueness_invariant(self, root_key, salt):
+        """No (key, nonce) reuse across frames within session.
+
+        Nonce reuse under the same key would be catastrophic for AES-GCM.
+        We verify both individual uniqueness of keys AND nonces.
+        """
+        total = 100
+        state = init_ratchet(root_key, salt)
+
+        all_enc_keys = set()
+        all_nonces = set()
+        all_pairs = set()
+
+        for _ in range(total):
+            msg_key, state = ratchet_step(state)
+            keys = derive_frame_keys(msg_key, salt)
+
+            enc_key = bytes(keys.enc_key)
+            nonce = bytes(keys.nonce)
+
+            all_enc_keys.add(enc_key)
+            all_nonces.add(nonce)
+            all_pairs.add((enc_key, nonce))
+
+            keys.zeroize()
+
+        # All encryption keys must be unique
+        assert len(all_enc_keys) == total, "Encryption key reuse detected!"
+        # All nonces must be unique (HKDF domain separation guarantees this)
+        assert len(all_nonces) == total, "Nonce reuse detected!"
+        # All (key, nonce) pairs must be unique (belt AND suspenders)
+        assert len(all_pairs) == total, "Key+nonce pair reuse detected!"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Sender Rekey Beacons
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestRekeyBeacons:
+    """Tests for sender rekey beacon (PCS) mechanism."""
+
+    def test_beacon_roundtrip_plaintext(self, root_key, salt):
+        """Beacon frames roundtrip correctly (plaintext beacon mode)."""
+        total = 10
+        rekey = 4  # Beacon at frame 4, 8
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+
+        for i in range(total):
+            data = f"frame_{i}".encode()
+            enc = encoder.encrypt_next(data)
+            dec = decoder.decrypt(enc)
+            assert dec == data, f"Frame {i} failed roundtrip with beacons"
+
+        encoder.finalize()
+        decoder.finalize()
+
+    def test_beacon_frames_are_larger(self, root_key, salt):
+        """Beacon frames contain extra 32 bytes (ephemeral pub or random)."""
+        from meow_decoder.ratchet import REKEY_BEACON_SIZE
+
+        total = 10
+        rekey = 4
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+
+        sizes = {}
+        for i in range(total):
+            enc = encoder.encrypt_next(b"x")
+            sizes[i] = len(enc)
+        encoder.finalize()
+
+        # Frame 0 is not a beacon (first frame exempt)
+        # Frame 4 and 8 ARE beacons → 32 bytes larger
+        normal_size = sizes[0]
+        for i in range(total):
+            if rekey > 0 and i > 0 and i % rekey == 0:
+                assert (
+                    sizes[i] == normal_size + REKEY_BEACON_SIZE
+                ), f"Frame {i} should be {REKEY_BEACON_SIZE} bytes larger (beacon)"
+            else:
+                assert sizes[i] == normal_size, f"Frame {i} should be normal size"
+
+    def test_beacon_out_of_order(self, root_key, salt):
+        """Beacon frames received out of order still decrypt."""
+        import random
+
+        total = 16
+        rekey = 4
+
+        frames = [secrets.token_bytes(200) for _ in range(total)]
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+        encrypted = [encoder.encrypt_next(f) for f in frames]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+        indices = list(range(total))
+        random.shuffle(indices)
+
+        for i in indices:
+            dec = decoder.decrypt(encrypted[i])
+            assert dec == frames[i], f"Frame {i} failed OOO beacon roundtrip"
+        decoder.finalize()
+
+    def test_beacon_different_from_non_beacon_encryption(self, root_key, salt):
+        """Same data at beacon vs non-beacon frame → different ciphertext structure."""
+        total = 10
+        rekey = 4
+        data = b"identical_payload"
+
+        enc_beacon = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+        enc_no_beacon = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=0,
+        )
+
+        # Compare frame 4 (beacon vs no-beacon)
+        for i in range(5):
+            enc_b = enc_beacon.encrypt_next(data)
+            enc_n = enc_no_beacon.encrypt_next(data)
+
+        # Frame 4 should differ between beacon and non-beacon encoders
+        # (different key derivation + extra 32 bytes)
+        assert enc_b != enc_n
+        assert len(enc_b) == len(enc_n) + 32  # beacon adds 32 bytes
+
+        enc_beacon.finalize()
+        enc_no_beacon.finalize()
+
+    def test_beacon_rekey_interval_zero_disables(self, root_key, salt):
+        """rekey_interval=0 produces identical output to no-beacon ratchet."""
+        total = 5
+
+        enc_a = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=0,
+        )
+        enc_b = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,  # default rekey_interval=0
+        )
+
+        for i in range(total):
+            a = enc_a.encrypt_next(b"data")
+            b = enc_b.encrypt_next(b"data")
+            assert a == b, f"Frame {i}: rekey_interval=0 should match default"
+
+        enc_a.finalize()
+        enc_b.finalize()
+
+    def test_beacon_kem_roundtrip(self, root_key, salt):
+        """KEM beacon mode roundtrip with X25519 keypair."""
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            PublicFormat,
+            NoEncryption,
+            PrivateFormat,
+        )
+
+        # Generate receiver keypair
+        receiver_private = X25519PrivateKey.generate()
+        receiver_public_bytes = receiver_private.public_key().public_bytes(
+            Encoding.Raw, PublicFormat.Raw
+        )
+        receiver_private_bytes = receiver_private.private_bytes(
+            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
+        )
+
+        total = 10
+        rekey = 3  # Beacon at frames 3, 6, 9
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=receiver_private_bytes,
+        )
+
+        for i in range(total):
+            data = f"kem_frame_{i}".encode()
+            enc = encoder.encrypt_next(data)
+            dec = decoder.decrypt(enc)
+            assert dec == data, f"KEM beacon frame {i} failed roundtrip"
+
+        encoder.finalize()
+        decoder.finalize()
+
+    def test_beacon_kem_wrong_private_key_fails(self, root_key, salt):
+        """KEM beacon: wrong receiver private key → decryption fails."""
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives.serialization import (
+            Encoding,
+            PublicFormat,
+            NoEncryption,
+            PrivateFormat,
+        )
+
+        receiver_private = X25519PrivateKey.generate()
+        receiver_public_bytes = receiver_private.public_key().public_bytes(
+            Encoding.Raw, PublicFormat.Raw
+        )
+
+        # Wrong private key
+        wrong_private = X25519PrivateKey.generate()
+        wrong_private_bytes = wrong_private.private_bytes(
+            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
+        )
+
+        total = 5
+        rekey = 2  # Beacon at frames 2, 4
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=wrong_private_bytes,
+        )
+
+        # Frame 0 and 1 work (not beacon frames)
+        enc0 = encoder.encrypt_next(b"f0")
+        dec0 = decoder.decrypt(enc0)
+        assert dec0 == b"f0"
+
+        enc1 = encoder.encrypt_next(b"f1")
+        dec1 = decoder.decrypt(enc1)
+        assert dec1 == b"f1"
+
+        # Frame 2 is a beacon frame → wrong key → GCM auth failure
+        enc2 = encoder.encrypt_next(b"f2")
+        with pytest.raises(Exception):  # GCM InvalidTag
+            decoder.decrypt(enc2)
+
+        encoder.finalize()
+        decoder.finalize()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Tasteful Meow Aliases
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestMeowAliases:
+    """Verify the tasteful cat-themed public API aliases."""
+
+    def test_paw_state_is_ratchet_state(self):
+        from meow_decoder.ratchet import PawState
+
+        assert PawState is RatchetState
+
+    def test_whisker_keys_is_frame_keys(self):
+        from meow_decoder.ratchet import WhiskerKeys
+
+        assert WhiskerKeys is FrameKeys
+
+    def test_bury_in_litter_zeros_buffer(self):
+        from meow_decoder.ratchet import bury_in_litter
+
+        buf = bytearray(secrets.token_bytes(32))
+        assert buf != bytearray(32)
+        bury_in_litter(buf)
+        assert buf == bytearray(32)
+
+    def test_knead_subkey_returns_whisker_keys(self):
+        from meow_decoder.ratchet import knead_subkey, WhiskerKeys
+
+        msg_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        keys = knead_subkey(msg_key, salt)
+        assert isinstance(keys, WhiskerKeys)
+        assert len(keys.enc_key) == 32
+        assert len(keys.nonce) == 12
+        assert len(keys.mac_key) == 32
+
+    def test_prime_cat_initializes_paw_state(self):
+        from meow_decoder.ratchet import prime_cat, PawState
+
+        root = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        paw = prime_cat(root, salt)
+        assert isinstance(paw, PawState)
+        assert paw.position == 0
+        assert len(paw.chain_key) == 32
+
+    def test_config_rekey_beacon_interval(self):
+        from meow_decoder.config import EncodingConfig, DecodingConfig
+
+        enc = EncodingConfig(rekey_beacon_interval=32)
+        assert enc.rekey_beacon_interval == 32
+
+        dec = DecodingConfig(rekey_beacon_interval=32)
+        assert dec.rekey_beacon_interval == 32
