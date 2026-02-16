@@ -1,8 +1,8 @@
 # MEOW Symmetric Ratchet Protocol Specification (MSR v1)
 
-**Version**: 1.0  
+**Version**: 1.1  
 **Date**: 2026-02-16  
-**Status**: Implemented, pending formal verification  
+**Status**: Implemented with rekey beacons, pending formal verification  
 **Authors**: meow-decoder contributors  
 
 ---
@@ -27,7 +27,7 @@ The MEOW Symmetric Ratchet (MSR v1) provides **per-frame forward secrecy** for f
 | Limitation | Reason | Mitigation |
 |-----------|--------|------------|
 | No DH ratchet | Air-gap = no back-channel | Chain keys exist only during session |
-| No post-compromise security | Unidirectional → no asymmetric re-keying possible | Primary threat model is post-capture forensic analysis |
+| No post-compromise security | Unidirectional → no asymmetric re-keying possible | **Sender rekey beacons** (§7) inject fresh entropy periodically |
 | Frame index is plaintext | Decoder needs index to derive correct key | Authenticated via AAD |
 
 ---
@@ -77,6 +77,10 @@ RATCHET_MSG_INFO   = b"meow_ratchet_msg_v1"
 FRAME_ENC_INFO     = b"meow_ratchet_frame_enc_v1"
 FRAME_NONCE_INFO   = b"meow_ratchet_frame_nonce_v1"
 FRAME_MAC_INFO     = b"meow_ratchet_frame_mac_v1"
+
+# Rekey beacon constants (§7)
+REKEY_BEACON_INFO     = b"meow_ratchet_rekey_v1"
+REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
 ```
 
 **Invariant**: All six constants are unique. This is verified by `test_ratchet.py::TestDomainSeparation::test_all_constants_unique`.
@@ -94,6 +98,7 @@ FRAME_MAC_INFO     = b"meow_ratchet_frame_mac_v1"
 
 ### 3.2 Encrypted Frame Format
 
+**Standard frame** (non-beacon):
 ```
 ┌─────────────────┬────────────────────────────────────┐
 │  frame_index    │  AES-GCM ciphertext + tag          │
@@ -101,7 +106,16 @@ FRAME_MAC_INFO     = b"meow_ratchet_frame_mac_v1"
 └─────────────────┴────────────────────────────────────┘
 ```
 
+**Beacon frame** (at rekey intervals, see §7):
+```
+┌─────────────────┬──────────────────┬────────────────────────────────────┐
+│  frame_index    │  beacon_data     │  AES-GCM ciphertext + tag          │
+│  (4 bytes, BE)  │  (32 bytes)      │  (len(plaintext) + 16 bytes)       │
+└─────────────────┴──────────────────┴────────────────────────────────────┘
+```
+
 - `frame_index`: 32-bit big-endian unsigned integer. Transmitted in plaintext (authenticated via AAD).
+- `beacon_data`: 32 bytes of rekey material (X25519 ephemeral public key or random entropy). Present only on beacon frames.
 - `ciphertext + tag`: AES-256-GCM output. The 16-byte authentication tag is appended.
 
 ### 3.3 Additional Authenticated Data (AAD)
@@ -251,21 +265,130 @@ ratchet.finalize()
 
 ---
 
-## 7. Signal Double Ratchet Comparison
+## 7. Sender Rekey Beacons (Post-Compromise Security)
 
-| Property | Signal Double Ratchet | MEOW MSR v1 |
+### 7.1 Problem Statement
+
+The base MSR v1 symmetric ratchet provides forward secrecy but **not** post-compromise security (PCS). If an attacker compromises `chain_key[N]`, they can derive all subsequent keys. In Signal, the DH ratchet solves this by injecting fresh asymmetric entropy on each reply. In a unidirectional air-gap, there is no reply channel.
+
+### 7.2 Solution: Periodic Entropy Injection
+
+Rekey beacons inject fresh entropy at periodic intervals (`rekey_interval`). At every beacon frame, the `message_key` is enhanced:
+
+```
+enhanced_key = HKDF(message_key || beacon_secret, salt, "meow_ratchet_rekey_v1", 32)
+```
+
+This makes the enhanced key dependent on **both** the chain state AND the beacon secret — which the attacker doesn't have at compromise time.
+
+### 7.3 Beacon Modes
+
+**Mode A: Plaintext Beacon (MEOW2)**
+
+```
+beacon_secret = random(32)      // OS CSPRNG
+beacon_data   = beacon_secret   // Embedded in frame header
+```
+
+- Protects against **memory-only compromise** (attacker has `chain_key` but not the GIF)
+- If attacker has both chain state AND the GIF, the beacon data is visible → no PCS
+- Use case: Post-capture RAM dump without physical access to the encoded GIF
+
+**Mode B: KEM Beacon (MEOW3/4 with receiver key)**
+
+```
+ephemeral_private = X25519PrivateKey.generate()
+ephemeral_public  = ephemeral_private.public_key()
+raw_shared        = ephemeral_private.exchange(receiver_public_key)
+beacon_secret     = HKDF(raw_shared, "", "meow_ratchet_kem_v1", 32)
+beacon_data       = ephemeral_public.raw_bytes()   // 32 bytes in frame header
+ZEROIZE(ephemeral_private, raw_shared)
+```
+
+- **Real PCS**: Attacker with chain state + GIF still cannot recover `beacon_secret` without `receiver_private_key`
+- Uses X25519 ephemeral key exchange per beacon (fresh keypair each time)
+- Requires receiver to have X25519 keypair (standard in MEOW3/4)
+
+### 7.4 Beacon Frame Layout
+
+```
+Is beacon frame?  = (rekey_interval > 0) AND (frame_index > 0) AND (frame_index % rekey_interval == 0)
+
+Standard frame: [frame_index(4)] [ciphertext + tag]
+Beacon frame:   [frame_index(4)] [beacon_data(32)] [ciphertext + tag]
+```
+
+The decoder detects beacon frames by checking the same `rekey_interval` condition. It strips `beacon_data` from the frame, recovers `beacon_secret`, mixes it into the message key, then decrypts normally.
+
+### 7.5 Key Derivation at Beacon Points
+
+```
+# At frame_index where is_beacon == True:
+
+message_key = HKDF(chain_key[i], salt, "meow_ratchet_msg_v1", 32)    // standard step
+beacon_secret = <mode A or mode B above>
+enhanced_key = HKDF(message_key || beacon_secret, salt, "meow_ratchet_rekey_v1", 32)
+ZEROIZE(message_key)  // enhanced_key replaces it
+
+# enhanced_key is used for subkey derivation (enc_key, nonce, mac_key)
+# The chain continues normally — beacon does NOT alter the chain itself
+```
+
+**Critical property**: Beacons enhance only the `message_key` for beacon frames. The `chain_key` advancement is unaffected. This means out-of-order fountain code delivery works identically.
+
+### 7.6 Configuration
+
+```python
+# Encoder
+EncodingConfig(
+    enable_ratchet=True,
+    rekey_beacon_interval=32,     # Beacon every 32 frames (0 = disabled)
+)
+
+# Decoder
+DecodingConfig(
+    rekey_beacon_interval=32,     # Must match encoder
+)
+```
+
+**Recommended values**:
+- `0`: Disabled (base MSR v1, no PCS)
+- `32`: Good balance between PCS refresh rate and frame overhead
+- `8`: Aggressive PCS (higher overhead, stronger guarantees)
+
+### 7.7 Security Analysis
+
+| Scenario | Plaintext Beacon | KEM Beacon |
+|----------|-----------------|------------|
+| Chain compromise only (no GIF) | ✅ PCS: enhanced keys unrecoverable | ✅ PCS: enhanced keys unrecoverable |
+| Chain + GIF compromise | ❌ beacon visible in frame | ✅ PCS: needs receiver private key |
+| Chain + GIF + receiver key | N/A | ❌ Full compromise |
+| GIF capture only (no chain) | ✅ Forward secrecy intact | ✅ Forward secrecy intact |
+
+### 7.8 Fountain Code Compatibility
+
+Beacons are fully compatible with out-of-order frame reception:
+- The `_is_rekey_frame()` check uses only `frame_index`, which is in the plaintext header
+- The skip cache stores standard `message_key` values; beacon mixing happens after cache lookup
+- Frame size difference (32 bytes larger for beacons) is handled transparently
+
+---
+
+## 8. Signal Double Ratchet Comparison
+
+| Property | Signal Double Ratchet | MEOW MSR v1.1 |
 |----------|----------------------|--------------|
 | **Symmetric ratchet** | ✓ Per-message | ✓ Per-frame |
 | **DH ratchet** | ✓ Per-reply (X3DH → DH) | ✗ (unidirectional air-gap) |
 | **Forward secrecy** | ✓ Per-message | ✓ Per-frame |
-| **Post-compromise security** | ✓ Via DH ratchet re-keying | ✗ No back-channel for re-keying |
+| **Post-compromise security** | ✓ Via DH ratchet re-keying | ⚡ Via sender rekey beacons (§7) |
 | **Out-of-order support** | Bounded window (typically ~2000) | Full (fountain code, up to 2000 cached) |
 | **Key zeroization** | ✓ | ✓ (Rust backend when available) |
 | **Header encryption** | ✓ (double-encrypted header) | ✗ (frame index is plaintext, authenticated via AAD) |
 | **KDF** | HMAC-SHA256 chain | HKDF-SHA256 with domain separation |
 | **AEAD** | AES-256-CBC + HMAC-SHA256 | AES-256-GCM |
 
-### 7.1 Why No DH Ratchet?
+### 8.1 Why No DH Ratchet?
 
 The air-gap file transfer protocol is **strictly unidirectional**:
 ```
@@ -278,18 +401,19 @@ Signal's DH ratchet requires the receiver to send a new public key back to the s
 - **If `chain_key[N]` is compromised, all `chain_key[N+1], chain_key[N+2], ...` are derivable.** This is an inherent limitation of ANY unidirectional protocol.
 - **Mitigation**: Chain keys exist only during the encode/decode session. They are never persisted to disk. The primary threat model is post-capture forensic analysis of a completed transfer, where all keys have been zeroized.
 
-### 7.2 What We DO Achieve
+### 8.2 What We DO Achieve
 
-Despite lacking a DH ratchet, MSR v1 provides:
+Despite lacking a DH ratchet, MSR v1.1 provides:
 
 1. **Backward secrecy**: Compromising `chain_key[N]` reveals nothing about `chain_key[0..N-1]` or any `message_key[0..N-1]`.
 2. **Per-frame key isolation**: Each frame uses a unique `(enc_key, nonce, mac_key)` triple.
 3. **Key lifetime minimization**: Each key exists in memory only during its frame's encryption/decryption.
 4. **Post-session security**: After `finalize()`, zero key material remains in memory.
+5. **Partial PCS via rekey beacons**: KEM beacons (§7) provide true PCS for frames at beacon intervals when `receiver_public_key` is used.
 
 ---
 
-## 8. Attack Simulation Walkthrough
+## 9. Attack Simulation Walkthrough
 
 ### Scenario: Temporary Device Compromise at Frame N
 
@@ -314,36 +438,37 @@ Despite lacking a DH ratchet, MSR v1 provides:
 - Only exists during active encoding/decoding session
 - Shrinks as more frames are processed (more keys zeroized)
 - Zero after `finalize()` — post-session capture reveals nothing
+- **With KEM beacons**: Even within the vulnerability window, beacon frames require `receiver_private_key` — reducing the attack surface further
 
 ---
 
-## 9. Known Edge Cases
+## 10. Known Edge Cases
 
-### 9.1 Fountain Code Redundancy
+### 10.1 Fountain Code Redundancy
 
 Fountain codes generate more droplets than needed (typically 1.5× k_blocks). This means:
 - `total_frames` may be larger than strictly necessary for decoding
 - The decoder may call `finalize()` before receiving all frames
 - Uncached skipped keys are irrecoverable — this is by design
 
-### 9.2 Frame Index Overflow
+### 10.2 Frame Index Overflow
 
 Frame indices are 32-bit unsigned integers (max 4,294,967,295). For reasonable file sizes and block sizes, this limit will never be reached. The ratchet raises `ValueError` on overflow.
 
-### 9.3 GIF Frame Loss
+### 10.3 GIF Frame Loss
 
 If QR frames are lost during camera capture:
 - **With fountain codes**: Tolerable if enough frames survive (~67% with 1.5× redundancy)
 - **With ratchet**: The decoder fast-forwards past missing frames, caching their keys
 - **Combined**: Lost frames consume skip cache budget but don't prevent decoding
 
-### 9.4 Skip Cache Exhaustion
+### 10.4 Skip Cache Exhaustion
 
 If more than MAX_SKIP_KEYS (2000) frames arrive out-of-order, the decoder raises `ValueError`. This bounds memory usage and prevents DoS from adversarial frame index inflation. In practice, 2000 is far more than fountain codes need.
 
 ---
 
-## 10. Hardening Recommendations (Future Work)
+## 11. Hardening Recommendations (Future Work)
 
 1. **Header encryption**: Encrypt the frame index to hide traffic analysis metadata. Requires a separate header key derivation.
 
@@ -351,19 +476,21 @@ If more than MAX_SKIP_KEYS (2000) frames arrive out-of-order, the decoder raises
 
 3. **Ratchet version negotiation**: Include ratchet version in manifest to support future ratchet protocol upgrades (MSR v2, etc.).
 
-4. **Formal verification**: Model the ratchet state machine in ProVerif or Tamarin to prove forward secrecy properties formally.
+4. **Formal verification**: Model the ratchet state machine in ProVerif or Tamarin to prove forward secrecy and beacon PCS properties formally.
 
 5. **Side-channel resistance**: Use constant-time comparison for frame indices in the decoder's skip cache lookup (currently uses Python `dict`/`set` which may leak timing).
 
+6. **Adaptive beacon interval**: Dynamically adjust `rekey_interval` based on frame count / threat posture.
+
 ---
 
-## 11. Test Coverage
+## 12. Test Coverage
 
-Comprehensive tests in `tests/test_ratchet.py`:
+Comprehensive tests in `tests/test_ratchet.py` (120 tests):
 
 | Test Class | What It Verifies |
 |-----------|------------------|
-| `TestDomainSeparation` | All 6 HKDF info constants are unique and well-formed |
+| `TestDomainSeparation` | All 8 HKDF info constants are unique and well-formed |
 | `TestInitRatchet` | Correct initial state, determinism, key independence |
 | `TestRatchetStep` | Chain advancement, key uniqueness, old key zeroization |
 | `TestForwardSecrecy` | HKDF one-wayness: chain_key[N+1] ↛ chain_key[N] |
@@ -377,10 +504,13 @@ Comprehensive tests in `tests/test_ratchet.py`:
 | `TestCrossSessionIsolation` | Different salts → independent ciphertext |
 | `TestModeRatchet` | MODE_RATCHET flag and valid mode byte combinations |
 | `TestConfigIntegration` | `enable_ratchet` flag in EncodingConfig |
+| **`TestMSRv1SecurityInvariants`** | **6 critical invariants: backward secrecy, DoS bound, OOO, replay, cross-session, nonce uniqueness** |
+| **`TestRekeyBeacons`** | **Beacon roundtrip (plaintext + KEM), OOO, size verification, wrong-key rejection** |
+| **`TestMeowAliases`** | **Cat-themed API: PawState, WhiskerKeys, bury_in_litter, knead_subkey, prime_cat** |
 
 ---
 
-## 12. References
+## 13. References
 
 - [Signal Double Ratchet Algorithm](https://signal.org/docs/specifications/doubleratchet/)
 - [RFC 5869: HMAC-based Extract-and-Expand Key Derivation Function (HKDF)](https://tools.ietf.org/html/rfc5869)
