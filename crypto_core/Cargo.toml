@@ -90,7 +90,7 @@ kem = { version = "0.3.0-rc.6", optional = true }
 # - ml-kem/ml-dsa: Pure Rust, easy build, experimental (0.1.0-rc)
 # - oqs: C library, requires system deps, more mature
 
-oqs = { version = "0.10", optional = true }
+oqs = { version = "0.11", optional = true }
 
 # Constant-time operations
 subtle = { version = "2.5", optional = true }
