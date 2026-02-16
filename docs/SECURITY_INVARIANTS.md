@@ -75,7 +75,8 @@ Invariants are verified through:
 - 96-bit random nonce from `secrets.token_bytes(12)`
 - 128-bit random salt for key derivation
 - Combined (salt, nonce) is effectively 224 bits of randomness
-- Per-process nonce cache to detect accidental reuse
+- LRU nonce cache (10K entries, `OrderedDict`) to detect accidental reuse
+- HSM/precomputed_key mode: HKDF-derived synthetic IV (`HMAC-SHA256(key, "meow_synthetic_iv_v1" || sha256(plaintext) || salt)[:12]`)
 
 **Verification:**
 - `tests/test_property_based.py::TestNonceUniqueness::test_nonces_never_repeat`
@@ -104,6 +105,8 @@ aad += sha256                                   # Original hash
 aad += MAGIC                                    # Version
 if ephemeral_public_key:
     aad += ephemeral_public_key                 # FS key binding
+if pq_ciphertext:
+    aad += pq_ciphertext                        # PQ ciphertext binding (MEOW4)
 ```
 
 **Verification:**

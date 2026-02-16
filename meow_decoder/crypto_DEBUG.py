@@ -63,9 +63,9 @@ class Manifest:
         ephemeral_public_key: Optional X25519 ephemeral public key for forward secrecy (32 bytes)
                              None = password-only mode
                              Present = forward secrecy mode
-        pq_ciphertext: Optional ML-KEM-768 ciphertext for post-quantum (1088 bytes)
+        pq_ciphertext: Optional ML-KEM-1024 ciphertext for post-quantum (1568 bytes)
                       None = classical-only mode
-                      Present = PQ hybrid mode (X25519 + ML-KEM-768)
+                      Present = PQ hybrid mode (X25519 + ML-KEM-1024)
     """
 
     salt: bytes
@@ -373,7 +373,7 @@ def pack_manifest(m: Manifest) -> bytes:
 
     Format (with forward secrecy + PQ, 1235 bytes):
         (base with FS 147 bytes) +
-        pq_ciphertext (1088 bytes)
+        pq_ciphertext (1568 bytes)
 
     Args:
         m: Manifest object
@@ -406,8 +406,8 @@ def pack_manifest(m: Manifest) -> bytes:
 
     # Add PQ ciphertext if PQ hybrid enabled
     if m.pq_ciphertext is not None:
-        if len(m.pq_ciphertext) != 1088:
-            raise ValueError(f"PQ ciphertext must be 1088 bytes, got {len(m.pq_ciphertext)}")
+        if len(m.pq_ciphertext) != 1568:
+            raise ValueError(f"PQ ciphertext must be 1568 bytes, got {len(m.pq_ciphertext)}")
         base = base + m.pq_ciphertext
 
     return base
@@ -433,7 +433,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
-    pq_len = fs_len + 1088  # 1235 bytes (with PQ ciphertext)
+    pq_len = fs_len + 1568  # 1715 bytes (with PQ ciphertext)
 
     if len(b) < min_len:
         raise ValueError(f"Manifest too short (got {len(b)}, need at least {min_len} bytes)")
@@ -477,7 +477,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     pq_ciphertext = None
     if len(b) == pq_len:
         # PQ hybrid mode - extract PQ ciphertext
-        pq_ciphertext = b[off : off + 1088]
+        pq_ciphertext = b[off : off + 1568]
 
     return Manifest(
         salt=salt,

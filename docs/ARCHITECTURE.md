@@ -9,7 +9,7 @@
 ## 📋 **Overview**
 
 Meow Decoder is an optical air-gap file transfer system that combines:
-- **Cryptography** (AES-256-GCM, Argon2id, optional Kyber)
+- **Cryptography** (AES-256-GCM, Argon2id, X25519, ML-KEM-1024 hybrid)
 - **Error Correction** (Luby Transform fountain codes — Python + JavaScript)
 - **Visual Encoding** (QR codes in GIF animations)
 - **Optical Transfer** (screen → camera with 33% frame loss tolerance)
@@ -302,7 +302,7 @@ Classical     Quantum
 Shared (32B)  Shared (32B)
     │               │
     └───────┬───────┘
-            │  XOR + HKDF
+            │  Concatenation + HKDF
             ▼
     HYBRID SHARED SECRET
             │
@@ -464,7 +464,8 @@ See [docs/FOUNTAIN_CODES_INTEGRATION.md](FOUNTAIN_CODES_INTEGRATION.md) for full
 
 SECURITY MODULES (optional):
 ├──▶ forward_secrecy.py (MEOW3)
-├──▶ pq_crypto_real.py (MEOW4)
+├──▶ pq_hybrid.py (MEOW4, primary PQ module)
+├──▶ pq_crypto_real.py (DEPRECATED — use pq_hybrid.py)
 ├──▶ ninja_cat_ultra.py (steganography)
 ├──▶ prowling_mode.py (low-memory)
 └──▶ resume_secured.py (resume support)
@@ -808,7 +809,7 @@ wasm-pack build crypto_core --target web --release --features wasm-pq
 4. **Paw Prints** (QR codes) made by `qr_code.py` 🐾
 5. **Yarn Balls** (GIFs) created by `gif_handler.py` 🧶
 6. **Nine Lives** (forward secrecy) in `forward_secrecy.py` 🐱
-7. **Quantum Nine Lives** (post-quantum) in `pq_crypto_real.py` 🔮
+7. **Quantum Nine Lives** (post-quantum) in `pq_hybrid.py` 🔮 *(pq_crypto_real.py is deprecated)*
 8. **Ninja Cat** (steganography) in `ninja_cat_ultra.py` 🥷
 9. **Prowling** (low-memory) in `prowling_mode.py` 🐾
 10. **Collar Tags** (manifests) in all the above! 🏷️

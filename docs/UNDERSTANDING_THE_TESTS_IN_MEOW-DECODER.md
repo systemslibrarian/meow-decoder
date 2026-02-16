@@ -33,7 +33,7 @@ These tests protect the core cryptographic operations. Failures here could leak 
 | `test_forward_secrecy_encoder.py` | Forward secrecy in encoding path |
 | `test_forward_secrecy_decoder.py` | Forward secrecy in decoding path |
 | `test_x25519_forward_secrecy.py` | Key generation, serialization, shared secrets |
-| `test_pq_crypto_real.py` | Post-quantum ML-KEM-768/1024 integration |
+| `test_pq_crypto_real.py` | Post-quantum ML-KEM-1024 integration |
 | `test_pq_hybrid.py` | X25519 + ML-KEM hybrid mode |
 | `test_pq_signatures.py` | Dilithium3 / Ed25519 manifest signatures |
 | `test_metadata_obfuscation.py` | Length padding, size class hiding |

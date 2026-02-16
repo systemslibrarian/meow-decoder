@@ -182,7 +182,8 @@ def test_decode_gif_hmac_failure(tmp_path, monkeypatch):
         )
 
 
-def test_decode_gif_frame_mac_invalid_fails_open(tmp_path, monkeypatch):
+def test_decode_gif_frame_mac_invalid_fails_closed(tmp_path, monkeypatch):
+    """FIX-E1: Invalid frame MAC now raises ValueError (fail-closed)."""
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
     manifest_with_mac = b"\x00" * 8 + manifest_bytes
@@ -212,12 +213,10 @@ def test_decode_gif_frame_mac_invalid_fails_open(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", _invalid_manifest)
 
     out_path = tmp_path / "out.bin"
-    stats = decode_mod.decode_gif(
-        tmp_path / "in.gif", out_path, password="password123", verbose=True
-    )
 
-    assert out_path.read_bytes() == plaintext
-    assert stats["output_size"] == len(plaintext)
+    # FIX-E1: Frame MAC invalid now raises ValueError instead of silently disabling
+    with pytest.raises((ValueError, RuntimeError), match="[Ff]rame MAC"):
+        decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=True)
 
 
 def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):

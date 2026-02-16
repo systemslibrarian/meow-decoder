@@ -42,6 +42,7 @@ def encode_file(
     keyfile: Optional[bytes] = None,
     forward_secrecy: bool = True,
     receiver_public_key: Optional[bytes] = None,
+    receiver_pq_public: Optional[bytes] = None,
     yubikey: bool = False,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
@@ -69,6 +70,8 @@ def encode_file(
         keyfile: Optional keyfile content
         forward_secrecy: Enable forward secrecy (MEOW3, default True)
         receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
+        receiver_pq_public: Optional ML-KEM-1024 public key for PQ hybrid mode (1568 bytes).
+            Required when use_pq=True and receiver_public_key is provided.
         use_pq: Enable post-quantum hybrid mode (MEOW4)
         stego_level: Steganography level (0=off, 1-4=stealth levels)
         carrier_images: Optional list of carrier image paths (your cat photos!)
@@ -174,13 +177,19 @@ def encode_file(
         if not available:
             raise RuntimeError(f"Post-quantum mode requested but unavailable: {msg}")
 
-        # receiver_public_key is X25519 (32 bytes); for full PQ we also need
-        # a PQ public key. If not provided separately, we generate a keypair
-        # and include PQ ct in manifest (receiver will need the PQ secret key).
-        # For air-gap transfers, receiver pre-shares their hybrid public keys.
+        # FIX-GPT-1: PQ hybrid requires the receiver's PQ public key.
+        # Without it, we would silently fall back to classical-only, which
+        # violates the "PQ ON" claim. Require it explicitly.
+        if receiver_pq_public is None:
+            raise ValueError(
+                "Post-quantum hybrid mode (use_pq=True) requires receiver_pq_public "
+                "(ML-KEM-1024 public key, 1568 bytes). PQ mode cannot silently fall "
+                "back to classical-only. Either provide a PQ public key or disable PQ mode."
+            )
+
         pq_shared_secret, eph_classical_pub, pq_ciphertext, _ = hybrid_encapsulate(
             receiver_classical_public=receiver_public_key,
-            receiver_pq_public=None,  # TODO: Accept receiver PQ public key via CLI
+            receiver_pq_public=receiver_pq_public,
         )
 
         if pq_ciphertext is not None:
@@ -190,15 +199,23 @@ def encode_file(
             # Don't do a separate X25519 exchange inside encrypt_file_bytes
             encrypt_kwargs["receiver_public_key"] = None
             encrypt_kwargs["pq_ciphertext"] = pq_ciphertext
+            # FIX-GPT-1: Store the ephemeral classical public key so the decoder
+            # can call hybrid_decapsulate().  Without this, the manifest would
+            # have ephemeral_public_key=None and the decoder couldn't reconstruct
+            # the hybrid shared secret.
+            encrypt_kwargs["pq_ephemeral_public_key"] = eph_classical_pub
             if verbose:
                 print(
                     f"  🔮 PQ hybrid: ML-KEM-1024 ciphertext generated ({len(pq_ciphertext)} bytes)"
                 )
         else:
-            # Classical-only fallback (liboqs generated classical-only secret)
-            encrypt_kwargs["precomputed_key"] = pq_shared_secret
-            encrypt_kwargs["precomputed_salt"] = None
-            encrypt_kwargs["receiver_public_key"] = None
+            # FIX-GPT-1: This should never happen since we validated receiver_pq_public above.
+            # If hybrid_encapsulate returned None pq_ciphertext despite receiving a PQ key,
+            # that's a bug in the encapsulation layer — fail closed.
+            raise RuntimeError(
+                "PQ hybrid encapsulation failed: pq_ciphertext is None despite "
+                "receiver_pq_public being provided. This indicates a bug in hybrid_encapsulate()."
+            )
             if verbose:
                 print(f"  ℹ️  PQ hybrid: Classical-only fallback (no PQ ciphertext)")
     elif use_pq:

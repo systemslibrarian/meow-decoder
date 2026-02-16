@@ -10,7 +10,9 @@ Security Properties:
 - Compromise of receiver's long-term key doesn't compromise past messages
 """
 
+import hashlib
 import secrets
+import struct
 from typing import Tuple, Optional
 from dataclasses import dataclass
 
@@ -48,6 +50,7 @@ def derive_shared_secret(
     password: str,
     salt: bytes,
     info: bytes = b"meow_forward_secrecy_v1",
+    protocol_version: Optional[int] = None,
 ) -> bytes:
     """
     Derive shared secret using X25519 + password via HKDF.
@@ -58,6 +61,9 @@ def derive_shared_secret(
         password: User password
         salt: Random salt (16 bytes)
         info: HKDF info string for domain separation
+        protocol_version: Optional manifest version for transcript binding (FIX-C3).
+            When provided, the HKDF info is augmented with the protocol version
+            to prevent cross-version key confusion attacks.
 
     Returns:
         32-byte shared secret for encryption
@@ -74,6 +80,13 @@ def derive_shared_secret(
     # Perform X25519 key exchange
     x25519_shared = backend.x25519_exchange(ephemeral_private, receiver_public)
 
+    # FIX-C3: Transcript binding — bind protocol version into HKDF context
+    # to prevent cross-version key confusion attacks.
+    if protocol_version is not None:
+        bound_info = b"meow_fs_bound_v1:" + struct.pack(">B", protocol_version)
+    else:
+        bound_info = info
+
     # Combine with password (use mutable buffers for best-effort zeroing)
     password_bytes = bytearray(password.encode("utf-8"))
     combined = bytearray(x25519_shared)
@@ -81,7 +94,7 @@ def derive_shared_secret(
 
     try:
         # Derive final key using HKDF
-        return backend.derive_key_hkdf(bytes(combined), salt, info)
+        return backend.derive_key_hkdf(bytes(combined), salt, bound_info)
     finally:
         # Best-effort zeroing of sensitive material
         try:

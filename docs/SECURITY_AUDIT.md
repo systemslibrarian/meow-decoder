@@ -61,7 +61,7 @@ This audit re-examined every security-critical module from scratch. Prior conclu
 
 ### Limitations
 - ⚠️ **Nonce cache is per-process only** — multi-process scenarios could theoretically reuse (salt makes this astronomically unlikely)
-- ⚠️ **Cache eviction at 1024 entries** — [crypto.py#L101](../meow_decoder/crypto.py) clears cache, but fresh random salt/nonce makes collision negligible
+- ✅ **LRU eviction at 10,000 entries** — [crypto.py#L101](../meow_decoder/crypto.py) uses `OrderedDict` LRU (no full clear). HSM/precomputed_key mode uses HKDF-derived synthetic IV, eliminating nonce-cache reliance for that path.
 
 **Score: 9.5/10** — Minor theoretical per-process limitation acknowledged
 
@@ -151,7 +151,7 @@ finally:
 |-----------|---------------|----------|--------|
 | **X25519 Ephemeral** | Generated per-encryption via Rust | [x25519_forward_secrecy.py#L32-42](../meow_decoder/x25519_forward_secrecy.py) — `generate_ephemeral_keypair()` | ✅ |
 | **Key Exchange** | X25519 + password via HKDF | [x25519_forward_secrecy.py#L44-86](../meow_decoder/x25519_forward_secrecy.py) — `derive_shared_secret()` | ✅ |
-| **Domain Separation** | `info=b"meow_forward_secrecy_v1"` | [x25519_forward_secrecy.py#L52](../meow_decoder/x25519_forward_secrecy.py) | ✅ |
+| **Domain Separation** | `info=b"meow_fs_bound_v1:" + struct.pack(">B", protocol_version)` | [x25519_forward_secrecy.py#L52](../meow_decoder/x25519_forward_secrecy.py) — protocol_version transcript binding added | ✅ |
 | **Input Validation** | 32-byte checks on keys | [x25519_forward_secrecy.py#L62-65](../meow_decoder/x25519_forward_secrecy.py) | ✅ |
 
 ### Zeroization (Best-Effort)

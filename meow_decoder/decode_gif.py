@@ -41,6 +41,7 @@ def decode_gif(
     duress_config: Optional[DuressConfig] = None,
     keyfile: Optional[bytes] = None,
     receiver_private_key: Optional[bytes] = None,
+    receiver_pq_keypair=None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
@@ -63,6 +64,8 @@ def decode_gif(
         duress_config: Duress configuration
         keyfile: Optional keyfile content
         receiver_private_key: Optional X25519 private key for forward secrecy (32 bytes)
+        receiver_pq_keypair: Optional HybridKeyPair from pq_hybrid for PQ decapsulation.
+            Required when the manifest contains pq_ciphertext (MEOW4 mode).
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips key derivation and uses this key
         hsm_slot: HSM PKCS#11 slot number (enables HSM mode)
@@ -417,16 +420,16 @@ def decode_gif(
                     tamper_report.record(0, True, "legacy derivation")
                 if verbose:
                     print("  ✓ Manifest frame MAC valid (legacy derivation)")
-            else:  # pragma: no cover
-                # Manifest frame MAC invalid -- record in tamper report
+            else:
+                # FIX-E1: Frame MAC invalid — fail closed to prevent tampering.
+                # The old behavior silently disabled frame MAC verification,
+                # allowing an attacker to strip MACs and inject modified frames.
                 if tamper_report is not None:
                     tamper_report.record(0, False, "manifest MAC invalid")
-                # Fail open (disable frame MAC mode) rather than hard-failing the decode.
-                # The manifest HMAC has already been verified above.
-                has_frame_macs = False
-                frame_master_key = None
-                if verbose:
-                    print("  ⚠️  Manifest frame MAC invalid; disabling frame MAC verification")
+                raise ValueError(
+                    "Frame MAC verification failed: manifest frame MAC is invalid. "
+                    "This may indicate tampering or corruption."
+                )
         else:
             mac_stats.record_valid()
             if tamper_report is not None:  # pragma: no cover
@@ -515,6 +518,47 @@ def decode_gif(
 
     # Decrypt with forward secrecy support
     try:
+        # FIX-GPT-1: PQ hybrid decapsulation (MEOW4).
+        # When the manifest carries pq_ciphertext, the encoder used
+        # hybrid_encapsulate() to derive the encryption key.  The decoder
+        # must call hybrid_decapsulate() to reconstruct the same key and
+        # pass it as precomputed_key (skip Argon2id / X25519 inside
+        # decrypt_to_raw).
+        pq_precomputed_key = precomputed_key  # default: whatever the caller passed
+        pq_private_key = receiver_private_key  # default: X25519 private for FS
+
+        if manifest.pq_ciphertext is not None:
+            if receiver_pq_keypair is None:
+                raise ValueError(
+                    "Manifest contains PQ ciphertext (MEOW4 mode) but no "
+                    "receiver_pq_keypair was provided.  Cannot decrypt without "
+                    "the receiver's ML-KEM-1024 + X25519 hybrid keypair."
+                )
+            if manifest.ephemeral_public_key is None:
+                raise ValueError(
+                    "Manifest contains PQ ciphertext but no ephemeral public key. "
+                    "The manifest may be corrupt or was encoded with a buggy version."
+                )
+            try:
+                from .pq_hybrid import hybrid_decapsulate
+            except ImportError:
+                from meow_decoder.pq_hybrid import hybrid_decapsulate
+
+            pq_precomputed_key = hybrid_decapsulate(
+                ephemeral_classical_public=manifest.ephemeral_public_key,
+                pq_ciphertext=manifest.pq_ciphertext,
+                receiver_keypair=receiver_pq_keypair,
+            )
+            # In PQ hybrid mode, the X25519 exchange already happened inside
+            # hybrid_decapsulate; don't trigger a second one in decrypt_to_raw.
+            pq_private_key = None
+
+            if verbose:
+                print(
+                    f"  🔮 PQ hybrid: Decapsulated ML-KEM-1024 ciphertext "
+                    f"({len(manifest.pq_ciphertext)} bytes)"
+                )
+
         raw_data = decrypt_to_raw(
             cipher,
             password,
@@ -525,10 +569,10 @@ def decode_gif(
             manifest.comp_len,
             manifest.sha256,
             manifest.ephemeral_public_key,
-            receiver_private_key,
+            pq_private_key,
             yubikey_slot=yubikey_slot,
             yubikey_pin=yubikey_pin,
-            precomputed_key=precomputed_key,
+            precomputed_key=pq_precomputed_key,
             pq_ciphertext=manifest.pq_ciphertext,
         )
 

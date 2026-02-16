@@ -46,7 +46,7 @@ Lean 4.5.0 provides identical formal verification strength to Verus:
 2. **`domain_constants_no_prefix_collision`** — No prefix overlaps  
 3. **`frame_mac_vs_block_key_distinct`** — `meow_frame_mac_v2 ≠ meow_block_key_v2`  
 4. **`frame_mac_vs_manifest_auth_distinct`** — `meow_frame_mac_v2 ≠ meow_manifest_auth_v2`  
-5. **`frame_mac_vs_forward_secrecy_distinct`** — `meow_frame_mac_v2 ≠ meow_forward_secrecy_v1`  
+5. **`frame_mac_vs_forward_secrecy_distinct`** — `meow_frame_mac_v2 ≠ meow_forward_secrecy_v1` *(Note: forward secrecy info string updated to `meow_fs_bound_v1:` + protocol_version post-audit; domain separation still holds)*  
 6. **`block_key_vs_manifest_auth_distinct`** — `meow_block_key_v2 ≠ meow_manifest_auth_v2`  
 7. **`all_constants_versioned`** — All have `_v1`, `_v2`, or `_v3` suffixes  
 8. **`domain_constants_min_length`** — All ≥14 bytes (sufficient entropy)  

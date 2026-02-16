@@ -49,6 +49,7 @@ AAD is bound to ciphertext and **must match exactly** at decryption.
 ```
 AAD = LE64(orig_len) || LE64(comp_len) || salt || sha256 || MAGIC
 AAD += ephemeral_public_key (32 bytes, if present)
+AAD += pq_ciphertext (1568 bytes, if present — MEOW4)
 ```
 
 - Field order is deterministic (version-aware).
@@ -75,15 +76,15 @@ HMAC (32)
 
 **Optional fields in order:**
 - EPHEMERAL_PUBLIC_KEY (32, FS)
-- PQ_CIPHERTEXT (1088, PQ hybrid)
+- PQ_CIPHERTEXT (1568, PQ hybrid)
 - DURESS_TAG (32, duress)
 
 **Valid lengths:**
 - 115  (base)
 - 147  (base + FS)
 - 179  (base + FS + duress)
-- 1235 (base + FS + PQ)
-- 1267 (base + FS + PQ + duress)
+- 1715 (base + FS + PQ)
+- 1747 (base + FS + PQ + duress)
 
 ### Duress tag
 ```
@@ -176,12 +177,11 @@ All failures must be **safe and boring**: no partial plaintext and no detailed o
 - **Ciphertext size:** 1568 bytes (ML‑KEM‑1024).
 - **Shared secret:** 32 bytes.
 
-> **Implementation note (2026‑02‑14):** The manifest serialisation in
-> `crypto.py` currently reserves 1088 bytes for PQ ciphertext—the size of
-> ML‑KEM‑**768**, not ML‑KEM‑1024.  Until this is corrected, the
-> full MEOW4 encode pipeline is **not wired up**.  The Tamarin and
-> ProVerif models verify the target design; the implementation gap is
-> tracked in `todo-formal.md`.
+The MEOW4 encode pipeline is fully wired end-to-end:
+`encode.py` calls `hybrid_encapsulate()` to produce the KEM ciphertext
+and combined shared secret, which is passed to `encrypt_file_bytes()`
+as `precomputed_key`.  The decoder (`decode_gif.py`) calls
+`hybrid_decapsulate()` when `manifest.pq_ciphertext` is present.
 
 ### 11.2 Hybrid Key Derivation
 
@@ -191,7 +191,7 @@ pq_ss        = ML-KEM-1024.Decaps(receiver_sk, kem_ct)  // 32 bytes
 combined_ikm = classical_ss || pq_ss                     // 64 bytes
 
 shared_secret = HKDF-SHA256(
-    salt  = "",
+    salt  = ephemeral_public_key,
     ikm   = combined_ikm,
     info  = "meow_hybrid_pq_v1",
     len   = 32
@@ -212,12 +212,11 @@ the PQ ciphertext bytes.
 HMAC_INPUT includes: ... || EPHEMERAL_PK (32) || PQ_CIPHERTEXT (1568)
 ```
 
-> **Note:** The KEM ciphertext is **not** independently bound in the
-> AES‑GCM AAD (`build_canonical_aad` does not accept a `pq_ciphertext`
-> parameter).  This is acceptable because the manifest HMAC—verified
-> before any decryption—covers the ciphertext.  An attacker who
-> substitutes or truncates the KEM ciphertext will fail HMAC
-> verification and hit the uniform `error_auth_failed` path.
+> **Note:** The KEM ciphertext is now also bound in AES‑GCM AAD
+> via the `pq_ciphertext` parameter of `build_canonical_aad`.  This
+> provides defence-in-depth alongside the manifest HMAC.  An attacker
+> who substitutes or truncates the KEM ciphertext will fail both HMAC
+> and AEAD verification.
 
 ### 11.4 Downgrade Prevention
 
@@ -225,19 +224,17 @@ A MEOW4 session **MUST NOT** silently fall back to MEOW3.
 
 - The encoder selects the manifest version before encryption; a MEOW4
   manifest includes the 1568‑byte PQ ciphertext field, making its wire
-  length (≥1267 bytes) unambiguously distinguishable from MEOW3 (147 or
+  length (≥1747 bytes) unambiguously distinguishable from MEOW3 (147 or
   179 bytes).
 - If the decoder receives a manifest whose length does not include the PQ
   field, it MUST parse it as MEOW3 (not MEOW4).  The expected combined
   key will not match the AEAD tag, causing hard fail.
 
-> **Implementation gap (2026‑02‑14):** The decoder has no "expected
-> version" configuration—it accepts whatever manifest version it
-> receives.  A MitM who replaces a MEOW4 GIF with a MEOW3 GIF forged
-> under a different key would succeed if and only if they know the
-> password.  Since the password is the root trust anchor in the
-> password‑only threat model, this is not a practical downgrade;
-> however, a future version SHOULD allow the receiver to pin to MEOW4.
+> **Partial mitigation (2026‑02‑16):** The decoder now calls
+> `hybrid_decapsulate()` when PQ ciphertext is present, and raises a
+> clear `ValueError("PQ ciphertext present but no receiver keypair")`
+> when the keypair is missing.  A future version SHOULD allow the
+> receiver to pin to MEOW4 to detect replacement attacks.
 
 ### 11.5 Formal Verification Coverage
 

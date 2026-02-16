@@ -62,6 +62,8 @@ Additional protection in `crypto.py` lines 73-85:
 ```python
 def _register_nonce_use(key: bytes, nonce: bytes) -> None:
     """Best-effort nonce reuse guard (per-process)."""
+    # POST-AUDIT: Upgraded to LRU (10K cap, OrderedDict). HSM mode
+    # now uses HKDF-derived synthetic IV. See OPUS-AUDIT.md FIX-A1.
     digest = hashlib.sha256(key + nonce).digest()
     if digest in _nonce_reuse_cache:
         raise RuntimeError("Nonce reuse detected for encryption key")

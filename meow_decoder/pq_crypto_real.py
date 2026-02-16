@@ -3,7 +3,21 @@
 Real hybrid Kyber/ML-KEM + X25519 implementation with graceful fallback
 
 Priority 2 Implementation: Uses liboqs-python when available
+
+DEPRECATED: This module uses an insecure XOR combiner for classical+PQ
+shared secrets. Use pq_hybrid.py instead, which uses concatenation + HKDF.
+See OPUS-AUDIT.md finding D1 for details.
 """
+
+import warnings
+
+warnings.warn(
+    "pq_crypto_real is deprecated due to insecure XOR key combination. "
+    "Use pq_hybrid.py (concatenation + HKDF) instead. "
+    "This module will be removed in a future release.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 import os
 import struct
@@ -73,13 +87,13 @@ class QuantumNineLives:
         "kyber1024": "Kyber1024",
     }
 
-    def __init__(self, variant: str = "kyber768"):
+    def __init__(self, variant: str = "kyber1024"):
         """
         Initialize Quantum Nine Lives.
 
         Args:
             variant: Kyber variant (kyber512/kyber768/kyber1024)
-                    kyber768 recommended for most use cases
+                    kyber1024 required for MEOW4 compatibility
         """
         if variant not in self.VARIANTS:
             raise ValueError(f"Unknown variant: {variant}. Use: {list(self.VARIANTS.keys())}")

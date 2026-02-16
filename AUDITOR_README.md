@@ -5,7 +5,7 @@
 **Project:** Meow Decoder - Optical Air-Gap File Transfer System  
 **Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
 **Language:** Python 3.10+ / Rust 1.70+  
-**Crypto Primitives:** AES-256-GCM, Argon2id, X25519, ML-KEM-768/1024, Ed25519, Dilithium3, HMAC-SHA256  
+**Crypto Primitives:** AES-256-GCM, Argon2id, X25519, ML-KEM-1024, Ed25519, Dilithium3, HMAC-SHA256  
 **Lines of Code:** ~12,000 Python, ~3,000 Rust  
 
 ---
@@ -85,7 +85,7 @@ mypy meow_decoder/ --strict
 ┌────────────────────────────────────────────────────────────────────────┐
 │  MAGIC (5B) │ Salt (16B) │ Nonce (12B) │ Lengths (12B) │ SHA256 (32B) │
 ├────────────────────────────────────────────────────────────────────────┤
-│  HMAC (32B) │ [Ephemeral PubKey (32B)] │ [PQ Ciphertext (1088B)]      │
+│  HMAC (32B) │ [Ephemeral PubKey (32B)] │ [PQ Ciphertext (1568B)]      │
 ├────────────────────────────────────────────────────────────────────────┤
 │  [Duress Tag (32B)]                                                    │
 └────────────────────────────────────────────────────────────────────────┘
@@ -94,8 +94,8 @@ Total sizes:
   - MEOW2 (password-only):      115 bytes
   - MEOW3 (forward secrecy):    147 bytes
   - MEOW3 + duress:             179 bytes
-  - MEOW4 (post-quantum):       1235 bytes
-  - MEOW4 + duress:             1267 bytes
+  - MEOW4 (post-quantum):      1715 bytes
+  - MEOW4 + duress:             1747 bytes
 ```
 
 ---
@@ -123,8 +123,8 @@ Total sizes:
 
 **Security Properties:**
 - AES-256-GCM with 96-bit nonce (never reused)
-- AAD includes: orig_len, comp_len, salt, sha256, magic
-- Nonce reuse guard (per-process cache)
+- AAD includes: orig_len, comp_len, salt, sha256, magic, ephemeral_public_key, pq_ciphertext
+- Nonce reuse guard (per-process LRU cache + synthetic IV for HSM mode)
 
 **Review Focus:**
 - [ ] Nonce generation (secrets.token_bytes)
@@ -237,7 +237,7 @@ Total sizes:
 ✅ Ciphertext tampering (AEAD + HMAC)  
 ✅ Frame injection (per-frame MAC)  
 ✅ Forward secrecy compromise (X25519 ephemeral)  
-✅ Future quantum (ML-KEM-768/1024 hybrid)  
+✅ Future quantum (ML-KEM-1024 hybrid)  
 ✅ Coercion (duress + Schrödinger mode)  
 
 ### NOT Protected Against

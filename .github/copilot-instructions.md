@@ -14,6 +14,9 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - AES-256-GCM with Argon2id key derivation (512 MiB, 20 iterations in production; 32 MiB, 1 iteration in test mode)
    - Manifest versions: MEOW2 (base), MEOW3 (forward secrecy), MEOW4 (post-quantum)
    - HMAC-SHA256 authentication with domain separation
+   - AAD includes: orig_len, comp_len, salt, sha256, magic, ephemeral_public_key, pq_ciphertext
+   - Nonce reuse guard: LRU cache (10K cap) + HKDF-derived synthetic IV for HSM mode
+   - Frame MAC: fail-closed (ValueError on invalid MAC, never silently disables)
 
 2. **Fountain Coding** ([fountain.py](../meow_decoder/fountain.py), [fountain-codes.js](../examples/fountain-codes.js))
    - Luby Transform rateless codes with Robust Soliton distribution
@@ -32,8 +35,16 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Optional X25519 ephemeral key exchange (MEOW3)
    - Per-block key derivation using HKDF
    - Signal-style key ratcheting support
+   - Transcript binding: `derive_shared_secret()` binds `protocol_version` in HKDF info
 
-5. **Schrödinger Mode** ([schrodinger_encode.py](../meow_decoder/schrodinger_encode.py), [quantum_mixer.py](../meow_decoder/quantum_mixer.py))
+5. **Post-Quantum Hybrid** ([pq_hybrid.py](../meow_decoder/pq_hybrid.py))
+   - ML-KEM-1024 (Kyber1024) + X25519 hybrid key exchange (MEOW4)
+   - Fully wired end-to-end: `encode.py` → `hybrid_encapsulate()`, `decode_gif.py` → `hybrid_decapsulate()`
+   - HKDF salt = `ephemeral_public_bytes` (not empty)
+   - PQ ciphertext: 1568 bytes, bound in both HMAC and AAD
+   - Manifest sizes: MEOW4 = 1715 bytes, MEOW4 + duress = 1747 bytes
+
+6. **Schrödinger Mode** ([schrodinger_encode.py](../meow_decoder/schrodinger_encode.py), [quantum_mixer.py](../meow_decoder/quantum_mixer.py))
    - Dual-secret quantum superposition: `QuantumNoise = XOR(Hash(Pass_A), Hash(Pass_B))`
    - Statistical indistinguishability enforced via entropy tests
    - Merkle tree integrity, automatic decoy generation
@@ -67,11 +78,14 @@ All security-critical changes must include tests in `tests/test_security.py` or 
 Run tests: `make test` or `pytest tests/ -v --cov=meow_decoder`
 
 ### Security Invariants (NEVER violate!)
-1. **AAD binding**: Manifest must be bound to ciphertext via AES-GCM AAD (see [crypto.py](../meow_decoder/crypto.py) line ~280)
-2. **HMAC verification**: Compute and verify manifest HMAC before using any fields
-3. **Constant-time comparisons**: Use `secrets.compare_digest()` for auth tags/passwords
-4. **Secure cleanup**: Zero sensitive bytes after use (see [constant_time.py](../meow_decoder/constant_time.py))
-5. **Domain separation**: Use unique context strings for different HKDF derivations
+1. **AAD binding**: Manifest must be bound to ciphertext via AES-GCM AAD — includes `orig_len`, `comp_len`, `salt`, `sha256`, `magic`, `ephemeral_public_key`, `pq_ciphertext`
+2. **No AAD bypass**: `decrypt_to_raw()` requires all AAD params; `aad=None` is never allowed
+3. **HMAC verification**: Compute and verify manifest HMAC before using any fields
+4. **Constant-time comparisons**: Use `secrets.compare_digest()` for auth tags/passwords
+5. **Secure cleanup**: Zero sensitive bytes after use (see [constant_time.py](../meow_decoder/constant_time.py))
+6. **Domain separation**: Use unique context strings for different HKDF derivations
+7. **Fail-closed**: Frame MAC verification must raise `ValueError` on failure, never silently disable
+8. **PQ ciphertext integrity**: When present, PQ ciphertext bound in both HMAC and AAD
 
 ## Command Reference
 
@@ -261,4 +275,6 @@ ARGON2_PARALLELISM = 4     # 4 threads
 - [tests/test_encode.py](../tests/test_encode.py): Encoding pipeline and roundtrip patterns
 - [tests/test_decode_gif.py](../tests/test_decode_gif.py): GIF decoding and frame extraction
 - [tests/test_fountain.py](../tests/test_fountain.py): Python fountain code unit tests
+- [tests/test_audit_fixes.py](../tests/test_audit_fixes.py): OPUS-AUDIT remediation verification
+- [tests/test_e2e_crypto_fountain.py](../tests/test_e2e_crypto_fountain.py): End-to-end crypto+fountain pipeline tests
 - [examples/demo_schrodinger.py](../examples/demo_schrodinger.py): Dual-secret workflow

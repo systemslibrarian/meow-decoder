@@ -598,7 +598,8 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 | Key exchange | ML-KEM-1024 (Kyber) + X25519 hybrid | ✅ Production |
 
 **What's Implemented:**
-- `pq_crypto_real.py` with ML-KEM-1024 + X25519 hybrid (NIST FIPS 203)
+- `pq_hybrid.py` with ML-KEM-1024 + X25519 hybrid (NIST FIPS 203) — primary PQ module
+- `pq_crypto_real.py` is **deprecated** (emits `DeprecationWarning`, forced to ML-KEM-1024)
 - Graceful fallback if liboqs not installed
 - Security: Safe if EITHER classical OR quantum crypto holds
 - Dilithium3 signatures for quantum-resistant manifest authentication (FIPS 204)

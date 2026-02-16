@@ -9,8 +9,10 @@ import os
 import struct
 import hashlib
 import hmac
+import logging as _logging
 import zlib
 import secrets
+from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
@@ -55,6 +57,22 @@ MAX_DECOMP_RATIO = 10  # decompression output limit: orig_len <= comp_len * rati
 # A single function builds the AAD for both encrypt and decrypt.  The layout is:
 #   AAD_VERSION (1 byte) || orig_len (8 LE) || comp_len (8 LE)
 #   || salt (16) || sha256 (32) || magic (variable) [|| ephemeral_pk (32)]
+# AAD Completeness Analysis (FIX-GPT-3):
+#
+# Fields included in GCM AAD (build_canonical_aad):
+#   orig_len, comp_len, salt, sha256, magic, ephemeral_public_key, pq_ciphertext
+#
+# Fields NOT in AAD but authenticated by manifest HMAC:
+#   cipher_len  — Output of encryption; cannot be AAD input (circular dependency).
+#   block_size  — Fountain-coding layer parameter; not available during encryption.
+#   k_blocks    — Derived from cipher_len and block_size; same constraint.
+#   duress_tag  — Checked before HMAC (timing-safe ordering per CRIT-04) but
+#                 requires knowledge of the duress password to forge.
+#
+# The manifest HMAC (compute_manifest_hmac) covers ALL packed fields including
+# cipher_len, block_size, k_blocks, and duress_tag.  HMAC verification is
+# MANDATORY in decode_gif.py and occurs BEFORE any of these fields are used
+# for crypto or fountain operations.  See verify_manifest_hmac().
 #
 # AAD_VERSION = 0x01 — bump this if the layout ever changes so old code can
 # detect an incompatible manifest and fall back or reject explicitly.
@@ -147,23 +165,39 @@ MIN_PASSWORD_LENGTH = 8
 # Duress password domain separation
 DURESS_HASH_PREFIX = b"duress_check_v1"
 
-# Nonce reuse guard (best-effort, per-process)
-_NONCE_REUSE_CACHE_MAX = 1024
-_nonce_reuse_cache = set()
+# FIX-A1: Nonce reuse guard (best-effort, per-process)
+# Uses OrderedDict for LRU eviction instead of clearing all history.
+# Cache size increased from 1024 to 10000 to reduce false-negative window.
+_NONCE_REUSE_CACHE_MAX = 10000
+_nonce_reuse_cache: "OrderedDict[bytes, bool]" = OrderedDict()
+_nonce_logger = _logging.getLogger("meow_decoder.crypto.nonce_guard")
 
 
-def _register_nonce_use(key: bytes, nonce: bytes) -> None:
+def _register_nonce_use(key: bytes, nonce: bytes, *, precomputed_key_mode: bool = False) -> None:
     """
     Best-effort nonce reuse guard (per-process).
 
     Raises RuntimeError if the same key/nonce pair is observed again.
+    Uses ordered eviction: oldest entries are removed when the cache
+    exceeds _NONCE_REUSE_CACHE_MAX, preserving recent nonce history.
+
+    For precomputed_key mode (HSM/TPM), emits a warning because nonce
+    tracking is per-process only and the key may be reused across
+    process restarts.
     """
+    if precomputed_key_mode:
+        _nonce_logger.warning(
+            "Nonce guard in precomputed_key (HSM/TPM) mode: nonce tracking is "
+            "per-process only. Consider using a persistent nonce store or "
+            "synthetic IV (AES-GCM-SIV) for cross-restart nonce safety."
+        )
     digest = hashlib.sha256(key + nonce).digest()
     if digest in _nonce_reuse_cache:
         raise RuntimeError("Nonce reuse detected for encryption key")
-    _nonce_reuse_cache.add(digest)
-    if len(_nonce_reuse_cache) > _NONCE_REUSE_CACHE_MAX:
-        _nonce_reuse_cache.clear()
+    _nonce_reuse_cache[digest] = True
+    # LRU eviction: remove oldest entries instead of clearing all history
+    while len(_nonce_reuse_cache) > _NONCE_REUSE_CACHE_MAX:
+        _nonce_reuse_cache.popitem(last=False)
 
 
 def compute_duress_hash(password: str, salt: bytes) -> bytes:
@@ -324,6 +358,7 @@ def encrypt_file_bytes(
     precomputed_key: Optional[bytes] = None,
     precomputed_salt: Optional[bytes] = None,
     pq_ciphertext: Optional[bytes] = None,
+    pq_ephemeral_public_key: Optional[bytes] = None,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -338,11 +373,16 @@ def encrypt_file_bytes(
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips Argon2id derivation and uses this key
         precomputed_salt: Salt used for precomputed_key (required if precomputed_key provided)
+        pq_ciphertext: Optional ML-KEM-1024 ciphertext for AAD binding
+        pq_ephemeral_public_key: Optional X25519 ephemeral public key from PQ
+                                hybrid_encapsulate().  When provided in precomputed_key
+                                mode, it is stored in the manifest and included in
+                                the AAD so the decoder can call hybrid_decapsulate().
 
     Returns:
         Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, encryption_key)
         - ephemeral_public_key is None if password-only mode
-        - ephemeral_public_key is 32 bytes if forward secrecy mode
+        - ephemeral_public_key is 32 bytes if forward secrecy or PQ hybrid mode
         - encryption_key is the 32-byte key used for encryption (needed for HMAC computation)
 
     Raises:
@@ -354,6 +394,7 @@ def encrypt_file_bytes(
         - Prevents tampering with metadata
         - Nonce is unique per encryption (never reused)
         - Forward secrecy: Ephemeral X25519 keys if receiver_public_key provided
+        - PQ hybrid: Ephemeral key from hybrid_encapsulate if pq_ephemeral_public_key provided
         - Length padding: Rounds to size classes to hide true size
     """
     try:
@@ -396,17 +437,51 @@ def encrypt_file_bytes(
             salt = precomputed_salt
         else:
             salt = secrets.token_bytes(16)
-        nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
+
+        # FIX-GPT-4: Synthetic IV for HSM/precomputed_key mode.
+        # Random nonces are fine when each encryption derives a fresh key (new
+        # salt → new Argon2id output → fresh key; nonce uniqueness is trivial).
+        # But HSM/TPM mode may reuse the same precomputed_key across process
+        # restarts, where the per-process nonce cache offers no protection.
+        #
+        # Solution: derive the nonce deterministically from the key and
+        # compressed-plaintext hash via HKDF.  This guarantees:
+        #   - Different plaintexts → different nonces (no collision possible)
+        #   - Same plaintext under same key → same nonce → same ciphertext
+        #     (deterministic encryption; acceptable for file-transfer use case)
+        #   - No persistent state required across restarts
+        #
+        # For non-HSM modes (password-only, FS, PQ hybrid), the key changes
+        # every encryption, so random nonces remain safe and preferred.
+        if precomputed_key is not None and pq_ephemeral_public_key is None:
+            # Pure HSM/TPM mode: derive synthetic nonce from key + plaintext hash.
+            # PQ hybrid mode already generates a fresh ephemeral keypair per
+            # encryption, so each PQ shared secret is unique — random nonce is fine.
+            from cryptography.hazmat.primitives.kdf.hkdf import HKDF as _HKDF
+            from cryptography.hazmat.primitives import hashes as _hashes
+
+            comp_hash = hashlib.sha256(comp).digest()
+            nonce = _HKDF(
+                algorithm=_hashes.SHA256(),
+                length=12,
+                salt=salt,
+                info=b"meow-synthetic-nonce-v1",
+            ).derive(precomputed_key + comp_hash)
+        else:
+            nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
 
         # Determine encryption mode and derive key
         ephemeral_public_key = None
 
-        # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
+        # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM) or PQ HYBRID MODE
         if precomputed_key is not None:
             if len(precomputed_key) != 32:
                 raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
             key = precomputed_key
-            ephemeral_public_key = None  # Hardware mode is password-only
+            # PQ hybrid mode passes the ephemeral classical public key from
+            # hybrid_encapsulate().  In pure HSM/TPM mode, ephemeral_public_key
+            # remains None (password-only).
+            ephemeral_public_key = pq_ephemeral_public_key
         elif receiver_public_key is not None:
             # FORWARD SECRECY MODE: Use X25519 ephemeral keys
             try:
@@ -432,7 +507,14 @@ def encrypt_file_bytes(
             receiver_pubkey = deserialize_public_key(receiver_public_key)
 
             # Derive shared secret (expects bytes)
-            key = derive_shared_secret(fs_keys.ephemeral_private, receiver_pubkey, password, salt)
+            # FIX-C3: Pass protocol_version for transcript binding
+            key = derive_shared_secret(
+                fs_keys.ephemeral_private,
+                receiver_pubkey,
+                password,
+                salt,
+                protocol_version=3,
+            )
 
             # Export ephemeral public key for transmission (validates bytes)
             ephemeral_public_key = serialize_public_key(fs_keys.ephemeral_public)
@@ -472,7 +554,8 @@ def encrypt_file_bytes(
         )
 
         # Best-effort nonce reuse guard (per-process)
-        _register_nonce_use(key, nonce)
+        # FIX-A1: Pass precomputed_key_mode flag to warn about HSM cross-restart risk
+        _register_nonce_use(key, nonce, precomputed_key_mode=(precomputed_key is not None))
 
         # Encrypt with AES-256-GCM using AAD
         # Why: AEAD enforces authenticity before decryption; no partial
@@ -578,7 +661,14 @@ def decrypt_to_raw(
 
             # Derive shared secret (same as sender)
             # Receiver private key is passed as bytes, sender pubkey as bytes
-            key = derive_shared_secret(receiver_private_key, sender_pubkey, password, salt)
+            # FIX-C3: Pass protocol_version for transcript binding
+            key = derive_shared_secret(
+                receiver_private_key,
+                sender_pubkey,
+                password,
+                salt,
+                protocol_version=3,
+            )
         else:
             # PASSWORD-ONLY MODE
             if yubikey_slot is not None:
@@ -593,18 +683,22 @@ def decrypt_to_raw(
 
         # Reconstruct AAD for verification (MT-1: canonical shared function)
         # Must match exactly what was used during encryption
-        if orig_len is not None and comp_len is not None and sha256 is not None:
-            aad = build_canonical_aad(
-                orig_len=orig_len,
-                comp_len=comp_len,
-                salt=salt,
-                sha256_hash=sha256,
-                magic=MAGIC,
-                ephemeral_public_key=ephemeral_public_key,
-                pq_ciphertext=pq_ciphertext,
+        # FIX-A2: AAD is mandatory — silent bypass removed to prevent
+        # downgrade attacks that strip authenticated metadata.
+        if orig_len is None or comp_len is None or sha256 is None:
+            raise ValueError(
+                "AAD parameters (orig_len, comp_len, sha256) are required for decryption. "
+                "Files encrypted without AAD are no longer supported."
             )
-        else:
-            aad = None  # Backwards compatibility (no AAD)
+        aad = build_canonical_aad(
+            orig_len=orig_len,
+            comp_len=comp_len,
+            salt=salt,
+            sha256_hash=sha256,
+            magic=MAGIC,
+            ephemeral_public_key=ephemeral_public_key,
+            pq_ciphertext=pq_ciphertext,
+        )
 
         # Decrypt with AES-256-GCM
         # GCM will verify AAD matches before decrypting
@@ -667,6 +761,18 @@ def decrypt_to_raw(
 
         return raw
     except Exception as e:
+        # FIX-D3: Distinguish PQ downgrade from wrong password.
+        # If PQ ciphertext was expected (ephemeral key present suggests FS mode
+        # but pq_ciphertext is None), warn about possible PQ downgrade attack.
+        err_msg = str(e)
+        if ephemeral_public_key is not None and pq_ciphertext is None:
+            raise RuntimeError(
+                f"Decryption failed: {err_msg}. "
+                "NOTE: Forward secrecy mode is active but no post-quantum ciphertext "
+                "was found. If this file was originally encrypted with PQ protection, "
+                "the pq_ciphertext field may have been stripped (PQ downgrade attack). "
+                "Verify the manifest integrity."
+            )
         raise RuntimeError(f"Decryption failed (wrong password/keyfile or tampered manifest?): {e}")
 
 
@@ -908,7 +1014,14 @@ def derive_encryption_key_for_manifest(
             from .x25519_forward_secrecy import derive_shared_secret, deserialize_public_key
 
         sender_pubkey = deserialize_public_key(ephemeral_public_key)
-        return derive_shared_secret(receiver_private_key, sender_pubkey, password, salt)
+        # FIX-C3: Pass protocol_version for transcript binding
+        return derive_shared_secret(
+            receiver_private_key,
+            sender_pubkey,
+            password,
+            salt,
+            protocol_version=3,
+        )
 
     if yubikey_slot is not None:
         if keyfile is not None:

@@ -222,7 +222,7 @@ Tamarin uses a **Dolev-Yao symbolic attacker** with perfect cryptography assumpt
 1. **Add side-channel hardening:** Constant-time implementations for all cryptographic operations
 2. **Fuzz-test fountain decoder:** Ensure malformed droplets don't crash decoder
 3. **Rate-limit password attempts:** Prevent online brute-force attacks
-4. **Add ML-KEM agility:** Support fallback to ML-KEM-768/1024 or future NIST standards
+4. **Add ML-KEM agility:** Support fallback to alternative ML-KEM parameter sets or future NIST standards
 
 ### For Auditors
 

@@ -10,6 +10,51 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — OPUS-AUDIT Remediation (2026-02-16) 🔒
+
+All 9 FAIL findings from the hostile crypto audit (OPUS-AUDIT.md) have been remediated,
+plus 5 additional requirements from cross-audit review.
+
+#### OPUS-AUDIT Fixes (7 code-level, 2 accepted by-design)
+- **A1: Nonce guard** — LRU eviction (10K cap, no full-cache clear) + HKDF-derived synthetic IV for HSM/precomputed_key mode
+- **A2: AAD bypass removed** — `decrypt_to_raw()` raises `ValueError` when `orig_len`/`comp_len`/`sha256` are `None`; no `aad=None` fallback
+- **C3: Transcript binding** — `derive_shared_secret()` now accepts `protocol_version` parameter, bound into HKDF info string
+- **D1: PQ HKDF salt** — Changed from `b""` to `ephemeral_public_bytes` in `pq_hybrid.py`; XOR combiner in `pq_crypto_real.py` deprecated with `DeprecationWarning`
+- **D3: PQ downgrade detection** — Clear `RuntimeError` message distinguishing PQ downgrade from wrong password
+- **E1: Frame MAC fail-closed** — `decode_gif.py` raises `ValueError` on invalid manifest frame MAC (previously silently disabled verification)
+- **E2/E3: Fountain reorder/truncation** — Accepted by-design; documented as explicit non-goals in threat model
+
+#### Cross-Audit Requirement Fixes
+- **PQ pipeline end-to-end** — `encode.py` calls `hybrid_encapsulate()` when `use_pq=True`; `decode_gif.py` calls `hybrid_decapsulate()` when PQ ciphertext present in manifest
+- **Parameter drift unified** — All modules now use ML-KEM-1024 (1568-byte ciphertext) consistently: `pq_crypto_real.py` default changed from `kyber768` to `kyber1024`, `crypto_DEBUG.py` updated throughout
+- **AAD completeness** — `build_canonical_aad()` now accepts `ephemeral_public_key` and `pq_ciphertext` parameters; documented that `cipher_len`/`block_size`/`k_blocks` are covered by HMAC (not AAD, due to circular dependency)
+- **HSM synthetic IV** — HKDF-derived deterministic nonce (`HKDF(key + comp_hash, salt, "meow-synthetic-nonce-v1")`) for `precomputed_key` mode prevents nonce reuse across restarts
+- **E2E reliability harness** — New `tests/test_e2e_crypto_fountain.py` (30 tests) covering full encode→fountain→decode roundtrip with frame loss, reordering, duplicates, combined hostile conditions
+
+#### New Test Files
+- `tests/test_audit_fixes.py` — 14 tests verifying all OPUS-AUDIT remediations
+- `tests/test_e2e_crypto_fountain.py` — 30 tests for crypto+fountain end-to-end pipeline
+
+#### Documentation Updates
+- Updated manifest sizes: MEOW4 1235→1715, MEOW4+duress 1267→1747
+- Updated PQ ciphertext size: 1088→1568 (ML-KEM-1024) across all docs
+- Removed stale "not wired up" implementation gap notes
+- Added REMEDIATED status to all OPUS-AUDIT FAIL findings
+- Updated HKDF salt description from `b""` to `ephemeral_public_bytes`
+- Updated AAD field list to include `ephemeral_public_key` and `pq_ciphertext`
+- Comprehensive stale-claim sweep across 13 .md files (25 fixes):
+  - ARCHITECTURE.md: `optional Kyber` → `ML-KEM-1024 hybrid`, `XOR + HKDF` → `Concatenation + HKDF`, `pq_crypto_real.py` → `pq_hybrid.py`
+  - SECURITY_AUDIT.md: nonce cache `1024 entries` → `LRU 10K`, domain separation info string updated
+  - PROTOCOL.md: Added `pq_ciphertext` to AAD specification
+  - SECURITY_INVARIANTS.md: nonce cache + synthetic IV, `pq_ciphertext` in AAD code block
+  - THREAT_MODEL.md: PQ implementation reference → `pq_hybrid.py`
+  - AUDITOR_README.md: `ML-KEM-768/1024` → `ML-KEM-1024`
+  - core-modules.md: `pq_crypto_real.py` marked DEPRECATED
+  - README.md: PQ mode `DEFAULT ON` → `opt-in, requires receiver PQ public key`
+  - AUDIT_REPORT_2026-01-28.md: nonce cache code annotated with post-audit changes
+  - VERUS_FRAME_MAC_STATUS.md: forward secrecy info string update noted
+  - OPUS-AUDIT.md: Q1/Q2 self-audit answers updated to REMEDIATED, exploit narratives annotated
+
 ### Added — Fountain Codes for Frame Loss Tolerance 🌊
 
 #### JavaScript Fountain Code Implementation

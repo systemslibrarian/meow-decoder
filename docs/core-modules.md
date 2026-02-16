@@ -36,7 +36,7 @@ This table summarizes the main Python source files in the `meow_decoder/` packag
 | meow_decoder/metadata_obfuscation.py   | metadata_obfuscation         | Strips, randomizes, or fakes file metadata to enhance stealth.               |
 | meow_decoder/multi_secret.py           | multi_secret                 | Supports hiding or recovering multiple secrets in a single payload.          |
 | meow_decoder/ninja_cat_ultra.py        | ninja_cat_ultra              | Ultra-stealth mode with aggressive obfuscation and minimal footprint.        |
-| meow_decoder/pq_crypto_real.py         | pq_crypto_real               | Concrete post-quantum primitives (ML-KEM / Kyber implementations).           |
+| meow_decoder/pq_crypto_real.py         | pq_crypto_real               | **DEPRECATED** — use pq_hybrid.py. Legacy PQ primitives (emits DeprecationWarning, forced ML-KEM-1024). |
 | meow_decoder/pq_hybrid.py              | pq_hybrid                    | Hybrid classical + post-quantum encryption (X25519 + ML-KEM).                |
 | meow_decoder/pq_signatures.py          | pq_signatures                | Post-quantum signatures (Dilithium) for authentication and non-repudiation.  |
 | meow_decoder/progress.py               | progress                     | Core progress tracking logic for long-running encode/decode operations.      |

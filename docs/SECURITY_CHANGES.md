@@ -470,7 +470,7 @@ dudect-style statistical timing analysis:
 
 ### P4-02: GAP-02 - Post-Quantum Integration Tests
 
-**Finding** (GAP-02, HIGH): Need comprehensive tests for ML-KEM-768 + X25519 hybrid
+**Finding** (GAP-02, HIGH): Need comprehensive tests for ML-KEM-1024 + X25519 hybrid
 mode to verify proper key encapsulation and encryption.
 
 **Resolution**: Created tests now in `tests/test_pq_crypto_real.py` and `tests/test_pq_hybrid.py` (originally `test_phase4_pq_integration.py`) with full PQ testing:
@@ -493,8 +493,8 @@ mode to verify proper key encapsulation and encryption.
 - `PQ-09`: Hybrid shared secret differs from either component
 
 **TestPQManifestIntegration**:
-- `PQ-10`: PQ ciphertext stored correctly in manifest (1088 bytes)
-- `PQ-11`: MEOW4 manifest size is 1235 bytes
+- `PQ-10`: PQ ciphertext stored correctly in manifest (1568 bytes)
+- `PQ-11`: MEOW4 manifest size is 1715 bytes
 - `PQ-12`: PQ manifest round-trips correctly
 
 **TestPQBackwardCompatibility**:

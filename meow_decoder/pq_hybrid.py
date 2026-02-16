@@ -164,9 +164,12 @@ def hybrid_encapsulate(
         info = b"meow_classical_only_v1"
 
     # Derive final shared secret
-    shared_secret = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"", info=info).derive(
-        combined_material
-    )
+    # FIX-D1: Use ephemeral public key as HKDF salt instead of empty bytes.
+    # Empty salt weakens HKDF's extract step; using a non-secret but unique
+    # value (the ephemeral public key) ensures proper randomness extraction.
+    shared_secret = HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=ephemeral_public_bytes, info=info
+    ).derive(combined_material)
 
     return shared_secret, ephemeral_public_bytes, pq_ciphertext, pq_shared_secret
 
@@ -219,9 +222,10 @@ def hybrid_decapsulate(
         info = b"meow_classical_only_v1"
 
     # Derive final shared secret
-    shared_secret = HKDF(algorithm=hashes.SHA256(), length=32, salt=b"", info=info).derive(
-        combined_material
-    )
+    # FIX-D1: Use ephemeral public key as HKDF salt (must match encapsulate).
+    shared_secret = HKDF(
+        algorithm=hashes.SHA256(), length=32, salt=ephemeral_classical_public, info=info
+    ).derive(combined_material)
 
     return shared_secret
 
