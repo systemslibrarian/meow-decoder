@@ -145,6 +145,14 @@ def encode_file(
     if verbose:
         print(f"  Size: {len(raw_data):,} bytes")
 
+    # FIX-D3: Compute mode_byte from manifest_version and duress state
+    from meow_decoder.crypto import MODE_MEOW2, MODE_MEOW3, MODE_MEOW4, MODE_DURESS
+
+    _version_to_mode = {2: MODE_MEOW2, 3: MODE_MEOW3, 4: MODE_MEOW4}
+    _mode = _version_to_mode.get(manifest_version, MODE_MEOW3)
+    if duress_password:
+        _mode |= MODE_DURESS
+
     # Encrypt data with forward secrecy support
     if verbose:
         print("Encrypting data with length padding (metadata protection)...")
@@ -155,6 +163,7 @@ def encode_file(
         "keyfile": keyfile,
         "receiver_public_key": receiver_public_key,
         "use_length_padding": True,
+        "mode_byte": _mode,  # FIX-D3
     }
     if yubikey:
         encrypt_kwargs["yubikey_slot"] = yubikey_slot
@@ -256,7 +265,7 @@ def encode_file(
         if verbose:
             print(f"  🚨 Duress password configured (emergency response on decode)")
 
-    # Create manifest
+    # Create manifest (mode_byte computed earlier, before encrypt_file_bytes call)
     manifest = Manifest(
         salt=salt,
         nonce=nonce,
@@ -270,6 +279,7 @@ def encode_file(
         ephemeral_public_key=ephemeral_public_key,  # Forward secrecy support
         pq_ciphertext=pq_ciphertext,  # Post-quantum hybrid support (MEOW4)
         duress_tag=duress_tag,  # Duress password support (authenticated)
+        mode_byte=_mode,  # FIX-D3: Explicit mode byte
     )
 
     # Compute HMAC (need to handle variable manifest size)

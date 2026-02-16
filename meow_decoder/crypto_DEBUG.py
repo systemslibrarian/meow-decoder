@@ -208,7 +208,13 @@ def encrypt_file_bytes(
             receiver_pubkey = deserialize_public_key(receiver_public_key)
 
             # Derive shared secret
-            key = derive_shared_secret(fs_keys.ephemeral_private, receiver_pubkey, password, salt)
+            key = derive_shared_secret(
+                fs_keys.ephemeral_private,
+                receiver_pubkey,
+                password,
+                salt,
+                protocol_version=3,
+            )
 
             # Export ephemeral public key for transmission
             ephemeral_public_key = serialize_public_key(fs_keys.ephemeral_public)
@@ -306,7 +312,13 @@ def decrypt_to_raw(
             sender_pubkey = deserialize_public_key(ephemeral_public_key)
 
             # Derive shared secret (same as sender)
-            key = derive_shared_secret(receiver_privkey, sender_pubkey, password, salt)
+            key = derive_shared_secret(
+                receiver_privkey,
+                sender_pubkey,
+                password,
+                salt,
+                protocol_version=3,
+            )
         else:
             # PASSWORD-ONLY MODE
             key = derive_key(password, salt, keyfile)
@@ -579,7 +591,13 @@ def compute_manifest_hmac(
             )
 
         # Derive shared secret (same as encryption)
-        key = derive_shared_secret(receiver_privkey, sender_pubkey, password, salt)
+        key = derive_shared_secret(
+            receiver_privkey,
+            sender_pubkey,
+            password,
+            salt,
+            protocol_version=3,
+        )
 
         if debug:
             print(f"    Derived shared secret (hex): {key.hex()}")

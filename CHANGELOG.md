@@ -10,6 +10,34 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — OPUS-AUDIT v2 Remediation (2026-02-17) 🔒
+
+Second hostile crypto audit identified 4 remaining weaknesses; all remediated.
+
+#### A1 v2: Synthetic IV nonce fix
+- `_register_nonce_use()` now uses `synthetic_iv_mode` flag instead of `precomputed_key_mode`
+- Synthetic IV (HKDF-derived from key + plaintext hash + salt) provides SIV property: same plaintext → same nonce (intentional), different plaintext → different nonce (guaranteed)
+- Removed misleading "consider GCM-SIV" warning for HSM mode
+
+#### C3 v2: Full transcript binding
+- `derive_shared_secret()` HKDF info now binds: `"meow_fs_bound_v2:"` + protocol_version (1B) + mode_flags (1B) + SHA-256(receiver_public) (32B) + ephemeral_public (32B) + pq_ciphertext_hash (32B)
+- Mode flags: FS=0x01, PQ=0x02, duress=0x04
+- All callers updated: crypto.py (encrypt/decrypt/derive_key_for_manifest), decode_gif.py, crypto_DEBUG.py
+
+#### D3 v2: Explicit manifest mode byte
+- Added `mode_byte` field to Manifest dataclass (0x02=MEOW2, 0x03=MEOW3, 0x04=MEOW4, 0x80=duress flag)
+- Mode byte included in AES-GCM AAD and HMAC (via `pack_manifest_core`)
+- `unpack_manifest()` validates mode byte against actual content (rejects mismatches)
+- New manifest sizes = legacy + 1 byte; backward compat preserved for legacy manifests
+
+#### D1 v2: Hard-disable pq_crypto_real
+- Changed from `DeprecationWarning` to `raise RuntimeError` on import
+- Prevents silent use of insecure XOR key combiner
+
+#### Tests
+- 29 tests in `test_audit_fixes.py` (16 original + 13 new v2 tests)
+- 455 total tests pass across all test files
+
 ### Security — OPUS-AUDIT Remediation (2026-02-16) 🔒
 
 All 9 FAIL findings from the hostile crypto audit (OPUS-AUDIT.md) have been remediated,

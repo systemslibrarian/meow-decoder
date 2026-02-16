@@ -14,13 +14,13 @@ The system implements a multi-layered crypto stack (AES-256-GCM + Argon2id + X25
 
 **Original audit (2026-02-16) found seven material weaknesses — ALL REMEDIATED:**
 
-1. ~~**Nonce reuse guard is per-process only**~~ → **FIXED:** LRU eviction (10K cap, no full-cache clear) + HKDF-derived synthetic IV for HSM/precomputed_key mode.
+1. ~~**Nonce reuse guard is per-process only**~~ → **FIXED v2:** LRU eviction (10K cap) + HKDF-derived synthetic IV for HSM mode (SIV property). `_register_nonce_use()` uses `synthetic_iv_mode` flag — deterministic nonces skip reuse error.
 2. ~~**AAD bypass path exists**~~ → **FIXED:** `decrypt_to_raw()` now raises `ValueError` when AAD params missing. No `aad=None` fallback.
 3. ~~**Frame MAC failure is fail-OPEN**~~ → **FIXED:** `decode_gif.py` raises `ValueError` on invalid manifest frame MAC (fail-closed).
-4. ~~**PQ hybrid uses empty HKDF salt**~~ → **FIXED:** `HKDF(salt=ephemeral_public_bytes)` binds to session context. XOR combiner in `pq_crypto_real.py` deprecated with warning.
-5. ~~**No transcript binding in FS mode**~~ → **FIXED:** `derive_shared_secret()` accepts `protocol_version` param, bound into HKDF info.
+4. ~~**PQ hybrid uses empty HKDF salt**~~ → **FIXED v2:** `HKDF(salt=ephemeral_public_bytes)` binds to session context. XOR combiner in `pq_crypto_real.py` **hard-disabled** (RuntimeError on import, not just DeprecationWarning).
+5. ~~**No transcript binding in FS mode**~~ → **FIXED v2:** `derive_shared_secret()` binds full transcript: `meow_fs_bound_v2:` + protocol_version + mode_flags + SHA-256(receiver_public) + ephemeral_public + pq_ciphertext_hash.
 6. **No receiver-side reordering/truncation detection** — **ACCEPTED BY DESIGN:** fountain codes are inherently order-independent and loss-tolerant. Documented as explicit non-goal in threat model.
-7. ~~**PQ downgrade is not authenticated**~~ → **FIXED:** Clear `RuntimeError` on PQ downgrade detection. AAD now binds PQ ciphertext via `build_canonical_aad(pq_ciphertext=...)`.
+7. ~~**PQ downgrade is not authenticated**~~ → **FIXED v2:** Clear `RuntimeError` on PQ downgrade detection. AAD binds PQ ciphertext + explicit mode byte. Manifest mode byte (FIX-D3) prevents length-based ambiguity.
 
 Overall risk: **MEDIUM (reduced from HIGH).** All code-level vulnerabilities remediated with 44+ new tests. Remaining risks are architectural (by-design fountain properties) and documented.
 
@@ -30,7 +30,7 @@ Overall risk: **MEDIUM (reduced from HIGH).** All code-level vulnerabilities rem
 
 | ID | Control | Verdict | Details |
 |----|---------|---------|---------|
-| **A1** | Nonce uniqueness | **REMEDIATED** | ~~Per-process cache only~~ → LRU eviction (10K cap) + synthetic IV for HSM mode via HKDF |
+| **A1** | Nonce uniqueness | **REMEDIATED v2** | ~~Per-process cache only~~ → LRU eviction (10K) + synthetic IV (SIV property) for HSM mode; `synthetic_iv_mode` flag replaces `precomputed_key_mode` |
 | **A2** | AAD binding | **REMEDIATED** | ~~Backwards-compat path sets `aad=None`~~ → `ValueError` raised when AAD params missing |
 | **A3** | Fail-closed | **PASS** | GCM tag mismatch raises RuntimeError, no partial plaintext returned |
 | **B1** | Argon2id variant | **PASS** | Rust backend calls Argon2id (Type.ID); confirmed in crypto_backend.py |
@@ -39,10 +39,10 @@ Overall risk: **MEDIUM (reduced from HIGH).** All code-level vulnerabilities rem
 | **B4** | KDF side-channel | **PASS** | Rust zeroize crate + subtle crate; Python-side best-effort zeroing |
 | **C1** | Ephemeral X25519 keys | **PASS** | `generate_ephemeral_keypair()` creates fresh key per encryption |
 | **C2** | Key separation | **PASS** | Distinct HKDF info strings for encryption, HMAC, frame MAC |
-| **C3** | Transcript binding | **REMEDIATED** | ~~Static info string~~ → `protocol_version` param added to `derive_shared_secret()` |
-| **D1** | Hybrid composition | **REMEDIATED** | ~~`HKDF(salt=b"")`~~ → salt uses `ephemeral_public_bytes`; XOR combiner deprecated with warning |
+| **C3** | Transcript binding | **REMEDIATED v2** | ~~Static info string~~ → Full transcript: `meow_fs_bound_v2:` + version + mode_flags + receiver_pub_hash + ephemeral_pub + pq_ciphertext_hash |
+| **D1** | Hybrid composition | **REMEDIATED v2** | ~~`HKDF(salt=b"")`~~ → salt uses `ephemeral_public_bytes`; `pq_crypto_real.py` hard-disabled (RuntimeError), not just DeprecationWarning |
 | **D2** | ML-KEM-1024 parameter | **PASS** | `PQ_ALGORITHM = "Kyber1024"` confirmed in pq_hybrid.py |
-| **D3** | Downgrade resistance | **REMEDIATED** | ~~Confusing error~~ → Clear `RuntimeError` on PQ downgrade; AAD now binds PQ ciphertext |
+| **D3** | Downgrade resistance | **REMEDIATED v2** | ~~Length-based manifest mode~~ → Explicit `mode_byte` field in manifest, bound in AAD + HMAC; mode/content mismatch rejected |
 | **E1** | Packet framing integrity | **REMEDIATED** | ~~Frame MAC fail-open~~ → `ValueError` raised on invalid manifest frame MAC (fail-closed) |
 | **E2** | Reordering detection | **ACCEPTED** | By-design: fountain codes are order-independent; documented as non-goal in threat model |
 | **E3** | Truncation detection | **ACCEPTED** | By-design: decoder accepts any sufficient subset; documented as non-goal |
@@ -56,9 +56,10 @@ Overall risk: **MEDIUM (reduced from HIGH).** All code-level vulnerabilities rem
 
 **Summary: 15 PASS / 7 REMEDIATED / 2 ACCEPTED (by-design) / 0 FAIL / 0 UNKNOWN**
 
-> **Remediation date:** 2026-02-16. All 7 code-level FAIL findings fixed with 44+ new tests
-> (14 in `test_audit_fixes.py`, 30 in `test_e2e_crypto_fountain.py`). E2/E3 accepted as
-> by-design properties of fountain codes (documented in threat model).
+> **Remediation v1:** 2026-02-16. All 7 code-level FAIL findings fixed with 44+ tests.
+> **Remediation v2:** 2026-02-17. Second hostile audit found 4 remaining weaknesses;
+> all 4 now fixed (A1 synthetic IV, C3 full transcript binding, D3 explicit mode byte,
+> D1 hard-disable). 29 tests in `test_audit_fixes.py`, 455 total pass.
 
 ---
 

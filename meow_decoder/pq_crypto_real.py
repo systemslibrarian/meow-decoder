@@ -4,19 +4,21 @@ Real hybrid Kyber/ML-KEM + X25519 implementation with graceful fallback
 
 Priority 2 Implementation: Uses liboqs-python when available
 
-DEPRECATED: This module uses an insecure XOR combiner for classical+PQ
+DISABLED (FIX-D1): This module uses an insecure XOR combiner for classical+PQ
 shared secrets. Use pq_hybrid.py instead, which uses concatenation + HKDF.
 See OPUS-AUDIT.md finding D1 for details.
+
+Importing this module will raise RuntimeError. It is kept only for audit
+traceability; do NOT remove it until the deprecation cycle completes.
 """
 
-import warnings
-
-warnings.warn(
-    "pq_crypto_real is deprecated due to insecure XOR key combination. "
-    "Use pq_hybrid.py (concatenation + HKDF) instead. "
-    "This module will be removed in a future release.",
-    DeprecationWarning,
-    stacklevel=2,
+# FIX-D1: Hard-disable — importing this module is a security error.
+# The previous DeprecationWarning was insufficient because callers could
+# silently continue using the insecure XOR combiner.
+raise RuntimeError(
+    "pq_crypto_real is DISABLED due to insecure XOR key combination "
+    "(OPUS-AUDIT finding D1). Use pq_hybrid.py (concatenation + HKDF) instead. "
+    "This module cannot be imported."
 )
 
 import os

@@ -54,20 +54,27 @@ class TestFixA1NonceGuard:
         _nonce_reuse_cache.clear()
 
     def test_nonce_guard_hsm_mode_warning(self, caplog):
-        """HSM/TPM precomputed_key mode emits a warning log."""
+        """FIX-A1 v2: synthetic_iv_mode skips nonce-reuse error (SIV property)."""
         import logging
         from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
 
         _nonce_reuse_cache.clear()
 
-        with caplog.at_level(logging.WARNING, logger="meow_decoder.crypto.nonce_guard"):
-            _register_nonce_use(
-                secrets.token_bytes(32),
-                secrets.token_bytes(12),
-                precomputed_key_mode=True,
-            )
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
 
-        assert "per-process only" in caplog.text
+        # First call registers normally
+        _register_nonce_use(key, nonce, synthetic_iv_mode=True)
+        # Second call with same key+nonce should NOT raise in synthetic_iv_mode
+        # because SIV property means same plaintext → same nonce intentionally
+        _register_nonce_use(key, nonce, synthetic_iv_mode=True)
+
+        # But without synthetic_iv_mode, reuse IS detected
+        _nonce_reuse_cache.clear()
+        _register_nonce_use(key, nonce)
+        with pytest.raises(RuntimeError, match="Nonce reuse"):
+            _register_nonce_use(key, nonce)
+
         _nonce_reuse_cache.clear()
 
     def test_nonce_guard_reuse_detected(self):
@@ -337,10 +344,10 @@ class TestFixD1PQHKDFSalt:
 
 
 class TestFixD1XORCombinerDeprecation:
-    """D1: pq_crypto_real.py emits DeprecationWarning on import."""
+    """D1: pq_crypto_real.py is hard-disabled (RuntimeError on import)."""
 
-    def test_pq_crypto_real_deprecation_warning(self):
-        """Importing pq_crypto_real raises DeprecationWarning."""
+    def test_pq_crypto_real_import_raises_runtime_error(self):
+        """FIX-D1 v2: Importing pq_crypto_real raises RuntimeError."""
         import importlib
         import sys
 
@@ -349,13 +356,8 @@ class TestFixD1XORCombinerDeprecation:
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
+        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
             importlib.import_module(mod_name)
-            deprecation_warnings = [x for x in w if issubclass(x.category, DeprecationWarning)]
-            assert len(deprecation_warnings) >= 1
-            assert "deprecated" in str(deprecation_warnings[0].message).lower()
-            assert "XOR" in str(deprecation_warnings[0].message)
 
 
 # ---------------------------------------------------------------------------
@@ -506,3 +508,365 @@ class _DummyFountainDecoder:
 
     def get_data(self, *args, **kwargs):
         return b"\x00" * 8
+
+
+# ===========================================================================
+# AUDIT v2 FIXES — Second hostile audit remediation
+# ===========================================================================
+
+
+class TestV2FixA1SyntheticIV:
+    """A1 v2: Synthetic IV mode (SIV property) for precomputed_key."""
+
+    def test_synthetic_iv_mode_allows_nonce_reuse(self):
+        """Same key+nonce in synthetic_iv_mode does NOT raise."""
+        from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+
+        _nonce_reuse_cache.clear()
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+
+        _register_nonce_use(key, nonce, synthetic_iv_mode=True)
+        # Should NOT raise — SIV property means same plaintext → same nonce
+        _register_nonce_use(key, nonce, synthetic_iv_mode=True)
+        _nonce_reuse_cache.clear()
+
+    def test_non_synthetic_mode_rejects_nonce_reuse(self):
+        """Same key+nonce without synthetic_iv_mode raises RuntimeError."""
+        from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+
+        _nonce_reuse_cache.clear()
+        key = secrets.token_bytes(32)
+        nonce = secrets.token_bytes(12)
+
+        _register_nonce_use(key, nonce, synthetic_iv_mode=False)
+        with pytest.raises(RuntimeError, match="Nonce reuse"):
+            _register_nonce_use(key, nonce, synthetic_iv_mode=False)
+        _nonce_reuse_cache.clear()
+
+    def test_synthetic_iv_deterministic(self):
+        """Precomputed key + same plaintext (no padding) → same synthetic nonce."""
+        from meow_decoder.crypto import encrypt_file_bytes, _nonce_reuse_cache
+
+        _nonce_reuse_cache.clear()
+        plaintext = b"deterministic nonce test data!!"
+        password = "password12345678"
+        precomputed_key = secrets.token_bytes(32)
+
+        _, _, salt1, nonce1, _, _, _ = encrypt_file_bytes(
+            plaintext,
+            password,
+            precomputed_key=precomputed_key,
+            use_length_padding=False,
+        )
+        _nonce_reuse_cache.clear()
+        _, _, _, nonce2, _, _, _ = encrypt_file_bytes(
+            plaintext,
+            password,
+            precomputed_key=precomputed_key,
+            precomputed_salt=salt1,
+            use_length_padding=False,
+        )
+        # Same key + same plaintext + same salt + no random padding → same nonce (SIV)
+        assert nonce1 == nonce2, "Synthetic nonce should be deterministic"
+        _nonce_reuse_cache.clear()
+
+
+class TestV2FixC3TranscriptBinding:
+    """C3 v2: Full transcript binding in derive_shared_secret."""
+
+    def test_different_mode_flags_yield_different_keys(self):
+        """Mode flag change → different derived key."""
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            derive_shared_secret,
+            deserialize_public_key,
+        )
+
+        sender = generate_ephemeral_keypair()
+        receiver = generate_ephemeral_keypair()
+        password = "password12345678"
+        salt = secrets.token_bytes(16)
+
+        receiver_pub = deserialize_public_key(receiver.ephemeral_public)
+
+        key_fs = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x01,
+        )
+        key_pq = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x03,
+        )
+        assert key_fs != key_pq, "Different mode flags must yield different keys"
+
+    def test_pq_ciphertext_hash_changes_key(self):
+        """Binding PQ ciphertext hash changes the derived key."""
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            derive_shared_secret,
+            deserialize_public_key,
+        )
+        import hashlib
+
+        sender = generate_ephemeral_keypair()
+        receiver = generate_ephemeral_keypair()
+        password = "password12345678"
+        salt = secrets.token_bytes(16)
+
+        receiver_pub = deserialize_public_key(receiver.ephemeral_public)
+
+        pq_hash = hashlib.sha256(b"fake_pq_ciphertext").digest()
+
+        key_without = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x03,
+        )
+        key_with = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x03,
+            pq_ciphertext_hash=pq_hash,
+        )
+        assert key_without != key_with, "PQ ciphertext hash must change key"
+
+    def test_ephemeral_public_binding(self):
+        """Binding ephemeral public key changes the derived key."""
+        from meow_decoder.x25519_forward_secrecy import (
+            generate_ephemeral_keypair,
+            derive_shared_secret,
+            deserialize_public_key,
+        )
+
+        sender = generate_ephemeral_keypair()
+        receiver = generate_ephemeral_keypair()
+        password = "password12345678"
+        salt = secrets.token_bytes(16)
+
+        receiver_pub = deserialize_public_key(receiver.ephemeral_public)
+
+        key_without_eph = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x01,
+        )
+        key_with_eph = derive_shared_secret(
+            sender.ephemeral_private,
+            receiver_pub,
+            password,
+            salt,
+            protocol_version=3,
+            mode_flags=0x01,
+            ephemeral_public=sender.ephemeral_public,
+        )
+        assert key_without_eph != key_with_eph, "Ephemeral public binding must change key"
+
+
+class TestV2FixD3ManifestModeByte:
+    """D3 v2: Explicit mode byte in manifest."""
+
+    def test_mode_byte_in_manifest_dataclass(self):
+        """Manifest has mode_byte field."""
+        from meow_decoder.crypto import Manifest
+
+        m = Manifest(
+            salt=b"\x00" * 16,
+            nonce=b"\x00" * 12,
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=b"\x00" * 32,
+            block_size=800,
+            k_blocks=1,
+            hmac=b"\x00" * 32,
+            mode_byte=0x03,
+        )
+        assert m.mode_byte == 0x03
+
+    def test_pack_unpack_roundtrip_with_mode_byte(self):
+        """Manifest with mode_byte roundtrips through pack/unpack."""
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest,
+            unpack_manifest,
+            MODE_MEOW3,
+        )
+
+        m = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=800,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32),
+            ephemeral_public_key=secrets.token_bytes(32),
+            mode_byte=MODE_MEOW3,
+        )
+        packed = pack_manifest(m)
+        unpacked = unpack_manifest(packed)
+        assert unpacked.mode_byte == MODE_MEOW3
+        assert unpacked.salt == m.salt
+        assert unpacked.nonce == m.nonce
+        assert unpacked.ephemeral_public_key == m.ephemeral_public_key
+
+    def test_legacy_manifest_has_mode_legacy(self):
+        """Legacy manifest (mode_byte=0) roundtrips correctly."""
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest,
+            unpack_manifest,
+            MODE_LEGACY,
+        )
+
+        m = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=800,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32),
+        )
+        packed = pack_manifest(m)
+        assert len(packed) == 115  # Legacy size
+        unpacked = unpack_manifest(packed)
+        assert unpacked.mode_byte == MODE_LEGACY
+
+    def test_new_manifest_is_one_byte_longer(self):
+        """New manifest with mode_byte is 1 byte longer than legacy."""
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest,
+            MODE_MEOW3,
+        )
+
+        m = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=800,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32),
+            ephemeral_public_key=secrets.token_bytes(32),
+            mode_byte=MODE_MEOW3,
+        )
+        packed = pack_manifest(m)
+        assert len(packed) == 148  # 147 + 1 mode byte
+
+    def test_mode_byte_mismatch_rejected(self):
+        """Mode byte saying MEOW2 but with ephemeral key → rejected."""
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest,
+            unpack_manifest,
+            MODE_MEOW2,
+        )
+
+        # Build a manifest claiming MEOW2 but including an ephemeral key
+        m = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=800,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32),
+            ephemeral_public_key=secrets.token_bytes(32),
+            mode_byte=MODE_MEOW2,
+        )
+        packed = pack_manifest(m)
+        with pytest.raises(ValueError, match="MEOW2.*ephemeral"):
+            unpack_manifest(packed)
+
+    def test_invalid_mode_byte_rejected(self):
+        """Invalid mode byte value → rejected."""
+        from meow_decoder.crypto import (
+            Manifest,
+            pack_manifest,
+            unpack_manifest,
+            MODE_MEOW3,
+        )
+
+        # Manually craft a manifest with invalid mode byte
+        m = Manifest(
+            salt=secrets.token_bytes(16),
+            nonce=secrets.token_bytes(12),
+            orig_len=100,
+            comp_len=80,
+            cipher_len=96,
+            sha256=secrets.token_bytes(32),
+            block_size=800,
+            k_blocks=1,
+            hmac=secrets.token_bytes(32),
+            ephemeral_public_key=secrets.token_bytes(32),
+            mode_byte=MODE_MEOW3,
+        )
+        packed = bytearray(pack_manifest(m))
+        packed[5] = 0xFF  # Invalid mode byte
+        with pytest.raises(ValueError, match="Invalid manifest mode byte"):
+            unpack_manifest(bytes(packed))
+
+    def test_mode_byte_in_aad(self):
+        """Mode byte is included in AAD when non-zero."""
+        from meow_decoder.crypto import build_canonical_aad, MODE_MEOW3
+
+        salt = secrets.token_bytes(16)
+        sha = secrets.token_bytes(32)
+
+        aad_legacy = build_canonical_aad(100, 80, salt, sha, b"MEOW3")
+        aad_with_mode = build_canonical_aad(100, 80, salt, sha, b"MEOW3", mode_byte=MODE_MEOW3)
+        assert aad_legacy != aad_with_mode, "Mode byte must change AAD"
+        assert len(aad_with_mode) == len(aad_legacy) + 1
+
+
+class TestV2FixD1HardDisable:
+    """D1 v2: pq_crypto_real is hard-disabled."""
+
+    def test_import_raises_runtime_error(self):
+        """Importing pq_crypto_real raises RuntimeError."""
+        import importlib
+        import sys
+
+        mod_name = "meow_decoder.pq_crypto_real"
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+
+        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
+            importlib.import_module(mod_name)
+
+    def test_pq_hybrid_still_works(self):
+        """pq_hybrid.py (the correct module) still imports fine."""
+        from meow_decoder.pq_hybrid import check_pq_available
+
+        available, msg = check_pq_available()
+        # Should return a result (available depends on liboqs installation)
+        assert isinstance(available, bool)
+        assert isinstance(msg, str)

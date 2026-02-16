@@ -533,19 +533,16 @@ class TestParameterDrift:
         assert PQ_ALGORITHM == "Kyber1024"
 
     def test_pq_crypto_real_defaults_to_kyber1024(self):
-        """Deprecated pq_crypto_real defaults to kyber1024."""
-        with pytest.warns(DeprecationWarning):
-            from meow_decoder import pq_crypto_real
-        # Re-import to check default
+        """FIX-D1 v2: pq_crypto_real is hard-disabled (RuntimeError on import)."""
         import importlib
+        import sys
 
-        mod = importlib.import_module("meow_decoder.pq_crypto_real")
-        # Check the class default
-        import inspect
+        mod_name = "meow_decoder.pq_crypto_real"
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
 
-        sig = inspect.signature(mod.QuantumNineLives.__init__)
-        default = sig.parameters["variant"].default
-        assert default == "kyber1024", f"Default variant is {default!r}, expected 'kyber1024'"
+        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
+            importlib.import_module(mod_name)
 
 
 # ---------------------------------------------------------------------------

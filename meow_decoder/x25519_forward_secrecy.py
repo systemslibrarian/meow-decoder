@@ -51,6 +51,9 @@ def derive_shared_secret(
     salt: bytes,
     info: bytes = b"meow_forward_secrecy_v1",
     protocol_version: Optional[int] = None,
+    ephemeral_public: Optional[bytes] = None,
+    pq_ciphertext_hash: Optional[bytes] = None,
+    mode_flags: int = 0,
 ) -> bytes:
     """
     Derive shared secret using X25519 + password via HKDF.
@@ -60,13 +63,27 @@ def derive_shared_secret(
         receiver_public: Receiver's long-term public key (bytes)
         password: User password
         salt: Random salt (16 bytes)
-        info: HKDF info string for domain separation
-        protocol_version: Optional manifest version for transcript binding (FIX-C3).
-            When provided, the HKDF info is augmented with the protocol version
-            to prevent cross-version key confusion attacks.
+        info: HKDF info string for domain separation (legacy fallback)
+        protocol_version: Manifest version for transcript binding (FIX-C3).
+            When provided, the HKDF info is augmented with full transcript
+            context to prevent cross-version and mix-and-match attacks.
+        ephemeral_public: Sender's ephemeral public key (32 bytes) for transcript.
+        pq_ciphertext_hash: SHA-256 of PQ ciphertext (32 bytes) if PQ mode active.
+        mode_flags: Bitmask encoding manifest mode (FS=0x01, PQ=0x02, duress=0x04).
 
     Returns:
         32-byte shared secret for encryption
+
+    Transcript binding (FIX-C3 v2):
+        When protocol_version is provided, HKDF info = concat of:
+          \"meow_fs_bound_v2:\" || protocol_version (1B) || mode_flags (1B)
+          || SHA-256(receiver_public) (32B)
+          || ephemeral_public (32B, if provided)
+          || pq_ciphertext_hash (32B, if provided)
+        This binds: protocol version, encryption mode, both identities,
+        and (if applicable) the PQ ciphertext into the key derivation.
+        An attacker stripping PQ, swapping keys, or downgrading the version
+        produces a different derived key → GCM decryption fails.
     """
     if len(ephemeral_private) != 32:
         raise ValueError(f"Ephemeral private key must be 32 bytes, got {len(ephemeral_private)}")
@@ -80,10 +97,30 @@ def derive_shared_secret(
     # Perform X25519 key exchange
     x25519_shared = backend.x25519_exchange(ephemeral_private, receiver_public)
 
-    # FIX-C3: Transcript binding — bind protocol version into HKDF context
-    # to prevent cross-version key confusion attacks.
+    # FIX-C3 v2: Full transcript binding — bind protocol version, mode flags,
+    # receiver identity, sender ephemeral identity, and PQ ciphertext hash
+    # into HKDF context to prevent cross-version, mix-and-match, and
+    # downgrade attacks.
     if protocol_version is not None:
-        bound_info = b"meow_fs_bound_v1:" + struct.pack(">B", protocol_version)
+        bound_info = b"meow_fs_bound_v2:"
+        bound_info += struct.pack(">B", protocol_version)
+        bound_info += struct.pack(">B", mode_flags & 0xFF)
+        # Bind receiver identity (hash of public key)
+        bound_info += hashlib.sha256(receiver_public).digest()
+        # Bind sender ephemeral public key if available
+        if ephemeral_public is not None:
+            if len(ephemeral_public) != 32:
+                raise ValueError(
+                    f"Ephemeral public key must be 32 bytes, got {len(ephemeral_public)}"
+                )
+            bound_info += ephemeral_public
+        # Bind PQ ciphertext hash (prevents stripping PQ component)
+        if pq_ciphertext_hash is not None:
+            if len(pq_ciphertext_hash) != 32:
+                raise ValueError(
+                    f"PQ ciphertext hash must be 32 bytes, got {len(pq_ciphertext_hash)}"
+                )
+            bound_info += pq_ciphertext_hash
     else:
         bound_info = info
 

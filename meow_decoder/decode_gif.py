@@ -299,6 +299,7 @@ def decode_gif(
                 receiver_private_key=receiver_private_key,
                 yubikey_slot=yubikey_slot,
                 yubikey_pin=yubikey_pin,
+                pq_ciphertext=manifest.pq_ciphertext,
             )
     except Exception as e:
         # Key derivation failed - could be wrong keyfile/receiver key
@@ -574,6 +575,7 @@ def decode_gif(
             yubikey_pin=yubikey_pin,
             precomputed_key=pq_precomputed_key,
             pq_ciphertext=manifest.pq_ciphertext,
+            mode_byte=manifest.mode_byte,
         )
 
         if verbose and manifest.ephemeral_public_key:

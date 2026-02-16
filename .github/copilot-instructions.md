@@ -35,7 +35,7 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Optional X25519 ephemeral key exchange (MEOW3)
    - Per-block key derivation using HKDF
    - Signal-style key ratcheting support
-   - Transcript binding: `derive_shared_secret()` binds `protocol_version` in HKDF info
+   - Full transcript binding (FIX-C3 v2): `derive_shared_secret()` binds `protocol_version`, `mode_flags`, `receiver_public_hash`, `ephemeral_public`, `pq_ciphertext_hash` in HKDF info
 
 5. **Post-Quantum Hybrid** ([pq_hybrid.py](../meow_decoder/pq_hybrid.py))
    - ML-KEM-1024 (Kyber1024) + X25519 hybrid key exchange (MEOW4)
@@ -62,9 +62,13 @@ Core modules live in `meow_decoder/`, tests in `tests/`, examples in `examples/`
 
 ### Manifest Versions (Critical!)
 When editing crypto code, respect manifest version boundaries:
-- **MEOW2**: Base encryption (password-only, no forward secrecy)
-- **MEOW3**: Forward secrecy support (X25519 ephemeral keys optional)
-- **MEOW4**: Post-quantum hybrid (ML-KEM-1024 + X25519)
+- **MEOW2**: Base encryption (password-only, no forward secrecy) — mode_byte=0x02
+- **MEOW3**: Forward secrecy support (X25519 ephemeral keys optional) — mode_byte=0x03
+- **MEOW4**: Post-quantum hybrid (ML-KEM-1024 + X25519) — mode_byte=0x04
+- **Duress flag**: mode_byte |= 0x80
+
+The explicit `mode_byte` field (FIX-D3) is bound in both AAD and HMAC.
+Legacy manifests (mode_byte=0) are still accepted for backward compatibility.
 
 Check version in [encode.py](../meow_decoder/encode.py) lines 56-73 for proper mode selection.
 

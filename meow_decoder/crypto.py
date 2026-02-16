@@ -88,6 +88,7 @@ def build_canonical_aad(
     magic: bytes,
     ephemeral_public_key: Optional[bytes] = None,
     pq_ciphertext: Optional[bytes] = None,
+    mode_byte: int = 0,
 ) -> bytes:
     """Build canonical Additional Authenticated Data for AES-GCM.
 
@@ -96,7 +97,7 @@ def build_canonical_aad(
 
     Layout (deterministic, fixed-order):
         ``AAD_VERSION || le_u64(orig_len) || le_u64(comp_len)
-          || salt || sha256 || magic [|| ephemeral_pk] [|| pq_ciphertext]``
+          || salt || sha256 || magic [|| mode_byte] [|| ephemeral_pk] [|| pq_ciphertext]``
 
     Args:
         orig_len:  Original (uncompressed) file length.
@@ -106,6 +107,7 @@ def build_canonical_aad(
         magic:     Manifest magic bytes (e.g. b"MEOW3").
         ephemeral_public_key: 32-byte X25519 ephemeral key (forward secrecy).
         pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes, post-quantum hybrid).
+        mode_byte: FIX-D3: Explicit manifest mode byte (0 = legacy, omitted from AAD).
 
     Returns:
         Deterministic AAD bytestring.
@@ -115,6 +117,9 @@ def build_canonical_aad(
     aad += salt
     aad += sha256_hash
     aad += magic
+    # FIX-D3: Bind mode byte into AAD (skip for legacy mode_byte=0)
+    if mode_byte != 0:
+        aad += struct.pack("B", mode_byte)
     if ephemeral_public_key is not None:
         aad += ephemeral_public_key
     if pq_ciphertext is not None:
@@ -157,6 +162,30 @@ class Manifest:
     ephemeral_public_key: Optional[bytes] = None  # Forward secrecy support
     pq_ciphertext: Optional[bytes] = None  # Post-quantum hybrid support
     duress_tag: Optional[bytes] = None  # Duress authentication tag (32 bytes)
+    mode_byte: int = 0  # FIX-D3: Explicit manifest mode (0 = legacy/inferred)
+
+
+# ── FIX-D3: Mode byte constants ──────────────────────────────────────────────
+# Explicit mode byte prevents length-based ambiguity and is bound in AAD + HMAC.
+#   0x00 = legacy manifest (no mode byte; length-inferred, backward compat only)
+#   0x02 = MEOW2: password-only, no forward secrecy
+#   0x03 = MEOW3: X25519 forward secrecy
+#   0x04 = MEOW4: X25519 + ML-KEM-1024 post-quantum hybrid
+#   0x80 flag = duress mode (OR'd with version)
+MODE_LEGACY = 0x00
+MODE_MEOW2 = 0x02
+MODE_MEOW3 = 0x03
+MODE_MEOW4 = 0x04
+MODE_DURESS = 0x80  # Duress flag (OR'd with version)
+
+_VALID_MODE_BYTES = {
+    MODE_MEOW2,
+    MODE_MEOW3,
+    MODE_MEOW4,
+    MODE_MEOW2 | MODE_DURESS,
+    MODE_MEOW3 | MODE_DURESS,
+    MODE_MEOW4 | MODE_DURESS,
+}
 
 
 # Minimum password length (NIST SP 800-63B recommends 8+)
@@ -173,7 +202,7 @@ _nonce_reuse_cache: "OrderedDict[bytes, bool]" = OrderedDict()
 _nonce_logger = _logging.getLogger("meow_decoder.crypto.nonce_guard")
 
 
-def _register_nonce_use(key: bytes, nonce: bytes, *, precomputed_key_mode: bool = False) -> None:
+def _register_nonce_use(key: bytes, nonce: bytes, *, synthetic_iv_mode: bool = False) -> None:
     """
     Best-effort nonce reuse guard (per-process).
 
@@ -181,18 +210,21 @@ def _register_nonce_use(key: bytes, nonce: bytes, *, precomputed_key_mode: bool 
     Uses ordered eviction: oldest entries are removed when the cache
     exceeds _NONCE_REUSE_CACHE_MAX, preserving recent nonce history.
 
-    For precomputed_key mode (HSM/TPM), emits a warning because nonce
-    tracking is per-process only and the key may be reused across
-    process restarts.
+    When synthetic_iv_mode is True (HSM/precomputed_key path), the nonce
+    is derived deterministically via HKDF from key + plaintext hash + salt.
+    Same (key, plaintext, salt) → same nonce → deterministic encryption
+    (SIV property).  The per-process cache is redundant in this mode
+    because nonce uniqueness is guaranteed by construction — identical
+    nonce implies identical plaintext under the same key, which is safe
+    for AES-GCM.  We still register for defense-in-depth but skip the
+    reuse error (deterministic replay of same input is intentional).
     """
-    if precomputed_key_mode:
-        _nonce_logger.warning(
-            "Nonce guard in precomputed_key (HSM/TPM) mode: nonce tracking is "
-            "per-process only. Consider using a persistent nonce store or "
-            "synthetic IV (AES-GCM-SIV) for cross-restart nonce safety."
-        )
     digest = hashlib.sha256(key + nonce).digest()
     if digest in _nonce_reuse_cache:
+        if synthetic_iv_mode:
+            # Same nonce is expected for same plaintext under same key (SIV property).
+            # This is deterministic encryption — safe for GCM.
+            return
         raise RuntimeError("Nonce reuse detected for encryption key")
     _nonce_reuse_cache[digest] = True
     # LRU eviction: remove oldest entries instead of clearing all history
@@ -266,9 +298,12 @@ def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) ->
     This excludes the manifest HMAC field but can optionally include
     the duress tag for binding it to the HMAC.
     """
-    core = (
-        MAGIC
-        + manifest.salt
+    core = MAGIC
+    # FIX-D3: Include mode byte for non-legacy manifests
+    if manifest.mode_byte != 0:
+        core += struct.pack("B", manifest.mode_byte)
+    core += (
+        manifest.salt
         + manifest.nonce
         + struct.pack(">III", manifest.orig_len, manifest.comp_len, manifest.cipher_len)
         + struct.pack(">HI", manifest.block_size, manifest.k_blocks)
@@ -359,6 +394,7 @@ def encrypt_file_bytes(
     precomputed_salt: Optional[bytes] = None,
     pq_ciphertext: Optional[bytes] = None,
     pq_ephemeral_public_key: Optional[bytes] = None,
+    mode_byte: int = 0,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
     Compress, hash, and encrypt file data with authenticated additional data (AAD).
@@ -507,13 +543,21 @@ def encrypt_file_bytes(
             receiver_pubkey = deserialize_public_key(receiver_public_key)
 
             # Derive shared secret (expects bytes)
-            # FIX-C3: Pass protocol_version for transcript binding
+            # FIX-C3 v2: Full transcript binding — version, mode, identities, PQ
+            _mode_flags = 0x01  # FS mode
+            if pq_ciphertext is not None:
+                _mode_flags |= 0x02
+            _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
+            _eph_pub = serialize_public_key(fs_keys.ephemeral_public)
             key = derive_shared_secret(
                 fs_keys.ephemeral_private,
                 receiver_pubkey,
                 password,
                 salt,
                 protocol_version=3,
+                ephemeral_public=_eph_pub,
+                pq_ciphertext_hash=_pq_hash,
+                mode_flags=_mode_flags,
             )
 
             # Export ephemeral public key for transmission (validates bytes)
@@ -551,11 +595,14 @@ def encrypt_file_bytes(
             magic=MAGIC,
             ephemeral_public_key=ephemeral_public_key,
             pq_ciphertext=pq_ciphertext,
+            mode_byte=mode_byte,
         )
 
         # Best-effort nonce reuse guard (per-process)
-        # FIX-A1: Pass precomputed_key_mode flag to warn about HSM cross-restart risk
-        _register_nonce_use(key, nonce, precomputed_key_mode=(precomputed_key is not None))
+        # FIX-A1: Synthetic IV mode = nonce derived from key+plaintext, so
+        # deterministic replay of same input is intentional and safe.
+        _is_synthetic = precomputed_key is not None and pq_ephemeral_public_key is None
+        _register_nonce_use(key, nonce, synthetic_iv_mode=_is_synthetic)
 
         # Encrypt with AES-256-GCM using AAD
         # Why: AEAD enforces authenticity before decryption; no partial
@@ -592,6 +639,7 @@ def decrypt_to_raw(
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
     pq_ciphertext: Optional[bytes] = None,
+    mode_byte: int = 0,
 ) -> bytes:
     """
     Decrypt and decompress file data with AAD verification.
@@ -661,13 +709,20 @@ def decrypt_to_raw(
 
             # Derive shared secret (same as sender)
             # Receiver private key is passed as bytes, sender pubkey as bytes
-            # FIX-C3: Pass protocol_version for transcript binding
+            # FIX-C3 v2: Full transcript binding — version, mode, identities, PQ
+            _mode_flags = 0x01  # FS mode
+            if pq_ciphertext is not None:
+                _mode_flags |= 0x02
+            _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
             key = derive_shared_secret(
                 receiver_private_key,
                 sender_pubkey,
                 password,
                 salt,
                 protocol_version=3,
+                ephemeral_public=ephemeral_public_key,
+                pq_ciphertext_hash=_pq_hash,
+                mode_flags=_mode_flags,
             )
         else:
             # PASSWORD-ONLY MODE
@@ -698,6 +753,7 @@ def decrypt_to_raw(
             magic=MAGIC,
             ephemeral_public_key=ephemeral_public_key,
             pq_ciphertext=pq_ciphertext,
+            mode_byte=mode_byte,
         )
 
         # Decrypt with AES-256-GCM
@@ -780,7 +836,7 @@ def pack_manifest(m: Manifest) -> bytes:
     """
     Serialize manifest to bytes.
 
-    Format (base, 115 bytes):
+    Format (legacy base, 115 bytes — mode_byte == 0):
         MAGIC (5 bytes) +
         salt (16 bytes) +
         nonce (12 bytes) +
@@ -792,28 +848,28 @@ def pack_manifest(m: Manifest) -> bytes:
         sha256 (32 bytes) +
         hmac (32 bytes)
 
-    Format (with forward secrecy, 147 bytes):
-        (base 115 bytes) +
-        ephemeral_public_key (32 bytes)
+    Format (new base, 116 bytes — mode_byte != 0):
+        MAGIC (5 bytes) +
+        mode_byte (1 byte, FIX-D3) +
+        ... same fields ...
 
-    Format (with forward secrecy + PQ, 1715 bytes):
-        (base with FS 147 bytes) +
-        pq_ciphertext (1568 bytes)
+    Optional trailer fields (appended):
+        ephemeral_public_key (32 bytes) — forward secrecy
+        pq_ciphertext (1568 bytes) — PQ hybrid
+        duress_tag (32 bytes) — duress
 
     Args:
         m: Manifest object
 
     Returns:
-        Serialized manifest bytes (115, 147, or 1715 bytes)
-
-    Notes:
-        - Password-only mode: 115 bytes (MEOW2 backward compat)
-        - Forward secrecy mode: 147 bytes (MEOW3)
-        - PQ hybrid mode: 1715 bytes (MEOW4)
+        Serialized manifest bytes
     """
-    base = (
-        MAGIC
-        + m.salt
+    base = MAGIC
+    # FIX-D3: Include mode byte for non-legacy manifests
+    if m.mode_byte != 0:
+        base += struct.pack("B", m.mode_byte)
+    base += (
+        m.salt
         + m.nonce
         + struct.pack(">III", m.orig_len, m.comp_len, m.cipher_len)
         + struct.pack(">HI", m.block_size, m.k_blocks)
@@ -852,18 +908,25 @@ def unpack_manifest(b: bytes) -> Manifest:
         b: Serialized manifest bytes
 
     Returns:
-        Manifest object with optional ephemeral_public_key, pq_ciphertext, and duress_tag
+        Manifest object with optional ephemeral_public_key, pq_ciphertext, duress_tag, mode_byte
 
     Raises:
         ValueError: If manifest is invalid or wrong version
 
     Notes:
-        Valid manifest sizes:
+        Legacy manifest sizes (mode_byte inferred from length):
         - 115 bytes = password-only mode (MEOW2, legacy)
         - 147 bytes = forward secrecy mode (MEOW3)
         - 179 bytes = forward secrecy + duress (MEOW3 + duress tag)
         - 1715 bytes = PQ hybrid mode (MEOW4)
         - 1747 bytes = PQ hybrid + duress (MEOW4 + duress tag)
+
+        New manifest sizes (FIX-D3, explicit mode_byte):
+        - 116 bytes = MEOW2 + mode byte
+        - 148 bytes = MEOW3 + mode byte
+        - 180 bytes = MEOW3 + duress + mode byte
+        - 1716 bytes = MEOW4 + mode byte
+        - 1748 bytes = MEOW4 + duress + mode byte
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
@@ -871,26 +934,40 @@ def unpack_manifest(b: bytes) -> Manifest:
     pq_len = fs_len + 1568  # 1715 bytes (with PQ ciphertext, ML-KEM-1024)
     pq_duress_len = pq_len + 32  # 1747 bytes (with PQ + duress)
 
-    valid_sizes = [min_len, fs_len, fs_duress_len, pq_len, pq_duress_len]
+    legacy_sizes = {min_len, fs_len, fs_duress_len, pq_len, pq_duress_len}
+    # FIX-D3: New sizes are legacy + 1 byte for mode_byte
+    new_sizes = {s + 1 for s in legacy_sizes}
+    all_valid = legacy_sizes | new_sizes
 
     if len(b) < min_len:
         raise ValueError(f"Manifest too short (got {len(b)}, need at least {min_len} bytes)")
 
-    if len(b) not in valid_sizes:
+    if len(b) not in all_valid:
         raise ValueError(
-            f"Manifest length invalid (got {len(b)}, expected one of {valid_sizes} bytes)"
+            f"Manifest length invalid (got {len(b)}, expected one of {sorted(all_valid)} bytes)"
         )
 
     if b[: len(MAGIC)] != MAGIC:
         # Try MEOW2 for backward compatibility
         if b[:5] == b"MEOW2":
-            # Old version without forward secrecy
-            # Fall through to parse as password-only mode
             pass
         else:
             raise ValueError("Invalid MAGIC/version (possibly old v1 file or corrupted data)")
 
+    # FIX-D3: Detect new-format manifests (explicit mode byte)
+    has_mode_byte = len(b) in new_sizes
     off = len(MAGIC)
+    mode_byte = MODE_LEGACY
+
+    if has_mode_byte:
+        mode_byte = struct.unpack("B", b[off : off + 1])[0]
+        off += 1
+        if mode_byte not in _VALID_MODE_BYTES:
+            raise ValueError(
+                f"Invalid manifest mode byte 0x{mode_byte:02x} "
+                f"(valid: {', '.join(f'0x{v:02x}' for v in sorted(_VALID_MODE_BYTES))})"
+            )
+
     salt = b[off : off + 16]
     off += 16
     nonce = b[off : off + 12]
@@ -909,22 +986,42 @@ def unpack_manifest(b: bytes) -> Manifest:
     pq_ciphertext = None
     duress_tag = None
 
-    if len(b) >= fs_len:
-        # Forward secrecy mode - extract ephemeral public key
+    # Effective sizes for field detection (normalize to legacy equivalent)
+    effective_len = len(b) - (1 if has_mode_byte else 0)
+
+    if effective_len >= fs_len:
         ephemeral_public_key = b[off : off + 32]
         off += 32
 
-    if len(b) >= pq_len:
-        # PQ hybrid mode - extract PQ ciphertext (ML-KEM-1024)
+    if effective_len >= pq_len:
         pq_ciphertext = b[off : off + 1568]
         off += 1568
 
-    # Check for duress tag (last 32 bytes if size matches duress variant)
-    if len(b) == fs_duress_len or len(b) == pq_duress_len:
+    if effective_len == fs_duress_len or effective_len == pq_duress_len:
         duress_tag = b[off : off + 32]
 
+    # FIX-D3: Validate mode byte consistency (reject mismatches)
+    if mode_byte != MODE_LEGACY:
+        base_version = mode_byte & 0x7F  # Strip duress flag
+        has_duress = bool(mode_byte & MODE_DURESS)
+
+        # Version consistency checks
+        if base_version == MODE_MEOW2 and ephemeral_public_key is not None:
+            raise ValueError("Manifest mode byte says MEOW2 (no FS) but ephemeral key is present")
+        if base_version == MODE_MEOW3 and pq_ciphertext is not None:
+            raise ValueError("Manifest mode byte says MEOW3 (no PQ) but PQ ciphertext is present")
+        if base_version == MODE_MEOW4 and pq_ciphertext is None:
+            raise ValueError("Manifest mode byte says MEOW4 (PQ) but PQ ciphertext is missing")
+        if base_version in (MODE_MEOW3, MODE_MEOW4) and ephemeral_public_key is None:
+            raise ValueError(
+                f"Manifest mode byte says MEOW{base_version} (FS) but ephemeral key is missing"
+            )
+        if has_duress and duress_tag is None:
+            raise ValueError("Manifest mode byte has duress flag but duress tag is missing")
+        if not has_duress and duress_tag is not None:
+            raise ValueError("Manifest mode byte lacks duress flag but duress tag is present")
+
     # ── ST-2: Strict numeric bounds validation ──
-    # Reject manifests with implausible field values before any crypto operations.
     if orig_len > MAX_ORIG_LEN:  # pragma: no cover
         raise ValueError(f"Manifest orig_len too large ({orig_len} > {MAX_ORIG_LEN})")
     if comp_len > MAX_COMP_LEN:  # pragma: no cover
@@ -942,12 +1039,9 @@ def unpack_manifest(b: bytes) -> Manifest:
             f"Manifest decompression ratio too high (orig_len={orig_len} > comp_len={comp_len} × {MAX_DECOMP_RATIO})"
         )
     if cipher_len > 0 and cipher_len < comp_len:
-        # Ciphertext should be >= compressed data (GCM adds 16-byte tag + possible padding)
         pass  # Not strictly enforced — padding modes may vary
-    # Validate ephemeral public key is not all-zero
     if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
-    # Validate PQ ciphertext length
     if pq_ciphertext is not None and len(pq_ciphertext) != 1568:  # pragma: no cover
         raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1568)")
 
@@ -964,6 +1058,7 @@ def unpack_manifest(b: bytes) -> Manifest:
         ephemeral_public_key=ephemeral_public_key,
         pq_ciphertext=pq_ciphertext,
         duress_tag=duress_tag,
+        mode_byte=mode_byte,
     )
 
 
@@ -976,6 +1071,7 @@ def derive_encryption_key_for_manifest(
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
     precomputed_key: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """
     Derive the encryption key for a manifest, matching encryption/decryption paths.
@@ -991,6 +1087,7 @@ def derive_encryption_key_for_manifest(
         receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips key derivation and returns this key
+        pq_ciphertext: Optional PQ ciphertext (FIX-C3 v2 transcript binding)
 
     Returns:
         32-byte encryption key
@@ -1014,13 +1111,20 @@ def derive_encryption_key_for_manifest(
             from .x25519_forward_secrecy import derive_shared_secret, deserialize_public_key
 
         sender_pubkey = deserialize_public_key(ephemeral_public_key)
-        # FIX-C3: Pass protocol_version for transcript binding
+        # FIX-C3 v2: Full transcript binding — version, mode, identities, PQ
+        _mode_flags = 0x01  # FS mode
+        if pq_ciphertext is not None:
+            _mode_flags |= 0x02
+        _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
         return derive_shared_secret(
             receiver_private_key,
             sender_pubkey,
             password,
             salt,
             protocol_version=3,
+            ephemeral_public=ephemeral_public_key,
+            pq_ciphertext_hash=_pq_hash,
+            mode_flags=_mode_flags,
         )
 
     if yubikey_slot is not None:
@@ -1044,6 +1148,7 @@ def compute_manifest_hmac(
     encryption_key: Optional[bytes] = None,
     yubikey_slot: Optional[str] = None,
     yubikey_pin: Optional[str] = None,
+    pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """
     Compute HMAC over manifest (without the hmac field itself).
@@ -1080,6 +1185,7 @@ def compute_manifest_hmac(
             receiver_private_key=receiver_private_key,
             yubikey_slot=yubikey_slot,
             yubikey_pin=yubikey_pin,
+            pq_ciphertext=pq_ciphertext,
         )
 
     # Derive HMAC key from encryption key
@@ -1124,6 +1230,7 @@ def verify_manifest_hmac(
     packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
 
     # Compute expected HMAC (with forward secrecy support)
+    # FIX-C3 v2: Pass pq_ciphertext for transcript binding
     expected_hmac = compute_manifest_hmac(
         password,
         manifest.salt,
@@ -1134,6 +1241,7 @@ def verify_manifest_hmac(
         encryption_key=precomputed_key,  # Pass precomputed key for HMAC
         yubikey_slot=yubikey_slot,
         yubikey_pin=yubikey_pin,
+        pq_ciphertext=manifest.pq_ciphertext,
     )
 
     # Constant-time comparison with timing equalization
