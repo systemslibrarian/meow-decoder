@@ -503,9 +503,10 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Encryption:** AES-256-GCM (authenticated)
 - **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
 - **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
+- **Per-Frame Ratchet:** Signal-parity symmetric ratchet (MSR v1.2) with header encryption and key commitment
 - **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (opt-in, requires receiver PQ public key)
 - **Signatures:** ML-DSA-65 + Ed25519 hybrid (manifest auth)
-- **Integrity:** HMAC-SHA256 + per-frame MACs
+- **Integrity:** HMAC-SHA256 + per-frame MACs + key commitment tags
 - **Error Correction:** Luby Transform fountain codes
 
 For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
@@ -520,6 +521,9 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Memory-Hard KDF | Argon2id (512 MiB, 20 iter) | ✅ |
 | Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
 | Forward Secrecy | X25519 ephemeral keys | ✅ Default |
+| Per-Frame Forward Secrecy | Symmetric ratchet (MSR v1.2) | ✅ Optional |
+| Header Encryption | HKDF-XOR masked frame indices | ✅ (Signal parity) |
+| Key Commitment | HMAC-SHA256 commitment tags | ✅ (Signal parity) |
 | Post-Quantum | ML-KEM-1024 + ML-DSA-65 | ✅ Default |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
 | Coercion Resistance | Duress passwords | ✅ |

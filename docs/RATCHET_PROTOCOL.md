@@ -1,8 +1,8 @@
 # MEOW Symmetric Ratchet Protocol Specification (MSR v1)
 
-**Version**: 1.1  
+**Version**: 1.2  
 **Date**: 2026-02-16  
-**Status**: Implemented with rekey beacons, pending formal verification  
+**Status**: Implemented with rekey beacons + Signal-parity hardening  
 **Authors**: meow-decoder contributors  
 
 ---
@@ -28,7 +28,7 @@ The MEOW Symmetric Ratchet (MSR v1) provides **per-frame forward secrecy** for f
 |-----------|--------|------------|
 | No DH ratchet | Air-gap = no back-channel | Chain keys exist only during session |
 | No post-compromise security | Unidirectional → no asymmetric re-keying possible | **Sender rekey beacons** (§7) inject fresh entropy periodically |
-| Frame index is plaintext | Decoder needs index to derive correct key | Authenticated via AAD |
+| ~~Frame index is plaintext~~ | ~~Decoder needs index~~ | **RESOLVED (v1.2)**: Header encryption via HKDF-XOR mask (§8.3) |
 
 ---
 
@@ -81,9 +81,15 @@ FRAME_MAC_INFO     = b"meow_ratchet_frame_mac_v1"
 # Rekey beacon constants (§7)
 REKEY_BEACON_INFO     = b"meow_ratchet_rekey_v1"
 REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
+
+# Header encryption constants (§8)
+HEADER_ENC_INFO  = b"meow_ratchet_header_v1"
+HEADER_MASK_INFO = b"meow_header_mask_v1"
 ```
 
-**Invariant**: All six constants are unique. This is verified by `test_ratchet.py::TestDomainSeparation::test_all_constants_unique`.
+**Key commitment**: The per-frame `mac_key` is used to compute a 16-byte HMAC-SHA256 commitment tag over the frame body. This prevents key commitment attacks ("invisible salamanders") where AES-GCM alone allows two different keys to both produce valid decryptions.
+
+**Invariant**: All ten constants are unique. This is verified by `test_ratchet.py::TestDomainSeparation::test_all_constants_unique`.
 
 ---
 
@@ -98,23 +104,24 @@ REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
 
 ### 3.2 Encrypted Frame Format
 
-**Standard frame** (non-beacon):
+**Standard frame** (non-beacon, MSR v1.2 hardened):
 ```
-┌─────────────────┬────────────────────────────────────┐
-│  frame_index    │  AES-GCM ciphertext + tag          │
-│  (4 bytes, BE)  │  (len(plaintext) + 16 bytes)       │
-└─────────────────┴────────────────────────────────────┘
+┌─────────────────┬────────────────┬──────────────────────────────────┐
+│  encrypted_index  │  commitment_tag │  AES-GCM ciphertext + tag          │
+│  (4 bytes, XOR)   │  (16 bytes)     │  (len(plaintext) + 16 bytes)       │
+└─────────────────┴────────────────┴──────────────────────────────────┘
 ```
 
 **Beacon frame** (at rekey intervals, see §7):
 ```
-┌─────────────────┬──────────────────┬────────────────────────────────────┐
-│  frame_index    │  beacon_data     │  AES-GCM ciphertext + tag          │
-│  (4 bytes, BE)  │  (32 bytes)      │  (len(plaintext) + 16 bytes)       │
-└─────────────────┴──────────────────┴────────────────────────────────────┘
+┌─────────────────┬────────────────┬──────────────────┬──────────────────────────────────┐
+│  encrypted_index  │  commitment_tag │  beacon_data      │  AES-GCM ciphertext + tag          │
+│  (4 bytes, XOR)   │  (16 bytes)     │  (32 bytes)       │  (len(plaintext) + 16 bytes)       │
+└─────────────────┴────────────────┴──────────────────┴──────────────────────────────────┘
 ```
 
-- `frame_index`: 32-bit big-endian unsigned integer. Transmitted in plaintext (authenticated via AAD).
+- `encrypted_index`: 4-byte frame index XOR-masked with HKDF-derived pseudorandom mask. Prevents traffic analysis of frame ordering (Signal header encryption parity).
+- `commitment_tag`: 16-byte truncated HMAC-SHA256(mac_key, frame_body). Prevents key commitment attacks ("invisible salamanders") where AES-GCM alone allows multi-key decryption.
 - `beacon_data`: 32 bytes of rekey material (X25519 ephemeral public key or random entropy). Present only on beacon frames.
 - `ciphertext + tag`: AES-256-GCM output. The 16-byte authentication tag is appended.
 
@@ -376,7 +383,7 @@ Beacons are fully compatible with out-of-order frame reception:
 
 ## 8. Signal Double Ratchet Comparison
 
-| Property | Signal Double Ratchet | MEOW MSR v1.1 |
+| Property | Signal Double Ratchet | MEOW MSR v1.2 |
 |----------|----------------------|--------------|
 | **Symmetric ratchet** | ✓ Per-message | ✓ Per-frame |
 | **DH ratchet** | ✓ Per-reply (X3DH → DH) | ✗ (unidirectional air-gap) |
@@ -384,9 +391,10 @@ Beacons are fully compatible with out-of-order frame reception:
 | **Post-compromise security** | ✓ Via DH ratchet re-keying | ⚡ Via sender rekey beacons (§7) |
 | **Out-of-order support** | Bounded window (typically ~2000) | Full (fountain code, up to 2000 cached) |
 | **Key zeroization** | ✓ | ✓ (Rust backend when available) |
-| **Header encryption** | ✓ (double-encrypted header) | ✗ (frame index is plaintext, authenticated via AAD) |
-| **KDF** | HMAC-SHA256 chain | HKDF-SHA256 with domain separation |
-| **AEAD** | AES-256-CBC + HMAC-SHA256 | AES-256-GCM |
+| **Header encryption** | ✓ (double-encrypted header) | ✓ HKDF-XOR mask per frame index (§8.3) |
+| **Key commitment** | Implicit (HMAC covers ciphertext) | ✓ HMAC-SHA256 commitment tag (§8.4) |
+| **KDF** | HMAC-SHA256 chain | HKDF-SHA256 with 10 domain constants |
+| **AEAD** | AES-256-CBC + HMAC-SHA256 | AES-256-GCM + commitment tag |
 
 ### 8.1 Why No DH Ratchet?
 
@@ -403,13 +411,45 @@ Signal's DH ratchet requires the receiver to send a new public key back to the s
 
 ### 8.2 What We DO Achieve
 
-Despite lacking a DH ratchet, MSR v1.1 provides:
+Despite lacking a DH ratchet, MSR v1.2 provides:
 
 1. **Backward secrecy**: Compromising `chain_key[N]` reveals nothing about `chain_key[0..N-1]` or any `message_key[0..N-1]`.
 2. **Per-frame key isolation**: Each frame uses a unique `(enc_key, nonce, mac_key)` triple.
 3. **Key lifetime minimization**: Each key exists in memory only during its frame's encryption/decryption.
 4. **Post-session security**: After `finalize()`, zero key material remains in memory.
 5. **Partial PCS via rekey beacons**: KEM beacons (§7) provide true PCS for frames at beacon intervals when `receiver_public_key` is used.
+6. **Header encryption**: Frame indices are XOR-masked with HKDF-derived pseudorandom masks, preventing traffic analysis.
+7. **Key commitment**: HMAC-SHA256 commitment tags prevent invisible salamanders attacks against AES-GCM.
+
+### 8.3 Header Encryption (Signal Parity)
+
+Signal encrypts message headers so observers cannot determine message ordering. MSR v1.2 achieves this with HKDF-derived XOR masks:
+
+```
+header_key = HKDF(root_key, salt, "meow_ratchet_header_v1", 32)
+mask[i]    = HKDF(header_key, BE32(i), "meow_header_mask_v1", 4)
+encrypted_index[i] = frame_index[i] ⊕ mask[i]
+```
+
+**Properties**:
+- Each frame gets a unique pseudorandom mask (HKDF domain separation)
+- Encrypted indices appear random to observers (no sequential pattern)
+- Decoder precomputes lookup table: `O(n)` at init, `O(1)` per frame
+- Cross-session isolation: different salts → different header keys → different masks
+
+### 8.4 Key Commitment (Invisible Salamanders Defense)
+
+AES-GCM is not key-committing: an adversary can find two keys that both produce valid GCM authentication tags for the same ciphertext, yielding different plaintexts (Grubbs et al., "Message Franking via Committing Authenticated Encryption", 2017).
+
+MSR v1.2 adds a 16-byte commitment tag: `HMAC-SHA256(mac_key, frame_body)[:16]`, where `mac_key` is deterministically derived from `message_key` via domain-separated HKDF.
+
+**Verification order** (fail-closed):
+1. Header decryption → look up frame index
+2. Replay detection → reject consumed indices
+3. Ratchet key derivation → get message key
+4. Beacon mixing → enhance key if rekey frame
+5. **Key commitment check** → HMAC(mac_key, body) must match tag
+6. AES-GCM decryption → decrypt ciphertext with AAD
 
 ---
 
@@ -470,27 +510,29 @@ If more than MAX_SKIP_KEYS (2000) frames arrive out-of-order, the decoder raises
 
 ## 11. Hardening Recommendations (Future Work)
 
-1. **Header encryption**: Encrypt the frame index to hide traffic analysis metadata. Requires a separate header key derivation.
+1. ~~**Header encryption**~~: **DONE (v1.2, §8.3)** — Frame indices XOR-masked with HKDF-derived pseudorandom masks, preventing traffic analysis.
 
-2. **Ephemeral ratchet salt**: Derive a unique salt for the ratchet (separate from the manifest salt) to provide additional domain separation from the main encryption pipeline.
+2. ~~**Key commitment**~~: **DONE (v1.2, §8.4)** — HMAC-SHA256 commitment tags prevent invisible salamanders attacks against AES-GCM.
 
-3. **Ratchet version negotiation**: Include ratchet version in manifest to support future ratchet protocol upgrades (MSR v2, etc.).
+3. ~~**Constant-time index lookup**~~: **DONE (v1.2)** — Decoder precomputes encrypted-index lookup table during init; O(1) lookup per frame.
 
-4. **Formal verification**: Model the ratchet state machine in ProVerif or Tamarin to prove forward secrecy and beacon PCS properties formally.
+4. **Ephemeral ratchet salt**: Derive a unique salt for the ratchet (separate from the manifest salt) to provide additional domain separation from the main encryption pipeline.
 
-5. **Side-channel resistance**: Use constant-time comparison for frame indices in the decoder's skip cache lookup (currently uses Python `dict`/`set` which may leak timing).
+5. **Ratchet version negotiation**: Include ratchet version in manifest to support future ratchet protocol upgrades (MSR v2, etc.).
 
-6. **Adaptive beacon interval**: Dynamically adjust `rekey_interval` based on frame count / threat posture.
+6. **Formal verification**: Model the ratchet state machine in ProVerif or Tamarin to prove forward secrecy and beacon PCS properties formally.
+
+7. **Adaptive beacon interval**: Dynamically adjust `rekey_interval` based on frame count / threat posture.
 
 ---
 
 ## 12. Test Coverage
 
-Comprehensive tests in `tests/test_ratchet.py` (120 tests):
+Comprehensive tests in `tests/test_ratchet.py` (142 tests):
 
 | Test Class | What It Verifies |
 |-----------|------------------|
-| `TestDomainSeparation` | All 8 HKDF info constants are unique and well-formed |
+| `TestDomainSeparation` | All 10 HKDF info constants are unique and well-formed |
 | `TestInitRatchet` | Correct initial state, determinism, key independence |
 | `TestRatchetStep` | Chain advancement, key uniqueness, old key zeroization |
 | `TestForwardSecrecy` | HKDF one-wayness: chain_key[N+1] ↛ chain_key[N] |
@@ -507,6 +549,9 @@ Comprehensive tests in `tests/test_ratchet.py` (120 tests):
 | **`TestMSRv1SecurityInvariants`** | **6 critical invariants: backward secrecy, DoS bound, OOO, replay, cross-session, nonce uniqueness** |
 | **`TestRekeyBeacons`** | **Beacon roundtrip (plaintext + KEM), OOO, size verification, wrong-key rejection** |
 | **`TestMeowAliases`** | **Cat-themed API: PawState, WhiskerKeys, bury_in_litter, knead_subkey, prime_cat** |
+| **`TestHeaderEncryption`** | **HKDF-XOR mask uniqueness, encryption/decryption roundtrip, observer indistinguishability** |
+| **`TestKeyCommitment`** | **HMAC-SHA256 commitment determinism, wrong-key rejection, truncation to 128 bits** |
+| **`TestSignalParityHardening`** | **Full encoder/decoder roundtrip with header encryption + key commitment, tamper detection** |
 
 ---
 

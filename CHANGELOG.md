@@ -10,6 +10,43 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — MSR v1.2 Signal-Parity Hardening (2026-02-16) 🔐
+
+Three Signal-parity security hardening features for the MEOW Symmetric Ratchet:
+
+#### Header Encryption
+- Frame indices are now XOR-masked with HKDF-derived pseudorandom masks (`HEADER_ENC_INFO = "meow_ratchet_header_v1"`, `HEADER_MASK_INFO = "meow_header_mask_v1"`)
+- Observers cannot determine frame ordering, count consumed frames, or correlate frames across sessions
+- Mirrors Signal's double-encrypted header which hides the chain position
+- Decoder precomputes encrypted-index → real-index lookup table during initialization (O(N) init, O(1) per-frame)
+
+#### Key Commitment (Invisible Salamanders Defense)
+- HMAC-SHA256 commitment tag (16 bytes, `COMMIT_TAG_SIZE = 16`) appended to each frame body
+- Prevents key commitment attacks where AES-GCM allows two different keys to both produce valid decryptions with different plaintexts (Grubbs et al. 2017)
+- Commitment uses the per-frame `mac_key` (already derived via domain-separated HKDF)
+- Decoder verifies commitment BEFORE attempting AES-GCM decryption (fail-fast)
+
+#### Encrypted Frame Format (v1.2)
+```
+[encrypted_index(4)] [commitment_tag(16)] [beacon?(32)] [AES-GCM ciphertext + tag(16)]
+```
+
+#### New Domain Separation Constants
+- `HEADER_ENC_INFO = b"meow_ratchet_header_v1"` — header key derivation
+- `HEADER_MASK_INFO = b"meow_header_mask_v1"` — per-frame XOR mask derivation
+- `COMMIT_TAG_SIZE = 16` — truncated HMAC-SHA256 commitment
+
+#### Tests
+- 142 ratchet unit tests (+22 from v1.1): header encryption, key commitment, Signal-parity hardening
+- 23 E2E ratchet pipeline tests (all passing with hardened frame format)
+- New test classes: `TestHeaderEncryption`, `TestKeyCommitment`, `TestSignalParityHardening`
+
+#### Documentation Updates
+- RATCHET_PROTOCOL.md updated to v1.2 with §8.3 (Header Encryption) and §8.4 (Key Commitment)
+- MSR_V1_ADVERSARIAL_ANALYSIS.md updated with v1.2 hardening notes and Attack 8 mitigation
+- Hardening recommendations: items 1, 2, 3 marked as DONE
+- Signal comparison table updated: header encryption ✓, key commitment ✓
+
 ### Security — OPUS-AUDIT v2 Remediation (2026-02-17) 🔒
 
 Second hostile crypto audit identified 4 remaining weaknesses; all remediated.

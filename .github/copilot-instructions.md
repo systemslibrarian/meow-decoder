@@ -49,6 +49,17 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Statistical indistinguishability enforced via entropy tests
    - Merkle tree integrity, automatic decoy generation
 
+7. **Per-Frame Symmetric Ratchet (MSR v1.2)** ([ratchet.py](../meow_decoder/ratchet.py))
+   - Signal-inspired symmetric hash ratchet with per-frame forward secrecy
+   - HKDF-SHA256 chain: 10 unique domain separation constants
+   - **Header encryption**: Frame indices XOR-masked with HKDF-derived pseudorandom masks (Signal parity)
+   - **Key commitment**: HMAC-SHA256 commitment tags (16 bytes) prevent invisible salamanders attacks
+   - **Rekey beacons**: Periodic KEM (X25519) or plaintext entropy injection for partial PCS
+   - Out-of-order support via skip key cache (MAX_SKIP_KEYS = 2000) for fountain code compatibility
+   - Key zeroization: All chain_key, message_key, and subkeys zeroized after use
+   - Frame format: `[encrypted_index(4)] [commitment(16)] [beacon?(32)] [AES-GCM ciphertext+tag]`
+   - 142 unit tests + 23 E2E pipeline tests
+
 ## Critical Development Patterns
 
 ### Module Import Structure

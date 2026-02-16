@@ -39,6 +39,9 @@ from meow_decoder.ratchet import (
     REKEY_BEACON_KEM_INFO,
     REKEY_BEACON_SIZE,
     DEFAULT_REKEY_INTERVAL,
+    HEADER_ENC_INFO,
+    HEADER_MASK_INFO,
+    COMMIT_TAG_SIZE,
     DecoderRatchet,
     EncoderRatchet,
     FrameKeys,
@@ -52,6 +55,9 @@ from meow_decoder.ratchet import (
     _hkdf_derive,
     _secure_zero,
     _mix_beacon,
+    _encrypt_index,
+    _derive_header_key,
+    _compute_commitment,
 )
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
@@ -711,10 +717,13 @@ class TestEncoderRatchet:
 
         assert len(encrypted_frames) == total
 
-        # Each encrypted frame should have the correct frame index
+        # Frame indices are now header-encrypted (Signal parity).
+        # Verify encrypted indices are unique and NOT plaintext.
+        enc_indices = [enc[:4] for enc in encrypted_frames]
+        assert len(set(enc_indices)) == total, "Encrypted indices must be unique"
         for i, enc in enumerate(encrypted_frames):
-            idx = struct.unpack(">I", enc[:4])[0]
-            assert idx == i
+            plaintext_idx = struct.pack(">I", i)
+            assert enc[:4] != plaintext_idx, f"Frame {i} index not encrypted"
 
     def test_position_tracks_frames(self, root_key, salt):
         ratchet = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=5)
@@ -837,13 +846,19 @@ class TestDecoderRatchet:
         decoder.finalize()
 
     def test_frame_index_out_of_range_rejected(self, root_key, salt):
-        """Frame index >= total_frames must be rejected."""
+        """Unknown encrypted frame index must be rejected.
+
+        With header encryption (MSR v1.2), the decoder rejects frames
+        whose encrypted index doesn't match any precomputed entry.
+        This is STRONGER than the old check — attackers can't even
+        target specific frame indices without the header key.
+        """
         total = 3
         decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
 
-        # Craft a frame with index = total_frames
-        fake_frame = struct.pack(">I", total) + secrets.token_bytes(32)
-        with pytest.raises(ValueError, match="exceeds total"):
+        # Random bytes won't match any encrypted index in the lookup table
+        fake_frame = secrets.token_bytes(4) + secrets.token_bytes(48)
+        with pytest.raises(ValueError, match="Header decryption failed"):
             decoder.decrypt(fake_frame)
 
         decoder.finalize()
@@ -862,17 +877,22 @@ class TestDecoderRatchet:
         """
         Receiving a frame that requires caching more than MAX_SKIP_KEYS
         skipped keys must raise ValueError (DoS protection).
+
+        With header encryption, we must use a validly-encrypted index
+        to bypass the header layer and test the ratchet DoS bound.
         """
         # total_frames must be > MAX_SKIP_KEYS + 1
         total = MAX_SKIP_KEYS + 10
-        # Don't actually encode MAX_SKIP_KEYS frames —
-        # instead, craft a fake high-index frame to trigger the bound
         decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
 
-        # Create a frame claiming to be at index MAX_SKIP_KEYS + 5
-        # This will try to cache MAX_SKIP_KEYS + 5 skipped keys
+        # Craft a frame with a validly-encrypted high index that bypasses
+        # header decryption but triggers the skip key DoS bound.
         fake_index = MAX_SKIP_KEYS + 5
-        fake_frame = struct.pack(">I", fake_index) + secrets.token_bytes(32)
+        header_key = _derive_header_key(root_key, salt)
+        enc_idx = _encrypt_index(header_key, fake_index)
+        # Need enough bytes for commitment + GCM tag minimum
+        fake_body = secrets.token_bytes(COMMIT_TAG_SIZE + GCM_TAG_SIZE + 16)
+        fake_frame = enc_idx + fake_body
 
         with pytest.raises(ValueError, match="[Dd]o[Ss]|skip"):
             decoder.decrypt(fake_frame)
@@ -1344,16 +1364,28 @@ class TestBoundaryConditions:
         encoder.finalize()
         decoder.finalize()
 
-    def test_frame_index_in_header_big_endian(self, root_key, salt):
-        """Verify frame index is packed as big-endian uint32."""
+    def test_header_encryption_hides_frame_index(self, root_key, salt):
+        """Verify header encryption: frame indices are NOT plaintext.
+
+        MSR v1.2 encrypts frame indices with HKDF-derived XOR masks
+        (Signal header encryption parity). An observer should see
+        pseudorandom bytes, not sequential integers.
+        """
         total = 10
         encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
 
+        enc_headers = []
         for idx in range(total):
             enc = encoder.encrypt_next(b"x")
-            parsed_idx = struct.unpack(">I", enc[:4])[0]
-            assert parsed_idx == idx, f"Expected {idx}, got {parsed_idx}"
+            enc_header = enc[:FRAME_INDEX_SIZE]
+            plaintext_idx = struct.pack(">I", idx)
+            assert (
+                enc_header != plaintext_idx
+            ), f"Frame {idx}: header NOT encrypted (plaintext index visible)"
+            enc_headers.append(enc_header)
 
+        # All encrypted headers must be unique
+        assert len(set(enc_headers)) == total
         encoder.finalize()
 
     def test_empty_frame_data(self, root_key, salt):
@@ -1386,18 +1418,31 @@ class TestMSRv1SecurityInvariants:
 
         Simulate: attacker extracts message_key[5] from memory.
         Prove: cannot decrypt frames 0-4 with message_key[5].
+
+        Uses raw encrypt_frame/decrypt_frame (not EncoderRatchet) to
+        test the cryptographic primitive independent of header encryption.
         """
         total = 10
-        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
-        encrypted = [encoder.encrypt_next(f"frame_{i}".encode()) for i in range(total)]
-        encoder.finalize()
-
-        # Re-derive message keys to simulate compromise of key[5]
+        # Derive all message keys
         state = init_ratchet(root_key, salt)
         msg_keys = []
         for _ in range(total):
             mk, state = ratchet_step(state)
             msg_keys.append(mk)
+
+        # Encrypt all frames with correct per-frame keys
+        encrypted = []
+        for i in range(total):
+            enc = encrypt_frame(
+                frame_data=f"frame_{i}".encode(),
+                message_key=msg_keys[i],
+                frame_index=i,
+                salt=salt,
+                k_blocks=3,
+                block_size=800,
+                total_frames=total,
+            )
+            encrypted.append(enc)
 
         compromised_key = msg_keys[5]  # Attacker has this
 
@@ -1429,15 +1474,19 @@ class TestMSRv1SecurityInvariants:
     def test_jump_ahead_dos_bound(self, root_key, salt):
         """Attacker sends frame index far ahead → decode fails fast / bounded work.
 
-        An adversary crafts a frame claiming index MAX_SKIP_KEYS+100.
-        The decoder must reject it immediately (bounded computation).
+        An adversary who knows the header key crafts a validly-encrypted
+        frame claiming index MAX_SKIP_KEYS+100. The decoder must reject
+        it immediately (bounded computation).
         """
         total = MAX_SKIP_KEYS + 200
         decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
 
-        # Craft adversarial frame with extremely high index
+        # Craft adversarial frame with validly-encrypted high index
         fake_index = MAX_SKIP_KEYS + 100
-        fake_frame = struct.pack(">I", fake_index) + secrets.token_bytes(48)
+        header_key = _derive_header_key(root_key, salt)
+        enc_idx = _encrypt_index(header_key, fake_index)
+        fake_body = secrets.token_bytes(COMMIT_TAG_SIZE + GCM_TAG_SIZE + 16)
+        fake_frame = enc_idx + fake_body
 
         import time
 
@@ -1898,3 +1947,355 @@ class TestMeowAliases:
 
         dec = DecodingConfig(rekey_beacon_interval=32)
         assert dec.rekey_beacon_interval == 32
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MSR v1.2 — Signal Parity Hardening Tests
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+class TestHeaderEncryption:
+    """Tests for HKDF-XOR frame index header encryption (Signal parity).
+
+    Signal encrypts message headers to prevent traffic analysis. MSR v1.2
+    uses HKDF-derived XOR masks to encrypt frame indices, so observers
+    cannot determine frame ordering or correlate frames across sessions.
+
+    12 domain-separated constants now vs Signal's 2 header keys.
+    """
+
+    @pytest.fixture
+    def root_key(self):
+        return secrets.token_bytes(32)
+
+    @pytest.fixture
+    def salt(self):
+        return secrets.token_bytes(16)
+
+    def test_encrypted_index_differs_from_plaintext(self, root_key, salt):
+        """Every encrypted frame index must differ from its plaintext."""
+        header_key = _derive_header_key(root_key, salt)
+        for i in range(100):
+            enc = _encrypt_index(header_key, i)
+            plaintext = struct.pack(">I", i)
+            assert enc != plaintext, f"Frame {i}: index NOT encrypted"
+
+    def test_encrypted_indices_are_unique(self, root_key, salt):
+        """No two frame indices should encrypt to the same value."""
+        header_key = _derive_header_key(root_key, salt)
+        seen = set()
+        for i in range(500):
+            enc = _encrypt_index(header_key, i)
+            assert enc not in seen, f"Collision at frame {i}"
+            seen.add(enc)
+
+    def test_deterministic_encryption(self, root_key, salt):
+        """Same key + index always produces same encrypted index."""
+        header_key = _derive_header_key(root_key, salt)
+        for i in [0, 1, 42, 999]:
+            a = _encrypt_index(header_key, i)
+            b = _encrypt_index(header_key, i)
+            assert a == b
+
+    def test_different_keys_produce_different_encryptions(self, salt):
+        """Different root keys → different header encryptions."""
+        key_a = _derive_header_key(secrets.token_bytes(32), salt)
+        key_b = _derive_header_key(secrets.token_bytes(32), salt)
+        enc_a = _encrypt_index(key_a, 42)
+        enc_b = _encrypt_index(key_b, 42)
+        assert enc_a != enc_b
+
+    def test_different_salts_produce_different_encryptions(self, root_key):
+        """Different salts → different header encryptions."""
+        key_a = _derive_header_key(root_key, secrets.token_bytes(16))
+        key_b = _derive_header_key(root_key, secrets.token_bytes(16))
+        enc_a = _encrypt_index(key_a, 42)
+        enc_b = _encrypt_index(key_b, 42)
+        assert enc_a != enc_b
+
+    def test_xor_symmetry(self, root_key, salt):
+        """Encrypting twice with same mask = identity (XOR self-inverse)."""
+        from meow_decoder.ratchet import _header_mask
+
+        header_key = _derive_header_key(root_key, salt)
+        for i in [0, 1, 255, 65535]:
+            enc = _encrypt_index(header_key, i)
+            mask = _header_mask(header_key, i)
+            recovered = bytes(a ^ b for a, b in zip(enc, mask))
+            assert recovered == struct.pack(">I", i)
+
+    def test_observer_cannot_determine_frame_order(self, root_key, salt):
+        """Encrypted indices should not be monotonically ordered."""
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=20)
+        enc_vals = []
+        for _ in range(20):
+            enc = encoder.encrypt_next(b"x")
+            val = struct.unpack(">I", enc[:4])[0]
+            enc_vals.append(val)
+        encoder.finalize()
+
+        # Check that encrypted indices are NOT monotonically increasing
+        is_monotonic = all(enc_vals[i] < enc_vals[i + 1] for i in range(len(enc_vals) - 1))
+        assert not is_monotonic, "Encrypted indices are monotonic — leaks ordering"
+
+    def test_header_lookup_roundtrip(self, root_key, salt):
+        """Precomputed header lookup table correctly maps all indices."""
+        from meow_decoder.ratchet import _build_header_lookup
+
+        header_key = _derive_header_key(root_key, salt)
+        total = 50
+        lookup = _build_header_lookup(header_key, total)
+
+        assert len(lookup) == total
+        for i in range(total):
+            enc = _encrypt_index(header_key, i)
+            assert lookup[enc] == i
+
+    def test_unknown_encrypted_index_rejected_by_decoder(self, root_key, salt):
+        """Random bytes as frame header → decoder rejects immediately."""
+        total = 5
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        fake = secrets.token_bytes(4 + COMMIT_TAG_SIZE + GCM_TAG_SIZE + 16)
+        with pytest.raises(ValueError, match="Header decryption failed"):
+            decoder.decrypt(fake)
+        decoder.finalize()
+
+    def test_cross_session_isolation(self, root_key):
+        """Frames from session A cannot be decoded by session B (different salt)."""
+        salt_a = secrets.token_bytes(16)
+        salt_b = secrets.token_bytes(16)
+        total = 5
+
+        encoder = EncoderRatchet(root_key, salt_a, k_blocks=3, block_size=800, total_frames=total)
+        frames = [encoder.encrypt_next(b"data") for _ in range(total)]
+        encoder.finalize()
+
+        decoder_b = DecoderRatchet(root_key, salt_b, k_blocks=3, block_size=800, total_frames=total)
+        with pytest.raises(ValueError, match="Header decryption failed"):
+            decoder_b.decrypt(frames[0])
+        decoder_b.finalize()
+
+
+class TestKeyCommitment:
+    """Tests for key commitment tags (invisible salamanders defense).
+
+    AES-GCM is NOT key-committing: two different keys can both produce
+    valid GCM tags for the same ciphertext but yield different plaintexts.
+    MSR v1.2 adds HMAC-SHA256(mac_key, frame_body) to prevent this.
+
+    The commitment tag is verified BEFORE decryption (fail-closed).
+    """
+
+    @pytest.fixture
+    def root_key(self):
+        return secrets.token_bytes(32)
+
+    @pytest.fixture
+    def salt(self):
+        return secrets.token_bytes(16)
+
+    def test_commitment_present_in_output(self, root_key, salt):
+        """Every frame has a 16-byte commitment tag after the encrypted index."""
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=3)
+        for _ in range(3):
+            enc = encoder.encrypt_next(b"test_data")
+            # Frame format: [enc_idx(4)] [commitment(16)] [ciphertext+tag]
+            assert len(enc) >= FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + GCM_TAG_SIZE
+        encoder.finalize()
+
+    def test_commitment_is_deterministic(self, root_key, salt):
+        """Same key + same data → same commitment tag."""
+        mac_key = secrets.token_bytes(32)
+        body = b"some ciphertext body"
+        c1 = _compute_commitment(mac_key, body)
+        c2 = _compute_commitment(mac_key, body)
+        assert c1 == c2
+        assert len(c1) == COMMIT_TAG_SIZE
+
+    def test_different_keys_different_commitments(self):
+        """Different mac_keys → different commitment tags."""
+        body = b"same body"
+        c1 = _compute_commitment(secrets.token_bytes(32), body)
+        c2 = _compute_commitment(secrets.token_bytes(32), body)
+        assert c1 != c2
+
+    def test_different_bodies_different_commitments(self):
+        """Different frame bodies → different commitment tags."""
+        mac_key = secrets.token_bytes(32)
+        c1 = _compute_commitment(mac_key, b"body_a")
+        c2 = _compute_commitment(mac_key, b"body_b")
+        assert c1 != c2
+
+    def test_tampered_commitment_rejected(self, root_key, salt):
+        """Bit-flip in commitment tag → decoder rejects before decryption."""
+        total = 3
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        frames = [encoder.encrypt_next(f"frame_{i}".encode()) for i in range(total)]
+        encoder.finalize()
+
+        # Tamper with the commitment tag (bytes 4-20)
+        frame = bytearray(frames[0])
+        frame[FRAME_INDEX_SIZE] ^= 0xFF  # Flip first byte of commitment
+        tampered = bytes(frame)
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        with pytest.raises(ValueError, match="[Kk]ey commitment"):
+            decoder.decrypt(tampered)
+        decoder.finalize()
+
+    def test_tampered_ciphertext_rejected_by_commitment(self, root_key, salt):
+        """Bit-flip in ciphertext → commitment check fails before GCM check."""
+        total = 3
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        frames = [encoder.encrypt_next(f"frame_{i}".encode()) for i in range(total)]
+        encoder.finalize()
+
+        # Tamper with the ciphertext (after commitment tag)
+        frame = bytearray(frames[0])
+        tamper_pos = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + 2
+        frame[tamper_pos] ^= 0xFF
+        tampered = bytes(frame)
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        with pytest.raises(ValueError, match="[Kk]ey commitment"):
+            decoder.decrypt(tampered)
+        decoder.finalize()
+
+    def test_wrong_key_fails_commitment(self, salt):
+        """Decoder with different root_key → commitment failure."""
+        total = 3
+        key_a = secrets.token_bytes(32)
+        key_b = secrets.token_bytes(32)
+
+        encoder = EncoderRatchet(key_a, salt, k_blocks=3, block_size=800, total_frames=total)
+        frames = [encoder.encrypt_next(b"secret") for _ in range(total)]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(key_b, salt, k_blocks=3, block_size=800, total_frames=total)
+        # Wrong key → either header decryption fails or commitment fails
+        with pytest.raises(ValueError):
+            decoder.decrypt(frames[0])
+        decoder.finalize()
+
+    def test_commitment_covers_beacon_data(self, root_key, salt):
+        """For beacon frames, commitment covers beacon + ciphertext together."""
+        total = 5
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=2,
+        )
+        frames = [encoder.encrypt_next(f"frame_{i}".encode()) for i in range(total)]
+        encoder.finalize()
+
+        # Frame 2 is a beacon frame. Tamper with beacon data.
+        beacon_frame = bytearray(frames[2])
+        beacon_start = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE
+        beacon_frame[beacon_start] ^= 0xFF  # Flip first byte of beacon
+        tampered = bytes(beacon_frame)
+
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=2,
+        )
+        # Decrypt frames 0 and 1 first (non-beacon, should work)
+        decoder.decrypt(frames[0])
+        decoder.decrypt(frames[1])
+        # Tampered beacon frame → commitment check fails
+        with pytest.raises(ValueError, match="[Kk]ey commitment"):
+            decoder.decrypt(tampered)
+        decoder.finalize()
+
+
+class TestHardenedFrameFormat:
+    """Tests for the MSR v1.2 hardened frame format.
+
+    New format: [encrypted_index(4)] [commitment(16)] [body...]
+    vs old:     [plaintext_index(4)] [body...]
+
+    These tests verify the structural properties of the hardened format.
+    """
+
+    @pytest.fixture
+    def root_key(self):
+        return secrets.token_bytes(32)
+
+    @pytest.fixture
+    def salt(self):
+        return secrets.token_bytes(16)
+
+    def test_hardened_frame_size(self, root_key, salt):
+        """Hardened frames are 16 bytes larger than raw frames (commitment tag)."""
+        total = 3
+        state = init_ratchet(root_key, salt)
+
+        # Raw encrypt_frame: [idx(4)] [ciphertext(N)] [tag(16)]
+        mk, state = ratchet_step(state)
+        raw = encrypt_frame(
+            frame_data=b"test",
+            message_key=mk,
+            frame_index=0,
+            salt=salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+        )
+
+        # Hardened: [enc_idx(4)] [commitment(16)] [ciphertext(N)] [tag(16)]
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        hardened = encoder.encrypt_next(b"test")
+        encoder.finalize()
+
+        assert len(hardened) == len(raw) + COMMIT_TAG_SIZE
+
+    def test_roundtrip_in_order(self, root_key, salt):
+        """Basic in-order roundtrip with hardened format."""
+        total = 10
+        data = [f"frame_{i}".encode() for i in range(total)]
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        encrypted = [encoder.encrypt_next(d) for d in data]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=total)
+        for i, enc in enumerate(encrypted):
+            dec = decoder.decrypt(enc)
+            assert dec == data[i]
+        decoder.finalize()
+
+    def test_roundtrip_shuffled(self, root_key, salt):
+        """Full shuffle roundtrip with hardened format."""
+        import random
+
+        total = 20
+        data = [secrets.token_bytes(200) for _ in range(total)]
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=5, block_size=200, total_frames=total)
+        encrypted = [encoder.encrypt_next(d) for d in data]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=5, block_size=200, total_frames=total)
+        indices = list(range(total))
+        random.shuffle(indices)
+        results = {}
+        for i in indices:
+            results[i] = decoder.decrypt(encrypted[i])
+        decoder.finalize()
+
+        for i in range(total):
+            assert results[i] == data[i]
+
+    def test_frame_too_short_rejected(self, root_key, salt):
+        """Frame shorter than minimum (4 + 16 + 16 = 36 bytes) is rejected."""
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=5)
+        too_short = secrets.token_bytes(FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + GCM_TAG_SIZE - 1)
+        with pytest.raises(ValueError, match="too short"):
+            decoder.decrypt(too_short)
+        decoder.finalize()

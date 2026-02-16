@@ -47,17 +47,19 @@ Limitations (documented honestly):
       rest). The primary threat model is post-capture forensic analysis.
 
 Comparison with Signal Double Ratchet:
-    ┌──────────────────────┬─────────────────┬────────────────────┐
-    │ Property             │ Signal          │ MEOW (MSR v1)      │
-    ├──────────────────────┼─────────────────┼────────────────────┤
-    │ Symmetric ratchet    │ ✓ per-message   │ ✓ per-frame        │
-    │ DH ratchet           │ ✓ per-reply     │ ✗ (unidirectional) │
-    │ Forward secrecy      │ ✓ per-message   │ ✓ per-frame        │
-    │ Post-compromise sec. │ ✓ (via DH)      │ ✗ (no back-chan)   │
-    │ Out-of-order support │ Bounded window  │ Full (fountain)    │
-    │ Key zeroization      │ ✓               │ ✓                  │
-    │ Header encryption    │ ✓               │ ✗ (idx plaintext)  │
-    └──────────────────────┴─────────────────┴────────────────────┘
+    ┌──────────────────────┬─────────────────┬────────────────────────┐
+    │ Property             │ Signal          │ MEOW (MSR v1.2)        │
+    ├──────────────────────┼─────────────────┼────────────────────────┤
+    │ Symmetric ratchet    │ ✓ per-message   │ ✓ per-frame            │
+    │ DH ratchet           │ ✓ per-reply     │ ✗ (unidirectional)     │
+    │ Forward secrecy      │ ✓ per-message   │ ✓ per-frame            │
+    │ Post-compromise sec. │ ✓ (via DH)      │ ⚡ KEM rekey beacons   │
+    │ Out-of-order support │ Bounded window  │ Full (fountain)        │
+    │ Key zeroization      │ ✓               │ ✓                      │
+    │ Header encryption    │ ✓               │ ✓ (HKDF-XOR mask)      │
+    │ Key commitment       │ Implicit (HMAC) │ ✓ (HMAC-SHA256 tag)    │
+    │ AEAD                 │ CBC + HMAC      │ AES-256-GCM + commit   │
+    └──────────────────────┴─────────────────┴────────────────────────┘
 
 See docs/RATCHET_PROTOCOL.md for formal specification.
 """
@@ -65,6 +67,8 @@ See docs/RATCHET_PROTOCOL.md for formal specification.
 import os
 import struct
 import secrets
+import hmac as _hmac
+import hashlib as _hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
@@ -109,6 +113,23 @@ REKEY_BEACON_INFO = b"meow_ratchet_rekey_v1"
 REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
 REKEY_BEACON_SIZE = 32  # X25519 public key or random entropy
 DEFAULT_REKEY_INTERVAL = 0  # 0 = disabled; recommended: 32
+
+# ── Header Encryption Constants (Signal parity) ─────────────────────────────
+# Signal encrypts message headers to prevent traffic analysis.
+# MEOW encrypts frame indices with HKDF-derived XOR masks so observers
+# cannot determine frame ordering, count consumed frames, or correlate
+# frames across sessions.
+HEADER_ENC_INFO = b"meow_ratchet_header_v1"
+HEADER_MASK_INFO = b"meow_header_mask_v1"
+
+# ── Key Commitment Constants ────────────────────────────────────────────────
+# AES-GCM is NOT key-committing: an adversary can find two different keys
+# that both successfully decrypt the same ciphertext to different plaintexts
+# ("invisible salamanders" attack, Grubbs et al. 2017).
+# Fix: Append HMAC-SHA256(mac_key, frame_body) to each frame. Since mac_key
+# is deterministically derived from message_key, a valid commitment tag
+# proves the decryptor holds the ONLY key that could have produced it.
+COMMIT_TAG_SIZE = 16  # Truncated HMAC-SHA256 (128-bit collision resistance)
 
 
 # ── Secure Memory Helpers ────────────────────────────────────────────────────
@@ -196,6 +217,96 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: byt
 
     shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
     return shared_secret
+
+
+# ── Header Encryption Helpers ────────────────────────────────────────────────
+
+
+def _derive_header_key(root_key: bytes, salt: bytes) -> bytes:
+    """Derive header encryption key for frame index obfuscation.
+
+    The header key is used to XOR-mask frame indices in the output,
+    preventing observers from determining frame ordering or performing
+    traffic analysis on in-flight frames.
+
+    This mirrors Signal's header encryption where message headers
+    (containing chain position) are encrypted before transmission.
+    """
+    return _hkdf_derive(root_key, salt, HEADER_ENC_INFO, 32)
+
+
+def _header_mask(header_key: bytes, frame_index: int) -> bytes:
+    """Compute 4-byte XOR mask for a specific frame index.
+
+    Each frame gets a unique pseudorandom mask derived from the header
+    key and its index. The mask is applied as XOR to the frame index
+    before transmission, making the encrypted index appear random.
+
+    Args:
+        header_key: 32-byte header encryption key
+        frame_index: The plaintext frame index to mask
+
+    Returns:
+        4-byte XOR mask for this frame index
+    """
+    return _hkdf_derive(header_key, struct.pack(">I", frame_index), HEADER_MASK_INFO, 4)
+
+
+def _encrypt_index(header_key: bytes, frame_index: int) -> bytes:
+    """Encrypt a frame index for header encryption.
+
+    Returns 4 bytes of pseudorandom data that hides the true frame index.
+    The same header_key and frame_index always produce the same output
+    (deterministic encryption).
+    """
+    mask = _header_mask(header_key, frame_index)
+    plaintext = struct.pack(">I", frame_index)
+    return bytes(a ^ b for a, b in zip(plaintext, mask))
+
+
+def _build_header_lookup(header_key: bytes, total_frames: int) -> Dict[bytes, int]:
+    """Precompute encrypted-index → real-index lookup table for decoder.
+
+    Called once during decoder initialization. O(total_frames) HKDF calls,
+    then O(1) lookup per received frame.
+
+    Args:
+        header_key: 32-byte header encryption key (same as encoder)
+        total_frames: Total expected frame count
+
+    Returns:
+        Dict mapping encrypted 4-byte index → plaintext frame index
+    """
+    lookup: Dict[bytes, int] = {}
+    for i in range(total_frames):
+        enc_idx = _encrypt_index(header_key, i)
+        lookup[enc_idx] = i
+    return lookup
+
+
+# ── Key Commitment Helpers ───────────────────────────────────────────────────
+
+
+def _compute_commitment(mac_key: bytes, frame_body: bytes) -> bytes:
+    """Compute key commitment tag over frame body.
+
+    Prevents key commitment attacks ("invisible salamanders") where an
+    adversary finds two different keys that both produce valid AES-GCM
+    tags for the same ciphertext, but yield different plaintexts.
+
+    The commitment is HMAC-SHA256(mac_key, frame_body) truncated to 16
+    bytes. Since mac_key is deterministically derived from message_key
+    via domain-separated HKDF, a valid commitment proves the decryptor
+    holds the ONLY key that could have produced it.
+
+    Args:
+        mac_key: 32-byte MAC key from derive_frame_keys()
+        frame_body: Frame body bytes (beacon + ciphertext, or just ciphertext)
+
+    Returns:
+        16-byte commitment tag (truncated HMAC-SHA256)
+    """
+    return _hmac.new(mac_key, frame_body, _hashlib.sha256).digest()[:COMMIT_TAG_SIZE]
 
 
 # ── Data Structures ──────────────────────────────────────────────────────────
@@ -560,6 +671,8 @@ class EncoderRatchet:
         self._finalized = False
         self._rekey_interval = rekey_interval
         self._receiver_public_key = receiver_public_key
+        # Header encryption key (Signal parity: encrypted message headers)
+        self._header_key = _derive_header_key(root_key, salt)
 
     def _is_rekey_frame(self, frame_index: int) -> bool:
         """Check if this frame index is a rekey beacon point."""
@@ -576,11 +689,21 @@ class EncoderRatchet:
         """
         Encrypt the next frame in sequence using the ratchet.
 
+        Output format (MSR v1.2 hardened):
+            [encrypted_index(4)] [commitment_tag(16)] [beacon?(32)] [ciphertext + GCM_TAG(16)]
+
+        Security properties:
+            - Header encryption: Frame index is XOR-masked with HKDF-derived
+              pseudorandom mask (prevents traffic analysis)
+            - Key commitment: HMAC-SHA256(mac_key, body) prevents invisible
+              salamanders attack on AES-GCM
+            - Beacon support: Optional KEM/plaintext entropy injection
+
         Args:
             frame_data: Raw frame data (manifest or droplet bytes)
 
         Returns:
-            Encrypted frame bytes
+            Encrypted frame bytes with header encryption + key commitment
 
         Raises:
             RuntimeError: If ratchet is finalized or all frames already encrypted
@@ -611,8 +734,12 @@ class EncoderRatchet:
             _secure_zero(message_key_buf)
             message_key_buf = bytearray(enhanced_key)
 
+        commit_keys = None
         try:
-            # Encrypt frame with (potentially beacon-enhanced) key
+            # Derive commitment keys (mac_key for key commitment tag)
+            commit_keys = derive_frame_keys(bytes(message_key_buf), self._salt)
+
+            # Encrypt frame (produces [frame_index(4 BE)] [ciphertext+tag])
             encrypted = encrypt_frame(
                 frame_data=frame_data,
                 message_key=bytes(message_key_buf),
@@ -623,17 +750,32 @@ class EncoderRatchet:
                 total_frames=self._total_frames,
             )
 
-            # Insert beacon after frame_index header if present
+            # Extract ciphertext (strip plaintext frame_index header)
+            raw_ciphertext = encrypted[FRAME_INDEX_SIZE:]
+
+            # Insert beacon before ciphertext if present
             if beacon_header:
-                encrypted = (
-                    encrypted[:FRAME_INDEX_SIZE] + beacon_header + encrypted[FRAME_INDEX_SIZE:]
-                )
+                frame_body = beacon_header + raw_ciphertext
+            else:
+                frame_body = raw_ciphertext
+
+            # Key commitment: HMAC(mac_key, frame_body) truncated to 16 bytes
+            commitment = _compute_commitment(bytes(commit_keys.mac_key), frame_body)
+
+            # Header encryption: mask the frame index
+            enc_idx = _encrypt_index(self._header_key, frame_index)
+
+            # Assemble hardened frame:
+            # [encrypted_index(4)] [commitment(16)] [beacon?(32)] [ciphertext+tag]
+            result = enc_idx + commitment + frame_body
 
             self._frames_encrypted += 1
-            return encrypted
+            return result
         finally:
-            # Zeroize message key
+            # Zeroize all sensitive material
             _secure_zero(message_key_buf)
+            if commit_keys is not None:
+                commit_keys.zeroize()
 
     def finalize(self) -> None:
         """
@@ -644,6 +786,8 @@ class EncoderRatchet:
         """
         if not self._finalized:
             self._state.zeroize()
+            # Zeroize header key (best-effort for immutable bytes)
+            self._header_key = b"\x00" * 32
             self._finalized = True
 
     def __del__(self):
@@ -716,6 +860,9 @@ class DecoderRatchet:
         self._finalized = False
         self._rekey_interval = rekey_interval
         self._receiver_private_key = receiver_private_key
+        # Header encryption: precompute encrypted-index → real-index lookup
+        self._header_key = _derive_header_key(root_key, salt)
+        self._header_lookup = _build_header_lookup(self._header_key, total_frames)
 
     def _is_rekey_frame(self, frame_index: int) -> bool:
         """Check if this frame index is a rekey beacon point."""
@@ -766,28 +913,56 @@ class DecoderRatchet:
 
     def decrypt(self, encrypted_frame: bytes) -> bytes:
         """
-        Decrypt a ratchet-encrypted frame, handling out-of-order reception.
+        Decrypt a hardened ratchet-encrypted frame with header decryption
+        and key commitment verification.
+
+        Input format (MSR v1.2):
+            [encrypted_index(4)] [commitment_tag(16)] [beacon?(32)] [ciphertext + GCM_TAG(16)]
+
+        Verification order (fail-closed):
+            1. Header decryption: Look up encrypted index in precomputed table
+            2. Replay detection: Reject already-consumed frame indices
+            3. Ratchet key derivation: Get message key for this position
+            4. Beacon mixing: If rekey frame, extract and mix beacon entropy
+            5. Key commitment: HMAC(mac_key, frame_body) must match commitment tag
+            6. AES-GCM decryption: Decrypt ciphertext with authenticated AAD
 
         Args:
-            encrypted_frame: Encrypted frame bytes (frame_index || ciphertext || tag)
+            encrypted_frame: Encrypted frame bytes (hardened format)
 
         Returns:
             Decrypted frame data (raw droplet bytes)
 
         Raises:
-            ValueError: On authentication failure, index out of range, or replay
+            ValueError: On authentication failure, index out of range, replay,
+                       or key commitment verification failure
             RuntimeError: If ratchet is finalized
         """
         if self._finalized:
             raise RuntimeError("Decoder ratchet is finalized — no more frames")
 
-        if len(encrypted_frame) < FRAME_INDEX_SIZE:
-            raise ValueError(f"Frame too short: {len(encrypted_frame)} bytes")
+        min_frame_size = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + GCM_TAG_SIZE
+        if len(encrypted_frame) < min_frame_size:
+            raise ValueError(
+                f"Frame too short: {len(encrypted_frame)} bytes " f"(minimum {min_frame_size})"
+            )
 
-        # Parse frame index from header
-        frame_index = struct.unpack(">I", encrypted_frame[:FRAME_INDEX_SIZE])[0]
+        # Step 1: Header decryption — look up encrypted index
+        enc_idx = encrypted_frame[:FRAME_INDEX_SIZE]
+        if enc_idx not in self._header_lookup:
+            raise ValueError(
+                "Header decryption failed: unknown encrypted frame index. "
+                "Frame may be corrupted or from a different session."
+            )
+        frame_index = self._header_lookup[enc_idx]
 
-        # Replay detection
+        # Step 2: Extract commitment tag
+        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
+
+        # Frame body = everything after index + commitment
+        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE :]
+
+        # Step 3: Replay detection
         if frame_index in self._consumed_indices:
             raise ValueError(f"Replay detected: frame {frame_index} already consumed")
 
@@ -796,6 +971,7 @@ class DecoderRatchet:
 
         # Get the message key for this frame
         message_key_buf: Optional[bytearray] = None
+        commit_keys = None
 
         try:
             if frame_index in self._skipped_keys:
@@ -807,27 +983,19 @@ class DecoderRatchet:
                 message_key_buf = bytearray(msg_key)
             else:
                 # Case 3: Frame is behind current position and NOT in cache
-                # This means we already advanced past it without caching.
-                # This should not happen if the decoder processes frames correctly.
                 raise ValueError(
                     f"Frame {frame_index} is behind chain position "
                     f"{self._state.position} and not in skip cache. "
                     f"Key is irrecoverable (forward secrecy)."
                 )
 
-            # Handle rekey beacon: extract beacon and enhance message key
-            actual_frame = encrypted_frame
+            # Step 4: Handle rekey beacon
+            ciphertext_body = frame_body
             if self._is_rekey_frame(frame_index):
-                if len(encrypted_frame) < FRAME_INDEX_SIZE + REKEY_BEACON_SIZE + GCM_TAG_SIZE:
-                    raise ValueError(f"Beacon frame too short: {len(encrypted_frame)} bytes")
-                beacon_data = encrypted_frame[
-                    FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + REKEY_BEACON_SIZE
-                ]
-                # Reconstruct frame without beacon for decrypt_frame
-                actual_frame = (
-                    encrypted_frame[:FRAME_INDEX_SIZE]
-                    + encrypted_frame[FRAME_INDEX_SIZE + REKEY_BEACON_SIZE :]
-                )
+                if len(frame_body) < REKEY_BEACON_SIZE + GCM_TAG_SIZE:
+                    raise ValueError(f"Beacon frame body too short: {len(frame_body)} bytes")
+                beacon_data = frame_body[:REKEY_BEACON_SIZE]
+                ciphertext_body = frame_body[REKEY_BEACON_SIZE:]
                 # Derive beacon secret
                 if self._receiver_private_key is not None:
                     beacon_secret = _recover_kem_beacon(beacon_data, self._receiver_private_key)
@@ -838,9 +1006,22 @@ class DecoderRatchet:
                 _secure_zero(message_key_buf)
                 message_key_buf = bytearray(enhanced_key)
 
-            # Decrypt the frame
+            # Step 5: Key commitment verification (BEFORE decryption!)
+            commit_keys = derive_frame_keys(bytes(message_key_buf), self._salt)
+            expected_commitment = _compute_commitment(bytes(commit_keys.mac_key), frame_body)
+            if not secrets.compare_digest(commitment_tag, expected_commitment):
+                raise ValueError(
+                    f"Key commitment verification failed for frame {frame_index}. "
+                    "Possible key commitment attack or corrupted frame."
+                )
+
+            # Step 6: AES-GCM decryption
+            # Reconstruct standard frame for decrypt_frame:
+            # [plaintext_index(4 BE)] [ciphertext+tag]
+            reconstructed = struct.pack(">I", frame_index) + ciphertext_body
+
             plaintext = decrypt_frame(
-                encrypted_frame=actual_frame,
+                encrypted_frame=reconstructed,
                 message_key=bytes(message_key_buf),
                 expected_index=frame_index,
                 salt=self._salt,
@@ -854,9 +1035,11 @@ class DecoderRatchet:
             return plaintext
 
         finally:
-            # Zeroize the message key after use
+            # Zeroize all sensitive material
             if message_key_buf is not None:
                 _secure_zero(message_key_buf)
+            if commit_keys is not None:
+                commit_keys.zeroize()
 
     def finalize(self) -> None:
         """
@@ -865,6 +1048,8 @@ class DecoderRatchet:
         Zeroizes:
         - Current chain key
         - All cached skipped message keys
+        - Header encryption key
+        - Header lookup table
         """
         if not self._finalized:
             self._state.zeroize()
@@ -872,6 +1057,9 @@ class DecoderRatchet:
                 _secure_zero(key_buf)
             self._skipped_keys.clear()
             self._consumed_indices.clear()
+            # Zeroize header key and lookup table
+            self._header_key = b"\x00" * 32
+            self._header_lookup.clear()
             self._finalized = True
 
     def __del__(self):
