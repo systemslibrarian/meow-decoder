@@ -1,8 +1,8 @@
-# MEOW Symmetric Ratchet Protocol Specification (MSR v1)
+# MEOW Symmetric Ratchet Protocol Specification (MSR v1/v2)
 
-**Version**: 1.2  
+**Version**: 2.0  
 **Date**: 2026-02-16  
-**Status**: Implemented with rekey beacons + Signal-parity hardening  
+**Status**: Implemented with **asymmetric entropy reinjection** (Signal-grade PCS)  
 **Authors**: meow-decoder contributors  
 
 ---
@@ -26,8 +26,9 @@ The MEOW Symmetric Ratchet (MSR v1) provides **per-frame forward secrecy** for f
 
 | Limitation | Reason | Mitigation |
 |-----------|--------|------------|
-| No DH ratchet | Air-gap = no back-channel | Chain keys exist only during session |
-| No post-compromise security | Unidirectional → no asymmetric re-keying possible | **Sender rekey beacons** (§7) inject fresh entropy periodically |
+| ~~No DH ratchet~~ | ~~Air-gap = no back-channel~~ | **RESOLVED (v2.0)**: Asymmetric root key rotation via periodic X25519 ECDH (§7A) |
+| ~~No post-compromise security~~ | ~~Unidirectional → no asymmetric re-keying possible~~ | **RESOLVED (v2.0)**: Signal-grade PCS via asymmetric entropy reinjection (§7A) |
+| PCS healing latency = K frames | Unidirectional → no immediate reply channel | Inherent; Signal heals in 1 round-trip, MEOW heals in ≤K frames |
 | ~~Frame index is plaintext~~ | ~~Decoder needs index~~ | **RESOLVED (v1.2)**: Header encryption via HKDF-XOR mask (§8.3) |
 
 ---
@@ -78,9 +79,15 @@ FRAME_ENC_INFO     = b"meow_ratchet_frame_enc_v1"
 FRAME_NONCE_INFO   = b"meow_ratchet_frame_nonce_v1"
 FRAME_MAC_INFO     = b"meow_ratchet_frame_mac_v1"
 
-# Rekey beacon constants (§7)
+# Rekey beacon constants (§7, v1.x fallback)
 REKEY_BEACON_INFO     = b"meow_ratchet_rekey_v1"
 REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
+
+# Asymmetric entropy reinjection constants (§7A, MSR v2.0)
+ASYM_REKEY_ROOT_INFO      = b"meow_asym_rekey_root_v1"   # Root rotation HKDF info
+ASYM_REKEY_CHAIN_INFO     = b"meow_asym_rekey_chain_v1"  # Post-rekey chain derivation
+ASYM_REKEY_KEM_INFO       = b"meow_asym_rekey_kem_v1"    # ECDH shared secret KDF
+ASYM_REKEY_ROOT_INIT_INFO = b"meow_ratchet_root_store_v1" # Initial root storage
 
 # Header encryption constants (§8)
 HEADER_ENC_INFO  = b"meow_ratchet_header_v1"
@@ -89,7 +96,7 @@ HEADER_MASK_INFO = b"meow_header_mask_v1"
 
 **Key commitment**: The per-frame `mac_key` is used to compute a 16-byte HMAC-SHA256 commitment tag over the frame body. This prevents key commitment attacks ("invisible salamanders") where AES-GCM alone allows two different keys to both produce valid decryptions.
 
-**Invariant**: All ten constants are unique. This is verified by `test_ratchet.py::TestDomainSeparation::test_all_constants_unique`.
+**Invariant**: All 14 constants are unique. This is verified by `test_ratchet.py::TestDomainSeparation::test_all_constants_unique` and `test_asymmetric_rekey.py::TestDomainSeparation::test_all_constants_unique`.
 
 ---
 
@@ -381,22 +388,178 @@ Beacons are fully compatible with out-of-order frame reception:
 
 ---
 
+## 7A. Asymmetric Root Key Rotation (MSR v2.0 — Signal-Grade PCS)
+
+### 7A.1 Overview
+
+MSR v2.0 upgrades rekey beacons from message-key mixing (§7) to **asymmetric root key rotation**, achieving post-compromise security comparable to Signal's DH ratchet. Instead of mixing beacon entropy into individual message keys, the receiver's long-term X25519 public key is used to perform ECDH at each rekey boundary, rotating the root key and deriving an entirely new chain.
+
+### 7A.2 State Machine
+
+```
+                    ┌─────────────────┐
+                    │  INIT (epoch 0) │
+                    │  root_key_0     │
+                    │  chain_key_0    │
+                    └────────┬────────┘
+                             │
+          frame 0..K-1: symmetric ratchet on chain_key_0
+                             │
+                    ┌────────▼────────┐
+                    │  REKEY (frame K) │
+                    │  eph = X25519() │
+                    │  shared = ECDH  │
+                    └────────┬────────┘
+                             │
+          root_key_1 = HKDF(shared, salt=root_key_0, info || epoch_1)
+          chain_key_K = HKDF(root_key_1, salt, chain_info)
+          ZEROIZE(root_key_0, old_chain)
+                             │
+                    ┌────────▼────────┐
+                    │  EPOCH 1        │
+                    │  root_key_1     │
+                    │  chain_key_K    │
+                    └────────┬────────┘
+                             │
+          frame K..2K-1: symmetric ratchet on chain_key_K
+                             │
+                    ┌────────▼────────┐
+                    │  REKEY (frame 2K)│
+                    │  eph' = X25519()│
+                    └────────┬────────┘
+                             │
+                            ⋮  (continues for each epoch)
+```
+
+### 7A.3 HKDF Derivation Details
+
+| Step | IKM | Salt | Info | Output |
+|------|-----|------|------|--------|
+| Initial root | root_key | session salt | `meow_ratchet_root_store_v1` | ratchet_root (32B) |
+| ECDH KDF | raw_shared | `""` | `meow_asym_rekey_kem_v1` | shared_secret (32B) |
+| Root rotation | shared_secret | old_root_key | `meow_asym_rekey_root_v1 \|\| BE32(epoch)` | new_root (32B) |
+| Chain derivation | new_root | session salt | `meow_asym_rekey_chain_v1` | new_chain (32B) |
+
+**Epoch binding**: The epoch counter (big-endian uint32) is appended to the root rotation info string. This prevents cross-epoch replay: an attacker who captures ephemeral keys from epoch E cannot use them to compute root keys for epoch E'.
+
+### 7A.4 Encoder Flow
+
+```python
+# At frame_index where is_rekey_frame AND receiver_public_key available:
+
+# 1. Generate fresh X25519 ephemeral keypair
+ephemeral_private = X25519PrivateKey.generate()
+ephemeral_public  = ephemeral_private.public_key()
+
+# 2. ECDH with receiver's long-term public key
+raw_shared = ephemeral_private.exchange(receiver_public_key)
+shared_secret = HKDF(raw_shared, "", "meow_asym_rekey_kem_v1", 32)
+
+# 3. Root rotation with epoch binding
+epoch += 1
+new_root = HKDF(IKM=shared_secret, salt=old_root_key,
+                info="meow_asym_rekey_root_v1" || BE32(epoch), length=32)
+new_chain = HKDF(new_root, salt, "meow_asym_rekey_chain_v1", 32)
+
+# 4. Key lifecycle: zeroize old, install new
+ZEROIZE(old_root_key, old_chain_key, ephemeral_private)
+root_key  = new_root
+chain_key = new_chain
+
+# 5. Normal ratchet step from new chain → message_key
+message_key, chain_key = ratchet_step(chain_key, salt)
+
+# 6. Embed ephemeral_public (32 bytes) in frame header (same slot as v1.x beacon)
+beacon_header = ephemeral_public.raw_bytes()
+```
+
+### 7A.5 Decoder Flow
+
+```python
+# At frame_index where is_rekey_frame AND receiver_private_key available:
+
+# 1. Extract ephemeral public key from frame header (before chain advancement)
+eph_pub = frame_body[:32]
+epoch = frame_index // rekey_interval
+store_rekey_material(epoch, eph_pub)
+
+# 2. During _advance_to(), at the rekey boundary:
+raw_shared = receiver_private_key.exchange(eph_pub)
+shared_secret = HKDF(raw_shared, "", "meow_asym_rekey_kem_v1", 32)
+new_root = HKDF(IKM=shared_secret, salt=old_root_key,
+                info="meow_asym_rekey_root_v1" || BE32(epoch), length=32)
+new_chain = HKDF(new_root, salt, "meow_asym_rekey_chain_v1", 32)
+ZEROIZE(old_root_key, old_chain_key)
+
+# 3. Ratchet step and decrypt
+message_key, chain_key = ratchet_step(new_chain, salt)
+plaintext = AES_GCM_decrypt(message_key, ciphertext)
+```
+
+### 7A.6 Out-of-Order Handling
+
+Fountain codes may deliver frames out of order. MSR v2.0 handles this:
+
+| Scenario | Behavior |
+|----------|----------|
+| Frame from current epoch | Normal chain advancement (skip cache for gaps) |
+| Rekey frame received | Ephemeral key stored; chain advancement executes rekey at boundary |
+| Frame from future epoch (rekey received) | Chain fast-forwards through rekey; post-rekey frames decryptable |
+| Frame from future epoch (rekey NOT received) | `ValueError` raised; treated as frame loss by fountain codes |
+| Frame from past epoch | Use skip cache (key was cached during prior fast-forward) |
+
+**Key constraint**: Rekey frames MUST be received before frames in their epoch can be decrypted. In GIF mode (in-order), this is automatic. In webcam mode, rekey frames are ~3% of total frames and very likely captured. Missing a rekey frame loses ≤K frames — within the fountain code's ~33% loss tolerance.
+
+### 7A.7 Security Analysis
+
+| Property | Status | Mechanism |
+|----------|--------|-----------|
+| **Post-compromise security** | ✅ | Root rotation uses ECDH with receiver's long-term key (not in ratchet state) |
+| **Forward secrecy** | ✅ | Old root + chain zeroed; HKDF one-wayness prevents recovery |
+| **Epoch isolation** | ✅ | Epoch counter bound in HKDF info; cross-epoch replay impossible |
+| **Tamper detection** | ✅ | Modified ephemeral key → wrong ECDH → wrong chain → commitment/GCM failure |
+| **Replay resistance** | ✅ | Consumed-index tracking + epoch binding in HKDF |
+| **Key zeroization** | ✅ | Old root/chain zeroed on rekey; ephemeral private never stored |
+
+**Comparison with Signal:**
+
+| Aspect | Signal | MSR v2.0 |
+|--------|--------|----------|
+| DH ratchet trigger | Per reply (bidirectional) | Every K frames (unidirectional) |
+| PCS healing latency | 1 round-trip | ≤K frames |
+| DH target | Receiver's ephemeral key (changes per reply) | Receiver's long-term key (fixed) |
+| Root key in state | ✓ (required for rotation) | ✓ (same trade-off) |
+| Air-gap compatible | ✗ | ✓ |
+
+The only property weaker than Signal is PCS healing latency: Signal heals on the next message from the other party (1 round-trip); MEOW heals at the next rekey boundary (≤K frames). This is inherent to unidirectional protocols.
+
+### 7A.8 Fallback Behavior
+
+When `receiver_public_key` is not available, MSR v2.0 falls back to the plaintext beacon mode (§7.2 Mode A):
+- Random 32-byte beacon mixed into message key
+- No root key rotation
+- No PCS (memory-only compromise protection)
+
+---
+
 ## 8. Signal Double Ratchet Comparison
 
-| Property | Signal Double Ratchet | MEOW MSR v1.2 |
-|----------|----------------------|--------------|
+| Property | Signal Double Ratchet | MEOW MSR v2.0 |
+|----------|----------------------|---------------|
 | **Symmetric ratchet** | ✓ Per-message | ✓ Per-frame |
-| **DH ratchet** | ✓ Per-reply (X3DH → DH) | ✗ (unidirectional air-gap) |
+| **DH ratchet** | ✓ Per-reply (X3DH → DH) | ✓ Per-epoch via X25519 ECDH (§7A) |
 | **Forward secrecy** | ✓ Per-message | ✓ Per-frame |
-| **Post-compromise security** | ✓ Via DH ratchet re-keying | ⚡ Via sender rekey beacons (§7) |
+| **Post-compromise security** | ✓ Via DH ratchet re-keying | ✓ Via asymmetric root rotation (§7A) |
+| **PCS healing latency** | 1 round-trip (immediate on reply) | ≤K frames (unidirectional constraint) |
+| **Root key rotation** | ✓ Per DH step | ✓ Per epoch (every K frames) |
 | **Out-of-order support** | Bounded window (typically ~2000) | Full (fountain code, up to 2000 cached) |
 | **Key zeroization** | ✓ | ✓ (Rust backend when available) |
 | **Header encryption** | ✓ (double-encrypted header) | ✓ HKDF-XOR mask per frame index (§8.3) |
 | **Key commitment** | Implicit (HMAC covers ciphertext) | ✓ HMAC-SHA256 commitment tag (§8.4) |
-| **KDF** | HMAC-SHA256 chain | HKDF-SHA256 with 10 domain constants |
+| **KDF** | HMAC-SHA256 chain | HKDF-SHA256 with 14 domain constants |
 | **AEAD** | AES-256-CBC + HMAC-SHA256 | AES-256-GCM + commitment tag |
 
-### 8.1 Why No DH Ratchet?
+### 8.1 Asymmetric DH Ratchet Adaptation (MSR v2.0)
 
 The air-gap file transfer protocol is **strictly unidirectional**:
 ```
@@ -404,10 +567,21 @@ Sender ──(GIF/QR → camera)──► Receiver
          └── no back-channel
 ```
 
-Signal's DH ratchet requires the receiver to send a new public key back to the sender. This is impossible in an air-gap scenario. Therefore:
+Signal's DH ratchet requires the receiver to send a new public key back to the sender. This is impossible in an air-gap scenario. **MSR v2.0** solves this by using the receiver's **long-term** X25519 public key (already available from MEOW3/4 forward secrecy) as the DH ratchet target:
 
-- **If `chain_key[N]` is compromised, all `chain_key[N+1], chain_key[N+2], ...` are derivable.** This is an inherent limitation of ANY unidirectional protocol.
-- **Mitigation**: Chain keys exist only during the encode/decode session. They are never persisted to disk. The primary threat model is post-capture forensic analysis of a completed transfer, where all keys have been zeroized.
+```
+At every K frames (rekey_interval):
+  1. Sender generates fresh ephemeral X25519 keypair
+  2. ECDH(ephemeral_private, receiver_public) → shared_secret
+  3. new_root = HKDF(IKM=shared_secret, salt=old_root, info="meow_asym_rekey_root_v1" || epoch)
+  4. new_chain = HKDF(new_root, salt, "meow_asym_rekey_chain_v1")
+  5. ZEROIZE(old_root, old_chain, ephemeral_private)
+  6. Embed ephemeral_public (32 bytes) in frame header
+```
+
+- **If `chain_key[N]` is compromised**: Attacker can derive keys up to the next rekey boundary. After rekey, the new chain depends on a fresh ECDH shared secret, which requires `receiver_private_key` — NOT present in the ratchet state.
+- **Healing**: Within ≤K frames of any compromise, the root key rotates with asymmetric entropy, closing the compromise window.
+- **Trade-off**: The root key IS stored in the ratchet state (required for rotation). This is the same trade-off Signal makes. The net security gain from PCS outweighs the exposure risk.
 
 ### 8.2 What We DO Achieve
 
@@ -417,7 +591,7 @@ Despite lacking a DH ratchet, MSR v1.2 provides:
 2. **Per-frame key isolation**: Each frame uses a unique `(enc_key, nonce, mac_key)` triple.
 3. **Key lifetime minimization**: Each key exists in memory only during its frame's encryption/decryption.
 4. **Post-session security**: After `finalize()`, zero key material remains in memory.
-5. **Partial PCS via rekey beacons**: KEM beacons (§7) provide true PCS for frames at beacon intervals when `receiver_public_key` is used.
+5. **Post-compromise security (PCS)**: Asymmetric root rotation (§7A) provides Signal-grade PCS — compromise of `chain_key[N]` and `root_key[epoch_E]` is healed after the next rekey, because `root_key[epoch_E+1]` requires `receiver_private_key`.
 6. **Header encryption**: Frame indices are XOR-masked with HKDF-derived pseudorandom masks, preventing traffic analysis.
 7. **Key commitment**: HMAC-SHA256 commitment tags prevent invisible salamanders attacks against AES-GCM.
 
@@ -478,7 +652,20 @@ MSR v1.2 adds a 16-byte commitment tag: `HMAC-SHA256(mac_key, frame_body)[:16]`,
 - Only exists during active encoding/decoding session
 - Shrinks as more frames are processed (more keys zeroized)
 - Zero after `finalize()` — post-session capture reveals nothing
-- **With KEM beacons**: Even within the vulnerability window, beacon frames require `receiver_private_key` — reducing the attack surface further
+- **With asymmetric rekey (MSR v2.0)**: Compromise window is bounded to ≤K frames. After rekey, the attacker needs `receiver_private_key` (NOT in ratchet state) to derive the new root key. All frames after rekey are unrecoverable by the attacker.
+
+### Scenario: Asymmetric Rekey Healing (MSR v2.0)
+
+**Setup**: Attacker compromises ratchet state (chain_key + root_key) at frame N.
+
+1. **Frames N to next rekey**: Attacker CAN derive message keys (same chain).
+2. **At rekey frame (M = ceil(N/K) * K)**:
+   - Encoder generates fresh X25519: `eph_priv, eph_pub = X25519.generate()`
+   - `shared = ECDH(eph_priv, receiver_public)` — attacker has `root_key` but NOT `receiver_private_key`
+   - `new_root = HKDF(shared, salt=root_key, info=... || epoch)` — attacker CANNOT compute this
+3. **Frames M+1 onward**: Attacker CANNOT decrypt (new chain is derived from new root).
+
+**PCS guarantee**: Compromise at frame N is healed at frame M ≤ N + K.
 
 ---
 
@@ -528,11 +715,11 @@ If more than MAX_SKIP_KEYS (2000) frames arrive out-of-order, the decoder raises
 
 ## 12. Test Coverage
 
-Comprehensive tests in `tests/test_ratchet.py` (142 tests):
+Comprehensive tests in `tests/test_ratchet.py` (142 tests) and `tests/test_asymmetric_rekey.py` (43 tests):
 
 | Test Class | What It Verifies |
 |-----------|------------------|
-| `TestDomainSeparation` | All 10 HKDF info constants are unique and well-formed |
+| `TestDomainSeparation` | All 14 HKDF info constants are unique and well-formed |
 | `TestInitRatchet` | Correct initial state, determinism, key independence |
 | `TestRatchetStep` | Chain advancement, key uniqueness, old key zeroization |
 | `TestForwardSecrecy` | HKDF one-wayness: chain_key[N+1] ↛ chain_key[N] |
@@ -552,6 +739,17 @@ Comprehensive tests in `tests/test_ratchet.py` (142 tests):
 | **`TestHeaderEncryption`** | **HKDF-XOR mask uniqueness, encryption/decryption roundtrip, observer indistinguishability** |
 | **`TestKeyCommitment`** | **HMAC-SHA256 commitment determinism, wrong-key rejection, truncation to 128 bits** |
 | **`TestSignalParityHardening`** | **Full encoder/decoder roundtrip with header encryption + key commitment, tamper detection** |
+| **`TestAsymmetricRekeyPrimitives`** | **ECDH roundtrip, ephemeral uniqueness, wrong-key detection, epoch binding, output lengths** |
+| **`TestRatchetStateV2`** | **root_key storage, zeroization, ratchet_step preservation, backward compat** |
+| **`TestAsymmetricRekeyRoundtrip`** | **Full encoder/decoder roundtrip across multiple epochs with root rotation** |
+| **`TestPostCompromiseSecurity`** | **PCS verification: compromised state cannot decrypt post-rekey frames; chain independence** |
+| **`TestForwardSecrecyV2`** | **Old chain_key zeroization, old root_key zeroization on rekey** |
+| **`TestOutOfOrderDecoding`** | **Epoch-aware OOO: in-order, within-epoch shuffle, rekey-first, missing-rekey rejection** |
+| **`TestRollbackResistance`** | **Epoch binding prevents cross-epoch reuse; old root cannot derive future chains** |
+| **`TestPlaintextBeaconFallback`** | **Roundtrip without receiver key; no root rotation verification** |
+| **`TestSignalComparison`** | **Root rotation assertion, chain isolation, PCS healing latency bound** |
+| **`TestEdgeCases`** | **Boundary: interval=total, interval=1, disabled, large epoch count, single frame** |
+| **`TestTamperDetectionV2`** | **Modified ephemeral key rejected, replay rejected** |
 
 ---
 

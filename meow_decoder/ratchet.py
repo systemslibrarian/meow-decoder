@@ -122,6 +122,31 @@ DEFAULT_REKEY_INTERVAL = 0  # 0 = disabled; recommended: 32
 HEADER_ENC_INFO = b"meow_ratchet_header_v1"
 HEADER_MASK_INFO = b"meow_header_mask_v1"
 
+# ── Asymmetric Entropy Reinjection Constants (MSR v2.0) ─────────────────────
+# Signal-grade post-compromise security via periodic X25519 root key rotation.
+# Every rekey_interval frames, the sender generates a fresh X25519 keypair,
+# performs ECDH with the receiver's long-term public key, and rotates the root
+# key.  Compromise of chain_key[N] CANNOT yield keys after the next rekey,
+# because the new root depends on an ECDH shared secret that requires the
+# receiver's long-term private key (NOT present in the ratchet state).
+#
+# State machine:
+#   root_key[e] ─── HKDF(ECDH(eph[e+1], receiver), salt=root_key[e]) ──► root_key[e+1]
+#                                                                              │
+#               HKDF(root_key[e+1], salt, ASYM_REKEY_CHAIN_INFO)               │
+#                                                                              ▼
+#                                                                        chain_key[e+1][0]
+#
+# Comparison with MSR v1.2 KEM beacons:
+#   v1.2: beacon entropy mixed into individual message_key (no root rotation)
+#   v2.0: ECDH entropy rotates root_key, deriving entirely new chain
+#   v2.0 strictly dominates v1.2 for PCS when receiver_public_key is available.
+
+ASYM_REKEY_ROOT_INFO = b"meow_asym_rekey_root_v1"
+ASYM_REKEY_CHAIN_INFO = b"meow_asym_rekey_chain_v1"
+ASYM_REKEY_KEM_INFO = b"meow_asym_rekey_kem_v1"
+ASYM_REKEY_ROOT_INIT_INFO = b"meow_ratchet_root_store_v1"
+
 # ── Key Commitment Constants ────────────────────────────────────────────────
 # AES-GCM is NOT key-committing: an adversary can find two different keys
 # that both successfully decrypt the same ciphertext to different plaintexts
@@ -217,6 +242,186 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: byt
 
     shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
     return shared_secret
+
+
+# ── Asymmetric Entropy Reinjection (MSR v2.0) ───────────────────────────────
+#
+# Signal-grade post-compromise security for unidirectional air-gap channels.
+#
+# Protocol:
+#   At each rekey frame (every K frames), the sender:
+#     1. Generates fresh ephemeral X25519 keypair
+#     2. ECDH(ephemeral_private, receiver_public) → raw_shared
+#     3. shared = HKDF(raw_shared, salt="", info=ASYM_REKEY_KEM_INFO)
+#     4. new_root = HKDF(IKM=shared, salt=old_root, info=ASYM_REKEY_ROOT_INFO||epoch)
+#     5. new_chain = HKDF(new_root, salt, ASYM_REKEY_CHAIN_INFO)
+#     6. ZEROIZE(old_root, old_chain, ephemeral_private)
+#     7. Continue ratchet_step() from new_chain
+#     8. Embed ephemeral_public (32 bytes) in frame header
+#
+# Attack surface analysis:
+#   Attacker compromises chain_key[N] and root_key[epoch_E]:
+#     - Can derive ALL message keys from frame N to next rekey boundary
+#     - At rekey: new_root = HKDF(ECDH_shared, salt=root_key[E])
+#       Attacker has root_key[E] but NOT the ECDH shared secret
+#       (requires receiver_private_key, which is NOT in ratchet state)
+#     - Therefore: frames after rekey are UNRECOVERABLE by attacker
+#
+#   If attacker compromises state REPEATEDLY (between every rekey):
+#     - Each compromise window is bounded to rekey_interval frames
+#     - Each rekey creates an independent healing point
+#     - With interval=32 and total=150: max 32 frames exposed per compromise
+#
+# Comparison with Signal Double Ratchet:
+#   ┌─────────────────────┬───────────────────┬──────────────────────────┐
+#   │ Property            │ Signal            │ MEOW (MSR v2.0)          │
+#   ├─────────────────────┼───────────────────┼──────────────────────────┤
+#   │ DH ratchet trigger  │ Per reply          │ Every K frames (config)  │
+#   │ DH ratchet latency  │ 1 round-trip      │ K frames (unidirectional)│
+#   │ PCS healing speed   │ Immediate (reply) │ ≤K frames               │
+#   │ Root key rotation   │ ✓ per DH step     │ ✓ per rekey             │
+#   │ Chain key isolation  │ ✓ per chain       │ ✓ per epoch             │
+#   │ Air-gap compatible  │ ✗ (needs channel) │ ✓                       │
+#   │ Passive observer    │ Cannot forge DH   │ Cannot forge DH         │
+#   └─────────────────────┴───────────────────┴──────────────────────────┘
+#
+# The only property weaker than Signal is PCS healing latency: Signal heals
+# on the next message from the other party (1 round-trip); MEOW heals at
+# the next rekey boundary (≤K frames, unidirectional). This is inherent
+# to unidirectional protocols and cannot be improved without a back-channel.
+
+
+def _generate_asym_rekey(
+    receiver_public_key: bytes,
+) -> Tuple[bytes, bytes]:
+    """Generate X25519 ephemeral keypair and ECDH for asymmetric root rekey.
+
+    This is the sender-side operation: generate an ephemeral keypair,
+    perform ECDH with the receiver's long-term public key, and return
+    the shared secret + ephemeral public key for embedding in the frame.
+
+    Args:
+        receiver_public_key: Receiver's long-term X25519 public key (32 bytes)
+
+    Returns:
+        (shared_secret, ephemeral_public_bytes):
+            shared_secret: 32-byte ECDH-derived secret for root rotation
+            ephemeral_public_bytes: 32-byte ephemeral public key for frame header
+
+    Security:
+        - Ephemeral private key exists only in this function's scope
+        - HKDF domain separation (ASYM_REKEY_KEM_INFO) prevents cross-use
+        - shared_secret requires receiver_private_key to reconstruct
+    """
+    from cryptography.hazmat.primitives.asymmetric.x25519 import (
+        X25519PrivateKey,
+        X25519PublicKey,
+    )
+    from cryptography.hazmat.primitives.serialization import (
+        Encoding,
+        PublicFormat,
+    )
+
+    ephemeral_private = X25519PrivateKey.generate()
+    ephemeral_public = ephemeral_private.public_key()
+
+    receiver_pub = X25519PublicKey.from_public_bytes(receiver_public_key)
+    raw_shared = ephemeral_private.exchange(receiver_pub)
+
+    # Domain-separated KDF — distinct from beacon KEM and FS derivation
+    shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
+
+    ephemeral_public_bytes = ephemeral_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
+
+    # NOTE: ephemeral_private goes out of scope here and is not stored.
+    # Python GC limitation: the 32-byte private key is immutable bytes
+    # and cannot be explicitly zeroed. The Rust backend's zeroize crate
+    # handles the actual X25519 scalar cleanup.
+    return shared_secret, ephemeral_public_bytes
+
+
+def _recover_asym_rekey(
+    ephemeral_public_bytes: bytes,
+    receiver_private_key: bytes,
+) -> bytes:
+    """Recover ECDH shared secret for asymmetric root rekey (decoder side).
+
+    Args:
+        ephemeral_public_bytes: 32-byte ephemeral public key from frame header
+        receiver_private_key: Receiver's long-term X25519 private key (32 bytes)
+
+    Returns:
+        32-byte ECDH-derived secret (must match sender's _generate_asym_rekey output)
+    """
+    from cryptography.hazmat.primitives.asymmetric.x25519 import (
+        X25519PrivateKey,
+        X25519PublicKey,
+    )
+
+    eph_pub = X25519PublicKey.from_public_bytes(ephemeral_public_bytes)
+    priv = X25519PrivateKey.from_private_bytes(receiver_private_key)
+    raw_shared = priv.exchange(eph_pub)
+
+    # Same domain separator as sender — MUST match _generate_asym_rekey
+    shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
+    return shared_secret
+
+
+def _asymmetric_root_rekey(
+    root_key: bytes,
+    shared_secret: bytes,
+    salt: bytes,
+    epoch: int,
+) -> Tuple[bytes, bytes]:
+    """Rotate root key with asymmetric entropy and derive new chain key.
+
+    This is the core of Signal-grade post-compromise security:
+        new_root  = HKDF(IKM=shared_secret, salt=old_root_key,
+                         info=ASYM_REKEY_ROOT_INFO || epoch)
+        new_chain = HKDF(new_root, salt, ASYM_REKEY_CHAIN_INFO)
+
+    The new root requires BOTH:
+        1. The old root key (which authenticated prior state)
+        2. The ECDH shared secret (which requires receiver's private key)
+
+    An attacker who has old_root but NOT receiver_private_key cannot
+    compute the new root. This is the PCS guarantee.
+
+    Args:
+        root_key: Current root key (32 bytes, used as HKDF salt)
+        shared_secret: ECDH-derived secret (32 bytes, used as HKDF IKM)
+        salt: Session salt (16 bytes, used for chain derivation)
+        epoch: Epoch counter (bound into info to prevent cross-epoch confusion)
+
+    Returns:
+        (new_root_key, new_chain_key): Both 32 bytes
+
+    Security:
+        - Epoch binding: info includes epoch counter, preventing replay of
+          old ephemeral keys across epochs
+        - One-way: HKDF(SHA-256) ensures old_root is irrecoverable from new_root
+        - Domain separation: ASYM_REKEY_ROOT_INFO ≠ ASYM_REKEY_CHAIN_INFO
+    """
+    # Bind epoch into derivation to prevent cross-epoch attacks
+    epoch_info = ASYM_REKEY_ROOT_INFO + struct.pack(">I", epoch)
+
+    # Signal-style root rotation: HKDF(IKM=ECDH_shared, salt=old_root, info=...)
+    new_root = _hkdf_derive(
+        key_material=shared_secret,
+        salt=root_key,
+        info=epoch_info,
+        length=32,
+    )
+
+    # Derive new chain from new root
+    new_chain = _hkdf_derive(
+        key_material=new_root,
+        salt=salt,
+        info=ASYM_REKEY_CHAIN_INFO,
+        length=32,
+    )
+
+    return new_root, new_chain
 
 
 # ── Header Encryption Helpers ────────────────────────────────────────────────
@@ -334,15 +539,30 @@ class RatchetState:
 
     The chain_key advances forward with each ratchet_step().
     Previous chain_keys are irrecoverable after zeroization.
+
+    MSR v2.0 additions:
+        root_key: Stored for asymmetric rekey operations. When a rekey
+                  occurs, HKDF(ECDH_shared, salt=root_key, info=...) produces
+                  a new root_key and chain_key. This trades storing the root
+                  (which an attacker with memory access could read) for
+                  post-compromise security: after the next rekey, the attacker
+                  loses access because the new root depends on an ECDH shared
+                  secret requiring the receiver's long-term private key.
+        epoch:    Tracks how many asymmetric rekeys have occurred. Bound into
+                  the HKDF info to prevent cross-epoch confusion.
     """
 
     chain_key: bytearray  # 32 bytes: current chain key (mutable for zeroization)
     salt: bytes  # 16 bytes: session salt (immutable, from manifest)
     position: int = 0  # Current chain position (frame index)
+    root_key: Optional[bytearray] = None  # 32 bytes: root key for asymmetric rekey (MSR v2.0)
+    epoch: int = 0  # Current asymmetric rekey epoch (MSR v2.0)
 
     def zeroize(self) -> None:
-        """Securely zero the chain key. Call when ratchet is no longer needed."""
+        """Securely zero all keys. Call when ratchet is no longer needed."""
         _secure_zero(self.chain_key)
+        if self.root_key is not None:
+            _secure_zero(self.root_key)
         self.position = -1  # Sentinel: state is dead
 
 
@@ -362,15 +582,24 @@ def init_ratchet(root_key: bytes, salt: bytes) -> RatchetState:
 
     Security:
         - HKDF domain separation from encryption/HMAC keys
-        - root_key is NOT stored in the ratchet state
         - chain_key[0] is cryptographically independent of root_key's
           other derivations (encryption key, HMAC key, frame MAC key)
+        - MSR v2.0: A domain-separated ratchet_root is stored for future
+          asymmetric rekey operations. This enables post-compromise security
+          at the cost of keeping root material in memory during the session.
+          The trade-off is net-positive: without storing the root, there is
+          NO post-compromise security at all.
     """
     chain_key_0 = _hkdf_derive(root_key, salt, RATCHET_ROOT_INFO, 32)
+    # MSR v2.0: Derive a separate ratchet root for asymmetric rekey operations.
+    # Domain-separated from chain_key_0 so compromise of one ≠ compromise of other.
+    ratchet_root = _hkdf_derive(root_key, salt, ASYM_REKEY_ROOT_INIT_INFO, 32)
     return RatchetState(
         chain_key=bytearray(chain_key_0),
         salt=salt,
         position=0,
+        root_key=bytearray(ratchet_root),
+        epoch=0,
     )
 
 
@@ -413,10 +642,13 @@ def ratchet_step(state: RatchetState) -> Tuple[bytes, RatchetState]:
     _secure_zero(state.chain_key)
 
     # Create new state with advanced position
+    # MSR v2.0: Preserve root_key and epoch across ratchet steps
     new_state = RatchetState(
         chain_key=bytearray(next_chain_key),
         salt=state.salt,
         position=state.position + 1,
+        root_key=state.root_key,  # Shared reference (old state is consumed)
+        epoch=state.epoch,
     )
 
     return message_key, new_state
@@ -715,21 +947,42 @@ class EncoderRatchet:
 
         frame_index = self._frames_encrypted
 
-        # Ratchet step: derive message key, advance chain
+        # ─── MSR v2.0: Asymmetric root key rotation (before ratchet step) ───
+        # When receiver_public_key is available, perform Signal-style root
+        # rotation at rekey boundaries. This provides post-compromise security:
+        # compromise of chain_key[N] cannot yield keys after the next rekey.
+        beacon_header = b""
+        if self._is_rekey_frame(frame_index) and self._receiver_public_key is not None:
+            # Generate fresh X25519 ephemeral, ECDH with receiver → shared_secret
+            shared_secret, eph_pub = _generate_asym_rekey(self._receiver_public_key)
+            beacon_header = eph_pub  # 32 bytes in header (same size as v1.2 beacon)
+
+            # Rotate root key with asymmetric entropy (epoch binding prevents replay)
+            self._state.epoch += 1
+            new_root, new_chain = _asymmetric_root_rekey(
+                root_key=bytes(self._state.root_key),
+                shared_secret=shared_secret,
+                salt=self._salt,
+                epoch=self._state.epoch,
+            )
+
+            # Zeroize old root + chain (forward secrecy within epoch)
+            _secure_zero(self._state.root_key)
+            _secure_zero(self._state.chain_key)
+
+            # Install new root and chain — next ratchet_step derives from new chain
+            self._state.root_key = bytearray(new_root)
+            self._state.chain_key = bytearray(new_chain)
+
+        # Ratchet step: derive message key from current chain
+        # (may be the newly rotated chain if asymmetric rekey just occurred)
         message_key_bytes, self._state = ratchet_step(self._state)
         message_key_buf = bytearray(message_key_bytes)
 
-        # Rekey beacon: inject fresh entropy at periodic intervals
-        beacon_header = b""
-        if self._is_rekey_frame(frame_index):
-            if self._receiver_public_key is not None:
-                # KEM beacon: attacker needs receiver_private_key to recover
-                beacon_secret, eph_pub = _generate_kem_beacon(self._receiver_public_key)
-                beacon_header = eph_pub
-            else:
-                # Plaintext beacon: protects against memory-only compromise
-                beacon_secret = os.urandom(REKEY_BEACON_SIZE)
-                beacon_header = beacon_secret
+        # Plaintext beacon fallback (no receiver key → no PCS, memory-only protection)
+        if self._is_rekey_frame(frame_index) and self._receiver_public_key is None:
+            beacon_secret = os.urandom(REKEY_BEACON_SIZE)
+            beacon_header = beacon_secret
             enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
             _secure_zero(message_key_buf)
             message_key_buf = bytearray(enhanced_key)
@@ -860,6 +1113,11 @@ class DecoderRatchet:
         self._finalized = False
         self._rekey_interval = rekey_interval
         self._receiver_private_key = receiver_private_key
+        # MSR v2.0: Asymmetric rekey material storage for epoch advancement
+        # Maps epoch_number → ephemeral_public_key (32 bytes) extracted from
+        # rekey frames. Populated during decrypt() BEFORE _advance_to() so
+        # the chain can cross epoch boundaries during fast-forward.
+        self._received_rekey_material: Dict[int, bytes] = {}
         # Header encryption: precompute encrypted-index → real-index lookup
         self._header_key = _derive_header_key(root_key, salt)
         self._header_lookup = _build_header_lookup(self._header_key, total_frames)
@@ -870,6 +1128,51 @@ class DecoderRatchet:
             self._rekey_interval > 0 and frame_index > 0 and frame_index % self._rekey_interval == 0
         )
 
+    def _frame_epoch(self, frame_index: int) -> int:
+        """Determine which asymmetric rekey epoch a frame belongs to.
+
+        Epoch 0: frames [0, rekey_interval)
+        Epoch 1: frames [rekey_interval, 2*rekey_interval)
+        ...
+        """
+        if self._rekey_interval <= 0:
+            return 0
+        return frame_index // self._rekey_interval
+
+    def _execute_rekey(self, epoch: int) -> None:
+        """Execute asymmetric root key rotation for the given epoch.
+
+        Consumes the stored ephemeral public key for this epoch,
+        performs ECDH with the receiver's private key, and rotates
+        the root key + chain key.
+
+        Args:
+            epoch: The epoch number to rotate into
+
+        Security:
+            - Shared secret requires receiver_private_key (NOT in ratchet state)
+            - Old root + chain are zeroized (forward secrecy)
+            - Epoch is bound into HKDF info (prevents cross-epoch replay)
+        """
+        eph_pub = self._received_rekey_material.pop(epoch)
+        shared_secret = _recover_asym_rekey(eph_pub, self._receiver_private_key)
+
+        new_root, new_chain = _asymmetric_root_rekey(
+            root_key=bytes(self._state.root_key),
+            shared_secret=shared_secret,
+            salt=self._salt,
+            epoch=epoch,
+        )
+
+        # Zeroize old keys
+        _secure_zero(self._state.root_key)
+        _secure_zero(self._state.chain_key)
+
+        # Install new root and chain
+        self._state.root_key = bytearray(new_root)
+        self._state.chain_key = bytearray(new_chain)
+        self._state.epoch = epoch
+
     @property
     def position(self) -> int:
         """Current chain position (next frame index to derive from chain)."""
@@ -879,6 +1182,13 @@ class DecoderRatchet:
         """
         Advance the chain to target_index, caching skipped message keys.
 
+        MSR v2.0: Handles asymmetric root key rotation at epoch boundaries.
+        When the chain crosses a rekey frame during fast-forward, the root
+        key is rotated using stored ephemeral key material (from a previously
+        received rekey frame). If the rekey material for an intermediate epoch
+        hasn't been received yet, ValueError is raised (the frame is treated
+        as lost by fountain codes).
+
         Args:
             target_index: The frame index we need to derive a key for
 
@@ -887,6 +1197,7 @@ class DecoderRatchet:
 
         Raises:
             ValueError: If too many keys would need to be cached (DoS protection)
+                        or if rekey material for an intermediate epoch is missing
         """
         skip_count = target_index - self._state.position
         if skip_count < 0:
@@ -900,14 +1211,45 @@ class DecoderRatchet:
                 f"{MAX_SKIP_KEYS}). Possible DoS attack via frame index inflation."
             )
 
-        # Fast-forward, caching each skipped message key
-        for _ in range(skip_count):
+        # Fast-forward through positions, handling asymmetric rekeys at boundaries
+        while self._state.position < target_index:
+            current_pos = self._state.position
+
+            # MSR v2.0: Check for asymmetric rekey at this position
+            if (
+                self._is_rekey_frame(current_pos)
+                and self._receiver_private_key is not None
+                and self._state.root_key is not None
+            ):
+                epoch = self._frame_epoch(current_pos)
+                if epoch not in self._received_rekey_material:
+                    raise ValueError(
+                        f"Cannot advance past rekey boundary at frame {current_pos}: "
+                        f"rekey material for epoch {epoch} not yet received. "
+                        f"Frame will be recoverable after the rekey frame arrives."
+                    )
+                self._execute_rekey(epoch)
+
             msg_key, self._state = ratchet_step(self._state)
             # Cache the skipped key for later out-of-order reception
             skipped_idx = self._state.position - 1
             self._skipped_keys[skipped_idx] = bytearray(msg_key)
 
-        # Now derive the target message key
+        # Handle rekey at the target position itself
+        if (
+            self._is_rekey_frame(target_index)
+            and self._receiver_private_key is not None
+            and self._state.root_key is not None
+        ):
+            epoch = self._frame_epoch(target_index)
+            if epoch not in self._received_rekey_material:
+                raise ValueError(
+                    f"Cannot derive key at rekey frame {target_index}: "
+                    f"rekey material for epoch {epoch} not yet received."
+                )
+            self._execute_rekey(epoch)
+
+        # Final ratchet step for the target position
         msg_key, self._state = ratchet_step(self._state)
         return msg_key
 
@@ -969,6 +1311,26 @@ class DecoderRatchet:
         if frame_index >= self._total_frames:
             raise ValueError(f"Frame index {frame_index} exceeds total frames {self._total_frames}")
 
+        # MSR v2.0: Determine rekey mode for this frame
+        # Asymmetric rekey: receiver_private_key + root_key available → root rotation
+        # Plaintext beacon: no receiver key → mix random entropy into message key
+        is_asym_rekey = (
+            self._is_rekey_frame(frame_index)
+            and self._receiver_private_key is not None
+            and self._state.root_key is not None
+        )
+
+        # CRITICAL: For asymmetric rekey frames, extract and store the ephemeral
+        # key BEFORE _advance_to(). This ensures the chain can cross the rekey
+        # boundary during fast-forward. Without this, _advance_to() would fail
+        # with "rekey material not yet received" when it hits the boundary.
+        if is_asym_rekey:
+            if len(frame_body) < REKEY_BEACON_SIZE + GCM_TAG_SIZE:
+                raise ValueError(f"Asymmetric rekey frame body too short: {len(frame_body)} bytes")
+            eph_pub = bytes(frame_body[:REKEY_BEACON_SIZE])
+            epoch = self._frame_epoch(frame_index)
+            self._received_rekey_material[epoch] = eph_pub
+
         # Get the message key for this frame
         message_key_buf: Optional[bytearray] = None
         commit_keys = None
@@ -979,6 +1341,7 @@ class DecoderRatchet:
                 message_key_buf = self._skipped_keys.pop(frame_index)
             elif frame_index >= self._state.position:
                 # Case 2: Frame is at or ahead of current position — advance chain
+                # (may trigger asymmetric root rotation at epoch boundaries)
                 msg_key = self._advance_to(frame_index)
                 message_key_buf = bytearray(msg_key)
             else:
@@ -989,22 +1352,24 @@ class DecoderRatchet:
                     f"Key is irrecoverable (forward secrecy)."
                 )
 
-            # Step 4: Handle rekey beacon
+            # Step 4: Handle rekey frame body (strip beacon/rekey header)
             ciphertext_body = frame_body
             if self._is_rekey_frame(frame_index):
                 if len(frame_body) < REKEY_BEACON_SIZE + GCM_TAG_SIZE:
                     raise ValueError(f"Beacon frame body too short: {len(frame_body)} bytes")
-                beacon_data = frame_body[:REKEY_BEACON_SIZE]
                 ciphertext_body = frame_body[REKEY_BEACON_SIZE:]
-                # Derive beacon secret
-                if self._receiver_private_key is not None:
-                    beacon_secret = _recover_kem_beacon(beacon_data, self._receiver_private_key)
-                else:
+
+                if not is_asym_rekey:
+                    # Plaintext beacon fallback (MSR v1.x):
+                    # Mix beacon entropy into message key
+                    beacon_data = frame_body[:REKEY_BEACON_SIZE]
                     beacon_secret = beacon_data
-                # Mix beacon into message key
-                enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
-                _secure_zero(message_key_buf)
-                message_key_buf = bytearray(enhanced_key)
+                    enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
+                    _secure_zero(message_key_buf)
+                    message_key_buf = bytearray(enhanced_key)
+                # For is_asym_rekey: root rotation was already performed during
+                # _advance_to() → _execute_rekey(). The message key comes from
+                # the post-rotation chain. No additional mixing needed.
 
             # Step 5: Key commitment verification (BEFORE decryption!)
             commit_keys = derive_frame_keys(bytes(message_key_buf), self._salt)
@@ -1046,10 +1411,11 @@ class DecoderRatchet:
         Finalize the ratchet, zeroizing all remaining state.
 
         Zeroizes:
-        - Current chain key
+        - Current chain key and root key
         - All cached skipped message keys
         - Header encryption key
         - Header lookup table
+        - Received rekey material (ephemeral public keys)
         """
         if not self._finalized:
             self._state.zeroize()
@@ -1057,6 +1423,7 @@ class DecoderRatchet:
                 _secure_zero(key_buf)
             self._skipped_keys.clear()
             self._consumed_indices.clear()
+            self._received_rekey_material.clear()
             # Zeroize header key and lookup table
             self._header_key = b"\x00" * 32
             self._header_lookup.clear()

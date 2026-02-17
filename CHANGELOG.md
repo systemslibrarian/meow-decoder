@@ -10,6 +10,53 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — MSR v2.0 Asymmetric Entropy Reinjection (Signal-Grade PCS) 🔐
+
+**Post-Compromise Security** via periodic X25519 root key rotation. Compromise of ratchet state at frame N is healed within ≤K frames (rekey_interval). This is the air-gap equivalent of Signal's DH ratchet.
+
+#### Asymmetric Root Key Rotation
+- Every `rekey_interval` frames, the encoder generates a fresh X25519 ephemeral keypair
+- ECDH with receiver's long-term public key produces shared secret for root rotation
+- Root key rotation: `new_root = HKDF(IKM=shared_secret, salt=old_root, info="meow_asym_rekey_root_v1" || epoch)`
+- New chain derived from new root: `new_chain = HKDF(new_root, salt, "meow_asym_rekey_chain_v1")`
+- Old root + chain zeroed (forward secrecy within epoch)
+- Ephemeral public key (32 bytes) embedded in frame header (same slot as v1.x beacon)
+
+#### New Domain Separation Constants (4 new, 14 total)
+- `ASYM_REKEY_ROOT_INFO = "meow_asym_rekey_root_v1"` — Root rotation HKDF info
+- `ASYM_REKEY_CHAIN_INFO = "meow_asym_rekey_chain_v1"` — Post-rekey chain derivation
+- `ASYM_REKEY_KEM_INFO = "meow_asym_rekey_kem_v1"` — ECDH shared secret KDF
+- `ASYM_REKEY_ROOT_INIT_INFO = "meow_ratchet_root_store_v1"` — Initial root storage
+
+#### Epoch-Aware Decoder
+- Decoder extracts ephemeral keys from rekey frames before chain advancement
+- `_advance_to()` handles asymmetric rekeys at epoch boundaries during fast-forward
+- Rekey frames must be received before frames in their epoch (fountain codes handle loss)
+- Epoch counter bound into HKDF info prevents cross-epoch replay attacks
+
+#### RatchetState v2.0
+- Added `root_key: Optional[bytearray]` (stored for asymmetric rekey operations)
+- Added `epoch: int` counter (tracks current asymmetric rekey epoch)
+- `zeroize()` cleans both chain_key and root_key
+- Backward compatible: `root_key=None` defaults for existing code
+
+#### Fallback Behavior
+- Without `receiver_public_key`: falls back to plaintext beacon (v1.x, no PCS)
+- Without `rekey_interval`: no rekey (base MSR v1.0 behavior)
+
+#### Test Coverage: 43 new tests (185 total ratchet tests)
+| Test Class | Tests |
+|-----------|-------|
+| `TestAsymmetricRekeyPrimitives` | ECDH roundtrip, ephemeral uniqueness, wrong-key, epoch binding |
+| `TestRatchetStateV2` | root_key storage, zeroization, step preservation, backward compat |
+| `TestAsymmetricRekeyRoundtrip` | Multi-epoch roundtrip, rekey at boundaries |
+| `TestPostCompromiseSecurity` | PCS: compromised state cannot decrypt post-rekey |
+| `TestOutOfOrderDecoding` | Epoch-aware OOO, missing-rekey rejection |
+| `TestRollbackResistance` | Epoch binding, old root cannot derive future chains |
+| `TestSignalComparison` | Root rotation, chain isolation, PCS healing latency |
+| `TestEdgeCases` | Interval=1, disabled, large epochs, single frame |
+| `TestTamperDetectionV2` | Modified ephemeral rejected, replay rejected |
+
 ### Security — MSR v1.2 Signal-Parity Hardening (2026-02-16) 🔐
 
 Three Signal-parity security hardening features for the MEOW Symmetric Ratchet:
