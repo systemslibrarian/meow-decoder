@@ -1,6 +1,6 @@
 # 🏗️ Meow Decoder - Architecture Documentation
 
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
+**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
 **Date:** 2026-02-17
 **Status:** Production
 
@@ -244,6 +244,66 @@ All secret-handling cryptographic operations are implemented in the Rust `crypto
 - **Memory safety**: No buffer overflows or use-after-free vulnerabilities
 - **Performance**: Native-speed crypto without Python GIL overhead
 
+### **What the Rust Migration Does — and Does Not — Change**
+
+Moving cryptographic primitives from Python (`cryptography` library) to Rust (`meow_crypto_rs`) does **not** upgrade the underlying algorithms. The math stays exactly the same:
+
+- AES-256-GCM is still 256-bit secure.
+- X25519 is still Curve25519 Diffie-Hellman.
+- HKDF-SHA256 is still RFC 5869.
+- Argon2id is still the same memory-hard KDF with the same parameters.
+- ML-KEM-768/1024 is still the same post-quantum KEM.
+- The ratchet math, transcript binding, and post-quantum assumptions are unchanged.
+
+**What it improves is the implementation layer** — the code that handles secrets at runtime. In real-world systems, implementation failures (memory leaks, timing side-channels, silent fallbacks) are far more common than broken mathematical primitives. The Rust migration hardens precisely the layer where most real bugs happen.
+
+#### 1. Memory Safety and Secret Hygiene
+
+**Before (Python):** Secrets live in garbage-collected objects. Python's GC makes no guarantee about when — or whether — sensitive bytes are zeroed. Copies may linger in memory across heap allocations, and secrets can be accidentally logged or serialized.
+
+**After (Rust):** The `zeroize` crate provides `Zeroize on Drop` — secrets are deterministically wiped when they leave scope. Rust's ownership model prevents accidental copies, gives the developer controlled secret lifecycles, and eliminates an entire class of memory-inspection risks.
+
+This reduces: secret retention risk, key leakage through memory dumps, accidental logging of sensitive material.
+
+#### 2. Secret Boundary Clarity
+
+**Before:** Cryptographic operations were mixed with protocol orchestration in the same Python modules. Python code touched raw key material directly, making it harder to audit which code paths handle secrets.
+
+**After:** Python handles orchestration only (manifest parsing, fountain coding, QR generation). Rust handles the cryptographic boundary (key derivation, encryption, signing, zeroing). This separation makes the architecture cleaner and makes both halves easier to audit independently.
+
+#### 3. Constant-Time Discipline
+
+**Before (Python):** Python offers limited constant-time guarantees. `hmac.compare_digest()` exists but reasoning about timing behavior across the interpreter, bytecode, and GC is difficult. Custom comparisons are nearly impossible to make genuinely constant-time in CPython.
+
+**After (Rust):** The `subtle` crate provides explicit constant-time types (`Choice`, `CtEq`) with well-understood timing properties. Constant-time comparisons are enforced at the type level, not by convention. This narrows the timing-leak attack surface considerably.
+
+#### 4. Auditability
+
+The Rust crypto core (`crypto_core/src/`) is a deliberately small, tightly-scoped surface. It contains only primitive operations — no protocol logic, no I/O, no user-facing code. This makes it:
+
+- Easier for external reviewers to read in a single sitting
+- Easier to verify ownership and data-flow properties
+- Compatible with Rust-native formal verification tools (Verus, Kani)
+- Backed by a well-audited crate ecosystem (`aes-gcm`, `argon2`, `x25519-dalek`, `hkdf`)
+
+#### 5. Elimination of Silent Fallbacks
+
+**Before:** A misconfigured environment could silently fall back to a Python crypto path that lacked constant-time guarantees and memory zeroing — with no indication to the user.
+
+**After:** The Rust backend is **required**. If `meow_crypto_rs` is not available, the system fails closed with a clear error. CI enforces `RUST_BACKEND_REQUIRED=1`, and an AST-based import scanner blocks `from cryptography` in all production modules. There are no shadow crypto paths, no partial migrations, no "works locally but insecure in production" surprises.
+
+#### Honest Summary
+
+| | Before Rust Migration | After Rust Migration |
+|---|---|---|
+| **Protocol strength** | Strong (AES-256-GCM, Argon2id, X25519, ML-KEM) | Identical — no algorithm changes |
+| **Implementation risk** | Moderate (Python secret handling, GC, timing) | Lower (Rust ownership, zeroize, subtle) |
+| **Crypto boundary** | Blurred (Python touches secrets) | Clean (Rust = secrets, Python = orchestration) |
+| **Fallback behavior** | Silent Python fallback possible | Fail-closed, CI-enforced |
+| **Auditability** | Harder (crypto spread across Python modules) | Easier (compact Rust core) |
+
+This is not increasing cryptographic strength. It is increasing **implementation security**, **operational robustness**, **secret hygiene**, **side-channel discipline**, and **architectural integrity**. That is a meaningful upgrade.
+
 ### **Backend Functions (16 PyO3 bindings)**
 
 ```
@@ -284,6 +344,152 @@ No production module imports `cryptography` at module level or runtime.
 | `pq_signatures.py` | Experimental | Ed25519 not yet in Rust backend; `_PQ_EXPERIMENTAL = True` |
 | `x25519_forward_secrecy.py` | Legacy PEM fallback | New keys use `MEOW_X25519` format via Rust; legacy PEM path imports `cryptography` only when loading old-format keys |
 | `spec_v12/` | Reference spec | Not imported by production entrypoints |
+
+---
+
+## 🏛️ **Architectural Layer Boundaries**
+
+Meow Decoder's codebase is organized into five strict layers. These boundaries exist to prevent refactors, AI-assisted edits, or well-meaning contributions from flattening the project's personality, renaming cryptographic primitives, altering protocol invariants, or reintroducing Python `cryptography` imports into production code.
+
+Every module in the project belongs to exactly one layer. Code in a given layer may call downward (Layer 4 → Layer 3 → Layer 2 → Layer 1) but never upward.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Layer 5 — Demos / Documentation / Branding                 │
+│  examples/, docs/, README.md, assets/, Jupyter notebooks    │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 4 — Themed Façade API (Cat Personality)               │
+│  meow_encode.py, cat_utils.py, cat_errors.py,               │
+│  meow_gui_enhanced.py, gui_logo_example.py, logo_eyes.py    │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 3 — Protocol Orchestration                            │
+│  crypto.py, encode.py, decode_gif.py, ratchet.py,            │
+│  forward_secrecy.py, fountain.py, pq_hybrid.py,              │
+│  schrodinger_encode.py, quantum_mixer.py, frame_mac.py       │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 2 — crypto_backend (Python ↔ Rust Bridge)             │
+│  crypto_backend.py → CryptoBackend()                         │
+├─────────────────────────────────────────────────────────────┤
+│  Layer 1 — crypto_core (Rust)                                │
+│  crypto_core/src/ → meow_crypto_rs (PyO3)                    │
+│  pure_crypto.rs, aead_wrapper.rs, nonce.rs, lib.rs           │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### **Layer 1 — `crypto_core` (Rust)**
+
+**Location:** `crypto_core/src/`
+
+Pure cryptographic primitives only: AES-256-GCM, Argon2id, HKDF-SHA256, X25519, SHA-256, HMAC-SHA256, ML-KEM-768/1024. Built with the `subtle` crate (constant-time) and `zeroize` crate (memory zeroing).
+
+**Rules:**
+1. No humor in function names. Identifiers are cryptographic domain terms (`aes_gcm_encrypt`, `hkdf_expand`, `x25519_exchange`).
+2. No renaming of domain separation labels. Strings like `"meow_pqxdh_v1"`, `"meow-fs-block"`, `"meow-ratchet-chain"` are protocol constants bound in formal proofs and test vectors.
+3. No playful identifiers inside primitive logic.
+4. Zero jokes below this layer. External auditors read this code.
+
+### **Layer 2 — `crypto_backend` (Python ↔ Rust Bridge)**
+
+**Location:** `meow_decoder/crypto_backend.py`
+
+A thin wrapper that exposes Rust primitives to Python via the `CryptoBackend` class and `get_default_backend()` factory.
+
+**Rules:**
+1. Thin wrapper only — each method delegates directly to `meow_crypto_rs`. No multi-step crypto logic.
+2. No business logic. Protocol decisions belong in Layer 3.
+3. No `cryptography` library imports. The Python `cryptography` package is permanently banned from this module and all production modules.
+4. Stable primitive names. Method names (`derive_key_argon2id`, `aes_gcm_encrypt`, `x25519_generate_keypair`, etc.) are the API contract.
+
+### **Layer 3 — Protocol Orchestration**
+
+**Location:** `meow_decoder/crypto.py`, `encode.py`, `decode_gif.py`, `ratchet.py`, `forward_secrecy.py`, `fountain.py`, `pq_hybrid.py`, `schrodinger_encode.py`, `quantum_mixer.py`, `frame_mac.py`, `double_ratchet.py`, and related modules.
+
+Protocol logic that composes Layer 2 primitives into the MEOW protocol: manifest packing (MEOW2–MEOW5), AAD construction, fountain coding, symmetric ratchet (MSR v1.2), PQXDH key exchange, Schrödinger mode, QR/GIF encoding.
+
+**Rules:**
+1. All crypto calls go through `CryptoBackend()`. Never import raw primitives.
+2. No renaming of protocol invariants — manifest magic bytes, mode bytes, domain separation strings, struct layouts, and AAD field ordering are frozen.
+3. Light comments are fine, but do not rename variables that track protocol state (`chain_key`, `message_key`, `ephemeral_public_key`, `pq_ciphertext`).
+4. Fail-closed on all MAC verification (`ValueError` on failure, never silently disable).
+5. Constant-time comparisons for all authentication checks.
+
+### **Layer 4 — Themed Façade API (Cat Personality)**
+
+**Location:** `meow_decoder/meow_encode.py`, `cat_utils.py`, `cat_errors.py`, `meow_gui_enhanced.py`, `gui_logo_example.py`, `logo_eyes.py`, `ascii_qr.py`, and similar user-facing wrappers.
+
+Playful, cat-themed wrappers around Layer 3 operations. `CollarTag` for manifests, `CatError` for exceptions, themed progress messages, GUI skins with cat imagery, CLI names like `meow-encode`.
+
+**Rules:**
+1. Safe to introduce playful wrapper names (`whisker_check()`, `purr_progress()`, etc.).
+2. Must call Layer 2/3 functions internally. Personality is a naming layer, not a reimplementation.
+3. Must not alter semantics — no changing encryption parameters, skipping verification, or adding new cryptographic behavior.
+4. No "fun encryption" or "cat cipher" — only delegate to established primitives.
+
+### **Layer 5 — Demos / Documentation / Branding**
+
+**Location:** `examples/`, `docs/`, `README.md`, `QUICKSTART.md`, `assets/`, Jupyter notebooks, HTML demos.
+
+Everything that helps humans understand and enjoy the project: example scripts, browser demos, JavaScript fountain codes, cat imagery, markdown documentation.
+
+**Rules:**
+1. Fully allowed to be playful — cat puns, emoji, personality, creative writing all welcome.
+2. Must not contradict the protocol spec. Playful framing is fine; incorrect security claims are not.
+3. Demo code may use simplified patterns but must not demonstrate insecure usage without explicit warnings.
+
+---
+
+## 🔐 **Crypto Core Is Sacred**
+
+The following invariants are load-bearing. Violating any one of them constitutes a security regression, not a style preference.
+
+| Invariant | Why It Exists | How It Is Enforced |
+|-----------|---------------|-------------------|
+| **No `from cryptography` in production modules** | Rust backend provides constant-time operations and memory zeroing that Python `cryptography` cannot guarantee | AST-based import scanner (`tests/test_crypto_enforcement.py`); CI gate `RUST_BACKEND_REQUIRED=1` |
+| **Manifest magic bytes and mode bytes are frozen** | `MEOW2`=`0x02`, `MEOW3`=`0x03`, `MEOW4`=`0x04`, `MEOW5`=`0x05`, duress=`\|0x80` — changing them breaks all existing encoded files | Golden vector tests (`tests/test_golden_vectors.py`) |
+| **Domain separation strings are immutable** | `"meow_pqxdh_v1"`, `"meow-fs-block"`, `"meow-ratchet-chain"`, etc. are bound in formal proofs and interop test vectors | `verify_domain_separation.sh`; formal model checks |
+| **AAD field ordering is fixed** | `orig_len ‖ comp_len ‖ salt ‖ sha256 ‖ magic ‖ ephemeral_pub ‖ pq_ciphertext` — reordering silently breaks authentication | Tamper detection tests (`tests/test_security.py`) |
+| **HMAC-then-use for manifests** | Manifest HMAC must be verified before any field is trusted; skipping this enables oracle attacks | Adversarial tests (`tests/test_adversarial.py`) |
+| **Fail-closed MAC verification** | `ValueError` on invalid MAC; silent MAC bypass is a critical vulnerability | Unit tests assert `ValueError` is raised, never caught |
+| **Argon2id production parameters** | 512 MiB memory, 20 iterations, 4 threads — lowering them weakens brute-force resistance | Config tests; `MEOW_TEST_MODE` flag for CI only |
+| **Nonce uniqueness** | LRU cache (10K cap) + HKDF-derived synthetic IV prevents catastrophic nonce reuse | Nonce reuse guard tests |
+| **Fountain code frame format** | `FOUNTAIN:<k>:<block_size>:<length>:<droplet_b64>` — changing this breaks Python ↔ JavaScript interop | Interop tests across both implementations |
+| **Rust primitive function names** | `aes_gcm_encrypt`, `derive_key_hkdf`, `x25519_exchange`, etc. — renaming them breaks every Layer 3 module | Layer 2 API contract; compilation and import tests |
+
+### What "Sacred" Means in Practice
+
+- **Do not rename** Layer 1 or Layer 2 function signatures without updating every call site, every test, and every formal proof.
+- **Do not add** new cryptographic algorithms to Layer 4 or Layer 5. All crypto lives in Layer 1; orchestration lives in Layer 3.
+- **Do not weaken** Argon2id parameters, MAC verification, or AAD bindings for convenience, performance, or "simplicity."
+- **Do not bypass** the `CryptoBackend()` abstraction. If a module needs a cryptographic operation, it calls Layer 2.
+
+---
+
+## 🎨 **Where Personality Is Allowed**
+
+Meow Decoder's cat-themed identity is part of the project, but it must not leak into security-critical code. The table below defines where personality is safe and where it is forbidden.
+
+| Layer | Personality Level | What Is OK | What Is Not OK |
+|-------|:-----------------:|------------|----------------|
+| Layer 1 (Rust primitives) | **None** | `aes_gcm_encrypt`, `hkdf_expand` | `paws_encrypt`, `meow_hkdf` |
+| Layer 2 (crypto_backend) | **None** | `CryptoBackend.derive_key_argon2id` | `CatCryptoBackend.scratch_key` |
+| Layer 3 (protocol orchestration) | **Minimal** | Conversational code comments; technical names (`pack_manifest`, `ratchet_step`) | Replacing `HMAC-SHA256` with `whisker-hash` in protocol code |
+| Layer 4 (themed façade) | **Full** | `CollarTag`, `CatError`, `purr_progress()` — but must delegate to Layers 2/3 | Implementing a custom cipher, skipping MAC checks |
+| Layer 5 (demos/docs) | **Full** | Cat art, emoji, playful tutorials, `meow-encode` CLI name | Documenting incorrect security properties |
+
+### Encouraged Patterns
+
+- **Layer 4 wrapper:** `class CollarTag` that internally calls `pack_manifest()` / `unpack_manifest()`
+- **Layer 4 error:** `class CatError(Exception)` with a friendly message wrapping a raw `ValueError`
+- **Layer 5 docs:** *"Your secret file is now wearing its invisible collar!"*
+- **Layer 5 CLI:** `meow-encode` as the user-facing command (delegates to `encode.py`)
+
+### Anti-Patterns (Do Not Do)
+
+- Renaming `aes_gcm_encrypt` → `cat_encrypt` in Layer 1 or 2
+- Adding `meow_` prefix to Rust function names in `pure_crypto.rs`
+- Using cat puns in domain separation strings (`"meow-purr-chain"` instead of `"meow-ratchet-chain"`)
+- Creating a `FunCipher` class that implements novel crypto in Layer 4
+- Replacing protocol variable names (`chain_key` → `yarn_key`) in Layer 3
 
 ---
 
@@ -877,6 +1083,6 @@ wasm-pack build crypto_core --target web --release --features wasm-pq
 
 ---
 
-**Last Updated:** 2026-01-22
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
+**Last Updated:** 2026-02-17
+**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
 **Status:** Production

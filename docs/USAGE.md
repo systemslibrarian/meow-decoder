@@ -1,4 +1,6 @@
-# Usage Guide
+# 🐾 Usage Guide — Teaching the Cat New Tricks
+
+*Everything you need to encode, transmit, and decode secrets through the air gap. The cat handles the hard parts — you just point the camera.*
 
 This project moves data through **animated QR-code GIFs**.
 
@@ -20,7 +22,9 @@ At a high level:
 
 ---
 
-## Encode a file into a QR GIF
+## 🔐 Encode a file into a QR GIF
+
+*Hiss! Your file gets compressed, encrypted, fountain-coded, and wrapped in QR frames — all in one command.*
 
 ### Option A: CLI (recommended)
 
@@ -34,7 +38,7 @@ pip install --require-hashes -r requirements.lock  # Hash-verified dependencies
 python -m meow_decoder.encode --input path/to/input.bin --output out.gif
 ```
 
-You will be prompted for a password (used for encryption).  
+You will be prompted for a password (used for encryption).
 You can also pass `--password` (⚠️ this may leak in shell history / process list).
 
 ### Output
@@ -43,7 +47,9 @@ You can also pass `--password` (⚠️ this may leak in shell history / process 
 
 ---
 
-## Decode back to the original file
+## 🔓 Decode back to the original file
+
+*The cat coughs up the file. (Gracefully.)*
 
 ### Option A: Decode from a GIF file
 
@@ -109,14 +115,16 @@ The web demo lets you choose security strength:
 
 - **Fast** (64 MiB, 3 iter) — Quick demos
 - **Standard** (128 MiB, 8 iter) — General use
-- **High** (256 MiB, 15 iter) — Sensitive data  
+- **High** (256 MiB, 15 iter) — Sensitive data
 - **Paranoid** (512 MiB, 20 iter) — **Matches CLI** for life-critical data
 
 ⚠️ **For maximum security equivalent to the CLI, select "Paranoid" mode.**
 
 ---
 
-## Phone + webcam scanning workflow (screen-to-camera)
+## 📱 Phone + Webcam Scanning — The Air-Gap Pounce
+
+*The cat leaps across the gap: screen → camera → decoded. No network, no app, no trust required.*
 
 This is the “air-gap-ish” flow: **sender displays the QR GIF on a screen**, receiver captures frames with a camera.
 
@@ -140,7 +148,7 @@ Use the webcam capture decoder (best reliability):
 python -m meow_decoder.webcam_enhanced
 ```
 
-Point the webcam at the sender’s screen and follow the on-screen prompts.  
+Point the webcam at the sender’s screen and follow the on-screen prompts.
 When enough frames are captured, the decoder reconstructs and writes the recovered file.
 
 > If you don’t have a webcam: you can use your phone as a webcam for your computer.
@@ -164,7 +172,9 @@ If you want, I can add:
 
 ---
 
-## Mobile Bridge (React Native scanner)
+## 📲 Mobile Bridge (React Native Scanner)
+
+*Let the outdoor cat bring the frames home — phone-to-CLI scanning via JSON protocol.*
 
 The mobile bridge connects phone-based QR scanning directly to the CLI decoder.
 
@@ -200,7 +210,9 @@ meow-decode-gif --mobile-bridge --output-request request.json
 
 ---
 
-## Hardware Keys (HSM, YubiKey, TPM)
+## 🔐 Hardware Keys (HSM, YubiKey, TPM)
+
+*Lock the cat flap with real hardware — keys that never leave the device.*
 
 Hardware security modules provide tamper-resistant key storage.
 
@@ -287,13 +299,13 @@ Cat Mode enables secure file transfer via animated blinking cat eyes displayed o
 
 ### Recording Checklist
 
-✅ Screen brightness at 80%+  
-✅ Dark background behind screen  
-✅ Phone held steady or on tripod  
-✅ Cat face centered in frame  
-✅ No glare on screen  
-✅ Recording started BEFORE blinking begins  
-✅ Recording continued 2-3 seconds AFTER blinking ends  
+✅ Screen brightness at 80%+
+✅ Dark background behind screen
+✅ Phone held steady or on tripod
+✅ Cat face centered in frame
+✅ No glare on screen
+✅ Recording started BEFORE blinking begins
+✅ Recording continued 2-3 seconds AFTER blinking ends
 ✅ Focus locked (no autofocus during recording)
 
 ### Decoding Workflow
@@ -427,7 +439,9 @@ If auto-detection fails:
 
 ---
 
-## Troubleshooting
+## 🐾 Troubleshooting — Coughing Up Hairballs
+
+*When things don't go as planned, start here.*
 
 ### `pyzbar` / `zbar` errors
 `pyzbar` requires the `zbar` shared library.
@@ -445,7 +459,9 @@ Docker already installs it.
 
 ---
 
-## Security notes (read this)
+## ⚠️ Security Notes (Read This — The Cat Insists)
+
+*These are not suggestions. The cat will hiss if you ignore them.*
 
 - Treat `--password` on the command line as sensitive (it can leak).
 - Prefer interactive prompts or environment variables in automation.

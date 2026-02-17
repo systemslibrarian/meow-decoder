@@ -12,15 +12,14 @@ INVARIANT: These vectors must produce IDENTICAL output before and after
            the Rust migration. If any vector changes, STOP the migration.
 """
 
-import os
-import hashlib
-import struct
-import zlib
-
-import pytest
-
-os.environ["MEOW_TEST_MODE"] = "1"
-
+from meow_decoder.ratchet import init_ratchet, ratchet_step, derive_frame_keys
+from meow_decoder.frame_mac import (
+    derive_frame_master_key,
+    derive_frame_key,
+    compute_frame_mac,
+    verify_frame_mac,
+)
+from meow_decoder.crypto_backend import get_default_backend
 from meow_decoder.crypto import (
     build_canonical_aad,
     derive_key,
@@ -30,14 +29,15 @@ from meow_decoder.crypto import (
     AAD_VERSION,
     MANIFEST_HMAC_KEY_PREFIX,
 )
-from meow_decoder.crypto_backend import get_default_backend
-from meow_decoder.frame_mac import (
-    derive_frame_master_key,
-    derive_frame_key,
-    compute_frame_mac,
-    verify_frame_mac,
-)
-from meow_decoder.ratchet import init_ratchet, ratchet_step, derive_frame_keys
+import os
+import hashlib
+import struct
+import zlib
+
+import pytest
+
+os.environ["MEOW_TEST_MODE"] = "1"
+
 
 # ============================================================================
 # Frozen Inputs (deterministic, never change)

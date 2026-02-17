@@ -392,11 +392,11 @@ While inspired by these projects, Meow Decoder adds critical security features:
 
 # 🔧 Technical Details
 
-*The sections below are for developers, security researchers, and contributors.*
+*Below the fur: the sections that follow are for developers, security researchers, and contributors who want to understand how the cat's claws actually work.*
 
 ---
 
-## 🔍 How It Actually Works (Technical)
+## 🔍 How It Actually Works (Inside the Cat)
 
 ### The Data Pipeline
 
@@ -476,7 +476,9 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 
 ---
 
-## 🏗️ Architecture
+## 🏗️ Architecture — How the Cat Is Built
+
+*Five layers, from Rust primitives at the bottom to cat puns at the top. The deeper you go, the more serious things get.*
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -513,7 +515,9 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 
 ---
 
-## 🎯 Security Properties
+## 🎯 Security Properties — Nine Lives, All Accounted For
+
+*The playful exterior is backed by real cryptographic guarantees. Here's what the cat is actually made of.*
 
 | Property | Implementation | Status |
 |----------|----------------|--------|
@@ -536,7 +540,9 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 
 ---
 
-## 🦀 Rust Crypto Backend (Required)
+## 🦀 Under the Fur — Rust Crypto Backend (Required)
+
+🔒 All secret-handling cryptography now lives in the Rust core (`crypto_core`). The cat may look playful — but the claws are constant-time.
 
 The Rust cryptographic backend is **mandatory** for secure operation.
 
@@ -548,6 +554,25 @@ The Rust cryptographic backend is **mandatory** for secure operation.
 | Memory zeroing | ✅ Automatic (`zeroize` crate) |
 | Side-channel resistance | ✅ Audited crates |
 | Performance | ~2x faster |
+
+<details>
+<summary><strong>🧠 What the Rust migration actually changes (and what it doesn't)</strong></summary>
+
+The move to Rust does **not** upgrade AES-256-GCM, X25519, HKDF, Argon2id, or ML-KEM. The math is identical — if AES-256 was 256-bit secure before, it still is.
+
+What it improves is the **implementation layer**:
+
+1. **Memory safety** — Rust's `zeroize` crate wipes secrets on drop. Python's garbage collector makes no such guarantee, leaving key material lingering in memory.
+2. **Secret boundary clarity** — Python now handles orchestration only; Rust owns the cryptographic boundary. Cleaner to audit, harder to accidentally leak secrets.
+3. **Constant-time discipline** — The `subtle` crate enforces timing-safe comparisons at the type level, not by convention.
+4. **Auditability** — A compact Rust core is easier for external reviewers to read than crypto scattered across Python modules.
+5. **No silent fallbacks** — If the Rust backend is missing, the system fails closed. CI enforces this. No "works locally but insecure in production" surprises.
+
+**Honest summary:** Strong protocol before, strong protocol after. The difference is lower implementation risk, cleaner secret hygiene, and a crypto boundary you can actually audit.
+
+See [Architecture docs](docs/ARCHITECTURE.md#what-the-rust-migration-does--and-does-not--change) for the full analysis.
+
+</details>
 
 ### Installation
 
@@ -985,7 +1010,9 @@ If your threat model includes compromised endpoints or hardware side-channels, t
 
 ---
 
-## 📖 Documentation
+## 📖 Documentation — The Cat's Library
+
+*From quick demos to deep threat analysis — everything a Cat Herder needs.*
 
 | Document | Description |
 |----------|-------------|
@@ -1032,7 +1059,21 @@ See the [Cat Herder's Handbook (CONTRIBUTING.md)](CONTRIBUTING.md) for guideline
 
 ---
 
-## 📄 License
+## � About the Meow Tone
+
+Meow Decoder blends serious cryptography with a cat-themed personality. This is deliberate.
+
+**Why personality?** Cryptographic tools often intimidate newcomers with walls of jargon. The cat theme lowers the barrier to entry: people who would never read a README about "AES-256-GCM with Argon2id KDF and PQXDH hybrid key exchange" will happily read about a cat smuggling secrets through an air gap. The playful surface draws people in; the formal crypto underneath keeps them safe.
+
+**Why not personality everywhere?** Humor in the wrong place is dangerous. A joke in a domain separation label breaks interoperability. A pun in a Rust primitive name confuses auditors. Cat branding stops at the cryptographic boundary — Layers 1–2 of the architecture are dead serious, Layer 3 is professional, and Layers 4–5 are where the cat lives.
+
+**The rule is simple:** the deeper you go, the more serious things get. If you're reading `purr_encrypt()`, you're in the personality layer. If you're reading `aes_gcm_encrypt()`, you're in the trust anchor. Both exist, and neither pretends to be the other.
+
+See [Architecture Documentation](docs/ARCHITECTURE.md#-architectural-layer-boundaries) for the full 5-layer boundary model.
+
+---
+
+## �📄 License
 
 This project is licensed under the [Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License (CC BY-NC-SA 4.0)](https://creativecommons.org/licenses/by-nc-sa/4.0/).
 
