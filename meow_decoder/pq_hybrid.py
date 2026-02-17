@@ -1,15 +1,19 @@
 """
 Post-Quantum Hybrid Cryptography
-Combines X25519 (classical) + ML-KEM-1024 (Kyber) for quantum resistance
+Combines X25519 (classical) + ML-KEM (Kyber) for quantum resistance
 
 ⚠️  EXPERIMENTAL: See security_warnings.py for maturity assessment.
 
 Security Model:
-- Hybrid key agreement: X25519 ⊕ ML-KEM-1024
+- Hybrid key agreement: X25519 ⊕ ML-KEM
+- Default: ML-KEM-768 (NIST security level 3, Signal parity)
+- Paranoid: ML-KEM-1024 (NIST security level 5)
 - Secure even if one primitive breaks
-- Classical: Fast, well-tested
-- PQ: Future-proof against Shor's algorithm
-- Combined via HKDF for defense in depth
+- Combined via two-step HKDF (PQXDH-style transcript binding)
+
+KEM Variants:
+    ML-KEM-768  (default):  pk=1184B, ct=1088B, ss=32B — matches Signal PQXDH
+    ML-KEM-1024 (paranoid):  pk=1568B, ct=1568B, ss=32B — maximum security
 
 Requirements:
     pip install liboqs-python
@@ -19,22 +23,38 @@ caller does not request PQ encapsulation or provide PQ ciphertext.
 If PQ is requested and unavailable, the operation fails closed.
 """
 
+import hashlib
+import hmac as hmac_module
 import secrets
 import struct
 from typing import Tuple, Optional
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
 from cryptography.hazmat.primitives import serialization
 
 from .security_warnings import warn_pq_experimental
 
+# ── ML-KEM variant constants ─────────────────────────────────────────────────
+PQ_ALGORITHM_768 = "Kyber768"  # ML-KEM-768:  NIST level 3 (Signal default)
+PQ_ALGORITHM_1024 = "Kyber1024"  # ML-KEM-1024: NIST level 5 (paranoid)
+PQ_CT_SIZE_768 = 1088  # ML-KEM-768 ciphertext size
+PQ_CT_SIZE_1024 = 1568  # ML-KEM-1024 ciphertext size
+PQ_PK_SIZE_768 = 1184  # ML-KEM-768 public key size
+PQ_PK_SIZE_1024 = 1568  # ML-KEM-1024 public key size
+
+# HKDF domain separation constants (PQXDH-style)
+PQXDH_EXTRACT_SALT = b"\x00" * 32  # Fixed zero salt for HKDF-Extract
+PQXDH_INFO_PREFIX = b"meow_pqxdh_v1"  # KDF domain separator (hybrid mode)
+PQXDH_TRANSCRIPT_DOMAIN = b"meow_pqxdh_transcript_v1"  # Transcript hash domain
+CLASSICAL_INFO = b"meow_classical_only_v1"  # Classical-only mode (no change)
+
 # Try to import liboqs for post-quantum
 try:
     import oqs
 
     LIBOQS_AVAILABLE = True
-    PQ_ALGORITHM = "Kyber1024"  # ML-KEM-1024 (NIST FIPS 203 - highest security)
+    PQ_ALGORITHM = PQ_ALGORITHM_768  # Default: ML-KEM-768 (Signal parity)
     # Emit warning when PQ crypto is available and will be used
     warn_pq_experimental()
 except ImportError:
@@ -44,26 +64,29 @@ except ImportError:
 
 class HybridKeyPair:
     """
-    Hybrid keypair: X25519 + ML-KEM-1024.
+    Hybrid keypair: X25519 + ML-KEM (768 or 1024).
 
     Attributes:
         classical_private: X25519 private key
         classical_public: X25519 public key (32 bytes)
-        pq_public: ML-KEM-1024 public key (1568 bytes)
-        pq_secret: ML-KEM-1024 secret key (internal, not exported)
+        pq_public: ML-KEM public key (1184 or 1568 bytes depending on variant)
+        pq_secret: ML-KEM secret key (internal, not exported)
+        paranoid: True if using ML-KEM-1024 (security level 5)
     """
 
-    def __init__(self, use_pq: bool = True):
+    def __init__(self, use_pq: bool = True, paranoid: bool = False):
         """
         Generate hybrid keypair.
 
         Args:
             use_pq: Enable post-quantum component
                    Falls back to classical if liboqs unavailable
+            paranoid: Use ML-KEM-1024 instead of ML-KEM-768 (default False)
         """
         # Always generate classical key
         self.classical_private = X25519PrivateKey.generate()
         self.classical_public = self.classical_private.public_key()
+        self.paranoid = paranoid
 
         # Try to generate PQ key
         self.pq_public = None
@@ -71,8 +94,9 @@ class HybridKeyPair:
         self.pq_kem = None
 
         if use_pq and LIBOQS_AVAILABLE:
+            algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
             try:
-                self.pq_kem = oqs.KeyEncapsulation(PQ_ALGORITHM)
+                self.pq_kem = oqs.KeyEncapsulation(algorithm)
                 self.pq_public = self.pq_kem.generate_keypair()
                 # Secret key stored in pq_kem object
             except Exception as e:
@@ -86,7 +110,7 @@ class HybridKeyPair:
         Returns:
             Tuple of (classical_public, pq_public)
             - classical_public: 32 bytes (X25519)
-            - pq_public: 1568 bytes (ML-KEM-1024) or None if unavailable
+            - pq_public: 1184 bytes (ML-KEM-768) or 1568 bytes (ML-KEM-1024) or None
         """
         classical = self.classical_public.public_bytes(
             encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
@@ -99,29 +123,121 @@ class HybridKeyPair:
         return self.pq_kem is not None
 
 
+def _compute_transcript_hash(
+    ephemeral_pub: bytes,
+    receiver_classical_pub: bytes,
+    receiver_pq_pub: Optional[bytes],
+    pq_ciphertext: Optional[bytes],
+) -> bytes:
+    """
+    Compute PQXDH-style transcript hash binding all public values.
+
+    This provides full transcript binding à la Signal PQXDH — an attacker
+    who swaps any public key or ciphertext produces a different transcript
+    hash, which yields a different derived key → AES-GCM decryption fails.
+
+    Args:
+        ephemeral_pub: Sender's ephemeral X25519 public key (32 bytes)
+        receiver_classical_pub: Receiver's X25519 public key (32 bytes)
+        receiver_pq_pub: Receiver's ML-KEM public key (1184 or 1568 bytes, or None)
+        pq_ciphertext: ML-KEM ciphertext (1088 or 1568 bytes, or None)
+
+    Returns:
+        32-byte SHA-256 transcript hash
+    """
+    h = hashlib.sha256(PQXDH_TRANSCRIPT_DOMAIN)
+    h.update(ephemeral_pub)
+    h.update(receiver_classical_pub)
+    if receiver_pq_pub is not None:
+        h.update(receiver_pq_pub)
+    if pq_ciphertext is not None:
+        h.update(pq_ciphertext)
+    return h.digest()
+
+
+def _pqxdh_derive(
+    classical_shared: bytes,
+    pq_shared_secret: Optional[bytes],
+    ephemeral_pub: bytes,
+    receiver_classical_pub: bytes,
+    receiver_pq_pub: Optional[bytes],
+    pq_ciphertext: Optional[bytes],
+) -> bytes:
+    """
+    Two-step HKDF key derivation with PQXDH transcript binding.
+
+    Step 1 (Extract): PRK = HMAC-SHA256(salt=0x00…, IKM=classical_ss || pq_ss)
+    Step 2 (Expand):  shared_secret = HKDF-Expand(PRK,
+                        info="meow_pqxdh_v1" || transcript_hash, L=32)
+
+    This matches Signal's PQXDH pattern:
+    - Zero salt ensures deterministic extraction regardless of ephemeral entropy
+    - Transcript hash binds all exchanged public values into the key derivation
+    - Any tampering with public keys or ciphertext → different key → GCM fails
+
+    Args:
+        classical_shared: X25519 shared secret (32 bytes)
+        pq_shared_secret: ML-KEM shared secret (32 bytes) or None
+        ephemeral_pub: Sender's ephemeral X25519 public key (32 bytes)
+        receiver_classical_pub: Receiver's X25519 public key (32 bytes)
+        receiver_pq_pub: Receiver's ML-KEM public key or None
+        pq_ciphertext: ML-KEM ciphertext or None
+
+    Returns:
+        32-byte shared secret for encryption
+    """
+    if pq_shared_secret is not None:
+        combined_ikm = classical_shared + pq_shared_secret
+    else:
+        combined_ikm = classical_shared
+
+    # Step 1: HKDF-Extract with fixed zero salt (Signal PQXDH pattern)
+    prk = hmac_module.new(PQXDH_EXTRACT_SALT, combined_ikm, hashlib.sha256).digest()
+
+    # Compute transcript hash binding all public values
+    transcript_hash = _compute_transcript_hash(
+        ephemeral_pub, receiver_classical_pub, receiver_pq_pub, pq_ciphertext
+    )
+
+    # Step 2: HKDF-Expand with domain-separated transcript
+    if pq_shared_secret is not None:
+        info = PQXDH_INFO_PREFIX + transcript_hash
+    else:
+        info = CLASSICAL_INFO + transcript_hash
+
+    shared_secret = HKDFExpand(algorithm=hashes.SHA256(), length=32, info=info).derive(prk)
+
+    return shared_secret
+
+
 def hybrid_encapsulate(
-    receiver_classical_public: bytes, receiver_pq_public: Optional[bytes] = None
+    receiver_classical_public: bytes,
+    receiver_pq_public: Optional[bytes] = None,
+    paranoid: bool = False,
 ) -> Tuple[bytes, bytes, Optional[bytes], Optional[bytes]]:
     """
-    Hybrid key encapsulation.
+    Hybrid key encapsulation with PQXDH-style transcript binding.
 
     Args:
         receiver_classical_public: Receiver's X25519 public key (32 bytes)
-        receiver_pq_public: Receiver's ML-KEM-1024 public key (1568 bytes)
+        receiver_pq_public: Receiver's ML-KEM public key
+                           ML-KEM-768: 1184 bytes (default)
+                           ML-KEM-1024: 1568 bytes (paranoid)
                            None for classical-only mode
+        paranoid: Use ML-KEM-1024 instead of ML-KEM-768
 
     Returns:
         Tuple of (shared_secret, ephemeral_classical_public,
                  pq_ciphertext, pq_shared_secret)
         - shared_secret: Combined hybrid secret (32 bytes)
         - ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
-        - pq_ciphertext: ML-KEM-1024 encapsulation (1568 bytes) or None
+        - pq_ciphertext: ML-KEM ciphertext (1088 or 1568 bytes) or None
         - pq_shared_secret: PQ component (32 bytes) or None
 
     Security:
         - Classical: ECDH with X25519
-        - PQ: KEM encapsulation with ML-KEM-1024
-        - Combined: HKDF(classical_secret || pq_secret)
+        - PQ: KEM encapsulation with ML-KEM-768 (or ML-KEM-1024 in paranoid mode)
+        - Combined: Two-step HKDF with PQXDH transcript binding
         - Secure even if one primitive breaks!
     """
     # Generate ephemeral classical keypair
@@ -145,31 +261,22 @@ def hybrid_encapsulate(
         if not LIBOQS_AVAILABLE:
             # Why: Fail closed to prevent silent downgrade when PQ was requested.
             raise RuntimeError("Post-quantum requested but liboqs is unavailable")
+        algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
         try:
-            pq_kem = oqs.KeyEncapsulation(PQ_ALGORITHM)
+            pq_kem = oqs.KeyEncapsulation(algorithm)
             pq_ciphertext, pq_shared_secret = pq_kem.encap_secret(receiver_pq_public)
         except Exception as e:
             raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
 
-    # Combine secrets with HKDF
-    # Why: HKDF provides a conservative KDF to mix classical+PQ material
-    # and enforces domain separation from other keys.
-    if pq_shared_secret is not None:
-        # Hybrid mode: Classical ⊕ PQ
-        combined_material = classical_shared + pq_shared_secret
-        info = b"meow_hybrid_pq_v1"
-    else:
-        # Classical-only mode
-        combined_material = classical_shared
-        info = b"meow_classical_only_v1"
-
-    # Derive final shared secret
-    # FIX-D1: Use ephemeral public key as HKDF salt instead of empty bytes.
-    # Empty salt weakens HKDF's extract step; using a non-secret but unique
-    # value (the ephemeral public key) ensures proper randomness extraction.
-    shared_secret = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=ephemeral_public_bytes, info=info
-    ).derive(combined_material)
+    # Derive shared secret with PQXDH two-step HKDF + transcript binding
+    shared_secret = _pqxdh_derive(
+        classical_shared=classical_shared,
+        pq_shared_secret=pq_shared_secret,
+        ephemeral_pub=ephemeral_public_bytes,
+        receiver_classical_pub=receiver_classical_public,
+        receiver_pq_pub=receiver_pq_public,
+        pq_ciphertext=pq_ciphertext,
+    )
 
     return shared_secret, ephemeral_public_bytes, pq_ciphertext, pq_shared_secret
 
@@ -180,11 +287,11 @@ def hybrid_decapsulate(
     receiver_keypair: HybridKeyPair,
 ) -> bytes:
     """
-    Hybrid key decapsulation.
+    Hybrid key decapsulation with PQXDH-style transcript binding.
 
     Args:
         ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
-        pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes) or None
+        pq_ciphertext: ML-KEM ciphertext (1088 or 1568 bytes) or None
         receiver_keypair: Receiver's hybrid keypair
 
     Returns:
@@ -192,8 +299,8 @@ def hybrid_decapsulate(
 
     Security:
         - Decapsulates both classical and PQ components
-        - Combines with HKDF (same as encapsulate)
-        - Must match sender's derivation exactly
+        - Two-step HKDF with PQXDH transcript binding (must match encapsulate)
+        - Any key/ciphertext tampering → different transcript → different key
     """
     # Classical key agreement
     sender_pubkey = X25519PublicKey.from_public_bytes(ephemeral_classical_public)
@@ -211,28 +318,29 @@ def hybrid_decapsulate(
         except Exception as e:
             raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
 
-    # Combine secrets (must match encapsulate!)
-    if pq_shared_secret is not None:
-        # Hybrid mode
-        combined_material = classical_shared + pq_shared_secret
-        info = b"meow_hybrid_pq_v1"
-    else:
-        # Classical-only mode
-        combined_material = classical_shared
-        info = b"meow_classical_only_v1"
+    # Get receiver's public keys for transcript binding
+    receiver_classical_pub, receiver_pq_pub = receiver_keypair.export_public_keys()
 
-    # Derive final shared secret
-    # FIX-D1: Use ephemeral public key as HKDF salt (must match encapsulate).
-    shared_secret = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=ephemeral_classical_public, info=info
-    ).derive(combined_material)
+    # Derive shared secret with PQXDH two-step HKDF + transcript binding
+    # (must match encapsulate exactly)
+    shared_secret = _pqxdh_derive(
+        classical_shared=classical_shared,
+        pq_shared_secret=pq_shared_secret,
+        ephemeral_pub=ephemeral_classical_public,
+        receiver_classical_pub=receiver_classical_pub,
+        receiver_pq_pub=receiver_pq_pub,
+        pq_ciphertext=pq_ciphertext,
+    )
 
     return shared_secret
 
 
-def check_pq_available() -> Tuple[bool, str]:
+def check_pq_available(paranoid: bool = False) -> Tuple[bool, str]:
     """
     Check if post-quantum crypto is available.
+
+    Args:
+        paranoid: Check for ML-KEM-1024 instead of ML-KEM-768
 
     Returns:
         Tuple of (available, message)
@@ -240,25 +348,29 @@ def check_pq_available() -> Tuple[bool, str]:
     if not LIBOQS_AVAILABLE:
         return False, "liboqs-python not installed (pip install liboqs-python)"
 
+    algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
+    variant_name = "ML-KEM-1024" if paranoid else "ML-KEM-768"
+
     try:
         # Test KEM creation
-        test_kem = oqs.KeyEncapsulation(PQ_ALGORITHM)
-        return True, f"ML-KEM-1024 available"
+        test_kem = oqs.KeyEncapsulation(algorithm)
+        return True, f"{variant_name} available"
     except Exception as e:
-        return False, f"ML-KEM-1024 unavailable: {e}"
+        return False, f"{variant_name} unavailable: {e}"
 
 
 # Example usage
 if __name__ == "__main__":
-    print("Post-Quantum Hybrid Crypto Test")
-    print("=" * 50)
+    print("Post-Quantum Hybrid Crypto Test (PQXDH-style)")
+    print("=" * 60)
 
     # Check PQ availability
-    pq_available, pq_message = check_pq_available()
-    print(f"\nPost-Quantum Status: {pq_message}")
-    print(f"Available: {pq_available}")
+    pq_768_available, pq_768_message = check_pq_available(paranoid=False)
+    pq_1024_available, pq_1024_message = check_pq_available(paranoid=True)
+    print(f"\nML-KEM-768 Status: {pq_768_message}")
+    print(f"ML-KEM-1024 Status: {pq_1024_message}")
 
-    if not pq_available:
+    if not pq_768_available:
         print(f"\n⚠️  Install with: pip install liboqs-python")
         print(f"   Falling back to classical-only mode...")
 
@@ -287,43 +399,48 @@ if __name__ == "__main__":
     print(f"   Recovered secret: {recovered_secret.hex()[:32]}...")
     print(f"   Match: {shared_secret == recovered_secret}")
 
-    # Test hybrid mode if available
-    if pq_available:
-        print(f"\n2. Hybrid mode (X25519 + ML-KEM-1024):")
+    # Test ML-KEM-768 (default)
+    if pq_768_available:
+        print(f"\n2. Hybrid mode (X25519 + ML-KEM-768, Signal PQXDH default):")
 
-        receiver_hybrid = HybridKeyPair(use_pq=True)
-        classical_pub_h, pq_pub_h = receiver_hybrid.export_public_keys()
+        receiver_768 = HybridKeyPair(use_pq=True, paranoid=False)
+        classical_pub_768, pq_pub_768 = receiver_768.export_public_keys()
 
         print(
-            f"   Classical public key: {classical_pub_h.hex()[:32]}... ({len(classical_pub_h)} bytes)"
+            f"   Classical public key: {classical_pub_768.hex()[:32]}... ({len(classical_pub_768)} bytes)"
         )
         print(
-            f"   PQ public key: {pq_pub_h.hex()[:32] if pq_pub_h else None}... ({len(pq_pub_h) if pq_pub_h else 0} bytes)"
-        )
-        print(f"   Is hybrid: {receiver_hybrid.is_hybrid()}")
-
-        # Encapsulate
-        shared_secret_h, ephemeral_pub_h, pq_ct_h, pq_ss_h = hybrid_encapsulate(
-            classical_pub_h, pq_pub_h
+            f"   PQ public key: {pq_pub_768.hex()[:32] if pq_pub_768 else None}... ({len(pq_pub_768) if pq_pub_768 else 0} bytes)"
         )
 
-        print(f"\n   Encapsulation:")
-        print(f"   Shared secret: {shared_secret_h.hex()[:32]}...")
-        print(f"   Ephemeral public: {ephemeral_pub_h.hex()[:32]}...")
+        shared_768, eph_768, pq_ct_768, _ = hybrid_encapsulate(
+            classical_pub_768, pq_pub_768, paranoid=False
+        )
+        recovered_768 = hybrid_decapsulate(eph_768, pq_ct_768, receiver_768)
+        print(f"   PQ ciphertext size: {len(pq_ct_768)} bytes")
+        print(f"   Match: {shared_768 == recovered_768}")
+
+    # Test ML-KEM-1024 (paranoid)
+    if pq_1024_available:
+        print(f"\n3. Paranoid mode (X25519 + ML-KEM-1024):")
+
+        receiver_1024 = HybridKeyPair(use_pq=True, paranoid=True)
+        classical_pub_1024, pq_pub_1024 = receiver_1024.export_public_keys()
+
         print(
-            f"   PQ ciphertext: {pq_ct_h.hex()[:32] if pq_ct_h else None}... ({len(pq_ct_h) if pq_ct_h else 0} bytes)"
+            f"   Classical public key: {classical_pub_1024.hex()[:32]}... ({len(classical_pub_1024)} bytes)"
+        )
+        print(
+            f"   PQ public key: {pq_pub_1024.hex()[:32] if pq_pub_1024 else None}... ({len(pq_pub_1024) if pq_pub_1024 else 0} bytes)"
         )
 
-        # Decapsulate
-        recovered_secret_h = hybrid_decapsulate(ephemeral_pub_h, pq_ct_h, receiver_hybrid)
+        shared_1024, eph_1024, pq_ct_1024, _ = hybrid_encapsulate(
+            classical_pub_1024, pq_pub_1024, paranoid=True
+        )
+        recovered_1024 = hybrid_decapsulate(eph_1024, pq_ct_1024, receiver_1024)
+        print(f"   PQ ciphertext size: {len(pq_ct_1024)} bytes")
+        print(f"   Match: {shared_1024 == recovered_1024}")
 
-        print(f"\n   Decapsulation:")
-        print(f"   Recovered secret: {recovered_secret_h.hex()[:32]}...")
-        print(f"   Match: {shared_secret_h == recovered_secret_h}")
-
-        print(f"\n✅ Hybrid post-quantum crypto working!")
-    else:
-        print(f"\n⚠️  Hybrid mode not tested (liboqs unavailable)")
-
-    print(f"\n✅ Post-quantum module functional!")
-    print(f"   Note: Falls back gracefully to classical-only if PQ unavailable")
+    print(f"\n✅ PQXDH-style hybrid crypto working!")
+    print(f"   Default: ML-KEM-768 (Signal parity)")
+    print(f"   Paranoid: ML-KEM-1024 (NIST level 5)")

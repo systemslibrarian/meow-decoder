@@ -102,7 +102,8 @@ def test_crypto_config_defaults():
     assert config.cipher == "aes-256-gcm"
     assert config.enable_forward_secrecy is True
     assert config.enable_pq is True
-    assert config.kyber_variant == "kyber1024"
+    assert config.kyber_variant == "kyber768"
+    assert config.pq_paranoid is False
 
 
 def test_crypto_config_ultra_hardened():

@@ -70,9 +70,10 @@ def encode_file(
         keyfile: Optional keyfile content
         forward_secrecy: Enable forward secrecy (MEOW3, default True)
         receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
-        receiver_pq_public: Optional ML-KEM-1024 public key for PQ hybrid mode (1568 bytes).
+        receiver_pq_public: Optional ML-KEM public key for PQ hybrid mode.
+            ML-KEM-768: 1184 bytes (default), ML-KEM-1024: 1568 bytes (paranoid).
             Required when use_pq=True and receiver_public_key is provided.
-        use_pq: Enable post-quantum hybrid mode (MEOW4)
+        use_pq: Enable post-quantum hybrid mode (MEOW5 default, MEOW4 paranoid)
         stego_level: Steganography level (0=off, 1-4=stealth levels)
         carrier_images: Optional list of carrier image paths (your cat photos!)
         stego_green: Restrict embedding to green-dominant pixels only (cosmetic)
@@ -116,10 +117,17 @@ def encode_file(
             )
 
     # Select crypto mode based on flags
+    # Determine PQ paranoid mode from config
+    _pq_paranoid = getattr(config, "pq_paranoid", False) if config else False
     if use_pq:
-        manifest_version = 4  # MEOW4: Hybrid PQ
-        if verbose:
-            print("Using MEOW4 manifest (Post-Quantum Hybrid)")
+        if _pq_paranoid:
+            manifest_version = 4  # MEOW4: ML-KEM-1024 (paranoid)
+            if verbose:
+                print("Using MEOW4 manifest (Post-Quantum Hybrid, ML-KEM-1024 paranoid)")
+        else:
+            manifest_version = 5  # MEOW5: ML-KEM-768 (Signal PQXDH default)
+            if verbose:
+                print("Using MEOW5 manifest (Post-Quantum Hybrid, ML-KEM-768)")
     elif forward_secrecy and receiver_public_key:
         manifest_version = 3  # MEOW3: Forward Secrecy with X25519
         if verbose:
@@ -146,9 +154,16 @@ def encode_file(
         print(f"  Size: {len(raw_data):,} bytes")
 
     # FIX-D3: Compute mode_byte from manifest_version and duress state
-    from meow_decoder.crypto import MODE_MEOW2, MODE_MEOW3, MODE_MEOW4, MODE_DURESS, MODE_RATCHET
+    from meow_decoder.crypto import (
+        MODE_MEOW2,
+        MODE_MEOW3,
+        MODE_MEOW4,
+        MODE_MEOW5,
+        MODE_DURESS,
+        MODE_RATCHET,
+    )
 
-    _version_to_mode = {2: MODE_MEOW2, 3: MODE_MEOW3, 4: MODE_MEOW4}
+    _version_to_mode = {2: MODE_MEOW2, 3: MODE_MEOW3, 4: MODE_MEOW4, 5: MODE_MEOW5}
     _mode = _version_to_mode.get(manifest_version, MODE_MEOW3)
     if duress_password:
         _mode |= MODE_DURESS
@@ -198,13 +213,14 @@ def encode_file(
         if receiver_pq_public is None:
             raise ValueError(
                 "Post-quantum hybrid mode (use_pq=True) requires receiver_pq_public "
-                "(ML-KEM-1024 public key, 1568 bytes). PQ mode cannot silently fall "
+                "(ML-KEM public key). PQ mode cannot silently fall "
                 "back to classical-only. Either provide a PQ public key or disable PQ mode."
             )
 
         pq_shared_secret, eph_classical_pub, pq_ciphertext, _ = hybrid_encapsulate(
             receiver_classical_public=receiver_public_key,
             receiver_pq_public=receiver_pq_public,
+            paranoid=_pq_paranoid,
         )
 
         if pq_ciphertext is not None:
@@ -219,10 +235,10 @@ def encode_file(
             # have ephemeral_public_key=None and the decoder couldn't reconstruct
             # the hybrid shared secret.
             encrypt_kwargs["pq_ephemeral_public_key"] = eph_classical_pub
+            _pq_variant = "ML-KEM-1024" if _pq_paranoid else "ML-KEM-768"
+            _ct_size = len(pq_ciphertext)
             if verbose:
-                print(
-                    f"  🔮 PQ hybrid: ML-KEM-1024 ciphertext generated ({len(pq_ciphertext)} bytes)"
-                )
+                print(f"  🔮 PQ hybrid: {_pq_variant} ciphertext generated ({_ct_size} bytes)")
         else:
             # FIX-GPT-1: This should never happen since we validated receiver_pq_public above.
             # If hybrid_encapsulate returned None pq_ciphertext despite receiving a PQ key,
@@ -947,7 +963,17 @@ Examples:
         "--pq",
         "--post-quantum",
         action="store_true",
-        help="Enable post-quantum hybrid mode (MEOW4, requires liboqs)",
+        help="Enable post-quantum hybrid mode (MEOW5 ML-KEM-768 default, requires liboqs)",
+    )
+    parser.add_argument(
+        "--pq-paranoid",
+        action="store_true",
+        help="Use ML-KEM-1024 (NIST Level 5) instead of ML-KEM-768 for PQ mode (MEOW4)",
+    )
+    parser.add_argument(
+        "--receiver-pq-pubkey",
+        type=Path,
+        help="Path to receiver ML-KEM public key for post-quantum hybrid mode",
     )
 
     # Duress mode (coercion resistance)
@@ -981,6 +1007,11 @@ Examples:
         "--generate-keys",
         action="store_true",
         help="Generate receiver keypair for forward secrecy and exit",
+    )
+    parser.add_argument(
+        "--generate-pq-keys",
+        action="store_true",
+        help="Generate receiver PQ + X25519 keypair for post-quantum hybrid mode and exit",
     )
     parser.add_argument(
         "--key-output-dir",
@@ -1096,6 +1127,86 @@ Examples:
             print(f"\n❌ Key generation failed: {e}")
             return 1
 
+    # Handle PQ + X25519 hybrid key generation
+    if getattr(args, "generate_pq_keys", False):
+        print("\n🔮 GENERATING PQ HYBRID KEYPAIR (ML-KEM + X25519)")
+        print("=" * 60)
+        try:
+            from .pq_hybrid import HybridKeyPair, LIBOQS_AVAILABLE
+
+            if not LIBOQS_AVAILABLE:
+                print("❌ liboqs is not installed. Install with: pip install liboqs-python")
+                return 1
+
+            paranoid = getattr(args, "pq_paranoid", False)
+            variant = "ML-KEM-1024 (NIST Level 5)" if paranoid else "ML-KEM-768 (NIST Level 3)"
+            print(f"  Variant: {variant}")
+
+            keypair = HybridKeyPair(use_pq=True, paranoid=paranoid)
+            if not keypair.is_hybrid():
+                print("❌ PQ key generation failed (liboqs error)")
+                return 1
+
+            classical_pub, pq_pub = keypair.export_public_keys()
+
+            # Save PQ public key
+            pq_pub_file = args.key_output_dir / "receiver_pq_public.key"
+            with open(pq_pub_file, "wb") as f:
+                f.write(pq_pub)
+
+            # Save PQ secret key (raw bytes from oqs)
+            pq_secret_file = args.key_output_dir / "receiver_pq_secret.key"
+            pq_secret_bytes = keypair.pq_kem.export_secret_key()
+            with open(pq_secret_file, "wb") as f:
+                f.write(pq_secret_bytes)
+            import os
+
+            os.chmod(str(pq_secret_file), 0o600)
+
+            # Also generate classical X25519 keypair using existing helper
+            from .x25519_forward_secrecy import save_receiver_keypair
+
+            # Serialize the X25519 keys from the hybrid keypair
+            from cryptography.hazmat.primitives import serialization
+
+            classical_priv_file = args.key_output_dir / "receiver_private.pem"
+            classical_pub_file = args.key_output_dir / "receiver_public.key"
+
+            # Get password for private key encryption
+
+            if sys.stdin is not None and not sys.stdin.isatty():
+                pk_password = sys.stdin.readline().rstrip("\n")
+                confirm = sys.stdin.readline().rstrip("\n")
+            else:
+                pk_password = getpass("Enter password to protect X25519 private key: ")
+                confirm = getpass("Confirm password: ")
+            if pk_password != confirm:
+                print("❌ Passwords don't match")
+                return 1
+
+            save_receiver_keypair(
+                keypair.classical_private,
+                keypair.classical_public,
+                str(classical_priv_file),
+                str(classical_pub_file),
+                pk_password,
+            )
+
+            print(f"\n✅ PQ hybrid keypair generated!")
+            print(f"\n📤 Share these PUBLIC keys with senders:")
+            print(f"   X25519:  {classical_pub_file}")
+            print(f"   ML-KEM:  {pq_pub_file} ({len(pq_pub)} bytes)")
+            print(f"\n🔒 Keep these PRIVATE keys SECRET:")
+            print(f"   X25519:  {classical_priv_file}")
+            print(f"   ML-KEM:  {pq_secret_file} ({len(pq_secret_bytes)} bytes)")
+            return 0
+        except Exception as e:
+            print(f"\n❌ PQ key generation failed: {e}")
+            import traceback
+
+            traceback.print_exc()
+            return 1
+
     # Easter egg: summon void cat (doesn't require input/output)
     if args.summon_void_cat:
         print("""
@@ -1144,6 +1255,9 @@ Nothing to see here.
             print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
             print("⚠️  Key derivation will take several seconds.\n")
             args.wipe_source = True
+            # High-security implies PQ paranoid (ML-KEM-1024)
+            args.pq = True
+            args.pq_paranoid = True
         except ImportError:
             print("Warning: High-security module not available, using defaults.")
 
@@ -1229,6 +1343,35 @@ Nothing to see here. 😶‍🌫️
         print(f"      1. Generate keys: meow-encode --generate-keys")
         print(f"      2. Use: --receiver-pubkey receiver_public.key")
 
+    # Load receiver PQ public key for post-quantum hybrid mode
+    receiver_pq_public = None
+    if args.pq and getattr(args, "receiver_pq_pubkey", None):
+        try:
+            with open(args.receiver_pq_pubkey, "rb") as f:
+                receiver_pq_public = f.read()
+
+            _paranoid = getattr(args, "pq_paranoid", False)
+            _expected_size = 1568 if _paranoid else 1184
+            _variant_name = "ML-KEM-1024" if _paranoid else "ML-KEM-768"
+            if len(receiver_pq_public) != _expected_size:
+                print(
+                    f"\n❌ Error: Receiver PQ public key must be {_expected_size} bytes "
+                    f"for {_variant_name}, got {len(receiver_pq_public)}"
+                )
+                print(f"   Generate PQ keys with: meow-encode --generate-pq-keys")
+                sys.exit(1)
+
+            print(f"\n✅ Post-quantum hybrid ENABLED with {_variant_name}")
+            print(f"   🔮 Using receiver PQ public key: {args.receiver_pq_pubkey}")
+        except FileNotFoundError:
+            print(f"\n❌ Error: Receiver PQ public key not found: {args.receiver_pq_pubkey}")
+            print(f"   Generate PQ keys with: meow-encode --generate-pq-keys")
+            sys.exit(1)
+    elif args.pq and receiver_public_key and not getattr(args, "receiver_pq_pubkey", None):
+        print("\n⚠️  --pq requires --receiver-pq-pubkey (ML-KEM public key)")
+        print("   Generate PQ keys: meow-encode --generate-pq-keys")
+        sys.exit(1)
+
     # Forward secrecy status
     if args.forward_secrecy:
         if receiver_public_key:
@@ -1242,7 +1385,10 @@ Nothing to see here. 😶‍🌫️
             print("ℹ️  Forward secrecy: DISABLED (using MEOW2)")
 
         if args.pq:
-            print("🔮 Post-quantum mode: ENABLED (MEOW4) [EXPERIMENTAL]")
+            _pq_label = (
+                "MEOW4 ML-KEM-1024" if getattr(args, "pq_paranoid", False) else "MEOW5 ML-KEM-768"
+            )
+            print(f"🔮 Post-quantum mode: ENABLED ({_pq_label})")
 
         if args.catnip:
             print(f"🌿 Catnip flavor: {args.catnip.upper()} (meow!)")
@@ -1438,6 +1584,7 @@ Nothing to see here. 😶‍🌫️
         qr_box_size=args.qr_box_size,
         qr_border=args.qr_border,
         fps=args.fps,
+        pq_paranoid=getattr(args, "pq_paranoid", False),
     )
 
     # Encode file
@@ -1458,6 +1605,7 @@ Nothing to see here. 😶‍🌫️
                         keyfile=keyfile,
                         forward_secrecy=args.forward_secrecy,
                         receiver_public_key=receiver_public_key,  # Forward secrecy support
+                        receiver_pq_public=receiver_pq_public,  # PQ hybrid support
                         yubikey=args.yubikey,
                         yubikey_slot=args.yubikey_slot,
                         yubikey_pin=args.yubikey_pin,
@@ -1491,6 +1639,7 @@ Nothing to see here. 😶‍🌫️
                 keyfile=keyfile,
                 forward_secrecy=args.forward_secrecy,
                 receiver_public_key=receiver_public_key,  # Forward secrecy support
+                receiver_pq_public=receiver_pq_public,  # PQ hybrid support
                 yubikey=args.yubikey,
                 yubikey_slot=args.yubikey_slot,
                 yubikey_pin=args.yubikey_pin,

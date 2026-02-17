@@ -11,7 +11,8 @@ This document defines the **byte‑level formats**, state transitions, and **fai
 ### Manifest versions (MAGIC)
 - **MEOW2**: Legacy password‑only (backward compatibility decode only).
 - **MEOW3**: Default for password‑only and X25519 forward secrecy.
-- **MEOW4**: Reserved for post‑quantum hybrid (PQ ciphertext present).
+- **MEOW4**: Post‑quantum hybrid paranoid (ML-KEM-1024 + X25519, NIST Level 5).
+- **MEOW5**: Post‑quantum hybrid default (ML-KEM-768 + X25519, Signal PQXDH parity).
 
 ### Modes
 - **Password‑only:** no receiver public key.
@@ -49,12 +50,12 @@ AAD is bound to ciphertext and **must match exactly** at decryption.
 ```
 AAD = LE64(orig_len) || LE64(comp_len) || salt || sha256 || MAGIC
 AAD += ephemeral_public_key (32 bytes, if present)
-AAD += pq_ciphertext (1568 bytes, if present — MEOW4)
+AAD += pq_ciphertext (1088 bytes for MEOW5 / 1568 bytes for MEOW4, if present)
 ```
 
 - Field order is deterministic (version-aware).
 - If AAD verification fails, decryption MUST fail and emit no plaintext.
-- Backward compatible with MEOW2/MEOW3/MEOW4 manifests.
+- Backward compatible with MEOW2/MEOW3/MEOW4/MEOW5 manifests.
 
 ---
 
@@ -170,37 +171,44 @@ All failures must be **safe and boring**: no partial plaintext and no detailed o
 
 ---
 
-## 11. MEOW4 Post‑Quantum Hybrid Mode
+## 11. MEOW5/MEOW4 Post‑Quantum PQXDH Hybrid Mode
 
 ### 11.1 KEM Algorithm
-- **Algorithm:** ML‑KEM‑1024 (FIPS 203 / Kyber1024).
-- **Ciphertext size:** 1568 bytes (ML‑KEM‑1024).
-- **Shared secret:** 32 bytes.
+- **MEOW5 (default):** ML‑KEM‑768 (FIPS 203 / Kyber768, Signal PQXDH parity).
+  - Ciphertext: 1088 bytes. Public key: 1184 bytes. Shared secret: 32 bytes.
+- **MEOW4 (paranoid):** ML‑KEM‑1024 (FIPS 203 / Kyber1024, NIST Level 5).
+  - Ciphertext: 1568 bytes. Public key: 1568 bytes. Shared secret: 32 bytes.
 
-The MEOW4 encode pipeline is fully wired end-to-end:
-`encode.py` calls `hybrid_encapsulate()` to produce the KEM ciphertext
-and combined shared secret, which is passed to `encrypt_file_bytes()`
-as `precomputed_key`.  The decoder (`decode_gif.py`) calls
-`hybrid_decapsulate()` when `manifest.pq_ciphertext` is present.
+The encode pipeline is fully wired end-to-end:
+`encode.py` calls `hybrid_encapsulate(paranoid=False)` for MEOW5 or
+`hybrid_encapsulate(paranoid=True)` for MEOW4. The decoder
+(`decode_gif.py`) calls `hybrid_decapsulate()` when
+`manifest.pq_ciphertext` is present.
 
-### 11.2 Hybrid Key Derivation
+### 11.2 PQXDH Hybrid Key Derivation (Signal-Style)
 
 ```
-classical_ss = X25519(ephemeral_sk, receiver_pk)        // 32 bytes
-pq_ss        = ML-KEM-1024.Decaps(receiver_sk, kem_ct)  // 32 bytes
-combined_ikm = classical_ss || pq_ss                     // 64 bytes
+// Step 1: Classical and quantum shared secrets
+classical_ss = X25519(ephemeral_sk, receiver_pk)           // 32 bytes
+pq_ss        = ML-KEM-768.Decaps(receiver_sk, kem_ct)      // 32 bytes (or ML-KEM-1024)
+combined_ikm = classical_ss || pq_ss                        // 64 bytes
 
-shared_secret = HKDF-SHA256(
-    salt  = ephemeral_public_key,
-    ikm   = combined_ikm,
-    info  = "meow_hybrid_pq_v1",
-    len   = 32
+// Step 2: PQXDH two-step HKDF with transcript binding
+transcript   = SHA256(
+    "meow_pqxdh_transcript_v1" ||
+    ephemeral_public_key ||
+    receiver_classical_public_key ||
+    receiver_pq_public_key ||
+    pq_ciphertext
 )
+PRK          = HMAC-SHA256(salt=0x00*32, IKM=combined_ikm)  // Extract step
+shared_secret = HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript, 32)  // Expand step
 ```
 
-- Classical‑only fallback uses `info = "meow_classical_only_v1"`.
+- Classical‑only fallback uses `info = "meow_classical_only_v1"` (single-step HKDF).
+- Transcript hash binds ALL exchanged public values into the key derivation.
 - The combined secret provides IND‑CCA2 security if **either**
-  X25519 or ML‑KEM‑1024 is unbroken (dual‑PRF combiner via HKDF).
+  X25519 or ML‑KEM is unbroken (dual‑PRF combiner via HKDF).
 
 ### 11.3 KEM Ciphertext Binding
 
@@ -209,7 +217,7 @@ via HMAC‑SHA256 over `MANIFEST_CORE_WITH_OPTIONALS` (§5), which includes
 the PQ ciphertext bytes.
 
 ```
-HMAC_INPUT includes: ... || EPHEMERAL_PK (32) || PQ_CIPHERTEXT (1568)
+HMAC_INPUT includes: ... || EPHEMERAL_PK (32) || PQ_CIPHERTEXT (1088 or 1568)
 ```
 
 > **Note:** The KEM ciphertext is now also bound in AES‑GCM AAD
@@ -220,14 +228,17 @@ HMAC_INPUT includes: ... || EPHEMERAL_PK (32) || PQ_CIPHERTEXT (1568)
 
 ### 11.4 Downgrade Prevention
 
-A MEOW4 session **MUST NOT** silently fall back to MEOW3.
+A MEOW5/MEOW4 session **MUST NOT** silently fall back to MEOW3.
 
-- The encoder selects the manifest version before encryption; a MEOW4
-  manifest includes the 1568‑byte PQ ciphertext field, making its wire
-  length (≥1747 bytes) unambiguously distinguishable from MEOW3 (147 or
-  179 bytes).
+- The encoder selects the manifest version before encryption; a MEOW5
+  manifest includes the 1088‑byte PQ ciphertext field, and a MEOW4
+  manifest includes the 1568‑byte field, making their wire lengths
+  unambiguously distinguishable from MEOW3 (147 or 179 bytes).
+- Trailing bytes validation: if the mode byte indicates MEOW5 but
+  the manifest contains MEOW4-sized data (or vice versa), the
+  unconsumed trailing bytes are rejected.
 - If the decoder receives a manifest whose length does not include the PQ
-  field, it MUST parse it as MEOW3 (not MEOW4).  The expected combined
+  field, it MUST parse it as MEOW3 (not MEOW4/MEOW5).  The expected combined
   key will not match the AEAD tag, causing hard fail.
 
 > **Partial mitigation (2026‑02‑16):** The decoder now calls

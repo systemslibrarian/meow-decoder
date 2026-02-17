@@ -65,9 +65,10 @@ class HighSecurityConfig:
     argon2_iterations: int = HIGH_SECURITY_ARGON2_ITERATIONS
     argon2_parallelism: int = HIGH_SECURITY_ARGON2_PARALLELISM
 
-    # Post-quantum - enabled
+    # Post-quantum - enabled (paranoid = ML-KEM-1024)
     enable_pq: bool = True
     kyber_variant: str = "kyber1024"
+    pq_paranoid: bool = True  # ML-KEM-1024 (maximum security level 5)
 
     # Forward secrecy - aggressive
     enable_forward_secrecy: bool = True
@@ -374,6 +375,7 @@ def apply_high_security_to_config(config: MeowConfig) -> MeowConfig:
     config.crypto.argon2_parallelism = hs.argon2_parallelism
     config.crypto.enable_pq = hs.enable_pq
     config.crypto.kyber_variant = hs.kyber_variant
+    config.crypto.pq_paranoid = hs.pq_paranoid
     config.crypto.enable_forward_secrecy = hs.enable_forward_secrecy
     config.crypto.ratchet_interval = hs.ratchet_interval
 

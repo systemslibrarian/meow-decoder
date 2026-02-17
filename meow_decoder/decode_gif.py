@@ -579,9 +579,11 @@ def decode_gif(
         if manifest.pq_ciphertext is not None:
             if receiver_pq_keypair is None:
                 raise ValueError(
-                    "Manifest contains PQ ciphertext (MEOW4 mode) but no "
+                    "Manifest contains PQ ciphertext (MEOW4/MEOW5 mode) but no "
                     "receiver_pq_keypair was provided.  Cannot decrypt without "
-                    "the receiver's ML-KEM-1024 + X25519 hybrid keypair."
+                    "the receiver's ML-KEM + X25519 hybrid keypair.  Use "
+                    "--receiver-pq-pubkey and --receiver-pq-secret to provide "
+                    "the PQ keypair generated with --generate-pq-keys."
                 )
             if manifest.ephemeral_public_key is None:
                 raise ValueError(
@@ -603,8 +605,9 @@ def decode_gif(
             pq_private_key = None
 
             if verbose:
+                _pq_variant = "ML-KEM-768" if len(manifest.pq_ciphertext) == 1088 else "ML-KEM-1024"
                 print(
-                    f"  🔮 PQ hybrid: Decapsulated ML-KEM-1024 ciphertext "
+                    f"  🔮 PQ hybrid: Decapsulated {_pq_variant} ciphertext "
                     f"({len(manifest.pq_ciphertext)} bytes)"
                 )
 
@@ -751,6 +754,16 @@ Examples:
     )
     parser.add_argument(
         "--receiver-privkey-password", type=str, help="Password for encrypted receiver private key"
+    )
+    parser.add_argument(
+        "--receiver-pq-pubkey",
+        type=Path,
+        help="Path to receiver ML-KEM public key for PQ hybrid decryption (raw bytes)",
+    )
+    parser.add_argument(
+        "--receiver-pq-secret",
+        type=Path,
+        help="Path to receiver ML-KEM secret key for PQ hybrid decryption (raw bytes)",
     )
 
     # Decoding parameters
@@ -1054,6 +1067,78 @@ Examples:
                 traceback.print_exc()
             sys.exit(1)
 
+    # Load PQ hybrid keypair if specified
+    receiver_pq_keypair = None
+    pq_pub_path = getattr(args, "receiver_pq_pubkey", None)
+    pq_secret_path = getattr(args, "receiver_pq_secret", None)
+    if pq_pub_path or pq_secret_path:
+        if not pq_pub_path or not pq_secret_path:
+            print(
+                "Error: Both --receiver-pq-pubkey and --receiver-pq-secret are required "
+                "for PQ hybrid decryption.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        try:
+            from .pq_hybrid import HybridKeyPair, LIBOQS_AVAILABLE
+
+            if not LIBOQS_AVAILABLE:
+                print(
+                    "Error: liboqs is not installed. Install with: pip install liboqs-python",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            import oqs
+
+            with open(pq_pub_path, "rb") as f:
+                pq_pub_bytes = f.read()
+            with open(pq_secret_path, "rb") as f:
+                pq_secret_bytes = f.read()
+
+            # Determine variant from public key size
+            if len(pq_pub_bytes) == 1184:
+                pq_algorithm = "ML-KEM-768"
+                paranoid = False
+            elif len(pq_pub_bytes) == 1568:
+                pq_algorithm = "ML-KEM-1024"
+                paranoid = True
+            else:
+                print(
+                    f"Error: Unexpected ML-KEM public key size: {len(pq_pub_bytes)} bytes. "
+                    f"Expected 1184 (ML-KEM-768) or 1568 (ML-KEM-1024).",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            # Reconstruct HybridKeyPair with loaded keys
+            receiver_pq_keypair = HybridKeyPair(use_pq=False, paranoid=paranoid)
+            receiver_pq_keypair.pq_kem = oqs.KeyEncapsulation(pq_algorithm, pq_secret_bytes)
+            receiver_pq_keypair.pq_public = pq_pub_bytes
+
+            # Use the already-loaded X25519 private key if available
+            if receiver_private_key is not None:
+                from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+
+                receiver_pq_keypair.classical_private = X25519PrivateKey.from_private_bytes(
+                    receiver_private_key
+                )
+                receiver_pq_keypair.classical_public = (
+                    receiver_pq_keypair.classical_private.public_key()
+                )
+
+            if args.verbose:
+                print(f"✅ Loaded PQ hybrid keypair ({pq_algorithm})")
+                print(f"   Public key:  {pq_pub_path} ({len(pq_pub_bytes)} bytes)")
+                print(f"   Secret key:  {pq_secret_path} ({len(pq_secret_bytes)} bytes)")
+        except Exception as e:
+            print(f"Error loading PQ keypair: {e}", file=sys.stderr)
+            if args.verbose:
+                import traceback
+
+                traceback.print_exc()
+            sys.exit(1)
+
     # Create duress config (opt-in)
     d_mode = DuressMode.PANIC if args.duress_mode == "panic" else DuressMode.DECOY
     duress_enabled = bool(args.enable_duress or args.enable_panic or args.duress_mode == "panic")
@@ -1077,6 +1162,7 @@ Examples:
             "config": config,
             "keyfile": keyfile,
             "receiver_private_key": receiver_private_key,  # Forward secrecy support
+            "receiver_pq_keypair": receiver_pq_keypair,  # PQ hybrid support (MEOW4/MEOW5)
             "verbose": args.verbose,
             "tamper_report": t_report,
         }

@@ -179,7 +179,7 @@ start secret.gif     # Windows
 | 📱 **Air-Gap Friendly** | Transfer via any camera, no network needed |
 | 🛡️ **Forward Secrecy** | X25519 ephemeral keys (DEFAULT) |
 | 🐈‍⬛ **Schrödinger Mode** | Dual-secret plausible deniability |
-| 🔮 **Post-Quantum** | ML-KEM-1024 (Kyber) + ML-DSA-65 (Dilithium) hybrid (DEFAULT) |
+| 🔮 **Post-Quantum** | ML-KEM-768 (default, Signal PQXDH) / ML-KEM-1024 (paranoid) + ML-DSA-65 hybrid |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss in multi-frame QR (Python + JavaScript) |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
 | 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--use-hardware-key`) |
@@ -243,7 +243,7 @@ The WASM demo includes **8 encryption modes**:
 |------|-------------|----------|
 | 🔐 **Standard** | AES-256-GCM + Argon2id | Full parity with CLI (configurable security levels) |
 | 🔑 **Forward Secrecy** | X25519 ephemeral key exchange | Full parity with CLI |
-| 🔮 **Post-Quantum** | ML-KEM-1024 + X25519 hybrid | NIST Level 5 quantum resistance |
+| 🔮 **Post-Quantum** | ML-KEM-768 + X25519 PQXDH (default) / ML-KEM-1024 (paranoid) | Quantum resistance |
 | 🐱 **Schrödinger** | Dual-secret plausible deniability | Full parity with CLI |
 | 🖼️ **Stego** | Visual steganography | Browser-limited carrier size |
 | 📹 **Webcam** | Live QR scanner | All payload types supported |
@@ -382,7 +382,7 @@ Meow Decoder builds on ideas from these pioneering projects:
 While inspired by these projects, Meow Decoder adds critical security features:
 
 - 🔐 **Authenticated Encryption** — AES-256-GCM with HMAC (not just encoding)
-- 🔮 **Post-Quantum Ready** — ML-KEM-1024 + ML-DSA-65 hybrid cryptography
+- 🔮 **Post-Quantum Ready** — ML-KEM-768 (default) / ML-KEM-1024 (paranoid) PQXDH hybrid cryptography
 - 🌊 **Loss-Tolerant** — Fountain codes reconstruct from any ~1.5× k frames
 - 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
@@ -461,7 +461,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 | **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
 | **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
 | **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) — Python + JS implementation |
-| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-1024, opt-in with receiver PQ public key) |
+| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-768 default / ML-KEM-1024 paranoid, with receiver PQ public key) |
 
 ### ❌ Does NOT Protect Against
 
@@ -504,7 +504,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
 - **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
 - **Per-Frame Ratchet:** Signal-parity symmetric ratchet (MSR v1.2) with header encryption and key commitment
-- **Post-Quantum:** ML-KEM-1024 + X25519 hybrid (opt-in, requires receiver PQ public key)
+- **Post-Quantum:** ML-KEM-768 + X25519 PQXDH (default) / ML-KEM-1024 (paranoid), requires receiver PQ public key
 - **Signatures:** ML-DSA-65 + Ed25519 hybrid (manifest auth)
 - **Integrity:** HMAC-SHA256 + per-frame MACs + key commitment tags
 - **Error Correction:** Luby Transform fountain codes
@@ -524,7 +524,7 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Per-Frame Forward Secrecy | Symmetric ratchet (MSR v1.2) | ✅ Optional |
 | Header Encryption | HKDF-XOR masked frame indices | ✅ (Signal parity) |
 | Key Commitment | HMAC-SHA256 commitment tags | ✅ (Signal parity) |
-| Post-Quantum | ML-KEM-1024 + ML-DSA-65 | ✅ Default |
+| Post-Quantum | ML-KEM-768/1024 + ML-DSA-65 | ✅ Default (768) / Paranoid (1024) |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
 | Coercion Resistance | Duress passwords | ✅ |
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
@@ -747,7 +747,7 @@ Run the crypto core directly in your browser — no server-side processing, full
 | AES-256-GCM | ✅ | ✅ | Identical AEAD |
 | Argon2id KDF | ✅ 512 MiB/20 iter | ✅ Configurable | Web: 64-512 MiB selectable |
 | X25519 Forward Secrecy | ✅ | ✅ | Full parity |
-| ML-KEM-1024 Post-Quantum | ✅ | ✅ | Requires `--features wasm-pq` |
+| ML-KEM-768/1024 Post-Quantum | ✅ | ✅ | Requires `--features wasm-pq` |
 | Schrödinger Mode | ✅ | ✅ | Dual-secret deniability |
 | Fountain Codes | ✅ | ✅ | Full support (Python + JavaScript, 33% frame loss tolerance) |
 | GIF Animation | ✅ | ✅ | Multi-frame QR with fountain codes (loss-tolerant) |
@@ -782,7 +782,7 @@ The web demo provides **4 security levels** to balance speed vs. brute-force res
 # Standard build (X25519 + AES-256-GCM)
 make build-wasm
 
-# With Post-Quantum ML-KEM-1024 support
+# With Post-Quantum ML-KEM-768/1024 support
 wasm-pack build crypto_core --target web --release --features wasm-pq
 ```
 

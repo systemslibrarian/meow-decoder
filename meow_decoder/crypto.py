@@ -106,7 +106,7 @@ def build_canonical_aad(
         sha256_hash: 32-byte SHA-256 of the original data.
         magic:     Manifest magic bytes (e.g. b"MEOW3").
         ephemeral_public_key: 32-byte X25519 ephemeral key (forward secrecy).
-        pq_ciphertext: ML-KEM-1024 ciphertext (1568 bytes, post-quantum hybrid).
+        pq_ciphertext: ML-KEM ciphertext (1088 or 1568 bytes, post-quantum hybrid).
         mode_byte: FIX-D3: Explicit manifest mode byte (0 = legacy, omitted from AAD).
 
     Returns:
@@ -145,9 +145,9 @@ class Manifest:
         ephemeral_public_key: Optional X25519 ephemeral public key for forward secrecy (32 bytes)
                              None = password-only mode
                              Present = forward secrecy mode
-        pq_ciphertext: Optional ML-KEM-1024 ciphertext for post-quantum (1568 bytes)
+        pq_ciphertext: Optional ML-KEM ciphertext for post-quantum
                       None = classical-only mode
-                      Present = PQ hybrid mode (X25519 + ML-KEM-1024)
+                      Present = PQ hybrid mode (X25519 + ML-KEM-768/1024)
     """
 
     salt: bytes
@@ -170,13 +170,15 @@ class Manifest:
 #   0x00 = legacy manifest (no mode byte; length-inferred, backward compat only)
 #   0x02 = MEOW2: password-only, no forward secrecy
 #   0x03 = MEOW3: X25519 forward secrecy
-#   0x04 = MEOW4: X25519 + ML-KEM-1024 post-quantum hybrid
+#   0x04 = MEOW4: X25519 + ML-KEM-1024 post-quantum hybrid (paranoid)
+#   0x05 = MEOW5: X25519 + ML-KEM-768 post-quantum hybrid (default, Signal parity)
 #   0x10 flag = per-frame symmetric ratchet (OR'd with version)
 #   0x80 flag = duress mode (OR'd with version)
 MODE_LEGACY = 0x00
 MODE_MEOW2 = 0x02
 MODE_MEOW3 = 0x03
 MODE_MEOW4 = 0x04
+MODE_MEOW5 = 0x05  # ML-KEM-768 (Signal PQXDH default)
 MODE_RATCHET = 0x10  # Per-frame symmetric ratchet flag (OR'd with version)
 MODE_DURESS = 0x80  # Duress flag (OR'd with version)
 
@@ -184,16 +186,20 @@ _VALID_MODE_BYTES = {
     MODE_MEOW2,
     MODE_MEOW3,
     MODE_MEOW4,
+    MODE_MEOW5,
     MODE_MEOW2 | MODE_DURESS,
     MODE_MEOW3 | MODE_DURESS,
     MODE_MEOW4 | MODE_DURESS,
+    MODE_MEOW5 | MODE_DURESS,
     # Ratchet combinations (per-frame symmetric ratchet)
     MODE_MEOW2 | MODE_RATCHET,
     MODE_MEOW3 | MODE_RATCHET,
     MODE_MEOW4 | MODE_RATCHET,
+    MODE_MEOW5 | MODE_RATCHET,
     MODE_MEOW2 | MODE_RATCHET | MODE_DURESS,
     MODE_MEOW3 | MODE_RATCHET | MODE_DURESS,
     MODE_MEOW4 | MODE_RATCHET | MODE_DURESS,
+    MODE_MEOW5 | MODE_RATCHET | MODE_DURESS,
 }
 
 
@@ -418,7 +424,7 @@ def encrypt_file_bytes(
         precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
                         If provided, skips Argon2id derivation and uses this key
         precomputed_salt: Salt used for precomputed_key (required if precomputed_key provided)
-        pq_ciphertext: Optional ML-KEM-1024 ciphertext for AAD binding
+        pq_ciphertext: Optional ML-KEM ciphertext for AAD binding
         pq_ephemeral_public_key: Optional X25519 ephemeral public key from PQ
                                 hybrid_encapsulate().  When provided in precomputed_key
                                 mode, it is stored in the manifest and included in
@@ -896,8 +902,11 @@ def pack_manifest(m: Manifest) -> bytes:
 
     # Add PQ ciphertext if PQ hybrid enabled
     if m.pq_ciphertext is not None:
-        if len(m.pq_ciphertext) != 1568:
-            raise ValueError(f"PQ ciphertext must be 1568 bytes, got {len(m.pq_ciphertext)}")
+        if len(m.pq_ciphertext) not in (1088, 1568):
+            raise ValueError(
+                f"PQ ciphertext must be 1088 (ML-KEM-768) or 1568 (ML-KEM-1024) bytes, "
+                f"got {len(m.pq_ciphertext)}"
+            )
         base = base + m.pq_ciphertext
 
     # Add duress tag if present (32 bytes) - ALWAYS LAST for easy detection
@@ -927,25 +936,33 @@ def unpack_manifest(b: bytes) -> Manifest:
         - 115 bytes = password-only mode (MEOW2, legacy)
         - 147 bytes = forward secrecy mode (MEOW3)
         - 179 bytes = forward secrecy + duress (MEOW3 + duress tag)
-        - 1715 bytes = PQ hybrid mode (MEOW4)
+        - 1715 bytes = PQ hybrid mode (MEOW4, ML-KEM-1024)
         - 1747 bytes = PQ hybrid + duress (MEOW4 + duress tag)
 
         New manifest sizes (FIX-D3, explicit mode_byte):
         - 116 bytes = MEOW2 + mode byte
         - 148 bytes = MEOW3 + mode byte
         - 180 bytes = MEOW3 + duress + mode byte
-        - 1716 bytes = MEOW4 + mode byte
+        - 1236 bytes = MEOW5 + mode byte (ML-KEM-768, ct=1088)
+        - 1268 bytes = MEOW5 + duress + mode byte
+        - 1716 bytes = MEOW4 + mode byte (ML-KEM-1024, ct=1568)
         - 1748 bytes = MEOW4 + duress + mode byte
     """
     min_len = len(MAGIC) + 16 + 12 + 12 + 6 + 32 + 32  # 115 bytes (base)
     fs_len = min_len + 32  # 147 bytes (with ephemeral public key)
     fs_duress_len = fs_len + 32  # 179 bytes (with FS + duress)
-    pq_len = fs_len + 1568  # 1715 bytes (with PQ ciphertext, ML-KEM-1024)
-    pq_duress_len = pq_len + 32  # 1747 bytes (with PQ + duress)
+    pq_1024_len = fs_len + 1568  # 1715 bytes (ML-KEM-1024 ciphertext)
+    pq_1024_duress_len = pq_1024_len + 32  # 1747 bytes
+    pq_768_len = fs_len + 1088  # 1235 bytes (ML-KEM-768 ciphertext)
+    pq_768_duress_len = pq_768_len + 32  # 1267 bytes
 
-    legacy_sizes = {min_len, fs_len, fs_duress_len, pq_len, pq_duress_len}
-    # FIX-D3: New sizes are legacy + 1 byte for mode_byte
+    # Legacy sizes (MODE_MEOW4 only, backward compat — no ML-KEM-768 in legacy)
+    legacy_sizes = {min_len, fs_len, fs_duress_len, pq_1024_len, pq_1024_duress_len}
+    # New sizes include both PQ variants + 1 byte for mode_byte
     new_sizes = {s + 1 for s in legacy_sizes}
+    # Add MEOW5 (ML-KEM-768) sizes — new format only (no legacy)
+    new_sizes.add(pq_768_len + 1)  # 1236 bytes
+    new_sizes.add(pq_768_duress_len + 1)  # 1268 bytes
     all_valid = legacy_sizes | new_sizes
 
     if len(b) < min_len:
@@ -1002,28 +1019,46 @@ def unpack_manifest(b: bytes) -> Manifest:
         ephemeral_public_key = b[off : off + 32]
         off += 32
 
-    if effective_len >= pq_len:
+    # Determine PQ ciphertext size from mode byte
+    base_version = (mode_byte & 0x0F) if mode_byte != MODE_LEGACY else 0
+    # Strip ratchet flag for base version check
+    base_version_clean = base_version & ~MODE_RATCHET
+
+    if base_version_clean == MODE_MEOW5:
+        # ML-KEM-768: ciphertext is 1088 bytes
+        if effective_len >= pq_768_len:
+            pq_ciphertext = b[off : off + 1088]
+            off += 1088
+    elif effective_len >= pq_1024_len:
+        # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
         pq_ciphertext = b[off : off + 1568]
         off += 1568
 
-    if effective_len == fs_duress_len or effective_len == pq_duress_len:
+    # Check for duress tag (always last field)
+    remaining = len(b) - off
+    if remaining == 32:
         duress_tag = b[off : off + 32]
 
     # FIX-D3: Validate mode byte consistency (reject mismatches)
     if mode_byte != MODE_LEGACY:
-        base_version = mode_byte & 0x7F  # Strip duress flag
+        base_version_for_check = mode_byte & 0x6F  # Strip duress (0x80) and ratchet (0x10) flags
         has_duress = bool(mode_byte & MODE_DURESS)
 
         # Version consistency checks
-        if base_version == MODE_MEOW2 and ephemeral_public_key is not None:
+        if base_version_for_check == MODE_MEOW2 and ephemeral_public_key is not None:
             raise ValueError("Manifest mode byte says MEOW2 (no FS) but ephemeral key is present")
-        if base_version == MODE_MEOW3 and pq_ciphertext is not None:
+        if base_version_for_check == MODE_MEOW3 and pq_ciphertext is not None:
             raise ValueError("Manifest mode byte says MEOW3 (no PQ) but PQ ciphertext is present")
-        if base_version == MODE_MEOW4 and pq_ciphertext is None:
+        if base_version_for_check == MODE_MEOW4 and pq_ciphertext is None:
             raise ValueError("Manifest mode byte says MEOW4 (PQ) but PQ ciphertext is missing")
-        if base_version in (MODE_MEOW3, MODE_MEOW4) and ephemeral_public_key is None:
+        if base_version_for_check == MODE_MEOW5 and pq_ciphertext is None:
+            raise ValueError("Manifest mode byte says MEOW5 (PQ) but PQ ciphertext is missing")
+        if (
+            base_version_for_check in (MODE_MEOW3, MODE_MEOW4, MODE_MEOW5)
+            and ephemeral_public_key is None
+        ):
             raise ValueError(
-                f"Manifest mode byte says MEOW{base_version} (FS) but ephemeral key is missing"
+                f"Manifest mode byte says MEOW{base_version_for_check} (FS) but ephemeral key is missing"
             )
         if has_duress and duress_tag is None:
             raise ValueError("Manifest mode byte has duress flag but duress tag is missing")
@@ -1051,8 +1086,20 @@ def unpack_manifest(b: bytes) -> Manifest:
         pass  # Not strictly enforced — padding modes may vary
     if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
-    if pq_ciphertext is not None and len(pq_ciphertext) != 1568:  # pragma: no cover
-        raise ValueError(f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, expected 1568)")
+    if pq_ciphertext is not None and len(pq_ciphertext) not in (1088, 1568):  # pragma: no cover
+        raise ValueError(
+            f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, "
+            f"expected 1088 (ML-KEM-768) or 1568 (ML-KEM-1024))"
+        )
+
+    # ── Verify all bytes consumed (prevents trailing data attacks) ──
+    expected_off = off + (32 if duress_tag is not None else 0)
+    if expected_off != len(b):
+        raise ValueError(
+            f"Manifest has {len(b) - expected_off} unconsumed trailing bytes "
+            f"(parsed {expected_off}, total {len(b)}). "
+            f"Possible mode/ciphertext size mismatch."
+        )
 
     return Manifest(
         salt=salt,

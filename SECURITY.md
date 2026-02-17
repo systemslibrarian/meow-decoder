@@ -65,10 +65,11 @@ All formal verification is **symbolic** (Dolev‑Yao attacker model). No computa
 2. **Argon2id** memory‑hardness is assumed — no formal proof that the KDF resists
    ASIC/GPU attacks at the configured cost parameters.
 3. **X25519** CDH hardness is assumed in the Tamarin/ProVerif models.
-4. **ML‑KEM‑1024** IND‑CCA2 security is assumed — the KEM is modeled symbolically
+4. **ML‑KEM** IND‑CCA2 security is assumed — both ML-KEM-768 (default, Signal PQXDH parity) and ML-KEM-1024 (paranoid mode) are modeled symbolically
    with an equation‑based abstraction (`kem_decap(sk, kem_encap_ct(pk(sk), r)) = kem_encap_ss(pk(sk), r)`).
-5. **Hybrid combiner** (`HKDF(X25519_ss || ML-KEM_ss, info="meow_hybrid_pq_v1")`)
-   provides dual‑PRF security if either component is secure — this follows
+5. **PQXDH hybrid combiner** uses two-step HKDF: `PRK = HMAC-SHA256(0x00*32, X25519_ss || ML-KEM_ss)` → `HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript_hash, 32)`.
+   Full transcript binding (ephemeral pub, receiver classical pub, receiver PQ pub, PQ ciphertext) provides
+   dual‑PRF security if either component is secure — this follows
    from HKDF's PRF property under standard assumptions (Krawczyk 2010), but
    we have no formal proof of the reduction.
 6. **Side‑channel resistance** is entirely out of scope of all models.
@@ -518,8 +519,9 @@ def test_single_bit_flip_in_all_fields():
    - Use full disk encryption
 
 3. **Version Selection**
-   - Use MEOW3 (forward secrecy) by default
-   - Use MEOW4 (post-quantum) for long-term protection
+   - Use MEOW5 (ML-KEM-768 + X25519, Signal PQXDH parity) as default post-quantum mode
+   - Use MEOW4 with `--paranoid` (ML-KEM-1024 + X25519, NIST Level 5) for maximum post-quantum protection
+   - Use MEOW3 (forward secrecy) when PQ is not needed
    - Avoid MEOW2 (legacy, no forward secrecy)
 
 4. **Operational Security**
@@ -615,7 +617,7 @@ We're particularly interested in reports for:
 
 ### **v4.0 (2026-01-22)**
 - ✅ Forward secrecy enabled by default (MEOW3)
-- ✅ Post-quantum support added (MEOW4)
+- ✅ Post-quantum support added (MEOW4/MEOW5 — ML-KEM-768 default, ML-KEM-1024 paranoid)
 - ✅ Enhanced steganography (Ninja Cat ULTRA)
 - ✅ Streaming decode for low-memory devices
 - ✅ Constant-time HMAC comparison

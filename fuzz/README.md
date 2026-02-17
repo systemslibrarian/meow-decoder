@@ -107,7 +107,7 @@ The fuzzing infrastructure validates:
 
 1. **No crashes on arbitrary input** - All harnesses must handle any byte sequence
 2. **NIST password compliance** - 8-character minimum enforced in key derivation
-3. **Manifest version handling** - MEOW2, MEOW3 (forward secrecy), MEOW4 (post-quantum)
+3. **Manifest version handling** - MEOW2, MEOW3 (forward secrecy), MEOW4/MEOW5 (post-quantum)
 4. **Bit-flip resilience** - Random mutations don't cause undefined behavior
 5. **Length extension immunity** - Extended data handled gracefully
 6. **Cross-module consistency** - Same data produces consistent behavior

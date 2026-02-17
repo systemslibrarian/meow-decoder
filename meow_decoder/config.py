@@ -74,7 +74,8 @@ class EncodingConfig:
     stealth_level: int = 2  # Stealth level (1-4)
     enable_animation: bool = False  # Animated carriers
     enable_low_memory: bool = False  # Low-memory streaming mode
-    enable_pq: bool = True  # ✅ Post-quantum crypto (ML-KEM-1024 + X25519 hybrid) - DEFAULT ON
+    enable_pq: bool = True  # ✅ Post-quantum crypto (ML-KEM + X25519 hybrid) - DEFAULT ON
+    pq_paranoid: bool = False  # False=ML-KEM-768 (default), True=ML-KEM-1024 (paranoid)
 
     # Enhanced security features
     enable_duress: bool = False  # Duress password support
@@ -147,8 +148,9 @@ class CryptoConfig:
     ratchet_interval: int = 50  # Ratchet every 50 blocks
 
     # Post-quantum (DEFAULT ON for quantum resilience)
-    enable_pq: bool = True  # ✅ ENABLED by default (ML-KEM-1024 + X25519 hybrid)
-    kyber_variant: str = "kyber1024"  # ML-KEM-1024 (NIST FIPS 203 - highest security)
+    enable_pq: bool = True  # ✅ ENABLED by default (Signal PQXDH hybrid)
+    kyber_variant: str = "kyber768"  # ML-KEM-768 (NIST FIPS 203, Signal parity)
+    pq_paranoid: bool = False  # False=ML-KEM-768 (default), True=ML-KEM-1024 (max security)
 
 
 @dataclass

@@ -38,11 +38,13 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Full transcript binding (FIX-C3 v2): `derive_shared_secret()` binds `protocol_version`, `mode_flags`, `receiver_public_hash`, `ephemeral_public`, `pq_ciphertext_hash` in HKDF info
 
 5. **Post-Quantum Hybrid** ([pq_hybrid.py](../meow_decoder/pq_hybrid.py))
-   - ML-KEM-1024 (Kyber1024) + X25519 hybrid key exchange (MEOW4)
-   - Fully wired end-to-end: `encode.py` → `hybrid_encapsulate()`, `decode_gif.py` → `hybrid_decapsulate()`
-   - HKDF salt = `ephemeral_public_bytes` (not empty)
-   - PQ ciphertext: 1568 bytes, bound in both HMAC and AAD
-   - Manifest sizes: MEOW4 = 1715 bytes, MEOW4 + duress = 1747 bytes
+   - **PQXDH-style** hybrid key exchange with full transcript binding
+   - **Default: ML-KEM-768** (Kyber768) + X25519 = MEOW5 (Signal PQXDH parity)
+   - **Paranoid: ML-KEM-1024** (Kyber1024) + X25519 = MEOW4 (NIST Level 5)
+   - Two-step HKDF: `PRK = HMAC-SHA256(0x00*32, classical_ss || pq_ss)` → `HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript_hash, 32)`
+   - Transcript hash binds: ephemeral pub, receiver classical pub, receiver PQ pub, PQ ciphertext
+   - PQ ciphertext: 1088 bytes (ML-KEM-768) or 1568 bytes (ML-KEM-1024)
+   - Manifest sizes: MEOW5 = 1236 bytes, MEOW4 = 1716 bytes
 
 6. **Schrödinger Mode** ([schrodinger_encode.py](../meow_decoder/schrodinger_encode.py), [quantum_mixer.py](../meow_decoder/quantum_mixer.py))
    - Dual-secret quantum superposition: `QuantumNoise = XOR(Hash(Pass_A), Hash(Pass_B))`
@@ -75,7 +77,8 @@ Core modules live in `meow_decoder/`, tests in `tests/`, examples in `examples/`
 When editing crypto code, respect manifest version boundaries:
 - **MEOW2**: Base encryption (password-only, no forward secrecy) — mode_byte=0x02
 - **MEOW3**: Forward secrecy support (X25519 ephemeral keys optional) — mode_byte=0x03
-- **MEOW4**: Post-quantum hybrid (ML-KEM-1024 + X25519) — mode_byte=0x04
+- **MEOW4**: Post-quantum hybrid paranoid (ML-KEM-1024 + X25519) — mode_byte=0x04
+- **MEOW5**: Post-quantum hybrid default (ML-KEM-768 + X25519, Signal PQXDH parity) — mode_byte=0x05
 - **Duress flag**: mode_byte |= 0x80
 
 The explicit `mode_byte` field (FIX-D3) is bound in both AAD and HMAC.

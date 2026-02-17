@@ -23,7 +23,7 @@ make meow-build          # Start local server
 The web demo includes **8 encryption modes**:
 - 🔐 **Standard** — AES-256-GCM + Argon2id (configurable security levels)
 - 🔑 **Forward Secrecy** — X25519 ephemeral keys
-- 🔮 **Post-Quantum** — ML-KEM-1024 hybrid (quantum-resistant!)
+- 🔮 **Post-Quantum** — ML-KEM-768 default (Signal PQXDH parity), ML-KEM-1024 paranoid mode
 - 🐱 **Schrödinger** — Dual-secret plausible deniability
 - 📹 **Webcam** — Live QR scanner with **fountain code decoder** (tolerates 33% frame loss!)
 - 🚨 **Duress** — Panic password that wipes keys
@@ -430,7 +430,7 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 - **Schrödinger mode:** Dual-password plausible deniability
 - **Decoy generation:** Automatic cover story files
 - **Forward secrecy:** Ephemeral keys for future-proof security
-- **Post-quantum:** Production-ready ML-KEM-1024 hybrid encryption
+- **Post-quantum:** Production-ready ML-KEM-768 (default) / ML-KEM-1024 (paranoid) PQXDH hybrid encryption
 - **Self-test:** Run `meow-encode --self-test` to verify backend, roundtrip, and fountain codec
 - **Tamper report:** Use `meow-decode-gif --tamper-report` for a frame-by-frame MAC verification timeline
 - **Mobile bridge:** Phone-to-CLI scanning via `--mobile-bridge` flag ([architecture](mobile/ARCHITECTURE.md))

@@ -33,7 +33,7 @@ This section is the **authoritative threat model** for the v1.0 security‑revie
 - Records all GIF/QR traffic for future quantum decryption.
 - Stores encrypted payloads indefinitely (decades).
 - Assumes fault-tolerant quantum computer in 10-30 years.
-- **Mitigation:** ML-KEM-1024 + X25519 hybrid (default ON in v1.0).
+- **Mitigation:** ML-KEM-768 + X25519 PQXDH hybrid (default), ML-KEM-1024 + X25519 available as --paranoid mode.
 - **Status:** ✅ PROTECTED if `--pq` or default config used.
 
 **🔬 Side-Channel Adversary (Cache/Timing)**
@@ -101,7 +101,7 @@ This section is the **authoritative threat model** for the v1.0 security‑revie
 | **File Size** | Frame count (k_blocks × redundancy) | Bucketed padding (`--paranoid`) | ⚠️ Approximate size visible |
 | **File Type** | None (encrypted) | N/A | ✅ Fully hidden |
 | **Timestamp** | GIF creation date | Remove EXIF with `exiftool` | ⚠️ Visible in file metadata |
-| **Encryption Mode** | Manifest version byte | Constant across all files | ⚠️ Visible (MEOW3/MEOW4) |
+| **Encryption Mode** | Manifest version byte | Constant across all files | ⚠️ Visible (MEOW3/MEOW4/MEOW5) |
 | **Forward Secrecy** | Ephemeral pubkey presence (32 bytes) | Always present in MEOW3+ | ⚠️ Detectable if analyzing |
 | **Steganography** | Frame pattern analysis | Layer-2 cat carrier images | ✅ Hidden unless analyzed deeply |
 | **Password Strength** | None (Argon2id resistant) | N/A | ✅ No timing oracle |
@@ -196,10 +196,10 @@ exiftool -all= innocent_cats.gif
 | Side-channel resistance (power, EM, cache) | ⚠️ Random delays |
 | Hardware security module integration | ✅ TPM/YubiKey support |
 | Secure element / TEE support | ⭕ Planned |
-| Post-quantum crypto (production-ready) | ✅ ML-KEM-1024 + Dilithium3 |
+| Post-quantum crypto (production-ready) | ✅ ML-KEM-768 (default) / ML-KEM-1024 (paranoid) + Dilithium3 |
 | Zero-knowledge proofs for deniability | ⚠️ Schrödinger mode |
 
-**However:** The *cryptographic primitives* we use (AES-256-GCM, Argon2id, X25519, ML-KEM-1024, Dilithium3) are state-of-the-art. Rust backend provides constant-time operations.
+**However:** The *cryptographic primitives* we use (AES-256-GCM, Argon2id, X25519, ML-KEM-768/1024, Dilithium3) are state-of-the-art. Rust backend provides constant-time operations.
 
 **What Would Be Needed:**
 1. Rewrite in Rust/C with formal verification
@@ -597,10 +597,10 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 |--------|---------------|--------|
 | Symmetric encryption | AES-256 (Grover: 128-bit effective) | ✅ Quantum-resistant |
 | Key derivation | Argon2id | ✅ Quantum-resistant |
-| Key exchange | ML-KEM-1024 (Kyber) + X25519 hybrid | ✅ Production |
+| Key exchange | ML-KEM-768/1024 (Kyber) + X25519 PQXDH | ✅ Production |
 
 **What's Implemented:**
-- `pq_hybrid.py` with ML-KEM-1024 + X25519 hybrid (NIST FIPS 203) — primary PQ module
+- `pq_hybrid.py` with ML-KEM-768 + X25519 PQXDH (default, Signal parity) / ML-KEM-1024 (paranoid, NIST Level 5) — primary PQ module
 - `pq_crypto_real.py` is **deprecated** (emits `DeprecationWarning`, forced to ML-KEM-1024)
 - Graceful fallback if liboqs not installed
 - Security: Safe if EITHER classical OR quantum crypto holds
@@ -615,7 +615,7 @@ pip install liboqs-python
 meow-encode --pq -i secret.pdf -o secret.gif -p "password"
 ```
 
-**Note:** ML-KEM-1024 is the highest security level and is now the default.
+**Note:** ML-KEM-768 is the default (Signal PQXDH parity); ML-KEM-1024 available as --paranoid (NIST Level 5).
 
 ---
 
@@ -722,7 +722,7 @@ Already enabled out of the box:
 - ✅ Forward secrecy (X25519)
 - ✅ Frame MAC authentication
 - ✅ Metadata padding
-- ✅ Post-quantum crypto (ML-KEM-1024 when liboqs installed)
+- ✅ Post-quantum crypto (ML-KEM-768 default / ML-KEM-1024 paranoid when liboqs installed)
 
 ### Level 2: Enhanced Security
 For even higher security (if you have the hardware):
@@ -790,7 +790,7 @@ shred -u /tmp/meow_*
 | Coercion | ✅ UNIQUE | ✅ UNIQUE | Schrödinger mode |
 | Forward Secrecy | ✅ STRONG | ✅ STRONG | X25519 ephemeral |
 | Frame Injection | ✅ STRONG | ✅ STRONG | Per-frame MAC |
-| Post-Quantum | ✅ STRONG | ✅ STRONG | ML-KEM-1024 hybrid |
+| Post-Quantum | ✅ STRONG | ✅ STRONG | ML-KEM-768/1024 PQXDH hybrid |
 | Metadata Leak | ✅ IMPLEMENTED | ✅ STRONG | Size padding |
 | Memory Forensics | ⚠️ MODERATE | ⚠️ MODERATE | Platform limit |
 | Timing Attacks | ⚠️ MODERATE | ⚠️ MODERATE | Python limit |

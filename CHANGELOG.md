@@ -10,6 +10,54 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — PQXDH Upgrade: Signal 2026 Post-Quantum Alignment 🔐
+
+**ML-KEM-768 default** (Signal PQXDH parity) with **ML-KEM-1024 --paranoid** option. Full PQXDH-style two-step HKDF transcript binding replaces the previous single-step derivation.
+
+#### ML-KEM Variant Selection
+- Default changed from ML-KEM-1024 (Kyber1024) to **ML-KEM-768** (Kyber768) — matches Signal's PQXDH choice
+- ML-KEM-1024 retained as `--paranoid` mode (NIST Level 5) via `pq_paranoid=True`
+- New manifest version **MEOW5** (`mode_byte=0x05`) for ML-KEM-768 (ct=1088 bytes, pk=1184 bytes)
+- MEOW4 (`mode_byte=0x04`) retained for backward-compatible ML-KEM-1024 (ct=1568 bytes)
+
+#### PQXDH Two-Step HKDF Transcript Binding
+- **Extract**: `PRK = HMAC-SHA256(salt=0x00*32, IKM=classical_ss || pq_ss)`
+- **Expand**: `HKDF-Expand(PRK, info="meow_pqxdh_v1" || transcript_hash, L=32)`
+- Replaces old single-step `HKDF(info="meow_hybrid_pq_v1")` with no transcript binding
+- Transcript hash: `SHA256("meow_pqxdh_transcript_v1" || eph_pub || recv_classical_pub || recv_pq_pub || pq_ct)`
+- All exchanged public values now cryptographically bound into key derivation
+
+#### New Domain Separation Constants
+- `PQXDH_EXTRACT_SALT` — 32 zero bytes for HMAC-SHA256 Extract step
+- `PQXDH_INFO_PREFIX = "meow_pqxdh_v1"` — HKDF-Expand info prefix
+- `PQXDH_TRANSCRIPT_DOMAIN = "meow_pqxdh_transcript_v1"` — Transcript hash domain
+- `CLASSICAL_INFO = "meow_classical_only_v1"` — Non-PQ fallback derivation
+
+#### Manifest Format Updates
+- `pack_manifest()` accepts PQ ciphertext of 1088 (ML-KEM-768) or 1568 (ML-KEM-1024)
+- `unpack_manifest()` determines PQ size from mode byte (MEOW5→1088, MEOW4→1568)
+- Trailing bytes validation prevents unconsumed data attacks
+- Manifest sizes: MEOW5 base=1236B, MEOW4 base=1716B
+
+#### Config & Pipeline Changes
+- `CryptoConfig.kyber_variant` default: `"kyber768"` (was `"kyber1024"`)
+- `CryptoConfig.pq_paranoid` / `EncodingConfig.pq_paranoid`: new bool flags
+- `HighSecurityConfig`: defaults to `pq_paranoid=True` (ML-KEM-1024)
+- `encode.py`: MEOW5 mode for default PQ, MEOW4 for paranoid
+- `decode_gif.py`: Auto-detects variant from ciphertext size
+
+#### Test Coverage: 38 new tests
+| Test Class | Tests |
+|-----------|-------|
+| `TestPQConstants` | Size constants, algorithm strings, domain separation |
+| `TestHybridKeyPairVariants` | ML-KEM-768/1024 key generation, paranoid selection |
+| `TestPQXDHTranscriptBinding` | Transcript hash determinism, domain separation, binding |
+| `TestEncapDecapRoundtrip` | 768 roundtrip, 1024 roundtrip, cross-variant rejection |
+| `TestTranscriptBindingSecurity` | Tampered ciphertext/ephemeral detection |
+| `TestMODEMEOW5` | Mode byte packing/unpacking, size validation, trailing bytes |
+| `TestConfigDefaults` | Default variant, paranoid flag, encoding config |
+| `TestCheckPQAvailable` | Availability detection for both variants |
+
 ### Security — MSR v2.0 Asymmetric Entropy Reinjection (Signal-Grade PCS) 🔐
 
 **Post-Compromise Security** via periodic X25519 root key rotation. Compromise of ratchet state at frame N is healed within ≤K frames (rekey_interval). This is the air-gap equivalent of Signal's DH ratchet.

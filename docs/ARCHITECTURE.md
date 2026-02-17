@@ -9,7 +9,7 @@
 ## 📋 **Overview**
 
 Meow Decoder is an optical air-gap file transfer system that combines:
-- **Cryptography** (AES-256-GCM, Argon2id, X25519, ML-KEM-1024 hybrid)
+- **Cryptography** (AES-256-GCM, Argon2id, X25519, ML-KEM-768/1024 PQXDH hybrid)
 - **Error Correction** (Luby Transform fountain codes — Python + JavaScript)
 - **Visual Encoding** (QR codes in GIF animations)
 - **Optical Transfer** (screen → camera with 33% frame loss tolerance)
@@ -280,7 +280,7 @@ INITIAL CHAIN KEY
 (Each block key is independent!)
 ```
 
-### **MEOW4: Post-Quantum Hybrid**
+### **MEOW5 (default) / MEOW4 (paranoid): PQXDH Post-Quantum Hybrid**
 
 ```
 PASSWORD + SALT
@@ -289,12 +289,12 @@ PASSWORD + SALT
     ▼
 MASTER KEY
     │
-    ├───────────────┬────────────────┐
-    │               │                │
-    ▼               ▼                ▼
-Generate        Generate         Generate
-X25519          ML-KEM-1024      HKDF Keys
-Keypair         Keypair
+    ├───────────────┬────────────────────┐
+    │               │                    │
+    ▼               ▼                    ▼
+Generate        Generate             Generate
+X25519          ML-KEM-768 (MEOW5)   HKDF Keys
+Keypair         ML-KEM-1024 (MEOW4)
     │               │
     │  ECDH         │  KEM Encap
     ▼               ▼
@@ -302,7 +302,11 @@ Classical     Quantum
 Shared (32B)  Shared (32B)
     │               │
     └───────┬───────┘
-            │  Concatenation + HKDF
+            │  PQXDH Two-Step HKDF
+            │
+            │  1. PRK = HMAC-SHA256(0x00*32, classical_ss || pq_ss)
+            │  2. transcript = SHA256(domain || eph_pub || recv_cls_pub || recv_pq_pub || pq_ct)
+            │  3. key = HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript, 32)
             ▼
     HYBRID SHARED SECRET
             │
@@ -464,7 +468,7 @@ See [docs/FOUNTAIN_CODES_INTEGRATION.md](FOUNTAIN_CODES_INTEGRATION.md) for full
 
 SECURITY MODULES (optional):
 ├──▶ forward_secrecy.py (MEOW3)
-├──▶ pq_hybrid.py (MEOW4, primary PQ module)
+├──▶ pq_hybrid.py (MEOW5/MEOW4, primary PQ module — PQXDH transcript binding)
 ├──▶ pq_crypto_real.py (DEPRECATED — use pq_hybrid.py)
 ├──▶ ninja_cat_ultra.py (steganography)
 ├──▶ prowling_mode.py (low-memory)
