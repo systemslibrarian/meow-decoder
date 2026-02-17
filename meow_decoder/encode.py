@@ -1163,8 +1163,8 @@ Examples:
             # Also generate classical X25519 keypair using existing helper
             from .x25519_forward_secrecy import save_receiver_keypair
 
-            # Serialize the X25519 keys from the hybrid keypair
-            from cryptography.hazmat.primitives import serialization
+            # Export X25519 keys from the hybrid keypair (raw bytes)
+            classical_private, classical_public = keypair.export_keypair()
 
             classical_priv_file = args.key_output_dir / "receiver_private.pem"
             classical_pub_file = args.key_output_dir / "receiver_public.key"
@@ -1182,8 +1182,8 @@ Examples:
                 return 1
 
             save_receiver_keypair(
-                keypair.classical_private,
-                keypair.classical_public,
+                classical_private,
+                classical_public,
                 str(classical_priv_file),
                 str(classical_pub_file),
                 pk_password,

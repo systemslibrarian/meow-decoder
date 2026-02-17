@@ -10,7 +10,6 @@ from pathlib import Path
 from getpass import getpass
 from typing import Optional
 import time
-import hashlib
 
 # Import core modules
 
@@ -158,9 +157,6 @@ def decode_gif(
     # Import as a module so tests can monkeypatch `meow_decoder.frame_mac.*`
     # and have it affect this function.
     from . import frame_mac
-
-    # Derive frame MAC key (same as encode)
-    import hashlib
 
     # We'll derive the frame key after we get the manifest (which has the salt)
     # For now, just read QR codes raw
@@ -672,7 +668,9 @@ def decode_gif(
     if verbose:
         print("Verifying integrity...")
 
-    computed_sha = hashlib.sha256(raw_data).digest()
+    from . import crypto_backend
+
+    computed_sha = crypto_backend.get_default_backend().sha256(raw_data)
     if computed_sha != manifest.sha256:
         raise ValueError("SHA256 mismatch - data corrupted")
 
@@ -1058,37 +1056,18 @@ Examples:
     receiver_private_key = None
     if args.receiver_privkey:
         try:
-            from .x25519_forward_secrecy import load_receiver_keypair
-            from cryptography.hazmat.primitives import serialization
+            from .x25519_forward_secrecy import load_x25519_private_key_pem
 
             # Get password for private key if needed
             privkey_password = args.receiver_privkey_password
             if not privkey_password:
                 privkey_password = getpass("Enter receiver private key password: ")
 
-            # We need a dummy public key file for load_receiver_keypair
-            # So let's just load the private key directly
+            # Load the private key using helper
             with open(args.receiver_privkey, "rb") as f:
                 privkey_data = f.read()
 
-            from cryptography.hazmat.primitives.serialization import load_pem_private_key
-            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-
-            privkey_password_bytes = privkey_password.encode("utf-8") if privkey_password else None
-            receiver_privkey_obj = load_pem_private_key(
-                privkey_data, password=privkey_password_bytes
-            )
-
-            if not isinstance(receiver_privkey_obj, X25519PrivateKey):
-                print("Error: Loaded key is not X25519PrivateKey", file=sys.stderr)
-                sys.exit(1)
-
-            # Serialize to raw bytes for crypto.py
-            receiver_private_key = receiver_privkey_obj.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
+            receiver_private_key = load_x25519_private_key_pem(privkey_data, privkey_password)
 
             if args.verbose:
                 print(f"✅ Loaded receiver private key for forward secrecy")
@@ -1152,13 +1131,14 @@ Examples:
 
             # Use the already-loaded X25519 private key if available
             if receiver_private_key is not None:
-                from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+                # Set raw bytes directly (HybridKeyPair uses bytes internally)
+                receiver_pq_keypair._classical_private_bytes = receiver_private_key
+                # Derive public key from private key
+                from . import crypto_backend
 
-                receiver_pq_keypair.classical_private = X25519PrivateKey.from_private_bytes(
+                backend = crypto_backend.get_default_backend()
+                receiver_pq_keypair._classical_public_bytes = backend.x25519_public_from_private(
                     receiver_private_key
-                )
-                receiver_pq_keypair.classical_public = (
-                    receiver_pq_keypair.classical_private.public_key()
                 )
 
             if args.verbose:

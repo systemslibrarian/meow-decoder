@@ -47,13 +47,11 @@ For full rationale, see: meow_decoder.security_warnings.get_frame_mac_rationale(
 ═══════════════════════════════════════════════════════════════════════════════
 """
 
-import hmac
-import hashlib
 import struct
 import secrets
 from typing import Tuple
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+
+from .crypto_backend import get_default_backend
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY CONSTANT: Frame MAC Size
@@ -87,9 +85,8 @@ def derive_frame_master_key(master_key_material: bytes, salt: bytes) -> bytes:
         - Does not change frame format (MAC size unchanged)
     """
     # Why: HKDF domain separation prevents key reuse across encryption/HMAC/frame MACs.
-    return HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=FRAME_MAC_MASTER_INFO).derive(
-        master_key_material
-    )
+    backend = get_default_backend()
+    return backend.derive_key_hkdf(master_key_material, salt, FRAME_MAC_MASTER_INFO, 32)
 
 
 def derive_frame_master_key_legacy(password: str, salt: bytes) -> bytes:
@@ -99,7 +96,7 @@ def derive_frame_master_key_legacy(password: str, salt: bytes) -> bytes:
     This preserves decode compatibility for existing files created prior to v2
     frame MAC master key derivation.
     """
-    return hashlib.sha256(password.encode("utf-8") + salt + b"frame_mac_key").digest()
+    return get_default_backend().sha256(password.encode("utf-8") + salt + b"frame_mac_key")
 
 
 def derive_frame_key(master_key: bytes, frame_index: int, salt: bytes) -> bytes:
@@ -122,7 +119,7 @@ def derive_frame_key(master_key: bytes, frame_index: int, salt: bytes) -> bytes:
     # Combine frame index into derivation
     info = FRAME_MAC_INFO + struct.pack("<Q", frame_index)
 
-    frame_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info).derive(master_key)
+    frame_key = get_default_backend().derive_key_hkdf(master_key, salt, info, 32)
 
     return frame_key
 
@@ -149,7 +146,7 @@ def compute_frame_mac(frame_data: bytes, master_key: bytes, frame_index: int, sa
     frame_key = derive_frame_key(master_key, frame_index, salt)
 
     # Compute HMAC-SHA256
-    mac = hmac.new(frame_key, frame_data, hashlib.sha256).digest()
+    mac = get_default_backend().hmac_sha256(frame_key, frame_data)
 
     # Truncate to 8 bytes (64 bits)
     # Why: Frame MACs are for DoS resistance (not long-term auth). 64-bit

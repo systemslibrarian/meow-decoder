@@ -302,13 +302,7 @@ class TestFixD1PQHKDFSalt:
 
         keypair = HybridKeyPair(use_pq=True)
 
-        from cryptography.hazmat.primitives import serialization
-
-        receiver_classical_public = keypair.classical_public.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        receiver_pq_public = keypair.pq_public
+        receiver_classical_public, receiver_pq_public = keypair.export_public_keys()
 
         shared_enc, eph_pub, pq_ct, _ = hybrid_encapsulate(
             receiver_classical_public, receiver_pq_public
@@ -325,14 +319,10 @@ class TestFixD1PQHKDFSalt:
             hybrid_encapsulate,
             hybrid_decapsulate,
         )
-        from cryptography.hazmat.primitives import serialization
 
         keypair = HybridKeyPair(use_pq=False)
 
-        receiver_classical_public = keypair.classical_public.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        receiver_classical_public, _ = keypair.export_public_keys()
 
         shared_enc, eph_pub, _, _ = hybrid_encapsulate(
             receiver_classical_public, receiver_pq_public=None

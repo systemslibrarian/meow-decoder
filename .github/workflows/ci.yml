@@ -17,6 +17,7 @@ permissions:
 env:
   MEOW_TEST_MODE: "1"
   MEOW_CRYPTO_BACKEND: "rust"
+  RUST_BACKEND_REQUIRED: "1"  # Phase 5: Fail closed if Rust backend unavailable
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONDONTWRITEBYTECODE: "1"
 
@@ -64,6 +65,31 @@ jobs:
       - name: bandit security lint
         run: bandit -r meow_decoder/ -ll -q || true
 
+      # -- Crypto migration gate (fast grep check) --
+      - name: Check core crypto files for forbidden imports
+        run: |
+          echo "🔐 Checking core crypto files for forbidden Python crypto imports..."
+          # Core files that MUST be migrated (fail if they import cryptography/hmac/hashlib)
+          CORE_FILES="meow_decoder/crypto.py meow_decoder/crypto_enhanced.py meow_decoder/ratchet.py meow_decoder/pq_hybrid.py meow_decoder/forward_secrecy.py"
+          FORBIDDEN_PATTERN="^[[:space:]]*(from|import)[[:space:]]+(cryptography|hmac|hashlib)"
+          VIOLATIONS=""
+          for f in $CORE_FILES; do
+            if [ -f "$f" ]; then
+              matches=$(grep -n -E "$FORBIDDEN_PATTERN" "$f" 2>/dev/null || true)
+              if [ -n "$matches" ]; then
+                VIOLATIONS="$VIOLATIONS\n$f:\n$matches"
+              fi
+            fi
+          done
+          if [ -n "$VIOLATIONS" ]; then
+            echo "❌ Forbidden Python crypto imports found in core files:"
+            echo -e "$VIOLATIONS"
+            echo ""
+            echo "Core crypto files must use the Rust backend (meow_crypto_rs)."
+            exit 1
+          fi
+          echo "✅ Core crypto files are clean"
+
   # ═══════════════════════════════════════════════════════════════════════════
   # GATE 1: Tests + Coverage (only runs after preflight passes)
   # ═══════════════════════════════════════════════════════════════════════════
@@ -109,6 +135,19 @@ jobs:
 
       - name: Verify Rust backend
         run: python -c "import meow_crypto_rs; print('Rust backend OK')"
+
+      # -- Crypto Migration Enforcement (Phase 5) --
+      - name: Crypto enforcement checks
+        run: |
+          echo "🔐 Running crypto migration enforcement tests..."
+          pytest tests/test_crypto_enforcement.py -v --tb=short
+          echo "✅ Crypto enforcement checks passed"
+
+      - name: Rust crypto_core tests
+        run: |
+          echo "🦀 Running Rust crypto_core tests..."
+          cd crypto_core && cargo test --features "pure-crypto,pq-crypto" --release
+          echo "✅ Rust crypto_core tests passed"
 
       - name: Run test suite (no slow markers)
         run: |

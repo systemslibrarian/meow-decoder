@@ -23,16 +23,11 @@ caller does not request PQ encapsulation or provide PQ ciphertext.
 If PQ is requested and unavailable, the operation fails closed.
 """
 
-import hashlib
-import hmac as hmac_module
 import secrets
 import struct
 from typing import Tuple, Optional
-from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives import serialization
 
+from .crypto_backend import get_default_backend
 from .security_warnings import warn_pq_experimental
 
 # ── ML-KEM variant constants ─────────────────────────────────────────────────
@@ -84,8 +79,10 @@ class HybridKeyPair:
             paranoid: Use ML-KEM-1024 instead of ML-KEM-768 (default False)
         """
         # Always generate classical key
-        self.classical_private = X25519PrivateKey.generate()
-        self.classical_public = self.classical_private.public_key()
+        backend = get_default_backend()
+        self._classical_private_bytes, self._classical_public_bytes = (
+            backend.x25519_generate_keypair()
+        )
         self.paranoid = paranoid
 
         # Try to generate PQ key
@@ -112,11 +109,21 @@ class HybridKeyPair:
             - classical_public: 32 bytes (X25519)
             - pq_public: 1184 bytes (ML-KEM-768) or 1568 bytes (ML-KEM-1024) or None
         """
-        classical = self.classical_public.public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
+        return self._classical_public_bytes, self.pq_public
 
-        return classical, self.pq_public
+    def export_keypair(self) -> Tuple[bytes, bytes]:
+        """
+        Export classical keypair bytes for serialization.
+
+        Returns:
+            Tuple of (classical_private, classical_public)
+            - classical_private: 32 bytes (X25519 private key)
+            - classical_public: 32 bytes (X25519 public key)
+
+        Note:
+            This is for key persistence only. Handle returned bytes securely.
+        """
+        return self._classical_private_bytes, self._classical_public_bytes
 
     def is_hybrid(self) -> bool:
         """Check if PQ component is active."""
@@ -145,14 +152,13 @@ def _compute_transcript_hash(
     Returns:
         32-byte SHA-256 transcript hash
     """
-    h = hashlib.sha256(PQXDH_TRANSCRIPT_DOMAIN)
-    h.update(ephemeral_pub)
-    h.update(receiver_classical_pub)
+    backend = get_default_backend()
+    data = PQXDH_TRANSCRIPT_DOMAIN + ephemeral_pub + receiver_classical_pub
     if receiver_pq_pub is not None:
-        h.update(receiver_pq_pub)
+        data += receiver_pq_pub
     if pq_ciphertext is not None:
-        h.update(pq_ciphertext)
-    return h.digest()
+        data += pq_ciphertext
+    return backend.sha256(data)
 
 
 def _pqxdh_derive(
@@ -191,8 +197,10 @@ def _pqxdh_derive(
     else:
         combined_ikm = classical_shared
 
+    backend = get_default_backend()
+
     # Step 1: HKDF-Extract with fixed zero salt (Signal PQXDH pattern)
-    prk = hmac_module.new(PQXDH_EXTRACT_SALT, combined_ikm, hashlib.sha256).digest()
+    prk = backend.hmac_sha256(PQXDH_EXTRACT_SALT, combined_ikm)
 
     # Compute transcript hash binding all public values
     transcript_hash = _compute_transcript_hash(
@@ -205,7 +213,7 @@ def _pqxdh_derive(
     else:
         info = CLASSICAL_INFO + transcript_hash
 
-    shared_secret = HKDFExpand(algorithm=hashes.SHA256(), length=32, info=info).derive(prk)
+    shared_secret = backend.hkdf_expand(prk, info, 32)
 
     return shared_secret
 
@@ -241,17 +249,11 @@ def hybrid_encapsulate(
         - Secure even if one primitive breaks!
     """
     # Generate ephemeral classical keypair
-    ephemeral_private = X25519PrivateKey.generate()
-    ephemeral_public = ephemeral_private.public_key()
+    backend = get_default_backend()
+    ephemeral_private_bytes, ephemeral_public_bytes = backend.x25519_generate_keypair()
 
     # Classical key agreement
-    receiver_pubkey = X25519PublicKey.from_public_bytes(receiver_classical_public)
-    classical_shared = ephemeral_private.exchange(receiver_pubkey)
-
-    # Export ephemeral public key
-    ephemeral_public_bytes = ephemeral_public.public_bytes(
-        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-    )
+    classical_shared = backend.x25519_exchange(ephemeral_private_bytes, receiver_classical_public)
 
     # Try PQ encapsulation
     pq_ciphertext = None
@@ -303,8 +305,10 @@ def hybrid_decapsulate(
         - Any key/ciphertext tampering → different transcript → different key
     """
     # Classical key agreement
-    sender_pubkey = X25519PublicKey.from_public_bytes(ephemeral_classical_public)
-    classical_shared = receiver_keypair.classical_private.exchange(sender_pubkey)
+    backend = get_default_backend()
+    classical_shared = backend.x25519_exchange(
+        receiver_keypair._classical_private_bytes, ephemeral_classical_public
+    )
 
     # Try PQ decapsulation
     pq_shared_secret = None

@@ -37,6 +37,9 @@ use {
     sha2::{Digest, Sha256},
     subtle::ConstantTimeEq,
     x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret},
+    aes::Aes256,
+    ctr::cipher::{KeyIvInit, StreamCipher},
+    ctr::Ctr128BE,
 };
 
 #[cfg(feature = "std")]
@@ -293,6 +296,78 @@ pub fn aes_gcm_decrypt(
     .map_err(|_| CryptoError::DecryptionFailed)?;
 
     Ok(plaintext)
+}
+
+// ============================================================================
+// AES-256-CTR (Streaming Encryption)
+// ============================================================================
+
+/// AES-256-CTR encrypt/decrypt (symmetric — same operation for both)
+///
+/// # Security
+///
+/// - CTR mode provides NO authentication. Must be used with Encrypt-then-MAC.
+/// - Nonce must NEVER be reused with the same key.
+/// - This function XORs data with the AES-CTR keystream starting at the given
+///   byte offset, enabling chunk-based streaming without buffering.
+///
+/// # Arguments
+///
+/// * `key` - 32-byte AES-256 key
+/// * `nonce` - 16-byte initial counter block (CTR IV)
+/// * `data` - Plaintext (encrypt) or ciphertext (decrypt)
+/// * `byte_offset` - Starting position in the stream (must be block-aligned, i.e. multiple of 16)
+///
+/// # Returns
+///
+/// Processed data (ciphertext or plaintext)
+#[cfg(feature = "pure-crypto")]
+pub fn aes_ctr_crypt(
+    key: &[u8],
+    nonce: &[u8],
+    data: &[u8],
+    byte_offset: u64,
+) -> Result<Vec<u8>, CryptoError> {
+    if key.len() != 32 {
+        return Err(CryptoError::InvalidKeySize(key.len(), 32));
+    }
+    if nonce.len() != 16 {
+        return Err(CryptoError::InvalidNonceSize(nonce.len(), 16));
+    }
+
+    // Compute the counter block at the given byte offset.
+    // The nonce is the initial 128-bit counter, incremented by block_offset.
+    let block_offset = byte_offset / 16;
+
+    // Parse the 16-byte nonce as a big-endian 128-bit integer, add block_offset
+    let mut counter = [0u8; 16];
+    counter.copy_from_slice(nonce);
+
+    // Add block_offset to the 128-bit big-endian counter
+    let mut carry = block_offset;
+    for i in (0..16).rev() {
+        let val = counter[i] as u64 + (carry & 0xFF);
+        counter[i] = val as u8;
+        carry = (carry >> 8) + (val >> 8);
+    }
+
+    // Create CTR cipher with adjusted counter
+    let mut cipher = Ctr128BE::<Aes256>::new_from_slices(key, &counter)
+        .map_err(|e| CryptoError::EncryptionFailed(format!("CTR init failed: {}", e)))?;
+
+    // Handle partial block offset (if byte_offset is not block-aligned)
+    let partial_offset = (byte_offset % 16) as usize;
+    let mut output = data.to_vec();
+
+    if partial_offset > 0 {
+        // We need to skip `partial_offset` bytes of keystream.
+        // Generate a dummy block and discard the first `partial_offset` bytes.
+        let mut skip = vec![0u8; partial_offset];
+        cipher.apply_keystream(&mut skip);
+    }
+
+    cipher.apply_keystream(&mut output);
+    Ok(output)
 }
 
 // ============================================================================

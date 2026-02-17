@@ -76,6 +76,12 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 	- Fully integrated with CLI (`--tpm-derive`, `--tpm-unseal`)
 
 ### Rust Expansion
+- [x] **Rust Crypto Backend Complete**: Full migration of secret-handling crypto from Python → Rust
+	- All 16 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM
+	- Constant-time via `subtle` crate, secure zeroing via `zeroize` crate
+	- CI enforces `RUST_BACKEND_REQUIRED=1` — no Python fallback
+	- 397 tests passing (383 protocol + 14 enforcement)
+	- See `todo-crypto.md` for full migration details
 
 ---
 ### Formal Methods
@@ -106,7 +112,7 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: February 2026*
+*Last Updated: February 17, 2026*
 
 # Update pytest configuration
 # Update coverage targets

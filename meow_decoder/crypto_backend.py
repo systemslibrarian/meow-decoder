@@ -123,6 +123,9 @@ class RustCryptoBackend:
                 "maturin develop --release --features yubikey"
             ) from e
 
+    def aes_ctr_crypt(self, key: bytes, nonce: bytes, data: bytes, byte_offset: int = 0) -> bytes:
+        return self._rs.aes_ctr_crypt(key, nonce, data, byte_offset)  # type: ignore[no-any-return]
+
     def aes_gcm_encrypt(
         self, key: bytes, nonce: bytes, plaintext: bytes, aad: Optional[bytes] = None
     ) -> bytes:
@@ -237,6 +240,9 @@ class CryptoBackend:
 
     def derive_key_yubikey(self, *args, **kwargs) -> bytes:  # pragma: no cover
         return self._backend.derive_key_yubikey(*args, **kwargs)
+
+    def aes_ctr_crypt(self, *args, **kwargs) -> bytes:
+        return self._backend.aes_ctr_crypt(*args, **kwargs)
 
     def aes_gcm_encrypt(self, *args, **kwargs) -> bytes:
         return self._backend.aes_gcm_encrypt(*args, **kwargs)

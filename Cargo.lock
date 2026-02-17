@@ -517,10 +517,13 @@ dependencies = [
 name = "crypto_core"
 version = "0.2.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "argon2",
+ "cipher",
  "cryptoki",
  "ctap-hid-fido2",
+ "ctr",
  "flate2",
  "getrandom 0.2.17",
  "getrandom 0.4.1",
@@ -1290,10 +1293,13 @@ dependencies = [
 name = "meow_crypto_rs"
 version = "0.1.0"
 dependencies = [
+ "aes",
  "aes-gcm",
  "argon2",
+ "cipher",
  "criterion",
  "crypto_core",
+ "ctr",
  "getrandom 0.2.17",
  "hex",
  "hkdf",

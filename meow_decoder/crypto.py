@@ -7,8 +7,6 @@ This is the base version. For enhanced security features, see crypto_enhanced.py
 
 import os
 import struct
-import hashlib
-import hmac
 import logging as _logging
 import zlib
 import secrets
@@ -234,7 +232,7 @@ def _register_nonce_use(key: bytes, nonce: bytes, *, synthetic_iv_mode: bool = F
     for AES-GCM.  We still register for defense-in-depth but skip the
     reuse error (deterministic replay of same input is intentional).
     """
-    digest = hashlib.sha256(key + nonce).digest()
+    digest = get_default_backend().sha256(key + nonce)
     if digest in _nonce_reuse_cache:
         if synthetic_iv_mode:
             # Same nonce is expected for same plaintext under same key (SIV property).
@@ -261,7 +259,7 @@ def compute_duress_hash(password: str, salt: bytes) -> bytes:
     Returns:
         32-byte SHA-256 hash
     """
-    return hashlib.sha256(DURESS_HASH_PREFIX + salt + password.encode("utf-8")).digest()
+    return get_default_backend().sha256(DURESS_HASH_PREFIX + salt + password.encode("utf-8"))
 
 
 def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> bytes:
@@ -281,7 +279,7 @@ def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> byte
         32-byte HMAC-SHA256 tag
     """
     duress_key = compute_duress_hash(password, salt)
-    return hmac.new(duress_key, manifest_core, hashlib.sha256).digest()
+    return get_default_backend().hmac_sha256(duress_key, manifest_core)
 
 
 def check_duress_password(
@@ -364,17 +362,14 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     # Combine password and keyfile if provided
     secret = password.encode("utf-8")
     if keyfile:
-        # Use HKDF to properly combine password and keyfile
-        from cryptography.hazmat.primitives import hashes
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=64,
-            salt=KEYFILE_DOMAIN_SEP,
-            info=b"password_keyfile_combine",
+        # Use HKDF to properly combine password and keyfile (via Rust backend)
+        backend = get_default_backend()
+        secret = backend.derive_key_hkdf(
+            secret + keyfile,
+            KEYFILE_DOMAIN_SEP,
+            b"password_keyfile_combine",
+            64,
         )
-        secret = hkdf.derive(secret + keyfile)
 
     secret_buf = bytearray(secret)
     try:
@@ -476,7 +471,7 @@ def encrypt_file_bytes(
             comp = add_length_padding(comp)
 
         # Hash original data (before padding!)
-        sha = hashlib.sha256(raw).digest()
+        sha = get_default_backend().sha256(raw)
 
         # Generate random salt and nonce (cryptographically secure)
         # Invariant: Nonce MUST be unique per key to prevent GCM nonce reuse.
@@ -508,16 +503,14 @@ def encrypt_file_bytes(
             # Pure HSM/TPM mode: derive synthetic nonce from key + plaintext hash.
             # PQ hybrid mode already generates a fresh ephemeral keypair per
             # encryption, so each PQ shared secret is unique — random nonce is fine.
-            from cryptography.hazmat.primitives.kdf.hkdf import HKDF as _HKDF
-            from cryptography.hazmat.primitives import hashes as _hashes
-
-            comp_hash = hashlib.sha256(comp).digest()
-            nonce = _HKDF(
-                algorithm=_hashes.SHA256(),
-                length=12,
-                salt=salt,
-                info=b"meow-synthetic-nonce-v1",
-            ).derive(precomputed_key + comp_hash)
+            backend = get_default_backend()
+            comp_hash = backend.sha256(comp)
+            nonce = backend.derive_key_hkdf(
+                precomputed_key + comp_hash,
+                salt,
+                b"meow-synthetic-nonce-v1",
+                12,
+            )
         else:
             nonce = secrets.token_bytes(12)  # 96-bit nonce, never reused
 
@@ -562,7 +555,7 @@ def encrypt_file_bytes(
             _mode_flags = 0x01  # FS mode
             if pq_ciphertext is not None:
                 _mode_flags |= 0x02
-            _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
+            _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
             _eph_pub = serialize_public_key(fs_keys.ephemeral_public)
             key = derive_shared_secret(
                 fs_keys.ephemeral_private,
@@ -728,7 +721,7 @@ def decrypt_to_raw(
             _mode_flags = 0x01  # FS mode
             if pq_ciphertext is not None:
                 _mode_flags |= 0x02
-            _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
+            _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
             key = derive_shared_secret(
                 receiver_private_key,
                 sender_pubkey,
@@ -1171,7 +1164,7 @@ def derive_encryption_key_for_manifest(
         _mode_flags = 0x01  # FS mode
         if pq_ciphertext is not None:
             _mode_flags |= 0x02
-        _pq_hash = hashlib.sha256(pq_ciphertext).digest() if pq_ciphertext else None
+        _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
         return derive_shared_secret(
             receiver_private_key,
             sender_pubkey,
@@ -1387,7 +1380,7 @@ if __name__ == "__main__":
 
     # Test 3: SHA256 verification
     print("\n3. Testing SHA256 hash...")
-    computed_sha = hashlib.sha256(test_data).digest()
+    computed_sha = get_default_backend().sha256(test_data)
     assert computed_sha == sha, "SHA256 should match"
     print("   ✓ SHA256 verification works")
 

@@ -1,7 +1,7 @@
 # 🏗️ Meow Decoder - Architecture Documentation
 
 **Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Date:** 2026-01-22  
+**Date:** 2026-02-17  
 **Status:** Production
 
 ---
@@ -231,6 +231,44 @@ Layer 1: Strong Password + Optional Keyfile (2FA)
 │  Attack Surface: Minimal (endpoint only)                 │
 └──────────────────────────────────────────────────────────┘
 ```
+
+---
+
+## 🦀 **Rust Crypto Backend**
+
+All secret-handling cryptographic operations are implemented in the Rust `crypto_core/` crate and exposed to Python via PyO3 bindings (`meow_crypto_rs` module).
+
+### **Why Rust?**
+- **Constant-time operations**: The `subtle` crate provides timing-safe comparisons
+- **Secure zeroing**: The `zeroize` crate guarantees secrets are wiped from memory
+- **Memory safety**: No buffer overflows or use-after-free vulnerabilities
+- **Performance**: Native-speed crypto without Python GIL overhead
+
+### **Backend Functions (16 PyO3 bindings)**
+
+```
+┌───────────────────────────────────────────────────────────────────┐
+│                    meow_crypto_rs Module                          │
+├───────────────────────────────────────────────────────────────────┤
+│                                                                   │
+│  Key Derivation:          Symmetric Crypto:      Hashing:         │
+│  ├─ derive_key_argon2id   ├─ aes_gcm_encrypt     ├─ sha256        │
+│  ├─ derive_key_hkdf       ├─ aes_gcm_decrypt     ├─ hmac_sha256   │
+│  ├─ hkdf_extract          └─ aes_ctr_crypt       └─ hmac_verify   │
+│  └─ hkdf_expand                                                   │
+│                                                                   │
+│  Key Exchange:            Utilities:             Post-Quantum:    │
+│  ├─ x25519_generate       ├─ constant_time_cmp   ├─ mlkem768_*    │
+│  ├─ x25519_exchange       ├─ secure_zero         └─ mlkem1024_*   │
+│  └─ x25519_pub_from_priv  └─ secure_random                        │
+│                                                                   │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### **CI Enforcement**
+- `RUST_BACKEND_REQUIRED=1` environment gate — CI fails if Rust backend unavailable
+- AST-based import scanner blocks `from cryptography` in production modules
+- Golden vector regression tests verify Python/Rust output parity
 
 ---
 

@@ -10,15 +10,10 @@ Security Properties:
 - Compromise of receiver's long-term key doesn't compromise past messages
 """
 
-import hashlib
 import secrets
 import struct
 from typing import Tuple, Optional
 from dataclasses import dataclass
-
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .crypto_backend import get_default_backend
 
@@ -106,7 +101,7 @@ def derive_shared_secret(
         bound_info += struct.pack(">B", protocol_version)
         bound_info += struct.pack(">B", mode_flags & 0xFF)
         # Bind receiver identity (hash of public key)
-        bound_info += hashlib.sha256(receiver_public).digest()
+        bound_info += backend.sha256(receiver_public)
         # Bind sender ephemeral public key if available
         if ephemeral_public is not None:
             if len(ephemeral_public) != 32:
@@ -197,6 +192,7 @@ def save_receiver_keypair(
 
     # Save private key (encrypted PEM)
     # We use cryptography library for PEM encoding/encryption
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
     from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat
 
     # Wrap bytes in object for serialization
@@ -217,6 +213,39 @@ def save_receiver_keypair(
 
     with open(private_key_file, "wb") as f:
         f.write(private_bytes)
+
+
+def load_x25519_private_key_pem(pem_data: bytes, password: Optional[str] = None) -> bytes:
+    """
+    Load X25519 private key from PEM-encoded bytes.
+
+    Args:
+        pem_data: PEM-encoded private key data
+        password: Password if key is encrypted
+
+    Returns:
+        Raw 32-byte X25519 private key
+
+    Note:
+        Uses cryptography library for PEM parsing only.
+        Actual crypto operations use Rust backend.
+    """
+    from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
+
+    password_bytes = password.encode("utf-8") if password else None
+    private_key_obj = load_pem_private_key(pem_data, password=password_bytes)
+
+    if not isinstance(private_key_obj, X25519PrivateKey):
+        raise ValueError("Loaded key is not X25519PrivateKey")
+
+    # Extract raw bytes
+    return private_key_obj.private_bytes(
+        encoding=serialization.Encoding.Raw,
+        format=serialization.PrivateFormat.Raw,
+        encryption_algorithm=serialization.NoEncryption(),
+    )
 
 
 def load_receiver_keypair(
@@ -242,6 +271,8 @@ def load_receiver_keypair(
         private_bytes = f.read()
 
     from cryptography.hazmat.primitives.serialization import load_pem_private_key
+    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+    from cryptography.hazmat.primitives import serialization
 
     password_bytes = password.encode("utf-8") if password else None
     private_key_obj = load_pem_private_key(private_bytes, password=password_bytes)

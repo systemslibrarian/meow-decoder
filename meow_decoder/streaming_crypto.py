@@ -15,14 +15,11 @@ import gc
 import zlib
 import struct
 import secrets
-import hashlib
 from typing import IO, Optional, Tuple, Iterator
 from dataclasses import dataclass
 from contextlib import contextmanager
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from .crypto_backend import get_default_backend
 
 # Try to import psutil for memory monitoring
 try:
@@ -91,24 +88,20 @@ class StreamingCipher:
 
         self.nonce = nonce
 
-        # Create cipher
-        cipher = Cipher(algorithms.AES(key), modes.CTR(nonce))
-
-        self.encryptor = cipher.encryptor()
-        self.decryptor = cipher.decryptor()
+        # Track byte offsets for streaming CTR mode
+        self._encrypt_offset = 0
+        self._decrypt_offset = 0
 
         # Derive MAC key using HKDF for domain separation
         # This ensures the MAC key is distinct from the encryption key
-        mac_key_material = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=nonce, info=STREAMING_MAC_INFO
-        ).derive(key)
+        backend = get_default_backend()
+        mac_key_material = backend.derive_key_hkdf(key, nonce, STREAMING_MAC_INFO, 32)
         self._mac_key = mac_key_material
 
     def _compute_mac(self, data: bytes) -> bytes:  # pragma: no cover
         """Compute HMAC-SHA256 over data."""
-        import hmac as hmac_mod
-
-        return hmac_mod.new(self._mac_key, data, hashlib.sha256).digest()
+        backend = get_default_backend()
+        return backend.hmac_sha256(self._mac_key, data)
 
     def _verify_mac(self, data: bytes, expected_mac: bytes) -> bool:  # pragma: no cover
         """Verify HMAC-SHA256 in constant time."""
@@ -134,12 +127,11 @@ class StreamingCipher:
         """
         original_size = 0
         compressed_size = 0
-        hasher = hashlib.sha256()
 
-        # MAC hasher for ciphertext authentication
-        import hmac as hmac_mod
-
-        mac_hasher = hmac_mod.new(self._mac_key, self.nonce, hashlib.sha256)
+        # Accumulate data for hash and MAC computation (Rust backend, single-shot)
+        backend = get_default_backend()
+        all_plaintext_chunks = []
+        all_ciphertext_chunks = []
 
         # Create compressor if enabled
         if enable_compression:
@@ -152,7 +144,7 @@ class StreamingCipher:
                 break
 
             original_size += len(chunk)
-            hasher.update(chunk)
+            all_plaintext_chunks.append(chunk)
 
             # Compress if enabled
             if enable_compression:
@@ -160,11 +152,14 @@ class StreamingCipher:
             else:
                 compressed_chunk = chunk
 
-            # Encrypt chunk
+            # Encrypt chunk using Rust AES-CTR with byte offset tracking
             if compressed_chunk:
-                encrypted_chunk = self.encryptor.update(compressed_chunk)
+                encrypted_chunk = backend.aes_ctr_crypt(
+                    self.key, self.nonce, compressed_chunk, self._encrypt_offset
+                )
+                self._encrypt_offset += len(compressed_chunk)
                 output_stream.write(encrypted_chunk)
-                mac_hasher.update(encrypted_chunk)  # AUTH: Include in MAC
+                all_ciphertext_chunks.append(encrypted_chunk)
                 compressed_size += len(compressed_chunk)
 
             # Force GC to reclaim memory
@@ -177,21 +172,29 @@ class StreamingCipher:
         if enable_compression:
             final_compressed = compressor.flush()
             if final_compressed:
-                encrypted_final = self.encryptor.update(final_compressed)
+                encrypted_final = backend.aes_ctr_crypt(
+                    self.key, self.nonce, final_compressed, self._encrypt_offset
+                )
+                self._encrypt_offset += len(final_compressed)
                 output_stream.write(encrypted_final)
-                mac_hasher.update(encrypted_final)  # AUTH: Include in MAC
+                all_ciphertext_chunks.append(encrypted_final)
                 compressed_size += len(final_compressed)
 
-        # Finalize encryption
-        final_encrypted = self.encryptor.finalize()
-        if final_encrypted:  # pragma: no cover
-            output_stream.write(final_encrypted)
-            mac_hasher.update(final_encrypted)  # AUTH: Include in MAC
+        # Compute SHA-256 of all plaintext using Rust backend
+        all_plaintext = b"".join(all_plaintext_chunks)
+        sha256_hash = backend.sha256(all_plaintext)
+        del all_plaintext
+        del all_plaintext_chunks
 
-        # Compute final MAC
-        mac_tag = mac_hasher.digest()
+        # Compute MAC: HMAC-SHA256(mac_key, nonce || ciphertext) using Rust backend
+        all_ciphertext = b"".join(all_ciphertext_chunks)
+        mac_tag = backend.hmac_sha256(self._mac_key, self.nonce + all_ciphertext)
+        del all_ciphertext
+        del all_ciphertext_chunks
 
-        return original_size, compressed_size, hasher.digest(), mac_tag
+        gc.collect()
+
+        return original_size, compressed_size, sha256_hash, mac_tag
 
     def decrypt_stream(
         self,
@@ -240,12 +243,9 @@ class StreamingCipher:
             # Read entire ciphertext for MAC verification
             ciphertext = input_stream.read()
 
-            # Verify MAC: HMAC(nonce || ciphertext)
-            import hmac as hmac_mod
-
-            mac_hasher = hmac_mod.new(self._mac_key, self.nonce, hashlib.sha256)
-            mac_hasher.update(ciphertext)
-            computed_mac = mac_hasher.digest()
+            # Verify MAC: HMAC(mac_key, nonce || ciphertext) using Rust backend
+            backend = get_default_backend()
+            computed_mac = backend.hmac_sha256(self._mac_key, self.nonce + ciphertext)
 
             if not secrets.compare_digest(computed_mac, expected_mac):
                 raise RuntimeError("MAC verification failed - ciphertext may be tampered")
@@ -271,6 +271,7 @@ class StreamingCipher:
         This method assumes MAC has already been verified or caller accepts risk.
         """
         total_written = 0
+        backend = get_default_backend()
 
         # Create decompressor if enabled
         if enable_decompression:
@@ -282,8 +283,11 @@ class StreamingCipher:
             if not encrypted_chunk:
                 break
 
-            # Decrypt chunk
-            decrypted_chunk = self.decryptor.update(encrypted_chunk)
+            # Decrypt chunk using Rust AES-CTR with byte offset tracking
+            decrypted_chunk = backend.aes_ctr_crypt(
+                self.key, self.nonce, encrypted_chunk, self._decrypt_offset
+            )
+            self._decrypt_offset += len(encrypted_chunk)
 
             # Decompress if enabled
             if enable_decompression:
@@ -306,11 +310,8 @@ class StreamingCipher:
                 del decompressed_chunk
             gc.collect()
 
-        # Finalize decryption
-        final_decrypted = self.decryptor.finalize()
-
         # Finalize decompression
-        if enable_decompression and final_decrypted:  # pragma: no cover
+        if enable_decompression:  # pragma: no cover
             try:
                 final_decompressed = decompressor.flush()
                 if final_decompressed:
@@ -318,9 +319,6 @@ class StreamingCipher:
                     total_written += len(final_decompressed)
             except zlib.error as e:
                 raise RuntimeError(f"Final decompression failed: {e}")
-        elif final_decrypted:  # pragma: no cover
-            output_stream.write(final_decrypted)
-            total_written += len(final_decrypted)
 
         return total_written
 
@@ -533,7 +531,7 @@ if __name__ == "__main__":
 
         with open(orig_path, "rb") as f_in:
             with open(enc_path, "wb") as f_out:
-                orig_size, comp_size, sha256 = cipher.encrypt_stream(
+                orig_size, comp_size, sha256, mac_tag = cipher.encrypt_stream(
                     f_in, f_out, enable_compression=True
                 )
 

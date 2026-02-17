@@ -303,6 +303,37 @@ fn aes_gcm_decrypt<'py>(
 }
 
 // =============================================================================
+// AES-256-CTR (Streaming Encryption)
+// =============================================================================
+
+/// Encrypt or decrypt data using AES-256-CTR mode.
+///
+/// CTR mode is symmetric: the same function serves as both encrypt and decrypt.
+///
+/// Args:
+///     key: 32-byte AES-256 key
+///     nonce: 16-byte initial counter block (CTR IV)
+///     data: Plaintext (encrypt) or ciphertext (decrypt)
+///     byte_offset: Starting byte position in the stream (for chunked processing)
+///
+/// Returns:
+///     Processed data (ciphertext or plaintext)
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (key, nonce, data, byte_offset=0))]
+fn aes_ctr_crypt<'py>(
+    py: Python<'py>,
+    key: &[u8],
+    nonce: &[u8],
+    data: &[u8],
+    byte_offset: u64,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let result = crypto_core::pure_crypto::aes_ctr_crypt(key, nonce, data, byte_offset)
+        .map_err(|e| PyValueError::new_err(format!("{}", e)))?;
+    Ok(PyBytes::new(py, &result))
+}
+
+// =============================================================================
 // HMAC-SHA256
 // =============================================================================
 
@@ -641,6 +672,9 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // AES-GCM
     m.add_function(wrap_pyfunction!(aes_gcm_encrypt, m)?)?;
     m.add_function(wrap_pyfunction!(aes_gcm_decrypt, m)?)?;
+
+    // AES-CTR (streaming)
+    m.add_function(wrap_pyfunction!(aes_ctr_crypt, m)?)?;
 
     // HMAC
     m.add_function(wrap_pyfunction!(hmac_sha256, m)?)?;

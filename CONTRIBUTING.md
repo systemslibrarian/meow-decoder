@@ -68,6 +68,34 @@ pre-commit install
 pytest tests/
 ```
 
+### 🦀 Rust Crypto Backend (Required)
+
+The Rust crypto backend is **mandatory** for all development. CI enforces `RUST_BACKEND_REQUIRED=1`.
+
+```bash
+# Install Rust (if not already installed)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+source $HOME/.cargo/env
+
+# Build and install the Rust module
+cd rust_crypto
+pip install maturin
+maturin develop --release
+cd ..
+
+# Verify installation
+python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.backend_info())"
+
+# Run Rust tests
+cargo test -p crypto_core
+```
+
+**Crypto code requirements:**
+- All secret-handling crypto must use `meow_crypto_rs` (Rust backend)
+- Do NOT import `cryptography` in production modules (enforced by CI)
+- Use `backend.constant_time_compare()` for auth tag verification
+- Use `backend.secure_zero()` for zeroizing secrets
+
 ---
 
 ## 📋 Coding Standards

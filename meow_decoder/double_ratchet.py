@@ -35,15 +35,11 @@ References:
 
 import struct
 import secrets
-import hashlib
 from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
 
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF, HKDFExpand
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from .crypto_backend import get_default_backend
 
 # Domain separation constants
 RATCHET_INFO_ROOT = b"meow_double_ratchet_root_v1"
@@ -62,28 +58,31 @@ class RatchetError(Exception):
 class KeyPair:
     """X25519 keypair container."""
 
-    private: X25519PrivateKey
-    public: X25519PublicKey
+    _private_bytes: bytes
+    _public_bytes: bytes
 
     @classmethod
     def generate(cls) -> "KeyPair":
         """Generate a new X25519 keypair."""
-        private = X25519PrivateKey.generate()
-        public = private.public_key()
-        return cls(private=private, public=public)
+        backend = get_default_backend()
+        priv, pub = backend.x25519_generate_keypair()
+        return cls(_private_bytes=priv, _public_bytes=pub)
 
     def public_bytes(self) -> bytes:
         """Serialize public key to raw bytes."""
-        return self.public.public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
+        return self._public_bytes
+
+    def exchange(self, their_public: bytes) -> bytes:
+        """Perform X25519 key exchange."""
+        backend = get_default_backend()
+        return backend.x25519_exchange(self._private_bytes, their_public)
 
     @staticmethod
-    def public_from_bytes(public_bytes: bytes) -> X25519PublicKey:
-        """Load a public key from raw bytes."""
+    def public_from_bytes(public_bytes: bytes) -> bytes:
+        """Validate and return public key bytes."""
         if len(public_bytes) != 32:
             raise ValueError("Public key must be 32 bytes")
-        return X25519PublicKey.from_public_bytes(public_bytes)
+        return public_bytes
 
 
 @dataclass
@@ -140,11 +139,7 @@ class RatchetState:
 
         # DH keypair (private key)
         if self.dh_keypair:
-            privkey_bytes = self.dh_keypair.private.private_bytes(
-                encoding=serialization.Encoding.Raw,
-                format=serialization.PrivateFormat.Raw,
-                encryption_algorithm=serialization.NoEncryption(),
-            )
+            privkey_bytes = self.dh_keypair._private_bytes
             data += struct.pack(">B", 1)  # Has keypair
             data += privkey_bytes  # 32 bytes
         else:
@@ -186,8 +181,9 @@ class RatchetState:
         if has_keypair:
             privkey_bytes = data[offset : offset + 32]
             offset += 32
-            privkey = X25519PrivateKey.from_private_bytes(privkey_bytes)
-            state.dh_keypair = KeyPair(private=privkey, public=privkey.public_key())
+            backend = get_default_backend()
+            pubkey_bytes = backend.x25519_public_from_private(privkey_bytes)
+            state.dh_keypair = KeyPair(_private_bytes=privkey_bytes, _public_bytes=pubkey_bytes)
 
         # Remote public
         has_remote = struct.unpack(">B", data[offset : offset + 1])[0]
@@ -274,8 +270,7 @@ class DoubleRatchet:
         state.dh_remote_public = bob_public_key
 
         # Perform DH and derive root + send chain
-        bob_pubkey = KeyPair.public_from_bytes(bob_public_key)
-        dh_output = state.dh_keypair.private.exchange(bob_pubkey)
+        dh_output = state.dh_keypair.exchange(bob_public_key)
 
         state.root_key, state.send_chain_key = cls._kdf_rk(shared_secret, dh_output)
 
@@ -384,9 +379,8 @@ class DoubleRatchet:
         self.state.dh_remote_public = their_public
 
         # Derive receiving chain
-        their_pubkey = KeyPair.public_from_bytes(their_public)
         assert self.state.dh_keypair is not None, "DH keypair must exist"
-        dh_output = self.state.dh_keypair.private.exchange(their_pubkey)
+        dh_output = self.state.dh_keypair.exchange(their_public)
         self.state.root_key, self.state.recv_chain_key = self._kdf_rk(
             self.state.root_key, dh_output
         )
@@ -395,7 +389,7 @@ class DoubleRatchet:
         self.state.dh_keypair = KeyPair.generate()
 
         # Derive sending chain
-        dh_output = self.state.dh_keypair.private.exchange(their_pubkey)
+        dh_output = self.state.dh_keypair.exchange(their_public)
         self.state.root_key, self.state.send_chain_key = self._kdf_rk(
             self.state.root_key, dh_output
         )
@@ -431,9 +425,8 @@ class DoubleRatchet:
 
         Returns (new_root_key, chain_key)
         """
-        # Use HKDF to derive 64 bytes
-        hkdf = HKDF(algorithm=hashes.SHA256(), length=64, salt=root_key, info=RATCHET_INFO_ROOT)
-        output = hkdf.derive(dh_output)
+        backend = get_default_backend()
+        output = backend.derive_key_hkdf(dh_output, root_key, RATCHET_INFO_ROOT, 64)
 
         return output[:32], output[32:]
 
@@ -444,23 +437,18 @@ class DoubleRatchet:
 
         Returns (message_key, new_chain_key)
         """
-        # Use HKDFExpand for efficiency
-        message_key = HKDFExpand(
-            algorithm=hashes.SHA256(), length=32, info=RATCHET_INFO_MESSAGE
-        ).derive(chain_key)
-
-        new_chain_key = HKDFExpand(
-            algorithm=hashes.SHA256(), length=32, info=RATCHET_INFO_CHAIN
-        ).derive(chain_key)
+        backend = get_default_backend()
+        message_key = backend.hkdf_expand(chain_key, RATCHET_INFO_MESSAGE, 32)
+        new_chain_key = backend.hkdf_expand(chain_key, RATCHET_INFO_CHAIN, 32)
 
         return message_key, new_chain_key
 
     @staticmethod
     def _aead_encrypt(key: bytes, plaintext: bytes, aad: bytes) -> bytes:
         """Encrypt with AES-256-GCM."""
+        backend = get_default_backend()
         nonce = secrets.token_bytes(12)
-        aesgcm = AESGCM(key)
-        ciphertext = aesgcm.encrypt(nonce, plaintext, aad)
+        ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
         return nonce + ciphertext
 
     @staticmethod
@@ -472,8 +460,8 @@ class DoubleRatchet:
         nonce = ciphertext[:12]
         actual_ciphertext = ciphertext[12:]
 
-        aesgcm = AESGCM(key)
-        return aesgcm.decrypt(nonce, actual_ciphertext, aad)
+        backend = get_default_backend()
+        return backend.aes_gcm_decrypt(key, nonce, actual_ciphertext, aad)
 
 
 # Clowder mode integration
@@ -651,8 +639,9 @@ def _self_test():  # pragma: no cover
     bob_session = ClowderSession(bob_id)
 
     # Peer IDs
-    alice_peer_id = hashlib.sha256(b"alice").digest()
-    bob_peer_id = hashlib.sha256(b"bob").digest()
+    backend = get_default_backend()
+    alice_peer_id = backend.sha256(b"alice")
+    bob_peer_id = backend.sha256(b"bob")
 
     # Add peers
     peer_secret = secrets.token_bytes(32)

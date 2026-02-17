@@ -67,13 +67,10 @@ See docs/RATCHET_PROTOCOL.md for formal specification.
 import os
 import struct
 import secrets
-import hmac as _hmac
-import hashlib as _hashlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend
 
 # ── Domain Separation Constants ──────────────────────────────────────────────
 # Each HKDF derivation uses a unique info string to ensure cryptographic
@@ -174,12 +171,8 @@ def _secure_zero(buf: bytearray) -> None:
 
 def _hkdf_derive(key_material: bytes, salt: bytes, info: bytes, length: int = 32) -> bytes:
     """HKDF-SHA256 key derivation with domain separation."""
-    return HKDF(
-        algorithm=hashes.SHA256(),
-        length=length,
-        salt=salt,
-        info=info,
-    ).derive(key_material)
+    backend = get_default_backend()
+    return backend.derive_key_hkdf(key_material, salt, info, length)
 
 
 def _mix_beacon(message_key: bytes, beacon_secret: bytes, salt: bytes) -> bytes:
@@ -200,24 +193,13 @@ def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[bytes, bytes]:
         (shared_secret, ephemeral_public_bytes) — shared_secret is mixed
         into the message key; ephemeral_public is embedded in the frame.
     """
-    from cryptography.hazmat.primitives.asymmetric.x25519 import (
-        X25519PrivateKey,
-        X25519PublicKey,
-    )
-    from cryptography.hazmat.primitives.serialization import (
-        Encoding,
-        PublicFormat,
-    )
+    backend = get_default_backend()
+    ephemeral_private_bytes, ephemeral_public_bytes = backend.x25519_generate_keypair()
 
-    ephemeral_private = X25519PrivateKey.generate()
-    ephemeral_public = ephemeral_private.public_key()
-
-    receiver_pub = X25519PublicKey.from_public_bytes(receiver_public_key)
-    raw_shared = ephemeral_private.exchange(receiver_pub)
+    raw_shared = backend.x25519_exchange(ephemeral_private_bytes, receiver_public_key)
 
     shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
 
-    ephemeral_public_bytes = ephemeral_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
     return shared_secret, ephemeral_public_bytes
 
 
@@ -231,14 +213,8 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: byt
     Returns:
         32-byte shared secret to mix into message key
     """
-    from cryptography.hazmat.primitives.asymmetric.x25519 import (
-        X25519PrivateKey,
-        X25519PublicKey,
-    )
-
-    eph_pub = X25519PublicKey.from_public_bytes(ephemeral_public_bytes)
-    priv = X25519PrivateKey.from_private_bytes(receiver_private_key)
-    raw_shared = priv.exchange(eph_pub)
+    backend = get_default_backend()
+    raw_shared = backend.x25519_exchange(receiver_private_key, ephemeral_public_bytes)
 
     shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
     return shared_secret
@@ -313,30 +289,16 @@ def _generate_asym_rekey(
         - HKDF domain separation (ASYM_REKEY_KEM_INFO) prevents cross-use
         - shared_secret requires receiver_private_key to reconstruct
     """
-    from cryptography.hazmat.primitives.asymmetric.x25519 import (
-        X25519PrivateKey,
-        X25519PublicKey,
-    )
-    from cryptography.hazmat.primitives.serialization import (
-        Encoding,
-        PublicFormat,
-    )
+    backend = get_default_backend()
+    ephemeral_private_bytes, ephemeral_public_bytes = backend.x25519_generate_keypair()
 
-    ephemeral_private = X25519PrivateKey.generate()
-    ephemeral_public = ephemeral_private.public_key()
-
-    receiver_pub = X25519PublicKey.from_public_bytes(receiver_public_key)
-    raw_shared = ephemeral_private.exchange(receiver_pub)
+    raw_shared = backend.x25519_exchange(ephemeral_private_bytes, receiver_public_key)
 
     # Domain-separated KDF — distinct from beacon KEM and FS derivation
     shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
 
-    ephemeral_public_bytes = ephemeral_public.public_bytes(Encoding.Raw, PublicFormat.Raw)
-
-    # NOTE: ephemeral_private goes out of scope here and is not stored.
-    # Python GC limitation: the 32-byte private key is immutable bytes
-    # and cannot be explicitly zeroed. The Rust backend's zeroize crate
-    # handles the actual X25519 scalar cleanup.
+    # NOTE: ephemeral_private_bytes goes out of scope here and is not stored.
+    # The Rust backend's zeroize crate handles the actual X25519 scalar cleanup.
     return shared_secret, ephemeral_public_bytes
 
 
@@ -353,14 +315,8 @@ def _recover_asym_rekey(
     Returns:
         32-byte ECDH-derived secret (must match sender's _generate_asym_rekey output)
     """
-    from cryptography.hazmat.primitives.asymmetric.x25519 import (
-        X25519PrivateKey,
-        X25519PublicKey,
-    )
-
-    eph_pub = X25519PublicKey.from_public_bytes(ephemeral_public_bytes)
-    priv = X25519PrivateKey.from_private_bytes(receiver_private_key)
-    raw_shared = priv.exchange(eph_pub)
+    backend = get_default_backend()
+    raw_shared = backend.x25519_exchange(receiver_private_key, ephemeral_public_bytes)
 
     # Same domain separator as sender — MUST match _generate_asym_rekey
     shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
@@ -511,7 +467,8 @@ def _compute_commitment(mac_key: bytes, frame_body: bytes) -> bytes:
     Returns:
         16-byte commitment tag (truncated HMAC-SHA256)
     """
-    return _hmac.new(mac_key, frame_body, _hashlib.sha256).digest()[:COMMIT_TAG_SIZE]
+    backend = get_default_backend()
+    return backend.hmac_sha256(mac_key, frame_body)[:COMMIT_TAG_SIZE]
 
 
 # ── Data Structures ──────────────────────────────────────────────────────────

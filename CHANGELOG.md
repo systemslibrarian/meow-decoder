@@ -10,6 +10,43 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Infrastructure — Rust Crypto Migration Complete (2026-02-17) 🦀
+
+**Full 5-phase migration of all secret-handling cryptography from Python → Rust is complete.**
+
+All core cryptographic operations now route through the Rust `meow_crypto_rs` backend with PyO3 bindings, ensuring constant-time operations via the `subtle` crate and secure zeroing via the `zeroize` crate.
+
+#### Migration Summary
+- **Phase 1: Audit & Inventory** — Mapped 105 `cryptography` imports across 28 files, 48 `hmac`/`hashlib` sites, 42 constant-time compare sites, 126 zeroization paths
+- **Phase 2: Rust Backend Extension** — All primitives implemented in `crypto_core/`: Argon2id, HKDF-SHA256, AES-256-GCM, X25519, HMAC-SHA256, SHA-256, ML-KEM-768/1024
+- **Phase 3: Python Migration** — 12 core modules migrated: `crypto.py`, `crypto_backend.py`, `crypto_enhanced.py`, `x25519_forward_secrecy.py`, `forward_secrecy.py`, `pq_hybrid.py`, `ratchet.py`, `double_ratchet.py`, `constant_time.py`, `frame_mac.py`, `streaming_crypto.py`
+- **Phase 4: Test Migration** — 397 tests passing (383 protocol tests + 14 enforcement tests including 5 key lifecycle tests)
+- **Phase 5: CI Enforcement** — `RUST_BACKEND_REQUIRED=1` environment gate, import-ban linter, golden vector regression
+
+#### Rust Backend Functions (16 PyO3 bindings)
+```
+derive_key_argon2id, derive_key_hkdf, hkdf_extract, hkdf_expand,
+aes_gcm_encrypt, aes_gcm_decrypt, aes_ctr_crypt, hmac_sha256,
+hmac_sha256_verify, sha256, x25519_generate_keypair, x25519_exchange,
+x25519_public_from_private, constant_time_compare, secure_zero, secure_random
+```
+
+#### New Enforcement Tests (`tests/test_crypto_enforcement.py`)
+| Test Class | Purpose |
+|-----------|---------|
+| `TestPythonCryptoBan` | AST scan for forbidden `cryptography` imports |
+| `TestRustBackendRequired` | Verifies `meow_crypto_rs` imports successfully |
+| `TestGoldenVectors` | SHA-256, HMAC-SHA256, AES-CTR frozen vectors |
+| `TestHKDFGoldenVector` | HKDF-SHA256 frozen vectors |
+| `TestConstantTimeRouting` | Verifies `constant_time_compare()` routes to Rust |
+| `TestKeyLifecycle` | `secure_zero`, X25519 keygen/exchange, AES-GCM AAD |
+
+#### Security Guarantees
+- **Constant-time comparisons**: All auth tag/HMAC verification via `subtle::ConstantTimeEq`
+- **Secure zeroing**: All secrets zeroized on drop via `zeroize` crate
+- **No Python fallback**: CI fails if Rust backend unavailable (`RUST_BACKEND_REQUIRED=1`)
+- **Golden vector parity**: Python and Rust outputs byte-for-byte identical
+
 ### Security — PQXDH Upgrade: Signal 2026 Post-Quantum Alignment 🔐
 
 **ML-KEM-768 default** (Signal PQXDH parity) with **ML-KEM-1024 --paranoid** option. Full PQXDH-style two-step HKDF transcript binding replaces the previous single-step derivation.

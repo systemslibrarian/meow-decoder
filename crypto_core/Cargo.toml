@@ -19,6 +19,15 @@ dead_code = "allow"
 # AES-GCM implementation (pure Rust, constant-time)
 aes-gcm = "0.10"
 
+# AES block cipher (for CTR mode)
+aes = { version = "0.8", optional = true }
+
+# CTR mode for streaming encryption
+ctr = { version = "0.9", optional = true }
+
+# Cipher traits (BlockEncrypt etc.)
+cipher = { version = "0.4", optional = true }
+
 # Secure memory zeroization
 zeroize = { version = "1.7", features = ["derive"] }
 
@@ -177,6 +186,9 @@ pure-crypto = [
     "hmac",
     "subtle",
     "rand_core",
+    "aes",
+    "ctr",
+    "cipher",
 ]
 
 # Post-quantum cryptography (RustCrypto ml-kem/ml-dsa - pure Rust)

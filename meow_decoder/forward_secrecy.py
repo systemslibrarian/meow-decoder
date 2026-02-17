@@ -15,13 +15,10 @@ Security Benefits:
 import os
 import struct
 import secrets
-import hashlib
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF, HKDFExpand
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from .crypto_backend import get_default_backend
 
 # Domain separation constants
 BLOCK_KEY_DOMAIN = b"meow_block_key_v3"
@@ -97,10 +94,8 @@ class ForwardSecrecyManager:
 
     def _derive_initial_chain_key(self) -> bytes:
         """Derive initial chain key for ratchet."""
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=self.salt, info=RATCHET_DOMAIN + b"_init"
-        )
-        return hkdf.derive(self.master_key)
+        backend = get_default_backend()
+        return backend.derive_key_hkdf(self.master_key, self.salt, RATCHET_DOMAIN + b"_init", 32)
 
     def _ratchet_once(self, chain_key: bytes) -> Tuple[bytes, bytes]:
         """
@@ -113,9 +108,8 @@ class ForwardSecrecyManager:
             Tuple of (new_chain_key, message_key)
         """
         # Use HKDFExpand for efficient ratcheting
-        hkdf = HKDFExpand(algorithm=hashes.SHA256(), length=64, info=RATCHET_DOMAIN)
-
-        output = hkdf.derive(chain_key)
+        backend = get_default_backend()
+        output = backend.hkdf_expand(chain_key, RATCHET_DOMAIN, 64)
         new_chain_key = output[:32]
         message_key = output[32:64]
 
@@ -151,14 +145,10 @@ class ForwardSecrecyManager:
             base_key = self.master_key
 
         # Derive per-block key using HKDF
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=self.salt,
-            info=BLOCK_KEY_DOMAIN + struct.pack(">I", block_id),
+        backend = get_default_backend()
+        block_key = backend.derive_key_hkdf(
+            base_key, self.salt, BLOCK_KEY_DOMAIN + struct.pack(">I", block_id), 32
         )
-
-        block_key = hkdf.derive(base_key)
 
         # Cache for potential reuse
         self._key_cache[block_id] = block_key
@@ -183,8 +173,8 @@ class ForwardSecrecyManager:
         nonce = secrets.token_bytes(12)
 
         # Encrypt with AES-256-GCM
-        aesgcm = AESGCM(block_key)
-        ciphertext = aesgcm.encrypt(nonce, block_data, None)
+        backend = get_default_backend()
+        ciphertext = backend.aes_gcm_encrypt(block_key, nonce, block_data, None)
 
         # Zero the block key
         block_key_array = bytearray(block_key)
@@ -209,8 +199,8 @@ class ForwardSecrecyManager:
         block_key = self.derive_block_key(block_id)
 
         # Decrypt with AES-256-GCM
-        aesgcm = AESGCM(block_key)
-        plaintext = aesgcm.decrypt(nonce, ciphertext, None)
+        backend = get_default_backend()
+        plaintext = backend.aes_gcm_decrypt(block_key, nonce, ciphertext, None)
 
         # Zero the block key
         block_key_array = bytearray(block_key)

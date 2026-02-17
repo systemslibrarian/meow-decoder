@@ -508,9 +508,14 @@ def test_decode_gif_verbose_frame_mac_stats(tmp_path, monkeypatch):
 
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", _valid_unpack)
 
+    import hashlib
+
     class _Backend:
         def secure_zero(self, *args, **kwargs):
             raise RuntimeError("boom")
+
+        def sha256(self, data):
+            return hashlib.sha256(data).digest()
 
     monkeypatch.setattr("meow_decoder.crypto_backend.get_default_backend", lambda: _Backend())
 

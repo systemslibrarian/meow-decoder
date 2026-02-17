@@ -21,20 +21,12 @@ _warnings.warn(
 
 import os
 import struct
-import hashlib
 import zlib
-import hmac
 import gc
 import secrets
 from dataclasses import dataclass
 from typing import Tuple, Optional
 from contextlib import contextmanager
-
-# Cryptography library imports
-from cryptography.hazmat.primitives import hashes, constant_time
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.hmac import HMAC
 
 # Argon2 low-level API
 from argon2 import low_level
@@ -201,14 +193,14 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     # Combine password and keyfile if provided
     secret = password.encode("utf-8")
     if keyfile:
-        # Use HKDF to properly combine password and keyfile
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=64,
-            salt=KEYFILE_DOMAIN_SEP,
-            info=b"password_keyfile_combine",
+        # Use HKDF to properly combine password and keyfile (via Rust backend)
+        backend = get_default_backend()
+        secret = backend.derive_key_hkdf(
+            secret + keyfile,
+            KEYFILE_DOMAIN_SEP,
+            b"password_keyfile_combine",
+            64,
         )
-        secret = hkdf.derive(secret + keyfile)
 
     try:
         # Derive key using Argon2id
@@ -243,13 +235,13 @@ def derive_block_key(master_key: bytes, block_id: int, salt: bytes) -> bytes:
     Returns:
         32-byte block-specific key
     """
-    hkdf = HKDF(
-        algorithm=hashes.SHA256(),
-        length=32,
-        salt=salt,
-        info=BLOCK_KEY_DOMAIN_SEP + struct.pack(">I", block_id),
+    backend = get_default_backend()
+    return backend.derive_key_hkdf(
+        master_key,
+        salt,
+        BLOCK_KEY_DOMAIN_SEP + struct.pack(">I", block_id),
+        32,
     )
-    return hkdf.derive(master_key)
 
 
 def encrypt_file_bytes(
@@ -275,7 +267,7 @@ def encrypt_file_bytes(
         with SecureBytes(raw) as secure_raw:
             # Compress with maximum compression
             comp = zlib.compress(secure_raw.get_bytes(), level=9)
-            sha = hashlib.sha256(secure_raw.get_bytes()).digest()
+            sha = get_default_backend().sha256(secure_raw.get_bytes())
 
         # Generate random salt and nonce using secrets (cryptographically secure)
         salt = secrets.token_bytes(16)
@@ -285,8 +277,8 @@ def encrypt_file_bytes(
         key = derive_key(password, salt, keyfile)
 
         with secure_key_context(key) as secure_key:
-            # Encrypt with AES-256-GCM
-            aesgcm = AESGCM(secure_key)
+            # Encrypt with AES-256-GCM (via Rust backend)
+            backend = get_default_backend()
 
             if use_forward_secrecy:
                 # Note: For true forward secrecy, would need to encrypt blocks
@@ -294,7 +286,7 @@ def encrypt_file_bytes(
                 # Full implementation would be in the fountain encoder.
                 pass
 
-            cipher = aesgcm.encrypt(nonce, comp, None)
+            cipher = backend.aes_gcm_encrypt(secure_key, nonce, comp, None)
 
         return comp, sha, salt, nonce, cipher
     except Exception as e:
@@ -328,8 +320,8 @@ def decrypt_to_raw(
         key = derive_key(password, salt, keyfile)
 
         with secure_key_context(key) as secure_key:
-            aesgcm = AESGCM(secure_key)
-            comp = aesgcm.decrypt(nonce, cipher, None)
+            backend = get_default_backend()
+            comp = backend.aes_gcm_decrypt(secure_key, nonce, cipher, None)
 
         # Decompress
         with SecureBytes(comp) as secure_comp:
@@ -430,9 +422,8 @@ def compute_manifest_hmac(
 
     with secure_key_context(key) as secure_key:
         key_material = MANIFEST_HMAC_KEY_PREFIX + secure_key
-        h = HMAC(key_material, hashes.SHA256())
-        h.update(packed_no_hmac)
-        hmac_result = h.finalize()
+        backend = get_default_backend()
+        hmac_result = backend.hmac_sha256(key_material, packed_no_hmac)
 
     return hmac_result
 
@@ -448,8 +439,8 @@ def verify_manifest_hmac(expected_hmac: bytes, computed_hmac: bytes) -> bool:
     Returns:
         True if HMACs match
     """
-    # Use constant-time comparison to prevent timing attacks
-    return constant_time.bytes_eq(expected_hmac, computed_hmac)
+    # Use constant-time comparison to prevent timing attacks (via Rust backend)
+    return get_default_backend().constant_time_compare(expected_hmac, computed_hmac)
 
 
 def secure_wipe(filepath: str, passes: int = 3) -> None:
@@ -520,8 +511,8 @@ def secure_compare(a: bytes, b: bytes) -> bool:
     Returns:
         True if equal
     """
-    # Use cryptography's constant-time comparison
-    return constant_time.bytes_eq(a, b)
+    # Use Rust backend's constant-time comparison
+    return get_default_backend().constant_time_compare(a, b)
 
 
 # Low-memory streaming encryption (for large files)
@@ -563,7 +554,7 @@ class StreamingEncryption:
             nonce = secrets.token_bytes(12)
 
         with secure_key_context(self.key) as secure_key:
-            aesgcm = AESGCM(secure_key)
+            backend = get_default_backend()
 
             # For streaming, we'd need to use a different mode
             # AES-GCM doesn't support true streaming in cryptography library
@@ -575,8 +566,8 @@ class StreamingEncryption:
             # Compress
             compressed = zlib.compress(data, level=9)
 
-            # Encrypt
-            ciphertext = aesgcm.encrypt(nonce, compressed, None)
+            # Encrypt using Rust backend
+            ciphertext = backend.aes_gcm_encrypt(bytes(secure_key), nonce, compressed)
 
             # Write
             output_stream.write(ciphertext)
