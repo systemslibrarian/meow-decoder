@@ -33,8 +33,7 @@ import struct
 from typing import Optional, List
 from pathlib import Path
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 
 
 class EntropyPool:
@@ -268,30 +267,34 @@ class EntropyPool:
             return b""
 
         # Use HKDF to extract and expand
-        max_len = 255 * hashes.SHA256().digest_size
         salt = secrets.token_bytes(32)
 
+        # derive_key_hkdf handles both extract and expand
+        # For standard-size outputs, single HKDF call suffices
+        # Max HKDF-Expand output is 255 * 32 = 8160 bytes
+        max_len = 255 * 32  # SHA-256 digest size
+
         if output_length <= max_len:
-            hkdf = HKDF(
-                algorithm=hashes.SHA256(),
-                length=output_length,
+            return _get_backend().derive_key_hkdf(
+                ikm=combined,
                 salt=salt,
                 info=b"meow_entropy_boost_v1",
+                output_len=output_length,
             )
-            return hkdf.derive(combined)
 
         # For large outputs, derive a seed and expand
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
-
-        seed_hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=salt, info=b"meow_entropy_boost_v1"
+        seed = _get_backend().derive_key_hkdf(
+            ikm=combined,
+            salt=salt,
+            info=b"meow_entropy_boost_v1",
+            output_len=32,
         )
-        seed = seed_hkdf.derive(combined)
 
-        expander = HKDFExpand(
-            algorithm=hashes.SHA256(), length=output_length, info=b"meow_entropy_boost_v1"
+        return _get_backend().hkdf_expand(
+            prk=seed,
+            info=b"meow_entropy_boost_v1",
+            output_len=output_length,
         )
-        return expander.derive(seed)
 
     def get_source_count(self) -> int:
         """Return number of entropy sources collected."""

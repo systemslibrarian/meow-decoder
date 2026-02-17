@@ -30,8 +30,7 @@ from typing import Optional, List, Set, Dict, Any
 from enum import IntEnum
 import base64
 import json
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 
 
 class MessageType(IntEnum):
@@ -211,13 +210,12 @@ class BiDirectionalSender:
         # material across unrelated contexts, avoiding protocol confusion.
         # Salt: generated random salt
         # Info: context binding
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=32,
+        self.auth_key = _get_backend().derive_key_hkdf(
+            ikm=password.encode("utf-8"),
             salt=session_salt,
             info=b"meow_bidirectional_auth_v1",
+            output_len=32,
         )
-        self.auth_key = hkdf.derive(password.encode("utf-8"))
 
         self.session = SessionInfo(
             session_id=secrets.token_bytes(8),
@@ -424,13 +422,13 @@ class BiDirectionalReceiver:
                 # Insecure fallback or verify logic needs password
                 return False
 
-            hkdf = HKDF(
-                algorithm=hashes.SHA256(),
-                length=32,
+            hkdf_key = _get_backend().derive_key_hkdf(
+                ikm=password.encode("utf-8"),
                 salt=temp_session.session_salt,
                 info=b"meow_bidirectional_auth_v1",
+                output_len=32,
             )
-            derived_key = hkdf.derive(password.encode("utf-8"))
+            derived_key = hkdf_key
 
             # Verify HMAC
             expected_mac = hmac.new(

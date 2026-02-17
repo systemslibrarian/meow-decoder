@@ -14,8 +14,8 @@ class TestDoubleRatchet:
         from meow_decoder.double_ratchet import KeyPair
 
         kp = KeyPair.generate()
-        assert kp.private is not None
-        assert kp.public is not None
+        assert kp._private_bytes is not None
+        assert kp._public_bytes is not None
         assert len(kp.public_bytes()) == 32
 
     def test_message_header_pack_unpack(self):

@@ -45,8 +45,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Union, Callable
 from enum import Enum
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 
 
 class HardwareType(Enum):
@@ -390,8 +389,9 @@ class HardwareSecurityProvider:
         response = bytes.fromhex(output.strip())
 
         # Derive final key using HKDF
-        hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"meow_yubikey_piv_v1")
-        return hkdf.derive(response + password)
+        return _get_backend().derive_key_hkdf(
+            ikm=response + password, salt=salt, info=b"meow_yubikey_piv_v1", output_len=32
+        )
 
     # =========================================================================
     # TPM 2.0 Operations
@@ -538,14 +538,14 @@ class HardwareSecurityProvider:
 
             # Unpack sealed blob
             offset = 0
-            pub_len = struct.unpack(">I", sealed_blob[offset : offset + 4])[0]
+            pub_len = struct.unpack(">I", sealed_blob[offset: offset + 4])[0]
             offset += 4
-            pub_bytes = sealed_blob[offset : offset + pub_len]
+            pub_bytes = sealed_blob[offset: offset + pub_len]
             offset += pub_len
 
-            priv_len = struct.unpack(">I", sealed_blob[offset : offset + 4])[0]
+            priv_len = struct.unpack(">I", sealed_blob[offset: offset + 4])[0]
             offset += 4
-            priv_bytes = sealed_blob[offset : offset + priv_len]
+            priv_bytes = sealed_blob[offset: offset + priv_len]
             offset += priv_len
 
             pcrs = list(sealed_blob[offset:])
@@ -676,8 +676,9 @@ class HardwareSecurityProvider:
             tpm_hmac = hmac_file.read_bytes()
 
             # Derive final key
-            hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"meow_tpm_kdf_v1")
-            return hkdf.derive(tpm_hmac + password)
+            return _get_backend().derive_key_hkdf(
+                ikm=tpm_hmac + password, salt=salt, info=b"meow_tpm_kdf_v1", output_len=32
+            )
 
     # =========================================================================
     # HSM/PKCS#11 Operations
@@ -812,8 +813,9 @@ class HardwareSecurityProvider:
             hsm_hmac = hmac_file.read_bytes()
 
             # Final derivation
-            hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"meow_hsm_kdf_v1")
-            return hkdf.derive(hsm_hmac + password)
+            return _get_backend().derive_key_hkdf(
+                ikm=hsm_hmac + password, salt=salt, info=b"meow_hsm_kdf_v1", output_len=32
+            )
 
     # =========================================================================
     # Software Fallback
@@ -831,13 +833,18 @@ class HardwareSecurityProvider:
             backend = get_default_backend()
             return backend.derive_key_argon2id(password, salt)
         except ImportError:
-            # Pure Python fallback
-            from cryptography.hazmat.primitives.kdf.argon2 import Argon2id
+            # Pure Python fallback using argon2-cffi (no cryptography)
+            import argon2.low_level
 
-            kdf = Argon2id(
-                length=32, salt=salt, memory_cost=524288, time_cost=20, parallelism=4  # 512 MiB
+            return argon2.low_level.hash_secret_raw(
+                secret=password,
+                salt=salt,
+                time_cost=20,
+                memory_cost=524288,
+                parallelism=4,
+                hash_len=32,
+                type=argon2.low_level.Type.ID,
             )
-            return kdf.derive(password)
 
     # =========================================================================
     # Auto-selection

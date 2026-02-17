@@ -296,8 +296,11 @@ class TestSaveReceiverKeypair:
             )
 
             with open(private_file, "rb") as f:
-                pem_content = f.read()
-            assert b"ENCRYPTED" in pem_content
+                file_content = f.read()
+            # New MEOW_X25519 format: encrypted marker byte is \x02
+            assert file_content[:12] == b"MEOW_X25519\x02"
+            # Must be longer than header (12) + salt (16) + nonce (12) + raw key (32)
+            assert len(file_content) > 72
 
 
 class TestLoadReceiverKeypair:
@@ -345,21 +348,54 @@ class TestLoadReceiverKeypair:
             with pytest.raises(ValueError, match="Invalid public key length"):
                 load_receiver_keypair(private_file, public_file)
 
-    def test_invalid_private_key_type_raises(self, monkeypatch):
+    def test_corrupted_private_key_raises(self):
+        """Corrupted MEOW_X25519 file should raise on load."""
         private, public = generate_receiver_keypair()
 
         with tempfile.TemporaryDirectory() as tmpdir:
             private_file = os.path.join(tmpdir, "private.pem")
             public_file = os.path.join(tmpdir, "public.key")
 
-            save_receiver_keypair(private, public, private_file, public_file)
+            save_receiver_keypair(private, public, private_file, public_file, password="pw")
 
-            import cryptography.hazmat.primitives.serialization as serialization
+            # Corrupt the ciphertext bytes
+            with open(private_file, "rb") as f:
+                data = bytearray(f.read())
+            data[-1] ^= 0xFF  # flip last byte
+            with open(private_file, "wb") as f:
+                f.write(data)
 
-            monkeypatch.setattr(serialization, "load_pem_private_key", lambda *_a, **_k: object())
+            with pytest.raises(Exception):
+                load_receiver_keypair(private_file, public_file, password="pw")
 
-            with pytest.raises(ValueError, match="Loaded key is not X25519PrivateKey"):
-                load_receiver_keypair(private_file, public_file)
+    def test_legacy_pem_invalid_type_raises(self):
+        """Legacy PEM path rejects non-X25519 keys."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            private_file = os.path.join(tmpdir, "private.pem")
+            public_file = os.path.join(tmpdir, "public.key")
+
+            # Write a fake PEM that isn't X25519 — use Ed25519 PEM
+            try:
+                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+                from cryptography.hazmat.primitives import serialization
+
+                ed_key = Ed25519PrivateKey.generate()
+                pem_data = ed_key.private_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PrivateFormat.PKCS8,
+                    encryption_algorithm=serialization.NoEncryption(),
+                )
+                with open(private_file, "wb") as f:
+                    f.write(pem_data)
+
+                _, public = generate_receiver_keypair()
+                with open(public_file, "wb") as f:
+                    f.write(public)
+
+                with pytest.raises(ValueError, match="Loaded key is not X25519PrivateKey"):
+                    load_receiver_keypair(private_file, public_file)
+            except ImportError:
+                pytest.skip("cryptography not installed — legacy PEM test skipped")
 
 
 class TestGenerateReceiverKeysCli:

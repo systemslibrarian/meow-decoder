@@ -1,7 +1,7 @@
 # 🏗️ Meow Decoder - Architecture Documentation
 
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Date:** 2026-02-17  
+**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
+**Date:** 2026-02-17
 **Status:** Production
 
 ---
@@ -270,6 +270,21 @@ All secret-handling cryptographic operations are implemented in the Rust `crypto
 - AST-based import scanner blocks `from cryptography` in production modules
 - Golden vector regression tests verify Python/Rust output parity
 
+### **Production vs Non-Production Code**
+
+All production `meow_decoder/*.py` modules route crypto through `crypto_backend.CryptoBackend()` (Rust).
+No production module imports `cryptography` at module level or runtime.
+
+**Non-production / legacy modules (exempt from enforcement):**
+
+| Module | Status | Reason |
+|--------|--------|--------|
+| `crypto_DEBUG.py` | Debug-only | Verbose logging variant, not imported by production |
+| `pq_crypto_real.py` | Dead code | `raise RuntimeError` before imports; kept for audit trail |
+| `pq_signatures.py` | Experimental | Ed25519 not yet in Rust backend; `_PQ_EXPERIMENTAL = True` |
+| `x25519_forward_secrecy.py` | Legacy PEM fallback | New keys use `MEOW_X25519` format via Rust; legacy PEM path imports `cryptography` only when loading old-format keys |
+| `spec_v12/` | Reference spec | Not imported by production entrypoints |
+
 ---
 
 ## 🔒 **Cryptographic Architecture**
@@ -287,8 +302,8 @@ PASSWORD + SALT
     │                 │                 │
     ▼                 ▼                 ▼
 AES-256-GCM      HMAC Key         (unused)
-Encryption       (manifest        
-                 auth)            
+Encryption       (manifest
+                 auth)
 ```
 
 ### **MEOW3: Forward Secrecy**
@@ -362,27 +377,27 @@ Shared (32B)  Shared (32B)
 └────────────────────────────────────────────────────┘
 
 ENCODING:
-                                                                           
-Input Data (N bytes)                                                      
-    │                                                                     
-    │  Split into K blocks                                               
-    ▼                                                                     
-┌────┬────┬────┬────┬────┬────┐                                         
-│ B0 │ B1 │ B2 │ B3 │ B4 │ B5 │  K blocks                               
-└────┴────┴────┴────┴────┴────┘                                         
-  │    │    │    │    │    │                                             
-  └──┬─┴──┬─┴──┬─┴──┬─┴──┬─┘                                            
-     │    │    │    │    │                                               
-     │  Robust Soliton Distribution                                      
-     │  (determines degree d)                                            
-     ▼                                                                    
-┌──────────────────────────────┐                                         
-│   SELECT d random blocks      │                                         
-│   XOR them together           │                                         
-└──────────────────────────────┘                                         
-     │                                                                    
-     ▼                                                                    
-  DROPLET (can reconstruct infinite!)                                    
+
+Input Data (N bytes)
+    │
+    │  Split into K blocks
+    ▼
+┌────┬────┬────┬────┬────┬────┐
+│ B0 │ B1 │ B2 │ B3 │ B4 │ B5 │  K blocks
+└────┴────┴────┴────┴────┴────┘
+  │    │    │    │    │    │
+  └──┬─┴──┬─┴──┬─┴──┬─┴──┬─┘
+     │    │    │    │    │
+     │  Robust Soliton Distribution
+     │  (determines degree d)
+     ▼
+┌──────────────────────────────┐
+│   SELECT d random blocks      │
+│   XOR them together           │
+└──────────────────────────────┘
+     │
+     ▼
+  DROPLET (can reconstruct infinite!)
 
 DECODING (Belief Propagation):
 
@@ -638,7 +653,7 @@ SECURITY MODULES (optional):
 │                                                         │
 └─────────────────────────────────────────────────────────┘
 
-KEY INSIGHT: 
+KEY INSIGHT:
 Even if attacker controls UNTRUSTED zone, they
 cannot decrypt without password (cryptography).
 ```
@@ -762,7 +777,7 @@ def pack_manifest_v5(manifest: Manifest, extensions: dict) -> bytes:
 # In ninja_cat_ultra.py
 class SuperNinjaCat(NinjaCatUltra):
     """Even stealthier than ULTRA!"""
-    
+
     def apply_quantum_stego(self, frame):
         # Your quantum stego code
 ```
@@ -862,6 +877,6 @@ wasm-pack build crypto_core --target web --release --features wasm-pq
 
 ---
 
-**Last Updated:** 2026-01-22  
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
+**Last Updated:** 2026-01-22
+**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
 **Status:** Production

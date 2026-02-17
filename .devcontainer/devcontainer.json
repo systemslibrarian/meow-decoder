@@ -8,9 +8,9 @@
   // Why: Prevents confusing "Cannot GET /" errors and popup spam
   // when the codespace auto-forwards ports before the server runs.
   // Users manually start the HTTP server when they want the WASM demo.
-  
+
   "forwardPorts": [],
-  
+
   "portsAttributes": {
     // Ignore all auto-detected ports (no popups, no auto-forward)
     "*": {
@@ -34,17 +34,17 @@
         "remote.autoForwardPorts": false,
         "remote.restoreForwardedPorts": false,
         "remote.autoForwardPortsSource": "output",
-        
+
         // Python settings
         "python.defaultInterpreterPath": "/usr/local/bin/python",
         "python.testing.pytestEnabled": true,
         "python.testing.pytestArgs": ["tests"],
-        
-        // Editor settings  
+
+        // Editor settings
         "editor.formatOnSave": true,
         "editor.rulers": [88, 120],
         "files.trimTrailingWhitespace": true,
-        
+
         // Terminal
         "terminal.integrated.defaultProfile.linux": "bash"
       },
@@ -53,10 +53,10 @@
         "ms-python.python",
         "ms-python.black-formatter",
         "ms-python.flake8",
-        
+
         // Rust (for crypto_core WASM)
         "rust-lang.rust-analyzer",
-        
+
         // General
         "eamodio.gitlens",
         "esbenp.prettier-vscode",
@@ -74,17 +74,19 @@
       "version": "latest",
       "profile": "default"
     },
-    // wasm-pack for building WASM modules
-    "ghcr.io/aspect-build/rules_js-features/wasm-pack:1": {}
+    // Node.js (needed for wasm-pack and JS tooling)
+    "ghcr.io/devcontainers/features/node:1": {
+      "version": "lts"
+    }
   },
 
   // ============================================================
   // LIFECYCLE COMMANDS
   // ============================================================
-  
+
   // Run after container creation (installs dependencies)
-  "postCreateCommand": "pip install -e '.[dev]' && echo '✅ Python dependencies installed'",
-  
+  "postCreateCommand": "pip install -e '.[dev]' && cargo install wasm-pack && echo '✅ Dependencies installed'",
+
   // Run after container starts (show welcome message)
   "postStartCommand": "echo '' && echo '🐱 Welcome to Meow Decoder!' && echo '' && echo '🌐 To run WASM demo:  make meow-build' && echo '                      Then forward port 8080 in the Ports tab' && echo '                      Navigate to /examples/wasm_browser_example.html' && echo '' && echo '🧪 To run tests:      make test' && echo ''",
 
@@ -95,10 +97,10 @@
     // Enable test mode for faster Argon2id during development
     "MEOW_TEST_MODE": "1"
   },
-  
+
   // Mount the workspace
   "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
-  
+
   // Run as non-root user
   "remoteUser": "vscode"
 }

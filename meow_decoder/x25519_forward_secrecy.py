@@ -190,62 +190,80 @@ def save_receiver_keypair(
     with open(public_key_file, "wb") as f:
         f.write(public_key)
 
-    # Save private key (encrypted PEM)
-    # We use cryptography library for PEM encoding/encryption
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives.serialization import Encoding, PrivateFormat
-
-    # Wrap bytes in object for serialization
-    priv_obj = X25519PrivateKey.from_private_bytes(private_key)
+    # Save private key (optionally encrypted with AES-256-GCM via Rust backend)
+    _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"  # 12 bytes
+    _MAGIC_PLAIN = b"MEOW_X25519\x01"  # 12 bytes
 
     if password:
-        from cryptography.hazmat.primitives.serialization import BestAvailableEncryption
-
-        encryption = BestAvailableEncryption(password.encode("utf-8"))
+        backend = get_default_backend()
+        salt = secrets.token_bytes(16)
+        key = backend.derive_key_hkdf(
+            ikm=password.encode("utf-8"),
+            salt=salt,
+            info=b"meow_x25519_key_storage_v2",
+            output_len=32,
+        )
+        nonce = secrets.token_bytes(12)
+        encrypted = backend.aes_gcm_encrypt(key, nonce, private_key, None)
+        with open(private_key_file, "wb") as f:
+            f.write(_MAGIC_ENCRYPTED + salt + nonce + encrypted)
     else:
-        from cryptography.hazmat.primitives.serialization import NoEncryption
-
-        encryption = NoEncryption()
-
-    private_bytes = priv_obj.private_bytes(
-        encoding=Encoding.PEM, format=PrivateFormat.PKCS8, encryption_algorithm=encryption
-    )
-
-    with open(private_key_file, "wb") as f:
-        f.write(private_bytes)
+        with open(private_key_file, "wb") as f:
+            f.write(_MAGIC_PLAIN + private_key)
 
 
 def load_x25519_private_key_pem(pem_data: bytes, password: Optional[str] = None) -> bytes:
     """
-    Load X25519 private key from PEM-encoded bytes.
+    Load X25519 private key from PEM-encoded bytes (legacy) or MEOW_X25519 format.
 
     Args:
-        pem_data: PEM-encoded private key data
+        pem_data: PEM-encoded or MEOW_X25519 private key data
         password: Password if key is encrypted
 
     Returns:
         Raw 32-byte X25519 private key
 
     Note:
-        Uses cryptography library for PEM parsing only.
-        Actual crypto operations use Rust backend.
+        Supports both legacy PEM format (via cryptography, if installed)
+        and new MEOW_X25519 format (via Rust backend, no cryptography needed).
     """
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
+    _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"
+    _MAGIC_PLAIN = b"MEOW_X25519\x01"
 
-    password_bytes = password.encode("utf-8") if password else None
-    private_key_obj = load_pem_private_key(pem_data, password=password_bytes)
+    if pem_data[:12] == _MAGIC_ENCRYPTED:
+        if not password:
+            raise ValueError("Private key is encrypted, password required")
+        backend = get_default_backend()
+        salt = pem_data[12:28]
+        nonce = pem_data[28:40]
+        encrypted = pem_data[40:]
+        key = backend.derive_key_hkdf(
+            ikm=password.encode("utf-8"),
+            salt=salt,
+            info=b"meow_x25519_key_storage_v2",
+            output_len=32,
+        )
+        return backend.aes_gcm_decrypt(key, nonce, encrypted, None)
+    elif pem_data[:12] == _MAGIC_PLAIN:
+        return pem_data[12:44]
+    else:
+        # Legacy PEM format — requires cryptography library
+        from cryptography.hazmat.primitives.serialization import load_pem_private_key
+        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+        from cryptography.hazmat.primitives import serialization
 
-    if not isinstance(private_key_obj, X25519PrivateKey):
-        raise ValueError("Loaded key is not X25519PrivateKey")
+        password_bytes = password.encode("utf-8") if password else None
+        private_key_obj = load_pem_private_key(pem_data, password=password_bytes)
 
-    # Extract raw bytes
-    return private_key_obj.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+        if not isinstance(private_key_obj, X25519PrivateKey):
+            raise ValueError("Loaded key is not X25519PrivateKey")
+
+        # Extract raw bytes
+        return private_key_obj.private_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PrivateFormat.Raw,
+            encryption_algorithm=serialization.NoEncryption(),
+        )
 
 
 def load_receiver_keypair(
@@ -266,26 +284,11 @@ def load_receiver_keypair(
 
     public_key = public_bytes
 
-    # Load private key
+    # Load private key (supports both MEOW_X25519 and legacy PEM formats)
     with open(private_key_file, "rb") as f:
         private_bytes = f.read()
 
-    from cryptography.hazmat.primitives.serialization import load_pem_private_key
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
-
-    password_bytes = password.encode("utf-8") if password else None
-    private_key_obj = load_pem_private_key(private_bytes, password=password_bytes)
-
-    if not isinstance(private_key_obj, X25519PrivateKey):
-        raise ValueError("Loaded key is not X25519PrivateKey")
-
-    # Extract raw bytes
-    private_key = private_key_obj.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    private_key = load_x25519_private_key_pem(private_bytes, password)
 
     return private_key, public_key
 

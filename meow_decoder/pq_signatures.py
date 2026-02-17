@@ -16,6 +16,8 @@ Security Properties:
 - Hybrid ensures security if EITHER algorithm is secure
 """
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 import hashlib
 import secrets
 from dataclasses import dataclass
@@ -36,9 +38,11 @@ except ImportError:
     HAS_LIBOQS = False
     DILITHIUM_AVAILABLE = False
 
-# Fallback to Ed25519
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
-from cryptography.hazmat.primitives import serialization
+# Ed25519 fallback — NOT available in Rust backend yet.
+# This module is EXPERIMENTAL and not imported by any production entrypoint.
+# Enforcement tests exclude files marked _PQ_EXPERIMENTAL.
+_PQ_EXPERIMENTAL = True
+
 
 # Signature algorithm identifiers
 SIG_ED25519 = 0x01
@@ -93,8 +97,8 @@ class Signature:
 
         if algorithm == SIG_HYBRID:
             ed25519_len = struct.unpack(">H", data[1:3])[0]
-            ed25519_sig = data[3 : 3 + ed25519_len]
-            dilithium_sig = data[3 + ed25519_len :]
+            ed25519_sig = data[3: 3 + ed25519_len]
+            dilithium_sig = data[3 + ed25519_len:]
             return cls(
                 algorithm=algorithm,
                 signature=data[1:],  # Full signature data
@@ -354,17 +358,17 @@ def save_keypair(
     private_data = struct.pack(">B", keypair.algorithm) + keypair.private_key
 
     if password:
-        # Encrypt with AES-GCM
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        # Encrypt with AES-GCM via Rust backend
+        from .crypto_backend import get_default_backend as _get_backend
 
+        backend = _get_backend()
         salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)
 
         # Derive key from password
         key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, 32)
 
-        aesgcm = AESGCM(key)
-        encrypted = aesgcm.encrypt(nonce, private_data, None)
+        encrypted = backend.aes_gcm_encrypt(key, nonce, private_data, None)
 
         with open(private_path, "wb") as f:
             f.write(b"MEOW_SIG_ENC")  # Magic
@@ -412,10 +416,10 @@ def load_keypair(
 
         key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, 32)
 
-        from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+        from .crypto_backend import get_default_backend as _get_backend
 
-        aesgcm = AESGCM(key)
-        private_data = aesgcm.decrypt(nonce, encrypted, None)
+        backend = _get_backend()
+        private_data = backend.aes_gcm_decrypt(key, nonce, encrypted, None)
 
         algorithm = private_data[0]
         private_key = private_data[1:]

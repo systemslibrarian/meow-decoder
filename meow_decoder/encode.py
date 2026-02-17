@@ -27,7 +27,8 @@ from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
 from .progress import ProgressBar
-from .hardware_integration import HardwareSecurityProvider, process_hardware_args
+# hardware_integration is lazy-imported where needed to avoid pulling in
+# cryptography at module-import time (see Step 2 of crypto migration).
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
 
 
@@ -1548,6 +1549,8 @@ Nothing to see here. 😶‍🌫️
         hardware_salt = crypto_secrets.token_bytes(16)
 
         try:
+            from .hardware_integration import process_hardware_args
+
             hardware_key, hw_desc = process_hardware_args(
                 args, password.encode("utf-8"), hardware_salt
             )

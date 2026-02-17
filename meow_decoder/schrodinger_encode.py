@@ -142,27 +142,27 @@ class SchrodingerManifest:
             raise ValueError(f"Not a Schrödinger v5.5.0 manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset : offset + 16]
+        salt_a = data[offset: offset + 16]
         offset += 16
-        salt_b = data[offset : offset + 16]
+        salt_b = data[offset: offset + 16]
         offset += 16
-        nonce_a = data[offset : offset + 12]
+        nonce_a = data[offset: offset + 12]
         offset += 12
-        nonce_b = data[offset : offset + 12]
+        nonce_b = data[offset: offset + 12]
         offset += 12
-        reality_a_hmac = data[offset : offset + 32]
+        reality_a_hmac = data[offset: offset + 32]
         offset += 32
-        reality_b_hmac = data[offset : offset + 32]
+        reality_b_hmac = data[offset: offset + 32]
         offset += 32
-        metadata_a = data[offset : offset + 104]
+        metadata_a = data[offset: offset + 104]
         offset += 104
-        metadata_b = data[offset : offset + 104]
+        metadata_b = data[offset: offset + 104]
         offset += 104
         block_count, block_size, superposition_len = struct.unpack(
-            ">IIQ", data[offset : offset + 16]
+            ">IIQ", data[offset: offset + 16]
         )
         offset += 16
-        reserved = data[offset : offset + 32]
+        reserved = data[offset: offset + 32]
 
         return cls(
             magic=data[:4],
@@ -222,15 +222,13 @@ def schrodinger_encode_data(
     superposition = entangle_realities(cipher_a, cipher_b)
 
     # Split into blocks for fountain encoding
-    blocks = [superposition[i : i + block_size] for i in range(0, len(superposition), block_size)]
+    blocks = [superposition[i: i + block_size] for i in range(0, len(superposition), block_size)]
     if blocks and len(blocks[-1]) < block_size:
         # Pad the last block to ensure all blocks are the same size
         blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))
 
     # Create encrypted metadata payloads for each reality
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    from cryptography.hazmat.primitives import hashes
+    from .crypto_backend import get_default_backend as _get_backend
     import hmac
 
     # --- Task B: Strengthened Password Hardening ---
@@ -240,25 +238,23 @@ def schrodinger_encode_data(
 
     # --- Task C: Enforce Key Separation ---
     # Derive separate keys for encryption and HMAC using HKDF
-    hkdf_enc_a = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=salt_a, info=b"schrodinger_enc_key_v1"
-    )
-    enc_key_a = hkdf_enc_a.derive(master_meta_key_a)
+    _backend = _get_backend()
 
-    hkdf_hmac_a = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=salt_a, info=b"schrodinger_hmac_key_v1"
+    enc_key_a = _backend.derive_key_hkdf(
+        ikm=master_meta_key_a, salt=salt_a, info=b"schrodinger_enc_key_v1", output_len=32
     )
-    hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
 
-    hkdf_enc_b = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=salt_b, info=b"schrodinger_enc_key_v1"
+    hmac_key_a = _backend.derive_key_hkdf(
+        ikm=master_meta_key_a, salt=salt_a, info=b"schrodinger_hmac_key_v1", output_len=32
     )
-    enc_key_b = hkdf_enc_b.derive(master_meta_key_b)
 
-    hkdf_hmac_b = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=salt_b, info=b"schrodinger_hmac_key_v1"
+    enc_key_b = _backend.derive_key_hkdf(
+        ikm=master_meta_key_b, salt=salt_b, info=b"schrodinger_enc_key_v1", output_len=32
     )
-    hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
+
+    hmac_key_b = _backend.derive_key_hkdf(
+        ikm=master_meta_key_b, salt=salt_b, info=b"schrodinger_hmac_key_v1", output_len=32
+    )
 
     # Pack all necessary decryption info into metadata.
     # Base plaintext layout:
@@ -279,12 +275,9 @@ def schrodinger_encode_data(
         + b"\x00" * 4
     )
 
-    aesgcm_a = AESGCM(enc_key_a)
-    aesgcm_b = AESGCM(enc_key_b)
-
     # Encrypt metadata. AES-GCM adds a 16-byte tag. 88 + 16 = 104 bytes.
-    metadata_a_enc = aesgcm_a.encrypt(nonce_a, metadata_a_plain, None)
-    metadata_b_enc = aesgcm_b.encrypt(nonce_b, metadata_b_plain, None)
+    metadata_a_enc = _backend.aes_gcm_encrypt(enc_key_a, nonce_a, metadata_a_plain, None)
+    metadata_b_enc = _backend.aes_gcm_encrypt(enc_key_b, nonce_b, metadata_b_plain, None)
 
     if len(metadata_a_enc) != 104 or len(metadata_b_enc) != 104:
         raise RuntimeError("Schrödinger metadata encryption produced unexpected length")
@@ -459,7 +452,7 @@ def main():
 Examples:
   # Auto-generated decoy:
   python -m meow_decoder.schrodinger_encode --real secret.pdf -o quantum.gif
-  
+
   # Custom decoy:
   python -m meow_decoder.schrodinger_encode \
       --real secret.pdf \

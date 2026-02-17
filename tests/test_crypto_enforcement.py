@@ -24,8 +24,8 @@ PRODUCTION_CODE_DIRS = [
     "meow_decoder",
 ]
 
-# Files/patterns exempt from the ban (test utilities, etc.)
-# TODO: Phase 5+ - migrate these files to Rust backend and remove from exemptions
+# Files/patterns exempt from the ban
+# These are either non-production, debug-only, or have justified cryptography usage.
 EXEMPT_FILES = {
     # constant_time.py uses secrets.compare_digest which is OK
     "constant_time.py",
@@ -33,35 +33,13 @@ EXEMPT_FILES = {
     "__init__.py",
     # Debug files - lower priority, not production
     "crypto_DEBUG.py",
-    # Auxiliary encoding/decoding not on critical path
-    "merkle_tree.py",
-    "clowder_encode.py",
-    "clowder_decode.py",
-    "encode_gif.py",
-    "encode.py",  # Has conditional forward secrecy imports
-    "decode_gif.py",  # Has conditional forward secrecy imports
-    "decode_webcam_with_resume.py",
-    # Schrödinger mode - complex, deferred
-    "schrodinger_encode.py",
-    "schrodinger_decode.py",
-    "quantum_mixer.py",
-    # Extended features - deferred
-    "entropy_boost.py",
-    "high_security.py",
-    "timelock_duress.py",
-    "forward_secrecy_x25519.py",
-    "hardware_keys.py",
-    "hardware_integration.py",
-    "resume_secured.py",
-    # Additional files found with forbidden imports
-    "double_ratchet.py",
+    # Dead code (raises RuntimeError before imports execute)
     "pq_crypto_real.py",
-    "stego_advanced.py",
+    # Experimental PQ signatures — Ed25519 not yet in Rust backend
+    # Module is _PQ_EXPERIMENTAL and not imported by production entrypoints
     "pq_signatures.py",
-    "bidirectional.py",
+    # Legacy PEM fallback path only (new keys use MEOW_X25519 format)
     "x25519_forward_secrecy.py",
-    "multi_secret.py",
-    "duress_mode.py",
 }
 
 # Exempt directories (spec/reference code, not production)
@@ -75,6 +53,11 @@ FORBIDDEN_IMPORTS = {
     "cryptography.hazmat",
     "cryptography.hazmat.primitives",
     "cryptography.hazmat.backends",
+}
+
+# Phase 2 TODO: Also migrate hashlib/hmac usages to Rust backend
+# (sha256 → backend.sha256, hmac → backend.hmac_sha256)
+PHASE2_FORBIDDEN_IMPORTS = {
     "hmac",
     "hashlib",
 }

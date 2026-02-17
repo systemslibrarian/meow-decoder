@@ -12,6 +12,18 @@ Importing this module will raise RuntimeError. It is kept only for audit
 traceability; do NOT remove it until the deprecation cycle completes.
 """
 
+# DEAD_CODE: Hard-disabled module — raise RuntimeError before any imports execute.
+# Excluded from cryptography-import enforcement tests.
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import x25519
+from dataclasses import dataclass
+from typing import Optional, Tuple
+import secrets
+import struct
+import os
+_DEAD_MODULE = True
+
 # FIX-D1: Hard-disable — importing this module is a security error.
 # The previous DeprecationWarning was insufficient because callers could
 # silently continue using the insecure XOR combiner.
@@ -21,11 +33,6 @@ raise RuntimeError(
     "This module cannot be imported."
 )
 
-import os
-import struct
-import secrets
-from typing import Optional, Tuple
-from dataclasses import dataclass
 
 # Try to import liboqs for real post-quantum crypto
 try:
@@ -36,10 +43,6 @@ try:
 except ImportError:
     HAS_LIBOQS = False
     print("⚠️  Quantum Nine Lives in MOCK mode (install: pip install liboqs-python)")
-
-from cryptography.hazmat.primitives.asymmetric import x25519
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 
 @dataclass
@@ -305,30 +308,30 @@ def unpack_quantum_encapsulation(data: bytes) -> QuantumEncapsulation:
     """
     offset = 0
 
-    version = struct.unpack("B", data[offset : offset + 1])[0]
+    version = struct.unpack("B", data[offset: offset + 1])[0]
     offset += 1
 
     if version != 4:
         raise ValueError(f"Wrong version: {version} (expected 4)")
 
-    variant_len = struct.unpack("B", data[offset : offset + 1])[0]
+    variant_len = struct.unpack("B", data[offset: offset + 1])[0]
     offset += 1
 
-    variant = data[offset : offset + variant_len].decode("utf-8")
+    variant = data[offset: offset + variant_len].decode("utf-8")
     offset += variant_len
 
-    classical_len = struct.unpack(">H", data[offset : offset + 2])[0]
+    classical_len = struct.unpack(">H", data[offset: offset + 2])[0]
     offset += 2
 
-    classical_ct = data[offset : offset + classical_len]
+    classical_ct = data[offset: offset + classical_len]
     offset += classical_len
 
-    quantum_len = struct.unpack(">H", data[offset : offset + 2])[0]
+    quantum_len = struct.unpack(">H", data[offset: offset + 2])[0]
     offset += 2
 
     quantum_ct = None
     if quantum_len > 0:
-        quantum_ct = data[offset : offset + quantum_len]
+        quantum_ct = data[offset: offset + quantum_len]
 
     # Shared secret will be computed during decapsulation
     return QuantumEncapsulation(

@@ -1807,8 +1807,7 @@ def test_main_hardware_key_derivation_fallback_stderr_print(monkeypatch, tmp_pat
         process_hardware_args=_fake_process_hw,
     )
 
-    # Patch the function directly in encode module if already imported
-    monkeypatch.setattr(enc, "process_hardware_args", _fake_process_hw)
+    # Lazy import in main() will pick up the fake module above
 
     _patch_encode_file(monkeypatch)
     monkeypatch.setattr(

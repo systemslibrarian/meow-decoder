@@ -37,9 +37,7 @@ from dataclasses import dataclass, field
 from collections import Counter
 import zlib
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 from argon2 import low_level
 
 
@@ -127,26 +125,26 @@ class MultiSecretManifest:
         # Unpack cipher lengths
         cipher_lengths = []
         for _ in range(n_realities):
-            (length,) = struct.unpack(">I", data[offset : offset + 4])
+            (length,) = struct.unpack(">I", data[offset: offset + 4])
             cipher_lengths.append(length)
             offset += 4
 
         salts = []
         for _ in range(n_realities):
-            salts.append(data[offset : offset + 16])
+            salts.append(data[offset: offset + 16])
             offset += 16
 
         nonces = []
         for _ in range(n_realities):
-            nonces.append(data[offset : offset + 12])
+            nonces.append(data[offset: offset + 12])
             offset += 12
 
         hmacs = []
         for _ in range(n_realities):
-            hmacs.append(data[offset : offset + 32])
+            hmacs.append(data[offset: offset + 32])
             offset += 32
 
-        merkle_root = data[offset : offset + 32]
+        merkle_root = data[offset: offset + 32]
 
         return cls(
             magic=b"MEOWN",
@@ -219,8 +217,7 @@ class MultiSecretEncoder:
         key = self._derive_key(reality.password, reality.salt)
 
         # Encrypt
-        aesgcm = AESGCM(key)
-        ciphertext = aesgcm.encrypt(reality.nonce, compressed, None)
+        ciphertext = _get_backend().aes_gcm_encrypt(key, reality.nonce, compressed, None)
 
         return ciphertext
 
@@ -230,7 +227,7 @@ class MultiSecretEncoder:
 
         # Split into blocks
         for i in range(0, len(data), self.block_size):
-            block = data[i : i + self.block_size]
+            block = data[i: i + self.block_size]
             if len(block) < self.block_size:
                 block += secrets.token_bytes(self.block_size - len(block))
             blocks.append(block)
@@ -361,7 +358,7 @@ class MultiSecretDecoder:
 
         # Split into blocks
         bs = manifest.block_size
-        self.blocks = [superposition[i : i + bs] for i in range(0, len(superposition), bs)]
+        self.blocks = [superposition[i: i + bs] for i in range(0, len(superposition), bs)]
 
     def _derive_key(self, password: str, salt: bytes) -> bytes:
         """Derive encryption key using Argon2id."""
@@ -491,10 +488,8 @@ class MultiSecretDecoder:
         key = self._derive_key(password, self.manifest.salts[reality_idx])
         nonce = self.manifest.nonces[reality_idx]
 
-        aesgcm = AESGCM(key)
-
         try:
-            compressed = aesgcm.decrypt(nonce, ciphertext, None)
+            compressed = _get_backend().aes_gcm_decrypt(key, nonce, ciphertext, None)
             return zlib.decompress(compressed)
         except Exception as e:
             raise ValueError(f"Decryption failed: {e}")

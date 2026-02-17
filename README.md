@@ -99,7 +99,7 @@ Receiver: Video → meow-decode → secret.pdf (recovered)
   </a>
 </p>
 
-This demo shows the **explicit mechanics** of Meow Decoder.  
+This demo shows the **explicit mechanics** of Meow Decoder.
 QR codes are intentionally visible so first-time users can clearly understand what is happening.
 
 ### 🔓 Try It Yourself!
@@ -276,7 +276,7 @@ meow-encode -i secret.pdf -o logo.gif -p "password" \
 - **Requires `--carrier`** — must provide carrier image(s) with green regions
 - **Still detectable** — chi-square analysis will find the embedded data
 
-**Best for:** Making embedded QR codes less visually obvious in specific regions.  
+**Best for:** Making embedded QR codes less visually obvious in specific regions.
 **NOT for:** Evading forensic detection or professional steganalysis.
 
 ---
@@ -359,10 +359,10 @@ Meow Decoder intentionally **does not require a mobile app**.
 
 ### Workflow
 
-1. Display the animated GIF on any screen  
-2. Record the looping animation with a phone camera  
-3. Transfer the video/photos to a computer  
-4. Decode on the computer using the passphrase  
+1. Display the animated GIF on any screen
+2. Record the looping animation with a phone camera
+3. Transfer the video/photos to a computer
+4. Decode on the computer using the passphrase
 
 ---
 
@@ -571,6 +571,9 @@ python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.back
 ### Usage
 
 The encoder/decoder uses the Rust backend by default once installed.
+**No production Python module imports the `cryptography` library** — all crypto primitives (AES-GCM, HKDF, X25519, Argon2id) route through the Rust backend via `crypto_backend.CryptoBackend()`. This is enforced by an AST-based CI test (`tests/test_crypto_enforcement.py`).
+
+> **Non-production modules** (`crypto_DEBUG.py`, `pq_crypto_real.py`, `pq_signatures.py`, `spec_v12/`) are exempt. See [Architecture docs](docs/ARCHITECTURE.md#production-vs-non-production-code) for details.
 
 **Benchmarks (Typical):**
 *   **Key Derivation (Argon2id):** Rust is ~30% faster
@@ -1023,8 +1026,8 @@ We're always looking for more **Cat Herders**! Especially:
 
 See the [Cat Herder's Handbook (CONTRIBUTING.md)](CONTRIBUTING.md) for guidelines.
 
-**Found a vulnerability?** Check the [🌿 Catnip Bounty Program (SECURITY.md)](SECURITY.md).  
-**Need help?** Visit the [🐾 Cat Help Desk (SUPPORT.md)](SUPPORT.md).  
+**Found a vulnerability?** Check the [🌿 Catnip Bounty Program (SECURITY.md)](SECURITY.md).
+**Need help?** Visit the [🐾 Cat Help Desk (SUPPORT.md)](SUPPORT.md).
 **Have a feature idea?** [📦 Add to the Litter Box](https://github.com/systemslibrarian/meow-decoder/issues).
 
 ---

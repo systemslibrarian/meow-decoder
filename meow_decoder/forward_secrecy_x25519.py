@@ -12,6 +12,11 @@ Security Model:
 - Ephemeral private key never stored (forward secrecy!)
 """
 
+from .crypto_backend import get_default_backend as _get_backend
+from typing import Tuple, Optional
+from dataclasses import dataclass
+import struct
+import secrets
 import warnings as _warnings
 
 _warnings.warn(
@@ -21,15 +26,6 @@ _warnings.warn(
     DeprecationWarning,
     stacklevel=2,
 )
-
-import secrets
-import struct
-from dataclasses import dataclass
-from typing import Tuple, Optional
-
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey, X25519PublicKey
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 
 @dataclass
@@ -43,21 +39,18 @@ class EphemeralKeyPair:
         - Zeroed from memory after use
     """
 
-    private_key: X25519PrivateKey
-    public_key: X25519PublicKey
+    private_key_bytes: bytes  # 32-byte raw private key
+    public_key_bytes: bytes   # 32-byte raw public key
 
     @classmethod
     def generate(cls) -> "EphemeralKeyPair":
         """Generate new ephemeral keypair."""
-        private_key = X25519PrivateKey.generate()
-        public_key = private_key.public_key()
-        return cls(private_key=private_key, public_key=public_key)
+        priv, pub = _get_backend().x25519_generate_keypair()
+        return cls(private_key_bytes=priv, public_key_bytes=pub)
 
     def public_bytes(self) -> bytes:
         """Serialize public key for transmission."""
-        return self.public_key.public_bytes(
-            encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-        )
+        return self.public_key_bytes
 
 
 def derive_hybrid_key(
@@ -123,8 +116,8 @@ def derive_hybrid_key(
     # Defense in depth: Need both password AND ephemeral key compromise
     combined_material = password_key + shared_secret
 
-    final_key = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=info).derive(
-        combined_material
+    final_key = _get_backend().derive_key_hkdf(
+        ikm=combined_material, salt=salt, info=info, output_len=32
     )
 
     return final_key
@@ -158,7 +151,6 @@ def encrypt_with_forward_secrecy(
         - Ephemeral private key destroyed after encryption
     """
     import zlib
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     # Generate random salt and nonce
     salt = secrets.token_bytes(16)
@@ -175,11 +167,10 @@ def encrypt_with_forward_secrecy(
         # Generate ephemeral keypair
         ephemeral = EphemeralKeyPair.generate()
 
-        # Load receiver's public key
-        receiver_pubkey = X25519PublicKey.from_public_bytes(receiver_public_key)
-
-        # Derive shared secret
-        shared_secret = ephemeral.private_key.exchange(receiver_pubkey)
+        # Derive shared secret via X25519
+        shared_secret = _get_backend().x25519_exchange(
+            ephemeral.private_key_bytes, receiver_public_key
+        )
 
         # Export ephemeral public key for transmission
         ephemeral_public_bytes = ephemeral.public_bytes()
@@ -196,8 +187,7 @@ def encrypt_with_forward_secrecy(
         aad += ephemeral_public_bytes  # Include in authentication
 
     # Encrypt with AES-256-GCM
-    aesgcm = AESGCM(key)
-    ciphertext = aesgcm.encrypt(nonce, compressed, aad)
+    ciphertext = _get_backend().aes_gcm_encrypt(key, nonce, compressed, aad)
 
     return ciphertext, salt, nonce, ephemeral_public_bytes
 
@@ -233,7 +223,6 @@ def decrypt_with_forward_secrecy(
         RuntimeError: If decryption fails
     """
     import zlib
-    from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
     # If ephemeral public key present, need receiver private key
     shared_secret = None
@@ -242,12 +231,10 @@ def decrypt_with_forward_secrecy(
         if receiver_private_key is None:
             raise ValueError("Forward secrecy mode requires receiver private key")
 
-        # Load keys
-        receiver_privkey = X25519PrivateKey.from_private_bytes(receiver_private_key)
-        sender_pubkey = X25519PublicKey.from_public_bytes(ephemeral_public_key)
-
-        # Derive shared secret
-        shared_secret = receiver_privkey.exchange(sender_pubkey)
+        # Derive shared secret via Rust backend
+        shared_secret = _get_backend().x25519_exchange(
+            receiver_private_key, ephemeral_public_key
+        )
 
     # Derive hybrid key
     key = derive_hybrid_key(password, salt, shared_secret)
@@ -260,8 +247,7 @@ def decrypt_with_forward_secrecy(
         aad += ephemeral_public_key
 
     # Decrypt
-    aesgcm = AESGCM(key)
-    compressed = aesgcm.decrypt(nonce, ciphertext, aad)
+    compressed = _get_backend().aes_gcm_decrypt(key, nonce, ciphertext, aad)
 
     # Decompress
     plaintext = zlib.decompress(compressed)
@@ -271,18 +257,9 @@ def decrypt_with_forward_secrecy(
 
 # Example usage for testing
 if __name__ == "__main__":
-    # Generate receiver keypair (long-term)
-    receiver_private = X25519PrivateKey.generate()
-    receiver_public = receiver_private.public_key()
-
-    receiver_public_bytes = receiver_public.public_bytes(
-        encoding=serialization.Encoding.Raw, format=serialization.PublicFormat.Raw
-    )
-    receiver_private_bytes = receiver_private.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    # Generate receiver keypair (long-term) using Rust backend
+    _backend = _get_backend()
+    receiver_private_bytes, receiver_public_bytes = _backend.x25519_generate_keypair()
 
     # Encrypt with forward secrecy
     plaintext = b"Secret message with forward secrecy!"

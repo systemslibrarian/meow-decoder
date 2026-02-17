@@ -25,8 +25,7 @@ import struct
 from typing import Tuple, List, Optional
 from dataclasses import dataclass
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 
 
 @dataclass
@@ -84,9 +83,12 @@ def derive_quantum_noise(password_a: str, password_b: str, salt: bytes, length: 
     combined = bytes(a ^ b for a, b in zip(hash_a, hash_b))
 
     # Derive quantum noise with HKDF
-    noise = HKDF(
-        algorithm=hashes.SHA256(), length=length, salt=salt, info=b"meow_quantum_noise_v1"
-    ).derive(combined)
+    noise = _get_backend().derive_key_hkdf(
+        ikm=combined,
+        salt=salt,
+        info=b"meow_quantum_noise_v1",
+        output_len=length,
+    )
 
     return noise
 
@@ -167,12 +169,12 @@ def expand_noise(seed: bytes, length: int) -> bytes:
     counter = 0
 
     while len(output) < length:
-        chunk = HKDF(
-            algorithm=hashes.SHA256(),
-            length=min(32, length - len(output)),
+        chunk = _get_backend().derive_key_hkdf(
+            ikm=seed,
             salt=seed,
             info=struct.pack(">I", counter) + b"meow_noise_expand",
-        ).derive(seed)
+            output_len=min(32, length - len(output)),
+        )
         output.extend(chunk)
         counter += 1
 
@@ -318,7 +320,7 @@ if __name__ == "__main__":
 
     # Test indistinguishability
     is_indist, results = verify_indistinguishability(
-        superposition[: len(superposition) // 2], superposition[len(superposition) // 2 :]
+        superposition[: len(superposition) // 2], superposition[len(superposition) // 2:]
     )
     print(f"✅ Indistinguishable: {is_indist}")
     print(f"   Entropy diff: {results['entropy_diff']:.6f}")

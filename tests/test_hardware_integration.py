@@ -1063,7 +1063,7 @@ class TestHardwareOperations:
         assert key == b"k" * 32
 
     def test_derive_key_software_import_error(self, monkeypatch):
-        """When the Rust backend is unavailable AND the cryptography Argon2id
+        """When the Rust backend is unavailable AND the argon2 fallback
         module doesn't exist, _derive_key_software should propagate the
         ImportError since there is no viable fallback."""
         provider = hw.HardwareSecurityProvider()
@@ -1074,6 +1074,17 @@ class TestHardwareOperations:
             raise ImportError("no backend")
 
         monkeypatch.setattr(crypto_backend, "get_default_backend", raise_import_error)
+
+        # Also block the argon2 fallback
+        import builtins
+        real_import = builtins.__import__
+
+        def mock_import(name, *args, **kwargs):
+            if name == "argon2.low_level" or name == "argon2":
+                raise ImportError("no argon2")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", mock_import)
 
         with pytest.raises(ImportError):
             provider._derive_key_software(b"pw", b"s" * 16)

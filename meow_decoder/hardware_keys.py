@@ -37,8 +37,7 @@ from dataclasses import dataclass
 from typing import Optional, Tuple, List
 import struct
 
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
+from .crypto_backend import get_default_backend as _get_backend
 
 
 @dataclass
@@ -308,11 +307,12 @@ class HardwareKeyManager:
             combined = password.encode("utf-8") + salt + tpm_random
 
             # Derive key
-            hkdf = HKDF(
-                algorithm=hashes.SHA256(), length=key_length, salt=salt, info=b"meow_tpm_key_v1"
+            return _get_backend().derive_key_hkdf(
+                ikm=combined,
+                salt=salt,
+                info=b"meow_tpm_key_v1",
+                output_len=key_length,
             )
-
-            return hkdf.derive(combined)
 
         finally:
             # Cleanup
@@ -363,14 +363,12 @@ class HardwareKeyManager:
         combined = password.encode("utf-8") + yk_response
 
         # Derive key
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=key_length,
-            salt=yk_response[:16],  # Use part of response as salt
+        return _get_backend().derive_key_hkdf(
+            ikm=combined,
+            salt=yk_response[:16],
             info=b"meow_yubikey_key_v1",
+            output_len=key_length,
         )
-
-        return hkdf.derive(combined)
 
     def derive_key_software(self, password: str, salt: bytes, key_length: int = 32) -> bytes:
         """
@@ -481,11 +479,14 @@ class MockHardwareKeyManager(HardwareKeyManager):
         tpm_secret = hashlib.sha256(b"meow-mock-tpm-secret").digest()
         combined = password.encode("utf-8") + salt + tpm_secret
 
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(), length=key_length, salt=salt, info=b"meow_mock_tpm_key_v1"
+        hkdf_key = _get_backend().derive_key_hkdf(
+            ikm=combined,
+            salt=salt,
+            info=b"meow_mock_tpm_key_v1",
+            output_len=key_length,
         )
 
-        return hkdf.derive(combined)
+        return hkdf_key
 
     def derive_key_yubikey(self, password: str, slot: int = 2, key_length: int = 32) -> bytes:
         if not self.has_yubikey():
@@ -496,14 +497,12 @@ class MockHardwareKeyManager(HardwareKeyManager):
         yk_secret = hashlib.sha256(b"meow-mock-yubikey" + slot_bytes).digest()
         combined = password.encode("utf-8") + yk_secret
 
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=key_length,
+        return _get_backend().derive_key_hkdf(
+            ikm=combined,
             salt=yk_secret[:16],
             info=b"meow_mock_yubikey_key_v1",
+            output_len=key_length,
         )
-
-        return hkdf.derive(combined)
 
 
 def check_hardware_security() -> HardwareStatus:

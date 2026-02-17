@@ -1,21 +1,20 @@
-"""
-Resume Capability for Meow Decoder - SECURED VERSION v2
+"""  # noqa: D205
+Resume Capability for Meow Decoder - SECURED VERSION v3
 Save and resume partial decoding operations with encrypted state files
-SECURITY: State files are now encrypted using Fernet (AES-128)
+SECURITY: State files encrypted using AES-256-GCM via Rust backend
 """
 
 import os
 import json
 import base64
 import hashlib
+import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
 
-from cryptography.fernet import Fernet, InvalidToken
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
+from .crypto_backend import get_default_backend as _get_backend
 
 from meow_decoder.fountain import FountainDecoder
 from meow_decoder.crypto import Manifest
@@ -107,15 +106,14 @@ class ResumeManager:
             manifest: File manifest (provides salt)
 
         Returns:
-            32-byte key suitable for Fernet
+            32-byte key suitable for AES-256-GCM
         """
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=manifest.salt,  # Use manifest salt for domain separation
-            iterations=100000,  # OWASP recommended minimum
+        return _get_backend().derive_key_hkdf(
+            ikm=password.encode(),
+            salt=manifest.salt,
+            info=b"meow_resume_state_key_v3",
+            output_len=32,
         )
-        return kdf.derive(password.encode())
 
     def generate_session_id(self, manifest: Manifest) -> str:
         """
@@ -208,8 +206,12 @@ class ResumeManager:
                 raise ValueError("Password required to encrypt state")
             try:
                 key = self._derive_state_key(password, manifest)
-                fernet = Fernet(base64.urlsafe_b64encode(key))
-                encrypted_data = fernet.encrypt(state_json.encode())
+                nonce = secrets.token_bytes(12)
+                ciphertext = _get_backend().aes_gcm_encrypt(
+                    key, nonce, state_json.encode(), None
+                )
+                # Format: nonce(12) + ciphertext (includes GCM tag)
+                encrypted_data = nonce + ciphertext
 
                 # Save encrypted
                 state_path = self._get_state_file_path(session_id)
@@ -263,8 +265,12 @@ class ResumeManager:
                         encrypted_data = f.read()
 
                     key = self._derive_state_key(password, manifest)
-                    fernet = Fernet(base64.urlsafe_b64encode(key))
-                    decrypted_data = fernet.decrypt(encrypted_data)
+                    # Format: nonce(12) + ciphertext
+                    nonce = encrypted_data[:12]
+                    ciphertext = encrypted_data[12:]
+                    decrypted_data = _get_backend().aes_gcm_decrypt(
+                        key, nonce, ciphertext, None
+                    )
 
                     data = json.loads(decrypted_data.decode())
                     return DecoderState.from_dict(data)
@@ -273,7 +279,9 @@ class ResumeManager:
                     data = json.load(f)
 
                 return DecoderState.from_dict(data)
-            except InvalidToken:
+            except (ValueError, Exception) as e:
+                if "tag" in str(e).lower() or "decrypt" in str(e).lower():
+                    return None  # Wrong password
                 return None
             except json.JSONDecodeError as e:
                 print(f"Warning: Corrupted state file {session_id}: {e}")
@@ -307,17 +315,21 @@ class ResumeManager:
 
                 # Derive key and decrypt
                 key = self._derive_state_key(password, manifest)
-                fernet = Fernet(base64.urlsafe_b64encode(key))
-                decrypted_data = fernet.decrypt(encrypted_data)
+                # Format: nonce(12) + ciphertext
+                nonce = encrypted_data[:12]
+                ciphertext = encrypted_data[12:]
+                decrypted_data = _get_backend().aes_gcm_decrypt(
+                    key, nonce, ciphertext, None
+                )
 
                 # Parse JSON
                 data = json.loads(decrypted_data.decode())
                 return DecoderState.from_dict(data)
 
-            except InvalidToken:
-                print(f"Error: Incorrect password for encrypted state")
-                return None
-            except Exception as e:
+            except (ValueError, Exception) as e:
+                if "tag" in str(e).lower() or "decrypt" in str(e).lower():
+                    print(f"Error: Incorrect password for encrypted state")
+                    return None
                 print(f"Warning: Failed to load encrypted state {session_id}: {e}")
                 return None
 

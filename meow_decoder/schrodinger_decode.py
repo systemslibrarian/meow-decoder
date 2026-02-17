@@ -20,10 +20,8 @@ from getpass import getpass
 from .crypto import decrypt_to_raw, derive_key
 from .quantum_mixer import collapse_to_reality
 from .schrodinger_encode import SchrodingerManifest
+from .crypto_backend import get_default_backend as _get_backend
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-from cryptography.hazmat.primitives import hashes
 import secrets
 
 
@@ -60,15 +58,19 @@ def schrodinger_decode_data(
     master_meta_key_b = derive_key(password, manifest.salt_b)
 
     # Derive HMAC keys for both realities
-    hkdf_hmac_a = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=manifest.salt_a, info=b"schrodinger_hmac_key_v1"
+    hmac_key_a = _get_backend().derive_key_hkdf(
+        ikm=master_meta_key_a,
+        salt=manifest.salt_a,
+        info=b"schrodinger_hmac_key_v1",
+        output_len=32,
     )
-    hmac_key_a = hkdf_hmac_a.derive(master_meta_key_a)
 
-    hkdf_hmac_b = HKDF(
-        algorithm=hashes.SHA256(), length=32, salt=manifest.salt_b, info=b"schrodinger_hmac_key_v1"
+    hmac_key_b = _get_backend().derive_key_hkdf(
+        ikm=master_meta_key_b,
+        salt=manifest.salt_b,
+        info=b"schrodinger_hmac_key_v1",
+        output_len=32,
     )
-    hmac_key_b = hkdf_hmac_b.derive(master_meta_key_b)
 
     # Compute expected HMACs for both realities
     manifest_core = manifest.pack_core_for_auth()
@@ -89,17 +91,17 @@ def schrodinger_decode_data(
     if is_reality_a:
         try:
             # Derive encryption key for Reality A
-            hkdf_enc_a = HKDF(
-                algorithm=hashes.SHA256(),
-                length=32,
+            enc_key_a = _get_backend().derive_key_hkdf(
+                ikm=master_meta_key_a,
                 salt=manifest.salt_a,
                 info=b"schrodinger_enc_key_v1",
+                output_len=32,
             )
-            enc_key_a = hkdf_enc_a.derive(master_meta_key_a)
 
             # Decrypt metadata
-            aesgcm_a = AESGCM(enc_key_a)
-            metadata_a_plain = aesgcm_a.decrypt(manifest.nonce_a, manifest.metadata_a, None)
+            metadata_a_plain = _get_backend().aes_gcm_decrypt(
+                enc_key_a, manifest.nonce_a, manifest.metadata_a, None
+            )
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack(">QQQ", metadata_a_plain[:24])
@@ -128,17 +130,17 @@ def schrodinger_decode_data(
     if is_reality_b:
         try:
             # Derive encryption key for Reality B
-            hkdf_enc_b = HKDF(
-                algorithm=hashes.SHA256(),
-                length=32,
+            enc_key_b = _get_backend().derive_key_hkdf(
+                ikm=master_meta_key_b,
                 salt=manifest.salt_b,
                 info=b"schrodinger_enc_key_v1",
+                output_len=32,
             )
-            enc_key_b = hkdf_enc_b.derive(master_meta_key_b)
 
             # Decrypt metadata
-            aesgcm_b = AESGCM(enc_key_b)
-            metadata_b_plain = aesgcm_b.decrypt(manifest.nonce_b, manifest.metadata_b, None)
+            metadata_b_plain = _get_backend().aes_gcm_decrypt(
+                enc_key_b, manifest.nonce_b, manifest.metadata_b, None
+            )
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack(">QQQ", metadata_b_plain[:24])
@@ -312,7 +314,7 @@ def main():  # pragma: no cover
 Examples:
   # Decode (auto-detect reality):
   python -m meow_decoder.schrodinger_decode -i quantum.gif -o output.pdf
-  
+
   # The password you provide "observes" and collapses the quantum state!
   # You get ONE reality - the other is forever unprovable! ⚛️
         """,

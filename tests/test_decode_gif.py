@@ -612,7 +612,7 @@ def test_main_hardware_status_exits(monkeypatch):
         def detect_all(self):
             return _Caps()
 
-    monkeypatch.setattr(decode_mod, "HardwareSecurityProvider", _Provider)
+    monkeypatch.setattr("meow_decoder.hardware_integration.HardwareSecurityProvider", _Provider)
     with patch("sys.argv", ["meow-decode-gif", "--hardware-status"]):
         with pytest.raises(SystemExit) as exc:
             decode_mod.main()
