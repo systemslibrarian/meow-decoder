@@ -1,0 +1,823 @@
+{% extends "base.html" %}
+
+{% block title %}Cat Mode - Interactive 😺{% endblock %}
+
+{% block extra_css %}
+<style>
+    .cat-container {
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+
+    .cat-step textarea,
+    .cat-step input[type="text"],
+    .cat-step input[type="password"],
+    .cat-step select {
+        width: 100%;
+        box-sizing: border-box;
+    }
+    
+    .cat-step {
+        background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%);
+        border: 1px solid #00ccff;
+        border-radius: 12px;
+        padding: 25px;
+        margin: 20px 0;
+    }
+    
+    .step-number {
+        display: inline-block;
+        background: #00ccff;
+        color: white;
+        width: 35px;
+        height: 35px;
+        line-height: 35px;
+        text-align: center;
+        border-radius: 50%;
+        font-weight: bold;
+        margin-right: 10px;
+    }
+    
+    .cat-display {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+        flex-wrap: wrap;
+        margin: 20px 0;
+    }
+    
+    #catCanvas {
+        background: transparent;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        max-width: 600px;
+        width: 100%;
+        height: auto;
+    }
+    
+    #catCanvas.transmitting {
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        50% { box-shadow: 0 0 20px rgba(0,255,136,0.5); }
+    }
+    
+    .cat-controls {
+        flex: 1;
+        min-width: 260px;
+    }
+    
+    .progress-container {
+        margin-top: 15px;
+        display: none;
+    }
+    
+    .progress-bar-bg {
+        background: #333;
+        border-radius: 8px;
+        height: 20px;
+        overflow: hidden;
+    }
+    
+    .progress-bar-fill {
+        background: linear-gradient(90deg, #00ff88, #00ccff);
+        height: 100%;
+        width: 0%;
+        transition: width 0.1s;
+    }
+    
+    .note-box {
+        color: #888;
+        font-size: 0.85em;
+        margin: 10px 0 15px 0;
+        padding: 8px;
+        background: rgba(0,204,255,0.1);
+        border-radius: 6px;
+        border-left: 3px solid #00ccff;
+    }
+    
+    .binary-display {
+        font-family: 'Courier New', monospace;
+        background: #1a1a1a;
+        color: #00ff88;
+        padding: 15px;
+        border-radius: 8px;
+        word-break: break-all;
+        max-height: 200px;
+        overflow-y: auto;
+        margin: 15px 0;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="cat-container">
+    <h2 style="margin-bottom: 15px; color: #333;">😺 Cat Mode: Interactive Optical Transmission</h2>
+    <p style="margin-bottom: 25px; color: #666; line-height: 1.6;">
+        Transmit encrypted messages through the cat's blinking eyes! <span style="color: #00ff88;">Green eyes = 1</span>, <span style="color: #666;">dark = 0</span>.
+    </p>
+
+    <!-- STEP 1: Encode & Transmit -->
+    <div class="cat-step">
+        <h3><span class="step-number">1</span>😺 Cat Mode: Optical Data Transmission</h3>
+        
+        <!-- Canvas + buttons together at top -->
+        <div style="text-align: center; margin-bottom: 15px;">
+            <canvas id="catCanvas" width="743" height="417"></canvas>
+            
+            <div class="action-buttons" style="margin-top: 10px;">
+                <button id="catQrBtn" class="btn" onclick="catModeEncode()" style="font-size: 1.1em; padding: 12px 30px;">😺 Start Transmitting</button>
+                <button id="catStopBtn" class="btn secondary" style="display:none; font-size: 1.1em; padding: 12px 30px;" onclick="catModeStop()">⏹️ Stop</button>
+                <a id="videoDownloadLink" style="display:none; margin-left:10px;" class="btn secondary" target="_blank">⬇️ Download Video</a>
+            </div>
+            
+            <div id="catProgress" class="progress-container">
+                <div class="progress-bar-bg">
+                    <div id="catProgressBar" class="progress-bar-fill"></div>
+                </div>
+                <p id="catProgressText" style="color: #888; font-size: 0.85em; margin-top: 5px;">Transmitting...</p>
+            </div>
+        </div>
+        
+        <!-- Settings below -->
+        <div class="note-box">
+            💡 <b>Note:</b> The green flashing in the eye regions during transmission is intentional — that's the binary data being transmitted! Each blink is one bit: green = 1, dark = 0.
+        </div>
+        
+        <div style="display: flex; gap: 20px; flex-wrap: wrap;">
+            <div class="cat-controls" style="flex: 1; min-width: 250px;">
+                <div class="form-group">
+                    <label for="catMessage">🔒 Secret Message:</label>
+                    <textarea id="catMessage" rows="2" placeholder="Type message to transmit...">Hello Cat! 🐱</textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label for="catPassword">🔑 Password (min 8 characters):</label>
+                    <input type="password" id="catPassword" placeholder="Encryption password (8+ chars)" minlength="8">
+                    <div style="margin-top: 5px;">
+                        <input type="checkbox" id="showCatPassword" onchange="document.getElementById('catPassword').type = this.checked ? 'text' : 'password'">
+                        <label for="showCatPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+                    </div>
+                </div>
+            </div>
+            
+            <div style="flex: 1; min-width: 250px;">
+                <div class="form-group">
+                    <label for="catBlinkSpeed">⚡ Blink Speed:</label>
+                    <select id="catBlinkSpeed">
+                        <option value="200">Slow (200ms) — best for phone camera</option>
+                        <option value="150">Moderate (150ms) — reliable with jitter</option>
+                        <option value="100" selected>Medium (100ms) — recommended</option>
+                        <option value="83">Fast (83ms) — direct video download only</option>
+                        <option value="50">Very Fast (50ms) — direct download only</option>
+                    </select>
+                    <small>Each frame transmits 2 bits (one per eye). Use Slow/Moderate for phone camera recording, Medium+ for video download.</small>
+                </div>
+            </div>
+        </div>
+        
+        <div id="catModeResult"></div>
+    </div>
+
+    <!-- STEP 2: Binary Pattern Display -->
+    <div class="cat-step">
+        <h3><span class="step-number">2</span>📋 Binary Pattern</h3>
+        <p style="margin: 15px 0; color: #666;">After transmission completes, the binary pattern will be saved automatically and displayed below.</p>
+        
+        <div id="binaryDisplay" class="binary-display">
+            (Binary pattern will appear here after transmission)
+        </div>
+        
+        <button class="btn secondary" onclick="copyBinary()">📋 Copy Binary to Clipboard</button>
+    </div>
+
+    <!-- STEP 3: Decode -->
+    <div class="cat-step">
+        <h3><span class="step-number">3</span>🔓 Decode Binary Pattern</h3>
+        <p style="margin: 15px 0; color: #666;">Paste the binary pattern from transmission (or upload a recorded video) and decrypt with the password.</p>
+        
+        <!-- Video Upload Section -->
+        <div class="form-group" style="border: 2px dashed #ccc; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 20px; background: #fafafa;">
+            <label for="videoUpload" style="display: block; margin-bottom: 10px; font-weight: bold;">🎥 Upload Transmission Video:</label>
+            <input type="file" id="videoUpload" accept="video/webm,video/mp4,video/*" 
+                   style="margin: 10px auto; display: block;"
+                   onchange="handleVideoUpload(this)">
+            <small style="color: #888;">Upload a Cat Mode video — binary pattern will be extracted automatically from the eye blinks</small>
+            <div id="videoUploadStatus" style="display: none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
+            <div id="videoPreviewContainer" style="display: none; margin-top: 15px;">
+                <video id="videoPreview" style="max-width: 100%; border-radius: 8px; border: 1px solid #ddd;" controls></video>
+            </div>
+        </div>
+        
+        <form method="POST" action="{{ url_for('decode_cat_binary') }}">
+            <input type="hidden" name="encryption_mode" value="server">
+            
+            <div class="form-group">
+                <label for="binaryInput">Binary Pattern (0s and 1s):</label>
+                <textarea name="binary" id="binaryInput" rows="4" placeholder="01001101010..." required></textarea>
+            </div>
+            
+            <div class="form-group">
+                <label for="decodePassword">🔑 Password:</label>
+                <input type="password" name="password" id="decodePassword" placeholder="Decryption password" required>
+            </div>
+            
+            <div class="form-group">
+                <label for="blinkSpeed">⚡ Blink Speed Used:</label>
+                <select name="blink_speed" id="blinkSpeed">
+                    <option value="200">Slow (200ms)</option>
+                    <option value="150">Moderate (150ms)</option>
+                    <option value="100" selected>Medium (100ms)</option>
+                    <option value="83">Fast (83ms)</option>
+                    <option value="50">Very Fast (50ms)</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="btn">🔍 Decode Binary</button>
+            <button type="button" class="btn secondary" onclick="loadSavedBinary()">📥 Load Saved Binary</button>
+        </form>
+        
+        {% if decoded_message %}
+        <div class="info-box success" style="margin-top: 20px; background: #d4edda; border-left-color: #28a745;">
+            <h4 style="margin-bottom: 10px;">✅ Decoded Successfully!</h4>
+            <p style="font-family: 'Courier New', monospace; background: white; padding: 10px; border-radius: 6px; color: #333;">
+                {{ decoded_message }}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Info Section -->
+    <div class="info-box" style="margin-top: 30px; background: #e7f3ff; border-left-color: #2196f3;">
+        <h4 style="margin-bottom: 10px;">📚 How Cat Mode Works</h4>
+        <ul style="margin-left: 20px; line-height: 1.8;">
+            <li><strong>Encryption:</strong> Server-side Argon2id + AES-256-GCM (production security)</li>
+            <li><strong>Binary Encoding:</strong> Encrypted data converted to binary (0s and 1s)</li>
+            <li><strong>Visual Transmission:</strong> Each bit displayed via eye color - green = 1, dark = 0</li>
+            <li><strong>Video Recording:</strong> Automatically records transmission, downloadable for phone transfer</li>
+            <li><strong>Decoding:</strong> Extract binary from saved video, decrypt with password</li>
+        </ul>
+    </div>
+
+    <div class="info-box success" style="margin-top: 15px; background: #d4edda; border-left-color: #28a745;">
+        <strong>✅ Production-Ready Encryption:</strong>
+        <ul style="margin: 10px 0 0 20px; line-height: 1.6;">
+            <li>Argon2id key derivation: 512 MiB memory, 20 iterations, 4 threads</li>
+            <li>AES-256-GCM authenticated encryption with 96-bit nonces</li>
+            <li>Automatic video recording for air-gap transfer</li>
+        </ul>
+    </div>
+
+    <div class="info-box" style="background: #d4edda; border-left-color: #28a745; padding: 10px; margin-top: 15px;">
+        🔒 <strong>Server-Side Encryption:</strong> Argon2id + AES-256-GCM
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let catCanvas, catCtx;
+let catImage = new Image();
+let catOriginalImageData = null;
+let catEyeRegions = null;
+let catFrameOn = null;   // Pre-rendered: both eyes green (11)
+let catFrameOff = null;  // Pre-rendered: both eyes dark (00)
+let catFrame01 = null;   // Pre-rendered: left dark, right green (01)
+let catFrame10 = null;   // Pre-rendered: left green, right dark (10)
+let catBinaryData = '';
+let catTransmitting = false;
+let catBlinkInterval = null;
+let catBitIndex = 0;
+let mediaRecorder = null;
+let recordedChunks = [];
+let videoBlob = null;
+
+document.addEventListener('DOMContentLoaded', async () => {
+    catCanvas = document.getElementById('catCanvas');
+    catCtx = catCanvas.getContext('2d');
+    
+    catImage.crossOrigin = 'anonymous';
+    catImage.onload = async () => {
+        await initCatCanvas();
+        console.log('🐱 Cat image loaded');
+    };
+    
+    catImage.src = '{{ url_for("static", filename="MeowDecoderDemo.png") }}';
+    catImage.onerror = () => {
+        console.warn('Failed to load cat image');
+        catCtx.fillStyle = '#333';
+        catCtx.fillRect(0, 0, 743, 417);
+        catCtx.fillStyle = '#00ccff';
+        catCtx.font = '48px Arial';
+        catCtx.textAlign = 'center';
+        catCtx.fillText('😺', 371, 208);
+    };
+});
+
+async function initCatCanvas() {
+    if (!catImage || !catImage.naturalWidth) return;
+    
+    catCtx.clearRect(0, 0, 743, 417);
+    catCtx.drawImage(catImage, 0, 0, 743, 417);
+    catOriginalImageData = catCtx.getImageData(0, 0, 743, 417);
+    catEyeRegions = autoDetectEyeRegions(catOriginalImageData);
+    
+    if (catEyeRegions) {
+        console.log('😺 Eyes detected: L(' + catEyeRegions.left.join(',') + ') R(' + catEyeRegions.right.join(',') + ')');
+    }
+    
+    // Pre-render both frames for instant switching during transmission
+    preRenderFrames();
+}
+
+function preRenderFrames() {
+    const src = catOriginalImageData.data;
+    const w = catOriginalImageData.width;
+    const h = catOriginalImageData.height;
+    
+    if (!catEyeRegions) {
+        // Fallback: single-eye mode if regions not detected
+        catFrameOn = new ImageData(new Uint8ClampedArray(src), w, h);
+        const offData = new Uint8ClampedArray(src);
+        const maxY = Math.floor(h * 0.65);
+        for (let i = 0; i < offData.length; i += 4) {
+            const py = Math.floor((i / 4) / w);
+            if (py >= maxY) continue;
+            const r = offData[i], g = offData[i + 1], a = offData[i + 3];
+            if (g > 100 && g > r * 1.3 && a > 100) {
+                offData[i] = 0; offData[i + 1] = 0; offData[i + 2] = 0;
+            }
+        }
+        catFrameOff = new ImageData(offData, w, h);
+        catFrame01 = catFrameOn;  // fallback
+        catFrame10 = catFrameOff; // fallback
+        console.log('⚡ Pre-rendered 2 frames (single-eye fallback)');
+        return;
+    }
+    
+    // Helper: darken green pixels in a bounding box
+    function darkenEye(data, box) {
+        const [x1, y1, x2, y2] = box;
+        for (let y = y1; y <= y2 && y < h; y++) {
+            for (let x = x1; x <= x2 && x < w; x++) {
+                const i = (y * w + x) * 4;
+                const r = data[i], g = data[i + 1], a = data[i + 3];
+                if (g > 100 && g > r * 1.3 && a > 100) {
+                    data[i] = 0; data[i + 1] = 0; data[i + 2] = 0;
+                }
+            }
+        }
+    }
+    
+    // Frame 11: both eyes green (original)
+    catFrameOn = new ImageData(new Uint8ClampedArray(src), w, h);
+    
+    // Frame 00: both eyes dark
+    const d00 = new Uint8ClampedArray(src);
+    darkenEye(d00, catEyeRegions.left);
+    darkenEye(d00, catEyeRegions.right);
+    catFrameOff = new ImageData(d00, w, h);
+    
+    // Frame 01: left dark, right green
+    const d01 = new Uint8ClampedArray(src);
+    darkenEye(d01, catEyeRegions.left);
+    catFrame01 = new ImageData(d01, w, h);
+    
+    // Frame 10: left green, right dark
+    const d10 = new Uint8ClampedArray(src);
+    darkenEye(d10, catEyeRegions.right);
+    catFrame10 = new ImageData(d10, w, h);
+    
+    console.log('⚡ Pre-rendered 4 blink frames (2-bit dual-eye mode)');
+}
+
+function autoDetectEyeRegions(imageData) {
+    const data = imageData.data;
+    const w = imageData.width, h = imageData.height;
+    const greenPixels = [];
+    
+    for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+        if (g > 100 && g > r * 1.3 && a > 100) {
+            const idx = i / 4;
+            const px = idx % w, py = Math.floor(idx / w);
+            if (py < h * 0.65) greenPixels.push({ x: px, y: py });
+        }
+    }
+    
+    if (greenPixels.length < 20) return null;
+    
+    const xs = greenPixels.map(p => p.x);
+    const minX = Math.min(...xs), maxX = Math.max(...xs);
+    const midStart = Math.round(minX + (maxX - minX) * 0.35);
+    const midEnd = Math.round(minX + (maxX - minX) * 0.65);
+    
+    const colCounts = {};
+    for (const p of greenPixels) {
+        if (p.x >= midStart && p.x <= midEnd) {
+            colCounts[p.x] = (colCounts[p.x] || 0) + 1;
+        }
+    }
+    
+    let splitX = Math.round((minX + maxX) / 2);
+    let minCount = Infinity;
+    for (let x = midStart; x <= midEnd; x++) {
+        const c = colCounts[x] || 0;
+        if (c < minCount) { minCount = c; splitX = x; }
+    }
+    
+    const leftPx = greenPixels.filter(p => p.x < splitX);
+    const rightPx = greenPixels.filter(p => p.x >= splitX);
+    const pad = 5;
+    
+    function boundingBox(pixels) {
+        if (pixels.length === 0) return null;
+        const bxs = pixels.map(p => p.x), bys = pixels.map(p => p.y);
+        return [
+            Math.max(0, Math.min(...bxs) - pad),
+            Math.max(0, Math.min(...bys) - pad),
+            Math.min(w, Math.max(...bxs) + pad),
+            Math.min(h, Math.max(...bys) + pad)
+        ];
+    }
+    
+    const left = boundingBox(leftPx);
+    const right = boundingBox(rightPx);
+    
+    if (!left || !right) return null;
+    return { left, right };
+}
+
+function drawWithGreenBlink(leftOn, rightOn) {
+    if (!catOriginalImageData) return;
+    
+    // 2-bit dual-eye frame swap
+    if (catFrameOn && catFrameOff && catFrame01 && catFrame10) {
+        if (leftOn && rightOn) catCtx.putImageData(catFrameOn, 0, 0);
+        else if (!leftOn && rightOn) catCtx.putImageData(catFrame01, 0, 0);
+        else if (leftOn && !rightOn) catCtx.putImageData(catFrame10, 0, 0);
+        else catCtx.putImageData(catFrameOff, 0, 0);
+        return;
+    }
+    
+    catCtx.putImageData(catOriginalImageData, 0, 0);
+}
+
+async function catModeEncode() {
+    const message = document.getElementById('catMessage').value;
+    const password = document.getElementById('catPassword').value;
+    const speed = parseInt(document.getElementById('catBlinkSpeed').value);
+    
+    if (!message) { alert('Enter a message to transmit'); return; }
+    if (!password || password.length < 8) { alert('Password must be at least 8 characters (NIST SP 800-63B)'); return; }
+    
+    // Scroll canvas into view so user doesn't miss frames
+    document.getElementById('catCanvas').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    
+    if (!catOriginalImageData) {
+        await initCatCanvas();
+        if (!catOriginalImageData) {
+            alert('Cat image not loaded yet. Please wait and try again.');
+            return;
+        }
+    }
+    
+    // Always use server-side encryption with Argon2id + AES-256-GCM
+    let payload;
+    try {
+        document.getElementById('catQrBtn').disabled = true;
+        document.getElementById('catQrBtn').textContent = '🔒 Encrypting...';
+        
+        const formData = new FormData();
+        formData.append('message', message);
+        formData.append('password', password);
+        
+        const response = await fetch('/cat-mode-encrypt-server', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            alert('Encryption failed: ' + (error.error || 'Unknown error'));
+            document.getElementById('catQrBtn').disabled = false;
+            document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+            return;
+        }
+        
+        const result = await response.json();
+        payload = result.payload_hex;
+        console.log(`🔐 Server encrypted: ${result.original_length}B → ${result.encrypted_length}B (${result.encrypted_length * 8} bits)`);
+        
+        // Store encryption mode for decoding
+        try {
+            localStorage.setItem('meow_cat_encryption_mode', 'server');
+        } catch (e) {}
+        
+        document.getElementById('catQrBtn').disabled = false;
+        document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+        
+    } catch (error) {
+        alert('Server encryption failed: ' + error.message);
+        document.getElementById('catQrBtn').disabled = false;
+        document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+        return;
+    }
+    
+    const rawBinary = hexToBinary(payload);
+    catBinaryData = whitenBinary(rawBinary);
+    
+    console.log(`📡 Transmitting ${catBinaryData.length} bits (${Math.ceil(catBinaryData.length/2)} frames) at ${speed}ms per frame (2-bit dual-eye mode, whitened)`);
+    
+    try {
+        // Store un-whitened binary for comparison with decoded output
+        localStorage.setItem('meow_cat_binary', rawBinary);
+        localStorage.setItem('meow_cat_speed_ms', String(speed));
+    } catch (e) {}
+    
+    // Start video recording
+    recordedChunks = [];
+    videoBlob = null;
+    try {
+        const stream = catCanvas.captureStream(60); // 60 FPS for fast blink capture
+        mediaRecorder = new MediaRecorder(stream, {
+            mimeType: 'video/webm;codecs=vp9',
+            videoBitsPerSecond: 2500000
+        });
+        
+        mediaRecorder.ondataavailable = (event) => {
+            if (event.data.size > 0) {
+                recordedChunks.push(event.data);
+            }
+        };
+        
+        mediaRecorder.onstop = () => {
+            videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+            console.log(`🎥 Video recorded: ${(videoBlob.size / 1024).toFixed(1)} KB`);
+            
+            // Auto-save to server and show download link
+            const formData = new FormData();
+            formData.append('video', videoBlob, 'cat_mode_transmission.webm');
+            
+            fetch('/cat-mode-download-video', {
+                method: 'POST',
+                body: formData
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const link = document.getElementById('videoDownloadLink');
+                    link.href = data.download_url;
+                    link.style.display = 'inline-block';
+                    link.textContent = '⬇️ Download Video (' + (videoBlob.size / 1024).toFixed(0) + ' KB)';
+                }
+            })
+            .catch(err => console.warn('Video save failed:', err));
+        };
+        
+        mediaRecorder.start();
+        console.log('🎥 Recording started');
+    } catch (e) {
+        console.warn('Video recording not supported:', e);
+    }
+    
+    document.getElementById('catQrBtn').style.display = 'none';
+    document.getElementById('catStopBtn').style.display = 'inline-block';
+    document.getElementById('catProgress').style.display = 'block';
+    document.getElementById('binaryDisplay').textContent = catBinaryData;
+    
+    catTransmitting = true;
+    catBitIndex = 0;
+    catCanvas.classList.add('transmitting');
+    
+    // Build preamble: sync pattern so video decoder can find start + calibrate
+    // Preamble: 8× ON(11), 8× OFF(00), 4× alternating 10,01,10,01, then data
+    // Total preamble: 20 frames
+    const PREAMBLE_ON = 8;
+    const PREAMBLE_OFF = 8;
+    const PREAMBLE_ALT = 4;
+    const PREAMBLE_LEN = PREAMBLE_ON + PREAMBLE_OFF + PREAMBLE_ALT;
+    const POSTAMBLE_LEN = 8; // 8× ON at the end
+    const dataFrames = Math.ceil(catBinaryData.length / 2);
+    const totalFrames = PREAMBLE_LEN + dataFrames + POSTAMBLE_LEN;
+    
+    let frameStartTime = null;
+    let frameIndex = 0;
+    
+    function getFrameState(idx) {
+        // Preamble: ON phase
+        if (idx < PREAMBLE_ON) return [true, true];
+        // Preamble: OFF phase
+        if (idx < PREAMBLE_ON + PREAMBLE_OFF) return [false, false];
+        // Preamble: alternating 10, 01 pattern (eye independence calibration)
+        if (idx < PREAMBLE_LEN) {
+            const altIdx = idx - PREAMBLE_ON - PREAMBLE_OFF;
+            return altIdx % 2 === 0 ? [true, false] : [false, true];
+        }
+        // Data frames
+        const dataIdx = idx - PREAMBLE_LEN;
+        if (dataIdx < dataFrames) {
+            const bitIdx = dataIdx * 2;
+            const leftBit = catBinaryData[bitIdx] === '1';
+            const rightBit = (bitIdx + 1 < catBinaryData.length) ? catBinaryData[bitIdx + 1] === '1' : false;
+            return [leftBit, rightBit];
+        }
+        // Postamble: ON
+        return [true, true];
+    }
+    
+    function transmitFrame(timestamp) {
+        if (frameStartTime === null) frameStartTime = timestamp;
+        
+        while (frameIndex < totalFrames && timestamp - frameStartTime >= speed) {
+            frameStartTime += speed;
+            frameIndex++;
+        }
+        
+        if (!catTransmitting || frameIndex >= totalFrames) {
+            catModeStop();
+            return;
+        }
+        
+        const [leftOn, rightOn] = getFrameState(frameIndex);
+        drawWithGreenBlink(leftOn, rightOn);
+        
+        if (frameIndex % 5 === 0) {
+            let progressText;
+            if (frameIndex < PREAMBLE_LEN) {
+                progressText = `Sync preamble (${frameIndex}/${PREAMBLE_LEN})...`;
+            } else {
+                const dataIdx = frameIndex - PREAMBLE_LEN;
+                const progress = (dataIdx / dataFrames) * 100;
+                document.getElementById('catProgressBar').style.width = progress + '%';
+                progressText = `Frame ${dataIdx} of ${dataFrames} (${progress.toFixed(1)}%) • ${catBinaryData.length} bits, 2 per frame`;
+            }
+            document.getElementById('catProgressText').textContent = progressText;
+        }
+        
+        catBlinkInterval = requestAnimationFrame(transmitFrame);
+    }
+    
+    catBlinkInterval = requestAnimationFrame(transmitFrame);
+}
+
+function catModeStop() {
+    catTransmitting = false;
+    if (catBlinkInterval) {
+        cancelAnimationFrame(catBlinkInterval);
+        catBlinkInterval = null;
+    }
+    
+    // Stop video recording
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop();
+        console.log('🎥 Recording stopped');
+    }
+    
+    catCanvas.classList.remove('transmitting');
+    document.getElementById('catQrBtn').style.display = 'inline-block';
+    document.getElementById('catStopBtn').style.display = 'none';
+    document.getElementById('catProgressText').textContent = 
+        `✅ Transmission complete! ${catBinaryData.length} bits transmitted.`;
+    
+    drawWithGreenBlink(true, true);
+    alert(`✅ Transmission complete! Binary pattern saved (${catBinaryData.length} bits in ${Math.ceil(catBinaryData.length/2)} frames).\nVideo will be ready to download shortly.`);
+}
+
+function hexToBinary(hex) {
+    // Convert hex string directly to binary bits (4 bits per hex char)
+    // This is more efficient than base64→ASCII→8-bit conversion
+    let binary = '';
+    for (let i = 0; i < hex.length; i++) {
+        binary += parseInt(hex[i], 16).toString(2).padStart(4, '0');
+    }
+    return binary;
+}
+
+function whitenBinary(binaryStr) {
+    // XOR with deterministic PRNG to break up long same-state runs.
+    // Critical for NRZ decode reliability: header has 13+ consecutive (0,0) blinks
+    // which merge into ambiguous long runs. Whitening reduces max run from ~13 to ~5.
+    // Uses LCG PRNG with "MEOW" seed - must match Python decoder exactly.
+    // XOR is self-inverse: whitenBinary(whitenBinary(x)) === x
+    let seed = 0x4D454F57; // "MEOW" in hex
+    let result = '';
+    for (let i = 0; i < binaryStr.length; i++) {
+        // Use Math.imul for correct 32-bit multiplication (avoids float64 overflow)
+        const lo = Math.imul(seed, 1103515245);
+        seed = ((lo >>> 0) + 12345) & 0x7FFFFFFF;
+        const mask = (seed >>> 16) & 1;
+        result += String(parseInt(binaryStr[i]) ^ mask);
+    }
+    return result;
+}
+
+function stringToBinary(str) {
+    let binary = '';
+    for (let i = 0; i < str.length; i++) {
+        binary += str.charCodeAt(i).toString(2).padStart(8, '0');
+    }
+    return binary;
+}
+
+function copyBinary() {
+    const binary = document.getElementById('binaryDisplay').textContent;
+    if (!binary || binary.includes('will appear')) {
+        alert('No binary pattern to copy. Transmit a message first.');
+        return;
+    }
+    
+    navigator.clipboard.writeText(binary).then(() => {
+        alert('✅ Binary pattern copied to clipboard!');
+    }).catch(() => {
+        alert('❌ Copy failed. Please select and copy manually.');
+    });
+}
+
+function loadSavedBinary() {
+    try {
+        const binary = localStorage.getItem('meow_cat_binary');
+        const speed = localStorage.getItem('meow_cat_speed_ms');
+        
+        if (binary) {
+            document.getElementById('binaryInput').value = binary;
+            if (speed) document.getElementById('blinkSpeed').value = speed;
+            alert(`✅ Loaded saved binary (${binary.length} bits, server encryption)`);
+        } else {
+            alert('No saved binary pattern found');
+        }
+    } catch (e) {
+        alert('localStorage not available');
+    }
+}
+
+function handleVideoUpload(input) {
+    const statusEl = document.getElementById('videoUploadStatus');
+    const previewContainer = document.getElementById('videoPreviewContainer');
+    const videoPreview = document.getElementById('videoPreview');
+    
+    if (!input.files || !input.files[0]) return;
+    
+    const file = input.files[0];
+    statusEl.style.display = 'block';
+    statusEl.innerHTML = '⏳ Loading video...';
+    statusEl.style.background = '#fff3cd';
+    statusEl.style.color = '#856404';
+    
+    // Show video preview
+    const url = URL.createObjectURL(file);
+    videoPreview.src = url;
+    previewContainer.style.display = 'block';
+    
+    // Send to server for frame analysis
+    statusEl.innerHTML = '🔍 Analyzing video frames... This may take a moment.';
+    statusEl.style.background = '#cce5ff';
+    statusEl.style.color = '#004085';
+    
+    const formData = new FormData();
+    formData.append('video', file);
+    
+    fetch('/cat-mode-decode-video', {
+        method: 'POST',
+        body: formData
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success && data.binary) {
+            // Populate the binary input field
+            document.getElementById('binaryInput').value = data.binary;
+            
+            const diag = data.diagnostics || {};
+            let diagHtml = '';
+            if (diag.header_orig_len !== undefined) {
+                diagHtml = `<br><small>Header: orig_len=${diag.header_orig_len}, comp_len=${diag.header_comp_len}, ` +
+                    `expected=${diag.expected_bits} bits, actual=${diag.actual_bits} bits` +
+                    (diag.bit_diff !== 0 ? ` <strong>(${diag.bit_diff > 0 ? '+' : ''}${diag.bit_diff} diff)</strong>` : ' ✓') +
+                    `</small>`;
+            }
+            const methodStr = diag.method ? ` | Method: ${diag.method}` : '';
+            statusEl.innerHTML = 
+                `✅ <strong>Binary extracted!</strong> ${data.bits} bits from ${data.data_frames} data frames<br>` +
+                `<small>Video: ${data.total_video_frames} frames @ ${data.video_fps.toFixed(1)} FPS | ` +
+                `Blink period: ${data.blink_period}${data.auto_tuned ? ' (auto-tuned)' : ''} | ~${data.estimated_blink_ms}ms | ` +
+                `Data frames: ${data.data_start_frame || '?'}-${data.data_end_frame || '?'}${methodStr}</small>` +
+                diagHtml + `<br>` +
+                `<small>Binary pattern has been filled into the decode form below. Enter the password and click Decode.</small>`;
+            statusEl.style.background = '#d4edda';
+            statusEl.style.color = '#155724';
+        } else {
+            statusEl.innerHTML = `❌ ${data.error || 'Unknown error during video analysis'}`;
+            statusEl.style.background = '#f8d7da';
+            statusEl.style.color = '#721c24';
+        }
+    })
+    .catch(err => {
+        statusEl.innerHTML = `❌ Video analysis failed: ${err.message}`;
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.color = '#721c24';
+    });
+}
+</script>
+{% endblock %}

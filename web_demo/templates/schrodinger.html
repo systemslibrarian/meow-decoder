@@ -1,0 +1,142 @@
+{% extends "base.html" %}
+
+{% block title %}Schrödinger Mode ⚛️{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+    <h2 style="margin-bottom: 15px; color: #333;">⚛️ Schrödinger's Yarn Ball - Quantum Dual-Secret Mode</h2>
+    
+    <div class="info-box" style="background: linear-gradient(135deg, rgba(118, 75, 162, 0.1), rgba(102, 126, 234, 0.1)); border-left: 4px solid #764ba2; margin-bottom: 25px;">
+        <p style="font-style: italic; margin-bottom: 10px; color: #555;">
+            "You cannot prove a secret exists unless you already know how to look for it. And once you look… you've already chosen your reality."
+        </p>
+        <h4 style="margin-bottom: 10px;">🐱 True Plausible Deniability via Quantum Superposition</h4>
+        <p style="line-height: 1.6; color: #666;">
+            This encoder creates a <strong>single GIF containing TWO completely separate encrypted files</strong>. Each password reveals one reality. Neither can prove the other exists.
+        </p>
+    </div>
+
+    <div class="info-box" style="background: #e7f3ff; border-left-color: #2196f3; margin-bottom: 25px;">
+        <h4 style="margin-bottom: 10px;">🔬 How It Works</h4>
+        <ol style="margin-left: 20px; line-height: 1.8;">
+            <li><strong>Encrypt both files independently</strong> (AES-256-GCM + Argon2id)</li>
+            <li><strong>Pad to same length</strong> (prevents size fingerprinting)</li>
+            <li><strong>Interleave encrypted blocks</strong> (even=A, odd=B)</li>
+            <li><strong>Permute with cryptographic shuffle</strong> (hides pattern)</li>
+            <li><strong>Add statistical noise</strong> (makes blocks indistinguishable)</li>
+            <li><strong>Fountain encode</strong> → QR → animated GIF</li>
+        </ol>
+        <p style="margin-top: 15px; color: #666;">
+            <strong>Decoding:</strong> Password extracts and decrypts its blocks. One reality revealed, other unprovable.
+        </p>
+    </div>
+
+    <form method="POST" enctype="multipart/form-data" onsubmit="return validateForm()">
+        <div class="step" style="background: linear-gradient(135deg, rgba(118, 75, 162, 0.05), rgba(102, 126, 234, 0.05)); border: 2px solid #764ba2; padding: 25px; margin: 20px 0; border-radius: 12px;">
+            <h3 style="margin-bottom: 20px; color: #764ba2;">📄 Reality A (Real Secret)</h3>
+            
+            <div class="form-group">
+                <label for="real_file">🔒 Real Secret File:</label>
+                <input type="file" name="real_file" id="real_file" required>
+                <small>Your actual secret file (PDF, image, document, etc.)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="real_password">🔑 Real Password:</label>
+                <input type="password" name="real_password" id="real_password" placeholder="At least 8 characters" required>
+                <div style="margin-top: 5px;">
+                    <input type="checkbox" id="showRealPassword" onchange="document.getElementById('real_password').type = this.checked ? 'text' : 'password'">
+                    <label for="showRealPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+                </div>
+                <small style="color: #764ba2;">This password reveals your real secret</small>
+            </div>
+        </div>
+
+        <div class="step" style="background: linear-gradient(135deg, rgba(0, 204, 255, 0.05), rgba(0, 255, 136, 0.05)); border: 2px solid #00ccff; padding: 25px; margin: 20px 0; border-radius: 12px;">
+            <h3 style="margin-bottom: 20px; color: #00ccff;">📄 Reality B (Decoy)</h3>
+            
+            <div class="form-group">
+                <label for="decoy_file">🎭 Decoy File:</label>
+                <input type="file" name="decoy_file" id="decoy_file" required>
+                <small>Innocent-looking decoy file (shopping list, recipe, etc.)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="decoy_password">🔑 Decoy Password:</label>
+                <input type="password" name="decoy_password" id="decoy_password" placeholder="At least 8 characters" required>
+                <div style="margin-top: 5px;">
+                    <input type="checkbox" id="showDecoyPassword" onchange="document.getElementById('decoy_password').type = this.checked ? 'text' : 'password'">
+                    <label for="showDecoyPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
+                </div>
+                <small style="color: #00ccff;">This password reveals the decoy</small>
+            </div>
+        </div>
+
+        <div class="info-box warning" style="margin: 25px 0;">
+            <h4 style="margin-bottom: 10px;">⚠️ Critical Security Requirements</h4>
+            <ul style="margin-left: 20px; line-height: 1.8;">
+                <li><strong>Different passwords:</strong> Real and decoy passwords MUST be different</li>
+                <li><strong>Minimum length:</strong> Both passwords must be at least 8 characters</li>
+                <li><strong>Plausible decoy:</strong> Choose a convincing decoy file (shopping list, weather notes, etc.)</li>
+                <li><strong>Memory security:</strong> Remember which password is which!</li>
+                <li><strong>Statistical indistinguishability:</strong> Neither secret can be proven to exist</li>
+            </ul>
+        </div>
+
+        <div class="form-group">
+            <label for="redundancy">📊 Redundancy Factor:</label>
+            <input type="range" name="redundancy" id="redundancy" min="1.2" max="2.0" step="0.1" value="1.5" 
+                   oninput="document.getElementById('redundancyDisplay').textContent = this.value + '×'">
+            <span class="stat-value" id="redundancyDisplay">1.5×</span>
+            <small>Higher = more loss tolerance (1.5× = 33% loss, 2.0× = 50% loss)</small>
+        </div>
+
+        <div class="action-buttons">
+            <button type="submit" class="btn" style="background: linear-gradient(135deg, #764ba2, #667eea);">
+                ⚛️ Create Quantum Superposition
+            </button>
+            <a href="{{ url_for('modes_page') }}" class="btn secondary">← Back to All Modes</a>
+        </div>
+    </form>
+
+
+</div>
+
+<script>
+function validateForm() {
+    const realPassword = document.getElementById('real_password').value;
+    const decoyPassword = document.getElementById('decoy_password').value;
+    
+    if (realPassword.length < 8 || decoyPassword.length < 8) {
+        alert('⚠️ Both passwords must be at least 8 characters');
+        return false;
+    }
+    
+    if (realPassword === decoyPassword) {
+        alert('⚠️ Real and decoy passwords must be DIFFERENT!\n\nIf they are the same, there is no plausible deniability.');
+        return false;
+    }
+    
+    // Warn about processing time
+    const confirmed = confirm(
+        '⚛️ Schrödinger Encoding Process\n\n' +
+        'This will take 30-90 seconds due to:\n' +
+        '• Argon2id key derivation (2x - one per password)\n' +
+        '• AES-256-GCM encryption (2x)\n' +
+        '• Quantum mixing and interleaving\n' +
+        '• Statistical noise generation\n\n' +
+        'Do not close this tab. Continue?'
+    );
+    
+    if (confirmed) {
+        // Show loading message
+        const submitBtn = document.querySelector('button[type="submit"]');
+        submitBtn.disabled = true;
+        submitBtn.textContent = '⚛️ Creating quantum superposition...';
+        submitBtn.style.opacity = '0.6';
+    }
+    
+    return confirmed;
+}
+</script>
+{% endblock %}

@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}Encoding Complete - Meow Decoder 😻{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 20px 0;">
+    <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+    <h2 style="color: #28a745; margin-bottom: 10px;">Encoding Complete!</h2>
+    <p style="color: #666; font-size: 1.1em;">Your file has been successfully encoded into an animated GIF.</p>
+</div>
+
+{% if mode == 'cat' %}
+<div class="cat-highlight" style="margin: 30px 0;">
+    <h3>😻 Cat Mode Activated!</h3>
+    <p>Your QR codes are camouflaged in photographic cat imagery.</p>
+    <p style="font-size: 0.9em; margin-top: 10px; color: #666;">
+        This provides aesthetic steganography and plausible deniability.
+    </p>
+</div>
+{% endif %}
+
+<div style="background: #f8f9fa; padding: 30px; border-radius: 10px; margin: 30px 0;">
+    <h3 style="margin-bottom: 20px; color: #333;">📊 Encoding Statistics</h3>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">Original File:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ original_filename }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">Output GIF:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ output_filename }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">File Size:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ file_size }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">QR Frames:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ qr_frames }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">Redundancy:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ redundancy }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px 0; font-weight: 600;">Encoding Mode:</td>
+            <td style="padding: 12px 0; text-align: right;">
+                <span class="mode-badge mode-{{ mode }}">
+                    {{ mode_emoji }} {{ mode|upper }}
+                </span>
+            </td>
+        </tr>
+    </table>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ url_for('download_file', token=download_token) }}" class="btn" style="display: inline-block; text-decoration: none;">
+        ⬇️ Download Animated GIF
+    </a>
+</div>
+
+<div style="margin-top: 40px; padding: 20px; background: #e7f3ff; border-left: 4px solid #2196f3; border-radius: 6px;">
+    <h4 style="margin-bottom: 10px; color: #1976d2;">📱 Next Steps: Capture with Phone Camera</h4>
+    <ol style="line-height: 1.8; padding-left: 20px; color: #333;">
+        <li>Download the GIF to your computer</li>
+        <li>Open the GIF in full-screen mode</li>
+        <li>Use the <strong>Decode</strong> page on your phone's browser</li>
+        <li>Point your phone camera at the animated QR codes</li>
+        <li>The decoder will automatically capture frames as they loop</li>
+        <li>Once enough frames are captured (≈67% with 1.5× redundancy), decoding completes</li>
+    </ol>
+    
+    {% if mode == 'cat' %}
+    <p style="margin-top: 15px; padding: 15px; background: #fff9e6; border-radius: 6px; color: #d63031;">
+        <strong>😻 Cat Mode Note:</strong> The QR codes are embedded in cat photos, so they'll look like
+        adorable cat pictures while still being perfectly scannable by the decoder!
+    </p>
+    {% endif %}
+</div>
+
+<div style="text-align: center; margin-top: 30px;">
+    <a href="{{ url_for('encode_page') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">
+        ← Encode Another File
+    </a>
+    <span style="margin: 0 15px; color: #ccc;">|</span>
+    <a href="{{ url_for('decode_page') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">
+        Test Decode →
+    </a>
+</div>
+
+<div style="margin-top: 40px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px; font-size: 0.9em;">
+    <strong>⏱️ Expiration Notice:</strong> This file will be automatically deleted from the server after 30 minutes
+    or upon download. Make sure to save it to your device!
+</div>
+{% endblock %}

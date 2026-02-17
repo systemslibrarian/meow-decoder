@@ -1,0 +1,355 @@
+{% extends "base.html" %}
+
+{% block title %}Interactive Demo - Meow Decoder 😻{% endblock %}
+
+{% block extra_css %}
+<style>
+    .demo-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        margin: 30px 0;
+    }
+    
+    @media (max-width: 768px) {
+        .demo-grid {
+            grid-template-columns: 1f;
+        }
+    }
+    
+    .demo-card {
+        background: #f8f9fa;
+        border-radius: 12px;
+        padding: 25px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    }
+    
+    .demo-card h3 {
+        margin: 0 0 15px 0;
+        color: #333;
+        font-size: 1.3em;
+    }
+    
+    .qr-preview {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        text-align: center;
+        margin: 15px 0;
+        min-height: 250px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    
+    .qr-preview canvas {
+        max-width: 100%;
+        image-rendering: pixelated;
+    }
+    
+    .cat-animation-container {
+        background: linear-gradient(135deg, #ffeaa7 0%, #fdcb6e 100%);
+        padding: 20px;
+        border-radius: 12px;
+        text-align: center;
+        margin: 15px 0;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .cat-emoji {
+        font-size: 5em;
+        animation: float 3s ease-in-out infinite;
+    }
+    
+    @keyframes float {
+        0%, 100% { transform: translateY(0px); }
+        50% { transform: translateY(-20px); }
+    }
+    
+    .blink {
+        animation: blink 2s infinite;
+    }
+    
+    @keyframes blink {
+        0%, 90%, 100% { opacity: 1; }
+        95% { opacity: 0; }
+    }
+    
+    .feature-list {
+        list-style: none;
+        padding: 0;
+        margin: 15px 0;
+    }
+    
+    .feature-list li {
+        padding: 10px;
+        margin: 8px 0;
+        background: white;
+        border-radius: 6px;
+        border-left: 4px solid #667eea;
+    }
+    
+    .feature-list li:before {
+        content: "✓";
+        margin-right: 10px;
+        color: #28a745;
+        font-weight: bold;
+    }
+    
+    .stats-box {
+        background: white;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 15px 0;
+    }
+    
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        padding: 8px 0;
+        border-bottom: 1px solid #e0e0e0;
+    }
+    
+    .stat-row:last-child {
+        border-bottom: none;
+    }
+    
+    .stat-label {
+        color: #6c757d;
+        font-weight: 500;
+    }
+    
+    .stat-value {
+        color: #667eea;
+        font-weight: 600;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 25px; color: #333;">🎨 Interactive Demo</h2>
+
+<p style="margin-bottom: 30px; color: #666; line-height: 1.6;">
+    Explore Meow Decoder's features with live demonstrations and visualizations.
+</p>
+
+<div class="demo-grid">
+    <!-- QR Code Generator -->
+    <div class="demo-card">
+        <h3>📱 Live QR Generator</h3>
+        <p style="color: #666; margin-bottom: 15px;">
+            Generate a QR code from any text instantly
+        </p>
+        
+        <div class="form-group">
+            <textarea id="qrText" rows="3" placeholder="Enter text to encode..." style="width: 100%;">Hello, Meow Decoder! 😻</textarea>
+        </div>
+        
+        <button class="btn" onclick="generateQR()" style="width: 100%;">Generate QR Code</button>
+        
+        <div class="qr-preview" id="qrPreview">
+            <span style="color: #999;">QR code will appear here</span>
+        </div>
+        
+        <div class="stats-box" id="qrStats" style="display: none;">
+            <div class="stat-row">
+                <span class="stat-label">Data Length:</span>
+                <span class="stat-value" id="qrDataLength">0</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">QR Version:</span>
+                <span class="stat-value" id="qrVersion">-</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Error Correction:</span>
+                <span class="stat-value">High (30%)</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cat Mode Demo -->
+    <div class="demo-card">
+        <h3>😻 Cat Mode Preview</h3>
+        <p style="color: #666; margin-bottom: 15px;">
+            See how Cat Mode camouflages QR codes
+        </p>
+        
+        <div class="cat-animation-container">
+            <div class="cat-emoji blink">😻</div>
+            <p style="margin: 15px 0 0 0; color: #333; font-weight: 600;">
+                Cat Mode Active!
+            </p>
+        </div>
+        
+        <ul class="feature-list">
+            <li>Photographic cat carrier images</li>
+            <li>QR codes embedded steganographically</li>
+            <li>Maintains full scannability</li>
+            <li>Plausible deniability aesthetics</li>
+        </ul>
+        
+        <div style="background: #fff3cd; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #ffc107;">
+            <strong style="color: #856404;">Note:</strong>
+            <p style="margin: 5px 0 0 0; color: #856404; font-size: 0.9em;">
+                Cat Mode is cosmetic camouflage for fun and plausible deniability.
+                Not forensic-proof steganography.
+            </p>
+        </div>
+    </div>
+    
+    <!-- Fountain Codes Demo -->
+    <div class="demo-card">
+        <h3>💧 Fountain Codes Explained</h3>
+        <p style="color: #666; margin-bottom: 15px;">
+            Loss-tolerant encoding for frame drops
+        </p>
+        
+        <div class="stats-box">
+            <div class="stat-row">
+                <span class="stat-label">Frame Loss Tolerance:</span>
+                <span class="stat-value">33% (1.5× redundancy)</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Encoding Type:</span>
+                <span class="stat-value">Luby Transform (LT)</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Distribution:</span>
+                <span class="stat-value">Robust Soliton</span>
+            </div>
+        </div>
+        
+        <p style="margin: 15px 0; color: #666; font-size: 0.95em;">
+            Fountain codes allow the decoder to reconstruct the original data from
+            <strong>any subset</strong> of encoded frames. You don't need to capture
+            every single QR code - just enough of them!
+        </p>
+        
+        <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-top: 15px; border-left: 4px solid #2196f3;">
+            <strong style="color: #1976d2;">Example:</strong>
+            <p style="margin: 5px 0 0 0; color: #1976d2; font-size: 0.9em;">
+                With 10 source blocks and 1.5× redundancy, the encoder generates
+                15 frames. You only need to successfully scan ~10-12 frames (any of them)
+                to reconstruct the original file.
+            </p>
+        </div>
+    </div>
+    
+    <!-- Encryption Demo -->
+    <div class="demo-card">
+        <h3>🔐 Encryption Features</h3>
+        <p style="color: #666; margin-bottom: 15px;">
+            Military-grade security built-in
+        </p>
+        
+        <ul class="feature-list">
+            <li><strong>AES-256-GCM:</strong> Authenticated encryption</li>
+            <li><strong>Argon2id:</strong> Memory-hard key derivation</li>
+            <li><strong>HMAC-SHA256:</strong> Message authentication</li>
+            <li><strong>Forward Secrecy:</strong> X25519 ephemeral keys (optional)</li>
+            <li><strong>Post-Quantum:</strong> ML-KEM-1024 hybrid (CLI only)</li>
+        </ul>
+        
+        <div class="stats-box">
+            <div class="stat-row">
+                <span class="stat-label">Key Derivation Memory:</span>
+                <span class="stat-value">512 MiB</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Argon2id Iterations:</span>
+                <span class="stat-value">20 passes</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Salt Size:</span>
+                <span class="stat-value">16 bytes (random)</span>
+            </div>
+            <div class="stat-row">
+                <span class="stat-label">Nonce Size:</span>
+                <span class="stat-value">12 bytes (unique)</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Try It Now Section -->
+<div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 12px; text-align: center; color: white; margin-top: 40px;">
+    <h2 style="margin: 0 0 15px 0; color: white;">Ready to Try It? 😻</h2>
+    <p style="margin: 0 0 25px 0; font-size: 1.1em; opacity: 0.9;">
+        Encode your files with Cat Mode, scan with your phone, and experience quantum plausible deniability!
+    </p>
+    <div style="display: flex; gap: 15px; justify-content: center; flex-wrap: wrap;">
+        <a href="{{ url_for('encode_page') }}" class="btn" style="background: white; color: #667eea; text-decoration: none; display: inline-block;">
+            🔒 Start Encoding
+        </a>
+        <a href="{{ url_for('webcam_page') }}" class="btn" style="background: transparent; border: 2px solid white; color: white; text-decoration: none; display: inline-block;">
+            📷 Webcam Scanner
+        </a>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<!-- QRCode.js Library -->
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+
+<script>
+let qrCodeInstance = null;
+
+function generateQR() {
+    const text = document.getElementById('qrText').value;
+    
+    if (!text) {
+        alert('Please enter some text');
+        return;
+    }
+    
+    const preview = document.getElementById('qrPreview');
+    preview.innerHTML = ''; // Clear previous QR
+    
+    try {
+        // Create QR code
+        qrCodeInstance = new QRCode(preview, {
+            text: text,
+            width: 200,
+            height: 200,
+            colorDark: "#000000",
+            colorLight: "#ffffff",
+            correctLevel: QRCode.CorrectLevel.H
+        });
+        
+        // Show stats
+        document.getElementById('qrDataLength').textContent = text.length + ' chars';
+        document.getElementById('qrVersion').textContent = getQRVersion(text.length);
+        document.getElementById('qrStats').style.display = 'block';
+        
+    } catch (error) {
+        preview.innerHTML = '<span style="color: #f44336;">Error generating QR code</span>';
+        console.error('QR generation error:', error);
+    }
+}
+
+function getQRVersion(length) {
+    // Approximate QR version based on data length (High error correction)
+    if (length <= 14) return '1';
+    if (length <= 26) return '2';
+    if (length <= 42) return '3';
+    if (length <= 62) return '4';
+    if (length <= 84) return '5';
+    if (length <= 106) return '6';
+    if (length <= 122) return '7';
+    if (length <= 152) return '8';
+    return '9+';
+}
+
+// Auto-generate QR on page load
+window.addEventListener('load', () => {
+    if (typeof QRCode !== 'undefined') {
+        generateQR();
+    } else {
+        console.warn('QRCode library not loaded');
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}Encode File - Meow Decoder 😻{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 25px; color: #333;">🔒 Encode Your File</h2>
+
+<div class="cat-highlight">
+    <h3>😻 Cat Mode Available!</h3>
+    <p>Hide your secrets in photographic cat images for maximum plausible deniability.</p>
+    <p style="font-size: 0.9em; margin-top: 10px; color: #666;">
+        (Cosmetic camouflage feature — makes QR codes look like cat photos!)
+    </p>
+</div>
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="file">📁 Select File to Encode</label>
+        <input type="file" id="file" name="file" required accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.bin,.zip,.doc,.docx">
+        <small>Allowed: txt, pdf, png, jpg, jpeg, gif, bin, zip, doc, docx (max 8 MB)</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="password">🔑 Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter encryption password" required>
+        <small>Required. Uses Argon2id + AES-256-GCM encryption.</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="mode">🎨 Encoding Mode</label>
+        <select id="mode" name="mode" required onchange="updateModeUI()">
+            <option value="normal">🔒 Normal (Standard QR codes)</option>
+            <option value="cat" selected>😻 Cat Mode (Photographic camouflage) ⭐ FLAGSHIP</option>
+            <option value="duress">⚠️ Duress (Dual-password plausible deniability)</option>
+            <option value="schrodinger" disabled>⚛️ Schrödinger (Quantum superposition - CLI only)</option>
+        </select>
+        <small id="mode-description">Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage.</small>
+    </div>
+    
+    <div class="form-group" id="duress-password-group" style="display: none;">
+        <label for="duress_password">🔑 Duress Password</label>
+        <input type="password" id="duress_password" name="duress_password" placeholder="Decoy password (reveals fake content)">
+        <small>In duress mode, the duress password reveals decoy content while the main password reveals real content.</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="redundancy">📊 Fountain Code Redundancy: <span class="range-display" id="redundancy-display">1.5×</span></label>
+        <input type="range" id="redundancy" name="redundancy" min="1.2" max="2.0" step="0.1" value="1.5" oninput="updateRedundancy()">
+        <small>Higher redundancy = more frame loss tolerance. 1.5× tolerates 33% frame loss, 2.0× tolerates 50% loss.</small>
+    </div>
+    
+    <button type="submit" class="btn">🐱 Encode to Animated GIF</button>
+</form>
+
+<div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; font-size: 0.95em;">
+    <h3 style="margin-bottom: 15px; color: #333;">ℹ️ How It Works</h3>
+    <ul style="line-height: 1.8; padding-left: 20px;">
+        <li><strong>Compression:</strong> File is compressed with zstd</li>
+        <li><strong>Encryption:</strong> AES-256-GCM with Argon2id key derivation (if password provided)</li>
+        <li><strong>Fountain Encoding:</strong> Rateless erasure coding for frame loss tolerance</li>
+        <li><strong>QR Frames:</strong> Each frame contains one fountain code droplet</li>
+        <li><strong>Animated GIF:</strong> Multiple QR frames at 10 FPS</li>
+        <li><strong>😻 Cat Mode:</strong> QR codes embedded in photographic cat carrier images</li>
+    </ul>
+</div>
+
+<script>
+function updateModeUI() {
+    const mode = document.getElementById('mode').value;
+    const duressGroup = document.getElementById('duress-password-group');
+    const description = document.getElementById('mode-description');
+    
+    if (mode === 'cat') {
+        duressGroup.style.display = 'none';
+        description.textContent = '😻 Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage and plausible deniability.';
+        description.style.color = '#d63031';
+        description.style.fontWeight = '600';
+    } else if (mode === 'duress') {
+        duressGroup.style.display = 'block';
+        description.textContent = '⚠️ Duress mode requires two passwords: one for real content, one for decoy content.';
+        description.style.color = '#e17055';
+        description.style.fontWeight = '600';
+    } else if (mode === 'normal') {
+        duressGroup.style.display = 'none';
+        description.textContent = 'Normal mode generates standard QR codes without camouflage.';
+        description.style.color = '#6c757d';
+        description.style.fontWeight = 'normal';
+    } else if (mode === 'schrodinger') {
+        duressGroup.style.display = 'none';
+        description.textContent = '⚛️ Schrödinger mode requires advanced CLI (quantum superposition not yet supported in web demo).';
+        description.style.color = '#6c5ce7';
+        description.style.fontWeight = '600';
+    }
+}
+
+function updateRedundancy() {
+    const value = document.getElementById('redundancy').value;
+    document.getElementById('redundancy-display').textContent = parseFloat(value).toFixed(1) + '×';
+}
+
+// Initialize UI
+updateModeUI();
+</script>
+{% endblock %}

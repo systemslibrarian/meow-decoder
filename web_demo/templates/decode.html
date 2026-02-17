@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block title %}Decode GIF - Meow Decoder 😻{% endblock %}
+
+{% block content %}
+<h2 style="margin-bottom: 25px; color: #333;">🔓 Decode Your GIF</h2>
+
+<p style="margin-bottom: 25px; color: #666; line-height: 1.6;">
+    Upload an animated GIF created by Meow Decoder to recover your original file.
+    Supports all encoding modes including <strong>Cat Mode 😻</strong>.
+</p>
+
+<form method="POST" enctype="multipart/form-data">
+    <div class="form-group">
+        <label for="file">📁 Select GIF File</label>
+        <input type="file" id="file" name="file" required accept=".gif">
+        <small>Must be an animated GIF created by Meow Decoder</small>
+    </div>
+    
+    <div class="form-group">
+        <label for="password">🔑 Password</label>
+        <input type="password" id="password" name="password" placeholder="Enter decryption password">
+        <small>Enter the password used during encoding. Leave blank if file was not encrypted.</small>
+    </div>
+    
+    <div class="form-group">
+        <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+            <input type="checkbox" id="try_duress" name="try_duress" onchange="toggleDuress()" style="width: auto;">
+            <span>⚠️ Attempt duress password decode</span>
+        </label>
+        <small>Check this if you want to use a duress password instead of the main password</small>
+    </div>
+    
+    <div class="form-group" id="duress-password-group" style="display: none;">
+        <label for="duress_password">🔑 Duress Password</label>
+        <input type="password" id="duress_password" name="duress_password" placeholder="Enter duress password">
+        <small>This will attempt to decode with the duress password to reveal decoy content.</small>
+    </div>
+    
+    <button type="submit" class="btn">🔓 Decode GIF</button>
+</form>
+
+<div style="margin-top: 40px; padding: 20px; background: #f8f9fa; border-radius: 8px; font-size: 0.95em;">
+    <h3 style="margin-bottom: 15px; color: #333;">ℹ️ Decoding Process</h3>
+    <ul style="line-height: 1.8; padding-left: 20px;">
+        <li><strong>Frame Extraction:</strong> Extract all QR frames from animated GIF</li>
+        <li><strong>QR Scanning:</strong> Decode each QR code (works with Cat Mode camouflage)</li>
+        <li><strong>Fountain Decoding:</strong> Reconstruct original data using belief propagation</li>
+        <li><strong>Decryption:</strong> AES-256-GCM decryption with password (if encrypted)</li>
+        <li><strong>Decompression:</strong> zstd decompression to recover original file</li>
+        <li><strong>Verification:</strong> HMAC authentication and integrity checks</li>
+    </ul>
+    
+    <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px;">
+        <strong>🔒 Security Note:</strong> If decoding fails, you'll get a uniform error message that doesn't reveal
+        whether the password was incorrect, the file was corrupted, or if duress mode was involved. This is intentional
+        for security (prevents distinguishers that could compromise plausible deniability).
+    </div>
+</div>
+
+<script>
+function toggleDuress() {
+    const checkbox = document.getElementById('try_duress');
+    const duressGroup = document.getElementById('duress-password-group');
+    
+    if (checkbox.checked) {
+        duressGroup.style.display = 'block';
+    } else {
+        duressGroup.style.display = 'none';
+    }
+}
+</script>
+{% endblock %}

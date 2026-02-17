@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block title %}Decoding Complete - Meow Decoder 😻{% endblock %}
+
+{% block content %}
+<div style="text-align: center; padding: 20px 0;">
+    <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
+    <h2 style="color: #28a745; margin-bottom: 10px;">Decoding Complete!</h2>
+    <p style="color: #666; font-size: 1.1em;">Your file has been successfully recovered from the animated GIF.</p>
+</div>
+
+<div style="background: #f8f9fa; padding: 30px; border-radius: 10px; margin: 30px 0;">
+    <h3 style="margin-bottom: 20px; color: #333;">📊 Decoding Statistics</h3>
+    
+    <table style="width: 100%; border-collapse: collapse;">
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">Input GIF:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ gif_filename }}</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #dee2e6;">
+            <td style="padding: 12px 0; font-weight: 600;">Recovered File:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ output_filename }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 12px 0; font-weight: 600;">File Size:</td>
+            <td style="padding: 12px 0; text-align: right; color: #667eea;">{{ file_size }}</td>
+        </tr>
+    </table>
+</div>
+
+<div style="text-align: center; margin: 30px 0;">
+    <a href="{{ url_for('download_file', token=download_token) }}" class="btn" style="display: inline-block; text-decoration: none;">
+        ⬇️ Download Recovered File
+    </a>
+</div>
+
+<div style="margin-top: 40px; padding: 20px; background: #d4edda; border-left: 4px solid #28a745; border-radius: 6px;">
+    <h4 style="margin-bottom: 10px; color: #155724;">✅ Verification Passed</h4>
+    <p style="color: #155724; line-height: 1.6;">
+        The file was successfully authenticated and decrypted. All integrity checks passed:
+    </p>
+    <ul style="line-height: 1.8; padding-left: 20px; color: #155724; margin-top: 10px;">
+        <li>HMAC authentication ✓</li>
+        <li>AES-GCM decryption ✓</li>
+        <li>Fountain code reconstruction ✓</li>
+        <li>Decompression ✓</li>
+    </ul>
+</div>
+
+<div style="text-align: center; margin-top: 30px;">
+    <a href="{{ url_for('decode_page') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">
+        ← Decode Another GIF
+    </a>
+    <span style="margin: 0 15px; color: #ccc;">|</span>
+    <a href="{{ url_for('encode_page') }}" style="color: #667eea; text-decoration: none; font-weight: 600;">
+        Encode New File →
+    </a>
+</div>
+
+<div style="margin-top: 40px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px; font-size: 0.9em;">
+    <strong>⏱️ Expiration Notice:</strong> This file will be automatically deleted from the server after 30 minutes
+    or upon download. Make sure to save it to your device immediately!
+</div>
+{% endblock %}

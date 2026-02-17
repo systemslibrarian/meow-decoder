@@ -112,5 +112,4 @@ pythonanywhere-deploy/
 *.zip
 formal/lean/.lake/
 
-# Cat Mode web demo (private - not for public repo)
-web_demo/
+
