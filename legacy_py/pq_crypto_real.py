@@ -10,10 +10,12 @@ See OPUS-AUDIT.md finding D1 for details.
 
 Importing this module will raise RuntimeError. It is kept only for audit
 traceability; do NOT remove it until the deprecation cycle completes.
+
+QUARANTINED: Moved from meow_decoder/pq_crypto_real.py to legacy_py/
+as part of the production cryptography-import elimination.
 """
 
 # DEAD_CODE: Hard-disabled module — raise RuntimeError before any imports execute.
-# Excluded from cryptography-import enforcement tests.
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import x25519
@@ -340,65 +342,3 @@ def unpack_quantum_encapsulation(data: bytes) -> QuantumEncapsulation:
         shared_secret=b"",  # Placeholder
         variant=variant,
     )
-
-
-# Testing
-if __name__ == "__main__":
-    print("🐱 Testing Quantum Nine Lives...\n")
-
-    # Test all variants
-    for variant in ["kyber512", "kyber768", "kyber1024"]:
-        print(f"\n{'='*60}")
-        print(f"Testing {variant.upper()}")
-        print("=" * 60)
-
-        try:
-            # Initialize
-            qnl = QuantumNineLives(variant=variant)
-
-            # Generate keypair
-            print("\n1. Generating keypair...")
-            keypair = qnl.generate_keypair()
-            print(f"   Classical public: {len(keypair.classical_public)} bytes")
-            if keypair.quantum_public:
-                print(f"   Quantum public: {len(keypair.quantum_public)} bytes")
-
-            # Encapsulate
-            print("\n2. Encapsulating...")
-            encap = qnl.encapsulate(keypair)
-            print(f"   Classical CT: {len(encap.classical_ciphertext)} bytes")
-            if encap.quantum_ciphertext:
-                print(f"   Quantum CT: {len(encap.quantum_ciphertext)} bytes")
-            print(f"   Shared secret: {len(encap.shared_secret)} bytes")
-
-            # Decapsulate
-            print("\n3. Decapsulating...")
-            recovered_secret = qnl.decapsulate(keypair, encap)
-
-            if recovered_secret == encap.shared_secret:
-                print(f"   ✅ Secrets match!")
-            else:
-                print(f"   ❌ Secret mismatch!")
-
-            # Test packing
-            print("\n4. Testing packing...")
-            packed = pack_quantum_encapsulation(encap)
-            print(f"   Packed size: {len(packed)} bytes")
-
-            unpacked = unpack_quantum_encapsulation(packed)
-            print(f"   ✅ Packing roundtrip successful")
-
-        except Exception as e:
-            print(f"   ❌ Error: {e}")
-
-    print("\n" + "=" * 60)
-    print("🎉 Quantum Nine Lives testing complete!")
-    print("=" * 60)
-
-    if HAS_LIBOQS:
-        print("\n✅ Real post-quantum crypto ACTIVE")
-        print("   Your secrets are safe from quantum computers!")
-    else:
-        print("\n⚠️  Running in classical-only mode")
-        print("   Install liboqs-python for quantum resistance:")
-        print("   pip install liboqs-python")

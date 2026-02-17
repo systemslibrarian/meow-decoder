@@ -1,9 +1,8 @@
-"""Tests for meow_decoder/crypto_DEBUG.py (DEPRECATED).
+"""Tests for legacy_py/crypto_DEBUG.py (QUARANTINED).
 
-Additional debug module tests in test_debug_modules.py.
-This file ensures 1-to-1 module-to-test mapping.
-
-This module is deprecated — use meow_decoder.crypto instead.
+This module has been moved out of production to legacy_py/.
+It uses the Python `cryptography` library directly and is not
+part of the production import path.
 """
 
 import pytest
@@ -13,11 +12,11 @@ pytestmark = pytest.mark.deprecated
 
 class TestCryptoDebug:
     def test_import_module(self):
-        from meow_decoder import crypto_DEBUG
+        from legacy_py import crypto_DEBUG
 
         assert crypto_DEBUG is not None
 
     def test_manifest_class(self):
-        from meow_decoder.crypto_DEBUG import Manifest
+        from legacy_py.crypto_DEBUG import Manifest
 
         assert Manifest is not None

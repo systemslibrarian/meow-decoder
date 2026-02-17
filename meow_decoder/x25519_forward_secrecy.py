@@ -247,22 +247,14 @@ def load_x25519_private_key_pem(pem_data: bytes, password: Optional[str] = None)
     elif pem_data[:12] == _MAGIC_PLAIN:
         return pem_data[12:44]
     else:
-        # Legacy PEM format — requires cryptography library
-        from cryptography.hazmat.primitives.serialization import load_pem_private_key
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives import serialization
-
-        password_bytes = password.encode("utf-8") if password else None
-        private_key_obj = load_pem_private_key(pem_data, password=password_bytes)
-
-        if not isinstance(private_key_obj, X25519PrivateKey):
-            raise ValueError("Loaded key is not X25519PrivateKey")
-
-        # Extract raw bytes
-        return private_key_obj.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption(),
+        # Legacy PEM format — no longer supported in production.
+        # Use legacy_py/x25519_pem_legacy.py to convert PEM keys to MEOW_X25519 format.
+        raise ValueError(
+            "Unsupported key format. Expected MEOW_X25519 format (magic: MEOW_X25519\\x01 or "
+            "MEOW_X25519\\x02). Legacy PEM keys can be converted using:\n"
+            "  from legacy_py.x25519_pem_legacy import load_pem_private_key_legacy\n"
+            "  raw_key = load_pem_private_key_legacy(pem_data, password)\n"
+            "Then re-save with save_receiver_keypair() in MEOW_X25519 format."
         )
 
 

@@ -159,7 +159,6 @@ ignore_missing_imports = true
 # Per-module overrides for experimental/legacy code
 [[tool.mypy.overrides]]
 module = [
-    "meow_decoder.crypto_DEBUG",
     "meow_decoder.encode_DEBUG",
     "meow_decoder.decode_webcam_with_resume",
     "meow_decoder.multi_secret",

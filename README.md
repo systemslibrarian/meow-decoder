@@ -598,7 +598,7 @@ python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.back
 The encoder/decoder uses the Rust backend by default once installed.
 **No production Python module imports the `cryptography` library** — all crypto primitives (AES-GCM, HKDF, X25519, Argon2id) route through the Rust backend via `crypto_backend.CryptoBackend()`. This is enforced by an AST-based CI test (`tests/test_crypto_enforcement.py`).
 
-> **Non-production modules** (`crypto_DEBUG.py`, `pq_crypto_real.py`, `pq_signatures.py`, `spec_v12/`) are exempt. See [Architecture docs](docs/ARCHITECTURE.md#production-vs-non-production-code) for details.
+> **Non-production modules** (`legacy_py/`, `spec_v12/`, `experimental/`) are quarantined and excluded from the enforcement scan. See [Architecture docs](docs/ARCHITECTURE.md#production-vs-non-production-code) for details.
 
 **Benchmarks (Typical):**
 *   **Key Derivation (Argon2id):** Rust is ~30% faster

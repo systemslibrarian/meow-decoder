@@ -8,11 +8,11 @@ from pathlib import Path
 class TestCryptoDebug:
     def test_crypto_debug_import(self):
         try:
-            from meow_decoder import crypto_DEBUG
+            from legacy_py import crypto_DEBUG
 
             assert crypto_DEBUG is not None
         except ImportError:
-            pytest.skip("crypto_DEBUG module not available")
+            pytest.skip("crypto_DEBUG module not available (moved to legacy_py/)")
 
 
 class TestEncodeDebug:
@@ -62,7 +62,7 @@ import hashlib
 import types
 from pathlib import Path
 
-import meow_decoder.crypto_DEBUG as crypto_debug
+import legacy_py.crypto_DEBUG as crypto_debug
 import meow_decoder.encode_DEBUG as encode_debug
 
 

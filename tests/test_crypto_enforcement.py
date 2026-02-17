@@ -25,26 +25,19 @@ PRODUCTION_CODE_DIRS = [
 ]
 
 # Files/patterns exempt from the ban
-# These are either non-production, debug-only, or have justified cryptography usage.
+# ZERO production files are exempt for cryptography imports.
+# crypto_DEBUG.py has been moved to legacy_py/ (no longer in production).
 EXEMPT_FILES = {
     # constant_time.py uses secrets.compare_digest which is OK
     "constant_time.py",
     # __init__.py files may have conditional imports
     "__init__.py",
-    # Debug files - lower priority, not production
-    "crypto_DEBUG.py",
-    # Dead code (raises RuntimeError before imports execute)
-    "pq_crypto_real.py",
-    # Experimental PQ signatures — Ed25519 not yet in Rust backend
-    # Module is _PQ_EXPERIMENTAL and not imported by production entrypoints
-    "pq_signatures.py",
-    # Legacy PEM fallback path only (new keys use MEOW_X25519 format)
-    "x25519_forward_secrecy.py",
 }
 
 # Exempt directories (spec/reference code, not production)
 EXEMPT_DIRS = {
-    "spec_v12",  # Reference implementation, not production path
+    "spec_v12",      # Reference implementation, not production path
+    "experimental",  # Experimental modules, not imported by production entrypoints
 }
 
 # Forbidden import prefixes - if a production file imports these, test fails

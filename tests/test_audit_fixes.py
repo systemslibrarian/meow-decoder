@@ -6,6 +6,8 @@ Validates that all FAIL findings from the hostile crypto audit have been
 properly remediated. Each test is named after the audit finding ID.
 """
 
+from PIL import Image
+import meow_decoder.decode_gif as decode_mod
 import os
 import secrets
 import warnings
@@ -334,15 +336,27 @@ class TestFixD1PQHKDFSalt:
 
 
 class TestFixD1XORCombinerDeprecation:
-    """D1: pq_crypto_real.py is hard-disabled (RuntimeError on import)."""
+    """D1: pq_crypto_real.py is hard-disabled (RuntimeError on import).
+    Module quarantined to legacy_py/ — no longer in production path."""
 
-    def test_pq_crypto_real_import_raises_runtime_error(self):
-        """FIX-D1 v2: Importing pq_crypto_real raises RuntimeError."""
+    def test_pq_crypto_real_removed_from_production(self):
+        """FIX-D1: pq_crypto_real is no longer importable from meow_decoder/."""
         import importlib
         import sys
 
-        # Remove from cache to trigger fresh import
         mod_name = "meow_decoder.pq_crypto_real"
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+
+        with pytest.raises((ImportError, ModuleNotFoundError)):
+            importlib.import_module(mod_name)
+
+    def test_pq_crypto_real_legacy_raises_runtime_error(self):
+        """FIX-D1 v2: legacy_py/pq_crypto_real raises RuntimeError."""
+        import importlib
+        import sys
+
+        mod_name = "legacy_py.pq_crypto_real"
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 
@@ -461,8 +475,6 @@ class TestFixD3PQDowngradeMessage:
 # ---------------------------------------------------------------------------
 # Helpers (imported by test_decode_gif.py style tests)
 # ---------------------------------------------------------------------------
-import meow_decoder.decode_gif as decode_mod
-from PIL import Image
 
 
 class _DummyGIFDecoder:
@@ -838,14 +850,26 @@ class TestV2FixD3ManifestModeByte:
 
 
 class TestV2FixD1HardDisable:
-    """D1 v2: pq_crypto_real is hard-disabled."""
+    """D1 v2: pq_crypto_real is hard-disabled and quarantined to legacy_py/."""
 
-    def test_import_raises_runtime_error(self):
-        """Importing pq_crypto_real raises RuntimeError."""
+    def test_removed_from_production(self):
+        """pq_crypto_real no longer importable from meow_decoder/."""
         import importlib
         import sys
 
         mod_name = "meow_decoder.pq_crypto_real"
+        if mod_name in sys.modules:
+            del sys.modules[mod_name]
+
+        with pytest.raises((ImportError, ModuleNotFoundError)):
+            importlib.import_module(mod_name)
+
+    def test_legacy_import_raises_runtime_error(self):
+        """legacy_py/pq_crypto_real raises RuntimeError."""
+        import importlib
+        import sys
+
+        mod_name = "legacy_py.pq_crypto_real"
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 

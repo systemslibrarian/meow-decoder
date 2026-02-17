@@ -21,7 +21,6 @@ Primary crypto path:
 
 Quarantined modules (deprecation warnings emitted on import):
   - crypto_enhanced.py         — Legacy AES-256-GCM with Python-native crypto
-  - crypto_DEBUG.py            — Verbose debug variant (weaker Argon2 params)
   - encode_DEBUG.py            — Verbose debug variant of encode.py
   - forward_secrecy_x25519.py  — Native-lib X25519 (use x25519_forward_secrecy.py)
   - hardware_keys.py           — Legacy standalone hardware key manager
