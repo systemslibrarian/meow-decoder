@@ -12,6 +12,18 @@ This bridges the gap between:
     - tests/test_e2e_crypto_fountain.py (E2E without ratchet)
 """
 
+from meow_decoder.ratchet import (
+    EncoderRatchet,
+    DecoderRatchet,
+    FRAME_INDEX_SIZE,
+)
+from meow_decoder.fountain import (
+    FountainEncoder,
+    FountainDecoder,
+    pack_droplet,
+    unpack_droplet,
+)
+from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
 import hashlib
 import os
 import random
@@ -22,18 +34,6 @@ import pytest
 
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
-from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
-from meow_decoder.fountain import (
-    FountainEncoder,
-    FountainDecoder,
-    pack_droplet,
-    unpack_droplet,
-)
-from meow_decoder.ratchet import (
-    EncoderRatchet,
-    DecoderRatchet,
-    FRAME_INDEX_SIZE,
-)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -309,21 +309,9 @@ class TestE2ERatchetBeacons:
 
     def test_kem_beacon_roundtrip(self):
         """Full pipeline with X25519 KEM rekey beacons."""
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.serialization import (
-            Encoding,
-            PublicFormat,
-            NoEncryption,
-            PrivateFormat,
-        )
+        import meow_crypto_rs
 
-        receiver_private = X25519PrivateKey.generate()
-        receiver_public_bytes = receiver_private.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
-        receiver_private_bytes = receiver_private.private_bytes(
-            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
-        )
+        receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
         password = "kem-beacon-e2e"
         data = secrets.token_bytes(5000)
@@ -347,34 +335,23 @@ class TestE2ERatchetBeacons:
 
     def test_kem_beacon_wrong_receiver_key_fails(self):
         """KEM beacon with wrong receiver key → all beacon frames fail."""
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.serialization import (
-            Encoding,
-            PublicFormat,
-            NoEncryption,
-            PrivateFormat,
+        import meow_crypto_rs
+
+        _, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
+
+        wrong_private_bytes, _ = meow_crypto_rs.x25519_generate_keypair()
         )
 
-        receiver_private = X25519PrivateKey.generate()
-        receiver_public_bytes = receiver_private.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
+        password= "kem-wrong-key-e2e"
+        data= secrets.token_bytes(3000)
+        rekey= 1  # Every frame is a beacon — wrong key breaks all frames
 
-        wrong_private = X25519PrivateKey.generate()
-        wrong_private_bytes = wrong_private.private_bytes(
-            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
-        )
-
-        password = "kem-wrong-key-e2e"
-        data = secrets.token_bytes(3000)
-        rekey = 1  # Every frame is a beacon — wrong key breaks all frames
-
-        meta = _full_ratchet_pipeline(
+        meta= _full_ratchet_pipeline(
             data,
             password,
-            redundancy=2.0,
-            rekey_interval=rekey,
-            receiver_public_key=receiver_public_bytes,
+            redundancy = 2.0,
+            rekey_interval = rekey,
+            receiver_public_key = receiver_public_bytes,
         )
 
         # With wrong key, ALL frames are beacon frames → ALL fail GCM auth.
@@ -383,8 +360,8 @@ class TestE2ERatchetBeacons:
                 meta,
                 meta["ratcheted_droplets"],
                 password,
-                rekey_interval=rekey,
-                receiver_private_key=wrong_private_bytes,
+                rekey_interval = rekey,
+                receiver_private_key = wrong_private_bytes,
             )
 
     def test_beacon_interval_mismatch_fails(self):

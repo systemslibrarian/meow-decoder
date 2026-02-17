@@ -53,16 +53,11 @@ def _dummy_oqs_module(variant="both"):
 
 
 def _valid_x25519_keypair():
-    """Generate a valid X25519 keypair, returning (private, public_bytes)."""
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
+    """Generate a valid X25519 keypair, returning (private_bytes, public_bytes)."""
+    import meow_crypto_rs
 
-    priv = X25519PrivateKey.generate()
-    pub_bytes = priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    return priv, pub_bytes
+    priv_bytes, pub_bytes = meow_crypto_rs.x25519_generate_keypair()
+    return priv_bytes, pub_bytes
 
 
 # ── ML-KEM variant constants ────────────────────────────────────────────────
@@ -229,8 +224,7 @@ class TestPQXDHTranscriptBinding:
             PQXDH_EXTRACT_SALT,
             PQXDH_INFO_PREFIX,
         )
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDFExpand
-        from cryptography.hazmat.primitives import hashes
+        import meow_crypto_rs
 
         classical_ss = secrets.token_bytes(32)
         pq_ss = secrets.token_bytes(32)
@@ -247,7 +241,7 @@ class TestPQXDHTranscriptBinding:
         prk = hmac_module.new(PQXDH_EXTRACT_SALT, combined, hashlib.sha256).digest()
         transcript = _compute_transcript_hash(eph, recv_classical, recv_pq, pq_ct)
         info = PQXDH_INFO_PREFIX + transcript
-        expected = HKDFExpand(algorithm=hashes.SHA256(), length=32, info=info).derive(prk)
+        expected = meow_crypto_rs.hkdf_expand(prk, info, 32)
 
         assert result == expected
 
@@ -372,8 +366,6 @@ class TestTranscriptBindingSecurity:
     def test_pqxdh_not_equal_to_old_hkdf(self, monkeypatch):
         """New PQXDH derivation is NOT equal to the old single-step HKDF."""
         import meow_decoder.pq_hybrid as pq
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives import hashes
 
         monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
         monkeypatch.setattr(pq, "oqs", _dummy_oqs_module(), raising=False)

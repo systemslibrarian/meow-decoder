@@ -5,8 +5,7 @@ import os
 
 import pytest
 import runpy
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives import serialization
+import meow_crypto_rs
 
 from meow_decoder.forward_secrecy_x25519 import (
     EphemeralKeyPair,
@@ -39,18 +38,7 @@ def test_derive_hybrid_key_with_shared_secret(monkeypatch):
 
 def test_encrypt_decrypt_forward_secrecy_roundtrip(monkeypatch):
     monkeypatch.setenv("MEOW_TEST_MODE", "1")
-    receiver_private = X25519PrivateKey.generate()
-    receiver_public = receiver_private.public_key()
-
-    receiver_public_bytes = receiver_public.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    receiver_private_bytes = receiver_private.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
     plaintext = b"hello forward secrecy"
 
@@ -88,13 +76,7 @@ def test_encrypt_decrypt_password_only_roundtrip(monkeypatch):
 def test_decrypt_requires_receiver_key(monkeypatch):
     monkeypatch.setenv("MEOW_TEST_MODE", "1")
     plaintext = b"data"
-    receiver_private = X25519PrivateKey.generate()
-    receiver_public = receiver_private.public_key()
-
-    receiver_public_bytes = receiver_public.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
+    _, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
     cipher, salt, nonce, ephemeral_pub = encrypt_with_forward_secrecy(
         plaintext, "password", receiver_public_bytes

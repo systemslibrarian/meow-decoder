@@ -4,7 +4,9 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 87 test files, 2413 Python tests + 261 Rust tests = **2674 total**.
+**Current stats (February 2026):** 96 test files, 2413 Python tests + 261 Rust tests = **2674 total**.
+**Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
+**Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
 
 ### Consolidation History (February 2026)
 
@@ -29,6 +31,9 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_frame_mac.py` | 11 | Frame MAC authentication, key derivation, pack/unpack |
 | `test_streaming_crypto.py` | 113 | Streaming encryption, MAC authentication, memory monitoring |
 | `test_fountain.py` | 12 | Fountain code encoding/decoding, droplet generation |
+| `test_golden_vectors.py` | 30 | Frozen golden vectors: Argon2id, HKDF, AES-GCM, HMAC, SHA-256, AAD, ratchet, pipeline |
+| `test_crypto_enforcement.py` | 5 | AST-enforced Python crypto ban — fail-closed CI gate |
+| `test_ratchet.py` | 142 | MSR v1 symmetric ratchet: domain separation, forward secrecy, replay, commitment tags |
 
 ### TIER 2: Core Pipeline Tests (90%+ coverage target)
 
@@ -42,6 +47,9 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_spec_v12.py` | 37 | Spec v1.2 encode/decode, key management, steganography |
 | `test_metadata_obfuscation.py` | 17 | Length padding, corruption detection |
 | `test_coverage_gaps_phase1.py` | 79 | Cross-module coverage gaps (streaming crypto, schrodinger, manifests) |
+| `test_e2e_crypto_fountain.py` | 23 | E2E pipeline: encrypt→fountain→corrupt/reorder/drop→decode→decrypt |
+| `test_e2e_ratchet_pipeline.py` | 23 | E2E pipeline with per-frame ratchet under loss/reorder |
+| `test_fountain_montecarlo.py` | 10 | Monte Carlo statistical reliability of LT codes under frame loss |
 
 ### TIER 3: Security Features Tests
 
@@ -70,6 +78,8 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
 | `test_pq_signatures.py` | 10 | Post-quantum signatures |
 | `test_pq_crypto.py` | 3 | Post-quantum module imports (pq_crypto_real, pq_hybrid, pq_signatures) |
+| `test_pqxdh_upgrade.py` | 25 | PQXDH: ML-KEM-768/1024, transcript binding, backward compat |
+| `test_asymmetric_rekey.py` | 40 | MSR v2 asymmetric rekey: PCS, forward secrecy, rollback resistance |
 | `test_schrodinger_encode.py` | 1 | Schrödinger encoder module import |
 | `test_schrodinger_decode.py` | 1 | Schrödinger decoder module import |
 
@@ -108,8 +118,8 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_clowder_decode.py` | 3 | Clowder decode module, password hashing |
 | `test_clowder_encode.py` | 2 | Clowder encode module, ClowderManifest |
 | `test_clowder_modules.py` | 9 | Clowder modules coverage (decode, encode, 95% target) |
-| `test_crypto_DEBUG.py` | 2 | Debug crypto module import, Manifest class |
-| `test_encode_DEBUG.py` | 2 | Debug encode module import, encode_file |
+| `test_crypto_DEBUG.py` | 2 | **DEPRECATED** — import smoke for quarantined `legacy_py/crypto_DEBUG.py` (safe to delete) |
+| `test_encode_DEBUG.py` | 2 | **DEPRECATED** — import smoke for deprecated `encode_DEBUG` (safe to delete) |
 | `test_decode_webcam_with_resume.py` | 1 | Webcam decode with resume module import |
 | `test_gui.py` | 6 | GUI module imports (dashboard, enhanced, logo) |
 | `test_gui_logo_example.py` | 2 | GUI logo example module |
@@ -147,8 +157,10 @@ The project includes two Rust crypto packages with **261 total tests**:
 | `crypto_core/src/*.rs` (unit tests) | 89 | Inline unit tests for AEAD, nonce, types, verus proofs |
 | `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
 | `crypto_core/tests/coverage_tests.rs` | 47 | Comprehensive coverage tests for edge cases |
-| `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests |
-#### Requirements for Running Rust Tests
+| `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests || `crypto_core/tests/golden_vectors.rs` | 22 | Frozen golden vectors: HKDF, HMAC, AES-GCM, SHA-256, Argon2id, AES-CTR, X25519, ratchet chain, frame MAC |
+| `crypto_core/tests/hsm_integration.rs` | — | HSM/PKCS#11 mock + real integration (feature-gated) |
+| `crypto_core/tests/tpm_integration.rs` | — | TPM2 mock + real integration (feature-gated) |
+| `crypto_core/tests/yubikey_integration.rs` | — | YubiKey PIV mock + real integration (feature-gated) |#### Requirements for Running Rust Tests
 
 ```bash
 # Install Rust (if not already installed)

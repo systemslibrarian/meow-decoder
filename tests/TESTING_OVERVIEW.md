@@ -1,8 +1,10 @@
 # 🧪 Meow Decoder Testing Infrastructure - Complete Overview
 
-**Last Updated:** 2026-02-13  
-**Phase:** Phase 5 Week 1 Complete  
+**Last Updated:** 2026-02-17
+**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit
 **Total Test Coverage:** 2,413 tests (Python) + 261 tests (Rust) = **2,674 total tests**
+**Test Files:** 96 Python test files + 7 Rust test files
+**Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
 ---
 
@@ -29,8 +31,8 @@
 
 ## 🎯 Phase 5 Week 1: Cat Mode Video Testing (NEW!)
 
-**Status:** ✅ COMPLETE  
-**Created:** February 13, 2026  
+**Status:** ✅ COMPLETE
+**Created:** February 13, 2026
 **Purpose:** Validate cat-mode video decoding with real-world error conditions
 
 ### Golden Test Videos (3 videos)
@@ -132,8 +134,19 @@ python3 tests/run_error_tests.py
 
 ## 🔐 Security Test Suite (Python)
 
-**Total:** 2,413+ tests across 87 files  
+**Total:** 2,413+ tests across 96 files
 **Coverage:** 92% overall, 97%+ for crypto-critical modules
+
+### Post-Rust Migration Audit (February 2026)
+
+All Python crypto operations now route through `meow_decoder.crypto_backend` → `meow_crypto_rs` (Rust).
+The `test_crypto_enforcement.py` AST scanner verifies no production code imports Python `cryptography`.
+The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail-closed).
+
+**Remaining `from cryptography` in tests (12 occurrences, 5 files):** These are test fixture imports only — generating X25519/Ed25519 PEM files for CLI/rejection tests. They do NOT test Python crypto internals. See "Migration Exceptions" below.
+
+**Files slated for deletion:** `test_crypto_DEBUG.py`, `test_encode_DEBUG.py` (import-only smoke tests for deprecated `legacy_py/` modules, zero security coverage).
+**Historical artifact:** `characterize_ctr.py` (one-time AES-CTR characterization script, superseded by Rust golden vector in `crypto_core/tests/golden_vectors.rs`).
 
 ### Tier 1: Crypto-Critical (95-100% coverage)
 
@@ -250,7 +263,7 @@ python3 tests/run_error_tests.py
 
 ## 🌐 Cross-Browser Testing (Playwright)
 
-**Status:** ✅ Code complete (Alpine limitation: browsers not installed)  
+**Status:** ✅ Code complete (Alpine limitation: browsers not installed)
 **Location:** `tests/test_cross_browser.spec.js`
 
 ### Browser Configurations (8 total)
@@ -494,6 +507,25 @@ Every test represents a potential failure mode that could leak secrets, corrupt 
 - **Recovery must be robust** - 33% frame loss tolerance via fountain codes
 
 **Test Philosophy:** If it can fail in the field, it must fail in CI first.
+
+---
+
+## 🔄 Migration Exceptions — `cryptography` Imports in Tests
+
+After the Rust migration, 12 `from cryptography` imports remain in 5 test files.
+These are **test fixture factories**, not crypto primitive tests. Each is documented here:
+
+| File | Import | Purpose | Resolution |
+|------|--------|---------|------------|
+| `test_x25519_forward_secrecy.py` | Ed25519PrivateKey, serialization | Generate wrong-type PEM for rejection test | Replace with frozen PEM constant |
+| `test_decode_gif.py` (×2) | X25519PrivateKey, Ed25519PrivateKey, serialization | Generate PEM files for CLI arg / rejection tests | Replace with frozen PEM constants |
+| `test_e2e_crypto_fountain.py` (×3) | serialization | Extract raw public bytes from `HybridKeyPair.classical_private` | Add `.classical_public_bytes` to `HybridKeyPair` |
+| `test_spec_v12.py` | ed25519, x25519, serialization | Keypair fixtures for spec_v12 encode/decode | Use `meow_crypto_rs` for X25519; frozen constant for Ed25519 |
+| `characterize_ctr.py` | Cipher, algorithms, modes | Historical AES-CTR characterization (not a pytest test) | Delete — superseded by Rust golden vector |
+
+**Why these cannot be replaced by Rust tests:**
+They test Python-layer behavior (CLI argument parsing, PEM file loading, wrong-key-type rejection).
+The `cryptography` library is used only to *construct test inputs*, not to validate crypto correctness.
 
 ---
 

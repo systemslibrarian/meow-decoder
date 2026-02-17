@@ -802,13 +802,10 @@ class TestCatIntegration:
         # Generate salt for key derivation
         salt = generate_enhanced_salt()
 
-        # Use in HKDF-like operation
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives import hashes
+        # Use in HKDF-like operation via Rust backend
+        import meow_crypto_rs
 
-        hkdf = HKDF(algorithm=hashes.SHA256(), length=32, salt=salt, info=b"test")
-
-        derived = hkdf.derive(b"password")
+        derived = meow_crypto_rs.derive_key_hkdf(b"password", salt, b"test", 32)
         assert len(derived) == 32
 
     def test_cat_concurrent_collection(self):

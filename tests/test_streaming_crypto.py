@@ -1827,18 +1827,15 @@ class TestMACKeyDerivation:
 
     def test_mac_key_uses_hkdf_domain_separation(self):
         """MAC key derivation should use HKDF with proper domain separation."""
-        from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-        from cryptography.hazmat.primitives import hashes
+        import meow_crypto_rs
 
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
         cipher = StreamingCipher(key, nonce=nonce)
 
-        # Manually derive expected MAC key
-        expected_mac_key = HKDF(
-            algorithm=hashes.SHA256(), length=32, salt=nonce, info=STREAMING_MAC_INFO
-        ).derive(key)
+        # Manually derive expected MAC key via Rust backend
+        expected_mac_key = meow_crypto_rs.derive_key_hkdf(key, nonce, STREAMING_MAC_INFO, 32)
 
         assert cipher._mac_key == expected_mac_key
 

@@ -21,8 +21,7 @@ import secrets
 import struct
 
 import pytest
-from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+import meow_crypto_rs
 
 from meow_decoder.ratchet import (
     ASYM_REKEY_CHAIN_INFO,
@@ -52,17 +51,7 @@ from meow_decoder.ratchet import (
 @pytest.fixture
 def x25519_keypair():
     """Generate a fresh X25519 keypair for receiver."""
-    priv = X25519PrivateKey.generate()
-    pub = priv.public_key().public_bytes(Encoding.Raw, PublicFormat.Raw)
-    priv_bytes = priv.private_bytes(
-        encoding=Encoding.Raw,
-        format=__import__(
-            "cryptography.hazmat.primitives.serialization", fromlist=["PrivateFormat"]
-        ).PrivateFormat.Raw,
-        encryption_algorithm=__import__(
-            "cryptography.hazmat.primitives.serialization", fromlist=["NoEncryption"]
-        ).NoEncryption(),
-    )
+    priv_bytes, pub = meow_crypto_rs.x25519_generate_keypair()
     return priv_bytes, pub
 
 
@@ -117,16 +106,7 @@ class TestAsymmetricRekeyPrimitives:
         _, pub_bytes = x25519_keypair
         shared_sender, eph_pub = _generate_asym_rekey(pub_bytes)
 
-        wrong_priv = X25519PrivateKey.generate()
-        wrong_priv_bytes = wrong_priv.private_bytes(
-            encoding=Encoding.Raw,
-            format=__import__(
-                "cryptography.hazmat.primitives.serialization", fromlist=["PrivateFormat"]
-            ).PrivateFormat.Raw,
-            encryption_algorithm=__import__(
-                "cryptography.hazmat.primitives.serialization", fromlist=["NoEncryption"]
-            ).NoEncryption(),
-        )
+        wrong_priv_bytes, _ = meow_crypto_rs.x25519_generate_keypair()
         shared_wrong = _recover_asym_rekey(eph_pub, wrong_priv_bytes)
         assert shared_sender != shared_wrong
 

@@ -15,14 +15,6 @@ Tests cover:
 - Edge cases (empty data, single frame, max frames)
 """
 
-import os
-import secrets
-import struct
-
-os.environ.setdefault("MEOW_TEST_MODE", "1")
-
-import pytest
-
 from meow_decoder.ratchet import (
     FRAME_ENC_INFO,
     FRAME_INDEX_SIZE,
@@ -59,6 +51,13 @@ from meow_decoder.ratchet import (
     _derive_header_key,
     _compute_commitment,
 )
+import pytest
+import os
+import secrets
+import struct
+
+os.environ.setdefault("MEOW_TEST_MODE", "1")
+
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -430,7 +429,7 @@ class TestBuildFrameAAD:
         aad = build_frame_aad(42, salt, 5, 800, 10)
         # Frame index is 4 bytes little-endian after the prefix
         offset = len(RATCHET_AAD_PREFIX)
-        idx = struct.unpack("<I", aad[offset : offset + 4])[0]
+        idx = struct.unpack("<I", aad[offset: offset + 4])[0]
         assert idx == 42
 
     def test_aad_contains_salt(self, salt):
@@ -1783,22 +1782,10 @@ class TestRekeyBeacons:
 
     def test_beacon_kem_roundtrip(self, root_key, salt):
         """KEM beacon mode roundtrip with X25519 keypair."""
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.serialization import (
-            Encoding,
-            PublicFormat,
-            NoEncryption,
-            PrivateFormat,
-        )
+        import meow_crypto_rs
 
         # Generate receiver keypair
-        receiver_private = X25519PrivateKey.generate()
-        receiver_public_bytes = receiver_private.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
-        receiver_private_bytes = receiver_private.private_bytes(
-            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
-        )
+        receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
         total = 10
         rekey = 3  # Beacon at frames 3, 6, 9
@@ -1833,24 +1820,12 @@ class TestRekeyBeacons:
 
     def test_beacon_kem_wrong_private_key_fails(self, root_key, salt):
         """KEM beacon: wrong receiver private key → decryption fails."""
-        from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-        from cryptography.hazmat.primitives.serialization import (
-            Encoding,
-            PublicFormat,
-            NoEncryption,
-            PrivateFormat,
-        )
+        import meow_crypto_rs
 
-        receiver_private = X25519PrivateKey.generate()
-        receiver_public_bytes = receiver_private.public_key().public_bytes(
-            Encoding.Raw, PublicFormat.Raw
-        )
+        _, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
         # Wrong private key
-        wrong_private = X25519PrivateKey.generate()
-        wrong_private_bytes = wrong_private.private_bytes(
-            Encoding.Raw, PrivateFormat.Raw, NoEncryption()
-        )
+        wrong_private_bytes, _ = meow_crypto_rs.x25519_generate_keypair()
 
         total = 5
         rekey = 2  # Beacon at frames 2, 4

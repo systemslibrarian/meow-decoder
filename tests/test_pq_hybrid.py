@@ -29,15 +29,10 @@ def _dummy_oqs_module():
 
 
 def _valid_x25519_public_key_bytes() -> bytes:
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
+    import meow_crypto_rs
 
-    priv = X25519PrivateKey.generate()
-    pub = priv.public_key()
-    return pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
+    _, pub_bytes = meow_crypto_rs.x25519_generate_keypair()
+    return pub_bytes
 
 
 def test_check_pq_available_false(monkeypatch):

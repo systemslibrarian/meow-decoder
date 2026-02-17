@@ -399,3 +399,69 @@ class TestGoldenRatchet:
         mk1, _ = ratchet_step(s1)
         mk2, _ = ratchet_step(s2)
         assert mk1 == mk2
+
+
+# ============================================================================
+# Vector 12: AES-256-CTR (Frozen from crypto_core/tests/golden_vectors.rs)
+# ============================================================================
+
+
+class TestGoldenAESCTR:
+    """Freeze AES-256-CTR output — must match Rust golden_vectors.rs exactly."""
+
+    # Frozen inputs (identical to Rust golden_vectors.rs test_aes_256_ctr_golden_vector)
+    CTR_KEY = bytes.fromhex(
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
+    )
+    CTR_NONCE = bytes.fromhex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
+    CTR_PLAINTEXT = bytes.fromhex(
+        "6bc1bee22e409f96e93d7e117393172a"
+        "ae2d8a571e03ac9c9e53f3cdac355977"
+        "b2351234ab4f7890de765432cafe1234"
+        "0011223344556677889900aabbccddee"
+        "deadbeefcafebabe1234567890abcdef"
+    )
+    EXPECTED_CT = (
+        "c5063961572361a98ac9114a6489c03e"
+        "19b6889c9b13497ce324f36681eae8c0"
+        "784b250f6c41119a3b9728b2e88190e7"
+        "ab7c8a9518e16deb9a3690c3af17e95f"
+        "a0ba00261131319879ed63d99d46c3f3"
+    )
+
+    def test_aes_ctr_golden_vector(self):
+        """AES-256-CTR ciphertext must match Rust golden vector exactly."""
+        backend = get_default_backend()
+        ct = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT, 0)
+        assert ct.hex() == self.EXPECTED_CT, (
+            f"AES-256-CTR golden vector CHANGED!\n"
+            f"  Expected: {self.EXPECTED_CT}\n"
+            f"  Got:      {ct.hex()}"
+        )
+
+    def test_aes_ctr_roundtrip(self):
+        """CTR mode is symmetric — encrypt(encrypt(pt)) == pt."""
+        backend = get_default_backend()
+        ct = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT, 0)
+        pt = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, ct, 0)
+        assert pt == self.CTR_PLAINTEXT
+
+    def test_aes_ctr_chunked_matches_single_shot(self):
+        """Chunked CTR with byte_offset must produce identical output to single-shot."""
+        backend = get_default_backend()
+        # Single-shot
+        ct_full = backend.aes_ctr_crypt(
+            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT, 0
+        )
+        # Chunked: 16 + 32 + remaining
+        ct1 = backend.aes_ctr_crypt(
+            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[:16], 0
+        )
+        ct2 = backend.aes_ctr_crypt(
+            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[16:48], 16
+        )
+        ct3 = backend.aes_ctr_crypt(
+            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[48:], 48
+        )
+        ct_chunked = ct1 + ct2 + ct3
+        assert ct_chunked == ct_full, "Chunked AES-CTR must match single-shot"
