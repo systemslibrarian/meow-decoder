@@ -1,8 +1,12 @@
 /*
- * Meow-Decoder Duress Mode Observational Equivalence — MEOW4 (Post-Quantum)
+ * Meow-Decoder Duress Mode Observational Equivalence — MEOW4/MEOW5 (Post-Quantum)
  *
- * Extends MeowDuressEquiv.spthy with MEOW4 hybrid KEM:
- *   combined_key = HKDF(X25519_shared || ML-KEM-1024_shared, "meow_hybrid_pq_v1")
+ * Extends MeowDuressEquiv.spthy with MEOW4/MEOW5 hybrid KEM:
+ *   PRK = HMAC-SHA256(0x00*32, X25519_shared || ML-KEM_shared)
+ *   DK  = HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript_hash, 32)
+ *
+ * MEOW5: ML-KEM-768 (default, Signal PQXDH parity)
+ * MEOW4: ML-KEM-1024 (paranoid, NIST Level 5)
  *
  * This theory proves that a CRQC-equipped observer cannot distinguish
  * real-password from duress-password decoding, even with:
@@ -43,7 +47,7 @@ functions:
   fountain_enc/2,       // fountain_enc(data, config) → droplets
   fountain_dec/2,       // fountain_dec(droplets, config) → data
 
-  // --- ML-KEM-1024 abstraction ---
+  // --- ML-KEM abstraction (ML-KEM-768 for MEOW5, ML-KEM-1024 for MEOW4) ---
   kem_keygen_pk/1,      // kem_keygen_pk(sk) → pk
   kem_encap_ct/2,       // kem_encap_ct(pk, coins)  → ciphertext
   kem_encap_ss/2,       // kem_encap_ss(pk, coins)  → shared_secret
@@ -79,7 +83,7 @@ rule Setup_PQ:
       duress_key = kdf(~pw_duress, salt, 'argon2')
       d_hash     = duress_hash(~pw_duress, salt)
 
-      // Receiver's KEM keypair (ML-KEM-1024)
+      // Receiver's KEM keypair (ML-KEM-768 or ML-KEM-1024)
       kem_pk     = kem_keygen_pk(~kem_sk)
 
       // Receiver's X25519 keypair
@@ -170,7 +174,8 @@ rule Decode_PQ_Real:
     in
     [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
                     d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt) ]
+                    kem_ct, eph_pk, pw_attempt)
+    , !DecoyDataPQ(session, decoy) ]
   --[ Eq(derived_key, real_key)
     , DecodedReal_PQ(session)
     , AcceptedKEMCt(session, kem_ct) ]->

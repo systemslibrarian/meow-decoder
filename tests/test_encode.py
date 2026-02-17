@@ -1445,8 +1445,8 @@ def test_encode_file_verbose_meow3_with_pubkey_print(monkeypatch, tmp_path, caps
     assert "MEOW3" in captured.out or "X25519" in captured.out
 
 
-def test_encode_file_verbose_meow3_password_only_print(monkeypatch, tmp_path, capsys):
-    """Line 113-115: verbose prints MEOW3 password-only."""
+def test_encode_file_verbose_meow2_password_only_print(monkeypatch, tmp_path, capsys):
+    """forward_secrecy=True without receiver_public_key falls back to MEOW2."""
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
@@ -1467,7 +1467,8 @@ def test_encode_file_verbose_meow3_password_only_print(monkeypatch, tmp_path, ca
         verbose=True,
     )
     captured = capsys.readouterr()
-    assert "MEOW3" in captured.out or "Password-Only" in captured.out
+    # Without a receiver key, there is no actual FS — falls back to MEOW2
+    assert "MEOW2" in captured.out or "Base Encryption" in captured.out
 
 
 # --- Line 146-147: yubikey kwargs ---

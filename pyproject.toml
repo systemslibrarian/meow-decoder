@@ -89,7 +89,7 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --strict-markers --cov --cov-report=html --cov-report=term"
+addopts = "-v --strict-markers --cov=meow_decoder --cov-config=.coveragerc --cov-report=html --cov-report=term"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "security: security-critical tests (crypto, auth, tamper detection)",
@@ -102,68 +102,22 @@ markers = [
 ]
 
 [tool.coverage.run]
-# Use include whitelist (no source=) to focus on priority files only
+# Coverage uses .coveragerc as primary config (source = meow_decoder with omits)
+# This section is kept for documentation only — .coveragerc takes precedence
 branch = true
-# WHITELIST: Security-critical files measured for coverage
-include = [
-    "meow_decoder/crypto.py",
-    "meow_decoder/crypto_backend.py",
-    "meow_decoder/constant_time.py",
-    "meow_decoder/x25519_forward_secrecy.py",
-    "meow_decoder/forward_secrecy.py",
-    "meow_decoder/fountain.py",
-    "meow_decoder/encode.py",
-    "meow_decoder/decode_gif.py",
-    "meow_decoder/gif_handler.py",
-    "meow_decoder/frame_mac.py",
-    "meow_decoder/schrodinger_encode.py",
-    "meow_decoder/schrodinger_decode.py",
-    "meow_decoder/quantum_mixer.py",
-    "meow_decoder/stego_advanced.py",
-    "meow_decoder/decoy_generator.py",
-    "meow_decoder/duress_mode.py",
-    "meow_decoder/timelock_duress.py",
-    "meow_decoder/secure_cleanup.py",
-    "meow_decoder/secure_bridge.py",
-    "meow_decoder/high_security.py",
-    "meow_decoder/streaming_crypto.py",
-    "meow_decoder/double_ratchet.py",
-    "meow_decoder/multi_secret.py",
-    "meow_decoder/resume_secured.py",
-]
-# COVERAGE STRATEGY: Security-focused coverage with tiered requirements
-# 
-# TIER 1 (Crypto-Critical): 95-100% required
-#   - crypto.py, crypto_backend.py, constant_time.py
-#   - fountain.py, frame_mac.py, metadata_obfuscation.py
+source = ["meow_decoder"]
+# COVERAGE STRATEGY:
+# Primary config: .coveragerc (source = meow_decoder, with omit patterns)
+# Security gate: .coveragerc-security (5 Tier 1 modules, fail-under=85)
 #
-# TIER 2 (CLI/I/O): 90%+ required
-#   - encode.py, decode_gif.py, config.py
-#
-# All other files are excluded from coverage measurement via include whitelist
+# TIER 1 (Crypto-Critical): 95-100% target
+#   crypto.py, crypto_backend.py, constant_time.py, fountain.py, frame_mac.py
+# TIER 2 (CLI/I/O): 90%+ target
+#   encode.py, decode_gif.py, config.py, gif_handler.py
 
 [tool.coverage.xml]
-# Inherits include from [tool.coverage.run]
-
-# ===== TIER 1: Crypto-Critical Modules (INCLUDED) =====
-# These must achieve 95-100% coverage:
-# - crypto.py - Core encryption/decryption
-# - crypto_backend.py - Crypto primitives backend
-# - constant_time.py - Side-channel resistant operations
-# - fountain.py - Erasure coding
-# - frame_mac.py - Frame authentication
-# - metadata_obfuscation.py - Size obfuscation
-#
-# ===== TIER 2: CLI/I/O Modules (INCLUDED) =====
-# These must achieve 90%+ coverage:
-# - encode.py - Encoder
-# - decode_gif.py - Decoder
-# - config.py - Configuration
-# - gif_handler.py - GIF I/O
 
 [tool.coverage.report]
-# Inherits include from [tool.coverage.run]
-# Coverage threshold disabled locally - Codecov enforces target
 fail_under = 0
 show_missing = true
 skip_covered = false

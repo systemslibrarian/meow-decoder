@@ -106,7 +106,7 @@ aad += MAGIC                                    # Version
 if ephemeral_public_key:
     aad += ephemeral_public_key                 # FS key binding
 if pq_ciphertext:
-    aad += pq_ciphertext                        # PQ ciphertext binding (MEOW4)
+    aad += pq_ciphertext                        # PQ ciphertext binding (MEOW4/MEOW5)
 ```
 
 **Verification:**

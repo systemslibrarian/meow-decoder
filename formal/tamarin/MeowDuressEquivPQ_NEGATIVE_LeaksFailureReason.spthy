@@ -96,7 +96,8 @@ rule Decode_PQ_Real:
     in
     [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
                     d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt) ]
+                    kem_ct, eph_pk, pw_attempt)
+    , !DecoyDataPQ(session, decoy) ]
   --[ Eq(derived_key, real_key)
     , DecodedReal_PQ(session) ]->
     [ Out( diff(real_secret, decoy) )

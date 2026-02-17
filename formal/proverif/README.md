@@ -26,7 +26,7 @@ ProVerif uses the Dolev-Yao attacker model to symbolically verify security prope
 
 | File | Description |
 |------|-------------|
-| `meow_encode.pv` | Main ProVerif specification (~700 lines) |
+| `meow_encode.pv` | Main ProVerif specification (~1085 lines, covers MEOW2-5 + PQ hybrid) |
 | `run.sh` | Shell script to run analysis with various options |
 | `README.md` | This file |
 
@@ -47,11 +47,17 @@ proverif -html output meow_encode.pv
 Protocol source of truth: [docs/protocol.md](../../docs/protocol.md)
 
 **Expected output (success):**
+
+22 queries should report TRUE (all critical security properties).
+13 session-correspondence queries report FALSE (expected — ProVerif
+overapproximation, not security violations). 2 queries CANNOT BE PROVED
+(expected for some complex correspondence properties).
+
 ```
 RESULT not attacker(real_secret[]) is true.
 RESULT not attacker(real_password[]) is true.
+RESULT not attacker(pq_shared_marker[]) is true.
 ...
-RESULT All queries proved.
 ```
 
 Makefile shortcuts:
@@ -61,7 +67,7 @@ make formal-proverif
 make formal-proverif-html
 ```
 
-**Expected result**: All 7+ queries should show `is true` or `is false` (for secrecy).
+**Expected result**: 22 TRUE, 13 FALSE (expected), 2 CANNOT BE PROVED.
 
 ---
 

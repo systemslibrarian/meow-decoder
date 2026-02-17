@@ -111,7 +111,9 @@ rule Decode_Real_Password:
     let
       derived_key = kdf(pw_attempt, salt, 'argon2')
     in
-    [ DecodeCheck(session, droplets, salt, real_key, duress_key, d_hash, real_secret, pw_attempt) ]
+    [ DecodeCheck(session, droplets, salt, real_key, duress_key, d_hash, real_secret, pw_attempt)
+    , !DecoyData(session, decoy)
+    ]
   --[ Eq(derived_key, real_key)
     , DecodedReal(session)
     ]->

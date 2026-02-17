@@ -132,12 +132,9 @@ def encode_file(
         manifest_version = 3  # MEOW3: Forward Secrecy with X25519
         if verbose:
             print("Using MEOW3 manifest (Forward Secrecy + X25519)")
-    elif forward_secrecy:
-        manifest_version = 3  # MEOW3: Password-only (no ephemeral keys)
-        if verbose:
-            print("Using MEOW3 manifest (Password-Only)")
     else:
-        manifest_version = 2  # MEOW2: Base encryption
+        # No receiver_public_key = no actual forward secrecy, use MEOW2
+        manifest_version = 2  # MEOW2: Base encryption (password-only)
         if verbose:
             print("Using MEOW2 manifest (Base Encryption)")
 
@@ -1338,7 +1335,7 @@ Nothing to see here. 😶‍🌫️
             sys.exit(1)
     elif args.forward_secrecy and not args.receiver_pubkey:
         print("\n⚠️  Forward secrecy ENABLED but no receiver public key provided")
-        print("   Using password-only mode (MEOW3 without FS)")
+        print("   Using password-only mode (MEOW2 without FS)")
         print(f"   💡 For true forward secrecy:")
         print(f"      1. Generate keys: meow-encode --generate-keys")
         print(f"      2. Use: --receiver-pubkey receiver_public.key")

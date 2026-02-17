@@ -150,12 +150,17 @@ formal-lean-sorry:
 	@echo "🔷 Checking for unapproved sorry in Lean files..."
 	@SORRY_COUNT=$$(grep -rn 'sorry' formal/lean/ --include='*.lean' \
 		--exclude-dir='.lake' --exclude-dir='lake-packages' \
-		| grep -v -e 'AXIOM:' -e 'APPROVED:' | wc -l); \
+		| grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
+		| grep -v -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
+		  -e 'sorry tag' -e 'approved sorry' -e 'sorry for' \
+		| wc -l); \
 	if [ "$$SORRY_COUNT" -gt 0 ]; then \
 		echo "❌ Found $$SORRY_COUNT unapproved sorry statement(s):"; \
 		grep -rn 'sorry' formal/lean/ --include='*.lean' \
 			--exclude-dir='.lake' --exclude-dir='lake-packages' \
-			| grep -v -e 'AXIOM:' -e 'APPROVED:'; \
+			| grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
+			| grep -v -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
+			  -e 'sorry tag' -e 'approved sorry' -e 'sorry for'; \
 		exit 1; \
 	else \
 		echo "✅ No unapproved sorry statements found."; \

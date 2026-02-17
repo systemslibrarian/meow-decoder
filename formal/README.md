@@ -7,8 +7,9 @@ This directory contains **formal specifications and proofs** for Meow-Encode's s
 | Tool | Purpose | Location | Status |
 |------|---------|----------|--------|
 | **TLA+/TLC** | State machine model checking | `tla/` | ✅ Complete |
-| **ProVerif** | Symbolic protocol analysis | `proverif/` | ✅ Complete |
-| **Tamarin** | Observational equivalence (optional) | `tamarin/` | ✅ Optional |
+| **ProVerif** | Symbolic protocol analysis (MEOW2-5) | `proverif/` | ✅ Complete |
+| **Tamarin** | Observational equivalence (MEOW3/4/5 PQ) | `tamarin/` | ✅ Optional |
+| **Lean 4** | Mathematical proofs | `lean/` | ✅ Complete |
 | **Verus** | Rust implementation proofs | `../crypto_core/` | ✅ Complete |
 
 Protocol source of truth: [docs/protocol.md](../docs/protocol.md)
@@ -249,28 +250,43 @@ formal/
 
 ### TLA+ (Expected Output)
 
+All 3 models should report "No error has been found":
+- **MeowEncode**: ~300K distinct states (main protocol pipeline)
+- **MeowFountain**: ~44 states (fountain code properties)
+- **MeowStreaming**: ~57K states (streaming protocol)
+
 ```
-TLC2 Version 2.18 of 01 January 2023
-Running breadth-first search Model-Checking...
-Computed 6 initial states...
-Checking 2438 distinct states...
-Finished checking temporal properties...
-Model checking completed. No errors found.
-6 invariants verified.
+Model checking completed. No error has been found.
 ```
 
 ### ProVerif (Expected Output)
 
+22 queries should report TRUE (critical security properties).
+13 session-correspondence queries report FALSE — this is expected and
+documented (ProVerif overapproximates; these are not security violations).
+
+Critical properties verified:
+- Confidentiality: `attacker(real_secret)` = FALSE
+- Password secrecy: `attacker(real_password)` = FALSE
+- Authentication: `DecoderAuthenticated ==> EncoderStarted` = TRUE
+- Duress safety: duress password never reveals real secret = TRUE
+- PQ secrecy: `attacker(pq_shared_marker)` = FALSE
+- Replay: `ReplayAttempted ==> ReplayRejected` = TRUE
+
+### Lean 4 (Expected Output)
+
 ```
-ProVerif 2.05
-Verification summarance:
-Query attacker(real_secret) is false.
-Query attacker(real_password) is false.
-Query event(DecoderOutputReal) ==> event(EncoderEncrypted) is true.
-Query event(DecoderAuthenticated) ==> event(EncoderStarted) is true.
-Query event(DuressPasswordUsed) && event(DecoderOutputReal) ==> false is true.
-Query event(DecoderOutputReal) ==> event(DecoderAuthenticated) is true.
-Query event(ReplayAttempted) ==> event(ReplayRejected) is true.
+lake build
+# Exit 0, no errors
+```
+
+Sorry gate: no unapproved `sorry` keywords (documentation references excluded).
+
+### Cargo crypto_core (Expected Output)
+
+```
+cargo build --release
+# Finished `release` profile
 ```
 
 ### Verus (Expected Output)

@@ -10,7 +10,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ### Crypto Hardening
 - [x] **Argon2id Ultra-Hardened**: 512 MiB memory, 20 iterations (~5-10s per attempt)
-- [x] **Post-Quantum Default**: ML-KEM-1024 + X25519 hybrid enabled by default
+- [x] **Post-Quantum Default**: ML-KEM-768 + X25519 PQXDH hybrid (default), ML-KEM-1024 (paranoid)
 - [x] **Dilithium3 Signatures**: Quantum-resistant manifest authentication
 - [x] **Rust Backend Required**: Constant-time operations via `subtle` crate
 - [x] **Memory Zeroing**: `zeroize` crate for automatic secret cleanup

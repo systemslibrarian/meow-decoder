@@ -197,19 +197,53 @@ def decode_gif(
     manifest_raw = qr_data_list[0]
 
     # CRITICAL: Verify manifest frame decoded correctly from QR/GIF
-    # Expected lengths (base = 115, FS ephemeral = +32, duress = +32, frame MAC = +8):
-    #   - Password-only (no MAC): 115 bytes
-    #   - Password-only (with MAC): 123 bytes (115 + 8)
-    #   - Forward secrecy (no MAC): 147 bytes (115 + 32)
-    #   - Forward secrecy (with MAC): 155 bytes (147 + 8)
-    #   - FS + duress (no MAC): 179 bytes (147 + 32)
-    #   - FS + duress (with MAC): 187 bytes (179 + 8)
-    expected_lengths = [115, 123, 147, 155, 179, 187, 1235, 1243, 1267, 1275]
+    # Legacy base (mode_byte=0): 115 bytes
+    # New base (mode_byte!=0, FIX-D3): 116 bytes (+1 for mode_byte)
+    # Optional trailers: ephemeral = +32, duress = +32, frame MAC = +8
+    # PQ ciphertext: ML-KEM-768 = +1088, ML-KEM-1024 = +1568
+    #
+    # Legacy (mode_byte=0, backward compat):
+    #   115, 123(+MAC), 147(+eph), 155(+eph+MAC), 179(+eph+dur), 187(+eph+dur+MAC)
+    # New (mode_byte!=0):
+    #   116, 124(+MAC), 148(+eph), 156(+eph+MAC), 180(+eph+dur), 188(+eph+dur+MAC)
+    # PQ ML-KEM-768 (new only): 1236, 1244(+MAC), 1268(+dur), 1276(+dur+MAC)
+    # PQ ML-KEM-1024 (new only): 1716, 1724(+MAC), 1748(+dur), 1756(+dur+MAC)
+    # Legacy PQ ML-KEM-768: 1235, 1243, 1267, 1275
+    expected_lengths = [
+        # Legacy (no mode_byte)
+        115,
+        123,
+        147,
+        155,
+        179,
+        187,
+        # New (with mode_byte, FIX-D3)
+        116,
+        124,
+        148,
+        156,
+        180,
+        188,
+        # PQ ML-KEM-768 (legacy / new)
+        1235,
+        1243,
+        1267,
+        1275,
+        1236,
+        1244,
+        1268,
+        1276,
+        # PQ ML-KEM-1024 (new)
+        1716,
+        1724,
+        1748,
+        1756,
+    ]
 
     if len(manifest_raw) not in expected_lengths:
         raise ValueError(
             f"Manifest QR decode corrupted or truncated!\n"
-            f"  Expected: {expected_lengths} bytes\n"
+            f"  Expected one of {sorted(expected_lengths)} bytes\n"
             f"  Got: {len(manifest_raw)} bytes\n"
             f"  This indicates GIF compression or QR decode failure.\n"
             f"  Try: Higher QR error correction (H), disable GIF optimization, or larger box_size."
@@ -217,12 +251,12 @@ def decode_gif(
 
     # Check if manifest has MAC (length check)
     # Manifest with MAC: adds 8 bytes to any base size
-    # Base sizes: 115 (password-only), 147 (FS), 179 (FS+duress), 1235 (PQ), 1267 (PQ+duress)
-    # With MAC: 123, 155, 187, 1243, 1275
+    # MAC sizes (legacy + new): password-only, FS, FS+duress, PQ variants
     has_frame_macs = False
     manifest_bytes = manifest_raw
 
-    if len(manifest_raw) in [123, 155, 187, 1243, 1275]:
+    mac_sizes = [123, 155, 187, 124, 156, 188, 1243, 1275, 1244, 1276, 1724, 1756]
+    if len(manifest_raw) in mac_sizes:
         # Might have frame MAC, but we need password to verify
         # For now, skip MAC verification on manifest (we'll do full manifest HMAC)
         # Just strip the potential MAC for now

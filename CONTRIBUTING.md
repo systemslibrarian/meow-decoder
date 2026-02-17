@@ -113,7 +113,7 @@ def encrypt_data(data: bytes, password: str) -> tuple[bytes, bytes]:
 ```
 feat(crypto): add post-quantum hybrid encryption
 
-- Implement ML-KEM-1024 + X25519 hybrid key exchange
+- Implement ML-KEM-768/1024 + X25519 PQXDH hybrid key exchange
 - Add graceful fallback when liboqs not installed
 - Update config defaults to enable PQ by default
 

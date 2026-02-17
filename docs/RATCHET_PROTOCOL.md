@@ -225,8 +225,10 @@ AFTER encoding/decoding completes finds zero cryptographic material.
 | MEOW2 + ratchet | `0x12` | Base + per-frame ratchet |
 | MEOW3 | `0x03` | Forward secrecy (X25519) |
 | MEOW3 + ratchet | `0x13` | FS + per-frame ratchet |
-| MEOW4 | `0x04` | Post-quantum hybrid |
-| MEOW4 + ratchet | `0x14` | PQ + per-frame ratchet |
+| MEOW4 | `0x04` | Post-quantum hybrid (ML-KEM-1024 paranoid) |
+| MEOW4 + ratchet | `0x14` | PQ paranoid + per-frame ratchet |
+| MEOW5 | `0x05` | Post-quantum default (ML-KEM-768) |
+| MEOW5 + ratchet | `0x15` | PQ default + per-frame ratchet |
 | Any + duress | `0x8X` | Duress flag (OR `0x80`) |
 
 ### 6.2 Frame 0 Exemption

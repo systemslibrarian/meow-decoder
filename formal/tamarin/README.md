@@ -12,7 +12,9 @@ This directory contains a **minimal** Tamarin model to reason about observationa
 
 | File | Purpose |
 |---|---|
-| `meow_encode_equiv.spthy` | Minimal equivalence model |
+| `meow_encode_equiv.spthy` | Minimal observational equivalence model (MEOW3) |
+| `MeowDuressEquiv.spthy` | Duress mode observational equivalence (MEOW3) |
+| `MeowDuressEquivPQ.spthy` | PQ hybrid OE model (MEOW4/MEOW5 ML-KEM-768/1024) |
 | `run.sh` | Runs tamarin-prover on the model |
 
 ## Run

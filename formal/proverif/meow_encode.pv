@@ -61,7 +61,7 @@ type hmac.
 type hash.
 
 (* Additional types for frame structure *)
-type magic.              (* MEOW2/MEOW3/MEOW4 version marker *)
+type magic.              (* MEOW2/MEOW3/MEOW4/MEOW5 version marker *)
 type length.             (* File lengths: orig_len, comp_len, cipher_len *)
 
 (* Channels *)
@@ -70,7 +70,8 @@ free secure: channel [private].  (* Secure channel (for key setup only) *)
 
 (* Constants for protocol version magic *)
 const MEOW3: magic.          (* Version 3: Forward Secrecy *)
-const MEOW4: magic.          (* Version 4: Post-Quantum *)
+const MEOW4: magic.          (* Version 4: PQ ML-KEM-1024 paranoid *)
+const MEOW5: magic.          (* Version 5: PQ ML-KEM-768 default *)
 
 (* Frame index constants *)
 const Frame0: framenum.      (* Manifest frame *)
@@ -131,9 +132,10 @@ fun x25519_shared(privkey, pubkey): key.
 equation forall a: privkey, b: privkey;
     x25519_shared(a, x25519_pubkey(b)) = x25519_shared(b, x25519_pubkey(a)).
 
-(* === ML-KEM-1024 Key Encapsulation Mechanism (Post-Quantum) === *)
+(* === ML-KEM Key Encapsulation Mechanism (Post-Quantum) === *)
 (* Models IND-CCA2 KEM: encapsulate generates shared secret + ciphertext *)
-(* In implementation: liboqs Kyber1024 via pq_hybrid.py *)
+(* In implementation: liboqs ML-KEM-768 (MEOW5) or ML-KEM-1024 (MEOW4) via pq_hybrid.py *)
+(* The symbolic model is identical for both variants — security properties are independent of key size *)
 type kem_privkey.
 type kem_pubkey.
 type kem_ciphertext.
@@ -142,7 +144,7 @@ type kem_ciphertext.
 fun kem_pk(kem_privkey): kem_pubkey.
 
 (* KEM encapsulation: given pubkey and randomness, produce ciphertext *)
-(* In implementation: oqs.KeyEncapsulation("Kyber1024").encap_secret(pk) *)
+(* In implementation: oqs.KeyEncapsulation("ML-KEM-768"/"ML-KEM-1024").encap_secret(pk) *)
 fun kem_encap_ct(kem_pubkey, bitstring): kem_ciphertext.
 fun kem_encap_ss(kem_pubkey, bitstring): key.
 
@@ -151,9 +153,10 @@ fun kem_encap_ss(kem_pubkey, bitstring): key.
 reduc forall sk: kem_privkey, r: bitstring;
     kem_decap(sk, kem_encap_ct(kem_pk(sk), r)) = kem_encap_ss(kem_pk(sk), r).
 
-(* === Hybrid Key Combination (X25519 || ML-KEM via HKDF) === *)
-(* Models: HKDF-SHA256(IKM = x25519_ss || kem_ss, info = "meow_hybrid_pq_v1") *)
-(* This is the concatenate-then-KDF combiner from pq_hybrid.py *)
+(* === Hybrid Key Combination (X25519 || ML-KEM via PQXDH two-step HKDF) === *)
+(* Models: PRK = HMAC-SHA256(0x00*32, x25519_ss || kem_ss) *)
+(*         DK  = HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript_hash, 32) *)
+(* This is the PQXDH-style transcript-binding combiner from pq_hybrid.py *)
 (* Info string parameter ensures domain separation between hybrid/classical modes *)
 fun hkdf_hybrid(key, key, bitstring): key.
 const hkdf_info_hybrid: bitstring.   (* = "meow_hybrid_pq_v1" *)
@@ -198,15 +201,15 @@ fun frame(
     hmac             (* Frame MAC: HMAC(frame_key, idx || salt || ct) *)
 ): bitstring [data].
 
-(* MEOW4 Manifest structure - includes PQ KEM ciphertext *)
-(* Matches crypto.py pack_manifest() for 1235-byte MEOW4 manifests *)
+(* MEOW4/MEOW5 Manifest structure - includes PQ KEM ciphertext *)
+(* Matches crypto.py pack_manifest() for MEOW5 (1236B) or MEOW4 (1716B) manifests *)
 fun manifest4(
-    magic,           (* Version: MEOW4 *)
+    magic,           (* Version: MEOW4 or MEOW5 *)
     salt,            (* 16 bytes random *)
     nonce,           (* 12 bytes random *)
     bitstring,       (* AAD: orig_len, comp_len, cipher_len, sha256, block info *)
     pubkey,          (* X25519 ephemeral public key (32 bytes) *)
-    kem_ciphertext,  (* ML-KEM-1024 ciphertext (1088 bytes) *)
+    kem_ciphertext,  (* ML-KEM ciphertext: 1088B (768) or 1568B (1024) *)
     hmac             (* Manifest HMAC *)
 ): bitstring [data].
 
@@ -794,7 +797,8 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
 (* ========================================================================== *)
 
 let EncoderPQ(sid: sessionid, pwd: password, pt: plaintext,
-              receiver_classical_pub: pubkey, receiver_pq_pub: kem_pubkey) =
+              receiver_classical_pub: pubkey, receiver_pq_pub: kem_pubkey,
+              pq_magic: magic) =
     (* Generate ephemeral X25519 keypair *)
     new ephemeral_priv: privkey;
     let ephemeral_pub = x25519_pubkey(ephemeral_priv) in
@@ -827,7 +831,7 @@ let EncoderPQ(sid: sessionid, pwd: password, pt: plaintext,
 
     (* Build AAD including ephemeral pubkey and PQ ciphertext binding *)
     let pt_hash = sha256(pt) in
-    let aad = (orig_len, comp_len, s, pt_hash, MEOW4, ephemeral_pub, pq_ct) in
+    let aad = (orig_len, comp_len, s, pt_hash, pq_magic, ephemeral_pub, pq_ct) in
 
     (* Encrypt with combined key *)
     let ct = aes_gcm_encrypt(combined_key, n, pt, aad) in
@@ -836,10 +840,10 @@ let EncoderPQ(sid: sessionid, pwd: password, pt: plaintext,
     (* Frame MAC key derived from combined key *)
     let fk = frame_key(combined_key, Frame1, s) in
 
-    (* Create MEOW4 manifest (includes ephemeral pubkey + PQ KEM ciphertext) *)
-    let manifest_data = (MEOW4, s, n, aad, ephemeral_pub, pq_ct) in
+    (* Create MEOW4/MEOW5 manifest (includes ephemeral pubkey + PQ KEM ciphertext) *)
+    let manifest_data = (pq_magic, s, n, aad, ephemeral_pub, pq_ct) in
     let manifest_mac = hmac_sha256(manifest_hmac_key(combined_key), manifest_data) in
-    let manifest_msg = manifest4(MEOW4, s, n, aad, ephemeral_pub, pq_ct, manifest_mac) in
+    let manifest_msg = manifest4(pq_magic, s, n, aad, ephemeral_pub, pq_ct, manifest_mac) in
 
     (* Create data frame *)
     let frame_data = ciphertext_to_bits(ct) in
@@ -916,11 +920,11 @@ let EncoderPQ_LeakedKEM(sid: sessionid, pwd: password,
     out(pub, (manifest_msg, data_frame)).
 
 (* ========================================================================== *)
-(* MEOW4 POST-QUANTUM HYBRID DECODER                                         *)
+(* MEOW4/MEOW5 POST-QUANTUM HYBRID DECODER                                   *)
 (*                                                                            *)
 (* Models meow_decoder/pq_hybrid.py hybrid_decapsulate() + decrypt flow.      *)
-(* Receiver uses their X25519 + ML-KEM-1024 private keys to recover the      *)
-(* combined key and decrypt.                                                   *)
+(* Receiver uses their X25519 + ML-KEM private keys to recover the           *)
+(* combined key and decrypt. Accepts both MEOW4 (1024) and MEOW5 (768).      *)
 (* ========================================================================== *)
 
 let DecoderPQ(sid: sessionid, pwd: password,
@@ -930,11 +934,11 @@ let DecoderPQ(sid: sessionid, pwd: password,
     (* Receive from public channel *)
     in(pub, (manifest_msg: bitstring, data_frame: bitstring));
 
-    (* Parse MEOW4 manifest *)
+    (* Parse MEOW4/MEOW5 manifest *)
     let manifest4(magic_ver, s, n, aad, sender_eph_pub, pq_ct, manifest_mac) = manifest_msg in
 
-    (* Verify protocol version — MEOW4 required for PQ *)
-    if magic_ver = MEOW4 then
+    (* Verify protocol version — MEOW4 or MEOW5 required for PQ *)
+    if magic_ver = MEOW4 || magic_ver = MEOW5 then
 
     (* X25519 DH: classical shared secret *)
     let classical_shared = x25519_shared(receiver_classical_priv, sender_eph_pub) in
@@ -952,7 +956,7 @@ let DecoderPQ(sid: sessionid, pwd: password,
     let combined_key = hkdf_expand(base_key, key_to_bits(hybrid_shared)) in
 
     (* Verify manifest MAC *)
-    let manifest_data = (MEOW4, s, n, aad, sender_eph_pub, pq_ct) in
+    let manifest_data = (magic_ver, s, n, aad, sender_eph_pub, pq_ct) in
     if hmac_verify(manifest_hmac_key(combined_key), manifest_data, manifest_mac) = true then
 
     event DecoderAcceptedPQ(sid, s, pq_ct);
@@ -1019,7 +1023,8 @@ let DecoderPQ(sid: sessionid, pwd: password,
 (*   2. Duress password handling                                              *)
 (*   3. Forward secrecy variant with X25519                                   *)
 (*   4. Post-quantum hybrid variant (MEOW4: X25519 + ML-KEM-1024)            *)
-(*   5. PQ variant with ML-KEM leak (tests classical-fallback guarantee)     *)
+(*   5. Post-quantum default variant (MEOW5: X25519 + ML-KEM-768)           *)
+(*   6. PQ variant with ML-KEM leak (tests classical-fallback guarantee)     *)
 (*                                                                            *)
 (* The replication operator (!) creates unbounded copies, allowing ProVerif   *)
 (* to explore multi-session attacks.                                          *)
@@ -1049,19 +1054,31 @@ process
         DecoderWithFS(fs_sid, real_password, receiver_priv)
     )
     |
-    (* MEOW4 Post-Quantum Hybrid sessions *)
+    (* MEOW4 Post-Quantum Hybrid sessions (ML-KEM-1024 paranoid) *)
     ! new pq_classical_priv: privkey;
     new pq_kem_priv: kem_privkey;
     let pq_classical_pub = x25519_pubkey(pq_classical_priv) in
     let pq_kem_pub = kem_pk(pq_kem_priv) in
     new pq_sid: sessionid;
     (
-        EncoderPQ(pq_sid, real_password, real_secret, pq_classical_pub, pq_kem_pub)
+        EncoderPQ(pq_sid, real_password, real_secret, pq_classical_pub, pq_kem_pub, MEOW4)
         |
         DecoderPQ(pq_sid, real_password, pq_classical_priv, pq_kem_priv)
     )
     |
-    (* MEOW4 Classical-fallback test: ML-KEM shared secret leaked *)
+    (* MEOW5 Post-Quantum Hybrid sessions (ML-KEM-768 default) *)
+    ! new pq5_classical_priv: privkey;
+    new pq5_kem_priv: kem_privkey;
+    let pq5_classical_pub = x25519_pubkey(pq5_classical_priv) in
+    let pq5_kem_pub = kem_pk(pq5_kem_priv) in
+    new pq5_sid: sessionid;
+    (
+        EncoderPQ(pq5_sid, real_password, real_secret, pq5_classical_pub, pq5_kem_pub, MEOW5)
+        |
+        DecoderPQ(pq5_sid, real_password, pq5_classical_priv, pq5_kem_priv)
+    )
+    |
+    (* Classical-fallback test: ML-KEM shared secret leaked *)
     ! new leaked_classical_priv: privkey;
     new leaked_kem_priv: kem_privkey;
     let leaked_classical_pub = x25519_pubkey(leaked_classical_priv) in

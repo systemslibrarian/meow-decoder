@@ -14,11 +14,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Verus from source
+# Note: vargo build may produce warnings on stderr; we redirect stderr to a log
+# but still fail on actual build errors (exit code check).
 RUN git clone --depth 1 https://github.com/verus-lang/verus.git /opt/verus \
     && cd /opt/verus/source \
     && ./tools/get-z3.sh \
     && . ./tools/activate \
-    && vargo build --release 2>/dev/null || true
+    && vargo build --release 2>/tmp/verus_build.log \
+    && test -f /opt/verus/source/target-verus/release/verus \
+    || { echo "Verus build failed — see /tmp/verus_build.log"; cat /tmp/verus_build.log; exit 1; }
 
 ENV PATH="/opt/verus/source/target-verus/release:${PATH}"
 
