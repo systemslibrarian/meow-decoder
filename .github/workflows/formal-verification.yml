@@ -15,24 +15,24 @@ on:
   push:
     branches: [main, develop]
     paths:
-      - 'formal/**'
-      - 'crypto_core/src/verus*'
-      - '.github/workflows/formal-verification.yml'
+      - "formal/**"
+      - "crypto_core/src/verus*"
+      - ".github/workflows/formal-verification.yml"
   pull_request:
     paths:
-      - 'formal/**'
-      - 'crypto_core/src/verus*'
-      - '.github/workflows/formal-verification.yml'
+      - "formal/**"
+      - "crypto_core/src/verus*"
+      - ".github/workflows/formal-verification.yml"
   workflow_dispatch:
     inputs:
       verbose:
-        description: 'Show attack traces for failed queries'
+        description: "Show attack traces for failed queries"
         required: false
-        default: 'false'
+        default: "false"
         type: boolean
   schedule:
     # Weekly comprehensive verification on Sunday at 2 AM UTC
-    - cron: '0 2 * * 0'
+    - cron: "0 2 * * 0"
 
 permissions:
   contents: read
@@ -42,83 +42,96 @@ jobs:
     name: ProVerif Security Analysis
     permissions:
       contents: read
-      pull-requests: write  # Required for PR comment on failure
+      pull-requests: write # Required for PR comment on failure
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      
+
       - name: Install ProVerif
         run: |
-          # Install ProVerif from apt (Ubuntu 24.04)
+          set -e
           sudo apt-get update
-          sudo apt-get install -y proverif || {
-            # Fallback: Install from source without GTK interface
-            # (GTK interface requires lablgtk2 which is complex to install)
-            echo "Installing ProVerif from source (command-line only)..."
+
+          # Ubuntu 24.04 (ubuntu-latest) does NOT ship ProVerif in its apt repos.
+          # ProVerif is NOT on the Ubuntu 24.04 apt mirror, so we always fall
+          # through to the source build. The source build uses OCaml without the
+          # optional lablgtk2 GUI library, which produces the command-line binary.
+          if sudo apt-get install -y proverif 2>/dev/null; then
+            echo "ProVerif installed from apt"
+          else
+            echo "Building ProVerif 2.05 from source (expected on Ubuntu 24.04)..."
+            # ocaml-native-compilers provides ocamlopt for fast native builds.
+            # ocaml-findlib provides ocamlfind used by ./build.
             sudo apt-get install -y ocaml ocaml-native-compilers ocaml-findlib
-            wget -q https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz
-            tar xzf proverif2.05.tar.gz
-            cd proverif2.05
-            # Build without GTK interface (lablgtk2 not available on Ubuntu 24.04)
-            echo 'ocamlyacc parser.mly' > build_minimal
-            echo 'ocamllex lexer.mll' >> build_minimal
-            echo 'ocamlopt -I +str str.cmxa unix.cmxa -o proverif types.ml param.ml parser.ml lexer.ml stringmap.ml hashtbl1.ml reduction_helper.ml pitsyntax.ml piparser.ml pisyntax.ml pitypechecker.ml pievent.ml reduction_bipro.ml reduction.ml history.ml display.ml selfun.ml rules.ml facts.ml termslinks.ml weaksecr.ml pitransl.ml pitranslweak.ml main.ml 2>/dev/null || {
-              # If optimized build fails, use bytecode
-              ocamlfind ocamlc -package str -linkpkg -o proverif *.ml 2>/dev/null || true
-            }' >> build_minimal
-            # Just use the standard build script which handles dependencies
-            ./build 2>&1 || echo "Build completed (may have warnings)"
-            # Copy only proverif binary (not proverifinter which needs GTK)
-            sudo cp proverif /usr/local/bin/ 2>/dev/null || sudo cp ./proverif /usr/local/bin/ || true
-          }
-          
-          proverif -version || echo "ProVerif installed"
-      
+
+            PROVERIF_URL="https://bblanche.gitlabpages.inria.fr/proverif/proverif2.05.tar.gz"
+            wget -q "$PROVERIF_URL" -O /tmp/proverif.tar.gz
+            tar xzf /tmp/proverif.tar.gz -C /tmp/
+            cd /tmp/proverif2.05
+
+            # ./build detects the absence of lablgtk2 and builds only the
+            # command-line proverif binary (not proverifinter).
+            ./build 2>&1
+
+            # Hard-fail if the binary was not produced — do NOT use || true here.
+            if [ ! -f proverif ]; then
+              echo "ERROR: proverif binary not found after ./build"
+              exit 1
+            fi
+            sudo cp proverif /usr/local/bin/proverif
+            cd -
+          fi
+
+          # Verify installation succeeded. This must not have a || fallback;
+          # if it fails, the ProVerif job should fail rather than run silently
+          # without a working tool and report false success.
+          proverif -version
+
       - name: Run ProVerif Analysis
         id: proverif
         run: |
           cd formal/proverif
-          
+
           echo "============================================"
           echo "🔐 Running ProVerif Security Analysis"
           echo "============================================"
           echo ""
-          
+
           # Run ProVerif with error capture
           set +e
           proverif meow_encode.pv 2>&1 | tee proverif_output.txt
           PROVERIF_EXIT=$?
           set -e
-          
+
           # Extract verification results
           echo ""
           echo "============================================"
           echo "📊 Verification Summary"
           echo "============================================"
-          
+
           # Count passed/failed queries
           PASSED=$(grep -c "is true" proverif_output.txt || echo "0")
           FAILED=$(grep -c "is false" proverif_output.txt || echo "0")
           CANNOT=$(grep -c "cannot be proved" proverif_output.txt || echo "0")
-          
+
           echo "✅ Verified (true): $PASSED"
           echo "❌ Failed (false): $FAILED"
           echo "⚠️  Could not prove: $CANNOT"
           echo ""
-          
+
           # Set output for badge
           echo "passed=$PASSED" >> $GITHUB_OUTPUT
           echo "failed=$FAILED" >> $GITHUB_OUTPUT
-          
+
           # Check for critical security failures
-          # Note: Some session correspondence queries return FALSE due to model 
+          # Note: Some session correspondence queries return FALSE due to model
           # architecture (replication creates separate session IDs). These are
           # documented in meow_encode.pv and are NOT security vulnerabilities.
           # Critical properties that MUST be true:
           CRITICAL_FAILURES=0
-          
+
           # Check secrecy properties
           if grep -q "Query not attacker(real_secret" proverif_output.txt; then
             if ! grep -q "Query not attacker(real_secret.*is true" proverif_output.txt; then
@@ -126,32 +139,32 @@ jobs:
               CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
             fi
           fi
-          
+
           if grep -q "Query not attacker(real_password" proverif_output.txt; then
             if ! grep -q "Query not attacker(real_password.*is true" proverif_output.txt; then
               echo "❌ CRITICAL: Password secrecy violated!"
               CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
             fi
           fi
-          
+
           # Check duress safety
           if grep -q "DuressPasswordUsed.*DecoderOutputReal.*is false" proverif_output.txt; then
             echo "❌ CRITICAL: Duress mode outputs real secret!"
             CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
           fi
-          
+
           # Check authentication requirement
           if grep -q "DecoderOutputReal.*DecoderAuthenticated.*is false" proverif_output.txt; then
             echo "❌ CRITICAL: Output without authentication!"
             CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
           fi
-          
+
           if [ "$CRITICAL_FAILURES" -gt 0 ]; then
             echo ""
             echo "⚠️  $CRITICAL_FAILURES critical security properties failed!"
             exit 1
           fi
-          
+
           # Note: Session correspondence queries (EncoderEncrypted, EncoderStarted,
           # EncoderGeneratedNonce) may return FALSE due to model structure. This is
           # expected and documented - see meow_encode.pv for explanation.
@@ -160,7 +173,7 @@ jobs:
           echo "   for multi-session models. See meow_encode.pv for documentation."
           echo ""
           echo "✅ All critical security properties verified!"
-      
+
       - name: Run ProVerif NEGATIVE test (replay without counter)
         run: |
           echo "============================================"
@@ -170,7 +183,7 @@ jobs:
           cd formal/proverif
           proverif meow_encode_NEGATIVE_ReplayNoCounterCheck.pv 2>&1 | tee proverif_neg_output.txt
           set -e
-          
+
           # In the negative model, RejectFrame is never emitted (replay
           # detection disabled). The fail-closed query is trivially TRUE,
           # confirming that removing table-based nonce tracking removes
@@ -185,7 +198,7 @@ jobs:
           cd formal/proverif
           mkdir -p html_output
           proverif -html html_output meow_encode.pv || true
-      
+
       - name: Upload ProVerif Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
@@ -196,7 +209,7 @@ jobs:
             formal/proverif/proverif_neg_output.txt
             formal/proverif/html_output/
           retention-days: 30
-      
+
       - name: Comment on PR (if failed)
         if: failure() && github.event_name == 'pull_request'
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
@@ -204,18 +217,18 @@ jobs:
           script: |
             const fs = require('fs');
             const output = fs.readFileSync('formal/proverif/proverif_output.txt', 'utf8');
-            
+
             // Extract failed queries
             const failedLines = output.split('\n')
               .filter(line => line.includes('is false') || line.includes('cannot be proved'))
               .join('\n');
-            
+
             const body = '## ⚠️ ProVerif Security Analysis Failed\n' +
               '\nThe following security properties could not be verified:\n' +
               '\n```\n' + failedLines + '\n```\n' +
               '\nThis indicates a potential security issue in the protocol design.\n' +
               'Please review the changes and ensure cryptographic properties are maintained.';
-            
+
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -226,35 +239,35 @@ jobs:
   tlaplus:
     name: TLA+ Model Checking
     runs-on: ubuntu-latest
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-      
+
       - name: Set up Java
         uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
-      
+          distribution: "temurin"
+          java-version: "17"
+
       - name: Download TLA+ Tools
         run: |
           mkdir -p formal/tla
           curl -sL -o formal/tla/tla2tools.jar \
             https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
           echo "Downloaded tla2tools.jar ($(wc -c < formal/tla/tla2tools.jar) bytes)"
-      
+
       - name: Run TLA+ Model Checker
         run: |
           cd formal/tla
-          
+
           echo "============================================"
           echo "🔍 Running TLA+ Model Checking"
           echo "============================================"
           echo ""
-          
+
           FAILED=0
-          
+
           # Run TLC model checker on MeowEncode.tla
           echo "📋 Checking MeowEncode.tla..."
           java -jar tla2tools.jar \
@@ -262,16 +275,16 @@ jobs:
             -workers auto \
             -deadlock \
             MeowEncode.tla 2>&1 | tee tlc_encode_output.txt
-          
+
           if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_encode_output.txt; then
             echo "✅ MeowEncode: No invariant violations found"
           else
             echo "❌ MeowEncode: Model checking found issues"
             FAILED=1
           fi
-          
+
           echo ""
-          
+
           # Run TLC model checker on MeowFountain.tla
           echo "📋 Checking MeowFountain.tla..."
           java -jar tla2tools.jar \
@@ -279,16 +292,16 @@ jobs:
             -workers auto \
             -deadlock \
             MeowFountain.tla 2>&1 | tee tlc_fountain_output.txt
-          
+
           if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_fountain_output.txt; then
             echo "✅ MeowFountain: No invariant violations found"
           else
             echo "❌ MeowFountain: Model checking found issues"
             FAILED=1
           fi
-          
+
           echo ""
-          
+
           # Run TLC model checker on MeowStreaming.tla
           echo "📋 Checking MeowStreaming.tla..."
           java -jar tla2tools.jar \
@@ -296,29 +309,29 @@ jobs:
             -workers auto \
             -deadlock \
             MeowStreaming.tla 2>&1 | tee tlc_streaming_output.txt
-          
+
           if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_streaming_output.txt; then
             echo "✅ MeowStreaming: No invariant violations found"
           else
             echo "❌ MeowStreaming: Model checking found issues"
             FAILED=1
           fi
-          
+
           # Combine outputs for artifact
           cat tlc_encode_output.txt tlc_fountain_output.txt tlc_streaming_output.txt > tlc_output.txt
-          
+
           echo ""
           echo "============================================"
           echo "📊 TLC Summary"
           echo "============================================"
-          
+
           if [ "$FAILED" -eq 0 ]; then
             echo "✅ All TLA+ models verified successfully"
           else
             echo "❌ Some TLA+ models failed verification"
             exit 1
           fi
-      
+
       - name: Upload TLA+ Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
@@ -512,7 +525,7 @@ jobs:
     needs: [proverif, tlaplus, lean, tamarin, verus]
     runs-on: ubuntu-latest
     if: always()
-    
+
     steps:
       - name: Check results
         run: |
@@ -520,27 +533,27 @@ jobs:
           echo "📋 Formal Verification Summary"
           echo "============================================"
           echo ""
-          
+
           PROVERIF_STATUS="${{ needs.proverif.result }}"
           TLAPLUS_STATUS="${{ needs.tlaplus.result }}"
           LEAN_STATUS="${{ needs.lean.result }}"
           TAMARIN_STATUS="${{ needs.tamarin.result }}"
           VERUS_STATUS="${{ needs.verus.result }}"
-          
+
           echo "ProVerif:  $PROVERIF_STATUS"
           echo "TLA+:      $TLAPLUS_STATUS"
           echo "Lean 4:    $LEAN_STATUS"
           echo "Tamarin:   $TAMARIN_STATUS"
           echo "Verus:     $VERUS_STATUS"
           echo ""
-          
+
           ALL_PASS=true
           for STATUS in "$PROVERIF_STATUS" "$TLAPLUS_STATUS" "$LEAN_STATUS" "$TAMARIN_STATUS" "$VERUS_STATUS"; do
             if [ "$STATUS" != "success" ]; then
               ALL_PASS=false
             fi
           done
-          
+
           if [ "$ALL_PASS" = "true" ]; then
             echo "✅ All formal verification passed!"
             exit 0

@@ -1,30 +1,38 @@
-# Formal Verification Docker Image — Verus Prover (nightly)
+# Formal Verification Docker Image — Verus Prover (pinned release)
 # Used by `make formal-verus-docker` for CI environments where
-# native Verus is unavailable (e.g., Alpine Linux / musl libc).
+# native Verus is unavailable.
 #
-# Verus requires a specific nightly Rust toolchain and only runs on glibc.
+# PINNED: Uses pre-built binary from a specific release to prevent breakage
+# when Verus HEAD introduces breaking API changes (a common occurrence).
+# To upgrade: update VERUS_VERSION to the new release tag and test locally.
 
-FROM rust:1.82-bookworm
+FROM debian:bookworm-slim
 
-# Install Verus dependencies
+# Runtime deps: curl + unzip to fetch the pre-built binary, z3 for fallback SMT
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
+    curl \
+    unzip \
     z3 \
-    cmake \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Verus from source
-# Note: vargo build may produce warnings on stderr; we redirect stderr to a log
-# but still fail on actual build errors (exit code check).
-RUN git clone --depth 1 https://github.com/verus-lang/verus.git /opt/verus \
-    && cd /opt/verus/source \
-    && ./tools/get-z3.sh \
-    && . ./tools/activate \
-    && vargo build --release 2>/tmp/verus_build.log \
-    && test -f /opt/verus/source/target-verus/release/verus \
-    || { echo "Verus build failed — see /tmp/verus_build.log"; cat /tmp/verus_build.log; exit 1; }
+# Pin Verus to a specific known-working release.
+# See https://github.com/verus-lang/verus/releases for available tags.
+ENV VERUS_VERSION=0.2026.02.15.61aa1bf
 
-ENV PATH="/opt/verus/source/target-verus/release:${PATH}"
+# Download the pre-built x86 Linux binary (much faster and more reliable than
+# building from source, which requires a specific Rust nightly and can break
+# whenever Verus HEAD changes its internal API).
+RUN curl -fsSL -o /tmp/verus.zip \
+      "https://github.com/verus-lang/verus/releases/download/release/${VERUS_VERSION}/verus-${VERUS_VERSION}-x86-linux.zip" \
+    && unzip -q /tmp/verus.zip -d /opt/verus-dist \
+    && rm /tmp/verus.zip \
+    # The ZIP may unpack into a subdirectory; find the verus binary
+    && VERUS_BIN=$(find /opt/verus-dist -name 'verus' -type f | head -1) \
+    && if [ -z "$VERUS_BIN" ]; then echo "ERROR: verus binary not found in ZIP" && exit 1; fi \
+    && cp "$(dirname $VERUS_BIN)/"* /usr/local/bin/ 2>/dev/null || true \
+    && chmod +x /usr/local/bin/verus \
+    && verus --version
 
 WORKDIR /crypto_core
 
@@ -32,5 +40,7 @@ WORKDIR /crypto_core
 COPY crypto_core/ /crypto_core/
 COPY Cargo.toml /Cargo.toml
 
-# Default: verify the crypto_core proofs
-CMD ["verus", "src/lib.rs"]
+# Verify the crypto_core Verus annotations.
+# --crate-type lib: tell Verus we're verifying a library, not a binary.
+# If Verus exits non-zero the Docker run step will fail and the CI step fails.
+CMD ["verus", "--crate-type", "lib", "src/lib.rs"]
