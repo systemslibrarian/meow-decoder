@@ -508,7 +508,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Encryption:** AES-256-GCM (authenticated)
 - **Key Derivation:** Argon2id (512 MiB memory, 20 iterations)
 - **Forward Secrecy:** X25519 ECDH (DEFAULT ON)
-- **Per-Frame Ratchet:** Signal-parity symmetric ratchet (MSR v1.2) with header encryption and key commitment
+- **Per-Frame Ratchet:** Signal-inspired symmetric ratchet (MSR v1.2) with header encryption and key commitment
 - **Post-Quantum:** ML-KEM-768 + X25519 PQXDH (default) / ML-KEM-1024 (paranoid), requires receiver PQ public key
 - **Signatures:** ML-DSA-65 + Ed25519 hybrid (manifest auth)
 - **Integrity:** HMAC-SHA256 + per-frame MACs + key commitment tags
@@ -529,8 +529,8 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Tamper Detection | GCM tags + HMAC + frame MACs | ✅ |
 | Forward Secrecy | X25519 ephemeral keys | ✅ Default |
 | Per-Frame Forward Secrecy | Symmetric ratchet (MSR v1.2) | ✅ Optional |
-| Header Encryption | HKDF-XOR masked frame indices | ✅ (Signal parity) |
-| Key Commitment | HMAC-SHA256 commitment tags | ✅ (Signal parity) |
+| Header Encryption | HKDF-XOR masked frame indices | ✅ |
+| Key Commitment | HMAC-SHA256 commitment tags | ✅ |
 | Post-Quantum | ML-KEM-768/1024 + ML-DSA-65 | ✅ Default (768) / Paranoid (1024) |
 | Plausible Deniability | Schrödinger dual-secret | ✅ Optional |
 | Coercion Resistance | Duress passwords | ✅ |
@@ -601,7 +601,7 @@ python -c "import meow_crypto_rs; print('✅ Rust backend:', meow_crypto_rs.back
 The encoder/decoder uses the Rust backend by default once installed.
 **No production Python module imports the `cryptography` library** — all crypto primitives (AES-GCM, HKDF, X25519, Argon2id) route through the Rust backend via `crypto_backend.CryptoBackend()`. This is enforced by an AST-based CI test (`tests/test_crypto_enforcement.py`).
 
-> **Non-production modules** (`legacy_py/`, `spec_v12/`, `experimental/`) are quarantined and excluded from the enforcement scan. See [Architecture docs](docs/ARCHITECTURE.md#production-vs-non-production-code) for details.
+> **Non-production modules** (`spec_v12/`, `experimental/`) are quarantined and excluded from the enforcement scan. See [Architecture docs](docs/ARCHITECTURE.md#production-vs-non-production-code) for details.
 
 **Benchmarks (Typical):**
 *   **Key Derivation (Argon2id):** Rust is ~30% faster
@@ -1003,7 +1003,7 @@ More details and expected results:
 
 *Internal security review – not a third-party audit.*
 
-This release is security-reviewed within a bounded threat model. Claims are tied to:
+This release has undergone internal security review (not a third-party audit). Claims are tied to:
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
 - [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte-level spec)

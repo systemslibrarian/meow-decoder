@@ -8,7 +8,7 @@
 
 Meow Decoder has two properties that must coexist:
 
-1. **Serious cryptography.** AES-256-GCM, Argon2id, X25519, ML-KEM, HKDF, HMAC — implemented in Rust, formally verified where possible, and tested with 1000+ assertions.
+1. **Serious cryptography.** AES-256-GCM, Argon2id, X25519, ML-KEM, HKDF, HMAC — implemented in Rust, with proof sketches where applicable, and tested with 1000+ assertions.
 2. **Cat-themed personality.** Collar tags, kibbles, purring progress bars, whisker checks — a deliberate design choice that makes the project approachable without weakening security.
 
 Past refactors have accidentally flattened one or the other. This guide prevents both.

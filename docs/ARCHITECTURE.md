@@ -1,6 +1,6 @@
 # 🏗️ Meow Decoder - Architecture Documentation
 
-**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
+**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
 **Date:** 2026-02-17
 **Status:** Production
 
@@ -1084,5 +1084,5 @@ wasm-pack build crypto_core --target web --release --features wasm-pq
 ---
 
 **Last Updated:** 2026-02-17
-**Version:** 1.1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)
+**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
 **Status:** Production

@@ -28,16 +28,30 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
+        with:
+          toolchain: stable
+
       - name: Install dependencies
         # Editable install (-e .) for local source - can't hash-pin
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libzbar0 libgl1 libglib2.0-0 \
+            build-essential pkg-config libssl-dev \
+            libpcsclite-dev libudev-dev
           pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements-ci.lock
-          sudo apt-get update
-          sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock || true
           pip install --no-deps -e .
+
+      - name: Build and install Rust crypto backend
+        run: |
+          cd rust_crypto
+          maturin build --release --out dist
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          cd ..
 
       - name: Create corpus directories
         run: |
@@ -108,13 +122,29 @@ jobs:
         with:
           python-version: "3.12"
 
+      - uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
+        with:
+          toolchain: stable
+
       - name: Install dependencies
         # Editable install for local source - can't hash-pin
         run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libzbar0 \
+            build-essential pkg-config libssl-dev \
+            libpcsclite-dev libudev-dev
           pip install --require-hashes -r requirements-pip.lock
           pip install --require-hashes -r requirements-ci.lock
+          pip install --require-hashes -r requirements.lock
           pip install --no-deps -e ".[dev]"
-          sudo apt-get install -y libzbar0
+
+      - name: Build and install Rust crypto backend
+        run: |
+          cd rust_crypto
+          maturin build --release --out dist
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          cd ..
 
       - name: Create corpus
         run: |

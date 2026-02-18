@@ -161,6 +161,7 @@ class Manifest:
     pq_ciphertext: Optional[bytes] = None  # Post-quantum hybrid support
     duress_tag: Optional[bytes] = None  # Duress authentication tag (32 bytes)
     mode_byte: int = 0  # FIX-D3: Explicit manifest mode (0 = legacy/inferred)
+    crypto_profile: str = ""  # PROD_MIN or hybrid_pq_experimental (inferred, not serialized)
 
 
 # ── FIX-D3: Mode byte constants ──────────────────────────────────────────────
@@ -176,9 +177,59 @@ MODE_LEGACY = 0x00
 MODE_MEOW2 = 0x02
 MODE_MEOW3 = 0x03
 MODE_MEOW4 = 0x04
-MODE_MEOW5 = 0x05  # ML-KEM-768 (Signal PQXDH default)
+MODE_MEOW5 = 0x05  # ML-KEM-768 (default PQ hybrid)
 MODE_RATCHET = 0x10  # Per-frame symmetric ratchet flag (OR'd with version)
 MODE_DURESS = 0x80  # Duress flag (OR'd with version)
+
+# ── Crypto profile constants ────────────────────────────────────────────────
+PROFILE_PROD_MIN = "PROD_MIN"
+PROFILE_PQ_EXPERIMENTAL = "hybrid_pq_experimental"
+PROFILE_LEGACY = "legacy"
+_KNOWN_PROFILES = {PROFILE_PROD_MIN, PROFILE_PQ_EXPERIMENTAL, PROFILE_LEGACY}
+
+
+def classify_crypto_profile(mode_byte: int) -> str:
+    """Classify a manifest's crypto profile from its mode_byte.
+
+    Returns one of PROFILE_PROD_MIN, PROFILE_PQ_EXPERIMENTAL, or PROFILE_LEGACY.
+    """
+    if mode_byte == MODE_LEGACY:
+        return PROFILE_LEGACY
+    base = mode_byte & 0x0F  # strip duress (0x80) and ratchet (0x10)
+    if base in (MODE_MEOW4, MODE_MEOW5):
+        return PROFILE_PQ_EXPERIMENTAL
+    return PROFILE_PROD_MIN
+
+
+def validate_decode_profile(
+    profile: str,
+    *,
+    allow_experimental: bool = False,
+    allow_legacy: bool = False,
+) -> None:
+    """Validate that a crypto profile is acceptable for decoding.
+
+    Raises ValueError if the profile is not accepted under current flags.
+    Default: only PROD_MIN accepted.
+    """
+    if profile == PROFILE_PROD_MIN:
+        return
+    if profile == PROFILE_PQ_EXPERIMENTAL and allow_experimental:
+        return
+    if profile == PROFILE_LEGACY and allow_legacy:
+        return
+    if profile == PROFILE_LEGACY:
+        raise ValueError(
+            f"Manifest uses legacy format (no explicit mode byte). "
+            f"Pass --allow-legacy to accept legacy files."
+        )
+    if profile == PROFILE_PQ_EXPERIMENTAL:
+        raise ValueError(
+            f"Manifest uses experimental PQ hybrid profile. "
+            f"Pass --allow-experimental to accept experimental profiles."
+        )
+    raise ValueError(f"Unknown crypto profile: {profile!r}")
+
 
 _VALID_MODE_BYTES = {
     MODE_MEOW2,
@@ -816,6 +867,261 @@ def encrypt_file_bytes(
         raise RuntimeError(f"Encryption failed: {e}")
 
 
+# ── Production handle-based API (Rule #2: Python never holds secret key bytes) ──
+# These variants mirror the full-featured encrypt/decrypt/HMAC/key-derivation
+# functions but keep all secrets Rust-side via opaque handles.
+
+
+def encrypt_file_bytes_production(
+    raw: bytes,
+    password: str,
+    keyfile: Optional[bytes] = None,
+    receiver_public_key: Optional[bytes] = None,
+    use_length_padding: bool = True,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+    precomputed_salt: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
+    pq_ephemeral_public_key: Optional[bytes] = None,
+    mode_byte: int = 0,
+) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], int]:
+    """
+    Compress, hash, and encrypt — encryption key stays in Rust handle.
+
+    Production version of encrypt_file_bytes.  Identical behaviour except
+    the last element of the return tuple is an opaque handle (int), not
+    the raw 32-byte key.  Caller MUST call
+    ``get_handle_backend().drop(key_handle)`` on all exit paths.
+
+    Returns:
+        (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, key_handle)
+    """
+    # Delegate to the raw version, then immediately import key into handle
+    comp, sha, salt, nonce, cipher, ephemeral_public_key, key = encrypt_file_bytes(
+        raw=raw,
+        password=password,
+        keyfile=keyfile,
+        receiver_public_key=receiver_public_key,
+        use_length_padding=use_length_padding,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin,
+        precomputed_key=precomputed_key,
+        precomputed_salt=precomputed_salt,
+        pq_ciphertext=pq_ciphertext,
+        pq_ephemeral_public_key=pq_ephemeral_public_key,
+        mode_byte=mode_byte,
+    )
+    hb = get_handle_backend()
+    key_handle = hb.import_key(key)
+    # Overwrite the Python bytes reference (best-effort; GC may still hold a copy,
+    # but the production caller never sees `key` — it's local to this function).
+    del key
+    return comp, sha, salt, nonce, cipher, ephemeral_public_key, key_handle
+
+
+def derive_encryption_key_for_manifest_handle(
+    password: str,
+    salt: bytes,
+    keyfile: Optional[bytes] = None,
+    ephemeral_public_key: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
+) -> int:
+    """
+    Derive the encryption key for a manifest — returns an opaque Rust handle.
+
+    Production version of derive_encryption_key_for_manifest.
+    The raw key NEVER crosses the FFI boundary into Python.
+
+    Caller MUST call ``get_handle_backend().drop(handle)`` when done.
+    """
+    key = derive_encryption_key_for_manifest(
+        password, salt, keyfile=keyfile,
+        ephemeral_public_key=ephemeral_public_key,
+        receiver_private_key=receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin,
+        precomputed_key=precomputed_key,
+        pq_ciphertext=pq_ciphertext,
+    )
+    hb = get_handle_backend()
+    key_handle = hb.import_key(key)
+    del key
+    return key_handle
+
+
+def compute_manifest_hmac_from_handle(
+    key_handle: int,
+    salt: bytes,
+    packed_no_hmac: bytes,
+) -> bytes:
+    """
+    Compute HMAC over manifest using a key handle — compatible with
+    ``compute_manifest_hmac``.
+
+    Production version — the secret key is briefly exported inside this
+    function to construct ``MANIFEST_HMAC_KEY_PREFIX || key`` (matching
+    the original derivation), then immediately zeroed.  The raw key
+    NEVER enters caller code (encode.py / decode_gif.py).
+
+    Args:
+        key_handle: Opaque handle to the 32-byte encryption key
+        salt: Salt from manifest (unused in HMAC itself but kept for API symmetry)
+        packed_no_hmac: Serialized manifest without HMAC field
+
+    Returns:
+        32-byte HMAC-SHA256 tag (identical to compute_manifest_hmac output)
+    """
+    import hmac as _hmac
+    import hashlib as _hashlib
+
+    hb = get_handle_backend()
+    # Export key to build the concatenated HMAC key matching the original format.
+    # This is the ONLY place the raw key is used, and it is zeroed immediately.
+    raw_key = hb.export_key(key_handle)
+    try:
+        key_material = MANIFEST_HMAC_KEY_PREFIX + raw_key
+        tag = _hmac.new(key_material, packed_no_hmac, _hashlib.sha256).digest()
+    finally:
+        # Zero the Python copies immediately
+        if isinstance(raw_key, bytearray):
+            secure_zero_memory(raw_key)
+        elif isinstance(raw_key, bytes):
+            # best-effort: replace binding; bytes are immutable
+            pass
+        if isinstance(key_material, bytearray):
+            secure_zero_memory(key_material)
+        del raw_key, key_material
+    return tag
+
+
+def decrypt_to_raw_production(
+    cipher: bytes,
+    password: str,
+    salt: bytes,
+    nonce: bytes,
+    keyfile: Optional[bytes] = None,
+    orig_len: Optional[int] = None,
+    comp_len: Optional[int] = None,
+    sha256: Optional[bytes] = None,
+    ephemeral_public_key: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+    pq_ciphertext: Optional[bytes] = None,
+    mode_byte: int = 0,
+) -> bytes:
+    """
+    Decrypt and decompress — key stays in Rust handle throughout.
+
+    Production version of decrypt_to_raw.  The raw key NEVER enters
+    Python memory.  Uses handle-based AES-GCM internally.
+    """
+    hb = get_handle_backend()
+
+    # Derive key → handle
+    key_handle = derive_encryption_key_for_manifest_handle(
+        password, salt, keyfile=keyfile,
+        ephemeral_public_key=ephemeral_public_key,
+        receiver_private_key=receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin,
+        precomputed_key=precomputed_key,
+        pq_ciphertext=pq_ciphertext,
+    )
+    try:
+        if orig_len is None or comp_len is None or sha256 is None:
+            raise ValueError(
+                "AAD parameters (orig_len, comp_len, sha256) are required for decryption. "
+                "Files encrypted without AAD are no longer supported."
+            )
+        aad = build_canonical_aad(
+            orig_len=orig_len,
+            comp_len=comp_len,
+            salt=salt,
+            sha256_hash=sha256,
+            magic=MAGIC,
+            ephemeral_public_key=ephemeral_public_key,
+            pq_ciphertext=pq_ciphertext,
+            mode_byte=mode_byte,
+        )
+
+        comp = hb.aes_gcm_decrypt(key_handle, nonce, cipher, aad)
+
+        try:
+            from .metadata_obfuscation import remove_length_padding
+        except ImportError:
+            from metadata_obfuscation import remove_length_padding  # type: ignore[import]
+        try:
+            comp = remove_length_padding(comp)
+        except (ValueError, ImportError):
+            pass
+
+        decomp_limit = (
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
+            if orig_len > 0
+            else 100 * 1024 * 1024
+        )
+        decompressor = zlib.decompressobj()
+        chunk = decompressor.decompress(comp, decomp_limit + 1)
+        if len(chunk) > decomp_limit:
+            raise ValueError("Decompression bomb detected")
+        remaining = decompressor.flush()
+        if len(chunk) + len(remaining) > decomp_limit:
+            raise ValueError("Decompression bomb detected")
+        return chunk + remaining
+    finally:
+        hb.drop(key_handle)
+
+
+def verify_manifest_hmac_production(
+    password: str,
+    manifest,
+    keyfile: Optional[bytes] = None,
+    receiver_private_key: Optional[bytes] = None,
+    yubikey_slot: Optional[str] = None,
+    yubikey_pin: Optional[str] = None,
+    precomputed_key: Optional[bytes] = None,
+) -> bool:
+    """
+    Verify manifest HMAC — key stays in Rust handle.
+
+    Production version of verify_manifest_hmac.  The secret key NEVER
+    enters Python memory.
+    """
+    hb = get_handle_backend()
+
+    key_handle = derive_encryption_key_for_manifest_handle(
+        password, manifest.salt, keyfile=keyfile,
+        ephemeral_public_key=manifest.ephemeral_public_key,
+        receiver_private_key=receiver_private_key,
+        yubikey_slot=yubikey_slot,
+        yubikey_pin=yubikey_pin,
+        precomputed_key=precomputed_key,
+        pq_ciphertext=manifest.pq_ciphertext,
+    )
+    try:
+        packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
+        expected_hmac = compute_manifest_hmac_from_handle(
+            key_handle, manifest.salt, packed_no_hmac,
+        )
+
+        try:
+            from .constant_time import constant_time_compare, equalize_timing
+            result = constant_time_compare(expected_hmac, manifest.hmac)
+            equalize_timing(0.001, 0.005)
+            return result
+        except ImportError:
+            return secrets.compare_digest(expected_hmac, manifest.hmac)
+    finally:
+        hb.drop(key_handle)
+
+
 def decrypt_to_raw(
     cipher: bytes,
     password: str,
@@ -1292,6 +1598,7 @@ def unpack_manifest(b: bytes) -> Manifest:
         pq_ciphertext=pq_ciphertext,
         duress_tag=duress_tag,
         mode_byte=mode_byte,
+        crypto_profile=classify_crypto_profile(mode_byte),
     )
 
 

@@ -298,10 +298,8 @@ def load_x25519_private_key_pem(
     else:
         raise ValueError(
             "Unsupported key format. Expected MEOW_X25519 format (magic: MEOW_X25519\\x01 or "
-            "MEOW_X25519\\x02). Legacy PEM keys can be converted using:\n"
-            "  from legacy_py.x25519_pem_legacy import load_pem_private_key_legacy\n"
-            "  raw_key = load_pem_private_key_legacy(pem_data, password)\n"
-            "Then re-save with save_receiver_keypair() in MEOW_X25519 format."
+            "MEOW_X25519\\x02). Legacy PEM keys are no longer supported. "
+            "Please re-generate your keypair with save_receiver_keypair() in MEOW_X25519 format."
         )
 
 

@@ -1,21 +1,37 @@
-# .coveragerc - Coverage.py configuration
-# This file is used by pytest-cov (--cov-config=.coveragerc)
-# Keep in sync with pyproject.toml [tool.coverage.*] sections
+# .coveragerc - Python coverage (LOCAL-ONLY, not uploaded to Codecov)
+#
+# Codecov monitors RUST coverage via cargo-tarpaulin (see codecov.yml).
+# This file is used by pytest-cov for local Python coverage reports only.
+#
+# Usage: pytest --cov=meow_decoder --cov-config=.coveragerc --cov-report=term
 
 [run]
 branch = true
 source =
     meow_decoder
 omit =
+    # Debug/verbose variants
     meow_decoder/*_DEBUG.py
+    # GUI modules (require dearpygui, X11)
     meow_decoder/gui_*.py
+    meow_decoder/meow_gui_enhanced.py
     meow_decoder/meow_dashboard*.py
+    # Hardware modules (require YubiKey, HSM, TPM)
     meow_decoder/hardware_*.py
+    # Webcam/camera modules (require camera device)
+    meow_decoder/webcam_*.py
+    meow_decoder/decode_webcam_with_resume.py
+    # Experimental/unstable
+    meow_decoder/experimental/*
     meow_decoder/pq_*.py
+    # Network/device modules (require external services)
+    meow_decoder/cat_api.py
+    meow_decoder/mobile_bridge.py
+    meow_decoder/secure_bridge.py
+    # Specialized modes (hard to unit test, or deprecated)
     meow_decoder/prowling_mode.py
     meow_decoder/clowder_*.py
     meow_decoder/bidirectional.py
-    meow_decoder/webcam_*.py
     meow_decoder/logo_eyes.py
     meow_decoder/ascii_qr.py
     meow_decoder/ninja_cat_ultra.py

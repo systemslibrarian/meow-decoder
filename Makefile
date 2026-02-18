@@ -1,6 +1,6 @@
 # 🐱 Meow Decoder - Makefile
 
-.PHONY: help install dev test lint format clean build publish \
+.PHONY: help install dev test test-rust test-rust-coverage lint format clean build publish \
 	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tla-streaming \
 	formal-tamarin formal-tamarin-duress formal-tamarin-pq formal-tamarin-docker \
 	formal-verus formal-verus-docker formal-lean formal-lean-sorry formal-all formal-ci \
@@ -12,12 +12,17 @@ help:
 	@echo ""
 	@echo "  make install     - Install dependencies"
 	@echo "  make dev         - Install dev dependencies"
-	@echo "  make test        - Run tests"
+	@echo "  make test        - Run Python tests"
+	@echo "  make test-rust   - Run Rust tests (no coverage)"
 	@echo "  make lint        - Lint code"
 	@echo "  make format      - Format code"
 	@echo "  make clean       - Clean build artifacts"
 	@echo "  make build       - Build package"
 	@echo "  make publish     - Publish to PyPI"
+	@echo ""
+	@echo "📊 Coverage (Codecov monitors Rust only):"
+	@echo "  make test-rust-coverage  - Rust coverage via cargo-tarpaulin"
+	@echo "  make test-security       - Python security coverage (local gate)"
 	@echo ""
 	@echo "📦 Build Targets:"
 	@echo "  make build             - Build Python package"
@@ -262,6 +267,41 @@ build-rust:
 	cd crypto_core && cargo build --release --features full-software
 	@echo "✅ Rust build complete"
 
+# 🦀 Rust coverage (cargo-tarpaulin) — this is what Codecov monitors
+test-rust-coverage:
+	@echo "🦀 Running Rust coverage (cargo-tarpaulin)..."
+	@echo "📊 crypto_core coverage:"
+	cd crypto_core && cargo tarpaulin \
+		--features "pure-crypto,pq-crypto" \
+		--out Html --out Lcov \
+		--output-dir . \
+		--timeout 300 \
+		--exclude-files "src/wasm.rs" \
+		--exclude-files "src/hsm.rs" \
+		--exclude-files "src/tpm.rs" \
+		--exclude-files "src/yubikey_piv.rs" \
+		--exclude-files "src/verus_proofs.rs" \
+		--exclude-files "src/verus_kdf_proofs.rs"
+	@echo ""
+	@echo "📊 rust_crypto coverage:"
+	cd rust_crypto && cargo tarpaulin \
+		--lib --tests \
+		--out Html --out Lcov \
+		--output-dir . \
+		--timeout 300 \
+		--exclude-files "src/lib.rs"
+	@echo ""
+	@echo "✅ Rust coverage reports:"
+	@echo "   crypto_core/tarpaulin-report.html"
+	@echo "   rust_crypto/tarpaulin-report.html"
+
+# 🦀 Quick Rust test (no coverage instrumentation)
+test-rust:
+	@echo "🦀 Running Rust tests..."
+	cd crypto_core && cargo test --features "pure-crypto,pq-crypto"
+	cd rust_crypto && cargo test --features "pq"
+	@echo "✅ Rust tests complete"
+
 # 🌐 WASM build (development)
 build-wasm: check-wasm-deps
 	@echo "🌐 Building WASM bindings (development)..."
@@ -331,9 +371,9 @@ build-wasm-pq: check-wasm-deps
 	@echo "📊 Package size: $$(du -h crypto_core/pkg/*.wasm | cut -f1)"
 	@echo ""
 	@echo "🔮 Post-Quantum features enabled:"
-	@echo "   - ML-KEM-1024 (Kyber) quantum-resistant key exchange"
+	@echo "   - ML-KEM-1024 (Kyber) quantum-resistant key exchange (experimental)"
 	@echo "   - Hybrid X25519 + ML-KEM mode"
-	@echo "   - NIST Level 5 security"
+	@echo "   - Targets NIST PQ Level 5 (not externally audited)"
 
 # 🌐 WASM Node.js build (for server-side use)
 build-wasm-node: check-wasm-deps

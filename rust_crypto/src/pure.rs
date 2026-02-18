@@ -887,6 +887,7 @@ mod tests {
 
     #[test]
     fn test_crypto_error_display() {
+        #[allow(unused_mut)]
         let mut errors: Vec<CryptoError> = vec![
             CryptoError::InvalidSaltLength {
                 expected: 16,

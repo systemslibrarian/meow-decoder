@@ -1,15 +1,15 @@
 # 🛡️ THREAT MODEL - Meow Decoder v1.0
 
-**Date:** 2026-01-28  
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Classification:** Security‑Reviewed v1.0 (claims bounded by tests/specs)  
+**Date:** 2026-01-28
+**Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
+**Classification:** Internal review v1.0 (claims bounded by tests/specs)
 **Last Security Review:** 2026-01-28
 
 ---
 
 ## ✅ v1.0 Security‑Review Threat Model (Normative)
 
-This section is the **authoritative threat model** for the v1.0 security‑reviewed release.
+This section is the **authoritative threat model** for the v1.0 internally-reviewed release.
 
 ### Attacker Capabilities
 
@@ -600,7 +600,7 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 | Key exchange | ML-KEM-768/1024 (Kyber) + X25519 PQXDH | ✅ Production |
 
 **What's Implemented:**
-- `pq_hybrid.py` with ML-KEM-768 + X25519 PQXDH (default, Signal parity) / ML-KEM-1024 (paranoid, NIST Level 5) — primary PQ module
+- `pq_hybrid.py` with ML-KEM-768 + X25519 (default) / ML-KEM-1024 (paranoid) — primary PQ module (experimental, not externally audited)
 - `pq_crypto_real.py` is **deprecated** (emits `DeprecationWarning`, forced to ML-KEM-1024)
 - Graceful fallback if liboqs not installed
 - Security: Safe if EITHER classical OR quantum crypto holds
@@ -615,7 +615,7 @@ pip install liboqs-python
 meow-encode --pq -i secret.pdf -o secret.gif -p "password"
 ```
 
-**Note:** ML-KEM-768 is the default (Signal PQXDH parity); ML-KEM-1024 available as --paranoid (NIST Level 5).
+**Note:** ML-KEM-768 is the default; ML-KEM-1024 available as --paranoid. PQ mode is experimental.
 
 ---
 
@@ -876,6 +876,6 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ---
 
-**Document Version:** 1.0.0  
-**Last Updated:** 2026-01-25  
+**Document Version:** 1.0.0
+**Last Updated:** 2026-01-25
 **Security Contact:** Open a GitHub issue with [SECURITY] tag

@@ -37,9 +37,9 @@ subtle = "2.5"                                       # Constant-time operations
 zeroize = { version = "1.7", features = ["derive"] }
 
 # Random number generation
-rand = "0.10"
+rand = "0.8"
 rand_core = "0.6"
-getrandom = "0.4"
+getrandom = { version = "0.2", features = ["std"] }
 
 # Handle registry
 lazy_static = "1.4"
@@ -99,8 +99,3 @@ panic = "abort"
 # Placed here so all workspace members inherit the limit.
 [package.metadata.proptest]
 cases = 1024
-
-# Maturin config
-[tool.maturin]
-python-source = "python"
-features = ["python", "pyo3/extension-module"]

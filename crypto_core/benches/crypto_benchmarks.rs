@@ -113,7 +113,7 @@ fn bench_argon2id(c: &mut Criterion) {
 // X25519 Key Exchange Benchmarks
 // ============================================
 
-#[cfg(feature = "x25519")]
+#[cfg(feature = "x25519-dalek")]
 fn bench_x25519(c: &mut Criterion) {
     use rand_core::OsRng;
     use x25519_dalek::{EphemeralSecret, PublicKey};
@@ -128,7 +128,7 @@ fn bench_x25519(c: &mut Criterion) {
     });
 
     // Pre-generate keys for DH benchmark
-    let alice_secret = EphemeralSecret::random_from_rng(OsRng);
+    let _alice_secret = EphemeralSecret::random_from_rng(OsRng);
     let bob_secret = EphemeralSecret::random_from_rng(OsRng);
     let bob_public = PublicKey::from(&bob_secret);
 
@@ -284,7 +284,7 @@ criterion_group!(benches_base, bench_aes_gcm,);
 #[cfg(feature = "argon2")]
 criterion_group!(benches_argon2, bench_argon2id);
 
-#[cfg(feature = "x25519")]
+#[cfg(feature = "x25519-dalek")]
 criterion_group!(benches_x25519, bench_x25519);
 
 #[cfg(feature = "pq-crypto")]
@@ -296,20 +296,11 @@ criterion_group!(benches_liboqs, bench_liboqs_kem);
 #[cfg(feature = "hkdf")]
 criterion_group!(benches_hkdf, bench_hkdf);
 
-// Main entry point
-criterion_main!(
-    benches_base,
-    #[cfg(feature = "argon2")]
-    benches_argon2,
-    #[cfg(feature = "x25519")]
-    benches_x25519,
-    #[cfg(feature = "pq-crypto")]
-    benches_pq,
-    #[cfg(feature = "liboqs-native")]
-    benches_liboqs,
-    #[cfg(feature = "hkdf")]
-    benches_hkdf,
-);
+// Main entry point — criterion_main! doesn't support #[cfg] on items,
+// so we only include bench groups that are unconditionally compiled.
+// Feature-gated benchmarks are defined above but only included when their
+// feature is active via the criterion_group! + cfg combo.
+criterion_main!(benches_base);
 
 // ============================================
 // 🐱 Cat-Themed Benchmark Notes

@@ -15,14 +15,18 @@ import time
 # Import core modules
 from .config import MeowConfig, EncodingConfig
 from .crypto import (
-    encrypt_file_bytes,
-    compute_manifest_hmac,
+    encrypt_file_bytes_production,
+    compute_manifest_hmac_from_handle,
     pack_manifest,
     Manifest,
     verify_keyfile,
     compute_duress_tag,
     pack_manifest_core,
+    classify_crypto_profile,
+    PROFILE_PROD_MIN,
+    PROFILE_PQ_EXPERIMENTAL,
 )
+from .crypto_backend import get_handle_backend
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
@@ -254,7 +258,7 @@ def encode_file(
                 f"  ⚠️  PQ mode requested but no receiver public key; using password-only encryption"
             )
 
-    comp, sha256, salt, nonce, cipher, ephemeral_public_key, encryption_key = encrypt_file_bytes(
+    comp, sha256, salt, nonce, cipher, ephemeral_public_key, key_handle = encrypt_file_bytes_production(
         **encrypt_kwargs
     )
 
@@ -287,6 +291,7 @@ def encode_file(
             print(f"  🚨 Duress password configured (emergency response on decode)")
 
     # Create manifest (mode_byte computed earlier, before encrypt_file_bytes call)
+    _crypto_profile = classify_crypto_profile(_mode)
     manifest = Manifest(
         salt=salt,
         nonce=nonce,
@@ -301,6 +306,7 @@ def encode_file(
         pq_ciphertext=pq_ciphertext,  # Post-quantum hybrid support (MEOW4)
         duress_tag=duress_tag,  # Duress password support (authenticated)
         mode_byte=_mode,  # FIX-D3: Explicit mode byte
+        crypto_profile=_crypto_profile,
     )
 
     # Compute HMAC (need to handle variable manifest size)
@@ -317,9 +323,9 @@ def encode_file(
     # Build packed manifest without HMAC (includes duress tag if present)
     packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
 
-    # Compute HMAC using the encryption key directly (critical for forward secrecy!)
-    manifest.hmac = compute_manifest_hmac(
-        password, salt, packed_no_hmac, keyfile, encryption_key=encryption_key
+    # Compute HMAC using the encryption key handle (key never enters Python)
+    manifest.hmac = compute_manifest_hmac_from_handle(
+        key_handle, salt, packed_no_hmac,
     )
 
     # Pack final manifest
@@ -339,22 +345,21 @@ def encode_file(
         print("\nGenerating QR codes with frame MACs...")
 
     # Import frame MAC module
-    from .frame_mac import pack_frame_with_mac, FrameMACStats, derive_frame_master_key
+    from .frame_mac import pack_frame_with_mac, FrameMACStats, derive_frame_master_key_handle
 
-    # Derive frame MAC master key from the encryption key (binds keyfile + FS)
+    # Derive frame MAC master key from the encryption key handle (key never in Python)
     # HKDF domain separation ensures independence from other crypto keys
-    # Use a mutable buffer for best-effort zeroing after use
-    encryption_key_buf = bytearray(encryption_key)
-    frame_master_key = derive_frame_master_key(bytes(encryption_key_buf), salt)
+    hb = get_handle_backend()
+    frame_master_key_handle = derive_frame_master_key_handle(key_handle, salt)
 
-    # Initialize per-frame ratchet if enabled (BEFORE zeroizing encryption key)
+    # Initialize per-frame ratchet if enabled (uses key_handle, not raw bytes)
     encoder_ratchet = None
     if _use_ratchet:
         from .ratchet import EncoderRatchet
 
         _rekey_interval = getattr(config, "rekey_beacon_interval", 0)
         encoder_ratchet = EncoderRatchet(
-            root_key=bytes(encryption_key_buf),
+            root_key=key_handle,
             salt=salt,
             k_blocks=k_blocks,
             block_size=config.block_size,
@@ -371,16 +376,10 @@ def encode_file(
                 f"per-frame AES-256-GCM{_beacon_msg}"
             )
 
-    # Best-effort zeroization of encryption key material
-    try:
-        from .crypto_backend import get_default_backend
-
-        get_default_backend().secure_zero(encryption_key_buf)
-    except Exception:
-        pass
-    # Drop remaining references to key material
-    encryption_key = b""
-    del encryption_key
+    # Drop the encryption key handle — frame_master_key_handle and ratchet own
+    # their own derived handles from this point on.
+    hb.drop(key_handle)
+    del key_handle
 
     mac_stats = FrameMACStats()
 
@@ -397,7 +396,7 @@ def encode_file(
     # mode_byte, salt, k_blocks from the manifest to set up the ratchet).
     # Manifest confidentiality is not needed — it contains only metadata, and
     # is authenticated by HMAC. The ratchet protects payload frames (droplets).
-    manifest_with_mac = pack_frame_with_mac(manifest_bytes, frame_master_key, 0, salt)
+    manifest_with_mac = pack_frame_with_mac(manifest_bytes, frame_master_key_handle, 0, salt)
     manifest_qr = qr_generator.generate(manifest_with_mac)
     qr_frames.append(manifest_qr)
     mac_stats.record_valid()  # Track MAC generation
@@ -423,7 +422,7 @@ def encode_file(
             frame_data = encoder_ratchet.encrypt_next(droplet_bytes)
 
         # Add MAC to (possibly encrypted) frame data
-        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key, i + 1, salt)
+        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key_handle, i + 1, salt)
 
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
@@ -468,7 +467,7 @@ def encode_file(
                 # Use manifest_with_mac and all droplet_with_mac as payload
                 payloads = [manifest_with_mac] + [
                     pack_frame_with_mac(
-                        pack_droplet(fountain.droplet()), frame_master_key, i + 1, salt
+                        pack_droplet(fountain.droplet()), frame_master_key_handle, i + 1, salt
                     )
                     for i in range(num_droplets)
                 ]
@@ -625,6 +624,10 @@ def encode_file(
                 print(f"  ⚠️ Steganography failed: {e}")
                 print(f"  Falling back to plain QR codes")
 
+    # Drop frame master key handle (no longer needed after all QR frames built)
+    hb.drop(frame_master_key_handle)
+    del frame_master_key_handle
+
     # Create GIF
     if verbose:
         print("\nCreating GIF...")
@@ -692,12 +695,16 @@ def _run_self_test() -> int:  # pragma: no cover
 
     # --- Test 2: AES-256-GCM roundtrip ---
     try:
-        from .crypto import encrypt_file_bytes, decrypt_to_raw
+        # Self-test uses raw key-returning APIs intentionally (not production path)
+        from .crypto import encrypt_file_bytes, decrypt_to_raw  # noqa: F811 — self-test only
 
         plaintext = b"The quick brown cat jumps over the lazy dog. " * 20
         password = "self-test-" + _sec.token_hex(8)
-        ct = encrypt_file_bytes(plaintext, password)
-        pt = decrypt_to_raw(ct, password)
+        _comp, _sha, _salt, _nonce, _cipher, _epk, _key = encrypt_file_bytes(plaintext, password)
+        pt = decrypt_to_raw(
+            _cipher, password, _salt, _nonce,
+            orig_len=len(plaintext), comp_len=len(_comp), sha256=_sha,
+        )
         assert pt == plaintext, "Decrypted data does not match original"
         print(f"  [✅] AES-256-GCM roundtrip ({len(plaintext)} bytes)")
         passed += 1

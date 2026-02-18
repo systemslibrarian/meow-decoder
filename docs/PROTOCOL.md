@@ -1,6 +1,6 @@
 # Meow Decoder Protocol Specification (v1.0)
 
-**Status:** Normative protocol definition for the v1.0 security‑reviewed release.
+**Status:** Normative protocol definition for the v1.0 internally-reviewed release.
 
 This document defines the **byte‑level formats**, state transitions, and **failure rules** for Meow‑Decoder’s air‑gapped QR/GIF transfer. Any deviation is a protocol error and must be handled as specified.
 
@@ -11,8 +11,8 @@ This document defines the **byte‑level formats**, state transitions, and **fai
 ### Manifest versions (MAGIC)
 - **MEOW2**: Legacy password‑only (backward compatibility decode only).
 - **MEOW3**: Default for password‑only and X25519 forward secrecy.
-- **MEOW4**: Post‑quantum hybrid paranoid (ML-KEM-1024 + X25519, NIST Level 5).
-- **MEOW5**: Post‑quantum hybrid default (ML-KEM-768 + X25519, Signal PQXDH parity).
+- **MEOW4**: Post‑quantum hybrid paranoid (ML-KEM-1024 + X25519).
+- **MEOW5**: Post‑quantum hybrid default (ML-KEM-768 + X25519).
 
 ### Modes
 - **Password‑only:** no receiver public key.
@@ -174,9 +174,9 @@ All failures must be **safe and boring**: no partial plaintext and no detailed o
 ## 11. MEOW5/MEOW4 Post‑Quantum PQXDH Hybrid Mode
 
 ### 11.1 KEM Algorithm
-- **MEOW5 (default):** ML‑KEM‑768 (FIPS 203 / Kyber768, Signal PQXDH parity).
+- **MEOW5 (default):** ML‑KEM‑768 (FIPS 203 / Kyber768).
   - Ciphertext: 1088 bytes. Public key: 1184 bytes. Shared secret: 32 bytes.
-- **MEOW4 (paranoid):** ML‑KEM‑1024 (FIPS 203 / Kyber1024, NIST Level 5).
+- **MEOW4 (paranoid):** ML‑KEM‑1024 (FIPS 203 / Kyber1024).
   - Ciphertext: 1568 bytes. Public key: 1568 bytes. Shared secret: 32 bytes.
 
 The encode pipeline is fully wired end-to-end:

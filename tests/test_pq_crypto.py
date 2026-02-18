@@ -10,9 +10,9 @@ class TestPQCryptoReal:
         with pytest.raises((ImportError, ModuleNotFoundError, RuntimeError)):
             from meow_decoder import pq_crypto_real  # noqa: F401
 
-    def test_pq_crypto_real_legacy_raises(self):
-        """legacy_py/pq_crypto_real.py raises RuntimeError on import (FIX-D1)."""
-        with pytest.raises(RuntimeError, match="DISABLED"):
+    def test_pq_crypto_real_legacy_removed(self):
+        """legacy_py/ has been deleted (no-downgrade-paths enforcement)."""
+        with pytest.raises((ImportError, ModuleNotFoundError)):
             from legacy_py import pq_crypto_real  # noqa: F401
 
 

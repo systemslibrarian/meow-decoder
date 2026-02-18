@@ -352,7 +352,7 @@ class TestFixD1XORCombinerDeprecation:
             importlib.import_module(mod_name)
 
     def test_pq_crypto_real_legacy_raises_runtime_error(self):
-        """FIX-D1 v2: legacy_py/pq_crypto_real raises RuntimeError."""
+        """FIX-D1 v2: legacy_py/ has been deleted entirely."""
         import importlib
         import sys
 
@@ -360,7 +360,7 @@ class TestFixD1XORCombinerDeprecation:
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 
-        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
+        with pytest.raises((ImportError, ModuleNotFoundError)):
             importlib.import_module(mod_name)
 
 
@@ -416,9 +416,14 @@ class TestFixE1FrameMACFailClosed:
             "QRCodeReader",
             lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
         )
-        monkeypatch.setattr(decode_mod, "verify_manifest_hmac", lambda *args, **kwargs: True)
+        monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
         monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
-        monkeypatch.setattr(decode_mod, "decrypt_to_raw", lambda *args, **kwargs: plaintext)
+        monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
+
+        # Bypass inline HMAC verification: compute_manifest_hmac_from_handle
+        # is imported inside decode_gif, so patch it at the source
+        import meow_decoder.crypto as crypto_mod
+        monkeypatch.setattr(crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
 
         import meow_decoder.frame_mac as frame_mac
 
@@ -436,6 +441,7 @@ class TestFixE1FrameMACFailClosed:
                 out_path,
                 password="password123",
                 verbose=True,
+                allow_legacy=True,
             )
 
 
@@ -865,7 +871,7 @@ class TestV2FixD1HardDisable:
             importlib.import_module(mod_name)
 
     def test_legacy_import_raises_runtime_error(self):
-        """legacy_py/pq_crypto_real raises RuntimeError."""
+        """legacy_py/ has been deleted — import must fail with ModuleNotFoundError."""
         import importlib
         import sys
 
@@ -873,7 +879,7 @@ class TestV2FixD1HardDisable:
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 
-        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
+        with pytest.raises((ImportError, ModuleNotFoundError)):
             importlib.import_module(mod_name)
 
     def test_pq_hybrid_still_works(self):

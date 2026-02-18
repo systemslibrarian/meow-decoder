@@ -3,19 +3,19 @@ name: Cleanup old workflow runs
 on:
   # Run automatically every Sunday at midnight UTC
   schedule:
-    - cron: '0 0 * * 0'
+    - cron: "0 0 * * 0"
 
   # Allow manual trigger from Actions tab
   workflow_dispatch:
     inputs:
       keep_minimum_runs:
-        description: 'Number of most recent runs to keep per workflow'
+        description: "Number of most recent runs to keep per workflow"
         required: false
-        default: '5'  # ← Changed default to 5 (more reasonable)
+        default: "5" # ← Changed default to 5 (more reasonable)
       retain_days:
-        description: 'Delete runs older than this many days (0 = delete all except kept)'
+        description: "Delete runs older than this many days (0 = delete all except kept)"
         required: false
-        default: '30'  # ← Added & default to 30 days
+        default: "30" # ← Added & default to 30 days
 
 permissions: {}
 
@@ -25,7 +25,7 @@ jobs:
   cleanup:
     runs-on: ubuntu-latest
     permissions:
-      actions: write   # Required for deletion
+      actions: write # Required for deletion
 
     steps:
       - name: Delete old workflow runs (dry-run first for safety)
@@ -33,12 +33,8 @@ jobs:
         with:
           token: ${{ github.token }}
           repository: ${{ github.repository }}
-          retain_days: ${{ github.event.inputs.retain_days || 30 }}   # ← Use input or default
+          retain_days: ${{ github.event.inputs.retain_days || 30 }} # ← Use input or default
           keep_minimum_runs: ${{ github.event.inputs.keep_minimum_runs || 5 }}
-          delete_workflow_pattern: ""   # empty = all workflows
-          exclude_workflow_names: "Cleanup old workflow runs"  # self-exclude
-          dry_run: true   # ← Added: preview only first time
-          verbose: true   # Helps see what would be deleted
-
-      # After verifying dry-run output in logs, remove/comment dry_run: true
-      # and re-run manually to actually delete old runs.
+          delete_workflow_pattern: "" # empty = all workflows
+          exclude_workflow_names: "Cleanup old workflow runs" # self-exclude
+          verbose: true # Helps see what would be deleted

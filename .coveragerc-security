@@ -1,6 +1,7 @@
-# .coveragerc-security
-# Enforces coverage ONLY on the true security-critical modules.
-# Use this in CI to gate merges / releases — do NOT apply to the full codebase.
+# .coveragerc-security - Python security coverage gate (LOCAL-ONLY)
+#
+# Codecov monitors RUST coverage. This file gates Python crypto modules locally.
+# Enforces coverage ONLY on the true security-critical Python modules.
 #
 # Recommended CI usage:
 #   coverage run -m pytest

@@ -2,7 +2,7 @@
 
 All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
-> **Version Note:** The public release is **v1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)**.
+> **Version Note:** The public release is **v1.0.0 (INTERNAL REVIEW).**
 > The version numbers below (5.x, 6.x) are historical internal development milestones
 > that have been consolidated into the v1.0 public release.
 >
@@ -128,13 +128,13 @@ x25519_public_from_private, constant_time_compare, secure_zero, secure_random
 - **No Python fallback**: CI fails if Rust backend unavailable (`RUST_BACKEND_REQUIRED=1`)
 - **Golden vector parity**: Python and Rust outputs byte-for-byte identical
 
-### Security — PQXDH Upgrade: Signal 2026 Post-Quantum Alignment 🔐
+### Security — PQXDH Upgrade: Post-Quantum Hybrid Alignment 🔐
 
-**ML-KEM-768 default** (Signal PQXDH parity) with **ML-KEM-1024 --paranoid** option. Full PQXDH-style two-step HKDF transcript binding replaces the previous single-step derivation.
+**ML-KEM-768 default** with **ML-KEM-1024 --paranoid** option. Full PQXDH-style two-step HKDF transcript binding replaces the previous single-step derivation.
 
 #### ML-KEM Variant Selection
-- Default changed from ML-KEM-1024 (Kyber1024) to **ML-KEM-768** (Kyber768) — matches Signal's PQXDH choice
-- ML-KEM-1024 retained as `--paranoid` mode (NIST Level 5) via `pq_paranoid=True`
+- Default changed from ML-KEM-1024 (Kyber1024) to **ML-KEM-768** (Kyber768)
+- ML-KEM-1024 retained as `--paranoid` mode via `pq_paranoid=True`
 - New manifest version **MEOW5** (`mode_byte=0x05`) for ML-KEM-768 (ct=1088 bytes, pk=1184 bytes)
 - MEOW4 (`mode_byte=0x04`) retained for backward-compatible ML-KEM-1024 (ct=1568 bytes)
 
@@ -176,9 +176,9 @@ x25519_public_from_private, constant_time_compare, secure_zero, secure_random
 | `TestConfigDefaults` | Default variant, paranoid flag, encoding config |
 | `TestCheckPQAvailable` | Availability detection for both variants |
 
-### Security — MSR v2.0 Asymmetric Entropy Reinjection (Signal-Grade PCS) 🔐
+### Security — MSR v2.0 Asymmetric Entropy Reinjection (Signal-Inspired PCS) 🔐
 
-**Post-Compromise Security** via periodic X25519 root key rotation. Compromise of ratchet state at frame N is healed within ≤K frames (rekey_interval). This is the air-gap equivalent of Signal's DH ratchet.
+**Post-Compromise Security** via periodic X25519 root key rotation. Compromise of ratchet state at frame N is healed within ≤K frames (rekey_interval). This is the air-gap equivalent of Signal's DH ratchet (not Signal; no equivalence claim).
 
 #### Asymmetric Root Key Rotation
 - Every `rekey_interval` frames, the encoder generates a fresh X25519 ephemeral keypair
@@ -223,9 +223,9 @@ x25519_public_from_private, constant_time_compare, secure_zero, secure_random
 | `TestEdgeCases` | Interval=1, disabled, large epochs, single frame |
 | `TestTamperDetectionV2` | Modified ephemeral rejected, replay rejected |
 
-### Security — MSR v1.2 Signal-Parity Hardening (2026-02-16) 🔐
+### Security — MSR v1.2 Signal-Inspired Hardening (2026-02-16) 🔐
 
-Three Signal-parity security hardening features for the MEOW Symmetric Ratchet:
+Three Signal-inspired security hardening features for the MEOW Symmetric Ratchet:
 
 #### Header Encryption
 - Frame indices are now XOR-masked with HKDF-derived pseudorandom masks (`HEADER_ENC_INFO = "meow_ratchet_header_v1"`, `HEADER_MASK_INFO = "meow_header_mask_v1"`)
@@ -250,7 +250,7 @@ Three Signal-parity security hardening features for the MEOW Symmetric Ratchet:
 - `COMMIT_TAG_SIZE = 16` — truncated HMAC-SHA256 commitment
 
 #### Tests
-- 142 ratchet unit tests (+22 from v1.1): header encryption, key commitment, Signal-parity hardening
+- 142 ratchet unit tests (+22 from v1.1): header encryption, key commitment, Signal-inspired hardening
 - 23 E2E ratchet pipeline tests (all passing with hardened frame format)
 - New test classes: `TestHeaderEncryption`, `TestKeyCommitment`, `TestSignalParityHardening`
 
@@ -378,7 +378,7 @@ plus 5 additional requirements from cross-audit review.
 #### 8 Encryption Modes in Web Demo
 - **🔐 Standard Mode**: AES-256-GCM + Argon2id with configurable security levels
 - **🔑 Forward Secrecy Mode**: X25519 ephemeral key exchange with full key management
-- **🔮 Post-Quantum Mode**: ML-KEM-1024 + X25519 hybrid encryption (NIST Level 5)
+- **🔮 Post-Quantum Mode**: ML-KEM-1024 + X25519 hybrid encryption (experimental)
 - **🐱 Schrödinger Mode**: Dual-secret plausible deniability
 - **🖼️ Stego Mode**: LSB steganography embedding
 - **📹 Webcam Mode**: Live QR scanner with real-time decode
@@ -511,7 +511,7 @@ plus 5 additional requirements from cross-audit review.
 ## [1.0.0] - 2026-01-28 (Public Release)
 
 **This release consolidates all internal development milestones (v5.x, v6.x) into the
-first public release: v1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW).**
+first public release: v1.0.0 (INTERNAL REVIEW — no external audit).**
 
 All features, security hardening, and tests from internal versions 5.0.0 through 5.9.0
 are included in this release.

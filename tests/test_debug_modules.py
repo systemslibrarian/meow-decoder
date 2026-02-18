@@ -1,5 +1,7 @@
 """Tests for debug and profiling modules."""
 
+import types
+import hashlib
 import pytest
 import ast
 from pathlib import Path
@@ -7,12 +9,8 @@ from pathlib import Path
 
 class TestCryptoDebug:
     def test_crypto_debug_import(self):
-        try:
-            from legacy_py import crypto_DEBUG
-
-            assert crypto_DEBUG is not None
-        except ImportError:
-            pytest.skip("crypto_DEBUG module not available (moved to legacy_py/)")
+        # legacy_py has been removed (no-downgrade-paths enforcement)
+        pytest.skip("crypto_DEBUG module removed with legacy_py/ deletion")
 
 
 class TestEncodeDebug:
@@ -58,18 +56,21 @@ class TestSetupModule:
 
 # --- Merged from test_debug_modules_comprehensive.py ---
 
-import hashlib
-import types
-from pathlib import Path
 
-import legacy_py.crypto_DEBUG as crypto_debug
-import meow_decoder.encode_DEBUG as encode_debug
+# legacy_py removed (no-downgrade-paths, Rule #4)
+crypto_debug = None
+
+try:
+    import meow_decoder.encode_DEBUG as encode_debug
+except ImportError:
+    encode_debug = None
 
 
 def _fast_derive_key(password: str, salt: bytes, keyfile=None) -> bytes:
     return hashlib.sha256(password.encode("utf-8") + salt).digest()
 
 
+@pytest.mark.skipif(crypto_debug is None, reason="legacy_py removed")
 def test_crypto_debug_pack_unpack_manifest_roundtrip():
     manifest = crypto_debug.Manifest(
         salt=b"a" * 16,
@@ -91,6 +92,7 @@ def test_crypto_debug_pack_unpack_manifest_roundtrip():
     assert unpacked.sha256 == manifest.sha256
 
 
+@pytest.mark.skipif(crypto_debug is None, reason="legacy_py removed")
 def test_crypto_debug_compute_manifest_hmac_with_encryption_key():
     packed = b"payload"
     hmac_val = crypto_debug.compute_manifest_hmac(
@@ -103,6 +105,7 @@ def test_crypto_debug_compute_manifest_hmac_with_encryption_key():
     assert len(hmac_val) == 32
 
 
+@pytest.mark.skipif(crypto_debug is None, reason="legacy_py removed")
 def test_crypto_debug_verify_manifest_hmac(monkeypatch):
     monkeypatch.setattr(crypto_debug, "derive_key", _fast_derive_key)
     manifest = crypto_debug.Manifest(
@@ -136,6 +139,7 @@ def test_crypto_debug_verify_manifest_hmac(monkeypatch):
     assert crypto_debug.verify_manifest_hmac("pw", manifest) is True
 
 
+@pytest.mark.skipif(encode_debug is None, reason="encode_DEBUG not available")
 def test_encode_debug_encode_file_smoke(tmp_path, monkeypatch):
     input_path = tmp_path / "in.txt"
     output_path = tmp_path / "out.gif"

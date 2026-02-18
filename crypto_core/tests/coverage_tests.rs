@@ -7,8 +7,6 @@ use crypto_core::{
     NonceGenerator, NonceManager, NonceTracker, KEY_SIZE, NONCE_SIZE, TAG_SIZE,
 };
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 // =============================================================================
 // Nonce Exhaustion Tests
 // =============================================================================
@@ -213,7 +211,7 @@ fn test_aead_decrypt_ciphertext_too_short() {
 #[test]
 fn test_aead_encrypt_empty_plaintext() {
     let key = [0x55u8; 32];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let nonce = [0x22u8; 12];
 
     // Empty plaintext should work
@@ -230,7 +228,7 @@ fn test_aead_encrypt_empty_plaintext() {
 #[test]
 fn test_aead_large_aad() {
     let key = [0x66u8; 32];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let nonce = [0x33u8; 12];
     let plaintext = b"secret";
 
@@ -248,7 +246,7 @@ fn test_aead_large_aad() {
 #[test]
 fn test_aead_ciphertext_size() {
     let key = [0x77u8; 32];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let nonce = [0x44u8; 12];
     let plaintext = b"test plaintext";
 
@@ -261,7 +259,7 @@ fn test_aead_ciphertext_size() {
 #[test]
 fn test_aead_encrypt_decrypt_roundtrip() {
     let key = [0x88u8; 32];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let gen = NonceGenerator::new();
     let nonce = gen.next().unwrap();
 
@@ -297,7 +295,7 @@ fn test_aead_encryption_count_increments() {
     let wrapper = AeadWrapper::new(&key).unwrap();
 
     // Use the managed encrypt method (not encrypt_raw)
-    let gen = NonceGenerator::new();
+    let _gen = NonceGenerator::new();
 
     // Check count is tracked
     assert_eq!(wrapper.encryption_count(), 0);
@@ -466,7 +464,7 @@ fn test_nonce_tracker_default() {
 #[test]
 fn test_all_zero_key_works() {
     let zero_key = [0u8; 32];
-    let mut wrapper = AeadWrapper::new(&zero_key).unwrap();
+    let wrapper = AeadWrapper::new(&zero_key).unwrap();
     let nonce = [0u8; 12];
     let plaintext = b"even zero key should work";
 
@@ -702,7 +700,7 @@ mod pq_tests {
 
 #[cfg(feature = "pure-crypto")]
 mod pure_crypto_coverage {
-    use crypto_core::pure_crypto::{Nonce, Salt};
+    use crypto_core::pure_crypto::Nonce;
     use crypto_core::{
         aes_gcm_decrypt, aes_gcm_encrypt, constant_time_eq, hkdf_derive, hmac_sha256,
         hmac_sha256_verify, random_bytes, sha256, SecretKey, X25519KeyPair,
@@ -851,7 +849,7 @@ mod pure_crypto_coverage {
 #[test]
 fn test_aead_large_plaintext() {
     let key = [0u8; KEY_SIZE];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let nonce = [0u8; NONCE_SIZE];
 
     // 1 MB plaintext
@@ -869,8 +867,8 @@ fn test_aead_wrapper_rekey() {
     let key1 = [0x11; KEY_SIZE];
     let key2 = [0x22; KEY_SIZE];
 
-    let mut wrapper1 = AeadWrapper::new(&key1).unwrap();
-    let mut wrapper2 = AeadWrapper::new(&key2).unwrap();
+    let wrapper1 = AeadWrapper::new(&key1).unwrap();
+    let wrapper2 = AeadWrapper::new(&key2).unwrap();
 
     let nonce = [0u8; NONCE_SIZE];
     let plaintext = b"test";
@@ -889,7 +887,7 @@ fn test_aead_wrapper_rekey() {
 #[test]
 fn test_aead_wrapper_ciphertext_too_short() {
     let key = [0u8; KEY_SIZE];
-    let mut wrapper = AeadWrapper::new(&key).unwrap();
+    let wrapper = AeadWrapper::new(&key).unwrap();
     let nonce = [0u8; NONCE_SIZE];
 
     // Ciphertext shorter than tag (16 bytes)
@@ -1338,8 +1336,8 @@ mod pure_crypto_extended {
 
     #[test]
     fn test_argon2_derive_owasp_minimum() {
-        let password = b"secure_password";
-        let salt = Salt::from_bytes(&[0x22; 16]).unwrap();
+        let _password = b"secure_password";
+        let _salt = Salt::from_bytes(&[0x22; 16]).unwrap();
 
         let params = Argon2Params::owasp_minimum();
         assert_eq!(params.memory_kib, 65536); // 64 MiB

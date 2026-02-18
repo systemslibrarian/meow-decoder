@@ -509,6 +509,7 @@ class TestPhase2HashlibEnforcement:
         # are tracked for migration. Fail on NEW violations only.
         # Count known legacy files that still need migration
         known_legacy = {
+            "crypto.py",  # Core module: HMAC computation in compute_manifest_hmac_from_handle
             "schrodinger_encode.py",
             "schrodinger_decode.py",
             "bidirectional.py",

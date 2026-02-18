@@ -13,7 +13,7 @@ name: Formal Verification
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - "formal/**"
       - "crypto_core/src/verus*"
@@ -31,8 +31,8 @@ on:
         default: "false"
         type: boolean
   schedule:
-    # Weekly comprehensive verification on Sunday at 2 AM UTC
-    - cron: "0 2 * * 0"
+    # Weekly comprehensive verification on Sunday at 4 AM UTC (staggered from rust-security-suite)
+    - cron: "0 4 * * 0"
 
 permissions:
   contents: read

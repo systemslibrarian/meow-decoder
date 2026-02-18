@@ -16,7 +16,7 @@ name: Rust Crypto Security Suite
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main]
     paths:
       - "rust_crypto/**"
       - "crypto_core/**"

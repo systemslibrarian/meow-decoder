@@ -15,14 +15,19 @@ import time
 
 from .config import MeowConfig, DecodingConfig, DuressConfig, DuressMode
 from .crypto import (
-    decrypt_to_raw,
-    verify_manifest_hmac,
+    decrypt_to_raw_production,
+    verify_manifest_hmac_production,
+    derive_encryption_key_for_manifest_handle,
     unpack_manifest,
     verify_keyfile,
     check_duress_password,
-    derive_encryption_key_for_manifest,
     pack_manifest_core,
+    validate_decode_profile,
+    PROFILE_PROD_MIN,
+    PROFILE_PQ_EXPERIMENTAL,
+    PROFILE_LEGACY,
 )
+from .crypto_backend import get_handle_backend
 from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
 from .gif_handler import GIFDecoder
@@ -53,6 +58,8 @@ def decode_gif(
     hardware_auto: bool = False,
     verbose: bool = False,
     tamper_report: Optional[TamperReport] = None,
+    allow_experimental: bool = False,
+    allow_legacy: bool = False,
 ) -> dict:
     """
     Decode file from GIF.
@@ -265,7 +272,16 @@ def decode_gif(
 
     manifest = unpack_manifest(manifest_bytes)
 
+    # PROFILE ENFORCEMENT: validate crypto_profile before any crypto operations.
+    # Fail closed on unknown/unsupported profiles.
+    validate_decode_profile(
+        manifest.crypto_profile,
+        allow_experimental=allow_experimental,
+        allow_legacy=allow_legacy,
+    )
+
     if verbose:
+        print(f"  Crypto profile: {manifest.crypto_profile}")
         print(f"  Original size: {manifest.orig_len:,} bytes")
         print(f"  Compressed size: {manifest.comp_len:,} bytes")
         print(f"  Encrypted size: {manifest.cipher_len:,} bytes")
@@ -316,25 +332,22 @@ def decode_gif(
                 print("  Falling back to software derivation.")
 
     # Always derive encryption key upfront (slow Argon2id)
-    # For HSM/TPM mode, use precomputed key if provided
+    # Key stays as opaque Rust handle — NEVER enters Python memory.
+    hb = get_handle_backend()
     try:
-        if precomputed_key is not None:
-            if len(precomputed_key) != 32:
-                raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
-            encryption_key = precomputed_key
-            if verbose:
-                print("  🔐 Using hardware-derived key (HSM/TPM)")
-        else:
-            encryption_key = derive_encryption_key_for_manifest(
-                password,
-                manifest.salt,
-                keyfile=keyfile,
-                ephemeral_public_key=manifest.ephemeral_public_key,
-                receiver_private_key=receiver_private_key,
-                yubikey_slot=yubikey_slot,
-                yubikey_pin=yubikey_pin,
-                pq_ciphertext=manifest.pq_ciphertext,
-            )
+        key_handle = derive_encryption_key_for_manifest_handle(
+            password,
+            manifest.salt,
+            keyfile=keyfile,
+            ephemeral_public_key=manifest.ephemeral_public_key,
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin,
+            precomputed_key=precomputed_key,
+            pq_ciphertext=manifest.pq_ciphertext,
+        )
+        if verbose and precomputed_key is not None:
+            print("  🔐 Using hardware-derived key (HSM/TPM)")
     except Exception as e:
         # Key derivation failed - could be wrong keyfile/receiver key
         raise ValueError(f"Key derivation failed: {e}")
@@ -395,19 +408,23 @@ def decode_gif(
             # Return fake "failed" error to not reveal duress was triggered (Silent Panic)
             raise ValueError("HMAC verification failed - wrong password or corrupted data")
 
-    # Verify HMAC
+    # Verify HMAC using handle-based API (key never enters Python)
     if verbose:
         print("\nVerifying manifest HMAC...")
 
-    if not verify_manifest_hmac(
-        password,
-        manifest,
-        keyfile,
-        receiver_private_key,
-        yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin,
-        precomputed_key=precomputed_key,
-    ):
+    from .crypto import compute_manifest_hmac_from_handle, pack_manifest_core as _pack_core
+    packed_no_hmac = _pack_core(manifest, include_duress_tag=True)
+    expected_hmac = compute_manifest_hmac_from_handle(key_handle, manifest.salt, packed_no_hmac)
+    try:
+        from .constant_time import constant_time_compare, equalize_timing
+        _hmac_ok = constant_time_compare(expected_hmac, manifest.hmac)
+        equalize_timing(0.001, 0.005)
+    except ImportError:
+        import secrets as _secrets
+        _hmac_ok = _secrets.compare_digest(expected_hmac, manifest.hmac)
+
+    if not _hmac_ok:
+        hb.drop(key_handle)
         raise ValueError("HMAC verification failed - wrong password or corrupted data")
 
     if verbose:
@@ -426,14 +443,10 @@ def decode_gif(
         if verbose:
             print("\n🔒 Frame MAC verification enabled (DoS protection)")
 
-        # Use already-derived encryption key (from timing-safe derivation above)
-        # Use a mutable buffer for best-effort zeroing after use
-        encryption_key_buf = bytearray(encryption_key)
-        frame_master_key = frame_mac.derive_frame_master_key(
-            bytes(encryption_key_buf), manifest.salt
-        )
+        # Derive frame MAC master key from handle (key never enters Python)
+        frame_master_key_handle = frame_mac.derive_frame_master_key_handle(key_handle, manifest.salt)
 
-        # Initialize decoder ratchet if ratchet mode is active (BEFORE zeroizing key)
+        # Initialize decoder ratchet if ratchet mode is active (uses handle)
         if _has_ratchet:
             from .ratchet import DecoderRatchet
 
@@ -441,7 +454,7 @@ def decode_gif(
             total_droplet_frames = len(qr_data_list) - 1  # exclude manifest
             _rekey_interval = getattr(config, "rekey_beacon_interval", 0) if config else 0
             decoder_ratchet = DecoderRatchet(
-                root_key=bytes(encryption_key_buf),
+                root_key=key_handle,
                 salt=manifest.salt,
                 k_blocks=manifest.k_blocks,
                 block_size=manifest.block_size,
@@ -458,20 +471,9 @@ def decode_gif(
                     f"(MSR v1, {total_droplet_frames} frames{_beacon_msg})"
                 )
 
-        # Best-effort zeroization of encryption key material
-        try:
-            from .crypto_backend import get_default_backend
-
-            get_default_backend().secure_zero(encryption_key_buf)
-        except Exception:
-            pass
-        # Drop remaining references to key material
-        encryption_key = b""
-        del encryption_key
-
         # Verify manifest frame MAC retroactively (v2 key derivation)
         manifest_valid, _ = frame_mac.unpack_frame_with_mac(
-            manifest_raw, frame_master_key, 0, manifest.salt
+            manifest_raw, frame_master_key_handle, 0, manifest.salt
         )
 
         if not manifest_valid:
@@ -481,7 +483,9 @@ def decode_gif(
                 manifest_raw, legacy_master_key, 0, manifest.salt
             )
             if manifest_valid_legacy:  # pragma: no cover
-                frame_master_key = legacy_master_key
+                # Drop the handle-derived key and use legacy bytes key instead
+                hb.drop(frame_master_key_handle)
+                frame_master_key_handle = hb.import_key(legacy_master_key)
                 mac_stats.record_valid()
                 if tamper_report is not None:
                     tamper_report.record(0, True, "legacy derivation")
@@ -491,6 +495,8 @@ def decode_gif(
                 # FIX-E1: Frame MAC invalid — fail closed to prevent tampering.
                 # The old behavior silently disabled frame MAC verification,
                 # allowing an attacker to strip MACs and inject modified frames.
+                hb.drop(frame_master_key_handle)
+                hb.drop(key_handle)
                 if tamper_report is not None:
                     tamper_report.record(0, False, "manifest MAC invalid")
                 raise ValueError(
@@ -503,6 +509,11 @@ def decode_gif(
                 tamper_report.record(0, True)
             if verbose:
                 print("  ✓ Manifest frame MAC valid")
+
+    # Drop the encryption key handle — ratchet and frame MAC own their own
+    # derived handles.  key_handle is no longer needed.
+    hb.drop(key_handle)
+    del key_handle
 
     # Decode fountain codes
     if verbose:
@@ -529,7 +540,7 @@ def decode_gif(
             # Verify frame MAC if enabled
             if has_frame_macs:
                 frame_valid, droplet_bytes = frame_mac.unpack_frame_with_mac(
-                    qr_data, frame_master_key, idx + 1, manifest.salt
+                    qr_data, frame_master_key_handle, idx + 1, manifest.salt
                 )
 
                 if not frame_valid:  # pragma: no cover
@@ -572,11 +583,17 @@ def decode_gif(
                 print(f"  Warning: Failed to process droplet: {e}")
             continue
 
-    # Finalize ratchet (bury keys in litter 🐱)
+    # Finalize ratchet (bury keys in litter)
     if decoder_ratchet is not None:
         decoder_ratchet.finalize()
         if verbose:
             print("  ✓ Paw state finalized, all whisker keys buried in litter")
+
+    # Drop frame MAC master key handle
+    if has_frame_macs:
+        hb.drop(frame_master_key_handle)
+        del frame_master_key_handle
+    # key_handle already dropped — was only needed for HMAC, frame MAC, ratchet init
 
     if not decoder.is_complete():
         raise RuntimeError(
@@ -645,7 +662,7 @@ def decode_gif(
                     f"({len(manifest.pq_ciphertext)} bytes)"
                 )
 
-        raw_data = decrypt_to_raw(
+        raw_data = decrypt_to_raw_production(
             cipher,
             password,
             manifest.salt,
@@ -804,6 +821,18 @@ Examples:
 
     # Decoding parameters
     parser.add_argument("--aggressive", action="store_true", help="Use aggressive QR preprocessing")
+
+    # Profile enforcement
+    parser.add_argument(
+        "--allow-experimental",
+        action="store_true",
+        help="Accept experimental crypto profiles (e.g. PQ hybrid) on decode",
+    )
+    parser.add_argument(
+        "--allow-legacy",
+        action="store_true",
+        help="Accept legacy manifests without explicit mode byte",
+    )
 
     # Duress Handling
     parser.add_argument(
@@ -1203,6 +1232,8 @@ Examples:
             "receiver_pq_keypair": receiver_pq_keypair,  # PQ hybrid support (MEOW4/MEOW5)
             "verbose": args.verbose,
             "tamper_report": t_report,
+            "allow_experimental": getattr(args, "allow_experimental", False),
+            "allow_legacy": getattr(args, "allow_legacy", False),
         }
 
         if duress_config.enabled:

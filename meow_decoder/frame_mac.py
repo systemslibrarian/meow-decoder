@@ -89,6 +89,25 @@ def derive_frame_master_key(master_key_material: bytes, salt: bytes) -> bytes:
     return backend.derive_key_hkdf(master_key_material, salt, FRAME_MAC_MASTER_INFO, 32)
 
 
+def derive_frame_master_key_handle(key_handle: int, salt: bytes) -> int:
+    """
+    Derive a frame MAC master key from an encryption key handle.
+
+    Handle-based equivalent of derive_frame_master_key.
+    The secret key NEVER enters Python memory.
+
+    Args:
+        key_handle: Opaque handle to the 32-byte encryption key (Rust-owned)
+        salt: Random salt (16 bytes)
+
+    Returns:
+        Opaque handle to the 32-byte frame MAC master key (Rust-owned).
+        Caller MUST call get_handle_backend().drop(handle) when done.
+    """
+    hb = get_handle_backend()
+    return hb.derive_key_hkdf(key_handle, salt, FRAME_MAC_MASTER_INFO, 32)
+
+
 def derive_frame_master_key_legacy(password: str, salt: bytes) -> bytes:
     """
     Legacy frame MAC key derivation (v1 compatibility).

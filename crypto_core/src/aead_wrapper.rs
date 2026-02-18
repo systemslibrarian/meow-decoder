@@ -618,7 +618,7 @@ mod tests {
         let wrapper = AeadWrapper::new(&key).unwrap();
 
         // Get a reference to the internal key (unsafe for testing only)
-        let key_ptr = wrapper.key.as_ptr();
+        let _key_ptr = wrapper.key.as_ptr();
 
         // Drop the wrapper
         drop(wrapper);
@@ -631,7 +631,7 @@ mod tests {
     fn test_nonce_exhaustion() {
         // This test would take too long to actually exhaust nonces
         // Instead, we verify the counter mechanism
-        let nm = NonceManager::new();
+        let _nm = NonceManager::new();
 
         // Manually set counter near max (would require unsafe in real impl)
         // For now, just verify the error type exists

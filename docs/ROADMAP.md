@@ -2,7 +2,7 @@
 
 *Where the cat has been, and where it’s going. Completed items have been tested, reviewed, and merged. Planned items are being stalked.*
 
-**Meow Decoder v1.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)**
+**Meow Decoder v1.0 (INTERNAL REVIEW — no external audit)**
 
 This document outlines security improvements. Internal milestone labels (v5.x) are historical.
 

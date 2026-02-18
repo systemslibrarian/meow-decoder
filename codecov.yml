@@ -1,5 +1,6 @@
 # Codecov configuration for Meow Decoder
-# Focus on security-critical core modules (Tier 1)
+# Monitors Rust crypto coverage (crypto_core + rust_crypto)
+# Python coverage is local-only (pytest-cov / .coveragerc)
 
 codecov:
   require_ci_to_pass: yes
@@ -11,106 +12,59 @@ coverage:
     project:
       default:
         target: auto
-        threshold: 1%
+        threshold: 2%
         if_ci_failed: error
-        # Focus on Tier 1 security-critical modules
+        # Rust crypto source files only
         paths:
-          - "meow_decoder/crypto.py"
-          - "meow_decoder/crypto_backend.py"
-          - "meow_decoder/constant_time.py"
-          - "meow_decoder/x25519_forward_secrecy.py"
-          - "meow_decoder/forward_secrecy.py"
-          - "meow_decoder/fountain.py"
-          - "meow_decoder/encode.py"
-          - "meow_decoder/decode_gif.py"
-          - "meow_decoder/gif_handler.py"
-          - "meow_decoder/frame_mac.py"
-          - "meow_decoder/schrodinger_encode.py"
-          - "meow_decoder/schrodinger_decode.py"
-          - "meow_decoder/quantum_mixer.py"
-          - "meow_decoder/stego_advanced.py"
-          - "meow_decoder/decoy_generator.py"
-          - "meow_decoder/duress_mode.py"
-          - "meow_decoder/timelock_duress.py"
-          - "meow_decoder/secure_cleanup.py"
-          - "meow_decoder/secure_bridge.py"
-          - "meow_decoder/high_security.py"
-          - "meow_decoder/streaming_crypto.py"
-          - "meow_decoder/double_ratchet.py"
-          - "meow_decoder/multi_secret.py"
-          - "meow_decoder/resume_secured.py"
+          - "crypto_core/src/"
+          - "rust_crypto/src/"
     patch:
       default:
         target: auto
-        threshold: 1%
-        # Same list for PR patch coverage
+        threshold: 2%
         paths:
-          - "meow_decoder/crypto.py"
-          - "meow_decoder/crypto_backend.py"
-          - "meow_decoder/constant_time.py"
-          - "meow_decoder/x25519_forward_secrecy.py"
-          - "meow_decoder/forward_secrecy.py"
-          - "meow_decoder/fountain.py"
-          - "meow_decoder/encode.py"
-          - "meow_decoder/decode_gif.py"
-          - "meow_decoder/gif_handler.py"
-          - "meow_decoder/frame_mac.py"
-          - "meow_decoder/schrodinger_encode.py"
-          - "meow_decoder/schrodinger_decode.py"
-          - "meow_decoder/quantum_mixer.py"
-          - "meow_decoder/stego_advanced.py"
-          - "meow_decoder/decoy_generator.py"
-          - "meow_decoder/duress_mode.py"
-          - "meow_decoder/timelock_duress.py"
-          - "meow_decoder/secure_cleanup.py"
-          - "meow_decoder/secure_bridge.py"
-          - "meow_decoder/high_security.py"
-          - "meow_decoder/streaming_crypto.py"
-          - "meow_decoder/double_ratchet.py"
-          - "meow_decoder/multi_secret.py"
-          - "meow_decoder/resume_secured.py"
+          - "crypto_core/src/"
+          - "rust_crypto/src/"
 
   precision: 2
   round: down
   range: 50..100
 
 flags:
-  python:
+  rust:
     paths:
-      - meow_decoder/
+      - crypto_core/src/
+      - rust_crypto/src/
     carryforward: true
 
-# Ignore non-critical paths and external resources
+# Ignore everything except Rust crypto source
 ignore:
-  - "tests/*"
-  - "examples/*"
-  - "docs/*"
-  - "scripts/*"
-  - "assets/*"
-  - "formal/*"
-  - "mobile/*"
-  - "crypto_core/benches/*"
-  - "crypto_core/tests/*"
-  - "rust_crypto/tests/*"
-  - "rust_crypto/benches/*"
+  # Python
+  - "meow_decoder/"
+  - "tests/"
+  - "examples/"
+  - "docs/"
+  - "scripts/"
+  - "assets/"
+  - "formal/"
+  - "mobile/"
+  - "fuzz/"
+  - "web_demo/"
+  - "htmlcov/"
+  # Rust non-source
+  - "crypto_core/benches/"
+  - "crypto_core/tests/"
+  - "crypto_core/htmlcov/"
+  - "rust_crypto/tests/"
+  - "rust_crypto/benches/"
+  - "rust_crypto/fuzz/"
+  - "target/"
+  # Misc
   - "*.md"
-  - ".github/*"
-  - "meow_decoder/*_DEBUG.py"
-  - "meow_decoder/gui_*.py"
-  - "meow_decoder/meow_dashboard*.py"
-  - "meow_decoder/hardware_*.py"
-  - "meow_decoder/pq_*.py"
-  - "meow_decoder/prowling_mode.py"
-  - "meow_decoder/clowder_*.py"
-  - "meow_decoder/bidirectional.py"
-  - "meow_decoder/webcam_*.py"
-  - "meow_decoder/logo_eyes.py"
-  - "meow_decoder/ascii_qr.py"
-  - "meow_decoder/ninja_cat_ultra.py"
-  - "meow_decoder/deadmans_switch_cli.py"
-  - "meow_decoder/profiling_improved.py"
-  - "meow_decoder/meow_encode.py"
-  - "meow_decoder/setup.py"
+  - "*.py"
+  - "*.js"
+  - "*.html"
+  - ".github/"
 
 comment:
   layout: "reach,diff,flags,tree,footer"

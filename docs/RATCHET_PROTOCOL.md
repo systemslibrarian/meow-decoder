@@ -1,9 +1,9 @@
 # MEOW Symmetric Ratchet Protocol Specification (MSR v1/v2)
 
-**Version**: 2.0  
-**Date**: 2026-02-16  
-**Status**: Implemented with **asymmetric entropy reinjection** (Signal-grade PCS)  
-**Authors**: meow-decoder contributors  
+**Version**: 2.0
+**Date**: 2026-02-16
+**Status**: Implemented with **asymmetric entropy reinjection** (Signal-inspired PCS goals)
+**Authors**: meow-decoder contributors
 
 ---
 
@@ -27,7 +27,7 @@ The MEOW Symmetric Ratchet (MSR v1) provides **per-frame forward secrecy** for f
 | Limitation | Reason | Mitigation |
 |-----------|--------|------------|
 | ~~No DH ratchet~~ | ~~Air-gap = no back-channel~~ | **RESOLVED (v2.0)**: Asymmetric root key rotation via periodic X25519 ECDH (§7A) |
-| ~~No post-compromise security~~ | ~~Unidirectional → no asymmetric re-keying possible~~ | **RESOLVED (v2.0)**: Signal-grade PCS via asymmetric entropy reinjection (§7A) |
+| ~~No post-compromise security~~ | ~~Unidirectional → no asymmetric re-keying possible~~ | **RESOLVED (v2.0)**: Signal-inspired PCS via asymmetric entropy reinjection (§7A) |
 | PCS healing latency = K frames | Unidirectional → no immediate reply channel | Inherent; Signal heals in 1 round-trip, MEOW heals in ≤K frames |
 | ~~Frame index is plaintext~~ | ~~Decoder needs index~~ | **RESOLVED (v1.2)**: Header encryption via HKDF-XOR mask (§8.3) |
 
@@ -161,7 +161,7 @@ INIT ──(encrypt_next)──► ENCODING ──(all frames done)──► FIN
                               └───────────────────────────────┘
 ```
 
-**Encoder** processes frames sequentially (frame 0, 1, 2, ...).  
+**Encoder** processes frames sequentially (frame 0, 1, 2, ...).
 Each `encrypt_next()` call:
 1. Derives `message_key[i]` from `chain_key[i]`
 2. Derives `chain_key[i+1]` (irreversible)
@@ -390,11 +390,11 @@ Beacons are fully compatible with out-of-order frame reception:
 
 ---
 
-## 7A. Asymmetric Root Key Rotation (MSR v2.0 — Signal-Grade PCS)
+## 7A. Asymmetric Root Key Rotation (MSR v2.0 — Signal-Inspired PCS)
 
 ### 7A.1 Overview
 
-MSR v2.0 upgrades rekey beacons from message-key mixing (§7) to **asymmetric root key rotation**, achieving post-compromise security comparable to Signal's DH ratchet. Instead of mixing beacon entropy into individual message keys, the receiver's long-term X25519 public key is used to perform ECDH at each rekey boundary, rotating the root key and deriving an entirely new chain.
+MSR v2.0 upgrades rekey beacons from message-key mixing (§7) to **asymmetric root key rotation**, achieving post-compromise security goals inspired by Signal's DH ratchet (not Signal; no equivalence claim). Instead of mixing beacon entropy into individual message keys, the receiver's long-term X25519 public key is used to perform ECDH at each rekey boundary, rotating the root key and deriving an entirely new chain.
 
 ### 7A.2 State Machine
 
@@ -593,13 +593,13 @@ Despite lacking a DH ratchet, MSR v1.2 provides:
 2. **Per-frame key isolation**: Each frame uses a unique `(enc_key, nonce, mac_key)` triple.
 3. **Key lifetime minimization**: Each key exists in memory only during its frame's encryption/decryption.
 4. **Post-session security**: After `finalize()`, zero key material remains in memory.
-5. **Post-compromise security (PCS)**: Asymmetric root rotation (§7A) provides Signal-grade PCS — compromise of `chain_key[N]` and `root_key[epoch_E]` is healed after the next rekey, because `root_key[epoch_E+1]` requires `receiver_private_key`.
+5. **Post-compromise security (PCS)**: Asymmetric root rotation (§7A) provides Signal-inspired PCS — compromise of `chain_key[N]` and `root_key[epoch_E]` is healed after the next rekey, because `root_key[epoch_E+1]` requires `receiver_private_key`. Not Signal; no equivalence claim.
 6. **Header encryption**: Frame indices are XOR-masked with HKDF-derived pseudorandom masks, preventing traffic analysis.
 7. **Key commitment**: HMAC-SHA256 commitment tags prevent invisible salamanders attacks against AES-GCM.
 
-### 8.3 Header Encryption (Signal Parity)
+### 8.3 Header Encryption (Signal-Inspired)
 
-Signal encrypts message headers so observers cannot determine message ordering. MSR v1.2 achieves this with HKDF-derived XOR masks:
+Signal encrypts message headers so observers cannot determine message ordering. MSR v1.2 achieves a similar goal with HKDF-derived XOR masks (not Signal; no equivalence claim):
 
 ```
 header_key = HKDF(root_key, salt, "meow_ratchet_header_v1", 32)

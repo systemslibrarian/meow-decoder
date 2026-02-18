@@ -1,7 +1,7 @@
 # 🔒 Security Invariants - Meow Decoder
 
-**Version:** 1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)  
-**Last Updated:** 2026-02-17  
+**Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
+**Last Updated:** 2026-02-17
 **Classification:** Security-Critical Documentation
 
 ---
@@ -139,7 +139,7 @@ backend == "rust"
 ```
 ∀ password P, salt S, keyfile K:
     derive_key(P, S, K) == derive_key(P, S, K)  // Same inputs → same output
-    
+
 ∀ P1 ≠ P2, S:
     derive_key(P1, S) ≠ derive_key(P2, S)       // Different passwords → different keys
 

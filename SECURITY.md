@@ -1,7 +1,7 @@
 # 🛡️ Security Policy — The Cat's Claw Defense Manual
 
-**Project:** Meow Decoder  
-**Version:** 1.0  
+**Project:** Meow Decoder
+**Version:** 1.0
 **Last Updated:** 2026-02-14
 
 > *"A cat always lands on its feet — and always verifies its HMAC."*
@@ -10,8 +10,8 @@
 
 ## ⚠️ **Security Review Status (v1.0)**
 
-This release is **security‑reviewed** within the scope defined in the threat model.
-It is **not** a third‑party audit. All claims are tied to tests, specs, or formal artifacts.
+This release has been **internally reviewed** within the scope defined in the threat model.
+It is **not** a third‑party audit. No external audit has been performed. All claims are tied to tests, specs, or formal artifacts.
 
 **Authoritative threat model:** [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md)
 **Protocol specification:** [docs/PROTOCOL.md](docs/PROTOCOL.md)
@@ -65,7 +65,7 @@ All formal verification is **symbolic** (Dolev‑Yao attacker model). No computa
 2. **Argon2id** memory‑hardness is assumed — no formal proof that the KDF resists
    ASIC/GPU attacks at the configured cost parameters.
 3. **X25519** CDH hardness is assumed in the Tamarin/ProVerif models.
-4. **ML‑KEM** IND‑CCA2 security is assumed — both ML-KEM-768 (default, Signal PQXDH parity) and ML-KEM-1024 (paranoid mode) are modeled symbolically
+4. **ML‑KEM** IND‑CCA2 security is assumed — both ML-KEM-768 (default) and ML-KEM-1024 (paranoid mode) are modeled symbolically
    with an equation‑based abstraction (`kem_decap(sk, kem_encap_ct(pk(sk), r)) = kem_encap_ss(pk(sk), r)`).
 5. **PQXDH hybrid combiner** uses two-step HKDF: `PRK = HMAC-SHA256(0x00*32, X25519_ss || ML-KEM_ss)` → `HKDF-Expand(PRK, "meow_pqxdh_v1" || transcript_hash, 32)`.
    Full transcript binding (ephemeral pub, receiver classical pub, receiver PQ pub, PQ ciphertext) provides
@@ -96,17 +96,17 @@ Coverage map: [docs/formal_coverage.md](docs/formal_coverage.md)
 We take security seriously — the cat guards its secrets with nine lives. If you discover a security vulnerability, please follow responsible disclosure:
 
 ### **DO:** (Good Cat Herder)
-✅ Email security details to: `systemslibrarian@gmail.com`  
-✅ Include detailed steps to reproduce (show us the hairball)  
-✅ Include version information (`python3 encode.py --version`)  
-✅ Allow us 90 days to fix before public disclosure  
-✅ Include any relevant logs or repro steps  
+✅ Email security details to: `systemslibrarian@gmail.com`
+✅ Include detailed steps to reproduce (show us the hairball)
+✅ Include version information (`python3 encode.py --version`)
+✅ Allow us 90 days to fix before public disclosure
+✅ Include any relevant logs or repro steps
 
 ### **DON'T:** (Bad Kitten)
-❌ Post vulnerabilities publicly on GitHub Issues  
-❌ Exploit vulnerabilities maliciously  
-❌ Test on systems you don't own  
-❌ Demand payment without disclosure (that's not how the Catnip Bounty works!)  
+❌ Post vulnerabilities publicly on GitHub Issues
+❌ Exploit vulnerabilities maliciously
+❌ Test on systems you don't own
+❌ Demand payment without disclosure (that's not how the Catnip Bounty works!)
 
 ### **Response Timeline:**
 - **24 hours:** Initial acknowledgment
@@ -137,7 +137,7 @@ We recognize security researchers who responsibly disclose vulnerabilities:
 
 **Scope:**
 - ✅ In scope: Core crypto (`crypto.py`, `crypto_core/`), authentication, key management
-- ✅ In scope: Protocol parsing, manifest handling, frame verification  
+- ✅ In scope: Protocol parsing, manifest handling, frame verification
 - ⚠️ Partial: Steganography (known to be cosmetic only)
 - ❌ Out of scope: Social engineering, phishing, physical attacks
 
@@ -519,8 +519,8 @@ def test_single_bit_flip_in_all_fields():
    - Use full disk encryption
 
 3. **Version Selection**
-   - Use MEOW5 (ML-KEM-768 + X25519, Signal PQXDH parity) as default post-quantum mode
-   - Use MEOW4 with `--paranoid` (ML-KEM-1024 + X25519, NIST Level 5) for maximum post-quantum protection
+   - Use MEOW5 (ML-KEM-768 + X25519) as default post-quantum mode (experimental)
+   - Use MEOW4 with `--paranoid` (ML-KEM-1024 + X25519) for maximum post-quantum protection (experimental)
    - Use MEOW3 (forward secrecy) when PQ is not needed
    - Avoid MEOW2 (legacy, no forward secrecy)
 
@@ -702,8 +702,8 @@ We credit security researchers (Catnip Hunters) who:
 
 ## 📞 **Contact**
 
-**Security Reports:** systemslibrarian@gmail.com  
-**General Questions:** GitHub Discussions  
+**Security Reports:** systemslibrarian@gmail.com
+**General Questions:** GitHub Discussions
 **Bug Reports:** GitHub Issues (non-security only)
 
 ---
@@ -730,6 +730,6 @@ After a fix is released:
 
 ---
 
-**Last Updated:** 2026-02-14  
-**Version:** 1.0.0  
-**Status:** Security-Reviewed (Internal Review) — Catnip Bounty Open
+**Last Updated:** 2026-02-14
+**Version:** 1.0.0
+**Status:** Internal Review — No External Audit — Catnip Bounty Open

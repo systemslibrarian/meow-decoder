@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=69.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -9,22 +9,24 @@ description = "🐱 Schrödinger's Yarn Ball - Optical air-gap transfer with qua
 readme = "README.md"
 requires-python = ">=3.10"
 license = "CC-BY-NC-SA-4.0"
-authors = [
-    {name = "Paul Clark", email = "systemslibrarian@gmail.com"}
-]
+authors = [{ name = "Paul Clark", email = "systemslibrarian@gmail.com" }]
 keywords = [
-    "encryption", "air-gap", "qr-code", "security", 
-    "cryptography", "post-quantum", "optical-transfer"
+    "encryption",
+    "air-gap",
+    "qr-code",
+    "security",
+    "cryptography",
+    "post-quantum",
+    "optical-transfer",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security :: Cryptography",
 ]
 dependencies = [
@@ -81,7 +83,7 @@ Changelog = "https://github.com/systemslibrarian/meow-decoder/blob/main/CHANGELO
 
 [tool.black]
 line-length = 100
-target-version = ['py38', 'py39', 'py310', 'py311']
+target-version = ['py310', 'py311', 'py312', 'py313']
 include = '\.pyi?$'
 
 [tool.pytest.ini_options]
@@ -191,19 +193,9 @@ module = [
 ]
 ignore_errors = true
 
-[tool.flake8]
-max-line-length = 100
-extend-ignore = "E203"
-exclude = [
-    ".git",
-    "__pycache__",
-    "build",
-    "dist",
-    "venv",
-    "env",
-]
+# NOTE: flake8 config lives in .flake8 (flake8 does not read pyproject.toml)
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["meow_decoder*"]
-exclude = ["assets*", "sounds*"]
+exclude = ["assets*", "sounds*", "legacy_py*"]
