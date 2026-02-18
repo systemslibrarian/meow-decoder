@@ -28,7 +28,7 @@ from typing import Optional, List, Set, Dict, Any
 from enum import IntEnum
 import base64
 import json
-from .crypto_backend import get_default_backend as _get_backend
+from .crypto_backend import get_default_backend as _get_backend, get_handle_backend as _get_hb
 
 
 class MessageType(IntEnum):
@@ -208,7 +208,8 @@ class BiDirectionalSender:
         # material across unrelated contexts, avoiding protocol confusion.
         # Salt: generated random salt
         # Info: context binding
-        self.auth_key = _get_backend().derive_key_hkdf(
+        # SECURITY (M3): Auth key stored as opaque Rust handle, not Python bytes
+        self._auth_key_handle = _get_hb().derive_key_hkdf_raw(
             ikm=password.encode("utf-8"),
             salt=session_salt,
             info=b"meow_bidirectional_auth_v1",
@@ -241,7 +242,7 @@ class BiDirectionalSender:
         payload = self.session.pack()
 
         # Calculate HMAC to authenticate the session start
-        mac = _get_backend().hmac_sha256(self.auth_key, msg_type + payload)
+        mac = _get_hb().hmac_sha256(self._auth_key_handle, msg_type + payload)
 
         return msg_type + mac + payload
 
@@ -262,10 +263,10 @@ class BiDirectionalSender:
         mac = ack_data[1:33]
         payload = ack_data[33:]
 
-        # Verify HMAC
-        expected_mac = _get_backend().hmac_sha256(self.auth_key, bytes([msg_type]) + payload)
-
-        if not secrets.compare_digest(mac, expected_mac):
+        # Verify HMAC via handle (key stays in Rust, constant-time)
+        if not _get_hb().hmac_sha256_verify(
+            self._auth_key_handle, bytes([msg_type]) + payload, mac
+        ):
             # Invalid HMAC - reject silently
             return None
 
@@ -383,7 +384,7 @@ class BiDirectionalReceiver:
     def __init__(self):
         """Initialize bidirectional receiver."""
         self.session: Optional[SessionInfo] = None
-        self.auth_key: Optional[bytes] = None
+        self._auth_key_handle: Optional[int] = None  # Opaque Rust handle (M3)
         self.frames_received: Set[int] = set()
         self.frames_decoded: Set[int] = set()  # Successfully QR-decoded
         self.blocks_decoded = 0
@@ -420,25 +421,25 @@ class BiDirectionalReceiver:
                 # Insecure fallback or verify logic needs password
                 return False
 
-            hkdf_key = _get_backend().derive_key_hkdf(
+            # SECURITY (M3): Derive auth key as Rust handle, never as Python bytes
+            hb = _get_hb()
+            key_handle = hb.derive_key_hkdf_raw(
                 ikm=password.encode("utf-8"),
                 salt=temp_session.session_salt,
                 info=b"meow_bidirectional_auth_v1",
                 output_len=32,
             )
-            derived_key = hkdf_key
 
-            # Verify HMAC
-            expected_mac = _get_backend().hmac_sha256(
-                derived_key, bytes([MessageType.SESSION_START]) + payload
-            )
-
-            if not secrets.compare_digest(received_mac, expected_mac):
+            # Verify HMAC via handle (constant-time in Rust)
+            if not hb.hmac_sha256_verify(
+                key_handle, bytes([MessageType.SESSION_START]) + payload, received_mac
+            ):
+                hb.drop(key_handle)
                 return False
 
             # Valid session
             self.session = temp_session
-            self.auth_key = derived_key
+            self._auth_key_handle = key_handle
             self.started_at = time.time()
             return True
         except Exception:
@@ -470,7 +471,7 @@ class BiDirectionalReceiver:
         Returns:
             Signed message: Type(1) + HMAC(32) + [Counter(8)] + Payload
         """
-        if not self.session or not self.auth_key:
+        if not self.session or not self._auth_key_handle:
             return b""
 
         # Prepend counter for replay protection if required
@@ -479,8 +480,9 @@ class BiDirectionalReceiver:
             payload = struct.pack(">Q", self.tx_counter) + payload
 
         # Format: Type(1) + HMAC(32) + Payload
+        # SECURITY (M3): HMAC computed via Rust handle (key never in Python)
         header = bytes([msg_type])
-        mac = _get_backend().hmac_sha256(self.auth_key, header + payload)
+        mac = _get_hb().hmac_sha256(self._auth_key_handle, header + payload)
 
         return header + mac + payload
 

@@ -164,37 +164,50 @@ class TestRatchetStateV2:
 
     def test_init_ratchet_stores_root_key(self):
         """init_ratchet() stores a derived root key in state."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
         state = init_ratchet(root_key, salt)
         assert state.root_key is not None
-        assert len(state.root_key) == 32
+        # root_key is now an opaque handle (int)
+        assert isinstance(state.root_key, int)
+        assert len(hb.export_key(state.root_key)) == 32
         assert state.epoch == 0
 
     def test_root_key_differs_from_chain_key(self):
         """Root key and chain key must be distinct (different domain separators)."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
         state = init_ratchet(root_key, salt)
-        assert bytes(state.root_key) != bytes(state.chain_key)
+        assert hb.export_key(state.root_key) != hb.export_key(state.chain_key)
 
     def test_zeroize_cleans_root_key(self):
-        """zeroize() zeros the root_key."""
+        """zeroize() drops the root_key handle."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
         state = init_ratchet(root_key, salt)
+        old_root = state.root_key
         state.zeroize()
-        assert state.root_key == bytearray(32)
+        # After zeroize, handle is dropped and state is dead
+        assert state.position == -1
+        assert not hb.exists(old_root)
 
     def test_ratchet_step_preserves_root_key(self):
         """ratchet_step() preserves root_key across steps."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
         state = init_ratchet(root_key, salt)
-        original_root = bytes(state.root_key)
+        original_root = hb.export_key(state.root_key)
 
         _, new_state = ratchet_step(state)
-        assert bytes(new_state.root_key) == original_root
+        assert hb.export_key(new_state.root_key) == original_root
 
     def test_ratchet_step_preserves_epoch(self):
         """ratchet_step() preserves epoch counter."""
@@ -475,11 +488,14 @@ class TestForwardSecrecyV2:
     """Verify forward secrecy properties with MSR v2.0."""
 
     def test_old_chain_key_zeroed_on_step(self):
-        """ratchet_step zeroizes old chain key."""
+        """ratchet_step drops old chain key handle."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(os.urandom(32), os.urandom(16))
         old_chain = state.chain_key
         _, _ = ratchet_step(state)
-        assert old_chain == bytearray(32), "Old chain_key must be zeroed"
+        # After ratchet_step, the old chain_key handle is dropped (forward secrecy)
+        assert not hb.exists(old_chain), "Old chain_key handle must be dropped"
 
     def test_root_key_zeroed_on_encoder_rekey(self, x25519_keypair):
         """Encoder zeroizes old root_key during asymmetric rekey."""

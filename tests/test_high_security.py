@@ -1,7 +1,25 @@
 import os
 
+import pytest
+
 from meow_decoder import high_security
 from meow_decoder.config import MeowConfig
+
+
+@pytest.fixture(autouse=True)
+def _restore_crypto_globals():
+    """Restore crypto module globals after each test to prevent state contamination."""
+    from meow_decoder import crypto
+
+    saved_mem = crypto.ARGON2_MEMORY
+    saved_iter = crypto.ARGON2_ITERATIONS
+    saved_par = crypto.ARGON2_PARALLELISM
+    saved_active = high_security._HIGH_SECURITY_MODE_ACTIVE
+    yield
+    crypto.ARGON2_MEMORY = saved_mem
+    crypto.ARGON2_ITERATIONS = saved_iter
+    crypto.ARGON2_PARALLELISM = saved_par
+    high_security._HIGH_SECURITY_MODE_ACTIVE = saved_active
 
 
 def test_enable_high_security_mode_sets_env_and_flag(monkeypatch):
@@ -19,22 +37,13 @@ def test_enable_high_security_mode_sets_env_and_flag(monkeypatch):
 
 
 def test_enable_high_security_mode_patches_crypto_params():
-    high_security._HIGH_SECURITY_MODE_ACTIVE = False
     from meow_decoder import crypto
 
-    old_mem = crypto.ARGON2_MEMORY
-    old_iter = crypto.ARGON2_ITERATIONS
-    old_par = crypto.ARGON2_PARALLELISM
-
-    try:
-        high_security.enable_high_security_mode(silent=True)
-        assert crypto.ARGON2_MEMORY == high_security.HIGH_SECURITY_ARGON2_MEMORY
-        assert crypto.ARGON2_ITERATIONS == high_security.HIGH_SECURITY_ARGON2_ITERATIONS
-        assert crypto.ARGON2_PARALLELISM == high_security.HIGH_SECURITY_ARGON2_PARALLELISM
-    finally:
-        crypto.ARGON2_MEMORY = old_mem
-        crypto.ARGON2_ITERATIONS = old_iter
-        crypto.ARGON2_PARALLELISM = old_par
+    high_security._HIGH_SECURITY_MODE_ACTIVE = False
+    high_security.enable_high_security_mode(silent=True)
+    assert crypto.ARGON2_MEMORY == high_security.HIGH_SECURITY_ARGON2_MEMORY
+    assert crypto.ARGON2_ITERATIONS == high_security.HIGH_SECURITY_ARGON2_ITERATIONS
+    assert crypto.ARGON2_PARALLELISM == high_security.HIGH_SECURITY_ARGON2_PARALLELISM
 
 
 def test_generic_error_message():

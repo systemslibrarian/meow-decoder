@@ -38,7 +38,7 @@ from getpass import getpass
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from .crypto import encrypt_file_bytes, derive_key
+from .crypto import encrypt_file_bytes, derive_key, ARGON2_MEMORY, ARGON2_ITERATIONS, ARGON2_PARALLELISM
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
@@ -48,6 +48,7 @@ from .quantum_mixer import (
     entangle_realities,
 )
 from .decoy_generator import generate_convincing_decoy
+from .crypto_backend import get_default_backend as _get_backend, get_handle_backend
 
 
 @dataclass
@@ -227,31 +228,37 @@ def schrodinger_encode_data(
         blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))
 
     # Create encrypted metadata payloads for each reality
-    from .crypto_backend import get_default_backend as _get_backend
+    hb = get_handle_backend()
 
     # --- Task B: Strengthened Password Hardening ---
-    # Derive master metadata keys using Argon2id (slow KDF)
-    master_meta_key_a = derive_key(real_password, salt_a)
-    master_meta_key_b = derive_key(decoy_password, salt_b)
+    # Derive master metadata keys using Argon2id (returns opaque handles)
+    master_meta_key_a = hb.derive_key_argon2id(
+        real_password.encode("utf-8"), salt_a,
+        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        parallelism=ARGON2_PARALLELISM,
+    )
+    master_meta_key_b = hb.derive_key_argon2id(
+        decoy_password.encode("utf-8"), salt_b,
+        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        parallelism=ARGON2_PARALLELISM,
+    )
 
     # --- Task C: Enforce Key Separation ---
-    # Derive separate keys for encryption and HMAC using HKDF
-    _backend = _get_backend()
-
-    enc_key_a = _backend.derive_key_hkdf(
-        ikm=master_meta_key_a, salt=salt_a, info=b"schrodinger_enc_key_v1", output_len=32
+    # Derive separate keys for encryption and HMAC using HKDF (handle-based)
+    enc_key_a = hb.derive_key_hkdf(
+        master_meta_key_a, salt_a, b"schrodinger_enc_key_v1", 32
     )
 
-    hmac_key_a = _backend.derive_key_hkdf(
-        ikm=master_meta_key_a, salt=salt_a, info=b"schrodinger_hmac_key_v1", output_len=32
+    hmac_key_a = hb.derive_key_hkdf(
+        master_meta_key_a, salt_a, b"schrodinger_hmac_key_v1", 32
     )
 
-    enc_key_b = _backend.derive_key_hkdf(
-        ikm=master_meta_key_b, salt=salt_b, info=b"schrodinger_enc_key_v1", output_len=32
+    enc_key_b = hb.derive_key_hkdf(
+        master_meta_key_b, salt_b, b"schrodinger_enc_key_v1", 32
     )
 
-    hmac_key_b = _backend.derive_key_hkdf(
-        ikm=master_meta_key_b, salt=salt_b, info=b"schrodinger_hmac_key_v1", output_len=32
+    hmac_key_b = hb.derive_key_hkdf(
+        master_meta_key_b, salt_b, b"schrodinger_hmac_key_v1", 32
     )
 
     # Pack all necessary decryption info into metadata.
@@ -274,8 +281,8 @@ def schrodinger_encode_data(
     )
 
     # Encrypt metadata. AES-GCM adds a 16-byte tag. 88 + 16 = 104 bytes.
-    metadata_a_enc = _backend.aes_gcm_encrypt(enc_key_a, nonce_a, metadata_a_plain, None)
-    metadata_b_enc = _backend.aes_gcm_encrypt(enc_key_b, nonce_b, metadata_b_plain, None)
+    metadata_a_enc = hb.aes_gcm_encrypt(enc_key_a, nonce_a, metadata_a_plain, None)
+    metadata_b_enc = hb.aes_gcm_encrypt(enc_key_b, nonce_b, metadata_b_plain, None)
 
     if len(metadata_a_enc) != 104 or len(metadata_b_enc) != 104:
         raise RuntimeError("Schrödinger metadata encryption produced unexpected length")
@@ -297,8 +304,16 @@ def schrodinger_encode_data(
     )
     manifest_core = temp_manifest.pack_core_for_auth()
 
-    hmac_a = _backend.hmac_sha256(hmac_key_a, manifest_core)
-    hmac_b = _backend.hmac_sha256(hmac_key_b, manifest_core)
+    hmac_a = hb.hmac_sha256(hmac_key_a, manifest_core)
+    hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
+
+    # Drop intermediate key handles (zeroize in Rust)
+    for h in (master_meta_key_a, master_meta_key_b,
+              enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
+        try:
+            hb.drop(h)
+        except Exception:
+            pass
 
     # Create the final manifest
     manifest = SchrodingerManifest(
@@ -390,8 +405,10 @@ def schrodinger_encode_file(
     fountain = FountainEncoder(mixed, k_blocks, config.block_size)
     droplets = fountain.generate_droplets(num_droplets)
 
-    # Pack with MACs
-    master_key = _get_backend().sha256(real_password.encode())
+    # Pack with MACs — store master key as handle (never raw bytes in Python)
+    hb_mac = get_handle_backend()
+    _pw_hash = _get_backend().sha256(real_password.encode())
+    master_key = hb_mac.import_key(_pw_hash)
 
     manifest_bytes = manifest.pack()
     manifest_with_mac = pack_frame_with_mac(manifest_bytes, master_key, 0, manifest.salt_a)
@@ -401,6 +418,9 @@ def schrodinger_encode_file(
         droplet_bytes = pack_droplet(droplet)
         droplet_with_mac = pack_frame_with_mac(droplet_bytes, master_key, i, manifest.salt_a)
         qr_data_list.append(droplet_with_mac)
+
+    # Drop the master_key handle (zeroize in Rust)
+    hb_mac.drop(master_key)
 
     if verbose:
         print(f"\n📱 Generating QR codes ({len(qr_data_list)} frames)...")

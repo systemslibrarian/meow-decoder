@@ -15,10 +15,10 @@ from pathlib import Path
 from typing import Tuple, Optional
 from getpass import getpass
 
-from .crypto import decrypt_to_raw, derive_key
+from .crypto import decrypt_to_raw, derive_key, ARGON2_MEMORY, ARGON2_ITERATIONS, ARGON2_PARALLELISM
 from .quantum_mixer import collapse_to_reality
 from .schrodinger_encode import SchrodingerManifest
-from .crypto_backend import get_default_backend as _get_backend
+from .crypto_backend import get_default_backend as _get_backend, get_handle_backend
 
 import secrets
 
@@ -47,38 +47,48 @@ def schrodinger_decode_data(
         - Random delay added to mask any residual timing differences
     """
     # SECURITY (TIMING-01): Derive BOTH keys upfront to prevent timing oracle.
-    # An attacker measuring timing could distinguish which reality was accessed
-    # if we only derived one key. By deriving both always, the timing is constant
-    # regardless of which password was provided.
+    hb = get_handle_backend()
 
-    # Derive master metadata keys using Argon2id (BOTH - expensive but necessary for timing)
-    master_meta_key_a = derive_key(password, manifest.salt_a)
-    master_meta_key_b = derive_key(password, manifest.salt_b)
-
-    # Derive HMAC keys for both realities
-    hmac_key_a = _get_backend().derive_key_hkdf(
-        ikm=master_meta_key_a,
-        salt=manifest.salt_a,
-        info=b"schrodinger_hmac_key_v1",
-        output_len=32,
+    # Derive master metadata keys using Argon2id (returns opaque handles)
+    master_meta_key_a = hb.derive_key_argon2id(
+        password.encode("utf-8"), manifest.salt_a,
+        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        parallelism=ARGON2_PARALLELISM,
+    )
+    master_meta_key_b = hb.derive_key_argon2id(
+        password.encode("utf-8"), manifest.salt_b,
+        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        parallelism=ARGON2_PARALLELISM,
     )
 
-    hmac_key_b = _get_backend().derive_key_hkdf(
-        ikm=master_meta_key_b,
-        salt=manifest.salt_b,
-        info=b"schrodinger_hmac_key_v1",
-        output_len=32,
+    # Derive HMAC keys for both realities (handle-based)
+    hmac_key_a = hb.derive_key_hkdf(
+        master_meta_key_a,
+        manifest.salt_a,
+        b"schrodinger_hmac_key_v1",
+        32,
     )
 
-    # Compute expected HMACs for both realities
+    hmac_key_b = hb.derive_key_hkdf(
+        master_meta_key_b,
+        manifest.salt_b,
+        b"schrodinger_hmac_key_v1",
+        32,
+    )
+
+    # Compute expected HMACs for both realities (handle-based)
     manifest_core = manifest.pack_core_for_auth()
-    expected_hmac_a = _get_backend().hmac_sha256(hmac_key_a, manifest_core)
-    expected_hmac_b = _get_backend().hmac_sha256(hmac_key_b, manifest_core)
+    expected_hmac_a = hb.hmac_sha256(hmac_key_a, manifest_core)
+    expected_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
+
+    # Drop HMAC key handles
+    hb.drop(hmac_key_a)
+    hb.drop(hmac_key_b)
 
     # SECURITY (TIMING-02): Check BOTH HMACs to avoid early-exit timing leak.
     # Store results but don't branch until after both comparisons.
-    is_reality_a = secrets.compare_digest(expected_hmac_a, manifest.reality_a_hmac)
-    is_reality_b = secrets.compare_digest(expected_hmac_b, manifest.reality_b_hmac)
+    is_reality_a = _get_backend().constant_time_compare(expected_hmac_a, manifest.reality_a_hmac)
+    is_reality_b = _get_backend().constant_time_compare(expected_hmac_b, manifest.reality_b_hmac)
 
     # Add random delay to mask any residual timing differences (1-10ms)
     import time
@@ -88,18 +98,19 @@ def schrodinger_decode_data(
     # Now branch based on which reality matched (if any)
     if is_reality_a:
         try:
-            # Derive encryption key for Reality A
-            enc_key_a = _get_backend().derive_key_hkdf(
-                ikm=master_meta_key_a,
-                salt=manifest.salt_a,
-                info=b"schrodinger_enc_key_v1",
-                output_len=32,
+            # Derive encryption key for Reality A (handle-based)
+            enc_key_a = hb.derive_key_hkdf(
+                master_meta_key_a,
+                manifest.salt_a,
+                b"schrodinger_enc_key_v1",
+                32,
             )
 
-            # Decrypt metadata
-            metadata_a_plain = _get_backend().aes_gcm_decrypt(
+            # Decrypt metadata (handle-based AES-GCM)
+            metadata_a_plain = hb.aes_gcm_decrypt(
                 enc_key_a, manifest.nonce_a, manifest.metadata_a, None
             )
+            hb.drop(enc_key_a)
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack(">QQQ", metadata_a_plain[:24])
@@ -127,18 +138,19 @@ def schrodinger_decode_data(
 
     if is_reality_b:
         try:
-            # Derive encryption key for Reality B
-            enc_key_b = _get_backend().derive_key_hkdf(
-                ikm=master_meta_key_b,
-                salt=manifest.salt_b,
-                info=b"schrodinger_enc_key_v1",
-                output_len=32,
+            # Derive encryption key for Reality B (handle-based)
+            enc_key_b = hb.derive_key_hkdf(
+                master_meta_key_b,
+                manifest.salt_b,
+                b"schrodinger_enc_key_v1",
+                32,
             )
 
-            # Decrypt metadata
-            metadata_b_plain = _get_backend().aes_gcm_decrypt(
+            # Decrypt metadata (handle-based AES-GCM)
+            metadata_b_plain = hb.aes_gcm_decrypt(
                 enc_key_b, manifest.nonce_b, manifest.metadata_b, None
             )
+            hb.drop(enc_key_b)
 
             # Unpack metadata
             orig_len, comp_len, cipher_len = struct.unpack(">QQQ", metadata_b_plain[:24])
@@ -162,6 +174,13 @@ def schrodinger_decode_data(
             )
         except Exception:
             # Decryption failed despite HMAC match - data corrupted
+            pass
+
+    # Drop master key handles (zeroize in Rust)
+    for h in (master_meta_key_a, master_meta_key_b):
+        try:
+            hb.drop(h)
+        except Exception:
             pass
 
     # If neither password worked

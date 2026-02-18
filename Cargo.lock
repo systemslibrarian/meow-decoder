@@ -1304,6 +1304,7 @@ dependencies = [
  "hex",
  "hkdf",
  "hmac",
+ "lazy_static",
  "pqcrypto-mlkem",
  "pqcrypto-traits",
  "proptest",

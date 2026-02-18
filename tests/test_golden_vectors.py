@@ -358,47 +358,58 @@ class TestGoldenFrameMAC:
 class TestGoldenRatchet:
     """Freeze ratchet HKDF chain derivation."""
 
-    # These will be populated after terminal availability
-    # For now, test structural properties
+    # Ratchet keys are now opaque handles (ints) — use export_key() to get bytes
 
     def test_ratchet_init_produces_32byte_keys(self):
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
-        assert len(state.root_key) == 32
-        assert len(state.chain_key) == 32
+        assert len(hb.export_key(state.root_key)) == 32
+        assert len(hb.export_key(state.chain_key)) == 32
 
     def test_ratchet_step_produces_32byte_msg_key(self):
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         msg_key, new_state = ratchet_step(state)
-        assert len(msg_key) == 32
-        assert len(new_state.chain_key) == 32
+        assert len(hb.export_key(msg_key)) == 32
+        assert len(hb.export_key(new_state.chain_key)) == 32
 
     def test_ratchet_step_advances_chain(self):
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         _, state2 = ratchet_step(state)
-        assert bytes(state2.chain_key) != IKM_32  # chain advanced
+        assert hb.export_key(state2.chain_key) != IKM_32  # chain advanced
 
     def test_ratchet_frame_keys_structure(self):
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         msg_key, _ = ratchet_step(state)
         fk = derive_frame_keys(msg_key, SALT)
-        assert len(fk.enc_key) == 32
+        assert len(hb.export_key(fk.enc_key)) == 32
         assert len(fk.nonce) == 12
-        assert len(fk.mac_key) == 32
+        assert len(hb.export_key(fk.mac_key)) == 32
 
     def test_ratchet_deterministic_init(self):
         """Same inputs must produce same outputs."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         s1 = init_ratchet(IKM_32, SALT)
         s2 = init_ratchet(IKM_32, SALT)
-        assert bytes(s1.root_key) == bytes(s2.root_key)
-        assert bytes(s1.chain_key) == bytes(s2.chain_key)
+        assert hb.export_key(s1.root_key) == hb.export_key(s2.root_key)
+        assert hb.export_key(s1.chain_key) == hb.export_key(s2.chain_key)
 
     def test_ratchet_deterministic_step(self):
         """Same init state must produce same msg_key."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         s1 = init_ratchet(IKM_32, SALT)
         s2 = init_ratchet(IKM_32, SALT)
         mk1, _ = ratchet_step(s1)
         mk2, _ = ratchet_step(s2)
-        assert mk1 == mk2
+        assert hb.export_key(mk1) == hb.export_key(mk2)
 
 
 # ============================================================================

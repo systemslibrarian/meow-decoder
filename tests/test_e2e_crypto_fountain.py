@@ -533,7 +533,7 @@ class TestParameterDrift:
         assert PQ_ALGORITHM == "Kyber1024"
 
     def test_pq_crypto_real_defaults_to_kyber1024(self):
-        """FIX-D1 v2: pq_crypto_real is hard-disabled (RuntimeError on import)."""
+        """FIX-D1 v2: pq_crypto_real is hard-disabled (removed or RuntimeError on import)."""
         import importlib
         import sys
 
@@ -541,7 +541,7 @@ class TestParameterDrift:
         if mod_name in sys.modules:
             del sys.modules[mod_name]
 
-        with pytest.raises(RuntimeError, match="DISABLED.*insecure XOR"):
+        with pytest.raises((RuntimeError, ModuleNotFoundError)):
             importlib.import_module(mod_name)
 
 

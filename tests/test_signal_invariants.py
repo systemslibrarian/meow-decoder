@@ -125,12 +125,14 @@ class TestInvariant1_BackwardSecrecy:
 
     def test_chain_key_is_one_way(self):
         """Given chain_key[N], chain_key[N-1] is not derivable."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
-        chain_keys = [bytes(state.chain_key)]
+        chain_keys = [hb.export_key(state.chain_key)]
 
         for _ in range(10):
             _, state = ratchet_step(state)
-            chain_keys.append(bytes(state.chain_key))
+            chain_keys.append(hb.export_key(state.chain_key))
 
         # Each chain key must be unique
         assert len(set(chain_keys)) == len(chain_keys), "Chain key collision"
@@ -438,13 +440,15 @@ class TestInvariant6_NonceUniqueness:
 
     def test_100_frames_all_unique_pairs(self):
         """100 consecutive frames have 100 unique (key, nonce) pairs."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
         pairs = set()
         for _ in range(100):
             mk, state = ratchet_step(state)
             keys = derive_frame_keys(mk, SALT)
-            pair = (bytes(keys.enc_key), bytes(keys.nonce))
+            pair = (hb.export_key(keys.enc_key), bytes(keys.nonce))
             assert pair not in pairs, "CRITICAL: (key, nonce) reuse detected!"
             pairs.add(pair)
 
@@ -452,13 +456,15 @@ class TestInvariant6_NonceUniqueness:
 
     def test_encryption_keys_all_unique(self):
         """All 100 encryption keys are distinct."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
         enc_keys = set()
         for _ in range(100):
             mk, state = ratchet_step(state)
             keys = derive_frame_keys(mk, SALT)
-            enc_keys.add(bytes(keys.enc_key))
+            enc_keys.add(hb.export_key(keys.enc_key))
 
         assert len(enc_keys) == 100, "Encryption key collision!"
 
@@ -616,25 +622,29 @@ class TestRatchetDeterminism:
 
     def test_same_inputs_same_outputs_ratchet(self):
         """Identical init → identical chain progression."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         s1 = init_ratchet(ROOT_KEY, SALT)
         s2 = init_ratchet(ROOT_KEY, SALT)
 
         for _ in range(20):
             mk1, s1 = ratchet_step(s1)
             mk2, s2 = ratchet_step(s2)
-            assert mk1 == mk2
+            assert hb.export_key(mk1) == hb.export_key(mk2)
 
     def test_same_inputs_same_frame_keys(self):
         """Same message key + salt → same (enc_key, nonce, mac_key)."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         mk, _ = ratchet_step(state)
 
         fk1 = derive_frame_keys(mk, SALT)
         fk2 = derive_frame_keys(mk, SALT)
 
-        assert bytes(fk1.enc_key) == bytes(fk2.enc_key)
+        assert hb.export_key(fk1.enc_key) == hb.export_key(fk2.enc_key)
         assert bytes(fk1.nonce) == bytes(fk2.nonce)
-        assert bytes(fk1.mac_key) == bytes(fk2.mac_key)
+        assert hb.export_key(fk1.mac_key) == hb.export_key(fk2.mac_key)
 
     def test_encrypt_decrypt_roundtrip_deterministic(self):
         """Encrypt → decrypt roundtrip produces original plaintext."""

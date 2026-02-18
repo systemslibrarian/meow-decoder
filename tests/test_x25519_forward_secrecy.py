@@ -20,22 +20,27 @@ from meow_decoder.x25519_forward_secrecy import (
     load_receiver_keypair,
     generate_receiver_keys_cli,
 )
+from meow_decoder.crypto_backend import get_handle_backend
 
 
 class TestForwardSecrecyKeysDataclass:
     def test_create_with_all_fields(self):
+        hb = get_handle_backend()
+        handle = hb.import_x25519_private(b"p" * 32)
         keys = ForwardSecrecyKeys(
-            ephemeral_private=b"p" * 32,
+            ephemeral_private=handle,
             ephemeral_public=b"P" * 32,
             receiver_public=b"R" * 32,
         )
-        assert keys.ephemeral_private == b"p" * 32
+        assert isinstance(keys.ephemeral_private, int)
         assert keys.ephemeral_public == b"P" * 32
         assert keys.receiver_public == b"R" * 32
 
     def test_create_without_receiver_public(self):
+        hb = get_handle_backend()
+        handle = hb.import_x25519_private(b"p" * 32)
         keys = ForwardSecrecyKeys(
-            ephemeral_private=b"p" * 32,
+            ephemeral_private=handle,
             ephemeral_public=b"P" * 32,
         )
         assert keys.receiver_public is None
@@ -46,9 +51,11 @@ class TestGenerateEphemeralKeypair:
         keys = generate_ephemeral_keypair()
         assert isinstance(keys, ForwardSecrecyKeys)
 
-    def test_private_key_32_bytes(self):
+    def test_private_key_is_handle(self):
         keys = generate_ephemeral_keypair()
-        assert len(keys.ephemeral_private) == 32
+        assert isinstance(keys.ephemeral_private, int)
+        hb = get_handle_backend()
+        assert hb.exists(keys.ephemeral_private)
 
     def test_public_key_32_bytes(self):
         keys = generate_ephemeral_keypair()
@@ -198,23 +205,16 @@ class TestDeriveSharedSecret:
 
         assert secret1 != secret2
 
-    def test_secure_zero_exception_ignored(self, monkeypatch):
-        import meow_decoder.x25519_forward_secrecy as xfs
-
-        class _Backend:
-            def x25519_exchange(self, _priv, _pub):
-                return b"\x01" * 32
-
-            def derive_key_hkdf(self, _combined, _salt, _info):
-                return b"\x02" * 32
-
-            def secure_zero(self, _buf):
-                raise RuntimeError("secure_zero failed")
-
-        monkeypatch.setattr(xfs, "get_default_backend", lambda: _Backend())
-
-        secret = xfs.derive_shared_secret(b"a" * 32, b"b" * 32, "pw", b"c" * 16)
-        assert secret == b"\x02" * 32
+    def test_derive_uses_handle_backend(self):
+        """Verify derive_shared_secret uses handle-based operations."""
+        hb = get_handle_backend()
+        private_handle, public = hb.x25519_generate_keypair()
+        _, receiver_public = hb.x25519_generate_keypair()
+        salt = secrets.token_bytes(16)
+        # Should work with handle input (not raw bytes)
+        secret = derive_shared_secret(private_handle, receiver_public, "pw", salt)
+        assert isinstance(secret, bytes)
+        assert len(secret) == 32
 
 
 class TestSerializePublicKey:
@@ -252,19 +252,26 @@ class TestGenerateReceiverKeypair:
         assert isinstance(result, tuple)
         assert len(result) == 2
 
-    def test_private_key_32_bytes(self):
+    def test_private_key_is_handle(self):
         private, public = generate_receiver_keypair()
-        assert len(private) == 32
+        assert isinstance(private, int)
+        hb = get_handle_backend()
+        assert hb.exists(private)
 
     def test_public_key_32_bytes(self):
         private, public = generate_receiver_keypair()
         assert len(public) == 32
 
     def test_unique_each_call(self):
+        hb = get_handle_backend()
         kp1 = generate_receiver_keypair()
         kp2 = generate_receiver_keypair()
+        # Handles are different
         assert kp1[0] != kp2[0]
+        # Public keys are different
         assert kp1[1] != kp2[1]
+        # Underlying key material is different
+        assert hb.export_key(kp1[0]) != hb.export_key(kp2[0])
 
 
 class TestSaveReceiverKeypair:
@@ -305,6 +312,7 @@ class TestSaveReceiverKeypair:
 
 class TestLoadReceiverKeypair:
     def test_load_without_password(self):
+        hb = get_handle_backend()
         private, public = generate_receiver_keypair()
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -314,10 +322,12 @@ class TestLoadReceiverKeypair:
             save_receiver_keypair(private, public, private_file, public_file)
             loaded_private, loaded_public = load_receiver_keypair(private_file, public_file)
 
-            assert loaded_private == private
+            # Compare underlying key material (handles differ, bytes match)
+            assert hb.export_key(loaded_private) == hb.export_key(private)
             assert loaded_public == public
 
     def test_load_with_password(self):
+        hb = get_handle_backend()
         private, public = generate_receiver_keypair()
         password = "test_password_123"
 
@@ -330,7 +340,8 @@ class TestLoadReceiverKeypair:
                 private_file, public_file, password
             )
 
-            assert loaded_private == private
+            # Compare underlying key material (handles differ, bytes match)
+            assert hb.export_key(loaded_private) == hb.export_key(private)
             assert loaded_public == public
 
     def test_invalid_public_key_raises(self):
@@ -392,7 +403,7 @@ class TestLoadReceiverKeypair:
                 with open(public_file, "wb") as f:
                     f.write(public)
 
-                with pytest.raises(ValueError, match="Loaded key is not X25519PrivateKey"):
+                with pytest.raises(ValueError, match="Unsupported key format"):
                     load_receiver_keypair(private_file, public_file)
             except ImportError:
                 pytest.skip("cryptography not installed — legacy PEM test skipped")
@@ -473,6 +484,7 @@ class TestForwardSecrecyIntegration:
         assert len(sender_secret) == 32
 
     def test_save_load_roundtrip(self):
+        hb = get_handle_backend()
         private, public = generate_receiver_keypair()
         password = "roundtrip_password"
 
@@ -486,7 +498,8 @@ class TestForwardSecrecyIntegration:
                 private_file, public_file, password
             )
 
-            assert loaded_private == private
+            # Compare underlying key material (handles differ, bytes match)
+            assert hb.export_key(loaded_private) == hb.export_key(private)
             assert loaded_public == public
 
             sender_keys = generate_ephemeral_keypair()

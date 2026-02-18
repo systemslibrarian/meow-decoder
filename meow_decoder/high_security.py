@@ -146,15 +146,10 @@ def enable_high_security_mode(silent: bool = True) -> None:
     except (ImportError, AttributeError):
         pass
 
-    # Patch crypto_enhanced.py parameters
-    try:
-        from .experimental import crypto_enhanced  # type: ignore[attr-defined]
-
-        crypto_enhanced.ARGON2_MEMORY = HIGH_SECURITY_ARGON2_MEMORY  # type: ignore[attr-defined]
-        crypto_enhanced.ARGON2_ITERATIONS = HIGH_SECURITY_ARGON2_ITERATIONS  # type: ignore[attr-defined]
-        crypto_enhanced.ARGON2_PARALLELISM = HIGH_SECURITY_ARGON2_PARALLELISM  # type: ignore[attr-defined]
-    except (ImportError, AttributeError):
-        pass
+    # NOTE (AUDIT-A1): experimental.crypto_enhanced import REMOVED from production.
+    # Patching experimental modules from production code violates the
+    # production/experimental boundary. If high-security Argon2 params are
+    # needed in experimental code, they must be configured independently.
 
     # Patch x25519_forward_secrecy.py parameters (if they exist)
     try:
@@ -277,7 +272,7 @@ def secure_wipe_memory() -> None:
     try:
         junk = bytearray(100 * 1024 * 1024)  # 100 MB
         for i in range(0, len(junk), 4096):
-            junk[i : i + 4096] = secrets.token_bytes(4096)
+            junk[i: i + 4096] = secrets.token_bytes(4096)
         del junk
     except MemoryError:
         pass

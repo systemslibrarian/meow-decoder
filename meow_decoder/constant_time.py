@@ -54,10 +54,11 @@ def constant_time_compare(a: bytes, b: bytes) -> bool:
         - Essential for cryptographic comparisons
 
     Note:
-        This is a wrapper around secrets.compare_digest
-        for consistency with other constant-time ops.
+        Delegates to Rust backend constant_time_compare
+        for guaranteed constant-time behavior.
     """
-    return secrets.compare_digest(a, b)
+    from .crypto_backend import get_default_backend
+    return get_default_backend().constant_time_compare(a, b)
 
 
 def secure_zero_memory(buffer: Any) -> None:
@@ -187,8 +188,9 @@ def timing_safe_equal_with_delay(
     delay = secrets.randbelow(max_delay_ms - min_delay_ms + 1) + min_delay_ms
     time.sleep(delay / 1000.0)
 
-    # Constant-time comparison
-    result = secrets.compare_digest(a, b)
+    # Constant-time comparison via Rust backend
+    from .crypto_backend import get_default_backend
+    result = get_default_backend().constant_time_compare(a, b)
 
     # Random delay AFTER comparison
     delay = secrets.randbelow(max_delay_ms - min_delay_ms + 1) + min_delay_ms
@@ -250,13 +252,13 @@ class SecureBuffer:
         """Write data to buffer."""
         if offset + len(data) > self.size:
             raise ValueError("Data too large for buffer")
-        self.buffer[offset : offset + len(data)] = data
+        self.buffer[offset: offset + len(data)] = data
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """Read data from buffer."""
         if length is None:
             return bytes(self.buffer[offset:])
-        return bytes(self.buffer[offset : offset + length])
+        return bytes(self.buffer[offset: offset + length])
 
     def __del__(self):
         """Clean up: zero and unlock."""

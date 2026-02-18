@@ -49,9 +49,9 @@ For full rationale, see: meow_decoder.security_warnings.get_frame_mac_rationale(
 
 import struct
 import secrets
-from typing import Tuple
+from typing import Tuple, Union
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, get_handle_backend
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # SECURITY CONSTANT: Frame MAC Size
@@ -124,13 +124,13 @@ def derive_frame_key(master_key: bytes, frame_index: int, salt: bytes) -> bytes:
     return frame_key
 
 
-def compute_frame_mac(frame_data: bytes, master_key: bytes, frame_index: int, salt: bytes) -> bytes:
+def compute_frame_mac(frame_data: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes) -> bytes:
     """
     Compute MAC for QR frame.
 
     Args:
         frame_data: Raw frame data (droplet bytes)
-        master_key: Master encryption key
+        master_key: Master encryption key (bytes) or opaque handle (int)
         frame_index: Frame number
         salt: Random salt
 
@@ -141,21 +141,39 @@ def compute_frame_mac(frame_data: bytes, master_key: bytes, frame_index: int, sa
         - HMAC-SHA256 truncated to 8 bytes
         - Sufficient for DoS prevention (not long-term security)
         - Fast verification during decode
+        - Per-frame key NEVER exists as Python bytes (handle-based)
     """
-    # Derive frame-specific key
-    frame_key = derive_frame_key(master_key, frame_index, salt)
+    hb = get_handle_backend()
 
-    # Compute HMAC-SHA256
-    mac = get_default_backend().hmac_sha256(frame_key, frame_data)
+    # Import master_key into handle if raw bytes provided
+    if isinstance(master_key, int):
+        mk_handle = master_key
+        own_mk = False
+    else:
+        mk_handle = hb.import_key(master_key)
+        own_mk = True
 
-    # Truncate to 8 bytes (64 bits)
-    # Why: Frame MACs are for DoS resistance (not long-term auth). 64-bit
-    # tags provide ample work factor while keeping QR payloads smaller.
-    return mac[:MAC_SIZE]
+    try:
+        # Derive frame-specific key as handle (never exists as Python bytes)
+        info = FRAME_MAC_INFO + struct.pack("<Q", frame_index)
+        fk_handle = hb.derive_key_hkdf(mk_handle, salt, info, 32)
+        try:
+            # Compute HMAC-SHA256 via handle
+            mac = hb.hmac_sha256(fk_handle, frame_data)
+        finally:
+            hb.drop(fk_handle)
+
+        # Truncate to 8 bytes (64 bits)
+        # Why: Frame MACs are for DoS resistance (not long-term auth). 64-bit
+        # tags provide ample work factor while keeping QR payloads smaller.
+        return mac[:MAC_SIZE]
+    finally:
+        if own_mk:
+            hb.drop(mk_handle)
 
 
 def verify_frame_mac(
-    frame_data: bytes, received_mac: bytes, master_key: bytes, frame_index: int, salt: bytes
+    frame_data: bytes, received_mac: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes
 ) -> bool:
     """
     Verify frame MAC in constant time.
@@ -181,12 +199,13 @@ def verify_frame_mac(
     # Compute expected MAC
     expected_mac = compute_frame_mac(frame_data, master_key, frame_index, salt)
 
-    # Constant-time comparison
-    return secrets.compare_digest(expected_mac, received_mac)
+    # Constant-time comparison via Rust backend
+    from .crypto_backend import get_default_backend
+    return get_default_backend().constant_time_compare(expected_mac, received_mac)
 
 
 def pack_frame_with_mac(
-    frame_data: bytes, master_key: bytes, frame_index: int, salt: bytes
+    frame_data: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes
 ) -> bytes:
     """
     Pack frame data with prepended MAC.
@@ -208,7 +227,7 @@ def pack_frame_with_mac(
 
 
 def unpack_frame_with_mac(
-    packed_frame: bytes, master_key: bytes, frame_index: int, salt: bytes
+    packed_frame: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes
 ) -> Tuple[bool, bytes]:
     """
     Unpack and verify frame data.
@@ -315,7 +334,7 @@ if __name__ == "__main__":
     print(f"   Data: {unpacked2!r}")
 
     # Test tampered data
-    tampered = packed[:MAC_SIZE] + b"TAMPERED" + packed[MAC_SIZE + 8 :]
+    tampered = packed[:MAC_SIZE] + b"TAMPERED" + packed[MAC_SIZE + 8:]
     valid3, unpacked3 = unpack_frame_with_mac(tampered, master_key, frame_index, salt)
     print(f"\n❌ Tampered frame:")
     print(f"   Valid: {valid3}")

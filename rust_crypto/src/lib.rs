@@ -22,6 +22,9 @@
 // Pure Rust crypto module (testable without Python)
 pub mod pure;
 
+// Opaque handle registry (all secrets Rust-owned)
+pub mod handles;
+
 // =============================================================================
 // Python Bindings (only compiled with "python" feature)
 // =============================================================================
@@ -658,6 +661,360 @@ fn yubikey_derive_key<'py>(
 // Python Module
 // =============================================================================
 
+// =============================================================================
+// Opaque Handle API (FFI-safe, no secret bytes cross into Python)
+// =============================================================================
+
+#[cfg(feature = "python")]
+fn handle_err_to_py(e: handles::HandleError) -> PyErr {
+    PyValueError::new_err(format!("{}", e))
+}
+
+/// Import raw key bytes into an opaque Rust handle. The Python caller
+/// MUST zeroize their copy immediately after this call.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_import_key(key_bytes: &[u8]) -> PyResult<u64> {
+    handles::handle_import_key(key_bytes).map_err(handle_err_to_py)
+}
+
+/// Derive key via Argon2id, store as opaque handle. Returns handle ID.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_derive_key_argon2id(
+    password: &[u8],
+    salt: &[u8],
+    memory_kib: u32,
+    iterations: u32,
+    parallelism: u32,
+) -> PyResult<u64> {
+    handles::handle_derive_key_argon2id(password, salt, memory_kib, iterations, parallelism)
+        .map_err(handle_err_to_py)
+}
+
+/// Derive key via HKDF from a handle. Returns new handle ID.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_derive_hkdf(
+    ikm_handle: u64,
+    salt: &[u8],
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<u64> {
+    handles::handle_derive_hkdf(ikm_handle, salt, info, output_len).map_err(handle_err_to_py)
+}
+
+/// Derive key via HKDF from raw IKM bytes. Returns handle ID.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_derive_hkdf_raw(
+    ikm: &[u8],
+    salt: &[u8],
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<u64> {
+    handles::handle_derive_hkdf_raw(ikm, salt, info, output_len).map_err(handle_err_to_py)
+}
+
+/// Derive HKDF from key handle, return raw bytes (for non-secret values like nonces).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_derive_hkdf_bytes<'py>(
+    py: Python<'py>,
+    ikm_handle: u64,
+    salt: &[u8],
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let derived = handles::handle_derive_hkdf_bytes(ikm_handle, salt, info, output_len)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &derived))
+}
+
+/// Encrypt via AES-256-GCM using a key handle. Returns ciphertext bytes.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (key_handle, nonce, plaintext, aad=None))]
+fn handle_aes_gcm_encrypt<'py>(
+    py: Python<'py>,
+    key_handle: u64,
+    nonce: &[u8],
+    plaintext: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let ct = handles::handle_aes_gcm_encrypt(key_handle, nonce, plaintext, aad)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &ct))
+}
+
+/// Decrypt via AES-256-GCM using a key handle. Returns plaintext ONLY if auth passes.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (key_handle, nonce, ciphertext, aad=None))]
+fn handle_aes_gcm_decrypt<'py>(
+    py: Python<'py>,
+    key_handle: u64,
+    nonce: &[u8],
+    ciphertext: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let pt = handles::handle_aes_gcm_decrypt(key_handle, nonce, ciphertext, aad)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &pt))
+}
+
+/// Compute HMAC-SHA256 using a key handle. Returns tag bytes.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256<'py>(
+    py: Python<'py>,
+    key_handle: u64,
+    message: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let tag = handles::handle_hmac_sha256(key_handle, message).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &tag))
+}
+
+/// Verify HMAC-SHA256 in constant time using a key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256_verify(
+    key_handle: u64,
+    message: &[u8],
+    expected_tag: &[u8],
+) -> PyResult<bool> {
+    handles::handle_hmac_sha256_verify(key_handle, message, expected_tag).map_err(handle_err_to_py)
+}
+
+/// Generate X25519 keypair. Private key stays in Rust.
+/// Returns (handle_id, public_key_bytes).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_x25519_generate<'py>(py: Python<'py>) -> PyResult<(u64, Bound<'py, PyBytes>)> {
+    let (id, pub_bytes) = handles::handle_x25519_generate().map_err(handle_err_to_py)?;
+    Ok((id, PyBytes::new(py, &pub_bytes)))
+}
+
+/// X25519 key exchange. Returns handle to shared secret.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_x25519_exchange(private_handle: u64, peer_public: &[u8]) -> PyResult<u64> {
+    handles::handle_x25519_exchange(private_handle, peer_public).map_err(handle_err_to_py)
+}
+
+/// Get public key from X25519 private key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_x25519_public<'py>(py: Python<'py>, handle: u64) -> PyResult<Bound<'py, PyBytes>> {
+    let pub_bytes = handles::handle_x25519_public(handle).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &pub_bytes))
+}
+
+/// Import raw X25519 private key bytes into an opaque handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_import_x25519_private(private_bytes: &[u8]) -> PyResult<u64> {
+    handles::handle_import_x25519_private(private_bytes).map_err(handle_err_to_py)
+}
+
+/// Create a session from enc_key handle + optional mac_key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (enc_key_handle, mac_key_handle=None))]
+fn handle_session_new(enc_key_handle: u64, mac_key_handle: Option<u64>) -> PyResult<u64> {
+    handles::handle_session_new(enc_key_handle, mac_key_handle).map_err(handle_err_to_py)
+}
+
+/// Create stream state for streaming encrypt/decrypt.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_new(enc_key_handle: u64, nonce: &[u8], mac_domain: &[u8]) -> PyResult<u64> {
+    handles::handle_stream_new(enc_key_handle, nonce, mac_domain).map_err(handle_err_to_py)
+}
+
+/// Stream encrypt. Returns (ciphertext, mac_tag).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_encrypt<'py>(
+    py: Python<'py>,
+    stream_handle: u64,
+    plaintext: &[u8],
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let (ct, tag) =
+        handles::handle_stream_encrypt(stream_handle, plaintext).map_err(handle_err_to_py)?;
+    Ok((PyBytes::new(py, &ct), PyBytes::new(py, &tag)))
+}
+
+/// Stream decrypt. Verifies MAC first (fail-closed), then returns plaintext.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_decrypt<'py>(
+    py: Python<'py>,
+    stream_handle: u64,
+    ciphertext: &[u8],
+    expected_mac: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let pt = handles::handle_stream_decrypt(stream_handle, ciphertext, expected_mac)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &pt))
+}
+
+/// Create ratchet state from root key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_ratchet_new(root_key_handle: u64, salt: &[u8], root_info: &[u8]) -> PyResult<u64> {
+    handles::handle_ratchet_new(root_key_handle, salt, root_info).map_err(handle_err_to_py)
+}
+
+/// Ratchet step: advance chain key, return message key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_ratchet_step(ratchet_handle: u64, step_info: &[u8], msg_info: &[u8]) -> PyResult<u64> {
+    handles::handle_ratchet_step(ratchet_handle, step_info, msg_info).map_err(handle_err_to_py)
+}
+
+/// Stream chunk AES-CTR crypt using stream handle (key stays in Rust).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_ctr_crypt<'py>(
+    py: Python<'py>,
+    stream_handle: u64,
+    data: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let result = handles::handle_stream_ctr_crypt(stream_handle, data).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &result))
+}
+
+/// Compute HMAC-SHA256 using stream handle's internal MAC key.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_hmac<'py>(
+    py: Python<'py>,
+    stream_handle: u64,
+    message: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let tag = handles::handle_stream_hmac(stream_handle, message).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &tag))
+}
+
+/// Verify HMAC-SHA256 using stream handle's MAC key (constant-time).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_hmac_verify(
+    stream_handle: u64,
+    message: &[u8],
+    expected_tag: &[u8],
+) -> PyResult<bool> {
+    handles::handle_stream_hmac_verify(stream_handle, message, expected_tag)
+        .map_err(handle_err_to_py)
+}
+
+/// Get nonce from stream handle (non-secret).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_nonce<'py>(py: Python<'py>, stream_handle: u64) -> PyResult<Bound<'py, PyBytes>> {
+    let nonce = handles::handle_stream_nonce(stream_handle).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &nonce))
+}
+
+/// Reset stream byte offset.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_stream_reset_offset(stream_handle: u64) -> PyResult<()> {
+    handles::handle_stream_reset_offset(stream_handle).map_err(handle_err_to_py)
+}
+
+/// Generic AES-CTR crypt using any key handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_aes_ctr_crypt<'py>(
+    py: Python<'py>,
+    key_handle: u64,
+    nonce: &[u8],
+    data: &[u8],
+    byte_offset: u64,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let result = handles::handle_aes_ctr_crypt(key_handle, nonce, data, byte_offset)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &result))
+}
+
+/// HKDF with handle key concatenated with extra IKM. Returns handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_mix_hkdf(
+    ikm_handle: u64,
+    extra_ikm: &[u8],
+    salt: &[u8],
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<u64> {
+    handles::handle_mix_hkdf(ikm_handle, extra_ikm, salt, info, output_len)
+        .map_err(handle_err_to_py)
+}
+
+/// HKDF with handle as salt and raw IKM bytes. Returns handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hkdf_with_handle_salt(
+    ikm: &[u8],
+    salt_handle: u64,
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<u64> {
+    handles::handle_hkdf_with_handle_salt(ikm, salt_handle, info, output_len)
+        .map_err(handle_err_to_py)
+}
+
+/// HKDF-Expand only (no Extract). Treats handle key as PRK.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hkdf_expand(prk_handle: u64, info: &[u8], output_len: usize) -> PyResult<u64> {
+    handles::handle_hkdf_expand(prk_handle, info, output_len).map_err(handle_err_to_py)
+}
+
+/// Full HKDF where both IKM and salt come from handles.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hkdf_two_handles(
+    ikm_handle: u64,
+    salt_handle: u64,
+    info: &[u8],
+    output_len: usize,
+) -> PyResult<u64> {
+    handles::handle_hkdf_two_handles(ikm_handle, salt_handle, info, output_len)
+        .map_err(handle_err_to_py)
+}
+
+/// Drop (zeroize) a handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_drop(id: u64) -> PyResult<()> {
+    handles::handle_drop(id).map_err(handle_err_to_py)
+}
+
+/// Export raw key bytes from handle. DANGEROUS: only for encrypted-at-rest serialization.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_export_key<'py>(py: Python<'py>, id: u64) -> PyResult<Bound<'py, PyBytes>> {
+    let bytes = handles::handle_export_key(id).map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &bytes))
+}
+
+/// Check if a handle exists (for testing only).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_exists(id: u64) -> bool {
+    handles::handle_exists(id)
+}
+
+/// Get current handle count (for testing / monitoring).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_count() -> usize {
+    handles::handle_count()
+}
+
 #[cfg(feature = "python")]
 #[pymodule]
 fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -704,6 +1061,41 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // YubiKey (optional)
     m.add_function(wrap_pyfunction!(yubikey_derive_key, m)?)?;
+
+    // Opaque Handle API (no secret bytes cross FFI)
+    m.add_function(wrap_pyfunction!(handle_import_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_derive_key_argon2id, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_derive_hkdf, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_derive_hkdf_raw, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_derive_hkdf_bytes, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_aes_gcm_encrypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_aes_gcm_decrypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_x25519_generate, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_x25519_exchange, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_x25519_public, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_import_x25519_private, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_session_new, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_new, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_encrypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_decrypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_ratchet_new, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_ratchet_step, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_ctr_crypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_hmac, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_hmac_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_nonce, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_stream_reset_offset, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_aes_ctr_crypt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_mix_hkdf, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hkdf_with_handle_salt, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hkdf_expand, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hkdf_two_handles, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_drop, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_export_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_exists, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_count, m)?)?;
 
     Ok(())
 }

@@ -727,15 +727,19 @@ class TestSecurityPropertiesMeow:
         superposition, manifest = encoded_superposition
         decoder = MultiSecretDecoder(superposition, manifest)
 
-        # This is a structural test - verify secrets.compare_digest is used
-        # by checking the code flow (actual timing tests are in test_sidechannel.py)
-        with patch("secrets.compare_digest") as mock_compare:
-            mock_compare.return_value = False
+        # Verify constant-time comparison is used via the backend.
+        # The code calls _get_backend().constant_time_compare() which
+        # delegates to Rust's constant-time comparison.
+        with patch("meow_decoder.multi_secret._get_backend") as mock_backend_fn:
+            mock_backend = mock_backend_fn.return_value
+            mock_backend.constant_time_compare.return_value = False
+            mock_backend.hmac_sha256.return_value = b"\x00" * 32
+            mock_backend.derive_key_hkdf.return_value = b"\x00" * 32
 
             result = decoder._verify_password("test_password")
 
-            # Should have called compare_digest for each reality
-            assert mock_compare.call_count >= 1
+            # Should have called constant_time_compare for each reality
+            assert mock_backend.constant_time_compare.call_count >= 1
 
     def test_unique_salts_per_reality_meow(self, basic_realities):
         """Test each reality gets unique salt."""

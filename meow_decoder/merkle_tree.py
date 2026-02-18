@@ -217,10 +217,10 @@ class MerkleTree:
 
             index = index // 2
 
-        # Compare to root (constant-time)
-        import secrets
+        # Compare to root (constant-time via Rust backend)
+        from .crypto_backend import get_default_backend
 
-        return secrets.compare_digest(current_hash, proof.root_hash)
+        return get_default_backend().constant_time_compare(current_hash, proof.root_hash)
 
 
 def build_merkle_tree_from_chunks(chunks: List[bytes]) -> Tuple[bytes, MerkleTree]:

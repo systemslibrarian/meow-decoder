@@ -39,7 +39,7 @@ from typing import Tuple, Optional, Dict, List
 from dataclasses import dataclass, field
 from enum import Enum
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, get_handle_backend
 
 # Domain separation constants
 RATCHET_INFO_ROOT = b"meow_double_ratchet_root_v1"
@@ -56,26 +56,38 @@ class RatchetError(Exception):
 
 @dataclass
 class KeyPair:
-    """X25519 keypair container."""
+    """X25519 keypair container.
 
-    _private_bytes: bytes
+    Private key is an opaque handle (int) — secret bytes never in Python.
+    """
+
+    _private_handle: int  # Opaque handle to X25519 private key in Rust
     _public_bytes: bytes
 
     @classmethod
     def generate(cls) -> "KeyPair":
-        """Generate a new X25519 keypair."""
-        backend = get_default_backend()
-        priv, pub = backend.x25519_generate_keypair()
-        return cls(_private_bytes=priv, _public_bytes=pub)
+        """Generate a new X25519 keypair. Private key stays in Rust."""
+        hb = get_handle_backend()
+        handle, pub_bytes = hb.x25519_generate_keypair()
+        return cls(_private_handle=handle, _public_bytes=pub_bytes)
 
     def public_bytes(self) -> bytes:
         """Serialize public key to raw bytes."""
         return self._public_bytes
 
-    def exchange(self, their_public: bytes) -> bytes:
-        """Perform X25519 key exchange."""
-        backend = get_default_backend()
-        return backend.x25519_exchange(self._private_bytes, their_public)
+    def exchange(self, their_public: bytes) -> int:
+        """Perform X25519 key exchange. Returns handle to shared secret."""
+        hb = get_handle_backend()
+        return hb.x25519_exchange(self._private_handle, their_public)
+
+    def drop(self) -> None:
+        """Drop the private key handle."""
+        hb = get_handle_backend()
+        try:
+            hb.drop(self._private_handle)
+        except Exception:
+            pass
+        self._private_handle = 0
 
     @staticmethod
     def public_from_bytes(public_bytes: bytes) -> bytes:
@@ -110,38 +122,69 @@ class MessageHeader:
 
 @dataclass
 class RatchetState:
-    """State for the double ratchet protocol."""
+    """State for the double ratchet protocol.
+
+    All secret keys are opaque handle IDs (ints) — secrets never in Python.
+    """
 
     # DH Ratchet
     dh_keypair: Optional[KeyPair] = None
     dh_remote_public: Optional[bytes] = None
 
-    # Root chain
-    root_key: Optional[bytes] = None  # 32 bytes
+    # Root chain (handle ID)
+    root_key: Optional[int] = None  # Handle to 32-byte root key
 
-    # Sending chain
-    send_chain_key: Optional[bytes] = None  # 32 bytes
+    # Sending chain (handle ID)
+    send_chain_key: Optional[int] = None  # Handle to 32-byte chain key
     send_n: int = 0  # Message number
 
-    # Receiving chain
-    recv_chain_key: Optional[bytes] = None  # 32 bytes
+    # Receiving chain (handle ID)
+    recv_chain_key: Optional[int] = None  # Handle to 32-byte chain key
     recv_n: int = 0  # Message number
 
     # Previous sending chain length (for header)
     previous_send_n: int = 0
 
-    # Skipped message keys: {(dh_public, n): message_key}
-    skipped_keys: Dict[Tuple[bytes, int], bytes] = field(default_factory=dict)
+    # Skipped message keys: {(dh_public, n): handle_id}
+    skipped_keys: Dict[Tuple[bytes, int], int] = field(default_factory=dict)
+
+    def zeroize(self) -> None:
+        """Drop all key handles. Call when state is no longer needed."""
+        hb = get_handle_backend()
+        if self.dh_keypair:
+            self.dh_keypair.drop()
+        for h in [self.root_key, self.send_chain_key, self.recv_chain_key]:
+            if h is not None and isinstance(h, int) and h > 0:
+                try:
+                    hb.drop(h)
+                except Exception:
+                    pass
+        for h in self.skipped_keys.values():
+            if isinstance(h, int) and h > 0:
+                try:
+                    hb.drop(h)
+                except Exception:
+                    pass
+        self.root_key = None
+        self.send_chain_key = None
+        self.recv_chain_key = None
+        self.skipped_keys.clear()
 
     def serialize(self) -> bytes:
-        """Serialize state for storage (encrypted)."""
+        """Serialize state for storage (encrypted).
+
+        NOTE: This temporarily exports key material from handles for serialization.
+        The serialized blob MUST be encrypted before storage.
+        """
+        hb = get_handle_backend()
         data = bytearray()
 
-        # DH keypair (private key)
+        # DH keypair
         if self.dh_keypair:
-            privkey_bytes = self.dh_keypair._private_bytes
             data += struct.pack(">B", 1)  # Has keypair
-            data += privkey_bytes  # 32 bytes
+            # Export private key for serialization (brief transient exposure)
+            priv_bytes = hb.export_key(self.dh_keypair._private_handle)
+            data += priv_bytes  # 32 bytes private key
         else:
             data += struct.pack(">B", 0)
 
@@ -152,26 +195,36 @@ class RatchetState:
         else:
             data += struct.pack(">B", 0)
 
-        # Keys and counters
-        data += self.root_key or (b"\x00" * 32)
-        data += self.send_chain_key or (b"\x00" * 32)
-        data += self.recv_chain_key or (b"\x00" * 32)
+        # Keys — export from handles for serialization
+        for key_handle in [self.root_key, self.send_chain_key, self.recv_chain_key]:
+            if key_handle is not None and isinstance(key_handle, int) and key_handle > 0:
+                data += hb.export_key(key_handle)
+            else:
+                data += b"\x00" * 32
+
         data += struct.pack(">III", self.send_n, self.recv_n, self.previous_send_n)
 
-        # Skipped keys (limited to prevent DoS)
+        # Skipped keys
         skipped_count = min(len(self.skipped_keys), MAX_SKIP)
         data += struct.pack(">H", skipped_count)
 
-        for (dh_pub, n), key in list(self.skipped_keys.items())[:skipped_count]:
+        for (dh_pub, n), key_handle in list(self.skipped_keys.items())[:skipped_count]:
             data += dh_pub  # 32 bytes
             data += struct.pack(">I", n)
-            data += key  # 32 bytes
+            if isinstance(key_handle, int) and key_handle > 0:
+                data += hb.export_key(key_handle)
+            else:
+                data += b"\x00" * 32
 
         return bytes(data)
 
     @classmethod
     def deserialize(cls, data: bytes) -> "RatchetState":
-        """Deserialize state from bytes."""
+        """Deserialize state from bytes.
+
+        NOTE: Deserialized keys are imported as handles immediately.
+        """
+        hb = get_handle_backend()
         state = cls()
         offset = 0
 
@@ -181,9 +234,10 @@ class RatchetState:
         if has_keypair:
             privkey_bytes = data[offset : offset + 32]
             offset += 32
-            backend = get_default_backend()
-            pubkey_bytes = backend.x25519_public_from_private(privkey_bytes)
-            state.dh_keypair = KeyPair(_private_bytes=privkey_bytes, _public_bytes=pubkey_bytes)
+            # Import as X25519 private key handle
+            priv_handle = hb.import_x25519_private(privkey_bytes)
+            pubkey_bytes = hb.x25519_public(priv_handle)
+            state.dh_keypair = KeyPair(_private_handle=priv_handle, _public_bytes=pubkey_bytes)
 
         # Remote public
         has_remote = struct.unpack(">B", data[offset : offset + 1])[0]
@@ -192,13 +246,18 @@ class RatchetState:
             state.dh_remote_public = data[offset : offset + 32]
             offset += 32
 
-        # Keys
-        state.root_key = data[offset : offset + 32]
+        # Keys — import as handles
+        root_bytes = data[offset : offset + 32]
         offset += 32
-        state.send_chain_key = data[offset : offset + 32]
+        state.root_key = hb.import_key(root_bytes) if root_bytes != b"\x00" * 32 else None
+
+        send_bytes = data[offset : offset + 32]
         offset += 32
-        state.recv_chain_key = data[offset : offset + 32]
+        state.send_chain_key = hb.import_key(send_bytes) if send_bytes != b"\x00" * 32 else None
+
+        recv_bytes = data[offset : offset + 32]
         offset += 32
+        state.recv_chain_key = hb.import_key(recv_bytes) if recv_bytes != b"\x00" * 32 else None
 
         # Counters
         state.send_n, state.recv_n, state.previous_send_n = struct.unpack(
@@ -215,9 +274,9 @@ class RatchetState:
             offset += 32
             n = struct.unpack(">I", data[offset : offset + 4])[0]
             offset += 4
-            key = data[offset : offset + 32]
+            key_bytes = data[offset : offset + 32]
             offset += 32
-            state.skipped_keys[(dh_pub, n)] = key
+            state.skipped_keys[(dh_pub, n)] = hb.import_key(key_bytes)
 
         return state
 
@@ -263,16 +322,20 @@ class DoubleRatchet:
         if len(bob_public_key) != 32:
             raise ValueError("Public key must be 32 bytes")
 
+        hb = get_handle_backend()
         state = RatchetState()
 
         # Generate Alice's DH keypair
         state.dh_keypair = KeyPair.generate()
         state.dh_remote_public = bob_public_key
 
-        # Perform DH and derive root + send chain
-        dh_output = state.dh_keypair.exchange(bob_public_key)
+        # Perform DH and derive root + send chain (handles)
+        dh_handle = state.dh_keypair.exchange(bob_public_key)
+        ss_handle = hb.import_key(shared_secret)
 
-        state.root_key, state.send_chain_key = cls._kdf_rk(shared_secret, dh_output)
+        state.root_key, state.send_chain_key = cls._kdf_rk(ss_handle, dh_handle)
+        hb.drop(ss_handle)
+        hb.drop(dh_handle)
 
         return cls(state)
 
@@ -291,9 +354,10 @@ class DoubleRatchet:
         if len(shared_secret) != 32:
             raise ValueError("Shared secret must be 32 bytes")
 
+        hb = get_handle_backend()
         state = RatchetState()
         state.dh_keypair = bob_keypair
-        state.root_key = shared_secret
+        state.root_key = hb.import_key(shared_secret)
 
         # Bob waits for first message to perform DH ratchet
 
@@ -312,9 +376,12 @@ class DoubleRatchet:
         if self.state.send_chain_key is None:
             raise RatchetError("Cannot encrypt: no sending chain initialized")
 
-        # Derive message key
-        message_key, new_chain_key = self._kdf_ck(self.state.send_chain_key)
-        self.state.send_chain_key = new_chain_key
+        hb = get_handle_backend()
+
+        # Derive message key handle and advance chain
+        msg_key_handle, new_chain_handle = self._kdf_ck(self.state.send_chain_key)
+        hb.drop(self.state.send_chain_key)
+        self.state.send_chain_key = new_chain_handle
 
         # Create header
         assert self.state.dh_keypair is not None, "DH keypair must exist"
@@ -326,11 +393,11 @@ class DoubleRatchet:
 
         self.state.send_n += 1
 
-        # Encrypt with AEAD
-        ciphertext = self._aead_encrypt(message_key, plaintext, header.pack())
+        # Encrypt with AEAD using handle
+        ciphertext = self._aead_encrypt(msg_key_handle, plaintext, header.pack())
 
-        # Zero message key
-        del message_key
+        # Drop message key handle
+        hb.drop(msg_key_handle)
 
         return ciphertext, header
 
@@ -345,10 +412,14 @@ class DoubleRatchet:
         Returns:
             Decrypted plaintext
         """
+        hb = get_handle_backend()
+
         # Check for skipped message key
-        skipped_key = self.state.skipped_keys.pop((header.dh_public, header.n), None)
-        if skipped_key:
-            return self._aead_decrypt(skipped_key, ciphertext, header.pack())
+        skipped_handle = self.state.skipped_keys.pop((header.dh_public, header.n), None)
+        if skipped_handle is not None:
+            plaintext = self._aead_decrypt(skipped_handle, ciphertext, header.pack())
+            hb.drop(skipped_handle)
+            return plaintext
 
         # Check if we need DH ratchet
         if header.dh_public != self.state.dh_remote_public:
@@ -358,21 +429,23 @@ class DoubleRatchet:
         # Skip to correct message number
         self._skip_messages(header.n)
 
-        # Derive message key
-        message_key, new_chain_key = self._kdf_ck(self.state.recv_chain_key)
-        self.state.recv_chain_key = new_chain_key
+        # Derive message key handle and advance chain
+        msg_key_handle, new_chain_handle = self._kdf_ck(self.state.recv_chain_key)
+        hb.drop(self.state.recv_chain_key)
+        self.state.recv_chain_key = new_chain_handle
         self.state.recv_n += 1
 
-        # Decrypt
-        plaintext = self._aead_decrypt(message_key, ciphertext, header.pack())
+        # Decrypt using handle
+        plaintext = self._aead_decrypt(msg_key_handle, ciphertext, header.pack())
 
-        # Zero message key
-        del message_key
+        # Drop message key handle
+        hb.drop(msg_key_handle)
 
         return plaintext
 
     def _dh_ratchet(self, their_public: bytes):
         """Perform DH ratchet step."""
+        hb = get_handle_backend()
         self.state.previous_send_n = self.state.send_n
         self.state.send_n = 0
         self.state.recv_n = 0
@@ -380,88 +453,102 @@ class DoubleRatchet:
 
         # Derive receiving chain
         assert self.state.dh_keypair is not None, "DH keypair must exist"
-        dh_output = self.state.dh_keypair.exchange(their_public)
+        dh_handle = self.state.dh_keypair.exchange(their_public)
+        old_root = self.state.root_key
         self.state.root_key, self.state.recv_chain_key = self._kdf_rk(
-            self.state.root_key, dh_output
+            old_root, dh_handle
         )
+        hb.drop(dh_handle)
+        if old_root is not None and old_root != self.state.root_key:
+            hb.drop(old_root)
 
-        # Generate new DH keypair
+        # Generate new DH keypair (drops old private key)
+        old_kp = self.state.dh_keypair
         self.state.dh_keypair = KeyPair.generate()
+        old_kp.drop()
 
         # Derive sending chain
-        dh_output = self.state.dh_keypair.exchange(their_public)
+        dh_handle = self.state.dh_keypair.exchange(their_public)
+        old_root = self.state.root_key
         self.state.root_key, self.state.send_chain_key = self._kdf_rk(
-            self.state.root_key, dh_output
+            old_root, dh_handle
         )
+        hb.drop(dh_handle)
+        if old_root is not None and old_root != self.state.root_key:
+            hb.drop(old_root)
 
     def _skip_messages(self, until: int):
         """Skip message keys for out-of-order delivery."""
         if self.state.recv_chain_key is None:
             return
 
+        hb = get_handle_backend()
+
         if self.state.recv_n + MAX_SKIP < until:
             raise RatchetError(f"Too many skipped messages: {until - self.state.recv_n}")
 
         while self.state.recv_n < until:
-            message_key, new_chain_key = self._kdf_ck(self.state.recv_chain_key)
-            self.state.recv_chain_key = new_chain_key
+            msg_key_handle, new_chain_handle = self._kdf_ck(self.state.recv_chain_key)
+            hb.drop(self.state.recv_chain_key)
+            self.state.recv_chain_key = new_chain_handle
 
-            # Store skipped key
+            # Store skipped key handle
             key_id = (self.state.dh_remote_public, self.state.recv_n)
-            self.state.skipped_keys[key_id] = message_key
+            self.state.skipped_keys[key_id] = msg_key_handle
 
             self.state.recv_n += 1
 
             # Limit stored keys
             if len(self.state.skipped_keys) > MAX_SKIP:
-                # Remove oldest (first inserted)
+                # Remove oldest (first inserted) and drop its handle
                 oldest_key = next(iter(self.state.skipped_keys))
-                del self.state.skipped_keys[oldest_key]
+                old_handle = self.state.skipped_keys.pop(oldest_key)
+                if isinstance(old_handle, int) and old_handle > 0:
+                    hb.drop(old_handle)
 
     @staticmethod
-    def _kdf_rk(root_key: bytes, dh_output: bytes) -> Tuple[bytes, bytes]:
+    def _kdf_rk(root_key_handle: int, dh_handle: int) -> Tuple[int, int]:
         """
-        Root key derivation function.
+        Root key derivation function. All handles — no raw bytes in Python.
 
-        Returns (new_root_key, chain_key)
+        Returns (new_root_key_handle, chain_key_handle)
         """
-        backend = get_default_backend()
-        output = backend.derive_key_hkdf(dh_output, root_key, RATCHET_INFO_ROOT, 64)
-
-        return output[:32], output[32:]
+        hb = get_handle_backend()
+        new_root = hb.hkdf_two_handles(dh_handle, root_key_handle, RATCHET_INFO_ROOT + b":root", 32)
+        chain_key = hb.hkdf_two_handles(dh_handle, root_key_handle, RATCHET_INFO_ROOT + b":chain", 32)
+        return new_root, chain_key
 
     @staticmethod
-    def _kdf_ck(chain_key: bytes) -> Tuple[bytes, bytes]:
+    def _kdf_ck(chain_key_handle: int) -> Tuple[int, int]:
         """
-        Chain key derivation function.
+        Chain key derivation function. All handles — no raw bytes in Python.
 
-        Returns (message_key, new_chain_key)
+        Returns (message_key_handle, new_chain_key_handle)
         """
-        backend = get_default_backend()
-        message_key = backend.hkdf_expand(chain_key, RATCHET_INFO_MESSAGE, 32)
-        new_chain_key = backend.hkdf_expand(chain_key, RATCHET_INFO_CHAIN, 32)
-
+        hb = get_handle_backend()
+        message_key = hb.hkdf_expand(chain_key_handle, RATCHET_INFO_MESSAGE, 32)
+        new_chain_key = hb.hkdf_expand(chain_key_handle, RATCHET_INFO_CHAIN, 32)
         return message_key, new_chain_key
 
     @staticmethod
-    def _aead_encrypt(key: bytes, plaintext: bytes, aad: bytes) -> bytes:
-        """Encrypt with AES-256-GCM."""
-        backend = get_default_backend()
+    def _aead_encrypt(key_handle: int, plaintext: bytes, aad: bytes) -> bytes:
+        """Encrypt with AES-256-GCM using key handle."""
+        hb = get_handle_backend()
         nonce = secrets.token_bytes(12)
-        ciphertext = backend.aes_gcm_encrypt(key, nonce, plaintext, aad)
+        ciphertext = hb.aes_gcm_encrypt(key_handle, nonce, plaintext, aad)
         return nonce + ciphertext
 
     @staticmethod
-    def _aead_decrypt(key: bytes, ciphertext: bytes, aad: bytes) -> bytes:
-        """Decrypt with AES-256-GCM."""
+    def _aead_decrypt(key_handle: int, ciphertext: bytes, aad: bytes) -> bytes:
+        """Decrypt with AES-256-GCM using key handle. Fail-closed."""
         if len(ciphertext) < 12:
             raise RatchetError("Ciphertext too short")
 
         nonce = ciphertext[:12]
         actual_ciphertext = ciphertext[12:]
 
-        backend = get_default_backend()
-        return backend.aes_gcm_decrypt(key, nonce, actual_ciphertext, aad)
+        hb = get_handle_backend()
+        return hb.aes_gcm_decrypt(key_handle, nonce, actual_ciphertext, aad)
 
 
 # Clowder mode integration

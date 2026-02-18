@@ -56,6 +56,8 @@ import os
 import secrets
 import struct
 
+from meow_decoder.crypto_backend import get_handle_backend
+
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 
@@ -162,14 +164,17 @@ class TestInitRatchet:
         state = init_ratchet(root_key, salt)
         assert state.position == 0
 
-    def test_chain_key_is_32_bytes(self, root_key, salt):
+    def test_chain_key_is_opaque_handle(self, root_key, salt):
+        """chain_key is an opaque handle (int), not raw bytes."""
         state = init_ratchet(root_key, salt)
-        assert len(state.chain_key) == 32
+        assert isinstance(state.chain_key, int) and state.chain_key > 0
+        hb = get_handle_backend()
+        assert hb.exists(state.chain_key)
 
-    def test_chain_key_is_bytearray(self, root_key, salt):
-        """Chain key must be mutable bytearray for zeroization."""
+    def test_chain_key_is_handle(self, root_key, salt):
+        """Chain key must be an opaque handle — secrets never in Python."""
         state = init_ratchet(root_key, salt)
-        assert isinstance(state.chain_key, bytearray)
+        assert isinstance(state.chain_key, int), "chain_key must be opaque handle (int)"
 
     def test_chain_key_differs_from_root(self, root_key, salt):
         """chain_key[0] must be derived (not equal to root_key)."""
@@ -184,7 +189,11 @@ class TestInitRatchet:
         """Same root_key + salt produces identical chain_key[0]."""
         s1 = init_ratchet(root_key, salt)
         s2 = init_ratchet(root_key, salt)
-        assert s1.chain_key == s2.chain_key
+        # Handles have unique IDs, so compare derived commitments
+        hb = get_handle_backend()
+        c1 = hb.derive_key_hkdf_bytes(s1.chain_key, salt, b"TEST_CMP", 32)
+        c2 = hb.derive_key_hkdf_bytes(s2.chain_key, salt, b"TEST_CMP", 32)
+        assert c1 == c2, "Same inputs must produce identical chain keys"
 
     def test_different_root_keys_produce_different_chains(self, salt):
         k1 = secrets.token_bytes(32)
@@ -206,8 +215,10 @@ class TestRatchetStep:
 
     def test_returns_message_key_and_new_state(self, ratchet_state):
         msg_key, new_state = ratchet_step(ratchet_state)
-        assert isinstance(msg_key, bytes)
-        assert len(msg_key) == 32
+        assert isinstance(msg_key, int), "message_key must be opaque handle (int)"
+        assert msg_key > 0
+        hb = get_handle_backend()
+        assert hb.exists(msg_key)
         assert isinstance(new_state, RatchetState)
 
     def test_position_advances_by_one(self, ratchet_state):
@@ -226,12 +237,14 @@ class TestRatchetStep:
         assert msg_key != bytes(new_state.chain_key)
 
     def test_old_chain_key_is_zeroized(self, root_key, salt):
-        """After ratchet_step, the OLD state's chain_key should be zeroized."""
+        """After ratchet_step, the OLD state's chain_key handle should be dropped."""
         state = init_ratchet(root_key, salt)
-        original_chain_buf = state.chain_key  # Hold reference to the same bytearray
+        original_handle = state.chain_key  # Capture the handle ID
+        hb = get_handle_backend()
+        assert hb.exists(original_handle)
         _, _ = ratchet_step(state)
-        # The original chain_key buffer should be zeroed
-        assert original_chain_buf == bytearray(32)
+        # The original handle should be dropped (forward secrecy)
+        assert not hb.exists(original_handle)
 
     def test_sequential_steps_produce_unique_keys(self, root_key, salt):
         """Each step produces a unique message key."""
@@ -262,10 +275,14 @@ class TestRatchetStep:
         """Same inputs produce identical message key sequences."""
         state1 = init_ratchet(root_key, salt)
         state2 = init_ratchet(root_key, salt)
+        hb = get_handle_backend()
         for _ in range(10):
             mk1, state1 = ratchet_step(state1)
             mk2, state2 = ratchet_step(state2)
-            assert mk1 == mk2
+            # Handle IDs differ, but underlying keys must be identical
+            c1 = hb.derive_key_hkdf_bytes(mk1, salt, b"TEST_CMP", 32)
+            c2 = hb.derive_key_hkdf_bytes(mk2, salt, b"TEST_CMP", 32)
+            assert c1 == c2, "Deterministic sequence diverged"
 
 
 # ── Forward Secrecy Proof ────────────────────────────────────────────────────
@@ -360,19 +377,20 @@ class TestSubkeyIndependence:
         msg_key, _ = ratchet_step(state)
         keys = derive_frame_keys(msg_key, salt)
 
-        assert len(keys.enc_key) == 32
+        # enc_key and mac_key are opaque handles; nonce is still bytes
+        assert isinstance(keys.enc_key, int) and keys.enc_key > 0
         assert len(keys.nonce) == 12
-        assert len(keys.mac_key) == 32
+        assert isinstance(keys.mac_key, int) and keys.mac_key > 0
 
-    def test_subkeys_are_bytearrays(self, root_key, salt):
-        """All subkeys must be mutable bytearrays for zeroization."""
+    def test_subkeys_are_handles(self, root_key, salt):
+        """enc_key and mac_key must be opaque handles; nonce is bytearray."""
         state = init_ratchet(root_key, salt)
         msg_key, _ = ratchet_step(state)
         keys = derive_frame_keys(msg_key, salt)
 
-        assert isinstance(keys.enc_key, bytearray)
+        assert isinstance(keys.enc_key, int), "enc_key must be opaque handle"
         assert isinstance(keys.nonce, bytearray)
-        assert isinstance(keys.mac_key, bytearray)
+        assert isinstance(keys.mac_key, int), "mac_key must be opaque handle"
 
     def test_different_message_keys_produce_different_subkeys(self, root_key, salt):
         state = init_ratchet(root_key, salt)
@@ -403,16 +421,19 @@ class TestSubkeyIndependence:
         msg_key, _ = ratchet_step(state)
         keys = derive_frame_keys(msg_key, salt)
 
-        # Verify they're non-zero first
-        assert bytes(keys.enc_key) != bytes(32)
+        hb = get_handle_backend()
+        # Verify handles exist first
+        assert hb.exists(keys.enc_key)
         assert bytes(keys.nonce) != bytes(12)
-        assert bytes(keys.mac_key) != bytes(32)
+        assert hb.exists(keys.mac_key)
 
+        enc_h, mac_h = keys.enc_key, keys.mac_key
         keys.zeroize()
 
-        assert bytes(keys.enc_key) == bytes(32)
+        # Handles should be dropped after zeroize
+        assert not hb.exists(enc_h)
         assert bytes(keys.nonce) == bytes(12)
-        assert bytes(keys.mac_key) == bytes(32)
+        assert not hb.exists(mac_h)
 
 
 # ── Build Frame AAD ──────────────────────────────────────────────────────────
@@ -1052,10 +1073,12 @@ class TestKeyZeroization:
 
     def test_ratchet_state_zeroize(self, root_key, salt):
         state = init_ratchet(root_key, salt)
-        assert bytes(state.chain_key) != bytes(32)
+        hb = get_handle_backend()
+        chain_h = state.chain_key
+        assert isinstance(chain_h, int) and hb.exists(chain_h)
 
         state.zeroize()
-        assert bytes(state.chain_key) == bytes(32)
+        assert not hb.exists(chain_h), "chain_key handle must be dropped"
         assert state.position == -1
 
     def test_frame_keys_zeroize(self, root_key, salt):
@@ -1063,22 +1086,27 @@ class TestKeyZeroization:
         msg_key, _ = ratchet_step(state)
         keys = derive_frame_keys(msg_key, salt)
 
+        hb = get_handle_backend()
+        enc_h, mac_h = keys.enc_key, keys.mac_key
+        assert hb.exists(enc_h) and hb.exists(mac_h)
+
         keys.zeroize()
-        assert bytes(keys.enc_key) == bytes(32)
+        assert not hb.exists(enc_h), "enc_key handle must be dropped"
         assert bytes(keys.nonce) == bytes(12)
-        assert bytes(keys.mac_key) == bytes(32)
+        assert not hb.exists(mac_h), "mac_key handle must be dropped"
 
     def test_encoder_finalize_zeroizes_chain(self, root_key, salt):
         encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=800, total_frames=5)
         encoder.encrypt_next(b"data")
 
-        # Get reference to internal state
-        chain_buf = encoder._state.chain_key
-        assert bytes(chain_buf) != bytes(32)
+        hb = get_handle_backend()
+        # Get reference to internal handle
+        chain_h = encoder._state.chain_key
+        assert isinstance(chain_h, int) and hb.exists(chain_h)
 
         encoder.finalize()
-        # Chain key should be zeroed
-        assert bytes(chain_buf) == bytes(32)
+        # Chain key handle should be dropped
+        assert not hb.exists(chain_h)
 
     def test_decoder_finalize_zeroizes_skipped_keys(self, root_key, salt):
         total = 5
@@ -1091,16 +1119,17 @@ class TestKeyZeroization:
         # Receive frame 4, causing keys 0-3 to be cached
         decoder.decrypt(encrypted[4])
 
-        # Get references to cached key buffers
-        cached_bufs = list(decoder._skipped_keys.values())
-        assert len(cached_bufs) == 4
-        for buf in cached_bufs:
-            assert bytes(buf) != bytes(32)
+        hb = get_handle_backend()
+        # Get references to cached handle IDs
+        cached_handles = list(decoder._skipped_keys.values())
+        assert len(cached_handles) == 4
+        for h in cached_handles:
+            assert isinstance(h, int) and hb.exists(h)
 
         decoder.finalize()
-        # All cached buffers should be zeroed
-        for buf in cached_bufs:
-            assert bytes(buf) == bytes(32)
+        # All cached handles should be dropped
+        for h in cached_handles:
+            assert not hb.exists(h), f"Skipped key handle {h} was not dropped"
 
     def test_secure_zero_function(self):
         """_secure_zero should zero a bytearray."""
@@ -1900,9 +1929,10 @@ class TestMeowAliases:
         salt = secrets.token_bytes(16)
         keys = knead_subkey(msg_key, salt)
         assert isinstance(keys, WhiskerKeys)
-        assert len(keys.enc_key) == 32
+        # enc_key and mac_key are opaque handles; nonce is bytearray
+        assert isinstance(keys.enc_key, int) and keys.enc_key > 0
         assert len(keys.nonce) == 12
-        assert len(keys.mac_key) == 32
+        assert isinstance(keys.mac_key, int) and keys.mac_key > 0
 
     def test_prime_cat_initializes_paw_state(self):
         from meow_decoder.ratchet import prime_cat, PawState
@@ -1912,7 +1942,7 @@ class TestMeowAliases:
         paw = prime_cat(root, salt)
         assert isinstance(paw, PawState)
         assert paw.position == 0
-        assert len(paw.chain_key) == 32
+        assert isinstance(paw.chain_key, int) and paw.chain_key > 0
 
     def test_config_rekey_beacon_interval(self):
         from meow_decoder.config import EncodingConfig, DecodingConfig

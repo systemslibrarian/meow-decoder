@@ -731,6 +731,566 @@ class TestSecretLifecycle:
 
 
 # =============================================================================
+# Test 11: Opaque Handle API — Rule #2 Enforcement
+# Python secret-key bytes MUST stay inside Rust.
+# =============================================================================
+
+
+class TestOpaqueHandleAPI:
+    """Verify the opaque Rust handle API keeps keys out of Python."""
+
+    def test_handle_derive_key_returns_int(self):
+        """derive_key_handle must return an int handle, not bytes."""
+        from meow_decoder.crypto import derive_key_handle
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        salt = os.urandom(16)
+        h = derive_key_handle("password1234", salt)
+        assert isinstance(h, int), f"Expected int handle, got {type(h)}"
+        assert hb.exists(h), "Handle must exist in registry"
+        hb.drop(h)
+        assert not hb.exists(h), "Handle must not exist after drop"
+
+    def test_handle_encrypt_decrypt_roundtrip(self):
+        """Handle-based encrypt/decrypt roundtrip — key never in Python."""
+        from meow_decoder.crypto import encrypt_file_bytes_handle, decrypt_to_raw_handle
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        data = b"Rule #2 enforcement test payload" * 5
+        comp, sha, salt, nonce, ct, key_h = encrypt_file_bytes_handle(data, "password1234")
+        assert isinstance(key_h, int), "Key handle must be int"
+        pt = decrypt_to_raw_handle(
+            ct, "password1234", salt, nonce,
+            orig_len=len(data), comp_len=len(comp), sha256=sha,
+        )
+        assert pt == data, "Handle-based roundtrip must recover original"
+        get_handle_backend().drop(key_h)
+
+    def test_handle_hmac_never_exposes_key(self):
+        """compute_manifest_hmac_handle must compute HMAC without Python key bytes."""
+        from meow_decoder.crypto import derive_key_handle, compute_manifest_hmac_handle
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        salt = os.urandom(16)
+        h = derive_key_handle("password1234", salt)
+        tag = compute_manifest_hmac_handle(h, salt, b"test_manifest_core_bytes")
+        assert isinstance(tag, bytes) and len(tag) == 32
+        hb.drop(h)
+
+    def test_handle_wrong_password_fails_closed(self):
+        """Decrypt with wrong password handle must raise, never return garbage."""
+        from meow_decoder.crypto import encrypt_file_bytes_handle, decrypt_to_raw_handle
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        data = b"fail-closed test"
+        comp, sha, salt, nonce, ct, key_h = encrypt_file_bytes_handle(data, "correct_pass!")
+        get_handle_backend().drop(key_h)
+
+        with pytest.raises(Exception):
+            decrypt_to_raw_handle(
+                ct, "wrong_password!", salt, nonce,
+                orig_len=len(data), comp_len=len(comp), sha256=sha,
+            )
+
+    def test_handle_registry_bounded(self):
+        """Handle count must stay bounded (no leak on repeated ops)."""
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        initial = hb.count()
+        handles = []
+        for _ in range(50):
+            h = hb.import_key(os.urandom(32))
+            handles.append(h)
+        assert hb.count() == initial + 50
+        for h in handles:
+            hb.drop(h)
+        assert hb.count() == initial
+
+    def test_handle_backend_exports(self):
+        """HandleBackend must export all required handle operations."""
+        import meow_crypto_rs as rs
+
+        required = [
+            "handle_import_key",
+            "handle_derive_key_argon2id",
+            "handle_derive_hkdf",
+            "handle_aes_gcm_encrypt",
+            "handle_aes_gcm_decrypt",
+            "handle_hmac_sha256",
+            "handle_hmac_sha256_verify",
+            "handle_x25519_generate",
+            "handle_x25519_exchange",
+            "handle_x25519_public",
+            "handle_drop",
+            "handle_exists",
+            "handle_count",
+        ]
+        missing = [f for f in required if not hasattr(rs, f)]
+        assert not missing, f"Rust module missing handle functions: {missing}"
+
+
+# =============================================================================
+# Test 12: Streaming Crypto Fail-Closed — Rule #3
+# decrypt_stream must NEVER release plaintext without MAC verification.
+# =============================================================================
+
+
+class TestStreamingFailClosed:
+    """Streaming crypto must be fail-closed (no plaintext without auth)."""
+
+    def test_streaming_encrypt_produces_mac(self):
+        """Streaming encryption must always produce a MAC tag."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+        from io import BytesIO
+
+        key = os.urandom(32)
+        sc = StreamingCipher(key)
+        inp = BytesIO(b"test data for streaming")
+        out = BytesIO()
+        orig_size, comp_size, sha, mac = sc.encrypt_stream(inp, out)
+        assert isinstance(mac, bytes) and len(mac) == 32, "MAC must be 32 bytes"
+        assert orig_size > 0
+
+    def test_streaming_decrypt_requires_mac(self):
+        """decrypt_stream must reject empty/missing MAC (fail-closed)."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+        from io import BytesIO
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+        sc = StreamingCipher(key, nonce=nonce)
+        inp = BytesIO(b"test data")
+        out = BytesIO()
+        _, _, _, mac = sc.encrypt_stream(inp, out)
+        ciphertext = out.getvalue()
+
+        # Decrypt with correct MAC (new instance with same key/nonce)
+        sc2 = StreamingCipher(key, nonce=nonce)
+        pt_out = BytesIO()
+        sc2.decrypt_stream(BytesIO(ciphertext), pt_out, expected_mac=mac)
+        assert pt_out.getvalue() == b"test data"
+
+        # Decrypt with empty MAC must fail
+        sc3 = StreamingCipher(key, nonce=nonce)
+        with pytest.raises((ValueError, RuntimeError)):
+            sc3.decrypt_stream(BytesIO(ciphertext), BytesIO(), expected_mac=b"")
+
+        # Decrypt with wrong MAC must fail
+        wrong_mac = bytearray(mac)
+        wrong_mac[0] ^= 0xFF
+        sc4 = StreamingCipher(key, nonce=nonce)
+        with pytest.raises((ValueError, RuntimeError)):
+            sc4.decrypt_stream(BytesIO(ciphertext), BytesIO(), expected_mac=bytes(wrong_mac))
+
+    def test_streaming_no_none_mac_bypass(self):
+        """decrypt_stream(expected_mac=None) must fail, not bypass."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+        from io import BytesIO
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+        sc = StreamingCipher(key, nonce=nonce)
+        inp = BytesIO(b"test data")
+        out = BytesIO()
+        _, _, _, _ = sc.encrypt_stream(inp, out)
+        ciphertext = out.getvalue()
+
+        # None MAC must be rejected
+        sc2 = StreamingCipher(key, nonce=nonce)
+        with pytest.raises((ValueError, TypeError, RuntimeError)):
+            sc2.decrypt_stream(BytesIO(ciphertext), BytesIO(), expected_mac=None)  # type: ignore[arg-type]
+
+    def test_verified_stream_requires_prior_mac_check(self):
+        """_decrypt_verified_stream must not work without MAC check."""
+        from meow_decoder.streaming_crypto import StreamingCipher
+        from io import BytesIO
+
+        key = os.urandom(32)
+        nonce = os.urandom(16)
+        sc = StreamingCipher(key, nonce=nonce)
+        inp = BytesIO(b"payload")
+        out = BytesIO()
+        _, _, _, mac = sc.encrypt_stream(inp, out)
+        ciphertext = out.getvalue()
+
+        # Fresh instance without MAC verification must reject
+        sc_fresh = StreamingCipher(key, nonce=nonce)
+        with pytest.raises(RuntimeError, match="MAC verification"):
+            sc_fresh._decrypt_verified_stream(BytesIO(ciphertext), BytesIO(), True)
+
+
+# =============================================================================
+# Test 13: Forbidden Production Strings — Rule #4, Rule #7 ratchet
+# CI fails if forbidden debug/bypass strings appear in production code.
+# =============================================================================
+
+# Strings that MUST NOT appear in production code (case-insensitive search)
+FORBIDDEN_STRINGS = [
+    ("import oqs", "Python oqs library must not be imported (Rule #4: no silent downgrade)"),
+    ("from oqs import", "Python oqs library must not be imported"),
+    ("oqs.KeyEncapsulation", "Direct oqs usage must go through Rust PQ backend"),
+    ("secrets.compare_digest", "Must use Rust constant_time_compare (Rule #6)"),
+]
+
+# Files where these strings are OK (test files, documentation, etc.)
+FORBIDDEN_STRING_EXEMPT = {
+    "__init__.py",
+    "constant_time.py",  # May reference in docstrings
+}
+
+
+class TestForbiddenProductionStrings:
+    """Scan production code for strings that indicate security violations."""
+
+    def test_no_forbidden_strings_in_production(self):
+        """Production code must not contain forbidden bypass/fallback strings."""
+        violations = []
+
+        for py_file in get_production_files():
+            if py_file.name in FORBIDDEN_STRING_EXEMPT:
+                continue
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(source)
+            except (OSError, UnicodeDecodeError, SyntaxError):
+                continue
+
+            # Collect docstring/string-constant line ranges to skip
+            string_lines: set = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Expr) and isinstance(node.value, (ast.Constant,)):
+                    # Docstrings (expression-level string constants)
+                    for ln in range(node.lineno, getattr(node, "end_lineno", node.lineno) + 1):
+                        string_lines.add(ln)
+                if isinstance(node, ast.Assign):
+                    # String constant assignments (banners, etc.)
+                    if isinstance(node.value, (ast.Constant, ast.JoinedStr)):
+                        for ln in range(node.lineno, getattr(node, "end_lineno", node.lineno) + 1):
+                            string_lines.add(ln)
+
+            for lineno, line in enumerate(source.splitlines(), 1):
+                stripped = line.strip()
+                # Skip comments
+                if stripped.startswith("#"):
+                    continue
+                # Skip lines that are part of docstrings or string constants
+                if lineno in string_lines:
+                    continue
+
+                for forbidden, reason in FORBIDDEN_STRINGS:
+                    if forbidden in stripped:
+                        code_part = stripped.split("#")[0] if "#" in stripped else stripped
+                        if forbidden in code_part:
+                            violations.append(
+                                f"{py_file.relative_to(py_file.parent.parent)}:{lineno} - "
+                                f"{reason}: {stripped[:80]}"
+                            )
+
+        if violations:
+            violation_list = "\n".join(f"  - {v}" for v in violations)
+            pytest.fail(
+                f"Found {len(violations)} forbidden strings in production code:\n"
+                f"{violation_list}\n\n"
+                "Fix these violations per the security audit requirements."
+            )
+
+
+# =============================================================================
+# Test 14: Protocol Invariants — Rule #8
+# Manifest version boundaries, AAD completeness, HMAC authentication
+# =============================================================================
+
+
+class TestProtocolInvariants:
+    """Verify critical protocol invariants hold."""
+
+    def test_aad_includes_all_required_fields(self):
+        """build_canonical_aad must include all specified fields."""
+        from meow_decoder.crypto import build_canonical_aad, AAD_VERSION
+        import struct
+
+        aad = build_canonical_aad(
+            orig_len=1000,
+            comp_len=500,
+            salt=b"\x01" * 16,
+            sha256_hash=b"\x02" * 32,
+            magic=b"MEOW3",
+            ephemeral_public_key=b"\x03" * 32,
+            pq_ciphertext=b"\x04" * 1088,
+            mode_byte=0x05,
+        )
+
+        # AAD must start with version byte
+        assert aad[:1] == AAD_VERSION
+        # Must contain packed lengths
+        assert struct.pack("<QQ", 1000, 500) in aad
+        # Must contain salt
+        assert b"\x01" * 16 in aad
+        # Must contain sha256
+        assert b"\x02" * 32 in aad
+        # Must contain magic
+        assert b"MEOW3" in aad
+        # Must contain ephemeral key
+        assert b"\x03" * 32 in aad
+        # Must contain mode byte
+        assert struct.pack("B", 0x05) in aad
+        # Must contain PQ ciphertext
+        assert b"\x04" * 1088 in aad
+
+    def test_manifest_roundtrip_preserves_all_fields(self):
+        """pack_manifest → unpack_manifest must be lossless."""
+        from meow_decoder.crypto import Manifest, pack_manifest, unpack_manifest, MODE_MEOW3
+
+        m = Manifest(
+            salt=os.urandom(16),
+            nonce=os.urandom(12),
+            orig_len=12345,
+            comp_len=6789,
+            cipher_len=7000,
+            sha256=os.urandom(32),
+            block_size=800,
+            k_blocks=10,
+            hmac=os.urandom(32),
+            ephemeral_public_key=os.urandom(32),
+            pq_ciphertext=None,
+            duress_tag=None,
+            mode_byte=MODE_MEOW3,
+        )
+
+        packed = pack_manifest(m)
+        m2 = unpack_manifest(packed)
+
+        assert m2.salt == m.salt
+        assert m2.nonce == m.nonce
+        assert m2.orig_len == m.orig_len
+        assert m2.comp_len == m.comp_len
+        assert m2.cipher_len == m.cipher_len
+        assert m2.sha256 == m.sha256
+        assert m2.block_size == m.block_size
+        assert m2.k_blocks == m.k_blocks
+        assert m2.hmac == m.hmac
+        assert m2.ephemeral_public_key == m.ephemeral_public_key
+        assert m2.mode_byte == m.mode_byte
+
+    def test_hmac_verification_rejects_tampering(self):
+        """Modified manifest must fail HMAC verification."""
+        from meow_decoder.crypto import (
+            encrypt_file_bytes, Manifest, pack_manifest_core,
+            compute_manifest_hmac, verify_manifest_hmac,
+        )
+
+        data = b"integrity test" * 10
+        comp, sha, salt, nonce, cipher, _, key = encrypt_file_bytes(data, "password1234")
+
+        m = Manifest(
+            salt=salt, nonce=nonce,
+            orig_len=len(data), comp_len=len(comp), cipher_len=len(cipher),
+            sha256=sha, block_size=800, k_blocks=1,
+            hmac=b"\x00" * 32,
+        )
+        packed_core = pack_manifest_core(m, include_duress_tag=False)
+        m.hmac = compute_manifest_hmac("password1234", salt, packed_core, encryption_key=key)
+
+        # Valid HMAC should pass
+        assert verify_manifest_hmac("password1234", m) is True
+
+        # Tampered orig_len should fail
+        m_tampered = Manifest(
+            salt=m.salt, nonce=m.nonce,
+            orig_len=m.orig_len + 1, comp_len=m.comp_len, cipher_len=m.cipher_len,
+            sha256=m.sha256, block_size=m.block_size, k_blocks=m.k_blocks,
+            hmac=m.hmac,
+        )
+        assert verify_manifest_hmac("password1234", m_tampered) is False
+
+    def test_mode_byte_validation(self):
+        """Invalid mode bytes must be rejected."""
+        from meow_decoder.crypto import unpack_manifest, pack_manifest, Manifest, MODE_MEOW3
+
+        m = Manifest(
+            salt=os.urandom(16), nonce=os.urandom(12),
+            orig_len=100, comp_len=50, cipher_len=60,
+            sha256=os.urandom(32), block_size=800, k_blocks=1,
+            hmac=os.urandom(32),
+            ephemeral_public_key=os.urandom(32),
+            mode_byte=MODE_MEOW3,
+        )
+        packed = bytearray(pack_manifest(m))
+
+        # Corrupt mode byte to invalid value
+        mode_offset = 5  # After MAGIC
+        packed[mode_offset] = 0xFF  # Invalid mode byte
+
+        with pytest.raises(ValueError, match="Invalid manifest mode byte"):
+            unpack_manifest(bytes(packed))
+
+
+# =============================================================================
+# Test 15: No Python PQ Fallback — Rule #4 enforcement
+# =============================================================================
+
+
+class TestNoPythonPQFallback:
+    """Verify PQ hybrid uses Rust exclusively, no oqs Python fallback."""
+
+    def test_pq_hybrid_no_oqs_import(self):
+        """pq_hybrid.py must not import or reference the oqs Python library."""
+        pq_file = pathlib.Path(__file__).parent.parent / "meow_decoder" / "pq_hybrid.py"
+        if not pq_file.exists():
+            pytest.skip("pq_hybrid.py not found")
+
+        source = pq_file.read_text()
+        # Must not have active oqs imports
+        for lineno, line in enumerate(source.splitlines(), 1):
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                continue
+            code_part = stripped.split("#")[0] if "#" in stripped else stripped
+            if "import oqs" in code_part or "from oqs" in code_part:
+                pytest.fail(
+                    f"pq_hybrid.py:{lineno} still imports oqs Python library: {stripped}"
+                )
+            if "oqs.KeyEncapsulation" in code_part:
+                pytest.fail(
+                    f"pq_hybrid.py:{lineno} still uses oqs.KeyEncapsulation: {stripped}"
+                )
+
+    def test_pq_check_uses_rust(self):
+        """check_pq_available must check Rust PQ, not Python oqs."""
+        try:
+            from meow_decoder.pq_hybrid import check_pq_available
+            # Should not raise
+            result = check_pq_available()
+            # May return bool or (bool, str) tuple
+            if isinstance(result, tuple):
+                assert isinstance(result[0], bool)
+            else:
+                assert isinstance(result, bool)
+        except ImportError:
+            pytest.skip("pq_hybrid not importable")
+
+
+# =============================================================================
+# Test 16: Handle API Exhaustive Edge Cases
+# =============================================================================
+
+
+class TestHandleEdgeCases:
+    """Edge cases for the opaque handle API."""
+
+    def test_drop_invalid_handle_no_panic(self):
+        """Dropping a non-existent handle must raise ValueError, not panic."""
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        # ValueError is acceptable — panics are not
+        with pytest.raises(ValueError):
+            hb.drop(999999)
+
+    def test_encrypt_with_invalid_handle_fails(self):
+        """Using an invalid handle for encryption must raise."""
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        with pytest.raises(Exception):
+            hb.aes_gcm_encrypt(999999, os.urandom(12), b"data")
+
+    def test_handle_x25519_private_never_exposed(self):
+        """X25519 keypair via handle API must never expose private key."""
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        handle, pub = hb.x25519_generate_keypair()
+
+        # handle is int, pub is bytes
+        assert isinstance(handle, int)
+        assert isinstance(pub, bytes) and len(pub) == 32
+
+        # Can get public key from handle
+        pub2 = hb.x25519_public(handle)
+        assert pub == pub2
+
+        # Clean up
+        hb.drop(handle)
+
+    def test_handle_x25519_exchange(self):
+        """X25519 DH via handle API must produce matching shared secrets."""
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        alice_h, alice_pub = hb.x25519_generate_keypair()
+        bob_h, bob_pub = hb.x25519_generate_keypair()
+
+        shared_a_h = hb.x25519_exchange(alice_h, bob_pub)
+        shared_b_h = hb.x25519_exchange(bob_h, alice_pub)
+
+        # Both are handles — verify they produce same HMAC on test message
+        tag_a = hb.hmac_sha256(shared_a_h, b"test")
+        tag_b = hb.hmac_sha256(shared_b_h, b"test")
+        assert tag_a == tag_b, "DH shared secrets must match"
+
+        hb.drop(alice_h)
+        hb.drop(bob_h)
+        hb.drop(shared_a_h)
+        hb.drop(shared_b_h)
+
+
+# =============================================================================
+# Test 17: AES-GCM Golden Vector (handle-based)
+# =============================================================================
+
+
+class TestHandleGoldenVectors:
+    """Golden vectors for handle-based encrypt/decrypt."""
+
+    def test_handle_aes_gcm_golden_vector(self):
+        """Handle-based AES-GCM must produce same output as raw API."""
+        import meow_crypto_rs as rs
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        key = bytes.fromhex("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
+        nonce = bytes.fromhex("000102030405060708090a0b")
+        pt = b"Handle golden vector test"
+        aad = b"meow_aad_v1"
+
+        # Raw API
+        ct_raw = rs.aes_gcm_encrypt(key, nonce, pt, aad)
+
+        # Handle API
+        h = hb.import_key(key)
+        ct_handle = hb.aes_gcm_encrypt(h, nonce, pt, aad)
+        assert ct_raw == ct_handle, "Handle API must produce identical ciphertext"
+
+        # Decrypt via handle
+        pt_back = hb.aes_gcm_decrypt(h, nonce, ct_handle, aad)
+        assert pt_back == pt
+        hb.drop(h)
+
+    def test_handle_hmac_golden_vector(self):
+        """Handle-based HMAC must match raw API output."""
+        import meow_crypto_rs as rs
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        key = b"golden_hmac_key_32bytes_padded!!"
+        msg = b"golden hmac message"
+
+        tag_raw = rs.hmac_sha256(key, msg)
+        h = hb.import_key(key)
+        tag_handle = hb.hmac_sha256(h, msg)
+        assert tag_raw == tag_handle, "Handle HMAC must match raw HMAC"
+
+        # Verify
+        assert hb.hmac_sha256_verify(h, msg, tag_handle) is True
+        assert hb.hmac_sha256_verify(h, msg, b"\x00" * 32) is False
+        hb.drop(h)
+
+
+# =============================================================================
 # Main
 # =============================================================================
 

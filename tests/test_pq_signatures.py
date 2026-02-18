@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
 """Tests for meow_decoder.pq_signatures.
 Covers Ed25519 and stubbed Dilithium/hybrid paths.
+
+NOTE: pq_signatures module has been removed. Tests are skipped until
+the module is re-implemented against the Rust backend.
 """
 
 import types
 
 import pytest
 import secrets
+
+# Skip entire module if pq_signatures doesn't exist
+pq_signatures = pytest.importorskip("meow_decoder.pq_signatures")
 
 
 def _dummy_oqs_module():

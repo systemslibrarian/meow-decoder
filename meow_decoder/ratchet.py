@@ -68,9 +68,9 @@ import os
 import struct
 import secrets
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, get_handle_backend
 
 # ── Domain Separation Constants ──────────────────────────────────────────────
 # Each HKDF derivation uses a unique info string to ensure cryptographic
@@ -175,8 +175,29 @@ def _hkdf_derive(key_material: bytes, salt: bytes, info: bytes, length: int = 32
     return backend.derive_key_hkdf(key_material, salt, info, length)
 
 
+def _hkdf_derive_handle(key_handle: int, salt: bytes, info: bytes, length: int = 32) -> int:
+    """HKDF-SHA256 derivation from a key handle. Returns new handle (secret stays in Rust)."""
+    return get_handle_backend().derive_key_hkdf(key_handle, salt, info, length)
+
+
+def _hkdf_derive_bytes_from_handle(
+    key_handle: int, salt: bytes, info: bytes, length: int = 32
+) -> bytes:
+    """HKDF-SHA256 derivation from a handle, returning raw bytes.
+    USE ONLY for non-secret derived values (nonces, header masks)."""
+    return get_handle_backend().derive_key_hkdf_bytes(key_handle, salt, info, length)
+
+
+def _ensure_handle(key_or_handle: Union[bytes, int]) -> tuple:
+    """Convert bytes to handle if needed. Returns (handle_id, needs_cleanup)."""
+    if isinstance(key_or_handle, int):
+        return key_or_handle, False
+    hb = get_handle_backend()
+    return hb.import_key(key_or_handle), True
+
+
 def _mix_beacon(message_key: bytes, beacon_secret: bytes, salt: bytes) -> bytes:
-    """Mix rekey beacon entropy into a message key.
+    """Mix rekey beacon entropy into a message key (legacy bytes API).
 
     Combines the ratchet-derived message key with fresh beacon entropy
     using HKDF. The resulting key requires knowledge of BOTH the chain
@@ -186,6 +207,16 @@ def _mix_beacon(message_key: bytes, beacon_secret: bytes, salt: bytes) -> bytes:
     return _hkdf_derive(combined, salt, REKEY_BEACON_INFO, 32)
 
 
+def _mix_beacon_handle(message_key_handle: int, beacon_secret: bytes, salt: bytes) -> int:
+    """Mix rekey beacon entropy into a message key handle.
+
+    Like _mix_beacon but operates entirely via handles — secret key bytes
+    never enter Python. Returns a new handle to the enhanced key.
+    """
+    hb = get_handle_backend()
+    return hb.mix_hkdf(message_key_handle, beacon_secret, salt, REKEY_BEACON_INFO, 32)
+
+
 def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[bytes, bytes]:
     """Generate X25519 KEM rekey beacon.
 
@@ -193,31 +224,36 @@ def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[bytes, bytes]:
         (shared_secret, ephemeral_public_bytes) — shared_secret is mixed
         into the message key; ephemeral_public is embedded in the frame.
     """
-    backend = get_default_backend()
-    ephemeral_private_bytes, ephemeral_public_bytes = backend.x25519_generate_keypair()
-
-    raw_shared = backend.x25519_exchange(ephemeral_private_bytes, receiver_public_key)
-
-    shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
-
+    hb = get_handle_backend()
+    eph_handle, ephemeral_public_bytes = hb.x25519_generate_keypair()
+    shared_handle = hb.x25519_exchange(eph_handle, receiver_public_key)
+    # Domain-separated KDF (shared_secret stays as bytes - transient local)
+    shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
+    hb.drop(eph_handle)
+    hb.drop(shared_handle)
     return shared_secret, ephemeral_public_bytes
 
 
-def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: bytes) -> bytes:
+def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Union[bytes, int]) -> bytes:
     """Recover shared secret from X25519 KEM rekey beacon.
 
     Args:
         ephemeral_public_bytes: 32-byte ephemeral public key from frame header
-        receiver_private_key: Receiver's X25519 private key
+        receiver_private_key: Receiver's X25519 private key (bytes or handle)
 
     Returns:
         32-byte shared secret to mix into message key
     """
-    backend = get_default_backend()
-    raw_shared = backend.x25519_exchange(receiver_private_key, ephemeral_public_bytes)
-
-    shared_secret = _hkdf_derive(raw_shared, b"", REKEY_BEACON_KEM_INFO, 32)
-    return shared_secret
+    hb = get_handle_backend()
+    priv_handle, cleanup = _ensure_handle(receiver_private_key)
+    try:
+        shared_handle = hb.x25519_exchange(priv_handle, ephemeral_public_bytes)
+        shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
+        hb.drop(shared_handle)
+        return shared_secret
+    finally:
+        if cleanup:
+            hb.drop(priv_handle)
 
 
 # ── Asymmetric Entropy Reinjection (MSR v2.0) ───────────────────────────────
@@ -285,42 +321,52 @@ def _generate_asym_rekey(
             ephemeral_public_bytes: 32-byte ephemeral public key for frame header
 
     Security:
-        - Ephemeral private key exists only in this function's scope
+        - Ephemeral private key stays in Rust handle (never in Python)
         - HKDF domain separation (ASYM_REKEY_KEM_INFO) prevents cross-use
         - shared_secret requires receiver_private_key to reconstruct
     """
-    backend = get_default_backend()
-    ephemeral_private_bytes, ephemeral_public_bytes = backend.x25519_generate_keypair()
+    hb = get_handle_backend()
+    eph_handle, ephemeral_public_bytes = hb.x25519_generate_keypair()
+    shared_handle = hb.x25519_exchange(eph_handle, receiver_public_key)
 
-    raw_shared = backend.x25519_exchange(ephemeral_private_bytes, receiver_public_key)
+    # Domain-separated KDF - distinct from beacon KEM and FS derivation
+    shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
 
-    # Domain-separated KDF — distinct from beacon KEM and FS derivation
-    shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
-
-    # NOTE: ephemeral_private_bytes goes out of scope here and is not stored.
-    # The Rust backend's zeroize crate handles the actual X25519 scalar cleanup.
+    hb.drop(eph_handle)
+    hb.drop(shared_handle)
     return shared_secret, ephemeral_public_bytes
 
 
 def _recover_asym_rekey(
     ephemeral_public_bytes: bytes,
-    receiver_private_key: bytes,
+    receiver_private_key: Union[bytes, int],
 ) -> bytes:
     """Recover ECDH shared secret for asymmetric root rekey (decoder side).
 
     Args:
         ephemeral_public_bytes: 32-byte ephemeral public key from frame header
-        receiver_private_key: Receiver's long-term X25519 private key (32 bytes)
+        receiver_private_key: Receiver's long-term X25519 private key (bytes or handle)
 
     Returns:
         32-byte ECDH-derived secret (must match sender's _generate_asym_rekey output)
     """
-    backend = get_default_backend()
-    raw_shared = backend.x25519_exchange(receiver_private_key, ephemeral_public_bytes)
-
-    # Same domain separator as sender — MUST match _generate_asym_rekey
-    shared_secret = _hkdf_derive(raw_shared, b"", ASYM_REKEY_KEM_INFO, 32)
-    return shared_secret
+    hb = get_handle_backend()
+    if isinstance(receiver_private_key, int):
+        priv_handle = receiver_private_key
+        cleanup = False
+    else:
+        # Import as X25519 private key (not generic symmetric key)
+        priv_handle = hb.import_x25519_private(receiver_private_key)
+        cleanup = True
+    try:
+        shared_handle = hb.x25519_exchange(priv_handle, ephemeral_public_bytes)
+        # Same domain separator as sender - MUST match _generate_asym_rekey
+        shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
+        hb.drop(shared_handle)
+        return shared_secret
+    finally:
+        if cleanup:
+            hb.drop(priv_handle)
 
 
 def _asymmetric_root_rekey(
@@ -380,59 +426,88 @@ def _asymmetric_root_rekey(
     return new_root, new_chain
 
 
+def _asymmetric_root_rekey_handle(
+    root_key_handle: int,
+    shared_secret: bytes,
+    salt: bytes,
+    epoch: int,
+) -> Tuple[int, int]:
+    """Handle-based asymmetric root rekey. Root key stays in Rust.
+
+    Returns (new_root_handle, new_chain_handle). Old root/chain handles
+    must be dropped by caller.
+    """
+    hb = get_handle_backend()
+    epoch_info = ASYM_REKEY_ROOT_INFO + struct.pack(">I", epoch)
+
+    # HKDF(IKM=shared_secret, salt=root_key_handle, info=epoch_info)
+    new_root_handle = hb.hkdf_with_handle_salt(shared_secret, root_key_handle, epoch_info, 32)
+
+    # Derive new chain from new root handle
+    new_chain_handle = _hkdf_derive_handle(new_root_handle, salt, ASYM_REKEY_CHAIN_INFO, 32)
+
+    return new_root_handle, new_chain_handle
+
+
 # ── Header Encryption Helpers ────────────────────────────────────────────────
 
 
-def _derive_header_key(root_key: bytes, salt: bytes) -> bytes:
+def _derive_header_key(root_key: Union[bytes, int], salt: bytes) -> int:
     """Derive header encryption key for frame index obfuscation.
 
-    The header key is used to XOR-mask frame indices in the output,
-    preventing observers from determining frame ordering or performing
-    traffic analysis on in-flight frames.
+    Returns an opaque handle (int). The header key never exists as Python bytes.
 
     This mirrors Signal's header encryption where message headers
     (containing chain position) are encrypted before transmission.
     """
-    return _hkdf_derive(root_key, salt, HEADER_ENC_INFO, 32)
+    handle, cleanup = _ensure_handle(root_key)
+    try:
+        result = _hkdf_derive_handle(handle, salt, HEADER_ENC_INFO, 32)
+        return result
+    finally:
+        if cleanup:
+            get_handle_backend().drop(handle)
 
 
-def _header_mask(header_key: bytes, frame_index: int) -> bytes:
+def _header_mask(header_key_handle: int, frame_index: int) -> bytes:
     """Compute 4-byte XOR mask for a specific frame index.
 
     Each frame gets a unique pseudorandom mask derived from the header
-    key and its index. The mask is applied as XOR to the frame index
+    key handle and its index. The mask is applied as XOR to the frame index
     before transmission, making the encrypted index appear random.
 
     Args:
-        header_key: 32-byte header encryption key
+        header_key_handle: Handle to 32-byte header encryption key
         frame_index: The plaintext frame index to mask
 
     Returns:
         4-byte XOR mask for this frame index
     """
-    return _hkdf_derive(header_key, struct.pack(">I", frame_index), HEADER_MASK_INFO, 4)
+    return _hkdf_derive_bytes_from_handle(
+        header_key_handle, struct.pack(">I", frame_index), HEADER_MASK_INFO, 4
+    )
 
 
-def _encrypt_index(header_key: bytes, frame_index: int) -> bytes:
+def _encrypt_index(header_key_handle: int, frame_index: int) -> bytes:
     """Encrypt a frame index for header encryption.
 
     Returns 4 bytes of pseudorandom data that hides the true frame index.
     The same header_key and frame_index always produce the same output
     (deterministic encryption).
     """
-    mask = _header_mask(header_key, frame_index)
+    mask = _header_mask(header_key_handle, frame_index)
     plaintext = struct.pack(">I", frame_index)
     return bytes(a ^ b for a, b in zip(plaintext, mask))
 
 
-def _build_header_lookup(header_key: bytes, total_frames: int) -> Dict[bytes, int]:
+def _build_header_lookup(header_key_handle: int, total_frames: int) -> Dict[bytes, int]:
     """Precompute encrypted-index → real-index lookup table for decoder.
 
     Called once during decoder initialization. O(total_frames) HKDF calls,
     then O(1) lookup per received frame.
 
     Args:
-        header_key: 32-byte header encryption key (same as encoder)
+        header_key_handle: Handle to 32-byte header encryption key
         total_frames: Total expected frame count
 
     Returns:
@@ -440,7 +515,7 @@ def _build_header_lookup(header_key: bytes, total_frames: int) -> Dict[bytes, in
     """
     lookup: Dict[bytes, int] = {}
     for i in range(total_frames):
-        enc_idx = _encrypt_index(header_key, i)
+        enc_idx = _encrypt_index(header_key_handle, i)
         lookup[enc_idx] = i
     return lookup
 
@@ -448,7 +523,7 @@ def _build_header_lookup(header_key: bytes, total_frames: int) -> Dict[bytes, in
 # ── Key Commitment Helpers ───────────────────────────────────────────────────
 
 
-def _compute_commitment(mac_key: bytes, frame_body: bytes) -> bytes:
+def _compute_commitment(mac_key: Union[bytes, int], frame_body: bytes) -> bytes:
     """Compute key commitment tag over frame body.
 
     Prevents key commitment attacks ("invisible salamanders") where an
@@ -461,12 +536,15 @@ def _compute_commitment(mac_key: bytes, frame_body: bytes) -> bytes:
     holds the ONLY key that could have produced it.
 
     Args:
-        mac_key: 32-byte MAC key from derive_frame_keys()
+        mac_key: 32-byte MAC key (bytes) or handle (int) from derive_frame_keys()
         frame_body: Frame body bytes (beacon + ciphertext, or just ciphertext)
 
     Returns:
         16-byte commitment tag (truncated HMAC-SHA256)
     """
+    if isinstance(mac_key, int):
+        hb = get_handle_backend()
+        return hb.hmac_sha256(mac_key, frame_body)[:COMMIT_TAG_SIZE]
     backend = get_default_backend()
     return backend.hmac_sha256(mac_key, frame_body)[:COMMIT_TAG_SIZE]
 
@@ -476,17 +554,32 @@ def _compute_commitment(mac_key: bytes, frame_body: bytes) -> bytes:
 
 @dataclass
 class FrameKeys:
-    """Per-frame derived subkeys. All fields are mutable bytearrays for zeroization."""
+    """Per-frame derived subkeys.
+    enc_key and mac_key are opaque handles (ints) or bytearrays (legacy).
+    nonce is bytes (non-secret, needed for AEAD)."""
 
-    enc_key: bytearray  # 32 bytes: AES-256 encryption key
-    nonce: bytearray  # 12 bytes: AES-GCM nonce
-    mac_key: bytearray  # 32 bytes: Frame authentication key
+    enc_key: Union[bytearray, int]  # Handle ID or 32-byte AES key (legacy)
+    nonce: bytearray  # 12 bytes: AES-GCM nonce (non-secret, needed for AEAD)
+    mac_key: Union[bytearray, int]  # Handle ID or 32-byte MAC key (legacy)
 
     def zeroize(self) -> None:
-        """Securely zero all subkeys."""
-        _secure_zero(self.enc_key)
+        """Securely zero/drop all subkeys."""
+        hb = get_handle_backend()
+        if isinstance(self.enc_key, int):
+            try:
+                hb.drop(self.enc_key)
+            except Exception:
+                pass
+        else:
+            _secure_zero(self.enc_key)
         _secure_zero(self.nonce)
-        _secure_zero(self.mac_key)
+        if isinstance(self.mac_key, int):
+            try:
+                hb.drop(self.mac_key)
+            except Exception:
+                pass
+        else:
+            _secure_zero(self.mac_key)
 
 
 @dataclass
@@ -494,124 +587,129 @@ class RatchetState:
     """
     Mutable ratchet chain state.
 
-    The chain_key advances forward with each ratchet_step().
-    Previous chain_keys are irrecoverable after zeroization.
-
-    MSR v2.0 additions:
-        root_key: Stored for asymmetric rekey operations. When a rekey
-                  occurs, HKDF(ECDH_shared, salt=root_key, info=...) produces
-                  a new root_key and chain_key. This trades storing the root
-                  (which an attacker with memory access could read) for
-                  post-compromise security: after the next rekey, the attacker
-                  loses access because the new root depends on an ECDH shared
-                  secret requiring the receiver's long-term private key.
-        epoch:    Tracks how many asymmetric rekeys have occurred. Bound into
-                  the HKDF info to prevent cross-epoch confusion.
+    chain_key and root_key are opaque handle IDs (ints) — secrets never in Python.
+    Previous chain_keys are irrecoverable after handle drop.
     """
 
-    chain_key: bytearray  # 32 bytes: current chain key (mutable for zeroization)
+    chain_key: Union[bytearray, int]  # Handle ID (secret, never in Python)
     salt: bytes  # 16 bytes: session salt (immutable, from manifest)
     position: int = 0  # Current chain position (frame index)
-    root_key: Optional[bytearray] = None  # 32 bytes: root key for asymmetric rekey (MSR v2.0)
+    root_key: Optional[Union[bytearray, int]] = None  # Handle ID for root key
     epoch: int = 0  # Current asymmetric rekey epoch (MSR v2.0)
 
     def zeroize(self) -> None:
-        """Securely zero all keys. Call when ratchet is no longer needed."""
-        _secure_zero(self.chain_key)
+        """Drop all key handles. Call when ratchet is no longer needed."""
+        hb = get_handle_backend()
+        if isinstance(self.chain_key, int):
+            try:
+                hb.drop(self.chain_key)
+            except Exception:
+                pass
+        elif isinstance(self.chain_key, bytearray):
+            _secure_zero(self.chain_key)
         if self.root_key is not None:
-            _secure_zero(self.root_key)
+            if isinstance(self.root_key, int):
+                try:
+                    hb.drop(self.root_key)
+                except Exception:
+                    pass
+            elif isinstance(self.root_key, bytearray):
+                _secure_zero(self.root_key)
         self.position = -1  # Sentinel: state is dead
 
 
 # ── Core Ratchet Operations ──────────────────────────────────────────────────
 
 
-def init_ratchet(root_key: bytes, salt: bytes) -> RatchetState:
+def init_ratchet(root_key: Union[bytes, int], salt: bytes) -> RatchetState:
     """
     Initialize a ratchet chain from root key material.
 
     Args:
-        root_key: 32-byte root key (from Argon2id / X25519 / PQ hybrid)
+        root_key: 32-byte root key (bytes or handle)
         salt: 16-byte random salt (from manifest)
 
     Returns:
-        RatchetState at position 0
-
-    Security:
-        - HKDF domain separation from encryption/HMAC keys
-        - chain_key[0] is cryptographically independent of root_key's
-          other derivations (encryption key, HMAC key, frame MAC key)
-        - MSR v2.0: A domain-separated ratchet_root is stored for future
-          asymmetric rekey operations. This enables post-compromise security
-          at the cost of keeping root material in memory during the session.
-          The trade-off is net-positive: without storing the root, there is
-          NO post-compromise security at all.
+        RatchetState at position 0 (keys as opaque handles)
     """
-    chain_key_0 = _hkdf_derive(root_key, salt, RATCHET_ROOT_INFO, 32)
-    # MSR v2.0: Derive a separate ratchet root for asymmetric rekey operations.
-    # Domain-separated from chain_key_0 so compromise of one ≠ compromise of other.
-    ratchet_root = _hkdf_derive(root_key, salt, ASYM_REKEY_ROOT_INIT_INFO, 32)
+    hb = get_handle_backend()
+    rk_handle, cleanup = _ensure_handle(root_key)
+    try:
+        chain_key_handle = _hkdf_derive_handle(rk_handle, salt, RATCHET_ROOT_INFO, 32)
+        ratchet_root_handle = _hkdf_derive_handle(rk_handle, salt, ASYM_REKEY_ROOT_INIT_INFO, 32)
+    finally:
+        if cleanup:
+            hb.drop(rk_handle)
+
     return RatchetState(
-        chain_key=bytearray(chain_key_0),
+        chain_key=chain_key_handle,
         salt=salt,
         position=0,
-        root_key=bytearray(ratchet_root),
+        root_key=ratchet_root_handle,
         epoch=0,
     )
 
 
-def ratchet_step(state: RatchetState) -> Tuple[bytes, RatchetState]:
+def ratchet_step(state: RatchetState) -> Tuple[int, RatchetState]:
     """
-    Advance the ratchet by one step, producing a message key.
+    Advance the ratchet by one step, producing a message key handle.
 
-    This is the core forward-secrecy primitive:
-        message_key[i] = HKDF(chain_key[i], salt, "meow_ratchet_msg_v1")
-        chain_key[i+1] = HKDF(chain_key[i], salt, "meow_ratchet_step_v1")
-        ZEROIZE(chain_key[i])
-
-    After this call, chain_key[i] is irrecoverable. An attacker who
-    compromises chain_key[i+1] cannot derive chain_key[i] or message_key[i]
-    (HKDF-SHA256 one-wayness).
+    chain_key is an opaque handle. The returned message_key is also an
+    opaque handle (int) — secret bytes never cross into Python.
 
     Args:
-        state: Current ratchet state (CONSUMED — chain_key will be zeroized)
+        state: Current ratchet state (CONSUMED — chain_key handle will be dropped)
 
     Returns:
-        (message_key, new_state) — message_key is 32 bytes
+        (message_key_handle, new_state) — message_key_handle is an opaque int
 
     Raises:
-        ValueError: If state is dead (already zeroized) or at max position
+        ValueError: If state is dead or at max position
     """
     if state.position < 0:
         raise ValueError("Ratchet state is dead (already zeroized)")
     if state.position > MAX_FRAME_INDEX:
         raise ValueError(f"Ratchet position overflow: {state.position} > {MAX_FRAME_INDEX}")
 
-    current_key = bytes(state.chain_key)
+    hb = get_handle_backend()
+    ck_handle = state.chain_key
 
-    # Derive message key (for this frame)
-    message_key = _hkdf_derive(current_key, state.salt, RATCHET_MSG_INFO, 32)
+    if isinstance(ck_handle, int):
+        # Handle-based path: derive message_key and next_chain_key via handles
+        next_ck_handle = _hkdf_derive_handle(ck_handle, state.salt, RATCHET_STEP_INFO, 32)
 
-    # Derive next chain key (irreversible forward step)
-    next_chain_key = _hkdf_derive(current_key, state.salt, RATCHET_STEP_INFO, 32)
+        # message_key as handle (secret stays in Rust)
+        message_key_handle = _hkdf_derive_handle(ck_handle, state.salt, RATCHET_MSG_INFO, 32)
 
-    # CRITICAL: Zeroize the current chain key before replacing
-    _secure_zero(state.chain_key)
+        # Drop old chain key (forward secrecy)
+        hb.drop(ck_handle)
 
-    # Create new state with advanced position
-    # MSR v2.0: Preserve root_key and epoch across ratchet steps
-    new_state = RatchetState(
-        chain_key=bytearray(next_chain_key),
-        salt=state.salt,
-        position=state.position + 1,
-        root_key=state.root_key,  # Shared reference (old state is consumed)
-        epoch=state.epoch,
-    )
+        new_state = RatchetState(
+            chain_key=next_ck_handle,
+            salt=state.salt,
+            position=state.position + 1,
+            root_key=state.root_key,
+            epoch=state.epoch,
+        )
+    else:
+        # Legacy bytearray path (backward compat) — import result into handle
+        current_key = bytes(state.chain_key)
+        message_key = _hkdf_derive(current_key, state.salt, RATCHET_MSG_INFO, 32)
+        next_chain_key = _hkdf_derive(current_key, state.salt, RATCHET_STEP_INFO, 32)
+        _secure_zero(state.chain_key)
+        message_key_handle = hb.import_key(message_key)
+        new_state = RatchetState(
+            chain_key=hb.import_key(next_chain_key),
+            salt=state.salt,
+            position=state.position + 1,
+            root_key=state.root_key,
+            epoch=state.epoch,
+        )
 
-    return message_key, new_state
+    return message_key_handle, new_state
 
 
-def derive_frame_keys(message_key: bytes, salt: bytes) -> FrameKeys:
+def derive_frame_keys(message_key: Union[bytes, int], salt: bytes) -> FrameKeys:
     """
     Derive per-frame subkeys from a message key.
 
@@ -621,20 +719,26 @@ def derive_frame_keys(message_key: bytes, salt: bytes) -> FrameKeys:
         mac_key  = HKDF(message_key, salt, "meow_ratchet_frame_mac_v1")[:32]
 
     Args:
-        message_key: 32-byte message key from ratchet_step()
+        message_key: 32-byte message key (bytes or handle) from ratchet_step()
         salt: 16-byte session salt
 
     Returns:
-        FrameKeys with all subkeys as mutable bytearrays
+        FrameKeys with enc_key/mac_key as handles, nonce as bytes
     """
-    enc_key = _hkdf_derive(message_key, salt, FRAME_ENC_INFO, 32)
-    nonce = _hkdf_derive(message_key, salt, FRAME_NONCE_INFO, 12)
-    mac_key = _hkdf_derive(message_key, salt, FRAME_MAC_INFO, 32)
+    hb = get_handle_backend()
+    mk_handle, cleanup = _ensure_handle(message_key)
+    try:
+        enc_key_handle = _hkdf_derive_handle(mk_handle, salt, FRAME_ENC_INFO, 32)
+        nonce = _hkdf_derive_bytes_from_handle(mk_handle, salt, FRAME_NONCE_INFO, 12)
+        mac_key_handle = _hkdf_derive_handle(mk_handle, salt, FRAME_MAC_INFO, 32)
+    finally:
+        if cleanup:
+            hb.drop(mk_handle)
 
     return FrameKeys(
-        enc_key=bytearray(enc_key),
+        enc_key=enc_key_handle,
         nonce=bytearray(nonce),
-        mac_key=bytearray(mac_key),
+        mac_key=mac_key_handle,
     )
 
 
@@ -677,7 +781,7 @@ def build_frame_aad(
 
 def encrypt_frame(
     frame_data: bytes,
-    message_key: bytes,
+    message_key: Union[bytes, int],
     frame_index: int,
     salt: bytes,
     k_blocks: int,
@@ -690,12 +794,9 @@ def encrypt_frame(
     Output format:
         frame_index(4 BE) || AES-GCM-ciphertext(len(frame_data) + 16)
 
-    The frame_index is transmitted in plaintext (needed for key derivation
-    by the decoder). It is authenticated via AES-GCM AAD.
-
     Args:
         frame_data: Raw droplet bytes to encrypt
-        message_key: 32-byte message key from ratchet_step()
+        message_key: 32-byte message key or handle from ratchet_step()
         frame_index: 0-based frame index
         salt: 16-byte session salt
         k_blocks: Fountain source block count
@@ -704,12 +805,6 @@ def encrypt_frame(
 
     Returns:
         Encrypted frame bytes (frame_index || ciphertext || tag)
-
-    Security:
-        - Each frame uses a unique key+nonce pair (from domain-separated HKDF)
-        - AAD binds frame_index, salt, and encoding parameters
-        - AES-GCM provides authenticated encryption (confidentiality + integrity)
-        - All subkeys are zeroized after encryption
     """
     from .crypto_backend import get_default_backend
 
@@ -723,12 +818,21 @@ def encrypt_frame(
 
     try:
         # Encrypt with AES-256-GCM
-        ciphertext = backend.aes_gcm_encrypt(
-            key=bytes(keys.enc_key),
-            nonce=bytes(keys.nonce),
-            plaintext=frame_data,
-            aad=aad,
-        )
+        hb = get_handle_backend()
+        if isinstance(keys.enc_key, int):
+            ciphertext = hb.aes_gcm_encrypt(
+                key_handle=keys.enc_key,
+                nonce=bytes(keys.nonce),
+                plaintext=frame_data,
+                aad=aad,
+            )
+        else:
+            ciphertext = backend.aes_gcm_encrypt(
+                key=bytes(keys.enc_key),
+                nonce=bytes(keys.nonce),
+                plaintext=frame_data,
+                aad=aad,
+            )
 
         # Pack: frame_index(4 BE) || ciphertext (includes 16-byte GCM tag)
         return struct.pack(">I", frame_index) + ciphertext
@@ -740,7 +844,7 @@ def encrypt_frame(
 
 def decrypt_frame(
     encrypted_frame: bytes,
-    message_key: bytes,
+    message_key: Union[bytes, int],
     expected_index: int,
     salt: bytes,
     k_blocks: int,
@@ -796,12 +900,21 @@ def decrypt_frame(
 
     try:
         # Decrypt with AES-256-GCM (authenticates ciphertext + AAD)
-        plaintext = backend.aes_gcm_decrypt(
-            key=bytes(keys.enc_key),
-            nonce=bytes(keys.nonce),
-            ciphertext=ciphertext,
-            aad=aad,
-        )
+        hb = get_handle_backend()
+        if isinstance(keys.enc_key, int):
+            plaintext = hb.aes_gcm_decrypt(
+                key_handle=keys.enc_key,
+                nonce=bytes(keys.nonce),
+                ciphertext=ciphertext,
+                aad=aad,
+            )
+        else:
+            plaintext = backend.aes_gcm_decrypt(
+                key=bytes(keys.enc_key),
+                nonce=bytes(keys.nonce),
+                ciphertext=ciphertext,
+                aad=aad,
+            )
         return plaintext
 
     finally:
@@ -903,56 +1016,55 @@ class EncoderRatchet:
             raise RuntimeError(f"All {self._total_frames} frames already encrypted")
 
         frame_index = self._frames_encrypted
+        hb = get_handle_backend()
 
         # ─── MSR v2.0: Asymmetric root key rotation (before ratchet step) ───
-        # When receiver_public_key is available, perform Signal-style root
-        # rotation at rekey boundaries. This provides post-compromise security:
-        # compromise of chain_key[N] cannot yield keys after the next rekey.
         beacon_header = b""
         if self._is_rekey_frame(frame_index) and self._receiver_public_key is not None:
-            # Generate fresh X25519 ephemeral, ECDH with receiver → shared_secret
             shared_secret, eph_pub = _generate_asym_rekey(self._receiver_public_key)
-            beacon_header = eph_pub  # 32 bytes in header (same size as v1.2 beacon)
+            beacon_header = eph_pub
 
-            # Rotate root key with asymmetric entropy (epoch binding prevents replay)
             self._state.epoch += 1
-            new_root, new_chain = _asymmetric_root_rekey(
-                root_key=bytes(self._state.root_key),
+
+            # Handle-based root rekey (root key bytes never enter Python)
+            new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
+                root_key_handle=self._state.root_key,
                 shared_secret=shared_secret,
                 salt=self._salt,
                 epoch=self._state.epoch,
             )
 
-            # Zeroize old root + chain (forward secrecy within epoch)
-            _secure_zero(self._state.root_key)
-            _secure_zero(self._state.chain_key)
+            # Drop old root + chain handles (forward secrecy within epoch)
+            old_rk = self._state.root_key
+            old_ck = self._state.chain_key
+            if isinstance(old_rk, int):
+                hb.drop(old_rk)
+            if isinstance(old_ck, int):
+                hb.drop(old_ck)
 
-            # Install new root and chain — next ratchet_step derives from new chain
-            self._state.root_key = bytearray(new_root)
-            self._state.chain_key = bytearray(new_chain)
+            self._state.root_key = new_root_h
+            self._state.chain_key = new_chain_h
 
-        # Ratchet step: derive message key from current chain
-        # (may be the newly rotated chain if asymmetric rekey just occurred)
-        message_key_bytes, self._state = ratchet_step(self._state)
-        message_key_buf = bytearray(message_key_bytes)
+        # Ratchet step: derive message key handle from current chain
+        msg_key_handle, self._state = ratchet_step(self._state)
 
-        # Plaintext beacon fallback (no receiver key → no PCS, memory-only protection)
+        # Plaintext beacon fallback (no receiver key → mix entropy via handle)
         if self._is_rekey_frame(frame_index) and self._receiver_public_key is None:
             beacon_secret = os.urandom(REKEY_BEACON_SIZE)
             beacon_header = beacon_secret
-            enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
-            _secure_zero(message_key_buf)
-            message_key_buf = bytearray(enhanced_key)
+            new_mk_handle = _mix_beacon_handle(msg_key_handle, beacon_secret, self._salt)
+            hb.drop(msg_key_handle)
+            msg_key_handle = new_mk_handle
 
         commit_keys = None
         try:
-            # Derive commitment keys (mac_key for key commitment tag)
-            commit_keys = derive_frame_keys(bytes(message_key_buf), self._salt)
+            # Derive commitment keys (mac_key as handle for commitment tag)
+            commit_keys = derive_frame_keys(msg_key_handle, self._salt)
 
-            # Encrypt frame (produces [frame_index(4 BE)] [ciphertext+tag])
+            # Encrypt frame using message_key handle
             encrypted = encrypt_frame(
                 frame_data=frame_data,
-                message_key=bytes(message_key_buf),
+                message_key=msg_key_handle,
                 frame_index=frame_index,
                 salt=self._salt,
                 k_blocks=self._k_blocks,
@@ -969,21 +1081,20 @@ class EncoderRatchet:
             else:
                 frame_body = raw_ciphertext
 
-            # Key commitment: HMAC(mac_key, frame_body) truncated to 16 bytes
-            commitment = _compute_commitment(bytes(commit_keys.mac_key), frame_body)
+            # Key commitment: HMAC(mac_key handle, frame_body)
+            commitment = _compute_commitment(commit_keys.mac_key, frame_body)
 
             # Header encryption: mask the frame index
             enc_idx = _encrypt_index(self._header_key, frame_index)
 
-            # Assemble hardened frame:
-            # [encrypted_index(4)] [commitment(16)] [beacon?(32)] [ciphertext+tag]
+            # Assemble hardened frame
             result = enc_idx + commitment + frame_body
 
             self._frames_encrypted += 1
             return result
         finally:
-            # Zeroize all sensitive material
-            _secure_zero(message_key_buf)
+            # Drop message key handle and commitment keys
+            hb.drop(msg_key_handle)
             if commit_keys is not None:
                 commit_keys.zeroize()
 
@@ -996,8 +1107,13 @@ class EncoderRatchet:
         """
         if not self._finalized:
             self._state.zeroize()
-            # Zeroize header key (best-effort for immutable bytes)
-            self._header_key = b"\x00" * 32
+            # Drop header key handle
+            if isinstance(self._header_key, int):
+                try:
+                    get_handle_backend().drop(self._header_key)
+                except Exception:
+                    pass
+            self._header_key = 0
             self._finalized = True
 
     def __del__(self):
@@ -1065,7 +1181,7 @@ class DecoderRatchet:
         self._k_blocks = k_blocks
         self._block_size = block_size
         self._total_frames = total_frames
-        self._skipped_keys: Dict[int, bytearray] = {}  # frame_index → message_key
+        self._skipped_keys: Dict[int, int] = {}  # frame_index → message_key handle
         self._consumed_indices: set = set()  # Track consumed frame indices
         self._finalized = False
         self._rekey_interval = rekey_interval
@@ -1099,35 +1215,30 @@ class DecoderRatchet:
     def _execute_rekey(self, epoch: int) -> None:
         """Execute asymmetric root key rotation for the given epoch.
 
-        Consumes the stored ephemeral public key for this epoch,
-        performs ECDH with the receiver's private key, and rotates
-        the root key + chain key.
-
-        Args:
-            epoch: The epoch number to rotate into
-
-        Security:
-            - Shared secret requires receiver_private_key (NOT in ratchet state)
-            - Old root + chain are zeroized (forward secrecy)
-            - Epoch is bound into HKDF info (prevents cross-epoch replay)
+        Uses handle-based _asymmetric_root_rekey_handle so root key bytes
+        never enter Python.
         """
         eph_pub = self._received_rekey_material.pop(epoch)
         shared_secret = _recover_asym_rekey(eph_pub, self._receiver_private_key)
 
-        new_root, new_chain = _asymmetric_root_rekey(
-            root_key=bytes(self._state.root_key),
+        hb = get_handle_backend()
+        new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
+            root_key_handle=self._state.root_key,
             shared_secret=shared_secret,
             salt=self._salt,
             epoch=epoch,
         )
 
-        # Zeroize old keys
-        _secure_zero(self._state.root_key)
-        _secure_zero(self._state.chain_key)
+        # Drop old handles (forward secrecy)
+        old_rk = self._state.root_key
+        old_ck = self._state.chain_key
+        if isinstance(old_rk, int):
+            hb.drop(old_rk)
+        if isinstance(old_ck, int):
+            hb.drop(old_ck)
 
-        # Install new root and chain
-        self._state.root_key = bytearray(new_root)
-        self._state.chain_key = bytearray(new_chain)
+        self._state.root_key = new_root_h
+        self._state.chain_key = new_chain_h
         self._state.epoch = epoch
 
     @property
@@ -1135,26 +1246,12 @@ class DecoderRatchet:
         """Current chain position (next frame index to derive from chain)."""
         return self._state.position
 
-    def _advance_to(self, target_index: int) -> bytes:
+    def _advance_to(self, target_index: int) -> int:
         """
-        Advance the chain to target_index, caching skipped message keys.
-
-        MSR v2.0: Handles asymmetric root key rotation at epoch boundaries.
-        When the chain crosses a rekey frame during fast-forward, the root
-        key is rotated using stored ephemeral key material (from a previously
-        received rekey frame). If the rekey material for an intermediate epoch
-        hasn't been received yet, ValueError is raised (the frame is treated
-        as lost by fountain codes).
-
-        Args:
-            target_index: The frame index we need to derive a key for
+        Advance the chain to target_index, caching skipped message key handles.
 
         Returns:
-            message_key for target_index
-
-        Raises:
-            ValueError: If too many keys would need to be cached (DoS protection)
-                        or if rekey material for an intermediate epoch is missing
+            message_key_handle for target_index (an opaque int)
         """
         skip_count = target_index - self._state.position
         if skip_count < 0:
@@ -1187,10 +1284,10 @@ class DecoderRatchet:
                     )
                 self._execute_rekey(epoch)
 
-            msg_key, self._state = ratchet_step(self._state)
-            # Cache the skipped key for later out-of-order reception
+            msg_key_handle, self._state = ratchet_step(self._state)
+            # Cache the skipped key handle for later out-of-order reception
             skipped_idx = self._state.position - 1
-            self._skipped_keys[skipped_idx] = bytearray(msg_key)
+            self._skipped_keys[skipped_idx] = msg_key_handle
 
         # Handle rekey at the target position itself
         if (
@@ -1207,8 +1304,8 @@ class DecoderRatchet:
             self._execute_rekey(epoch)
 
         # Final ratchet step for the target position
-        msg_key, self._state = ratchet_step(self._state)
-        return msg_key
+        msg_key_handle, self._state = ratchet_step(self._state)
+        return msg_key_handle
 
     def decrypt(self, encrypted_frame: bytes) -> bytes:
         """
@@ -1256,10 +1353,10 @@ class DecoderRatchet:
         frame_index = self._header_lookup[enc_idx]
 
         # Step 2: Extract commitment tag
-        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
+        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE: FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
 
         # Frame body = everything after index + commitment
-        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE :]
+        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE:]
 
         # Step 3: Replay detection
         if frame_index in self._consumed_indices:
@@ -1288,19 +1385,18 @@ class DecoderRatchet:
             epoch = self._frame_epoch(frame_index)
             self._received_rekey_material[epoch] = eph_pub
 
-        # Get the message key for this frame
-        message_key_buf: Optional[bytearray] = None
+        # Get the message key handle for this frame
+        msg_key_handle: Optional[int] = None
         commit_keys = None
+        hb = get_handle_backend()
 
         try:
             if frame_index in self._skipped_keys:
-                # Case 1: This frame was skipped earlier — use cached key
-                message_key_buf = self._skipped_keys.pop(frame_index)
+                # Case 1: This frame was skipped earlier — use cached handle
+                msg_key_handle = self._skipped_keys.pop(frame_index)
             elif frame_index >= self._state.position:
                 # Case 2: Frame is at or ahead of current position — advance chain
-                # (may trigger asymmetric root rotation at epoch boundaries)
-                msg_key = self._advance_to(frame_index)
-                message_key_buf = bytearray(msg_key)
+                msg_key_handle = self._advance_to(frame_index)
             else:
                 # Case 3: Frame is behind current position and NOT in cache
                 raise ValueError(
@@ -1317,34 +1413,28 @@ class DecoderRatchet:
                 ciphertext_body = frame_body[REKEY_BEACON_SIZE:]
 
                 if not is_asym_rekey:
-                    # Plaintext beacon fallback (MSR v1.x):
-                    # Mix beacon entropy into message key
+                    # Plaintext beacon fallback: mix beacon via handle
                     beacon_data = frame_body[:REKEY_BEACON_SIZE]
-                    beacon_secret = beacon_data
-                    enhanced_key = _mix_beacon(bytes(message_key_buf), beacon_secret, self._salt)
-                    _secure_zero(message_key_buf)
-                    message_key_buf = bytearray(enhanced_key)
-                # For is_asym_rekey: root rotation was already performed during
-                # _advance_to() → _execute_rekey(). The message key comes from
-                # the post-rotation chain. No additional mixing needed.
+                    new_mk_handle = _mix_beacon_handle(msg_key_handle, beacon_data, self._salt)
+                    hb.drop(msg_key_handle)
+                    msg_key_handle = new_mk_handle
 
             # Step 5: Key commitment verification (BEFORE decryption!)
-            commit_keys = derive_frame_keys(bytes(message_key_buf), self._salt)
-            expected_commitment = _compute_commitment(bytes(commit_keys.mac_key), frame_body)
-            if not secrets.compare_digest(commitment_tag, expected_commitment):
+            commit_keys = derive_frame_keys(msg_key_handle, self._salt)
+            expected_commitment = _compute_commitment(commit_keys.mac_key, frame_body)
+            _backend = get_default_backend()
+            if not _backend.constant_time_compare(commitment_tag, expected_commitment):
                 raise ValueError(
                     f"Key commitment verification failed for frame {frame_index}. "
                     "Possible key commitment attack or corrupted frame."
                 )
 
-            # Step 6: AES-GCM decryption
-            # Reconstruct standard frame for decrypt_frame:
-            # [plaintext_index(4 BE)] [ciphertext+tag]
+            # Step 6: AES-GCM decryption using message key handle
             reconstructed = struct.pack(">I", frame_index) + ciphertext_body
 
             plaintext = decrypt_frame(
                 encrypted_frame=reconstructed,
-                message_key=bytes(message_key_buf),
+                message_key=msg_key_handle,
                 expected_index=frame_index,
                 salt=self._salt,
                 k_blocks=self._k_blocks,
@@ -1357,9 +1447,12 @@ class DecoderRatchet:
             return plaintext
 
         finally:
-            # Zeroize all sensitive material
-            if message_key_buf is not None:
-                _secure_zero(message_key_buf)
+            # Drop message key handle and commitment keys
+            if msg_key_handle is not None:
+                try:
+                    hb.drop(msg_key_handle)
+                except Exception:
+                    pass
             if commit_keys is not None:
                 commit_keys.zeroize()
 
@@ -1376,13 +1469,22 @@ class DecoderRatchet:
         """
         if not self._finalized:
             self._state.zeroize()
-            for idx, key_buf in self._skipped_keys.items():
-                _secure_zero(key_buf)
+            hb = get_handle_backend()
+            for idx, key_handle in self._skipped_keys.items():
+                try:
+                    hb.drop(key_handle)
+                except Exception:
+                    pass
             self._skipped_keys.clear()
             self._consumed_indices.clear()
             self._received_rekey_material.clear()
-            # Zeroize header key and lookup table
-            self._header_key = b"\x00" * 32
+            # Drop header key handle
+            if isinstance(self._header_key, int):
+                try:
+                    hb.drop(self._header_key)
+                except Exception:
+                    pass
+            self._header_key = 0
             self._header_lookup.clear()
             self._finalized = True
 

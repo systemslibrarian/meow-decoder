@@ -14,7 +14,7 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Tuple, Optional
 
-from .crypto_backend import get_default_backend, secure_zero_memory
+from .crypto_backend import get_default_backend, get_handle_backend, secure_zero_memory
 
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
@@ -301,7 +301,8 @@ def check_duress_password(
         Uses secrets.compare_digest for constant-time comparison.
     """
     computed = compute_duress_tag(entered_password, salt, manifest_core)
-    return secrets.compare_digest(computed, duress_tag)
+    backend = get_default_backend()
+    return backend.constant_time_compare(computed, duress_tag)
 
 
 def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) -> bytes:
@@ -390,6 +391,189 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     finally:
         # Best-effort zeroing of mutable secret material
         secure_zero_memory(secret_buf)
+
+
+# ── Handle-based key derivation (Rule #2: Python never holds secret key bytes) ──
+
+
+def derive_key_handle(
+    password: str, salt: bytes, keyfile: Optional[bytes] = None
+) -> int:
+    """
+    Derive encryption key using Argon2id — returns opaque Rust handle.
+
+    The 32-byte key NEVER enters Python memory.  Callers interact with
+    the key exclusively through the handle ID.
+
+    Args:
+        password: User passphrase (minimum 8 characters)
+        salt:     Random salt (16 bytes)
+        keyfile:  Optional keyfile content
+
+    Returns:
+        int handle ID pointing to 32-byte key inside Rust
+
+    Raises:
+        ValueError: If password is empty, too short, or salt is wrong length
+    """
+    if not password:
+        raise ValueError("Password cannot be empty")
+    if len(password) < MIN_PASSWORD_LENGTH:
+        raise ValueError(
+            f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)"
+        )
+    if len(salt) != 16:
+        raise ValueError("Salt must be 16 bytes")
+
+    hb = get_handle_backend()
+
+    secret = password.encode("utf-8")
+    if keyfile:
+        # Combine password and keyfile via HKDF (raw bytes path — no handle for IKM yet)
+        backend = get_default_backend()
+        secret = backend.derive_key_hkdf(
+            secret + keyfile,
+            KEYFILE_DOMAIN_SEP,
+            b"password_keyfile_combine",
+            64,
+        )
+
+    secret_buf = bytearray(secret)
+    try:
+        handle = hb.derive_key_argon2id(
+            bytes(secret_buf),
+            salt,
+            memory_kib=ARGON2_MEMORY,
+            iterations=ARGON2_ITERATIONS,
+            parallelism=ARGON2_PARALLELISM,
+        )
+        return handle
+    except Exception as e:
+        raise RuntimeError(f"Key derivation failed: {e}")
+    finally:
+        secure_zero_memory(secret_buf)
+
+
+def encrypt_file_bytes_handle(
+    raw: bytes,
+    password: str,
+    keyfile: Optional[bytes] = None,
+    use_length_padding: bool = True,
+    mode_byte: int = 0,
+) -> Tuple[bytes, bytes, bytes, bytes, bytes, int]:
+    """
+    Compress, hash, and encrypt file data — key stays in Rust handle.
+
+    This is the handle-based equivalent of ``encrypt_file_bytes`` for
+    password-only mode.  The encryption key NEVER enters Python.
+
+    Returns:
+        (compressed, sha256, salt, nonce, ciphertext, key_handle)
+        Caller MUST call ``get_handle_backend().drop(key_handle)`` when done.
+    """
+    hb = get_handle_backend()
+    backend = get_default_backend()
+
+    comp = zlib.compress(raw, level=9)
+    if use_length_padding:
+        try:
+            from .metadata_obfuscation import add_length_padding
+        except ImportError:
+            from metadata_obfuscation import add_length_padding  # type: ignore[import]
+        comp = add_length_padding(comp)
+
+    sha = backend.sha256(raw)
+    salt = secrets.token_bytes(16)
+    nonce = secrets.token_bytes(12)
+
+    key_handle = derive_key_handle(password, salt, keyfile)
+
+    aad = build_canonical_aad(
+        orig_len=len(raw),
+        comp_len=len(comp),
+        salt=salt,
+        sha256_hash=sha,
+        magic=MAGIC,
+        mode_byte=mode_byte,
+    )
+
+    cipher = hb.aes_gcm_encrypt(key_handle, nonce, comp, aad)
+    return comp, sha, salt, nonce, cipher, key_handle
+
+
+def decrypt_to_raw_handle(
+    cipher: bytes,
+    password: str,
+    salt: bytes,
+    nonce: bytes,
+    orig_len: int,
+    comp_len: int,
+    sha256: bytes,
+    keyfile: Optional[bytes] = None,
+    mode_byte: int = 0,
+) -> bytes:
+    """
+    Decrypt and decompress — key stays in Rust handle.
+
+    Handle-based equivalent of ``decrypt_to_raw`` for password-only mode.
+    """
+    hb = get_handle_backend()
+
+    key_handle = derive_key_handle(password, salt, keyfile)
+    try:
+        aad = build_canonical_aad(
+            orig_len=orig_len,
+            comp_len=comp_len,
+            salt=salt,
+            sha256_hash=sha256,
+            magic=MAGIC,
+            mode_byte=mode_byte,
+        )
+        comp = hb.aes_gcm_decrypt(key_handle, nonce, cipher, aad)
+
+        try:
+            from .metadata_obfuscation import remove_length_padding
+        except ImportError:
+            from metadata_obfuscation import remove_length_padding  # type: ignore[import]
+        try:
+            comp = remove_length_padding(comp)
+        except (ValueError, ImportError):
+            pass
+
+        decomp_limit = (
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
+            if orig_len > 0
+            else 100 * 1024 * 1024
+        )
+        decompressor = zlib.decompressobj()
+        chunk = decompressor.decompress(comp, decomp_limit + 1)
+        if len(chunk) > decomp_limit:
+            raise ValueError("Decompression bomb detected")
+        remaining = decompressor.flush()
+        if len(chunk) + len(remaining) > decomp_limit:
+            raise ValueError("Decompression bomb detected")
+        return chunk + remaining
+    finally:
+        hb.drop(key_handle)
+
+
+def compute_manifest_hmac_handle(
+    key_handle: int, salt: bytes, packed_no_hmac: bytes
+) -> bytes:
+    """
+    Compute HMAC over manifest using a key handle.
+
+    The HMAC key is derived inside Rust via HKDF from the encryption key
+    handle, ensuring the secret never enters Python.
+    """
+    hb = get_handle_backend()
+    hmac_key_handle = hb.derive_key_hkdf(
+        key_handle, MANIFEST_HMAC_KEY_PREFIX, b"manifest_hmac_v2", 32
+    )
+    try:
+        return hb.hmac_sha256(hmac_key_handle, packed_no_hmac)
+    finally:
+        hb.drop(hmac_key_handle)
 
 
 def encrypt_file_bytes(
@@ -979,7 +1163,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     mode_byte = MODE_LEGACY
 
     if has_mode_byte:
-        mode_byte = struct.unpack("B", b[off : off + 1])[0]
+        mode_byte = struct.unpack("B", b[off: off + 1])[0]
         off += 1
         if mode_byte not in _VALID_MODE_BYTES:
             raise ValueError(
@@ -987,17 +1171,17 @@ def unpack_manifest(b: bytes) -> Manifest:
                 f"(valid: {', '.join(f'0x{v:02x}' for v in sorted(_VALID_MODE_BYTES))})"
             )
 
-    salt = b[off : off + 16]
+    salt = b[off: off + 16]
     off += 16
-    nonce = b[off : off + 12]
+    nonce = b[off: off + 12]
     off += 12
-    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off : off + 12])
+    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off: off + 12])
     off += 12
-    block_size, k_blocks = struct.unpack(">HI", b[off : off + 6])
+    block_size, k_blocks = struct.unpack(">HI", b[off: off + 6])
     off += 6
-    sha = b[off : off + 32]
+    sha = b[off: off + 32]
     off += 32
-    hmac_tag = b[off : off + 32]
+    hmac_tag = b[off: off + 32]
     off += 32
 
     # Parse optional fields based on manifest size
@@ -1009,7 +1193,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     effective_len = len(b) - (1 if has_mode_byte else 0)
 
     if effective_len >= fs_len:
-        ephemeral_public_key = b[off : off + 32]
+        ephemeral_public_key = b[off: off + 32]
         off += 32
 
     # Determine PQ ciphertext size from mode byte
@@ -1020,17 +1204,17 @@ def unpack_manifest(b: bytes) -> Manifest:
     if base_version_clean == MODE_MEOW5:
         # ML-KEM-768: ciphertext is 1088 bytes
         if effective_len >= pq_768_len:
-            pq_ciphertext = b[off : off + 1088]
+            pq_ciphertext = b[off: off + 1088]
             off += 1088
     elif effective_len >= pq_1024_len:
         # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
-        pq_ciphertext = b[off : off + 1568]
+        pq_ciphertext = b[off: off + 1568]
         off += 1568
 
     # Check for duress tag (always last field)
     remaining = len(b) - off
     if remaining == 32:
-        duress_tag = b[off : off + 32]
+        duress_tag = b[off: off + 32]
 
     # FIX-D3: Validate mode byte consistency (reject mismatches)
     if mode_byte != MODE_LEGACY:
@@ -1303,8 +1487,8 @@ def verify_manifest_hmac(
         equalize_timing(0.001, 0.005)  # 1-5ms random delay
         return result
     except ImportError:
-        # Fallback to secrets.compare_digest
-        result = secrets.compare_digest(expected_hmac, manifest.hmac)
+        # Fallback to Rust constant-time compare
+        result = get_default_backend().constant_time_compare(expected_hmac, manifest.hmac)
         # Still add some timing jitter
         import time
 

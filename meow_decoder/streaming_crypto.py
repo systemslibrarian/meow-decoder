@@ -19,7 +19,7 @@ from typing import IO, Optional, Tuple, Iterator
 from dataclasses import dataclass
 from contextlib import contextmanager
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, get_handle_backend
 
 # Try to import psutil for memory monitoring
 try:
@@ -93,6 +93,11 @@ class StreamingCipher:
             key: Encryption key (32 bytes for AES-256)
             nonce: Nonce/IV (16 bytes for CTR)
             chunk_size: Size of chunks to process
+
+        SECURITY (M1 migration):
+            The key is immediately imported into a Rust opaque handle.
+            No secret key bytes are stored in Python instance variables.
+            Only the integer handle ID and non-secret nonce are kept.
         """
         if len(key) != 32:
             raise ValueError("Key must be 32 bytes")
@@ -100,7 +105,6 @@ class StreamingCipher:
         if chunk_size <= 0:
             raise ValueError("chunk_size must be positive")
 
-        self.key = key
         self.chunk_size = chunk_size
 
         # Generate nonce if not provided
@@ -115,21 +119,34 @@ class StreamingCipher:
         self._encrypt_offset = 0
         self._decrypt_offset = 0
 
-        # Derive MAC key using HKDF for domain separation
-        # This ensures the MAC key is distinct from the encryption key
-        backend = get_default_backend()
-        mac_key_material = backend.derive_key_hkdf(key, nonce, STREAMING_MAC_INFO, 32)
-        self._mac_key = mac_key_material
+        # SECURITY (M1): Import key into Rust handle, create stream state.
+        # The key and derived MAC key live exclusively in Rust.
+        # Python holds only the integer handle ID and non-secret nonce.
+        hb = get_handle_backend()
+        key_handle = hb.import_key(key)
+        self._stream_handle = hb.stream_new(key_handle, nonce, STREAMING_MAC_INFO)
+        # Drop the intermediate key handle — stream handle owns copies
+        hb.drop(key_handle)
+        # Track handle backend for later use
+        self._hb = hb
+
+    def __del__(self):
+        """Drop the stream handle when the cipher is garbage collected."""
+        if hasattr(self, '_stream_handle') and self._stream_handle is not None:
+            try:
+                hb = get_handle_backend()
+                hb.drop(self._stream_handle)
+            except Exception:
+                pass
+            self._stream_handle = None
 
     def _compute_mac(self, data: bytes) -> bytes:  # pragma: no cover
-        """Compute HMAC-SHA256 over data."""
-        backend = get_default_backend()
-        return backend.hmac_sha256(self._mac_key, data)
+        """Compute HMAC-SHA256 over data using Rust stream handle's MAC key."""
+        return self._hb.stream_hmac(self._stream_handle, data)
 
     def _verify_mac(self, data: bytes, expected_mac: bytes) -> bool:  # pragma: no cover
-        """Verify HMAC-SHA256 in constant time."""
-        computed = self._compute_mac(data)
-        return secrets.compare_digest(computed, expected_mac)
+        """Verify HMAC-SHA256 via Rust stream handle (constant-time)."""
+        return self._hb.stream_hmac_verify(self._stream_handle, data, expected_mac)
 
     def encrypt_stream(
         self, input_stream: IO[bytes], output_stream: IO[bytes], enable_compression: bool = True
@@ -175,12 +192,11 @@ class StreamingCipher:
             else:
                 compressed_chunk = chunk
 
-            # Encrypt chunk using Rust AES-CTR with byte offset tracking
+            # Encrypt chunk using Rust stream handle (key stays in Rust)
             if compressed_chunk:
-                encrypted_chunk = backend.aes_ctr_crypt(
-                    self.key, self.nonce, compressed_chunk, self._encrypt_offset
+                encrypted_chunk = self._hb.stream_ctr_crypt(
+                    self._stream_handle, compressed_chunk
                 )
-                self._encrypt_offset += len(compressed_chunk)
                 output_stream.write(encrypted_chunk)
                 all_ciphertext_chunks.append(encrypted_chunk)
                 compressed_size += len(compressed_chunk)
@@ -195,10 +211,9 @@ class StreamingCipher:
         if enable_compression:
             final_compressed = compressor.flush()
             if final_compressed:
-                encrypted_final = backend.aes_ctr_crypt(
-                    self.key, self.nonce, final_compressed, self._encrypt_offset
+                encrypted_final = self._hb.stream_ctr_crypt(
+                    self._stream_handle, final_compressed
                 )
-                self._encrypt_offset += len(final_compressed)
                 output_stream.write(encrypted_final)
                 all_ciphertext_chunks.append(encrypted_final)
                 compressed_size += len(final_compressed)
@@ -209,9 +224,9 @@ class StreamingCipher:
         del all_plaintext
         del all_plaintext_chunks
 
-        # Compute MAC: HMAC-SHA256(mac_key, nonce || ciphertext) using Rust backend
+        # Compute MAC: HMAC-SHA256(mac_key, nonce || ciphertext) via Rust stream handle
         all_ciphertext = b"".join(all_ciphertext_chunks)
-        mac_tag = backend.hmac_sha256(self._mac_key, self.nonce + all_ciphertext)
+        mac_tag = self._hb.stream_hmac(self._stream_handle, self.nonce + all_ciphertext)
         del all_ciphertext
         del all_ciphertext_chunks
 
@@ -224,7 +239,7 @@ class StreamingCipher:
         input_stream: Optional[IO[bytes]] = None,
         output_stream: Optional[IO[bytes]] = None,
         enable_decompression: bool = True,
-        expected_mac: Optional[bytes] = None,
+        expected_mac: bytes = b"",
         **kwargs,
     ) -> int:
         """
@@ -259,7 +274,7 @@ class StreamingCipher:
             raise ValueError("input_stream and output_stream are required")
 
         # FAIL-CLOSED: MAC is mandatory. No unauthenticated decryption path.
-        if expected_mac is None:
+        if expected_mac is None or len(expected_mac) == 0:
             raise ValueError(
                 "expected_mac is required. Unauthenticated decryption is forbidden. "
                 "Provide the MAC tag from encrypt_stream() to verify ciphertext integrity."
@@ -271,18 +286,24 @@ class StreamingCipher:
         # Read entire ciphertext for MAC verification BEFORE any decryption
         ciphertext = input_stream.read()
 
-        # Verify MAC: HMAC(mac_key, nonce || ciphertext) using Rust backend
-        backend = get_default_backend()
-        computed_mac = backend.hmac_sha256(self._mac_key, self.nonce + ciphertext)
-
-        if not secrets.compare_digest(computed_mac, expected_mac):
+        # Verify MAC: HMAC(mac_key, nonce || ciphertext) using Rust stream handle
+        # MAC key never leaves Rust — verification is constant-time in Rust
+        if not self._hb.stream_hmac_verify(
+            self._stream_handle, self.nonce + ciphertext, expected_mac
+        ):
             raise RuntimeError("MAC verification failed - ciphertext may be tampered")
 
         # MAC verified - proceed with decryption (no plaintext released before this point)
+        self._mac_verified = True
         from io import BytesIO
 
         verified_stream = BytesIO(ciphertext)
-        return self._decrypt_verified_stream(verified_stream, output_stream, enable_decompression)
+        # Reset stream handle offset for decryption (encrypt may have advanced it)
+        self._hb.stream_reset_offset(self._stream_handle)
+        try:
+            return self._decrypt_verified_stream(verified_stream, output_stream, enable_decompression)
+        finally:
+            self._mac_verified = False
 
     def _decrypt_verified_stream(
         self, input_stream: IO[bytes], output_stream: IO[bytes], enable_decompression: bool
@@ -290,8 +311,11 @@ class StreamingCipher:
         """
         Internal decryption after MAC verification.
 
-        This method assumes MAC has already been verified or caller accepts risk.
+        SECURITY: This method MUST only be called after MAC verification
+        succeeds in decrypt_stream(). It is not a public API.
         """
+        if not hasattr(self, '_mac_verified') or not self._mac_verified:
+            raise RuntimeError("BUG: _decrypt_verified_stream called without MAC verification")
         total_written = 0
         backend = get_default_backend()
 
@@ -305,11 +329,10 @@ class StreamingCipher:
             if not encrypted_chunk:
                 break
 
-            # Decrypt chunk using Rust AES-CTR with byte offset tracking
-            decrypted_chunk = backend.aes_ctr_crypt(
-                self.key, self.nonce, encrypted_chunk, self._decrypt_offset
+            # Decrypt chunk using Rust stream handle (key stays in Rust)
+            decrypted_chunk = self._hb.stream_ctr_crypt(
+                self._stream_handle, encrypted_chunk
             )
-            self._decrypt_offset += len(encrypted_chunk)
 
             # Decompress if enabled
             if enable_decompression:

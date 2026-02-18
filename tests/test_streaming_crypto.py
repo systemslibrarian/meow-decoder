@@ -148,11 +148,16 @@ class TestCatStreamingCipherInit:
     """Tests for StreamingCipher initialization."""
 
     def test_cat_init_with_valid_key_and_nonce(self, valid_key, valid_nonce):
-        """Test initialization with valid key and nonce."""
+        """Test initialization with valid key and nonce (handle-based: no raw key storage)."""
         cipher = StreamingCipher(valid_key, nonce=valid_nonce)
 
-        assert cipher.key == valid_key
+        # Rule #2: cipher must NOT store raw key bytes
+        assert not hasattr(cipher, 'key'), "cipher.key must not exist (Rule #2)"
+        assert not hasattr(cipher, '_mac_key'), "cipher._mac_key must not exist (Rule #2)"
+        # Nonce is non-secret metadata — OK to store
         assert cipher.nonce == valid_nonce
+        # Stream handle must be an integer (opaque Rust handle)
+        assert isinstance(cipher._stream_handle, int)
 
     def test_cat_init_generates_nonce_if_none(self, valid_key):
         """Test that nonce is generated if not provided."""
@@ -1956,20 +1961,25 @@ class TestStreamingCryptoAuthentication:
 class TestMACKeyDerivation:
     """Test MAC key derivation uses proper domain separation."""
 
-    def test_mac_key_differs_from_encryption_key(self):
-        """MAC key should be derived separately from encryption key."""
+    def test_mac_key_not_stored_in_python(self):
+        """Rule #2: MAC key must NOT be stored as Python bytes."""
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(16)
 
         cipher = StreamingCipher(key, nonce=nonce)
 
-        # MAC key should exist and differ from encryption key
-        assert hasattr(cipher, "_mac_key")
-        assert cipher._mac_key != key
-        assert len(cipher._mac_key) == 32
+        # MAC key must NOT exist as Python attribute (lives in Rust stream handle)
+        assert not hasattr(cipher, "_mac_key"), "_mac_key must not exist in Python (Rule #2)"
+        assert not hasattr(cipher, "key"), "key must not exist in Python (Rule #2)"
+        # Stream handle must be an opaque integer
+        assert isinstance(cipher._stream_handle, int)
 
     def test_mac_key_uses_hkdf_domain_separation(self):
-        """MAC key derivation should use HKDF with proper domain separation."""
+        """MAC key derivation uses HKDF domain separation inside Rust.
+
+        Verify by checking that the stream handle produces the same MAC
+        as manual HKDF + HMAC (functional equivalence test).
+        """
         import meow_crypto_rs
 
         key = secrets.token_bytes(32)
@@ -1977,10 +1987,17 @@ class TestMACKeyDerivation:
 
         cipher = StreamingCipher(key, nonce=nonce)
 
-        # Manually derive expected MAC key via Rust backend
+        # Manually derive expected MAC key and compute HMAC via Rust raw API
         expected_mac_key = meow_crypto_rs.derive_key_hkdf(key, nonce, STREAMING_MAC_INFO, 32)
+        test_msg = b"domain separation test"
+        expected_mac = meow_crypto_rs.hmac_sha256(expected_mac_key, test_msg)
 
-        assert cipher._mac_key == expected_mac_key
+        # Compute same HMAC via stream handle (key stays in Rust)
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
+        actual_mac = hb.stream_hmac(cipher._stream_handle, test_msg)
+
+        assert actual_mac == expected_mac, "Stream handle MAC must match manual HKDF+HMAC"
 
 
 class TestStreamingCryptoCoverageGaps:

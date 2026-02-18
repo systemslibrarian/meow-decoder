@@ -318,6 +318,219 @@ def get_available_backends() -> list:  # pragma: no cover
     return ["rust"] if _RUST_AVAILABLE else []
 
 
+# ─── Opaque Handle API ──────────────────────────────────────────────────────
+# All secret material stays inside Rust. Python sees only integer handle IDs
+# and non-secret outputs (ciphertext, public keys, tags, plaintext after auth).
+# This eliminates Rules #2 and #9 violations.
+
+class HandleBackend:
+    """
+    Handle-based crypto backend where secrets NEVER enter Python.
+
+    Usage:
+        hb = HandleBackend()
+        key_h = hb.derive_key_argon2id(password, salt)
+        ct = hb.aes_gcm_encrypt(key_h, nonce, plaintext, aad)
+        pt = hb.aes_gcm_decrypt(key_h, nonce, ct, aad)
+        hb.drop(key_h)
+    """
+
+    def __init__(self):
+        if not _RUST_AVAILABLE:  # pragma: no cover
+            raise ImportError("Rust crypto backend required for handle API")
+        self._rs = _rust_backend
+
+    # ── Key derivation (returns handles, not key bytes) ──
+
+    def derive_key_argon2id(
+        self,
+        password: bytes,
+        salt: bytes,
+        memory_kib: int = 524288,
+        iterations: int = 20,
+        parallelism: int = 4,
+    ) -> int:
+        """Derive key via Argon2id. Returns opaque handle ID."""
+        return self._rs.handle_derive_key_argon2id(
+            password, salt, memory_kib, iterations, parallelism
+        )
+
+    def derive_key_hkdf(
+        self, ikm_handle: int, salt: bytes, info: bytes, output_len: int = 32
+    ) -> int:
+        """Derive key via HKDF from an existing key handle. Returns new handle."""
+        return self._rs.handle_derive_hkdf(ikm_handle, salt, info, output_len)
+
+    def derive_key_hkdf_raw(
+        self, ikm: bytes, salt: bytes, info: bytes, output_len: int = 32
+    ) -> int:
+        """Derive key via HKDF from raw IKM bytes. Returns handle."""
+        return self._rs.handle_derive_hkdf_raw(ikm, salt, info, output_len)
+
+    def import_key(self, key_bytes: bytes) -> int:
+        """Import raw key bytes into an opaque handle. Caller MUST zeroize their copy."""
+        return self._rs.handle_import_key(key_bytes)
+
+    def derive_key_hkdf_bytes(
+        self, ikm_handle: int, salt: bytes, info: bytes, output_len: int = 32
+    ) -> bytes:
+        """Derive HKDF from handle, return raw bytes.
+        USE ONLY for non-secret derived values (nonces, header masks)."""
+        return self._rs.handle_derive_hkdf_bytes(ikm_handle, salt, info, output_len)
+
+    # ── AEAD (key stays in Rust) ──
+
+    def aes_gcm_encrypt(
+        self, key_handle: int, nonce: bytes, plaintext: bytes, aad: Optional[bytes] = None
+    ) -> bytes:
+        """Encrypt via AES-256-GCM using key handle. Returns ciphertext."""
+        return self._rs.handle_aes_gcm_encrypt(key_handle, nonce, plaintext, aad)
+
+    def aes_gcm_decrypt(
+        self, key_handle: int, nonce: bytes, ciphertext: bytes, aad: Optional[bytes] = None
+    ) -> bytes:
+        """Decrypt via AES-256-GCM using key handle. Fail-closed."""
+        return self._rs.handle_aes_gcm_decrypt(key_handle, nonce, ciphertext, aad)
+
+    # ── HMAC (key stays in Rust) ──
+
+    def hmac_sha256(self, key_handle: int, message: bytes) -> bytes:
+        """Compute HMAC-SHA256 using key handle. Returns tag."""
+        return self._rs.handle_hmac_sha256(key_handle, message)
+
+    def hmac_sha256_verify(self, key_handle: int, message: bytes, expected_tag: bytes) -> bool:
+        """Verify HMAC-SHA256 constant-time using key handle."""
+        return self._rs.handle_hmac_sha256_verify(key_handle, message, expected_tag)
+
+    # ── X25519 (private key stays in Rust) ──
+
+    def x25519_generate_keypair(self) -> tuple:
+        """Generate X25519 keypair. Returns (handle_id, public_key_bytes).
+        Private key NEVER leaves Rust."""
+        return self._rs.handle_x25519_generate()
+
+    def x25519_exchange(self, private_handle: int, peer_public: bytes) -> int:
+        """X25519 key exchange. Returns handle to shared secret."""
+        return self._rs.handle_x25519_exchange(private_handle, peer_public)
+
+    def x25519_public(self, handle: int) -> bytes:
+        """Get public key from X25519 private key handle."""
+        return self._rs.handle_x25519_public(handle)
+
+    def import_x25519_private(self, private_bytes: bytes) -> int:
+        """Import raw X25519 private key bytes into an opaque handle.
+        Caller MUST zeroize their copy of private_bytes."""
+        return self._rs.handle_import_x25519_private(private_bytes)
+
+    # ── Session / Stream / Ratchet handles ──
+
+    def session_new(self, enc_key_handle: int, mac_key_handle: Optional[int] = None) -> int:
+        """Create session from key handles."""
+        return self._rs.handle_session_new(enc_key_handle, mac_key_handle)
+
+    def stream_new(self, enc_key_handle: int, nonce: bytes, mac_domain: bytes) -> int:
+        """Create stream state for streaming encrypt/decrypt."""
+        return self._rs.handle_stream_new(enc_key_handle, nonce, mac_domain)
+
+    def stream_encrypt(self, stream_handle: int, plaintext: bytes) -> tuple:
+        """Stream encrypt. Returns (ciphertext, mac_tag)."""
+        return self._rs.handle_stream_encrypt(stream_handle, plaintext)
+
+    def stream_decrypt(self, stream_handle: int, ciphertext: bytes, expected_mac: bytes) -> bytes:
+        """Stream decrypt. Verifies MAC first (fail-closed)."""
+        return self._rs.handle_stream_decrypt(stream_handle, ciphertext, expected_mac)
+
+    def stream_ctr_crypt(self, stream_handle: int, data: bytes) -> bytes:
+        """AES-CTR crypt a chunk using stream handle (key stays in Rust)."""
+        return self._rs.handle_stream_ctr_crypt(stream_handle, data)
+
+    def stream_hmac(self, stream_handle: int, message: bytes) -> bytes:
+        """Compute HMAC-SHA256 using stream handle's MAC key."""
+        return self._rs.handle_stream_hmac(stream_handle, message)
+
+    def stream_hmac_verify(self, stream_handle: int, message: bytes, expected_tag: bytes) -> bool:
+        """Verify HMAC-SHA256 using stream handle's MAC key (constant-time)."""
+        return self._rs.handle_stream_hmac_verify(stream_handle, message, expected_tag)
+
+    def stream_nonce(self, stream_handle: int) -> bytes:
+        """Get nonce from stream handle (non-secret metadata)."""
+        return self._rs.handle_stream_nonce(stream_handle)
+
+    def stream_reset_offset(self, stream_handle: int) -> None:
+        """Reset stream byte offset to 0."""
+        return self._rs.handle_stream_reset_offset(stream_handle)
+
+    def aes_ctr_crypt_handle(self, key_handle: int, nonce: bytes, data: bytes, byte_offset: int = 0) -> bytes:
+        """AES-CTR crypt using any key handle (key stays in Rust)."""
+        return self._rs.handle_aes_ctr_crypt(key_handle, nonce, data, byte_offset)
+
+    def ratchet_new(self, root_key_handle: int, salt: bytes, root_info: bytes) -> int:
+        """Create ratchet from root key handle."""
+        return self._rs.handle_ratchet_new(root_key_handle, salt, root_info)
+
+    def ratchet_step(self, ratchet_handle: int, step_info: bytes, msg_info: bytes) -> int:
+        """Advance ratchet chain. Returns message key handle."""
+        return self._rs.handle_ratchet_step(ratchet_handle, step_info, msg_info)
+
+    # ── Mixed HKDF (key stays in Rust) ──
+
+    def mix_hkdf(
+        self, ikm_handle: int, extra_ikm: bytes, salt: bytes, info: bytes, output_len: int = 32
+    ) -> int:
+        """HKDF with handle key concatenated with extra IKM. Returns handle.
+        Used for beacon mixing: HKDF(message_key || beacon_secret, salt, info)."""
+        return self._rs.handle_mix_hkdf(ikm_handle, extra_ikm, salt, info, output_len)
+
+    def hkdf_with_handle_salt(
+        self, ikm: bytes, salt_handle: int, info: bytes, output_len: int = 32
+    ) -> int:
+        """HKDF where salt is a handle's key bytes, IKM is raw bytes. Returns handle.
+        Used for asymmetric root rekey: HKDF(IKM=shared, salt=root_key, info=...)."""
+        return self._rs.handle_hkdf_with_handle_salt(ikm, salt_handle, info, output_len)
+
+    def hkdf_expand(self, prk_handle: int, info: bytes, output_len: int = 32) -> int:
+        """HKDF-Expand only (no Extract). Treats handle key as PRK. Returns handle.
+        Used for chain key derivation in double ratchet."""
+        return self._rs.handle_hkdf_expand(prk_handle, info, output_len)
+
+    def hkdf_two_handles(
+        self, ikm_handle: int, salt_handle: int, info: bytes, output_len: int = 32
+    ) -> int:
+        """Full HKDF where both IKM and salt come from handles. Returns handle.
+        Used for double ratchet root key derivation."""
+        return self._rs.handle_hkdf_two_handles(ikm_handle, salt_handle, info, output_len)
+
+    # ── Handle lifecycle ──
+
+    def drop(self, handle_id: int) -> None:
+        """Zeroize and free a handle."""
+        self._rs.handle_drop(handle_id)
+
+    def export_key(self, handle_id: int) -> bytes:
+        """Export raw key bytes from handle. DANGEROUS: only for encrypted-at-rest
+        serialization. Caller MUST immediately encrypt or zero returned bytes."""
+        return self._rs.handle_export_key(handle_id)
+
+    def exists(self, handle_id: int) -> bool:
+        """Check if handle exists."""
+        return self._rs.handle_exists(handle_id)
+
+    def count(self) -> int:
+        """Get current handle count."""
+        return self._rs.handle_count()
+
+
+_default_handle_backend: Optional[HandleBackend] = None
+
+
+def get_handle_backend() -> HandleBackend:
+    """Get the default handle-based crypto backend."""
+    global _default_handle_backend
+    if _default_handle_backend is None:
+        _default_handle_backend = HandleBackend()
+    return _default_handle_backend
+
+
 # Quick self-test
 if __name__ == "__main__":
     print("🔐 Crypto Backend Test")

@@ -1235,21 +1235,16 @@ def test_main_decode_exception_verbose(tmp_path, monkeypatch):
 
 
 def test_main_receiver_privkey_success(tmp_path, monkeypatch):
-    from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
+    import meow_crypto_rs
 
     input_path = tmp_path / "in.gif"
     input_path.write_bytes(b"GIF89a")
     output_path = tmp_path / "out.txt"
 
-    privkey = X25519PrivateKey.generate()
-    privkey_pem = privkey.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    privkey_path = tmp_path / "priv.pem"
-    privkey_path.write_bytes(privkey_pem)
+    # Generate X25519 keypair and save in MEOW_X25519 format
+    priv_bytes, pub_bytes = meow_crypto_rs.x25519_generate_keypair()
+    privkey_path = tmp_path / "priv.key"
+    privkey_path.write_bytes(b"MEOW_X25519\x01" + priv_bytes)
 
     monkeypatch.setattr(
         decode_mod,

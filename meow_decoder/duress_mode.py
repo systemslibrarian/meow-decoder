@@ -93,7 +93,7 @@ class DuressHandler:
         self._real_hash = self._hash_password(real_password, salt)
 
         # Ensure passwords are different
-        if secrets.compare_digest(self._duress_hash, self._real_hash):
+        if _get_backend().constant_time_compare(self._duress_hash, self._real_hash):
             raise ValueError("Duress and real passwords cannot be the same")
 
     def _hash_password(self, password: str, salt: bytes) -> bytes:
@@ -121,8 +121,8 @@ class DuressHandler:
         entered_hash = self._hash_password(entered_password, salt)
 
         # Check both passwords in constant time
-        is_real = secrets.compare_digest(entered_hash, self._real_hash or b"")
-        is_duress = secrets.compare_digest(entered_hash, self._duress_hash or b"")
+        is_real = _get_backend().constant_time_compare(entered_hash, self._real_hash or b"")
+        is_duress = _get_backend().constant_time_compare(entered_hash, self._duress_hash or b"")
 
         # === SECURITY FIX (HIGH-02): Constant-time execution for both branches ===
         # Execute equivalent work regardless of which branch is taken to prevent

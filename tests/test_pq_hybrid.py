@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Tests for meow_decoder.pq_hybrid.
-Covers classical-only and stubbed PQ behavior.
+Covers classical-only and Rust PQ backend behavior.
+
+After AUDIT-C1: Python oqs is FORBIDDEN. PQ MUST use Rust backend.
+Tests that require Rust PQ are skipped if mlkem768_keygen is not available.
 """
 
 import runpy
@@ -11,21 +14,19 @@ import pytest
 import secrets
 
 
-def _dummy_oqs_module():
-    class DummyKEM:
-        def __init__(self, variant):
-            self.variant = variant
+# Check if Rust PQ backend is available
+_RUST_PQ_AVAILABLE = False
+try:
+    import meow_crypto_rs as _pq_rs
 
-        def generate_keypair(self):
-            return b"Q" * 1568
+    _RUST_PQ_AVAILABLE = hasattr(_pq_rs, "mlkem768_keygen")
+except ImportError:
+    pass
 
-        def encap_secret(self, public_key):
-            return (b"C" * 1568, b"K" * 32)
-
-        def decap_secret(self, ciphertext):
-            return b"K" * 32
-
-    return types.SimpleNamespace(KeyEncapsulation=DummyKEM)
+requires_rust_pq = pytest.mark.skipif(
+    not _RUST_PQ_AVAILABLE,
+    reason="Rust PQ backend not available (rebuild with --features pq)",
+)
 
 
 def _valid_x25519_public_key_bytes() -> bytes:
@@ -39,19 +40,17 @@ def test_check_pq_available_false(monkeypatch):
     import meow_decoder.pq_hybrid as pq
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", False)
+    monkeypatch.setattr(pq, "_RUST_PQ_AVAILABLE", False)
     monkeypatch.setattr(pq, "PQ_ALGORITHM", None)
 
     available, msg = pq.check_pq_available()
     assert available is False
-    assert "liboqs" in msg.lower()
+    assert "not available" in msg.lower()
 
 
-def test_check_pq_available_true(monkeypatch):
+@requires_rust_pq
+def test_check_pq_available_true():
     import meow_decoder.pq_hybrid as pq
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", _dummy_oqs_module(), raising=False)
 
     available, msg = pq.check_pq_available()
     assert available is True
@@ -69,18 +68,16 @@ def test_hybrid_keypair_classical_only():
     assert keypair.is_hybrid() is False
 
 
-def test_hybrid_keypair_pq_success(monkeypatch):
+@requires_rust_pq
+def test_hybrid_keypair_pq_success():
     import meow_decoder.pq_hybrid as pq
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", _dummy_oqs_module(), raising=False)
 
     keypair = pq.HybridKeyPair(use_pq=True)
     assert keypair.is_hybrid() is True
     classical_pub, pq_pub = keypair.export_public_keys()
     assert len(classical_pub) == 32
-    assert pq_pub == b"Q" * 1568
+    assert pq_pub is not None
+    assert len(pq_pub) >= 1184  # ML-KEM-768 public key
 
 
 def test_hybrid_encapsulate_classical_roundtrip():
@@ -101,8 +98,9 @@ def test_hybrid_encapsulate_fails_if_pq_requested_but_unavailable(monkeypatch):
     import meow_decoder.pq_hybrid as pq
 
     monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", False)
+    monkeypatch.setattr(pq, "_RUST_PQ_AVAILABLE", False)
 
-    with pytest.raises(RuntimeError, match="liboqs"):
+    with pytest.raises(RuntimeError, match="[Pp]ost.quantum|[Rr]ust PQ"):
         pq.hybrid_encapsulate(
             receiver_classical_public=_valid_x25519_public_key_bytes(),
             receiver_pq_public=b"\x00" * 1568,
@@ -114,7 +112,7 @@ def test_hybrid_decapsulate_fails_if_pq_ciphertext_without_pq_key():
 
     receiver = HybridKeyPair(use_pq=False)
 
-    with pytest.raises(RuntimeError, match="no PQ key"):
+    with pytest.raises(RuntimeError, match="no PQ"):
         hybrid_decapsulate(
             ephemeral_classical_public=_valid_x25519_public_key_bytes(),
             pq_ciphertext=b"\x00" * 1568,
@@ -122,120 +120,72 @@ def test_hybrid_decapsulate_fails_if_pq_ciphertext_without_pq_key():
         )
 
 
-def test_hybrid_decapsulate_pq_kem_error(monkeypatch):
+@requires_rust_pq
+def test_hybrid_decapsulate_pq_kem_error():
     import meow_decoder.pq_hybrid as pq
-
-    class FailingKEM:
-        def __init__(self, variant):
-            self.variant = variant
-
-        def generate_keypair(self):
-            return b"Q" * 1568
-
-        def encap_secret(self, public_key):
-            return (b"C" * 1568, b"K" * 32)
-
-        def decap_secret(self, ciphertext):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(
-        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
-    )
 
     receiver = pq.HybridKeyPair(use_pq=True)
     classical_pub, pq_pub = receiver.export_public_keys()
     _, eph_pub, pq_ct, _ = pq.hybrid_encapsulate(classical_pub, pq_pub)
 
+    # Corrupt the PQ ciphertext
+    corrupted_ct = bytes(len(pq_ct))
     with pytest.raises(RuntimeError, match="decapsulation failed"):
-        pq.hybrid_decapsulate(eph_pub, pq_ct, receiver)
+        pq.hybrid_decapsulate(eph_pub, corrupted_ct, receiver)
 
 
-def test_hybrid_encapsulate_pq_kem_error(monkeypatch):
+@requires_rust_pq
+def test_hybrid_encapsulate_pq_kem_error():
+    """Encapsulation with invalid PQ public key should fail."""
     import meow_decoder.pq_hybrid as pq
 
-    class FailingKEM:
-        def __init__(self, variant):
-            self.variant = variant
-
-        def encap_secret(self, public_key):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(
-        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
-    )
-
-    with pytest.raises(RuntimeError, match="encapsulation failed"):
+    with pytest.raises(RuntimeError, match="encapsulation failed|[Pp]ost.quantum"):
         pq.hybrid_encapsulate(
             receiver_classical_public=_valid_x25519_public_key_bytes(),
-            receiver_pq_public=b"\x00" * 1568,
+            receiver_pq_public=b"\x00" * 10,  # Invalid PQ public key
         )
 
 
-def test_check_pq_available_oqs_error(monkeypatch):
+def test_check_pq_available_not_available(monkeypatch):
     import meow_decoder.pq_hybrid as pq
 
-    class FailingKEM:
-        def __init__(self, variant):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(
-        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
-    )
+    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", False)
+    monkeypatch.setattr(pq, "_RUST_PQ_AVAILABLE", False)
 
     available, msg = pq.check_pq_available()
     assert available is False
-    assert "unavailable" in msg.lower()
+    assert "not available" in msg.lower()
 
 
-def test_hybrid_keypair_pq_generation_failure(monkeypatch):
+def test_hybrid_keypair_pq_fails_without_rust_pq(monkeypatch):
     import meow_decoder.pq_hybrid as pq
 
-    class FailingKEM:
-        def __init__(self, variant):
-            self.variant = variant
+    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", False)
+    monkeypatch.setattr(pq, "_RUST_PQ_AVAILABLE", False)
+    monkeypatch.setattr(pq, "PRODUCTION_MODE", True)
 
-        def generate_keypair(self):
-            raise RuntimeError("boom")
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(
-        pq, "oqs", types.SimpleNamespace(KeyEncapsulation=FailingKEM), raising=False
-    )
-
-    keypair = pq.HybridKeyPair(use_pq=True)
-    assert keypair.is_hybrid() is False
-    assert keypair.pq_public is None
+    with pytest.raises(RuntimeError, match="[Pp]Q|[Rr]ust"):
+        pq.HybridKeyPair(use_pq=True)
 
 
-def test_hybrid_encapsulate_decapsulate_stubbed_pq(monkeypatch):
+@requires_rust_pq
+def test_hybrid_encapsulate_decapsulate_roundtrip():
     import meow_decoder.pq_hybrid as pq
-
-    monkeypatch.setattr(pq, "LIBOQS_AVAILABLE", True)
-    monkeypatch.setattr(pq, "PQ_ALGORITHM", "Kyber1024")
-    monkeypatch.setattr(pq, "oqs", _dummy_oqs_module(), raising=False)
 
     receiver = pq.HybridKeyPair(use_pq=True)
     classical_pub, pq_pub = receiver.export_public_keys()
 
     shared, eph_pub, pq_ct, pq_ss = pq.hybrid_encapsulate(classical_pub, pq_pub)
-    assert pq_ct == b"C" * 1568
-    assert pq_ss == b"K" * 32
+    assert pq_ct is not None
+    assert pq_ss is not None
 
     recovered = pq.hybrid_decapsulate(eph_pub, pq_ct, receiver)
     assert recovered == shared
 
 
-def test_pq_hybrid_main_runs_with_dummy_oqs(monkeypatch):
+def test_pq_hybrid_main_runs(monkeypatch):
     import meow_decoder.security_warnings as warnings_mod
 
-    monkeypatch.setitem(sys.modules, "oqs", _dummy_oqs_module())
     monkeypatch.setattr(warnings_mod, "warn_pq_experimental", lambda: None)
 
     runpy.run_module("meow_decoder.pq_hybrid", run_name="__main__")

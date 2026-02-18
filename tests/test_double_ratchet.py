@@ -14,7 +14,8 @@ class TestDoubleRatchet:
         from meow_decoder.double_ratchet import KeyPair
 
         kp = KeyPair.generate()
-        assert kp._private_bytes is not None
+        assert kp._private_handle is not None
+        assert isinstance(kp._private_handle, int)
         assert kp._public_bytes is not None
         assert len(kp.public_bytes()) == 32
 
@@ -151,20 +152,24 @@ class TestDoubleRatchet:
 
     def test_state_serializes_skipped_keys(self):
         from meow_decoder.double_ratchet import RatchetState
+        from meow_decoder.crypto_backend import get_handle_backend
 
+        hb = get_handle_backend()
         state = RatchetState(
-            root_key=b"\x01" * 32,
-            send_chain_key=b"\x02" * 32,
-            recv_chain_key=b"\x03" * 32,
+            root_key=hb.import_key(b"\x01" * 32),
+            send_chain_key=hb.import_key(b"\x02" * 32),
+            recv_chain_key=hb.import_key(b"\x03" * 32),
             dh_remote_public=b"\x04" * 32,
         )
-        state.skipped_keys[(b"\x04" * 32, 7)] = b"\x05" * 32
+        state.skipped_keys[(b"\x04" * 32, 7)] = hb.import_key(b"\x05" * 32)
 
         data = state.serialize()
         restored = RatchetState.deserialize(data)
 
         assert (b"\x04" * 32, 7) in restored.skipped_keys
-        assert restored.skipped_keys[(b"\x04" * 32, 7)] == b"\x05" * 32
+        # After roundtrip, skipped_keys values are handles; export to compare
+        restored_bytes = hb.export_key(restored.skipped_keys[(b"\x04" * 32, 7)])
+        assert restored_bytes == b"\x05" * 32
 
     def test_forward_secrecy_key_changes(self):
         from meow_decoder.double_ratchet import DoubleRatchet, KeyPair
@@ -230,9 +235,11 @@ class TestDoubleRatchet:
 
     def test_aead_decrypt_wrong_key_raises(self):
         from meow_decoder.double_ratchet import DoubleRatchet
+        from meow_decoder.crypto_backend import get_handle_backend
 
-        key_good = secrets.token_bytes(32)
-        key_bad = secrets.token_bytes(32)
+        hb = get_handle_backend()
+        key_good = hb.import_key(secrets.token_bytes(32))
+        key_bad = hb.import_key(secrets.token_bytes(32))
         aad = b"header"
 
         ct = DoubleRatchet._aead_encrypt(key_good, b"payload", aad)

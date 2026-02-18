@@ -40,10 +40,7 @@ mod zeroize_security_tests {
     fn test_secure_zero_vec() {
         let mut secret = vec![0xAAu8; 64];
         pure::secure_zero(&mut secret);
-        assert!(
-            secret.iter().all(|&b| b == 0),
-            "Vec should be zeroed"
-        );
+        assert!(secret.iter().all(|&b| b == 0), "Vec should be zeroed");
     }
 
     /// Verify password material can be properly zeroed
@@ -56,7 +53,11 @@ mod zeroize_security_tests {
             password_bytes.iter().all(|&b| b == 0),
             "Password bytes should be zeroed"
         );
-        assert_eq!(password_bytes.len(), original_len, "Length should be preserved");
+        assert_eq!(
+            password_bytes.len(),
+            original_len,
+            "Length should be preserved"
+        );
     }
 
     /// Verify nested secret structures can be zeroed
@@ -77,10 +78,7 @@ mod zeroize_security_tests {
     fn test_secure_zero_large_buffer() {
         let mut secret = vec![0xFFu8; 128];
         pure::secure_zero(&mut secret);
-        assert!(
-            secret.iter().all(|&b| b == 0),
-            "Secret should be zeroed"
-        );
+        assert!(secret.iter().all(|&b| b == 0), "Secret should be zeroed");
     }
 
     /// Test secure_zero doesn't panic on empty containers
@@ -256,7 +254,10 @@ mod x25519_edge_tests {
         let public1 = pure::x25519_public_from_private(&secret_bytes).unwrap();
         let public2 = pure::x25519_public_from_private(&secret_bytes).unwrap();
 
-        assert_eq!(public1, public2, "Same secret should produce same public key");
+        assert_eq!(
+            public1, public2,
+            "Same secret should produce same public key"
+        );
     }
 
     /// Test key exchange with known test vectors
@@ -337,7 +338,10 @@ mod argon2id_edge_tests {
 
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(keys[i], keys[j], "Different salts must produce different keys");
+                assert_ne!(
+                    keys[i], keys[j],
+                    "Different salts must produce different keys"
+                );
             }
         }
     }
@@ -347,12 +351,7 @@ mod argon2id_edge_tests {
     fn test_argon2id_password_sensitivity() {
         let salt = [0x42u8; 16];
 
-        let passwords: Vec<&[u8]> = vec![
-            b"password1",
-            b"password2",
-            b"Password1",
-            b"password1 ",
-        ];
+        let passwords: Vec<&[u8]> = vec![b"password1", b"password2", b"Password1", b"password1 "];
 
         let mut keys = Vec::new();
         for password in &passwords {
@@ -362,7 +361,10 @@ mod argon2id_edge_tests {
 
         for i in 0..keys.len() {
             for j in (i + 1)..keys.len() {
-                assert_ne!(keys[i], keys[j], "Different passwords must produce different keys");
+                assert_ne!(
+                    keys[i], keys[j],
+                    "Different passwords must produce different keys"
+                );
             }
         }
     }
@@ -376,7 +378,10 @@ mod argon2id_edge_tests {
         for output_len in [16usize, 32, 64, 128] {
             let key = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, output_len).unwrap();
             assert_eq!(key.len(), output_len);
-            assert!(key.iter().any(|&b| b != 0), "Output should not be all zeros");
+            assert!(
+                key.iter().any(|&b| b != 0),
+                "Output should not be all zeros"
+            );
         }
     }
 
@@ -398,7 +403,11 @@ mod argon2id_edge_tests {
 
         for password in &unicode_passwords {
             let result = pure::derive_key_argon2id(password.as_bytes(), &salt, 1024, 1, 1, 32);
-            assert!(result.is_ok(), "Unicode password '{}' should work", password);
+            assert!(
+                result.is_ok(),
+                "Unicode password '{}' should work",
+                password
+            );
         }
     }
 }
@@ -500,8 +509,7 @@ mod workflow_tests {
         let plaintext = b"This is a top secret message!";
 
         // 1. Derive key material (64 bytes: 32 enc + 32 mac)
-        let key_material =
-            pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 64).unwrap();
+        let key_material = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, 64).unwrap();
 
         let enc_key = &key_material[..32];
         let mac_key = &key_material[32..];

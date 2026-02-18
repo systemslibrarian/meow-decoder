@@ -80,8 +80,7 @@ mod argon2id_tests {
         let salt = [0u8; 16];
 
         for output_len in [16, 32, 48, 64] {
-            let key =
-                pure::derive_key_argon2id(password, &salt, 1024, 1, 1, output_len).unwrap();
+            let key = pure::derive_key_argon2id(password, &salt, 1024, 1, 1, output_len).unwrap();
             assert_eq!(key.len(), output_len);
         }
     }
@@ -942,8 +941,7 @@ mod integration_tests {
         let encryption_key =
             pure::derive_key_hkdf(ikm, Some(salt), b"meow_encryption_v1", 32).unwrap();
         let hmac_key = pure::derive_key_hkdf(ikm, Some(salt), b"meow_hmac_v1", 32).unwrap();
-        let frame_key =
-            pure::derive_key_hkdf(ikm, Some(salt), b"meow_frame_mac_v1", 32).unwrap();
+        let frame_key = pure::derive_key_hkdf(ikm, Some(salt), b"meow_frame_mac_v1", 32).unwrap();
 
         assert_ne!(encryption_key, hmac_key);
         assert_ne!(encryption_key, frame_key);

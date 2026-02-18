@@ -1102,7 +1102,6 @@ Examples:
                 LIBOQS_AVAILABLE,
                 PRODUCTION_MODE,
                 _RUST_PQ_AVAILABLE,
-                oqs as _pq_oqs,
             )
 
             if not LIBOQS_AVAILABLE:
@@ -1146,13 +1145,11 @@ Examples:
             if _RUST_PQ_AVAILABLE:
                 # PQ via Rust backend — no oqs needed
                 receiver_pq_keypair._pq_secret_bytes = pq_secret_bytes
-            elif _pq_oqs is not None:
-                # Non-production fallback to Python oqs
-                receiver_pq_keypair.pq_kem = _pq_oqs.KeyEncapsulation(pq_algorithm, pq_secret_bytes)
             else:
                 raise RuntimeError(
-                    "PQ hybrid decryption requires either Rust PQ backend or liboqs. "
-                    "Neither is available."
+                    "PQ hybrid decryption requires Rust PQ backend. "
+                    "Python oqs fallback has been removed (Rule #4: no silent downgrade). "
+                    "Rebuild with: cd rust_crypto && maturin develop --release --features pq"
                 )
             receiver_pq_keypair.pq_public = pq_pub_bytes
 

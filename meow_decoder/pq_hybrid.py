@@ -61,28 +61,17 @@ try:
 except ImportError:
     pass
 
-# Try to import liboqs for post-quantum (ONLY in non-production mode)
+# Try to import liboqs for post-quantum (REMOVED from production — AUDIT-C1)
+# Python oqs is FORBIDDEN in all modes. PQ MUST use Rust backend.
 LIBOQS_AVAILABLE = False
 PQ_ALGORITHM = None
-oqs = None  # type: ignore[assignment]
 
 if _RUST_PQ_AVAILABLE:
-    # Rust PQ is authoritative — no need for Python oqs
+    # Rust PQ is authoritative
     LIBOQS_AVAILABLE = True
     PQ_ALGORITHM = PQ_ALGORITHM_768
-elif not PRODUCTION_MODE:
-    # Non-production: allow Python oqs as fallback for testing/development
-    try:
-        import oqs as _oqs_module  # noqa: F811
-
-        oqs = _oqs_module  # type: ignore[assignment]
-        LIBOQS_AVAILABLE = True
-        PQ_ALGORITHM = PQ_ALGORITHM_768
-        warn_pq_experimental()
-    except ImportError:
-        pass
-# In PRODUCTION_MODE without Rust PQ: LIBOQS_AVAILABLE stays False.
-# Any attempt to use PQ will fail closed.
+# Without Rust PQ: LIBOQS_AVAILABLE stays False.
+# Any attempt to use PQ will fail closed with a hard error.
 
 
 class HybridKeyPair:
@@ -117,6 +106,7 @@ class HybridKeyPair:
         self.pq_public = None
         self.pq_secret = None
         self.pq_kem = None
+        self._pq_secret_bytes = None
 
         if use_pq and LIBOQS_AVAILABLE:
             if PRODUCTION_MODE and not _RUST_PQ_AVAILABLE and not LIBOQS_AVAILABLE:
@@ -126,26 +116,20 @@ class HybridKeyPair:
                     "No silent fallback to classical-only in production mode."
                 )
             if _RUST_PQ_AVAILABLE:
-                # Use Rust-backed ML-KEM (preferred)
+                # Use Rust-backed ML-KEM (required)
                 try:
                     sk_bytes, pk_bytes = _pq_rs.mlkem768_keygen()
                     self.pq_public = pk_bytes
                     self._pq_secret_bytes = sk_bytes
-                    self.pq_kem = None  # Not using Python oqs
-                except Exception as e:
-                    if PRODUCTION_MODE:
-                        raise RuntimeError(f"Rust PQ key generation failed: {e}") from e
-                    print(f"⚠️  Rust PQ key generation failed: {e}")
-            elif oqs is not None:
-                # Non-production fallback to Python oqs
-                algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
-                try:
-                    self.pq_kem = oqs.KeyEncapsulation(algorithm)
-                    self.pq_public = self.pq_kem.generate_keypair()
-                    self._pq_secret_bytes = None
-                except Exception as e:
-                    print(f"⚠️  PQ key generation failed: {e}")
                     self.pq_kem = None
+                except Exception as e:
+                    raise RuntimeError(f"Rust PQ key generation failed: {e}") from e
+            else:
+                raise RuntimeError(
+                    "PQ hybrid mode requested but Rust PQ backend not available. "
+                    "Python oqs fallback is FORBIDDEN. "
+                    "Rebuild Rust backend with: cd rust_crypto && maturin develop --release --features pq"
+                )
         elif use_pq and not LIBOQS_AVAILABLE:
             if PRODUCTION_MODE:
                 raise RuntimeError(
@@ -181,7 +165,7 @@ class HybridKeyPair:
 
     def is_hybrid(self) -> bool:
         """Check if PQ component is active."""
-        return self.pq_kem is not None
+        return self.pq_public is not None
 
 
 def _compute_transcript_hash(
@@ -314,13 +298,12 @@ def hybrid_encapsulate(
     pq_shared_secret = None
 
     if receiver_pq_public is not None:
-        if not LIBOQS_AVAILABLE:
-            # Why: Fail closed to prevent silent downgrade when PQ was requested.
-            raise RuntimeError("Post-quantum requested but liboqs is unavailable")
+        if not LIBOQS_AVAILABLE or not _RUST_PQ_AVAILABLE:
+            raise RuntimeError("Post-quantum requested but Rust PQ backend unavailable")
         algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
         try:
-            pq_kem = oqs.KeyEncapsulation(algorithm)
-            pq_ciphertext, pq_shared_secret = pq_kem.encap_secret(receiver_pq_public)
+            # Use Rust ML-KEM encapsulation
+            pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
         except Exception as e:
             raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
 
@@ -368,11 +351,14 @@ def hybrid_decapsulate(
     pq_shared_secret = None
 
     if pq_ciphertext is not None:
-        if receiver_keypair.pq_kem is None:
-            # Why: Fail closed if PQ ciphertext is present but no PQ key exists.
-            raise RuntimeError("Post-quantum ciphertext provided but receiver has no PQ key")
+        if receiver_keypair._pq_secret_bytes is None:
+            raise RuntimeError("Post-quantum ciphertext provided but receiver has no PQ secret key")
+        if not _RUST_PQ_AVAILABLE:
+            raise RuntimeError("Rust PQ backend required for PQ decapsulation")
         try:
-            pq_shared_secret = receiver_keypair.pq_kem.decap_secret(pq_ciphertext)
+            pq_shared_secret = _pq_rs.mlkem768_decapsulate(
+                receiver_keypair._pq_secret_bytes, pq_ciphertext
+            )
         except Exception as e:
             raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
 
@@ -403,16 +389,15 @@ def check_pq_available(paranoid: bool = False) -> Tuple[bool, str]:
     Returns:
         Tuple of (available, message)
     """
-    if not LIBOQS_AVAILABLE:
-        return False, "liboqs-python not installed (pip install liboqs-python)"
+    if not LIBOQS_AVAILABLE or not _RUST_PQ_AVAILABLE:
+        return False, "Rust PQ backend not available (rebuild with --features pq)"
 
-    algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
     variant_name = "ML-KEM-1024" if paranoid else "ML-KEM-768"
 
     try:
-        # Test KEM creation
-        test_kem = oqs.KeyEncapsulation(algorithm)
-        return True, f"{variant_name} available"
+        # Test Rust PQ keygen
+        _sk, _pk = _pq_rs.mlkem768_keygen()
+        return True, f"{variant_name} available (Rust backend)"
     except Exception as e:
         return False, f"{variant_name} unavailable: {e}"
 

@@ -68,43 +68,49 @@ class TestGoldenRatchetChain:
 
     def test_init_ratchet_frozen(self):
         """init_ratchet output must be byte-exact."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
         # Freeze root_key and chain_key from init
-        root_hex = bytes(state.root_key).hex()
-        chain_hex = bytes(state.chain_key).hex()
+        root_hex = hb.export_key(state.root_key).hex()
+        chain_hex = hb.export_key(state.chain_key).hex()
 
         # These values are computed once and frozen
         # If they change, the HKDF domain separation has changed
-        assert len(bytes(state.root_key)) == 32
-        assert len(bytes(state.chain_key)) == 32
+        assert len(hb.export_key(state.root_key)) == 32
+        assert len(hb.export_key(state.chain_key)) == 32
         assert root_hex != chain_hex, "root_key must differ from chain_key"
 
     def test_ratchet_step_sequence_deterministic(self):
         """5 consecutive ratchet steps produce identical output every time."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
         msg_keys_run1 = []
         chain_keys_run1 = []
         for _ in range(5):
             mk, state = ratchet_step(state)
-            msg_keys_run1.append(mk.hex())
-            chain_keys_run1.append(bytes(state.chain_key).hex())
+            msg_keys_run1.append(hb.export_key(mk).hex())
+            chain_keys_run1.append(hb.export_key(state.chain_key).hex())
 
         # Second run — must be identical
         state2 = init_ratchet(ROOT_KEY, SALT)
         for i in range(5):
             mk2, state2 = ratchet_step(state2)
-            assert mk2.hex() == msg_keys_run1[i], f"msg_key[{i}] changed!"
-            assert bytes(state2.chain_key).hex() == chain_keys_run1[i], f"chain_key[{i}] changed!"
+            assert hb.export_key(mk2).hex() == msg_keys_run1[i], f"msg_key[{i}] changed!"
+            assert hb.export_key(state2.chain_key).hex() == chain_keys_run1[i], f"chain_key[{i}] changed!"
 
     def test_message_keys_all_unique(self):
         """All 5 message keys must be distinct."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         msg_keys = set()
         for _ in range(5):
             mk, state = ratchet_step(state)
-            msg_keys.add(mk.hex())
+            msg_keys.add(hb.export_key(mk).hex())
         assert len(msg_keys) == 5
 
 
@@ -119,35 +125,41 @@ class TestGoldenFrameKeys:
 
     def test_frame_key_sizes(self):
         """Frame keys must have correct sizes."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         mk, _ = ratchet_step(state)
         fk = derive_frame_keys(mk, SALT)
 
-        assert len(bytes(fk.enc_key)) == 32, "enc_key must be 32 bytes"
-        assert len(bytes(fk.nonce)) == 12, "nonce must be 12 bytes"
-        assert len(bytes(fk.mac_key)) == 32, "mac_key must be 32 bytes"
+        assert len(hb.export_key(fk.enc_key)) == 32, "enc_key must be 32 bytes"
+        assert len(fk.nonce) == 12, "nonce must be 12 bytes"
+        assert len(hb.export_key(fk.mac_key)) == 32, "mac_key must be 32 bytes"
 
     def test_frame_key_deterministic(self):
         """Same mk + salt → same frame keys every time."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         mk, _ = ratchet_step(state)
 
         fk1 = derive_frame_keys(mk, SALT)
         fk2 = derive_frame_keys(mk, SALT)
 
-        assert bytes(fk1.enc_key) == bytes(fk2.enc_key)
+        assert hb.export_key(fk1.enc_key) == hb.export_key(fk2.enc_key)
         assert bytes(fk1.nonce) == bytes(fk2.nonce)
-        assert bytes(fk1.mac_key) == bytes(fk2.mac_key)
+        assert hb.export_key(fk1.mac_key) == hb.export_key(fk2.mac_key)
 
     def test_frame_keys_different_across_steps(self):
         """Consecutive ratchet steps produce different frame keys."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
         fkeys = []
         for _ in range(5):
             mk, state = ratchet_step(state)
             fk = derive_frame_keys(mk, SALT)
-            fkeys.append((bytes(fk.enc_key), bytes(fk.nonce), bytes(fk.mac_key)))
+            fkeys.append((hb.export_key(fk.enc_key), bytes(fk.nonce), hb.export_key(fk.mac_key)))
 
         # All enc_keys unique
         assert len(set(fk[0] for fk in fkeys)) == 5
@@ -168,10 +180,12 @@ class TestGoldenHeaderEncryption:
 
     def test_header_key_deterministic(self):
         """Same root_key + salt → same header key."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
         hk1 = _derive_header_key(ROOT_KEY, SALT)
         hk2 = _derive_header_key(ROOT_KEY, SALT)
-        assert hk1 == hk2
-        assert len(hk1) == 32
+        assert hb.export_key(hk1) == hb.export_key(hk2)
+        assert len(hb.export_key(hk1)) == 32
 
     def test_encrypted_index_deterministic(self):
         """Same header key + index → same encrypted bytes."""
