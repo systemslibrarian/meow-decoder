@@ -44,6 +44,29 @@ class MemoryConfig:
 STREAMING_MAC_INFO = b"meow_streaming_mac_v1"
 
 
+def derive_stream_keys(password: str, salt: bytes) -> tuple:
+    """Derive (enc_key, mac_key) for streaming crypto from password + salt.
+
+    This mirrors the key derivation in StreamingCipher.__init__ but returns
+    both keys for testing/inspection.
+
+    Args:
+        password: User password.
+        salt: 16-byte random salt.
+
+    Returns:
+        Tuple of (enc_key: bytes, mac_key: bytes) — each 32 bytes.
+    """
+    from meow_decoder.crypto import derive_key
+
+    enc_key = derive_key(password, salt)
+    backend = get_default_backend()
+    # Use a deterministic nonce-equivalent for key derivation testing
+    # In production, the nonce is random; here we derive mac_key from enc_key+salt
+    mac_key = backend.derive_key_hkdf(enc_key, salt, STREAMING_MAC_INFO, 32)
+    return enc_key, mac_key
+
+
 class StreamingCipher:
     """
     Streaming cipher using AES-256-CTR mode with Encrypt-then-MAC authentication.
@@ -205,25 +228,25 @@ class StreamingCipher:
         **kwargs,
     ) -> int:
         """
-        Decrypt stream in chunks with optional authentication verification.
+        Decrypt stream with MANDATORY authentication verification.
 
-        SECURITY WARNING (Audit 2026-02-06):
-        If expected_mac is provided, MAC is verified BEFORE returning any plaintext.
-        If expected_mac is None, NO AUTHENTICATION is performed and the ciphertext
-        may have been tampered with. Only omit expected_mac for trusted sources.
+        SECURITY (Signal-grade, 2026-02-18):
+        MAC verification is MANDATORY. The expected_mac parameter MUST be provided.
+        No plaintext is released until authentication succeeds.
+        Passing expected_mac=None raises ValueError immediately.
 
         Args:
             input_stream: Encrypted input stream
             output_stream: Decrypted output stream
             enable_decompression: Decompress after decryption
-            expected_mac: Expected MAC tag (32 bytes). If provided, MAC is verified
-                         before any decryption output. STRONGLY RECOMMENDED.
+            expected_mac: MAC tag (32 bytes). MANDATORY — no unauthenticated decryption.
 
         Returns:
             Total bytes written
 
         Raises:
-            RuntimeError: If MAC verification fails (when expected_mac provided)
+            ValueError: If expected_mac is None or wrong length
+            RuntimeError: If MAC verification fails
         """
         if input_stream is None and "input_stream" in kwargs:  # pragma: no cover
             input_stream = kwargs["input_stream"]
@@ -235,32 +258,33 @@ class StreamingCipher:
         if input_stream is None or output_stream is None:
             raise ValueError("input_stream and output_stream are required")
 
-        # If MAC verification requested, we need to read all ciphertext first
-        if expected_mac is not None:
-            if len(expected_mac) != 32:
-                raise ValueError("MAC must be 32 bytes")
-
-            # Read entire ciphertext for MAC verification
-            ciphertext = input_stream.read()
-
-            # Verify MAC: HMAC(mac_key, nonce || ciphertext) using Rust backend
-            backend = get_default_backend()
-            computed_mac = backend.hmac_sha256(self._mac_key, self.nonce + ciphertext)
-
-            if not secrets.compare_digest(computed_mac, expected_mac):
-                raise RuntimeError("MAC verification failed - ciphertext may be tampered")
-
-            # MAC verified - proceed with decryption
-            from io import BytesIO
-
-            verified_stream = BytesIO(ciphertext)
-            return self._decrypt_verified_stream(
-                verified_stream, output_stream, enable_decompression
+        # FAIL-CLOSED: MAC is mandatory. No unauthenticated decryption path.
+        if expected_mac is None:
+            raise ValueError(
+                "expected_mac is required. Unauthenticated decryption is forbidden. "
+                "Provide the MAC tag from encrypt_stream() to verify ciphertext integrity."
             )
 
-        # No MAC verification - proceed with unverified decryption
-        # WARNING: This path is insecure if ciphertext source is untrusted
-        return self._decrypt_verified_stream(input_stream, output_stream, enable_decompression)
+        if len(expected_mac) != 32:
+            raise ValueError("MAC must be 32 bytes")
+
+        # Read entire ciphertext for MAC verification BEFORE any decryption
+        ciphertext = input_stream.read()
+
+        # Verify MAC: HMAC(mac_key, nonce || ciphertext) using Rust backend
+        backend = get_default_backend()
+        computed_mac = backend.hmac_sha256(self._mac_key, self.nonce + ciphertext)
+
+        if not secrets.compare_digest(computed_mac, expected_mac):
+            raise RuntimeError("MAC verification failed - ciphertext may be tampered")
+
+        # MAC verified - proceed with decryption (no plaintext released before this point)
+        from io import BytesIO
+
+        verified_stream = BytesIO(ciphertext)
+        return self._decrypt_verified_stream(
+            verified_stream, output_stream, enable_decompression
+        )
 
     def _decrypt_verified_stream(
         self, input_stream: IO[bytes], output_stream: IO[bytes], enable_decompression: bool
@@ -465,10 +489,11 @@ def stream_decrypt_file(
     password: str,
     salt: bytes,
     nonce: bytes,
+    mac_tag: bytes,
     low_memory: bool = False,
 ) -> int:
     """
-    Decrypt file using streaming mode.
+    Decrypt file using streaming mode with mandatory MAC verification.
 
     Args:
         input_path: Path to encrypted file
@@ -476,10 +501,15 @@ def stream_decrypt_file(
         password: Encryption password
         salt: Salt from manifest
         nonce: Nonce from encryption
+        mac_tag: MAC tag from encrypt_stream (32 bytes). MANDATORY.
         low_memory: Enable low-memory mode
 
     Returns:
         Total bytes written
+
+    Raises:
+        ValueError: If mac_tag is None or wrong length
+        RuntimeError: If MAC verification fails
     """
     # Derive key
     from meow_decoder.crypto import derive_key
@@ -490,10 +520,12 @@ def stream_decrypt_file(
     _, config = create_streaming_encoder(key, low_memory)
     cipher = StreamingCipher(key, nonce=nonce, chunk_size=config.chunk_size)
 
-    # Decrypt file
+    # Decrypt file with mandatory MAC verification
     with open(input_path, "rb") as f_in:
         with open(output_path, "wb") as f_out:
-            total_written = cipher.decrypt_stream(f_in, f_out, enable_decompression=True)
+            total_written = cipher.decrypt_stream(
+                f_in, f_out, enable_decompression=True, expected_mac=mac_tag
+            )
 
     # Zero key
     key_array = bytearray(key)
@@ -547,7 +579,9 @@ if __name__ == "__main__":
 
         with open(enc_path, "rb") as f_in:
             with open(dec_path, "wb") as f_out:
-                total_written = cipher_dec.decrypt_stream(f_in, f_out, enable_decompression=True)
+                total_written = cipher_dec.decrypt_stream(
+                    f_in, f_out, enable_decompression=True, expected_mac=mac_tag
+                )
 
         # Verify
         with open(dec_path, "rb") as f:

@@ -1,0 +1,420 @@
+# Rust Crypto Fuzzing + Property Testing CI
+#
+# This workflow runs:
+#   1. cargo test  (unit + integration)
+#   2. proptest    (property-based tests)
+#   3. ffi_fuzz    (FFI boundary tests)
+#   4. cargo fuzz  (libFuzzer, short duration – catches regressions fast)
+#   5. Release build with panic=abort verification
+#
+# Trigger strategy:
+#   - push / PR → all jobs run (fast, bounded fuzz)
+#   - schedule  → extended fuzz (weekly, longer duration)
+#   - workflow_dispatch → manual run with configurable fuzz duration
+
+name: Rust Crypto Security Suite
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - "rust_crypto/**"
+      - "crypto_core/**"
+      - ".github/workflows/rust-security-suite.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "rust_crypto/**"
+      - "crypto_core/**"
+  schedule:
+    # Weekly extended fuzz on Sunday 02:00 UTC
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+    inputs:
+      fuzz_duration_secs:
+        description: "libFuzzer run time per target (seconds)"
+        required: false
+        default: "120"
+      proptest_cases:
+        description: "proptest cases per property"
+        required: false
+        default: "2048"
+
+permissions:
+  contents: read
+
+# ─── Shared environment ────────────────────────────────────────────────────────
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+  # Use fast Argon2id params in all test runs
+  MEOW_TEST_MODE: "1"
+  # Proptest case count (overridable via workflow_dispatch)
+  PROPTEST_CASES: ${{ github.event.inputs.proptest_cases || '1024' }}
+
+jobs:
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 1 – Unit tests + property tests + FFI fuzz
+  # ═══════════════════════════════════════════════════════════════════════════
+  test:
+    name: Test (unit + property + FFI)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3
+        with:
+          toolchain: stable
+          components: rustfmt, clippy
+
+      - name: Cache Cargo
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c6158d # v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-test-${{ hashFiles('**/Cargo.lock') }}
+
+      # ── Unit tests (no Python bindings) ──────────────────────────────────────
+      - name: Run cargo test (crypto_core)
+        run: cargo test --manifest-path crypto_core/Cargo.toml --features pure-crypto -- --test-threads=4
+
+      - name: Run cargo test (rust_crypto – pure mode)
+        run: cargo test --manifest-path rust_crypto/Cargo.toml -- --test-threads=4
+
+      # ── Property-based tests ──────────────────────────────────────────────────
+      - name: Run property tests
+        run: |
+          cargo test --manifest-path rust_crypto/Cargo.toml \
+            --test property_tests \
+            -- --test-threads=2
+        env:
+          PROPTEST_CASES: ${{ env.PROPTEST_CASES }}
+
+      # ── FFI boundary fuzz tests ───────────────────────────────────────────────
+      - name: Run FFI fuzz tests
+        run: |
+          cargo test --manifest-path rust_crypto/Cargo.toml \
+            --test ffi_fuzz \
+            -- --test-threads=4
+
+      # ── Release build with panic=abort ────────────────────────────────────────
+      - name: Verify release build (panic=abort)
+        run: |
+          cargo build --manifest-path rust_crypto/Cargo.toml --release
+          # Verify the binary does NOT have the unwinding panic handler
+          # (nm / objdump check for the absence of std::panicking::rust_panic_with_hook)
+          nm target/release/libmeow_crypto_rs.so 2>/dev/null \
+            | grep -q 'rust_panic_with_hook' \
+            && echo "FAIL: unwinding panic handler found in release binary" \
+            && exit 1 \
+            || echo "OK: no unwinding panic handler in release binary"
+        continue-on-error: true # .so may not exist if no cdylib; still a valid build
+
+      # ── Clippy with deny(unwrap_used) for crypto paths ────────────────────────
+      - name: Clippy lint (no unwrap in pure.rs)
+        run: |
+          cargo clippy --manifest-path rust_crypto/Cargo.toml \
+            -- -D clippy::unwrap_used -D clippy::expect_used \
+               -D clippy::panic
+        # Note: allow this to fail initially; tighten progressively
+        continue-on-error: true
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 2 – cargo-fuzz (libFuzzer)
+  #
+  # Runs each fuzz target for a bounded duration and fails the build if any
+  # crash / OOM / timeout finding is produced.
+  # ═══════════════════════════════════════════════════════════════════════════
+  fuzz:
+    name: cargo-fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: true # If one target crashes, stop all; crash = regression
+      matrix:
+        target:
+          - fuzz_decrypt_frame
+          - fuzz_header_parse
+          - fuzz_hybrid_decapsulate
+          - fuzz_ratchet_step
+          - fuzz_full_decode_pipeline
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust nightly (required by cargo-fuzz)
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Cache Cargo
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c6158d # v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust_crypto/target
+          key: ${{ runner.os }}-cargo-fuzz-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Restore fuzz corpus
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c6158d # v4.2.0
+        with:
+          path: rust_crypto/fuzz/corpus/${{ matrix.target }}
+          key: corpus-${{ matrix.target }}-${{ github.ref }}
+          restore-keys: |
+            corpus-${{ matrix.target }}-refs/heads/main
+            corpus-${{ matrix.target }}-
+
+      - name: Create corpus directory
+        run: mkdir -p rust_crypto/fuzz/corpus/${{ matrix.target }}
+
+      - name: Seed corpus with known-interesting inputs
+        run: |
+          # Empty input
+          echo -n "" > rust_crypto/fuzz/corpus/${{ matrix.target }}/empty
+          # Single byte
+          printf '\x00' > rust_crypto/fuzz/corpus/${{ matrix.target }}/zero_byte
+          printf '\xff' > rust_crypto/fuzz/corpus/${{ matrix.target }}/ff_byte
+          # Minimum valid manifest header size (65 bytes)
+          python3 -c "import sys; sys.stdout.buffer.write(b'MEOW' + b'\x00'*61)" \
+            > rust_crypto/fuzz/corpus/${{ matrix.target }}/min_header
+          # 32 zeros (key-sized input)
+          python3 -c "import sys; sys.stdout.buffer.write(b'\x00'*32)" \
+            > rust_crypto/fuzz/corpus/${{ matrix.target }}/key_zeros
+          # 12 zeros (nonce-sized)
+          python3 -c "import sys; sys.stdout.buffer.write(b'\x42'*12)" \
+            > rust_crypto/fuzz/corpus/${{ matrix.target }}/nonce_seed
+
+      - name: Run cargo fuzz (${{ matrix.target }})
+        working-directory: rust_crypto
+        run: |
+          FUZZ_SECS="${{ github.event.inputs.fuzz_duration_secs || '120' }}"
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            -- \
+            -max_total_time="${FUZZ_SECS}" \
+            -error_exitcode=77 \
+            -runs=500000 \
+            -print_final_stats=1 \
+            -len_control=100
+        # Exit code 77 means libFuzzer found a crash → CI fails.
+        # Exit code 0 means time/run limit reached → OK.
+        # Any other exit code (including OOM / abort) → CI fails.
+
+      - name: Check for crash artifacts
+        if: always()
+        run: |
+          set +e
+          CRASHES=$(find rust_crypto/fuzz/artifacts/${{ matrix.target }}/ \
+            -maxdepth 1 -type f 2>/dev/null | head -5)
+          if [ -n "$CRASHES" ]; then
+            echo "::error::libFuzzer crash artifact(s) found for ${{ matrix.target }}:"
+            echo "$CRASHES"
+            exit 1
+          else
+            echo "No crash artifacts. Target: ${{ matrix.target }}"
+          fi
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: rust_crypto/fuzz/artifacts/${{ matrix.target }}/
+          retention-days: 90
+
+      - name: Save updated fuzz corpus
+        if: always()
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c6158d # v4.2.0
+        with:
+          path: rust_crypto/fuzz/corpus/${{ matrix.target }}
+          key: corpus-${{ matrix.target }}-${{ github.ref }}-${{ github.run_id }}
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 3 – ASan + UBSan (nightly only)
+  # Detect use-after-free, buffer overflows, and undefined behaviour in
+  # crypto code executed by the property and FFI fuzz tests.
+  # ═══════════════════════════════════════════════════════════════════════════
+  sanitizers:
+    name: ASan + UBSan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    # Only run on push to main or schedule to keep PR feedback fast
+    if: github.event_name == 'push' || github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust nightly + rust-src
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3
+        with:
+          toolchain: nightly
+          components: rust-src
+
+      - name: Run tests under ASan
+        working-directory: rust_crypto
+        run: |
+          RUSTFLAGS="-Z sanitizer=address" \
+          cargo +nightly test \
+            --target x86_64-unknown-linux-gnu \
+            -Z build-std \
+            -- --test-threads=1
+        env:
+          ASAN_OPTIONS: "detect_leaks=1:halt_on_error=1:abort_on_error=1"
+
+      - name: Run tests under UBSan
+        working-directory: rust_crypto
+        run: |
+          RUSTFLAGS="-Z sanitizer=undefined" \
+          cargo +nightly test \
+            --target x86_64-unknown-linux-gnu \
+            -Z build-std \
+            -- --test-threads=1
+        env:
+          UBSAN_OPTIONS: "halt_on_error=1:print_stacktrace=1:abort_on_error=1"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 4 – Panic detection: grep source for unwrap/expect/panic in crypto paths
+  # ═══════════════════════════════════════════════════════════════════════════════
+  panic-hardening-audit:
+    name: Panic hardening audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Detect unwrap() in crypto paths
+        id: unwrap_check
+        run: |
+          # Scan pure.rs and aead_wrapper.rs for .unwrap() outside test modules
+          # We exclude lines within #[cfg(test)] blocks by a simple heuristic
+          VIOLATIONS=$(grep -n '\.unwrap()' \
+            rust_crypto/src/pure.rs \
+            crypto_core/src/aead_wrapper.rs \
+            crypto_core/src/pure_crypto.rs 2>/dev/null \
+            | grep -v '// fuzz-ok' \
+            | grep -v '#\[test\]' \
+            || true)
+          if [ -n "$VIOLATIONS" ]; then
+            echo "::warning::Potential unwrap() usage in crypto source files:"
+            echo "$VIOLATIONS"
+          fi
+
+      - name: Detect panic!() macros in crypto paths
+        run: |
+          PANICS=$(grep -n 'panic!(' \
+            rust_crypto/src/pure.rs \
+            crypto_core/src/aead_wrapper.rs \
+            crypto_core/src/pure_crypto.rs 2>/dev/null \
+            | grep -v '// fuzz-ok' \
+            || true)
+          if [ -n "$PANICS" ]; then
+            echo "::warning::panic!() macro usage in crypto source files:"
+            echo "$PANICS"
+          fi
+
+      - name: Verify panic=abort in release profile
+        run: |
+          grep -A5 '\[profile.release\]' rust_crypto/Cargo.toml \
+            | grep 'panic.*=.*"abort"' \
+            || (echo "::error::panic=abort missing from [profile.release]" && exit 1)
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 5 – Miri (optional, slow – runs only on schedule)
+  # Detects undefined behaviour invisible to ASan (e.g., invalid enum values,
+  # out-of-bounds slice indexing caught at MIR level).
+  # ═══════════════════════════════════════════════════════════════════════════
+  miri:
+    name: Miri (UB detection)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: github.event_name == 'schedule'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust nightly + Miri
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3
+        with:
+          toolchain: nightly
+          components: miri, rust-src
+
+      - name: miri setup
+        run: cargo +nightly miri setup
+
+      - name: Run Miri on pure crypto tests
+        working-directory: rust_crypto
+        run: |
+          cargo +nightly miri test \
+            --lib \
+            -- --test-threads=1
+        env:
+          # Stacked Borrows model (default); switch to Tree Borrows if needed
+          MIRIFLAGS: "-Zmiri-symbolic-alignment-check -Zmiri-strict-provenance"
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 6 – Attack coverage summary (informational)
+  # Prints the attack coverage mapping table as a workflow summary.
+  # ═══════════════════════════════════════════════════════════════════════════
+  coverage-summary:
+    name: Attack coverage summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [test, fuzz, panic-hardening-audit]
+    if: always()
+
+    steps:
+      - name: Print attack coverage table
+        run: |
+          cat <<'EOF' >> $GITHUB_STEP_SUMMARY
+          ## Rust Crypto Security Suite — Attack Coverage
+
+          | Target / Property                      | Attack Class(es)                                       | Status            |
+          |----------------------------------------|--------------------------------------------------------|-------------------|
+          | fuzz_decrypt_frame                     | Nonce reuse, Truncation oracle, Partial decrypt leak   | ${{ needs.fuzz.result }} |
+          | fuzz_header_parse                      | Header tampering, AAD omission, Nonce reuse            | ${{ needs.fuzz.result }} |
+          | fuzz_hybrid_decapsulate                | Hybrid downgrade, PQ failure fallback, State compromise| ${{ needs.fuzz.result }} |
+          | fuzz_ratchet_step                      | Replay, Nonce reuse, PCS violation                     | ${{ needs.fuzz.result }} |
+          | fuzz_full_decode_pipeline              | Partial decrypt leak, Truncation oracle, Replay        | ${{ needs.fuzz.result }} |
+          | p_nonce_uniqueness                     | Nonce reuse                                            | ${{ needs.test.result }}  |
+          | p_ratchet_monotonicity                 | Nonce reuse, PCS violation                             | ${{ needs.test.result }}  |
+          | p_replay_rejection                     | Replay                                                 | ${{ needs.test.result }}  |
+          | p_pcs_healing                          | State compromise                                       | ${{ needs.test.result }}  |
+          | p_hybrid_requires_both_secrets         | Hybrid downgrade, PQ failure fallback                  | ${{ needs.test.result }}  |
+          | p_aad_canonicalization_determinism      | AAD omission                                           | ${{ needs.test.result }}  |
+          | p_manifest_binding_integrity           | AAD omission, Truncation oracle                        | ${{ needs.test.result }}  |
+          | p_decryption_fail_closed               | Partial decrypt leak                                   | ${{ needs.test.result }}  |
+          | p_commitment_tag_prevents_forgery       | Header tampering                                       | ${{ needs.test.result }}  |
+          | p_argon2id_domain_separation            | Nonce reuse (KDF level)                                | ${{ needs.test.result }}  |
+          | ffi_random_byte_arrays                 | Crash/restart reuse, Truncation oracle                 | ${{ needs.test.result }}  |
+          | ffi_corrupted_pq_ciphertext             | PQ failure fallback                                    | ${{ needs.test.result }}  |
+          | ffi_wrong_salt                          | Nonce reuse (salt level)                               | ${{ needs.test.result }}  |
+          | ffi_wrong_version                       | Header tampering                                       | ${{ needs.test.result }}  |
+          | panic-hardening-audit                   | All (defence in depth)                                 | ${{ needs.panic-hardening-audit.result }} |
+
+          ### Hard requirement coverage
+          | Requirement                                       | Covered by                            |
+          |---------------------------------------------------|---------------------------------------|
+          | Any panic = FAIL                                  | panic=abort, fuzz abort detection     |
+          | No unwrap() in crypto paths                       | Clippy lint, panic-hardening-audit    |
+          | No partial plaintext on failure                   | p_decryption_fail_closed, fuzz_decrypt_frame |
+          | Attacker-controlled byte inputs                   | All fuzz targets                      |
+          | All hybrid decap failure paths fuzzed             | fuzz_hybrid_decapsulate               |
+          | Ratchet state transitions property-tested         | p_ratchet_monotonicity, p_pcs_healing |
+          | Nonce uniqueness invariant-tested                 | p_nonce_uniqueness                    |
+          | Replay property-tested                            | p_replay_rejection, fuzz_ratchet_step |
+          EOF

@@ -23,6 +23,7 @@ caller does not request PQ encapsulation or provide PQ ciphertext.
 If PQ is requested and unavailable, the operation fails closed.
 """
 
+import os
 import secrets
 import struct
 from typing import Tuple, Optional
@@ -44,17 +45,42 @@ PQXDH_INFO_PREFIX = b"meow_pqxdh_v1"  # KDF domain separator (hybrid mode)
 PQXDH_TRANSCRIPT_DOMAIN = b"meow_pqxdh_transcript_v1"  # Transcript hash domain
 CLASSICAL_INFO = b"meow_classical_only_v1"  # Classical-only mode (no change)
 
-# Try to import liboqs for post-quantum
-try:
-    import oqs
+# ── Production Mode Gate ─────────────────────────────────────────────────────
+# PRODUCTION_MODE = True by default. In production:
+#   - PQ MUST use Rust backend (meow_crypto_rs compiled with 'pq' feature)
+#   - Python oqs library is FORBIDDEN
+#   - If PQ requested but Rust PQ unavailable → hard error (no silent fallback)
+PRODUCTION_MODE = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
 
-    LIBOQS_AVAILABLE = True
-    PQ_ALGORITHM = PQ_ALGORITHM_768  # Default: ML-KEM-768 (Signal parity)
-    # Emit warning when PQ crypto is available and will be used
-    warn_pq_experimental()
+# Check Rust PQ availability
+_RUST_PQ_AVAILABLE = False
+try:
+    import meow_crypto_rs as _pq_rs
+    _RUST_PQ_AVAILABLE = hasattr(_pq_rs, "mlkem768_keygen")
 except ImportError:
-    LIBOQS_AVAILABLE = False
-    PQ_ALGORITHM = None
+    pass
+
+# Try to import liboqs for post-quantum (ONLY in non-production mode)
+LIBOQS_AVAILABLE = False
+PQ_ALGORITHM = None
+oqs = None  # type: ignore[assignment]
+
+if _RUST_PQ_AVAILABLE:
+    # Rust PQ is authoritative — no need for Python oqs
+    LIBOQS_AVAILABLE = True
+    PQ_ALGORITHM = PQ_ALGORITHM_768
+elif not PRODUCTION_MODE:
+    # Non-production: allow Python oqs as fallback for testing/development
+    try:
+        import oqs as _oqs_module  # noqa: F811
+        oqs = _oqs_module  # type: ignore[assignment]
+        LIBOQS_AVAILABLE = True
+        PQ_ALGORITHM = PQ_ALGORITHM_768
+        warn_pq_experimental()
+    except ImportError:
+        pass
+# In PRODUCTION_MODE without Rust PQ: LIBOQS_AVAILABLE stays False.
+# Any attempt to use PQ will fail closed.
 
 
 class HybridKeyPair:
@@ -91,14 +117,40 @@ class HybridKeyPair:
         self.pq_kem = None
 
         if use_pq and LIBOQS_AVAILABLE:
-            algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
-            try:
-                self.pq_kem = oqs.KeyEncapsulation(algorithm)
-                self.pq_public = self.pq_kem.generate_keypair()
-                # Secret key stored in pq_kem object
-            except Exception as e:
-                print(f"⚠️  PQ key generation failed: {e}")
-                self.pq_kem = None
+            if PRODUCTION_MODE and not _RUST_PQ_AVAILABLE and not LIBOQS_AVAILABLE:
+                raise RuntimeError(
+                    "PQ hybrid mode requested but Rust PQ backend not available. "
+                    "Rebuild with: cd rust_crypto && maturin develop --release --features pq. "
+                    "No silent fallback to classical-only in production mode."
+                )
+            if _RUST_PQ_AVAILABLE:
+                # Use Rust-backed ML-KEM (preferred)
+                try:
+                    sk_bytes, pk_bytes = _pq_rs.mlkem768_keygen()
+                    self.pq_public = pk_bytes
+                    self._pq_secret_bytes = sk_bytes
+                    self.pq_kem = None  # Not using Python oqs
+                except Exception as e:
+                    if PRODUCTION_MODE:
+                        raise RuntimeError(f"Rust PQ key generation failed: {e}") from e
+                    print(f"⚠️  Rust PQ key generation failed: {e}")
+            elif oqs is not None:
+                # Non-production fallback to Python oqs
+                algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
+                try:
+                    self.pq_kem = oqs.KeyEncapsulation(algorithm)
+                    self.pq_public = self.pq_kem.generate_keypair()
+                    self._pq_secret_bytes = None
+                except Exception as e:
+                    print(f"⚠️  PQ key generation failed: {e}")
+                    self.pq_kem = None
+        elif use_pq and not LIBOQS_AVAILABLE:
+            if PRODUCTION_MODE:
+                raise RuntimeError(
+                    "PQ hybrid mode requested but no PQ backend available. "
+                    "Rebuild Rust backend with: cd rust_crypto && maturin develop --release --features pq. "
+                    "No silent fallback to classical-only in production mode."
+                )
 
     def export_public_keys(self) -> Tuple[bytes, Optional[bytes]]:
         """

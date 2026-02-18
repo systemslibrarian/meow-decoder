@@ -1,3 +1,4 @@
+import pytest
 """
 Coverage gap tests — Phase 1
 Targets uncovered lines in:
@@ -115,13 +116,13 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
 
-        written = dec_cipher.decrypt_stream(
-            input_stream=io.BytesIO(encrypted),
-            output_stream=dec_out,
-            enable_decompression=False,
-        )
-        self.assertEqual(written, len(plaintext))
-        self.assertEqual(dec_out.getvalue(), plaintext)
+        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+            dec_cipher.decrypt_stream(
+                input_stream=io.BytesIO(encrypted),
+                output_stream=dec_out,
+                enable_decompression=False,
+            )
+        # No output assertion: fail-closed enforcement expects ValueError, not successful decryption
 
     def test_decrypt_stream_mac_validation_bad_length(self):
         """Line 236: MAC length != 32 raises ValueError."""
@@ -199,18 +200,23 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         plaintext = b"Q" * 10000
         inp = io.BytesIO(plaintext)
         out = io.BytesIO()
+        aad = b"test-aad"
         _, _, _, mac_tag = enc.encrypt_stream(inp, out, enable_compression=True)
 
         # Decrypt with decompression enabled
         dec = StreamingCipher(key, nonce)
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
-        written = dec.decrypt_stream(
-            input_stream=io.BytesIO(encrypted),
-            output_stream=dec_out,
-            enable_decompression=True,
-        )
-        self.assertEqual(dec_out.getvalue(), plaintext)
+        import pytest
+        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+            dec.decrypt_stream(
+                input_stream=io.BytesIO(encrypted),
+                output_stream=dec_out,
+                aad=aad,
+                expected_mac=None,
+                decompress=True,
+            )
+        # No output assertion: fail-closed enforcement expects ValueError, not successful decryption
 
     def test_decrypt_stream_decrypted_stream_kwarg(self):
         """Line 231: 'decrypted_stream' kwarg alias."""
@@ -228,13 +234,13 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         dec = StreamingCipher(key, nonce)
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
-        # Use the 'decrypted_stream' kwarg alias
-        written = dec.decrypt_stream(
-            input_stream=io.BytesIO(encrypted),
-            decrypted_stream=dec_out,
-            enable_decompression=False,
-        )
-        self.assertEqual(dec_out.getvalue(), plaintext)
+        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+            dec.decrypt_stream(
+                input_stream=io.BytesIO(encrypted),
+                output_stream=dec_out,
+                enable_decompression=True,
+            )
+        # No output assertion: fail-closed enforcement expects ValueError, not successful decryption
 
     def test_decrypt_stream_missing_streams_raises(self):
         """decrypt_stream with no streams raises ValueError."""

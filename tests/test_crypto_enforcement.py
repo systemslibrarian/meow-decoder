@@ -433,6 +433,302 @@ class TestKeyLifecycle:
 
 
 # =============================================================================
+# Test 7: Phase 2 — hashlib/hmac Annotation Enforcement
+# Un-annotated hashlib/hmac imports in production code are forbidden.
+# Files using them for non-secret purposes MUST have a NON-SECRET CHECKSUM
+# annotation on the import line.
+# =============================================================================
+
+
+# Files that have been audited and annotated with NON-SECRET CHECKSUM
+ANNOTATED_NON_SECRET_FILES = {
+    "clowder_encode.py",
+    "clowder_decode.py",
+    "resume_secured.py",
+    "decode_webcam_with_resume.py",
+    "entropy_boost.py",
+    "merkle_tree.py",  # Uses Rust backend with hashlib fallback
+}
+
+
+class TestPhase2HashlibEnforcement:
+    """Enforce that hashlib/hmac imports are annotated or migrated."""
+
+    def test_no_unannotated_hashlib_imports(self):
+        """
+        Any file importing hashlib or hmac MUST either:
+        1. Have a '# NON-SECRET CHECKSUM' annotation on the import line, OR
+        2. Be in the EXEMPT_DIRS (spec_v12, experimental), OR
+        3. Be an exempt file (__init__.py, constant_time.py)
+
+        This is a ratchet: newly added hashlib/hmac imports without
+        annotation will break CI.
+        """
+        violations = []
+
+        for py_file in get_production_files():
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            for lineno, line in enumerate(source.splitlines(), 1):
+                stripped = line.strip()
+                # Skip comments
+                if stripped.startswith("#"):
+                    continue
+
+                has_hashlib = False
+                has_hmac = False
+
+                # Check for import hashlib or from hashlib import ...
+                if "import hashlib" in stripped:
+                    has_hashlib = True
+                if "import hmac" in stripped and "hmac_" not in stripped:
+                    has_hmac = True
+
+                if not (has_hashlib or has_hmac):
+                    continue
+
+                # Check for annotation
+                if "NON-SECRET CHECKSUM" in line:
+                    continue
+
+                # Check if file is in annotated list
+                if py_file.name in ANNOTATED_NON_SECRET_FILES:
+                    continue
+
+                module = "hashlib" if has_hashlib else "hmac"
+                violations.append(
+                    f"{py_file.relative_to(py_file.parent.parent)}:{lineno} - "
+                    f"unannotated `import {module}` (add '# NON-SECRET CHECKSUM' "
+                    f"or migrate to Rust backend)"
+                )
+
+        # This is informational for now — existing security-critical files
+        # are tracked for migration. Fail on NEW violations only.
+        # Count known legacy files that still need migration
+        known_legacy = {
+            "schrodinger_encode.py", "schrodinger_decode.py",
+            "bidirectional.py", "multi_secret.py", "quantum_mixer.py",
+            "timelock_duress.py", "duress_mode.py",
+            "hardware_keys.py", "hardware_integration.py",
+        }
+        new_violations = [
+            v for v in violations
+            if not any(legacy in v for legacy in known_legacy)
+        ]
+
+        if new_violations:
+            violation_list = "\n".join(f"  - {v}" for v in new_violations)
+            pytest.fail(
+                f"Found {len(new_violations)} NEW unannotated hashlib/hmac imports:\n"
+                f"{violation_list}\n\n"
+                "Either add '# NON-SECRET CHECKSUM' annotation or migrate to Rust backend."
+            )
+
+
+# =============================================================================
+# Test 8: Dangerous Pattern Scanner
+# Scan for bypass patterns that could weaken security
+# =============================================================================
+
+DANGEROUS_PATTERNS = [
+    (r"expected_mac\s*=\s*None", "expected_mac=None bypass"),
+    (r"skip_verify\s*=\s*True", "skip_verify=True bypass"),
+    (r"insecure_mode\s*=\s*True", "insecure_mode=True"),
+    (r"debug_decrypt", "debug_decrypt function"),
+    (r"verify\s*=\s*False", "verify=False bypass"),
+    (r"no_auth\s*=\s*True", "no_auth=True bypass"),
+]
+
+# Files where patterns are documented/tested (not production bypass)
+PATTERN_EXEMPT_FILES = {
+    "test_crypto_enforcement.py",  # This file defines the patterns
+    "test_streaming_crypto.py",    # Tests the rejection of missing MAC
+    "test_production_boundary.py",  # Tests enforcement
+}
+
+
+class TestDangerousPatternScanner:
+    """Scan production code for security bypass patterns."""
+
+    def test_no_dangerous_bypass_patterns(self):
+        """
+        Production code must not contain authentication/verification bypass
+        patterns. These are indicators of downgrade attacks or debug code
+        left in production.
+        """
+        import re
+
+        violations = []
+
+        for py_file in get_production_files():
+            try:
+                source = py_file.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+
+            # Track docstring state to skip patterns inside docstrings
+            in_docstring = False
+            docstring_char = None
+
+            for lineno, line in enumerate(source.splitlines(), 1):
+                stripped = line.strip()
+
+                # Docstring tracking (triple quotes)
+                if not in_docstring:
+                    if stripped.startswith('"""') or stripped.startswith("'''"):
+                        docstring_char = stripped[:3]
+                        # Check if docstring closes on same line
+                        if stripped.count(docstring_char) >= 2 and len(stripped) > 3:
+                            continue  # Single-line docstring, skip
+                        in_docstring = True
+                        continue
+                else:
+                    if docstring_char in stripped:
+                        in_docstring = False
+                    continue
+
+                # Skip comments
+                if stripped.startswith("#"):
+                    continue
+
+                for pattern, description in DANGEROUS_PATTERNS:
+                    if re.search(pattern, stripped, re.IGNORECASE):
+                        # Skip if it's in a comment on the same line
+                        code_part = stripped.split("#")[0] if "#" in stripped else stripped
+                        if re.search(pattern, code_part, re.IGNORECASE):
+                            violations.append(
+                                f"{py_file.relative_to(py_file.parent.parent)}:{lineno} - "
+                                f"{description}: {stripped[:80]}"
+                            )
+
+        if violations:
+            violation_list = "\n".join(f"  - {v}" for v in violations)
+            pytest.fail(
+                f"Found {len(violations)} dangerous bypass patterns in production code:\n"
+                f"{violation_list}\n\n"
+                "Remove these patterns or move to test-only code."
+            )
+
+
+# =============================================================================
+# Test 9: Rust Backend Panic-Free Guarantee
+# =============================================================================
+
+
+class TestRustNoPanic:
+    """Verify Rust backend handles edge cases without panicking."""
+
+    def test_empty_inputs_no_panic(self):
+        """All Rust functions must handle empty inputs without panic."""
+        import meow_crypto_rs as backend
+
+        # SHA256 of empty
+        result = backend.sha256(b"")
+        assert len(result) == 32
+
+        # HMAC with empty key and message
+        result = backend.hmac_sha256(b"", b"")
+        assert len(result) == 32
+
+        # HMAC verify with empty
+        assert backend.hmac_sha256_verify(b"", b"", result)
+
+        # Constant-time compare empty
+        assert backend.constant_time_compare(b"", b"")
+
+    def test_large_inputs_no_panic(self):
+        """Rust functions must handle large inputs without panic."""
+        import meow_crypto_rs as backend
+
+        large = b"X" * (1024 * 1024)  # 1 MB
+        result = backend.sha256(large)
+        assert len(result) == 32
+
+        result = backend.hmac_sha256(b"key", large)
+        assert len(result) == 32
+
+    def test_invalid_key_sizes_return_error(self):
+        """Invalid key/nonce sizes must return errors, not panic."""
+        import meow_crypto_rs as backend
+
+        # AES-GCM with wrong key size
+        with pytest.raises(Exception):
+            backend.aes_gcm_encrypt(b"short", b"x" * 12, b"data")
+
+        # AES-GCM with wrong nonce size
+        with pytest.raises(Exception):
+            backend.aes_gcm_encrypt(b"x" * 32, b"short", b"data")
+
+        # X25519 with wrong key size
+        with pytest.raises(Exception):
+            backend.x25519_exchange(b"short", b"x" * 32)
+
+    def test_corrupted_ciphertext_returns_error(self):
+        """Corrupted ciphertext must return error, not panic."""
+        import meow_crypto_rs as backend
+
+        key = backend.secure_random(32)
+        nonce = backend.secure_random(12)
+
+        # Too short for auth tag
+        with pytest.raises(Exception):
+            backend.aes_gcm_decrypt(key, nonce, b"short")
+
+        # Random garbage
+        with pytest.raises(Exception):
+            backend.aes_gcm_decrypt(key, nonce, backend.secure_random(100))
+
+
+# =============================================================================
+# Test 10: Secret Lifecycle — Secure Zeroing
+# =============================================================================
+
+
+class TestSecretLifecycle:
+    """Verify secrets are zeroized after use."""
+
+    def test_secure_zero_complete_wipe(self):
+        """secure_zero must zero ALL bytes."""
+        import meow_crypto_rs as backend
+
+        # Various sizes
+        for size in [1, 16, 32, 64, 256, 4096]:
+            buf = bytearray(b"\xff" * size)
+            backend.secure_zero(buf)
+            assert buf == bytearray(size), f"Failed to zero {size} bytes"
+
+    def test_secure_zero_idempotent(self):
+        """secure_zero on already-zeroed buffer is safe."""
+        import meow_crypto_rs as backend
+
+        buf = bytearray(32)
+        backend.secure_zero(buf)
+        assert buf == bytearray(32)
+
+    def test_key_derivation_produces_fresh_bytes(self):
+        """Key derivation must produce non-zero, non-trivial output."""
+        import meow_crypto_rs as backend
+
+        salt = backend.secure_random(16)
+        key = backend.derive_key_argon2id(b"password", salt, 32768, 1, 1, 32)
+
+        # Must not be all zeros
+        assert key != bytes(32), "Key derivation produced all zeros"
+        # Must not be all same byte
+        assert len(set(key)) > 1, "Key derivation produced trivial output"
+
+    def test_random_bytes_are_unique(self):
+        """Consecutive random byte generation must produce unique values."""
+        import meow_crypto_rs as backend
+
+        samples = [backend.secure_random(32) for _ in range(100)]
+        assert len(set(samples)) == 100, "Random bytes collision detected"
+
+
+# =============================================================================
 # Main
 # =============================================================================
 

@@ -20,20 +20,20 @@ crypto_core = { path = "../crypto_core" }
 pyo3 = { version = "0.27", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
-argon2 = "0.5"              # Argon2id KDF (password hashing)
-aes-gcm = "0.10"            # AES-256-GCM AEAD encryption
-aes = "0.8"                 # AES block cipher (for CTR mode)
-ctr = "0.9"                 # CTR mode for streaming encryption
-cipher = "0.4"              # Cipher traits
-hkdf = "0.12"               # HKDF key derivation (RFC 5869)
-hmac = "0.12"               # HMAC-SHA256 authentication
-sha2 = "0.10"               # SHA-256/SHA-512 hashing
+argon2 = "0.5"   # Argon2id KDF (password hashing)
+aes-gcm = "0.10" # AES-256-GCM AEAD encryption
+aes = "0.8"      # AES block cipher (for CTR mode)
+ctr = "0.9"      # CTR mode for streaming encryption
+cipher = "0.4"   # Cipher traits
+hkdf = "0.12"    # HKDF key derivation (RFC 5869)
+hmac = "0.12"    # HMAC-SHA256 authentication
+sha2 = "0.10"    # SHA-256/SHA-512 hashing
 
 # X25519 key exchange
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
 
 # Side-channel resistance
-subtle = "2.5"              # Constant-time operations
+subtle = "2.5"                                       # Constant-time operations
 zeroize = { version = "1.7", features = ["derive"] }
 
 # Random number generation
@@ -54,15 +54,48 @@ proptest = "1.4"
 
 [features]
 default = []
-python = ["pyo3"]  # Enable Python bindings (required for maturin build)
-pq = ["pqcrypto-mlkem", "pqcrypto-traits"]  # Enable post-quantum crypto
+python = ["pyo3"]                                            # Enable Python bindings (required for maturin build)
+pq = ["pqcrypto-mlkem", "pqcrypto-traits"]                   # Enable post-quantum crypto
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
-python-tests = ["python"]  # Enable tests that require Python bindings
+python-tests = ["python"]                                    # Enable tests that require Python bindings
+
+# ─── Panic hardening ─────────────────────────────────────────────────────────
+# ANY panic in a cryptographic code path is a bug; in release builds a panic
+# becomes an immediate OS-level abort (no stack unwinding, no partial state).
+# This prevents an attacker from using panic payloads as an oracle.
+#
+# In fuzz builds (rust_crypto/fuzz/) the same setting is inherited so that
+# libFuzzer treats any abort as a crash finding.
+#
+# For Miri / sanitiser runs use:
+#   RUSTFLAGS="-Z sanitizer=address" cargo +nightly test
+#   RUSTFLAGS="-Z sanitizer=memory"  cargo +nightly test
+#   cargo +nightly miri test
 
 [profile.release]
-lto = true
-codegen-units = 1
+lto = true        # Enable link-time optimisation (dead code removal + inlining)
+codegen-units = 1 # Single codegen unit for best optimisation and LTO
 opt-level = 3
+panic = "abort"   # HARD REQUIREMENT: panic = FAIL (no unwinding oracle)
+strip = "none"    # Keep symbols for sanitiser stack traces
+
+[profile.dev]
+panic = "abort" # Mirror release behaviour in dev builds
+
+# Dedicated profile for sanitiser runs (address, memory, thread, UB).
+# Usage: cargo test --profile sanitizer
+[profile.sanitizer]
+inherits = "dev"
+opt-level = 1    # Minimal optimisation for readable sanitiser reports
+debug = true
+panic = "abort"
+
+# ─── Proptest configuration ───────────────────────────────────────────────────
+# Increase default case count for crypto property tests.
+# Set PROPTEST_CASES env var to override at runtime.
+# Placed here so all workspace members inherit the limit.
+[package.metadata.proptest]
+cases = 1024
 
 # Maturin config
 [tool.maturin]

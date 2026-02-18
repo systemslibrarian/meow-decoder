@@ -26,7 +26,7 @@ Usage:
 import os
 import sys
 import time
-import hashlib
+import hashlib  # NON-SECRET CHECKSUM: entropy conditioning/whitening only
 import secrets
 import platform
 import struct

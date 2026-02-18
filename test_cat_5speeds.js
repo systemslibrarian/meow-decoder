@@ -29,9 +29,9 @@
 const crypto = require('crypto');
 
 // Load production modules
-const CatProtocol = require('./examples/cat-mode-protocol.js');
-const NRZDecoder = require('./examples/nrz-decoder.js');
-const PreambleCalibration = require('./examples/preamble-calibration.js');
+const CatProtocol = require('./web_demo/cat-mode-protocol.js');
+const NRZDecoder = require('./web_demo/nrz-decoder.js');
+const PreambleCalibration = require('./web_demo/preamble-calibration.js');
 
 // Suppress verbose logging from imported modules during test
 const _origLog = console.log;

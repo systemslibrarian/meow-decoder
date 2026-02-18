@@ -26,20 +26,20 @@ use zeroize::{Zeroize, ZeroizeOnDrop};
 
 #[cfg(feature = "pure-crypto")]
 use {
+    aes::Aes256,
     aes_gcm::{
         aead::{Aead, KeyInit, Payload},
         Aes256Gcm, Nonce as GcmNonce,
     },
     argon2::{Algorithm as Argon2Algorithm, Argon2, Params, Version},
+    ctr::cipher::{KeyIvInit, StreamCipher},
+    ctr::Ctr128BE,
     hkdf::Hkdf,
     hmac::Hmac,
     rand_core::{OsRng, RngCore},
     sha2::{Digest, Sha256},
     subtle::ConstantTimeEq,
     x25519_dalek::{EphemeralSecret, PublicKey, StaticSecret},
-    aes::Aes256,
-    ctr::cipher::{KeyIvInit, StreamCipher},
-    ctr::Ctr128BE,
 };
 
 #[cfg(feature = "std")]
@@ -533,11 +533,23 @@ impl X25519KeyPair {
 // ============================================================================
 
 /// Compute HMAC-SHA256
+///
+/// # Safety Invariant
+/// HMAC-SHA256 accepts any key length per RFC 2104 §2.
+/// `new_from_slice` cannot fail for HMAC-SHA256.
 #[cfg(feature = "pure-crypto")]
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; HMAC_SIZE] {
     use hmac::Mac;
     type HmacSha256 = Hmac<Sha256>;
-    let mut mac = <HmacSha256 as Mac>::new_from_slice(key).expect("HMAC key length");
+    // SAFETY: HMAC-SHA256 accepts any key length — InvalidLength is unreachable.
+    // Using unwrap_or_else to avoid panic! codegen in release builds.
+    let mut mac = match <HmacSha256 as Mac>::new_from_slice(key) {
+        Ok(m) => m,
+        Err(_) => {
+            // Unreachable for HMAC-SHA256, but fail-closed: return zeros
+            return [0u8; HMAC_SIZE];
+        }
+    };
     mac.update(data);
     let result = mac.finalize();
     result.into_bytes().into()
@@ -623,7 +635,8 @@ pub mod pq {
         // - Decapsulate::decapsulate(&ct) -> SharedSecret [NOT Result]
         // - Serialization: .to_bytes(), ::new() for EncapsulationKey, ::from_expanded_bytes() for DecapsulationKey
         // The getrandom feature avoids rand_core version mismatches between crates.
-        #[allow(deprecated)] // ExpandedKeyEncoding deprecated but needed for serialization roundtrip
+        #[allow(deprecated)]
+        // ExpandedKeyEncoding deprecated but needed for serialization roundtrip
         use ml_kem::{
             DecapsulationKey1024 as DecapsulationKey, EncapsulationKey1024 as EncapsulationKey,
             ExpandedKeyEncoding, KeyExport,
@@ -643,10 +656,7 @@ pub mod pq {
             let dk = DecapsulationKey::generate();
             let ek = dk.encapsulation_key();
             // Use expanded bytes format to match from_expanded_bytes() in decapsulate
-            Ok((
-                dk.to_expanded_bytes().to_vec(),
-                ek.to_bytes().to_vec(),
-            ))
+            Ok((dk.to_expanded_bytes().to_vec(), ek.to_bytes().to_vec()))
         }
 
         /// Encapsulate to produce ciphertext and shared secret

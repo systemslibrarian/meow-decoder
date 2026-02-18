@@ -29,6 +29,9 @@
   <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml">
     <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/fuzz.yml/badge.svg" alt="Fuzzing">
   </a>
+  <a href="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-security-suite.yml">
+    <img src="https://github.com/systemslibrarian/meow-decoder/actions/workflows/rust-security-suite.yml/badge.svg" alt="Rust Crypto Security Suite">
+  </a>
   <a href="https://codecov.io/gh/systemslibrarian/meow-decoder">
     <img src="https://codecov.io/gh/systemslibrarian/meow-decoder/branch/main/graph/badge.svg?token=EBYQIEJETU" alt="Coverage">
   </a>

@@ -39,7 +39,6 @@ import os
 import sys
 import secrets
 import subprocess
-import hashlib
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional, Tuple, List, Union, Callable
@@ -377,7 +376,7 @@ class HardwareSecurityProvider:
         # Fallback to ykman challenge-response
         # This uses HMAC-SHA1 challenge-response on slot 2
         combined = salt + password
-        challenge = hashlib.sha256(combined).digest()
+        challenge = _get_backend().sha256(combined)
 
         ok, output = self._run_cmd(
             ["ykchalresp", "-2", challenge.hex()], timeout=30

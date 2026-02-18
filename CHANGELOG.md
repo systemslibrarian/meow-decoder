@@ -5,10 +5,62 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 > **Version Note:** The public release is **v1.0.0 (SECURITY-REVIEWED v1.0 INTERNAL REVIEW)**.
 > The version numbers below (5.x, 6.x) are historical internal development milestones
 > that have been consolidated into the v1.0 public release.
-> 
+>
 > *"Every commit is a paw print in the litter box of history."*
 
 ## [Unreleased]
+
+### Infrastructure — Rust Crypto Fuzzing + Property Test Suite (2026-02-18) 🔐
+
+Full adversarial testing infrastructure for the Rust crypto backend: cargo-fuzz targets, proptest property tests, FFI boundary fuzz harness, panic hardening, and CI integration.
+
+#### cargo-fuzz Targets (`rust_crypto/fuzz/fuzz_targets/`)
+| Target | Attack Classes |
+|--------|----------------|
+| `fuzz_decrypt_frame` | Nonce reuse, Truncation oracle, Partial decrypt leak |
+| `fuzz_header_parse` | Header tampering, AAD omission, Nonce reuse |
+| `fuzz_hybrid_decapsulate` | Hybrid downgrade, PQ failure fallback, State compromise |
+| `fuzz_ratchet_step` | Replay, Nonce reuse, PCS violation |
+| `fuzz_full_decode_pipeline` | Partial decrypt leak, Truncation oracle, Replay |
+
+#### Property Tests (`rust_crypto/tests/property_tests.rs`) — 14 tests
+- Nonce uniqueness across N frames
+- Ratchet monotonicity
+- Replay rejection
+- PCS healing (post-compromise forward secrecy verified)
+- Hybrid combiner requires both classical + PQ secrets
+- AAD canonicalization determinism
+- Manifest binding integrity
+- Fail-closed AEAD (no partial plaintext on auth failure)
+- Commitment tag prevents forgery
+- Argon2id domain separation
+- Decryption fail-closed
+- X25519 symmetry and uniqueness
+- HKDF domain separation
+
+#### FFI Boundary Fuzz (`rust_crypto/tests/ffi_fuzz.rs`) — 19 tests
+- Random, zero, 0xFF, small, large, truncated, reordered byte arrays
+- Corrupted PQ ciphertext, wrong salt, wrong version, zero HMAC tag
+- Argon2id invalid params, HKDF zero-length output, X25519 bad key lengths
+- Concurrent FFI calls (data race detection)
+- encode→decode round-trip correctness for 5 payload sizes
+- 1000-cycle repeated encode/decode (no memory leak / crash)
+
+#### Bug Fixes
+- **`ffi_roundtrip_various_sizes`**: encode used `b"roundtrip_pass"`, decode hardcoded `b"fuzz_password"` — HMAC always failed. Fixed with `ffi_simulate_decode_gif_with_password()` using matching credentials.
+- **`p_pcs_healing`**: Ratchet HKDF info embedded loop index starting at 0 for the adversary, but honest party used absolute step index. Adversary keys never matched. Fixed with `ratchet_steps_from(root, start_step, n)` preserving absolute indices.
+- **AAD asymmetry**: Encoder used `sha256(plaintext)` in AAD, decoder used `sha256(ciphertext)` — structurally impossible to verify. Fixed: AAD is now `magic(4) || salt(16) || mode(1)` only — stable and reproducible on both sides.
+
+#### CI (`rust-security-suite.yml`)
+- Runs on push to `main`/`develop` touching `rust_crypto/**` or `crypto_core/**`
+- Weekly extended fuzz on schedule (Sunday 02:00 UTC)
+- Jobs: unit+property+FFI tests, cargo-fuzz (5 targets, matrix), ASan+UBSan, Miri (schedule-only), panic hardening audit
+- `panic = "abort"` verified in release profile; `clippy::unwrap_used` lint in crypto paths
+- Fuzz corpus persisted across runs via Actions cache
+
+#### Test Count
+- **Before**: 173 Rust tests (41 pure + 80 comprehensive + 29 additional_security + 23 proptest_crypto)
+- **After**: 206 Rust tests (+14 property_tests + 19 ffi_fuzz)
 
 ### Infrastructure — Rust Crypto Migration Complete (2026-02-17) 🦀
 

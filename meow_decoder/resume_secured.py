@@ -7,7 +7,7 @@ SECURITY: State files encrypted using AES-256-GCM via Rust backend
 import os
 import json
 import base64
-import hashlib
+import hashlib  # NON-SECRET CHECKSUM: session state fingerprint only
 import secrets
 from pathlib import Path
 from typing import Optional, Dict, Any, Tuple

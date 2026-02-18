@@ -1,9 +1,9 @@
 # 🧪 Meow Decoder Testing Infrastructure - Complete Overview
 
-**Last Updated:** 2026-02-17
-**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit
-**Total Test Coverage:** 2,413 tests (Python) + 261 tests (Rust) = **2,674 total tests**
-**Test Files:** 96 Python test files + 7 Rust test files
+**Last Updated:** 2026-02-18
+**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Rust Fuzzing Suite
+**Total Test Coverage:** 2,413 tests (Python) + 316 tests (Rust) = **2,729 total tests**
+**Test Files:** 96 Python test files + 9 Rust test files
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
 ---
@@ -221,16 +221,18 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 ## 🦀 Rust Test Suite
 
-**Total:** 261 tests across 2 packages
+**Total:** 316 tests across 2 packages
 
-### Package 1: rust_crypto (PyO3 Bindings) - 151 tests
+### Package 1: rust_crypto (PyO3 Bindings) - 206 tests
 
 | Module | Tests | Purpose |
-|--------|-------|---------|
-| `src/pure.rs` (unit) | 46 | Pure Rust crypto (no PyO3) |
-| `tests/comprehensive_tests.rs` | 76 | PyO3 bindings |
+|--------|-------|---------|-----|
+| `src/pure.rs` (unit) | 41 | Pure Rust crypto (no PyO3) |
+| `tests/comprehensive_tests.rs` | 80 | PyO3 bindings |
 | `tests/additional_security_tests.rs` | 29 | Security edge cases |
-| `tests/proptest_crypto.rs` | 23 | Property-based fuzzing |
+| `tests/proptest_crypto.rs` | 23 | Property-based fuzzing (original suite) |
+| `tests/property_tests.rs` | 14 | Adversarial property tests: nonce uniqueness, ratchet monotonicity, replay, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD |
+| `tests/ffi_fuzz.rs` | 19 | FFI boundary fuzz: attacker-controlled inputs across the PyO3 boundary, encode→decode round-trip, concurrent calls |
 
 **What They Test:**
 - ✅ Argon2id KDF
@@ -241,6 +243,11 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 - ✅ ML-KEM-1024 post-quantum
 - ✅ Zeroization on drop
 - ✅ Constant-time operations
+- ✅ Nonce uniqueness (proptest)
+- ✅ Ratchet monotonicity + PCS healing (proptest)
+- ✅ Replay rejection (proptest)
+- ✅ Hybrid combiner integrity (proptest)
+- ✅ FFI boundary: panic-free on all attacker-controlled inputs
 
 ### Package 2: crypto_core (Formally Verified) - 110 tests
 
@@ -472,7 +479,7 @@ cd crypto_core && cargo tarpaulin --out Html
 
 | Document | Purpose |
 |----------|---------|
-| `tests/TEST_SUITE_README.md` | Complete test inventory (87 files, 2,674 tests) |
+| `tests/TEST_SUITE_README.md` | Complete test inventory (87 files, 2,729 tests) |
 | `tests/TESTING_OVERVIEW.md` | This file - high-level testing infrastructure |
 | `tests/golden/README.md` | Golden video test cases and checksums |
 | `tests/golden/errors/README.md` | Error injection test matrix (1,399 lines) |

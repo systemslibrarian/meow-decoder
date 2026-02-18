@@ -27,7 +27,7 @@ import argparse
 from pathlib import Path
 from getpass import getpass
 import json
-import hashlib
+import hashlib  # NON-SECRET CHECKSUM: session ID derivation only
 from typing import List, Dict, Optional
 from datetime import datetime
 
@@ -208,7 +208,7 @@ def encode_clowder(
     yarn_ball_num = len(clowder_manifest.yarn_balls) + 1
 
     for i in range(0, len(remaining_files), max_files_per_yarn):
-        batch = remaining_files[i : i + max_files_per_yarn]
+        batch = remaining_files[i: i + max_files_per_yarn]
 
         print(f"\n🐱 Yarn Ball #{yarn_ball_num}:")
         print(f"  Files: {len(batch)}")
@@ -310,14 +310,14 @@ def main():
 Examples:
   # Encode entire folder
   python3 clowder_encode.py --input ~/secrets/ --output ~/yarn_balls/
-  
+
   # Resume interrupted encoding
   python3 clowder_encode.py --input ~/secrets/ --output ~/yarn_balls/
   (Automatically resumes if interrupted!)
-  
+
   # Control files per GIF
   python3 clowder_encode.py --input ~/docs/ --output ~/yarn/ --max-per-yarn 5
-  
+
 A clowder is a group of cats! 🐈🐈🐈
         """,
     )

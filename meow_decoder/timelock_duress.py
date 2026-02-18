@@ -30,13 +30,14 @@ Reference: docs/THREAT_MODEL.md § Coercion Resistance
 import time
 import struct
 import secrets
-import hashlib
 from dataclasses import dataclass
 from typing import Optional, Tuple
 from pathlib import Path
 import json
 
 # Domain separation constants
+from .crypto_backend import get_default_backend as _get_backend
+
 TIMELOCK_DOMAIN = b"meow_timelock_v1"
 COUNTDOWN_DOMAIN = b"meow_countdown_v1"
 DEADMAN_DOMAIN = b"meow_deadman_v1"
@@ -170,15 +171,17 @@ class TimeLockPuzzle:
             # Memory-hard variant using Argon2
             from meow_decoder.crypto import derive_key
 
+            _backend = _get_backend()
             for i in range(iterations // 1000):  # Argon2 is ~1000x slower
                 if i % 100 == 0:
                     print(f"   Progress: {i * 1000 / iterations * 100:.1f}%")
                 # Use Argon2 with minimal memory for puzzle
-                current = hashlib.sha256(TIMELOCK_DOMAIN + current + struct.pack(">Q", i)).digest()
+                current = _backend.sha256(TIMELOCK_DOMAIN + current + struct.pack(">Q", i))
         else:
             # Standard SHA-256 chain
+            _backend = _get_backend()
             for i in range(iterations):
-                current = hashlib.sha256(TIMELOCK_DOMAIN + current).digest()
+                current = _backend.sha256(TIMELOCK_DOMAIN + current)
                 if i % 10000000 == 0 and i > 0:
                     print(f"   Progress: {i / iterations * 100:.1f}%")
 
@@ -245,8 +248,9 @@ class TimeLockPuzzle:
             print(f"⏰ Resuming puzzle from iteration {state.iterations_completed:,}")
             # We need to recompute from start (no shortcut!)
             current = start_hash
+            _backend = _get_backend()
             for i in range(state.iterations_completed):
-                current = hashlib.sha256(TIMELOCK_DOMAIN + current).digest()
+                current = _backend.sha256(TIMELOCK_DOMAIN + current)
         else:
             current = start_hash
 
@@ -255,8 +259,9 @@ class TimeLockPuzzle:
         print(f"⏰ Solving time-lock puzzle...")
         print(f"   Remaining iterations: {remaining:,}")
 
+        _backend = _get_backend()
         for i in range(remaining):
-            current = hashlib.sha256(TIMELOCK_DOMAIN + current).digest()
+            current = _backend.sha256(TIMELOCK_DOMAIN + current)
             state.iterations_completed += 1
 
             if progress_callback and i % 100000 == 0:
@@ -293,8 +298,9 @@ class TimeLockPuzzle:
         """Expand key to arbitrary length using HKDF-like construction."""
         output = bytearray()
         counter = 0
+        _backend = _get_backend()
         while len(output) < length:
-            chunk = hashlib.sha256(TIMELOCK_DOMAIN + key + struct.pack(">I", counter)).digest()
+            chunk = _backend.sha256(TIMELOCK_DOMAIN + key + struct.pack(">I", counter))
             output.extend(chunk)
             counter += 1
         return bytes(output[:length])
@@ -524,9 +530,9 @@ def decode_with_timelock(
 
     # Parse timelocked data
     puzzle_len = struct.unpack(">I", timelocked_data[:4])[0]
-    puzzle_data = timelocked_data[4 : 4 + puzzle_len]
-    encrypted_key = timelocked_data[4 + puzzle_len : 4 + puzzle_len + 32]
-    cipher = timelocked_data[4 + puzzle_len + 32 :]
+    puzzle_data = timelocked_data[4: 4 + puzzle_len]
+    encrypted_key = timelocked_data[4 + puzzle_len: 4 + puzzle_len + 32]
+    cipher = timelocked_data[4 + puzzle_len + 32:]
 
     # Solve puzzle
     config = TimeLockConfig()

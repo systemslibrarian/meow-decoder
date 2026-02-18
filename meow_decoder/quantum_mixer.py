@@ -19,7 +19,6 @@ Security Properties:
     - Cryptographic binding (shared noise prevents independent manipulation)
 """
 
-import hashlib
 import secrets
 import struct
 from typing import Tuple, List, Optional
@@ -76,8 +75,9 @@ def derive_quantum_noise(password_a: str, password_b: str, salt: bytes, length: 
         Neither cat can escape without unraveling the other's yarn.
     """
     # Combine both passwords via XOR of their hashes
-    hash_a = hashlib.sha256(password_a.encode("utf-8")).digest()
-    hash_b = hashlib.sha256(password_b.encode("utf-8")).digest()
+    _backend = _get_backend()
+    hash_a = _backend.sha256(password_a.encode("utf-8"))
+    hash_b = _backend.sha256(password_b.encode("utf-8"))
 
     # XOR combines them - neither can derive this alone
     combined = bytes(a ^ b for a, b in zip(hash_a, hash_b))
@@ -196,11 +196,12 @@ def compute_entanglement_root(blocks: List[bytes]) -> bytes:
         - Doesn't reveal which reality
         - Same computational cost regardless of size
     """
+    _backend = _get_backend()
     if not blocks:
-        return hashlib.sha256(b"meow_empty_yarn").digest()
+        return _backend.sha256(b"meow_empty_yarn")
 
     # Build Merkle tree
-    current_level = [hashlib.sha256(b).digest() for b in blocks]
+    current_level = [_backend.sha256(b) for b in blocks]
 
     while len(current_level) > 1:
         next_level = []
@@ -209,7 +210,7 @@ def compute_entanglement_root(blocks: List[bytes]) -> bytes:
             left = current_level[i]
             right = current_level[i + 1] if i + 1 < len(current_level) else left
 
-            parent = hashlib.sha256(left + right).digest()
+            parent = _backend.sha256(left + right)
             next_level.append(parent)
 
         current_level = next_level

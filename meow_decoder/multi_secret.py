@@ -30,7 +30,6 @@ Usage:
 """
 
 import secrets
-import hashlib
 import struct
 from typing import List, Tuple, Optional
 from dataclasses import dataclass, field
@@ -240,22 +239,21 @@ class MultiSecretEncoder:
 
     def _compute_hmac(self, key: bytes, data: bytes) -> bytes:
         """Compute HMAC for password verification."""
-        import hmac as hmac_module
-
-        return hmac_module.new(key, data, hashlib.sha256).digest()
+        return _get_backend().hmac_sha256(key, data)
 
     def _compute_merkle_root(self, blocks: List[bytes]) -> bytes:
         """Compute Merkle root of all blocks."""
+        _backend = _get_backend()
         if not blocks:
-            return hashlib.sha256(b"empty").digest()
+            return _backend.sha256(b"empty")
 
-        hashes = [hashlib.sha256(b).digest() for b in blocks]
+        hashes = [_backend.sha256(b) for b in blocks]
 
         while len(hashes) > 1:
             next_level = []
             for i in range(0, len(hashes), 2):
                 if i + 1 < len(hashes):
-                    combined = hashlib.sha256(hashes[i] + hashes[i + 1]).digest()
+                    combined = _backend.sha256(hashes[i] + hashes[i + 1])
                 else:
                     combined = hashes[i]
                 next_level.append(combined)
@@ -304,7 +302,7 @@ class MultiSecretEncoder:
                 interleaved.append(all_blocks[reality_idx][block_idx])
 
         # Generate shuffle seed from all salts
-        shuffle_seed = hashlib.sha256(b"".join(r.salt for r in self.realities)).digest()
+        shuffle_seed = _get_backend().sha256(b"".join(r.salt for r in self.realities))
 
         # Shuffle to hide interleaving pattern
         shuffled = self._cryptographic_shuffle(interleaved, shuffle_seed)
@@ -382,8 +380,6 @@ class MultiSecretDecoder:
         Security:
             Uses constant-time comparison to prevent timing attacks.
         """
-        import hmac as hmac_module
-
         for i in range(self.manifest.n_realities):
             key = self._derive_key(password, self.manifest.salts[i])
             expected_hmac = self._compute_hmac(key, self.manifest.merkle_root)
@@ -396,22 +392,21 @@ class MultiSecretDecoder:
 
     def _compute_hmac(self, key: bytes, data: bytes) -> bytes:
         """Compute HMAC for verification."""
-        import hmac as hmac_module
-
-        return hmac_module.new(key, data, hashlib.sha256).digest()
+        return _get_backend().hmac_sha256(key, data)
 
     def _compute_merkle_root(self, blocks: List[bytes]) -> bytes:
         """Compute Merkle root of blocks (same as encoder)."""
+        _backend = _get_backend()
         if not blocks:
-            return hashlib.sha256(b"empty").digest()
+            return _backend.sha256(b"empty")
 
-        hashes = [hashlib.sha256(b).digest() for b in blocks]
+        hashes = [_backend.sha256(b) for b in blocks]
 
         while len(hashes) > 1:
             next_level = []
             for i in range(0, len(hashes), 2):
                 if i + 1 < len(hashes):
-                    combined = hashlib.sha256(hashes[i] + hashes[i + 1]).digest()
+                    combined = _backend.sha256(hashes[i] + hashes[i + 1])
                 else:
                     combined = hashes[i]
                 next_level.append(combined)
@@ -423,7 +418,7 @@ class MultiSecretDecoder:
         """Reverse the cryptographic shuffle."""
         import random
 
-        shuffle_seed = hashlib.sha256(b"".join(self.manifest.salts)).digest()
+        shuffle_seed = _get_backend().sha256(b"".join(self.manifest.salts))
 
         seed_int = int.from_bytes(shuffle_seed[:8], "big")
         rng = random.Random(seed_int)

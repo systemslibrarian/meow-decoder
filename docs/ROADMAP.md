@@ -84,6 +84,12 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 	- CI enforces `RUST_BACKEND_REQUIRED=1` — no Python fallback
 	- 397 tests passing (383 protocol + 14 enforcement)
 	- See `todo-crypto.md` for full migration details
+- [x] **cargo-fuzz + Property Test Suite**: Full adversarial fuzzing infrastructure for Rust crypto backend
+	- 5 libFuzzer targets: `fuzz_decrypt_frame`, `fuzz_header_parse`, `fuzz_hybrid_decapsulate`, `fuzz_ratchet_step`, `fuzz_full_decode_pipeline`
+	- 14 proptest property tests: nonce uniqueness, ratchet monotonicity, replay, PCS healing, hybrid combiner, AAD canonicalization
+	- 19 FFI boundary fuzz tests simulating Python→Rust calls with attacker-controlled inputs
+	- `panic = "abort"` in release profile; ASan/UBSan/Miri CI jobs
+	- CI workflow: `rust-security-suite.yml`
 
 ---
 ### Formal Methods
@@ -114,7 +120,7 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: February 17, 2026*
+*Last Updated: February 18, 2026*
 
 # Update pytest configuration
 # Update coverage targets

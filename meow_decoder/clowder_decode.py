@@ -25,7 +25,7 @@ from .decode_gif import decode_gif
 
 def hash_password(password: str) -> str:
     """Hash password for verification."""
-    import hashlib
+    import hashlib  # NON-SECRET CHECKSUM: session ID matching only
 
     return hashlib.sha256(password.encode()).hexdigest()[:16]
 
@@ -110,7 +110,7 @@ def decode_clowder(
                 file_offset = file_info["offset"]
 
                 # Extract file data
-                file_data = combined_data[file_offset : file_offset + file_size]
+                file_data = combined_data[file_offset: file_offset + file_size]
 
                 # Preserve relative path structure
                 # Use relative path from original to maintain directory structure
@@ -180,10 +180,10 @@ def main():
 Examples:
   # Decode entire clowder
   python3 clowder_decode.py --input yarn_balls/ --output recovered/
-  
+
   # With verbose output
   python3 clowder_decode.py --input yarn_balls/ --output recovered/ -v
-  
+
 The clowder reunites! 🐈🐈🐈
         """,
     )

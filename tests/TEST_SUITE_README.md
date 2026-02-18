@@ -139,16 +139,28 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 The project includes two Rust crypto packages with **261 total tests**:
 
-#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 151 tests
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 206 tests
 
 | File | Tests | Purpose |
-|------|-------|---------|
-| `rust_crypto/src/pure.rs` (unit tests) | 46 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
-| `rust_crypto/tests/comprehensive_tests.rs` | 76 | Core crypto operations via PyO3 bindings |
+|------|-------|-------|
+| `rust_crypto/src/pure.rs` (unit tests) | 41 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
+| `rust_crypto/tests/comprehensive_tests.rs` | 80 | Core crypto operations via PyO3 bindings |
 | `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization, failure modes, boundary conditions |
-| `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs |
+| `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs (original suite) |
+| `rust_crypto/tests/property_tests.rs` | 14 | Adversarial property tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, Argon2id domain separation, X25519 symmetry, HKDF domain separation |
+| `rust_crypto/tests/ffi_fuzz.rs` | 19 | FFI boundary fuzz: random/small/large/truncated/reordered inputs, corrupted PQ ciphertext, wrong salt/version, concurrent calls, encode→decode round-trip |
 
 **Architecture Note:** The `rust_crypto/src/pure.rs` module contains all crypto logic without PyO3 dependencies. The PyO3 bindings in `lib.rs` are thin wrappers that call the pure functions. This separation enables comprehensive unit testing of the crypto logic.
+
+**cargo-fuzz targets** (libFuzzer, run separately with `cargo +nightly fuzz run <target>`):
+
+| Fuzz Target | Attack Classes Covered |
+|-------------|------------------------|
+| `fuzz_decrypt_frame` | Nonce reuse, Truncation oracle, Partial decrypt leak |
+| `fuzz_header_parse` | Header tampering, AAD omission, Nonce reuse |
+| `fuzz_hybrid_decapsulate` | Hybrid downgrade, PQ failure fallback, State compromise |
+| `fuzz_ratchet_step` | Replay, Nonce reuse, PCS violation |
+| `fuzz_full_decode_pipeline` | Partial decrypt leak, Truncation oracle, Replay |
 
 #### crypto_core - Formally Verified Primitives - 110 tests
 
@@ -187,7 +199,7 @@ cargo install cargo-tarpaulin
 | **crypto_core** | **Total (excl. hardware stubs)** | **331/338** | **97.9%** ✓ |
 
 **rust_crypto Coverage Note:** The `meow_crypto_rs` package uses PyO3 for Python bindings. Standard Rust coverage tools (cargo-tarpaulin, llvm-cov) cannot link the test binaries without Python symbols, preventing automated coverage measurement. However:
-- The `pure.rs` module (46 tests) covers all crypto operations
+- The `pure.rs` module (41 tests) covers all crypto operations
 - Integration tests (105 tests) verify PyO3 wrapper correctness
 - The crypto logic is identical to the covered `crypto_core` primitives
 
@@ -198,12 +210,22 @@ cargo install cargo-tarpaulin
 
 **Run Rust tests:**
 ```bash
-# rust_crypto (PyO3 bindings) - 151 tests
+# rust_crypto (PyO3 bindings) - 206 tests
 cargo test -p meow_crypto_rs              # All tests
-cargo test -p meow_crypto_rs pure::       # Pure module tests
-cargo test --test comprehensive_tests     # Core functionality
-cargo test --test additional_security_tests  # Security edge cases
-cargo test --test proptest_crypto         # Property-based fuzzing
+cargo test -p meow_crypto_rs pure::       # Pure module tests (41)
+cargo test --test comprehensive_tests     # Core functionality (80)
+cargo test --test additional_security_tests  # Security edge cases (29)
+cargo test --test proptest_crypto         # Property-based fuzzing (23)
+cargo test --test property_tests          # Adversarial property tests (14)
+cargo test --test ffi_fuzz                # FFI boundary fuzz (19)
+
+# cargo-fuzz targets (requires nightly + cargo-fuzz)
+cargo install cargo-fuzz --locked
+cargo +nightly fuzz run fuzz_decrypt_frame       -- -max_total_time=60
+cargo +nightly fuzz run fuzz_header_parse        -- -max_total_time=60
+cargo +nightly fuzz run fuzz_hybrid_decapsulate  -- -max_total_time=60
+cargo +nightly fuzz run fuzz_ratchet_step        -- -max_total_time=60
+cargo +nightly fuzz run fuzz_full_decode_pipeline -- -max_total_time=60
 
 # crypto_core (formally verified) - 110 tests
 cargo test -p crypto_core                 # All tests
@@ -365,7 +387,7 @@ pytest tests/test_fuzz_targets.py tests/test_property_based.py -v
 cargo test -p meow_crypto_rs
 
 # Run individual Rust test suites
-cargo test --test comprehensive_tests         # 76 core tests
+cargo test --test comprehensive_tests         # 80 core tests
 cargo test --test additional_security_tests   # 29 security tests
 cargo test --test proptest_crypto             # 23 property tests
 ```
@@ -405,6 +427,9 @@ cargo test --test proptest_crypto             # 23 property tests
 7. ✅ **AFL++ integration** (`test_fuzz_targets.py`) - 3 tests
 8. ✅ **Corpus generation** (`test_fuzz_targets.py`) - 12 tests
 9. ✅ **Integration & error handling** (`test_fuzz_targets.py`) - 17 tests
+10. ✅ **Adversarial property tests — Rust** (`property_tests.rs`) - 14 tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, domain separation
+11. ✅ **FFI boundary fuzz — Rust** (`ffi_fuzz.rs`) - 19 tests: random/small/large/truncated/reordered bytes, corrupted PQ ciphertext, wrong salt/version, concurrent calls, round-trip correctness
+12. ✅ **cargo-fuzz targets** (libFuzzer): `fuzz_decrypt_frame`, `fuzz_header_parse`, `fuzz_hybrid_decapsulate`, `fuzz_ratchet_step`, `fuzz_full_decode_pipeline` — run in CI via `rust-security-suite.yml`
 
 ## Shared Fixtures (conftest.py)
 

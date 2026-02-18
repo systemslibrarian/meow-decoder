@@ -366,7 +366,7 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(small_test_data)
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
 
         # Decrypt
         cipher_dec = StreamingCipher(valid_key, nonce=valid_nonce)
@@ -374,7 +374,7 @@ class TestCatStreamingCipherDecrypt:
         decrypted_stream = io.BytesIO()
 
         total_written = cipher_dec.decrypt_stream(
-            encrypted_stream, decrypted_stream, enable_decompression=True
+            encrypted_stream, decrypted_stream, enable_decompression=True, expected_mac=mac_tag
         )
 
         assert total_written == len(small_test_data)
@@ -387,7 +387,7 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(small_test_data)
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
 
         # Decrypt without decompression
         cipher_dec = StreamingCipher(valid_key, nonce=valid_nonce)
@@ -395,7 +395,7 @@ class TestCatStreamingCipherDecrypt:
         decrypted_stream = io.BytesIO()
 
         total_written = cipher_dec.decrypt_stream(
-            encrypted_stream, decrypted_stream, enable_decompression=False
+            encrypted_stream, decrypted_stream, enable_decompression=False, expected_mac=mac_tag
         )
 
         assert decrypted_stream.getvalue() == small_test_data
@@ -409,7 +409,7 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(large_test_data)
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
 
         # Decrypt
         cipher_dec = StreamingCipher(valid_key, nonce=nonce, chunk_size=1024)
@@ -420,6 +420,7 @@ class TestCatStreamingCipherDecrypt:
             decrypted_stream=decrypted_stream,
             input_stream=encrypted_stream,
             enable_decompression=True,
+            expected_mac=mac_tag,
         )
 
         assert decrypted_stream.getvalue() == large_test_data
@@ -431,19 +432,19 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(b"")
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=True)
 
         # Decrypt
         cipher_dec = StreamingCipher(valid_key, nonce=valid_nonce)
         encrypted_stream.seek(0)
         decrypted_stream = io.BytesIO()
 
-        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=True)
+        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=True, expected_mac=mac_tag)
 
         assert decrypted_stream.getvalue() == b""
 
     def test_cat_decrypt_wrong_key_fails(self, valid_key, valid_nonce, small_test_data):
-        """Test that decryption with wrong key produces wrong data."""
+        """Test that decryption with wrong key fails MAC verification."""
         wrong_key = secrets.token_bytes(32)
 
         # Encrypt with valid key
@@ -451,20 +452,22 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(small_test_data)
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
 
-        # Decrypt with wrong key
+        # Decrypt with wrong key — MAC verification must fail (no plaintext released)
         cipher_dec = StreamingCipher(wrong_key, nonce=valid_nonce)
         encrypted_stream.seek(0)
         decrypted_stream = io.BytesIO()
 
-        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=False)
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream,
+                                      enable_decompression=False, expected_mac=mac_tag)
 
-        # Should produce garbage, not original data
-        assert decrypted_stream.getvalue() != small_test_data
+        # No plaintext should have been written
+        assert decrypted_stream.getvalue() == b""
 
     def test_cat_decrypt_wrong_nonce_fails(self, valid_key, valid_nonce, small_test_data):
-        """Test that decryption with wrong nonce produces wrong data."""
+        """Test that decryption with wrong nonce fails MAC verification."""
         wrong_nonce = secrets.token_bytes(16)
 
         # Encrypt
@@ -472,17 +475,19 @@ class TestCatStreamingCipherDecrypt:
         input_stream = io.BytesIO(small_test_data)
         encrypted_stream = io.BytesIO()
 
-        cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(input_stream, encrypted_stream, enable_compression=False)
 
-        # Decrypt with wrong nonce
+        # Decrypt with wrong nonce — MAC verification must fail (nonce is bound into MAC)
         cipher_dec = StreamingCipher(valid_key, nonce=wrong_nonce)
         encrypted_stream.seek(0)
         decrypted_stream = io.BytesIO()
 
-        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=False)
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream,
+                                      enable_decompression=False, expected_mac=mac_tag)
 
-        # Should produce garbage
-        assert decrypted_stream.getvalue() != small_test_data
+        # No plaintext released
+        assert decrypted_stream.getvalue() == b""
 
     def test_cat_decrypt_binary_data_roundtrip(self, valid_key, valid_nonce):
         """Test roundtrip of binary data with all byte values."""
@@ -491,7 +496,7 @@ class TestCatStreamingCipherDecrypt:
         # Encrypt
         cipher_enc = StreamingCipher(valid_key, nonce=valid_nonce)
         encrypted_stream = io.BytesIO()
-        cipher_enc.encrypt_stream(
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(
             io.BytesIO(binary_data), encrypted_stream, enable_compression=False
         )
 
@@ -499,7 +504,7 @@ class TestCatStreamingCipherDecrypt:
         cipher_dec = StreamingCipher(valid_key, nonce=valid_nonce)
         encrypted_stream.seek(0)
         decrypted_stream = io.BytesIO()
-        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=False)
+        cipher_dec.decrypt_stream(encrypted_stream, decrypted_stream, enable_decompression=False, expected_mac=mac_tag)
 
         assert decrypted_stream.getvalue() == binary_data
 
@@ -762,10 +767,10 @@ class TestCatStreamDecryptFile:
 
         try:
             # Encrypt
-            nonce, _, _, _, _ = stream_encrypt_file(temp_test_file, enc_path, password, salt)
+            nonce, _, _, _, mac_tag = stream_encrypt_file(temp_test_file, enc_path, password, salt)
 
             # Decrypt
-            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce)
+            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce, mac_tag)
 
             # Verify
             with open(dec_path, "rb") as f:
@@ -787,12 +792,12 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
 
         try:
-            nonce, _, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, mac_tag = stream_encrypt_file(
                 temp_test_file, enc_path, password, salt, low_memory=True
             )
 
             written = stream_decrypt_file(
-                enc_path, dec_path, password, salt, nonce, low_memory=True
+                enc_path, dec_path, password, salt, nonce, mac_tag, low_memory=True
             )
 
             with open(dec_path, "rb") as f:
@@ -802,7 +807,7 @@ class TestCatStreamDecryptFile:
             os.unlink(dec_path)
 
     def test_cat_decrypt_file_wrong_password(self, temp_test_file):
-        """Test decryption with wrong password."""
+        """Test decryption with wrong password fails MAC verification."""
         correct_password = "correct_password123"
         wrong_password = "wrong_password_456"
         salt = secrets.token_bytes(16)
@@ -813,22 +818,13 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
 
         try:
-            nonce, _, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, mac_tag = stream_encrypt_file(
                 temp_test_file, enc_path, correct_password, salt
             )
 
-            # Decrypt with wrong password - may succeed but produce garbage,
-            # or may fail during decompression
-            try:
-                stream_decrypt_file(enc_path, dec_path, wrong_password, salt, nonce)
-                # If it "succeeds", the data should be garbage
-                with open(dec_path, "rb") as f:
-                    decrypted = f.read()
-                with open(temp_test_file, "rb") as f:
-                    original = f.read()
-                assert decrypted != original
-            except Exception:
-                pass  # Expected - decompression likely fails
+            # Decrypt with wrong password — MAC verification must fail
+            with pytest.raises(RuntimeError, match="MAC verification failed"):
+                stream_decrypt_file(enc_path, dec_path, wrong_password, salt, nonce, mac_tag)
         finally:
             if os.path.exists(enc_path):
                 os.unlink(enc_path)
@@ -836,7 +832,7 @@ class TestCatStreamDecryptFile:
                 os.unlink(dec_path)
 
     def test_cat_decrypt_file_wrong_nonce(self, temp_test_file):
-        """Test decryption with wrong nonce."""
+        """Test decryption with wrong nonce fails MAC verification."""
         password = "nonce_test_password123"
         salt = secrets.token_bytes(16)
 
@@ -846,20 +842,13 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
 
         try:
-            nonce, _, _, _, _ = stream_encrypt_file(temp_test_file, enc_path, password, salt)
+            nonce, _, _, _, mac_tag = stream_encrypt_file(temp_test_file, enc_path, password, salt)
 
             wrong_nonce = secrets.token_bytes(16)
 
-            # Decryption with wrong nonce should produce garbage or fail
-            try:
-                stream_decrypt_file(enc_path, dec_path, password, salt, wrong_nonce)
-                with open(dec_path, "rb") as f:
-                    decrypted = f.read()
-                with open(temp_test_file, "rb") as f:
-                    original = f.read()
-                assert decrypted != original
-            except Exception:
-                pass  # Expected
+            # Decryption with wrong nonce — MAC verification must fail
+            with pytest.raises(RuntimeError, match="MAC verification failed"):
+                stream_decrypt_file(enc_path, dec_path, password, salt, wrong_nonce, mac_tag)
         finally:
             if os.path.exists(enc_path):
                 os.unlink(enc_path)
@@ -871,9 +860,10 @@ class TestCatStreamDecryptFile:
         password = "nonexistent_dec_test"
         salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(16)
+        mac_tag = secrets.token_bytes(32)
 
         with pytest.raises((FileNotFoundError, IOError, Exception)):
-            stream_decrypt_file("/nonexistent/file.enc", temp_output_file, password, salt, nonce)
+            stream_decrypt_file("/nonexistent/file.enc", temp_output_file, password, salt, nonce, mac_tag)
 
     def test_cat_decrypt_file_returns_correct_size(self, temp_test_file, small_test_data):
         """Test that decryption returns correct byte count."""
@@ -886,9 +876,9 @@ class TestCatStreamDecryptFile:
             dec_path = f.name
 
         try:
-            nonce, _, _, _, _ = stream_encrypt_file(temp_test_file, enc_path, password, salt)
+            nonce, _, _, _, mac_tag = stream_encrypt_file(temp_test_file, enc_path, password, salt)
 
-            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce)
+            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce, mac_tag)
 
             assert written == len(small_test_data)
         finally:
@@ -1164,7 +1154,7 @@ class TestCatIntegration:
 
         try:
             # Encrypt
-            nonce, orig_size, comp_size, sha256, _ = stream_encrypt_file(
+            nonce, orig_size, comp_size, sha256, mac_tag = stream_encrypt_file(
                 orig_path, enc_path, password, salt
             )
 
@@ -1173,7 +1163,7 @@ class TestCatIntegration:
             assert sha256 == hashlib.sha256(test_data).digest()
 
             # Decrypt
-            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce)
+            written = stream_decrypt_file(enc_path, dec_path, password, salt, nonce, mac_tag)
 
             # Verify decryption
             with open(dec_path, "rb") as f:
@@ -1201,12 +1191,12 @@ class TestCatIntegration:
 
         try:
             # Encrypt in low memory mode
-            nonce, _, _, _, _ = stream_encrypt_file(
+            nonce, _, _, _, mac_tag = stream_encrypt_file(
                 orig_path, enc_path, password, salt, low_memory=True
             )
 
             # Decrypt in low memory mode
-            stream_decrypt_file(enc_path, dec_path, password, salt, nonce, low_memory=True)
+            stream_decrypt_file(enc_path, dec_path, password, salt, nonce, mac_tag, low_memory=True)
 
             # Verify
             with open(dec_path, "rb") as f:
@@ -1269,7 +1259,7 @@ class TestCatParameterized:
         # Encrypt
         cipher_enc = StreamingCipher(valid_key, nonce=nonce)
         enc_output = io.BytesIO()
-        cipher_enc.encrypt_stream(
+        _, _, _, mac_tag = cipher_enc.encrypt_stream(
             io.BytesIO(small_test_data), enc_output, enable_compression=compression
         )
 
@@ -1277,7 +1267,7 @@ class TestCatParameterized:
         cipher_dec = StreamingCipher(valid_key, nonce=nonce)
         enc_output.seek(0)
         dec_output = io.BytesIO()
-        cipher_dec.decrypt_stream(enc_output, dec_output, enable_decompression=compression)
+        cipher_dec.decrypt_stream(enc_output, dec_output, enable_decompression=compression, expected_mac=mac_tag)
 
         assert dec_output.getvalue() == small_test_data
 
@@ -1439,12 +1429,12 @@ class TestStreamingCryptoExtras:
         plaintext = b"no compression test data"
         enc = StreamingCipher(key, nonce)
         enc_out = io.BytesIO()
-        enc.encrypt_stream(io.BytesIO(plaintext), enc_out, enable_compression=False)
+        _, _, _, mac_tag = enc.encrypt_stream(io.BytesIO(plaintext), enc_out, enable_compression=False)
 
         enc_out.seek(0)
         dec = StreamingCipher(key, nonce)
         dec_out = io.BytesIO()
-        dec.decrypt_stream(enc_out, dec_out, enable_decompression=False)
+        dec.decrypt_stream(enc_out, dec_out, enable_decompression=False, expected_mac=mac_tag)
         dec_out.seek(0)
         assert dec_out.read() == plaintext
 
@@ -1455,7 +1445,7 @@ class TestStreamingCryptoExtras:
         key = os.urandom(32)
         cipher = StreamingCipher(key)
         with pytest.raises((ValueError, TypeError)):
-            cipher.decrypt_stream()
+            cipher.decrypt_stream(expected_mac=b"\x00" * 32)
 
     def test_streaming_cipher_none_nonce_generates(self):
         """None nonce auto-generates a 16-byte nonce."""
@@ -1522,12 +1512,12 @@ class TestStreamingCryptoBoost:
         cipher = StreamingCipher(key, nonce)
         input_stream = io.BytesIO(plaintext)
         encrypted_stream = io.BytesIO()
-        cipher.encrypt_stream(input_stream, encrypted_stream)
+        _, _, _, mac_tag = cipher.encrypt_stream(input_stream, encrypted_stream)
 
         cipher2 = StreamingCipher(key, nonce)
         encrypted_stream.seek(0)
         decrypted_stream = io.BytesIO()
-        cipher2.decrypt_stream(encrypted_stream, decrypted_stream)
+        cipher2.decrypt_stream(encrypted_stream, decrypted_stream, expected_mac=mac_tag)
 
         decrypted_stream.seek(0)
         assert decrypted_stream.read() == plaintext
@@ -1543,12 +1533,12 @@ class TestStreamingCryptoBoost:
         cipher = StreamingCipher(key, nonce)
         in_s = io.BytesIO(plaintext)
         enc_s = io.BytesIO()
-        cipher.encrypt_stream(in_s, enc_s)
+        _, _, _, mac_tag = cipher.encrypt_stream(in_s, enc_s)
 
         cipher2 = StreamingCipher(key, nonce)
         enc_s.seek(0)
         dec_s = io.BytesIO()
-        cipher2.decrypt_stream(input_stream=enc_s, decrypted_stream=dec_s)
+        cipher2.decrypt_stream(input_stream=enc_s, decrypted_stream=dec_s, expected_mac=mac_tag)
         dec_s.seek(0)
         assert dec_s.read() == plaintext
 
@@ -1567,6 +1557,130 @@ class TestStreamingCryptoBoost:
 # =====================================================
 # entropy_boost.py coverage
 # =====================================================
+
+
+# =====================================================
+# Signal-Grade Streaming Auth Tests (Step 5)
+# =====================================================
+
+
+class TestStreamingFailClosed:
+    """
+    Signal-grade fail-closed tests for streaming crypto.
+
+    These tests verify that NO plaintext is released under any
+    failure condition. All must pass for production deployment.
+    """
+
+    def test_streaming_rejects_missing_mac(self):
+        """Decrypt with expected_mac=None MUST raise ValueError immediately."""
+        key = secrets.token_bytes(32)
+        cipher = StreamingCipher(key)
+        enc_out = io.BytesIO()
+        cipher.encrypt_stream(io.BytesIO(b"secret data"), enc_out)
+
+        enc_out.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=cipher.nonce)
+        dec_out = io.BytesIO()
+
+        with pytest.raises(ValueError, match="expected_mac is required"):
+            dec_cipher.decrypt_stream(enc_out, dec_out)
+
+        # No plaintext released
+        assert dec_out.getvalue() == b""
+
+    def test_streaming_rejects_invalid_mac(self):
+        """Decrypt with wrong MAC MUST raise RuntimeError, no plaintext."""
+        key = secrets.token_bytes(32)
+        plaintext = b"sensitive data must not leak"
+
+        enc_cipher = StreamingCipher(key)
+        enc_out = io.BytesIO()
+        enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_out)
+
+        wrong_mac = secrets.token_bytes(32)
+        enc_out.seek(0)
+        dec_cipher = StreamingCipher(key, nonce=enc_cipher.nonce)
+        dec_out = io.BytesIO()
+
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(enc_out, dec_out, expected_mac=wrong_mac)
+
+        # No plaintext released
+        assert dec_out.getvalue() == b""
+
+    def test_streaming_no_partial_output_on_failure(self):
+        """On authentication failure, output stream must contain zero bytes."""
+        key = secrets.token_bytes(32)
+        large_plaintext = b"X" * 100_000  # Large enough that partial output would be detectable
+
+        enc_cipher = StreamingCipher(key)
+        enc_out = io.BytesIO()
+        enc_cipher.encrypt_stream(io.BytesIO(large_plaintext), enc_out, enable_compression=False)
+
+        # Tamper
+        ct = bytearray(enc_out.getvalue())
+        ct[len(ct) // 2] ^= 0xFF
+        tampered = io.BytesIO(bytes(ct))
+
+        dec_cipher = StreamingCipher(key, nonce=enc_cipher.nonce)
+        dec_out = io.BytesIO()
+        _, _, _, mac_tag = enc_cipher.encrypt_stream(io.BytesIO(large_plaintext), io.BytesIO())
+
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(tampered, dec_out, expected_mac=mac_tag,
+                                      enable_decompression=False)
+
+        # Absolutely no partial output
+        assert dec_out.getvalue() == b""
+
+    def test_streaming_truncation_attack(self):
+        """Truncated ciphertext MUST be rejected by MAC. No plaintext."""
+        key = secrets.token_bytes(32)
+        plaintext = b"This message will be truncated by attacker"
+
+        enc_cipher = StreamingCipher(key)
+        enc_out = io.BytesIO()
+        _, _, _, mac_tag = enc_cipher.encrypt_stream(
+            io.BytesIO(plaintext), enc_out, enable_compression=False
+        )
+
+        # Truncate ciphertext
+        ct = enc_out.getvalue()
+        truncated = io.BytesIO(ct[:len(ct) // 2])
+
+        dec_cipher = StreamingCipher(key, nonce=enc_cipher.nonce)
+        dec_out = io.BytesIO()
+
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(truncated, dec_out, expected_mac=mac_tag,
+                                      enable_decompression=False)
+
+        assert dec_out.getvalue() == b""
+
+    def test_streaming_extension_attack(self):
+        """Extended ciphertext MUST be rejected by MAC. No plaintext."""
+        key = secrets.token_bytes(32)
+        plaintext = b"This message will be extended by attacker"
+
+        enc_cipher = StreamingCipher(key)
+        enc_out = io.BytesIO()
+        _, _, _, mac_tag = enc_cipher.encrypt_stream(
+            io.BytesIO(plaintext), enc_out, enable_compression=False
+        )
+
+        # Extend ciphertext
+        ct = enc_out.getvalue()
+        extended = io.BytesIO(ct + b"\x00" * 64)
+
+        dec_cipher = StreamingCipher(key, nonce=enc_cipher.nonce)
+        dec_out = io.BytesIO()
+
+        with pytest.raises(RuntimeError, match="MAC verification failed"):
+            dec_cipher.decrypt_stream(extended, dec_out, expected_mac=mac_tag,
+                                      enable_decompression=False)
+
+        assert dec_out.getvalue() == b""
 
 
 if __name__ == "__main__":
@@ -1739,10 +1853,10 @@ class TestStreamingCryptoAuthentication:
         # MACs should differ due to nonce binding
         assert mac1 != mac2
 
-    def test_decrypt_without_mac_still_works(self):
-        """Decrypt without MAC should still work (backward compat, but warns)."""
+    def test_decrypt_without_mac_raises_valueerror(self):
+        """Decrypt without MAC must raise ValueError (fail-closed, Signal-grade)."""
         key = secrets.token_bytes(32)
-        plaintext = b"Unverified decryption test"
+        plaintext = b"Unauthenticated decryption must fail"
 
         # Encrypt
         enc_cipher = StreamingCipher(key)
@@ -1750,14 +1864,16 @@ class TestStreamingCryptoAuthentication:
         enc_output = io.BytesIO()
         enc_cipher.encrypt_stream(io.BytesIO(plaintext), enc_output)
 
-        # Decrypt WITHOUT MAC verification (insecure but backward-compatible)
+        # Decrypt WITHOUT MAC — MUST raise ValueError (no plaintext released)
         enc_output.seek(0)
         dec_cipher = StreamingCipher(key, nonce=nonce)
         dec_output = io.BytesIO()
-        bytes_written = dec_cipher.decrypt_stream(enc_output, dec_output)
 
-        assert bytes_written == len(plaintext)
-        assert dec_output.getvalue() == plaintext
+        with pytest.raises(ValueError, match="expected_mac is required"):
+            dec_cipher.decrypt_stream(enc_output, dec_output)
+
+        # No plaintext should have been written
+        assert dec_output.getvalue() == b""
 
     def test_large_data_authenticated(self):
         """MAC should work correctly for large data."""

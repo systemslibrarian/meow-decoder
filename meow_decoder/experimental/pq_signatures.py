@@ -18,7 +18,6 @@ Security Properties:
 
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
-import hashlib
 import secrets
 from dataclasses import dataclass
 from typing import Tuple, Optional, Union
@@ -365,8 +364,14 @@ def save_keypair(
         salt = secrets.token_bytes(16)
         nonce = secrets.token_bytes(12)
 
-        # Derive key from password
-        key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, 32)
+        # Derive key from password using Argon2id (Rust backend)
+        import os
+        _test_mode = os.environ.get("MEOW_TEST_MODE", "0") == "1"
+        _mem = 32768 if _test_mode else 524288
+        _iters = 1 if _test_mode else 20
+        key = backend.derive_key_argon2id(
+            password.encode(), salt, memory_kib=_mem, iterations=_iters, parallelism=1, output_len=32
+        )
 
         encrypted = backend.aes_gcm_encrypt(key, nonce, private_data, None)
 
@@ -414,11 +419,18 @@ def load_keypair(
         nonce = private_data[28:40]
         encrypted = private_data[40:]
 
-        key = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000, 32)
+        key = None  # will be derived below
 
         from .crypto_backend import get_default_backend as _get_backend
 
         backend = _get_backend()
+        import os
+        _test_mode = os.environ.get("MEOW_TEST_MODE", "0") == "1"
+        _mem = 32768 if _test_mode else 524288
+        _iters = 1 if _test_mode else 20
+        key = backend.derive_key_argon2id(
+            password.encode(), salt, memory_kib=_mem, iterations=_iters, parallelism=1, output_len=32
+        )
         private_data = backend.aes_gcm_decrypt(key, nonce, encrypted, None)
 
         algorithm = private_data[0]

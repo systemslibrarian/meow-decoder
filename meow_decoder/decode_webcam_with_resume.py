@@ -6,7 +6,7 @@ Integrated secure resume capability for interrupted decodes
 import argparse
 import re
 import time
-import hashlib
+import hashlib  # NON-SECRET CHECKSUM: post-decryption file integrity verification
 import sys
 from getpass import getpass
 from typing import NoReturn, Optional, Tuple
@@ -327,13 +327,13 @@ def main() -> NoReturn:
 Examples:
   # Basic webcam decoding (auto-resumes if session exists)
   meow-decode-webcam --output secret.pdf
-  
+
   # Disable resume capability
   meow-decode-webcam --no-resume --output file.pdf
-  
+
   # With keyfile
   meow-decode-webcam --output data.zip --keyfile my.key
-  
+
   # Aggressive mode for difficult QR codes
   meow-decode-webcam --aggressive --output file.pdf
 

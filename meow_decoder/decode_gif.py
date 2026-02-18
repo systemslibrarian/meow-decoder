@@ -1096,16 +1096,25 @@ Examples:
             )
             sys.exit(1)
         try:
-            from .pq_hybrid import HybridKeyPair, LIBOQS_AVAILABLE
+            from .pq_hybrid import (
+                HybridKeyPair, LIBOQS_AVAILABLE, PRODUCTION_MODE,
+                _RUST_PQ_AVAILABLE, oqs as _pq_oqs,
+            )
 
             if not LIBOQS_AVAILABLE:
-                print(
-                    "Error: liboqs is not installed. Install with: pip install liboqs-python",
-                    file=sys.stderr,
-                )
+                if PRODUCTION_MODE:
+                    print(
+                        "Error: PQ hybrid requested but Rust PQ backend not available. "
+                        "Rebuild with: cd rust_crypto && maturin develop --release --features pq",
+                        file=sys.stderr,
+                    )
+                else:
+                    print(
+                        "Error: PQ backend not available. Install liboqs-python or "
+                        "rebuild Rust with --features pq",
+                        file=sys.stderr,
+                    )
                 sys.exit(1)
-
-            import oqs
 
             with open(pq_pub_path, "rb") as f:
                 pq_pub_bytes = f.read()
@@ -1129,7 +1138,20 @@ Examples:
 
             # Reconstruct HybridKeyPair with loaded keys
             receiver_pq_keypair = HybridKeyPair(use_pq=False, paranoid=paranoid)
-            receiver_pq_keypair.pq_kem = oqs.KeyEncapsulation(pq_algorithm, pq_secret_bytes)
+
+            if _RUST_PQ_AVAILABLE:
+                # PQ via Rust backend — no oqs needed
+                receiver_pq_keypair._pq_secret_bytes = pq_secret_bytes
+            elif _pq_oqs is not None:
+                # Non-production fallback to Python oqs
+                receiver_pq_keypair.pq_kem = _pq_oqs.KeyEncapsulation(
+                    pq_algorithm, pq_secret_bytes
+                )
+            else:
+                raise RuntimeError(
+                    "PQ hybrid decryption requires either Rust PQ backend or liboqs. "
+                    "Neither is available."
+                )
             receiver_pq_keypair.pq_public = pq_pub_bytes
 
             # Use the already-loaded X25519 private key if available

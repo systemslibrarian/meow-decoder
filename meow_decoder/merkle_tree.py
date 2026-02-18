@@ -10,9 +10,20 @@ Security Model:
 - Prevents wasting time on corrupted data
 """
 
-import hashlib
+import hashlib  # NON-SECRET CHECKSUM: Merkle tree integrity (uses Rust backend when available)
 from typing import List, Tuple, Optional
 from dataclasses import dataclass
+
+# Prefer Rust backend for SHA-256 when available
+try:
+    from .crypto_backend import get_default_backend as _get_backend
+    _backend = _get_backend()
+
+    def _sha256(data: bytes) -> bytes:
+        return _backend.sha256(data)
+except Exception:
+    def _sha256(data: bytes) -> bytes:
+        return hashlib.sha256(data).digest()
 
 
 @dataclass
@@ -72,12 +83,12 @@ class MerkleTree:
     @staticmethod
     def _hash(data: bytes) -> bytes:
         """Compute SHA-256 hash."""
-        return hashlib.sha256(data).digest()
+        return _sha256(data)
 
     @staticmethod
     def _hash_pair(left: bytes, right: bytes) -> bytes:
         """Hash a pair of nodes."""
-        return hashlib.sha256(left + right).digest()
+        return _sha256(left + right)
 
     def _build_tree(self, leaf_hashes: List[bytes]) -> List[List[bytes]]:
         """
@@ -181,7 +192,7 @@ class MerkleTree:
             - Constant-time comparison
         """
         # Compute chunk hash
-        computed_hash = hashlib.sha256(chunk_data).digest()
+        computed_hash = _sha256(chunk_data)
 
         # Check chunk hash matches proof
         if computed_hash != proof.chunk_hash:
@@ -241,7 +252,7 @@ def verify_chunk_with_proof(
     Note:
         Use this during decode when you don't have full tree.
     """
-    chunk_hash = hashlib.sha256(chunk_data).digest()
+    chunk_hash = _sha256(chunk_data)
 
     proof = MerkleProof(
         chunk_index=chunk_index,

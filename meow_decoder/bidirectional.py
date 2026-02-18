@@ -22,8 +22,6 @@ Use Cases:
 
 import secrets
 import struct
-import hashlib
-import hmac
 import time
 from dataclasses import dataclass, field
 from typing import Optional, List, Set, Dict, Any
@@ -243,7 +241,7 @@ class BiDirectionalSender:
         payload = self.session.pack()
 
         # Calculate HMAC to authenticate the session start
-        mac = hmac.new(self.auth_key, msg_type + payload, hashlib.sha256).digest()
+        mac = _get_backend().hmac_sha256(self.auth_key, msg_type + payload)
 
         return msg_type + mac + payload
 
@@ -265,7 +263,7 @@ class BiDirectionalSender:
         payload = ack_data[33:]
 
         # Verify HMAC
-        expected_mac = hmac.new(self.auth_key, bytes([msg_type]) + payload, hashlib.sha256).digest()
+        expected_mac = _get_backend().hmac_sha256(self.auth_key, bytes([msg_type]) + payload)
 
         if not secrets.compare_digest(mac, expected_mac):
             # Invalid HMAC - reject silently
@@ -431,9 +429,9 @@ class BiDirectionalReceiver:
             derived_key = hkdf_key
 
             # Verify HMAC
-            expected_mac = hmac.new(
-                derived_key, bytes([MessageType.SESSION_START]) + payload, hashlib.sha256
-            ).digest()
+            expected_mac = _get_backend().hmac_sha256(
+                derived_key, bytes([MessageType.SESSION_START]) + payload
+            )
 
             if not secrets.compare_digest(received_mac, expected_mac):
                 return False
@@ -482,7 +480,7 @@ class BiDirectionalReceiver:
 
         # Format: Type(1) + HMAC(32) + Payload
         header = bytes([msg_type])
-        mac = hmac.new(self.auth_key, header + payload, hashlib.sha256).digest()
+        mac = _get_backend().hmac_sha256(self.auth_key, header + payload)
 
         return header + mac + payload
 
@@ -701,7 +699,7 @@ if __name__ == "__main__":
 
     password = "test_password_secret"
     # Simulate a transfer
-    file_hash = hashlib.sha256(b"test data").digest()
+    file_hash = _get_backend().sha256(b"test data")
 
     print(f"🔐 Using password: {password}")
 
@@ -768,7 +766,7 @@ def create_session_hmac(session_key: bytes, message: bytes) -> bytes:
         - 8-byte tag sufficient for session (birthday bound ~2^32)
         - Prevents message forgery from external attackers
     """
-    tag = hmac.new(session_key, message, hashlib.sha256).digest()
+    tag = _get_backend().hmac_sha256(session_key, message)
     return tag[:8]  # Truncate to 8 bytes (sufficient for session replay prevention)
 
 
@@ -790,8 +788,8 @@ def verify_session_hmac(session_key: bytes, message: bytes, tag: bytes) -> bool:
         - Prevents message substitution and forgery
     """
     expected_tag = create_session_hmac(session_key, message)
-    # Use hmac.compare_digest for constant-time comparison
-    return hmac.compare_digest(expected_tag, tag)
+    # Use constant-time comparison via Rust backend
+    return _get_backend().constant_time_compare(expected_tag, tag)
 
 
 class BidirectionalReceiver:

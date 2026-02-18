@@ -11,8 +11,6 @@ from __future__ import annotations
 import sys
 import argparse
 import struct
-import hashlib
-import hmac
 from pathlib import Path
 from typing import Tuple, Optional
 from getpass import getpass
@@ -74,8 +72,8 @@ def schrodinger_decode_data(
 
     # Compute expected HMACs for both realities
     manifest_core = manifest.pack_core_for_auth()
-    expected_hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
-    expected_hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
+    expected_hmac_a = _get_backend().hmac_sha256(hmac_key_a, manifest_core)
+    expected_hmac_b = _get_backend().hmac_sha256(hmac_key_b, manifest_core)
 
     # SECURITY (TIMING-02): Check BOTH HMACs to avoid early-exit timing leak.
     # Store results but don't branch until after both comparisons.

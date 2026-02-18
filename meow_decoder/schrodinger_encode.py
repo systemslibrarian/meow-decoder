@@ -31,7 +31,6 @@ Security Properties:
 
 import sys
 import secrets
-import hashlib
 import struct
 import argparse
 from pathlib import Path
@@ -229,7 +228,6 @@ def schrodinger_encode_data(
 
     # Create encrypted metadata payloads for each reality
     from .crypto_backend import get_default_backend as _get_backend
-    import hmac
 
     # --- Task B: Strengthened Password Hardening ---
     # Derive master metadata keys using Argon2id (slow KDF)
@@ -299,8 +297,8 @@ def schrodinger_encode_data(
     )
     manifest_core = temp_manifest.pack_core_for_auth()
 
-    hmac_a = hmac.new(hmac_key_a, manifest_core, hashlib.sha256).digest()
-    hmac_b = hmac.new(hmac_key_b, manifest_core, hashlib.sha256).digest()
+    hmac_a = _backend.hmac_sha256(hmac_key_a, manifest_core)
+    hmac_b = _backend.hmac_sha256(hmac_key_b, manifest_core)
 
     # Create the final manifest
     manifest = SchrodingerManifest(
@@ -393,7 +391,7 @@ def schrodinger_encode_file(
     droplets = fountain.generate_droplets(num_droplets)
 
     # Pack with MACs
-    master_key = hashlib.sha256(real_password.encode()).digest()
+    master_key = _get_backend().sha256(real_password.encode())
 
     manifest_bytes = manifest.pack()
     manifest_with_mac = pack_frame_with_mac(manifest_bytes, master_key, 0, manifest.salt_a)

@@ -31,7 +31,6 @@ WARNING:
 """
 
 import secrets
-import hashlib
 import time
 import os
 import gc
@@ -39,6 +38,7 @@ import shutil
 from pathlib import Path
 from typing import Optional, Callable, Tuple, Union, List
 from .config import DuressConfig, DuressMode
+from .crypto_backend import get_default_backend as _get_backend
 
 # Maximum size for user-provided decoy files (100 MB)
 MAX_USER_DECOY_SIZE = 100 * 1024 * 1024
@@ -99,7 +99,7 @@ class DuressHandler:
     def _hash_password(self, password: str, salt: bytes) -> bytes:
         """Hash password for comparison (not for key derivation)."""
         # Use SHA-256 for fast comparison (Argon2 is for actual key derivation)
-        return hashlib.sha256(b"duress_check_v1" + salt + password.encode("utf-8")).digest()
+        return _get_backend().sha256(b"duress_check_v1" + salt + password.encode("utf-8"))
 
     def check_password(
         self, entered_password: str, salt: bytes, sensitive_data: Optional[List[bytearray]] = None
@@ -154,7 +154,7 @@ class DuressHandler:
             self.config.trigger_callback()
         elif self.config.trigger_callback:
             # Dummy callback execution time (call empty lambda)
-            _ = lambda: None
+            def _(): return None
             _()
 
         # Execute resume file wipe equivalently
@@ -361,7 +361,7 @@ def generate_deterministic_decoy(size: int, salt: bytes) -> bytes:
     import random
 
     # Use salt to seed PRNG for determinism
-    seed = int.from_bytes(hashlib.sha256(salt).digest(), "big")
+    seed = int.from_bytes(_get_backend().sha256(salt), "big")
     # Create isolated RNG instance
     rng = random.Random(seed)
 

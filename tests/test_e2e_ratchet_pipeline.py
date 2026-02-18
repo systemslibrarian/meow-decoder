@@ -340,18 +340,17 @@ class TestE2ERatchetBeacons:
         _, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
 
         wrong_private_bytes, _ = meow_crypto_rs.x25519_generate_keypair()
-        )
 
-        password= "kem-wrong-key-e2e"
-        data= secrets.token_bytes(3000)
-        rekey= 1  # Every frame is a beacon — wrong key breaks all frames
+        password = "kem-wrong-key-e2e"
+        data = secrets.token_bytes(3000)
+        rekey = 1  # Every frame is a beacon — wrong key breaks all frames
 
-        meta= _full_ratchet_pipeline(
+        meta = _full_ratchet_pipeline(
             data,
             password,
-            redundancy = 2.0,
-            rekey_interval = rekey,
-            receiver_public_key = receiver_public_bytes,
+            redundancy=2.0,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
         )
 
         # With wrong key, ALL frames are beacon frames → ALL fail GCM auth.
@@ -360,8 +359,8 @@ class TestE2ERatchetBeacons:
                 meta,
                 meta["ratcheted_droplets"],
                 password,
-                rekey_interval = rekey,
-                receiver_private_key = wrong_private_bytes,
+                rekey_interval=rekey,
+                receiver_private_key=wrong_private_bytes,
             )
 
     def test_beacon_interval_mismatch_fails(self):

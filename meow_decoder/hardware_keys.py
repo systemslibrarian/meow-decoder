@@ -30,7 +30,6 @@ Usage:
 import os
 import sys
 import subprocess
-import hashlib
 import secrets
 from pathlib import Path
 from dataclasses import dataclass
@@ -341,7 +340,7 @@ class HardwareKeyManager:
             raise RuntimeError("YubiKey not available")
 
         # Create challenge from password
-        challenge = hashlib.sha256(password.encode("utf-8")).hexdigest()
+        challenge = _get_backend().sha256(password.encode("utf-8")).hex()
 
         # Send challenge to YubiKey
         success, output = self._run_command(
@@ -476,7 +475,7 @@ class MockHardwareKeyManager(HardwareKeyManager):
             raise RuntimeError("Mock TPM not available")
 
         # Deterministic mock TPM secret
-        tpm_secret = hashlib.sha256(b"meow-mock-tpm-secret").digest()
+        tpm_secret = _get_backend().sha256(b"meow-mock-tpm-secret")
         combined = password.encode("utf-8") + salt + tpm_secret
 
         hkdf_key = _get_backend().derive_key_hkdf(
@@ -494,7 +493,7 @@ class MockHardwareKeyManager(HardwareKeyManager):
 
         # Deterministic mock YubiKey response
         slot_bytes = str(slot).encode("utf-8")
-        yk_secret = hashlib.sha256(b"meow-mock-yubikey" + slot_bytes).digest()
+        yk_secret = _get_backend().sha256(b"meow-mock-yubikey" + slot_bytes)
         combined = password.encode("utf-8") + yk_secret
 
         return _get_backend().derive_key_hkdf(

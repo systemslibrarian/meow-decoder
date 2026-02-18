@@ -96,25 +96,29 @@ The Rust backend provides significant speedups over the pure Python implementati
 
 ## Testing
 
-The crate includes comprehensive test coverage with **128 tests** across three test suites:
+The crate includes comprehensive test coverage with **206 tests** across five test suites:
 
 ```bash
 # Run all tests
 cargo test -p meow_crypto_rs
 
 # Run individual test suites
-cargo test --test comprehensive_tests    # 76 tests - Core functionality
-cargo test --test additional_security_tests  # 29 tests - Security edge cases
-cargo test --test proptest_crypto        # 23 tests - Property-based fuzzing
+cargo test --test comprehensive_tests         # 80 tests - Core functionality
+cargo test --test additional_security_tests   # 29 tests - Security edge cases
+cargo test --test proptest_crypto             # 23 tests - Property-based fuzzing (original)
+cargo test --test property_tests              # 14 tests - Adversarial property tests
+cargo test --test ffi_fuzz                    # 19 tests - FFI boundary fuzz
 ```
 
 ### Test Categories
 
 | Suite | Tests | Coverage |
 |-------|-------|----------|
-| **comprehensive_tests** | 76 | Core crypto operations, integration flows |
+| **comprehensive_tests** | 80 | Core crypto operations, integration flows |
 | **additional_security_tests** | 29 | Zeroization, failure modes, edge cases |
 | **proptest_crypto** | 23 | Property-based testing with random inputs |
+| **property_tests** | 14 | Adversarial: nonce uniqueness, ratchet PCS, replay, hybrid combiner, AAD |
+| **ffi_fuzz** | 19 | FFI boundary: attacker-controlled inputs, round-trip, concurrent calls |
 
 ### Security Tests
 

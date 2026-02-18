@@ -1,0 +1,72 @@
+[package]
+name = "meow-crypto-fuzz"
+version = "0.0.1"
+publish = false
+edition = "2021"
+
+# Must not be part of the workspace to get its own dependency graph
+[workspace]
+members = ["."]
+
+[dependencies]
+# Fuzz host - libFuzzer instrumentation
+libfuzzer-sys = "0.4"
+
+# The crate under test (pure mode, no Python bindings)
+meow_crypto_rs = { path = "..", default-features = false }
+
+# PQ optional - compile fuzz targets with: cargo fuzz run --features pq <target>
+pqcrypto-mlkem = { version = "0.1.1", optional = true }
+pqcrypto-traits = { version = "0.3.5", optional = true }
+
+# Utilities inside fuzz harnesses
+sha2 = "0.10"
+hmac = "0.12"
+hkdf = "0.12"
+zeroize = { version = "1.7", features = ["derive"] }
+
+[features]
+default = []
+pq = ["pqcrypto-mlkem", "pqcrypto-traits", "meow_crypto_rs/pq"]
+
+# ── Fuzz targets ─────────────────────────────────────────────────────────────
+# Each binary corresponds to one fuzz_targets/*.rs file.
+
+[[bin]]
+name = "fuzz_decrypt_frame"
+path = "fuzz_targets/fuzz_decrypt_frame.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_header_parse"
+path = "fuzz_targets/fuzz_header_parse.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_hybrid_decapsulate"
+path = "fuzz_targets/fuzz_hybrid_decapsulate.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_ratchet_step"
+path = "fuzz_targets/fuzz_ratchet_step.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_full_decode_pipeline"
+path = "fuzz_targets/fuzz_full_decode_pipeline.rs"
+test = false
+doc = false
+
+# ── Release profile – matches panic=abort in the parent crate ────────────────
+[profile.release]
+panic = "abort" # Any panic = crash = fuzz corpus entry → hard failure
+opt-level = 3
+debug = false
+
+[profile.dev]
+panic = "abort" # Enforce in debug builds too for consistency
