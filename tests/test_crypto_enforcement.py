@@ -36,7 +36,7 @@ EXEMPT_FILES = {
 
 # Exempt directories (spec/reference code, not production)
 EXEMPT_DIRS = {
-    "spec_v12",      # Reference implementation, not production path
+    "spec_v12",  # Reference implementation, not production path
     "experimental",  # Experimental modules, not imported by production entrypoints
 }
 
@@ -509,15 +509,17 @@ class TestPhase2HashlibEnforcement:
         # are tracked for migration. Fail on NEW violations only.
         # Count known legacy files that still need migration
         known_legacy = {
-            "schrodinger_encode.py", "schrodinger_decode.py",
-            "bidirectional.py", "multi_secret.py", "quantum_mixer.py",
-            "timelock_duress.py", "duress_mode.py",
-            "hardware_keys.py", "hardware_integration.py",
+            "schrodinger_encode.py",
+            "schrodinger_decode.py",
+            "bidirectional.py",
+            "multi_secret.py",
+            "quantum_mixer.py",
+            "timelock_duress.py",
+            "duress_mode.py",
+            "hardware_keys.py",
+            "hardware_integration.py",
         }
-        new_violations = [
-            v for v in violations
-            if not any(legacy in v for legacy in known_legacy)
-        ]
+        new_violations = [v for v in violations if not any(legacy in v for legacy in known_legacy)]
 
         if new_violations:
             violation_list = "\n".join(f"  - {v}" for v in new_violations)
@@ -545,7 +547,7 @@ DANGEROUS_PATTERNS = [
 # Files where patterns are documented/tested (not production bypass)
 PATTERN_EXEMPT_FILES = {
     "test_crypto_enforcement.py",  # This file defines the patterns
-    "test_streaming_crypto.py",    # Tests the rejection of missing MAC
+    "test_streaming_crypto.py",  # Tests the rejection of missing MAC
     "test_production_boundary.py",  # Tests enforcement
 }
 

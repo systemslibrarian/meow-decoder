@@ -1,12 +1,17 @@
 #!/usr/bin/env python3
 """Quick standalone enforcement check - not a test file."""
+
 import ast
 import pathlib
 import sys
 
 EXEMPT_FILES = {
-    "constant_time.py", "__init__.py", "crypto_DEBUG.py",
-    "pq_crypto_real.py", "pq_signatures.py", "x25519_forward_secrecy.py",
+    "constant_time.py",
+    "__init__.py",
+    "crypto_DEBUG.py",
+    "pq_crypto_real.py",
+    "pq_signatures.py",
+    "x25519_forward_secrecy.py",
 }
 EXEMPT_DIRS = {"spec_v12"}
 FORBIDDEN_ROOTS = {"cryptography", "hmac", "hashlib"}
@@ -28,11 +33,15 @@ for py_file in (workspace / "meow_decoder").rglob("*.py"):
             for alias in node.names:
                 root = alias.name.split(".")[0]
                 if root in FORBIDDEN_ROOTS:
-                    violations.append(f"  {py_file.relative_to(workspace)}:{node.lineno} import {alias.name}")
+                    violations.append(
+                        f"  {py_file.relative_to(workspace)}:{node.lineno} import {alias.name}"
+                    )
         elif isinstance(node, ast.ImportFrom) and node.module:
             root = node.module.split(".")[0]
             if root in FORBIDDEN_ROOTS:
-                violations.append(f"  {py_file.relative_to(workspace)}:{node.lineno} from {node.module}")
+                violations.append(
+                    f"  {py_file.relative_to(workspace)}:{node.lineno} from {node.module}"
+                )
 
 if violations:
     print(f"FAIL: {len(violations)} forbidden imports found:")

@@ -110,7 +110,7 @@ def decode_clowder(
                 file_offset = file_info["offset"]
 
                 # Extract file data
-                file_data = combined_data[file_offset: file_offset + file_size]
+                file_data = combined_data[file_offset : file_offset + file_size]
 
                 # Preserve relative path structure
                 # Use relative path from original to maintain directory structure

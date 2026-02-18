@@ -17,11 +17,14 @@ from dataclasses import dataclass
 # Prefer Rust backend for SHA-256 when available
 try:
     from .crypto_backend import get_default_backend as _get_backend
+
     _backend = _get_backend()
 
     def _sha256(data: bytes) -> bytes:
         return _backend.sha256(data)
+
 except Exception:
+
     def _sha256(data: bytes) -> bytes:
         return hashlib.sha256(data).digest()
 

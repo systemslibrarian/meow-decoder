@@ -407,7 +407,7 @@ mod tests {
         let mut ghost = NonceGhost::default();
         ghost.allocated.insert(42);
         ghost.max_allocated = 42;
-        
+
         let cloned = ghost.clone();
         assert!(cloned.allocated.contains(&42));
         assert_eq!(cloned.max_allocated, 42);
@@ -423,7 +423,7 @@ mod tests {
             VerificationState::External,
             VerificationState::Pending,
         ];
-        
+
         for state in states {
             let debug_str = format!("{:?}", state);
             assert!(!debug_str.is_empty());
@@ -438,7 +438,7 @@ mod tests {
             method: "Unit test",
             status: VerificationState::Tested,
         };
-        
+
         assert_eq!(status.id, "TEST-001");
         assert_eq!(status.name, "Test Property");
         assert_eq!(status.method, "Unit test");

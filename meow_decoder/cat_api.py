@@ -43,9 +43,7 @@ def _get_backend() -> CryptoBackend:
 # ---------------------------------------------------------------------------
 
 
-def purr_encrypt(
-    key: bytes, nonce: bytes, plaintext: bytes, aad: Optional[bytes] = None
-) -> bytes:
+def purr_encrypt(key: bytes, nonce: bytes, plaintext: bytes, aad: Optional[bytes] = None) -> bytes:
     """Encrypt with a contented purr.  (AES-256-GCM)"""
     return _get_backend().aes_gcm_encrypt(key, nonce, plaintext, aad)
 
@@ -62,9 +60,7 @@ def nap_and_decrypt(
 # ---------------------------------------------------------------------------
 
 
-def knead_kdf(
-    ikm: bytes, salt: bytes, info: bytes, output_len: int = 32
-) -> bytes:
+def knead_kdf(ikm: bytes, salt: bytes, info: bytes, output_len: int = 32) -> bytes:
     """Knead the dough — derive a key.  (HKDF-SHA256)"""
     return _get_backend().derive_key_hkdf(ikm, salt, info, output_len)
 

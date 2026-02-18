@@ -40,7 +40,7 @@ class EphemeralKeyPair:
     """
 
     private_key_bytes: bytes  # 32-byte raw private key
-    public_key_bytes: bytes   # 32-byte raw public key
+    public_key_bytes: bytes  # 32-byte raw public key
 
     @classmethod
     def generate(cls) -> "EphemeralKeyPair":
@@ -232,9 +232,7 @@ def decrypt_with_forward_secrecy(
             raise ValueError("Forward secrecy mode requires receiver private key")
 
         # Derive shared secret via Rust backend
-        shared_secret = _get_backend().x25519_exchange(
-            receiver_private_key, ephemeral_public_key
-        )
+        shared_secret = _get_backend().x25519_exchange(receiver_private_key, ephemeral_public_key)
 
     # Derive hybrid key
     key = derive_hybrid_key(password, salt, shared_secret)

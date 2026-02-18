@@ -50,7 +50,7 @@ os.environ["MEOW_TEST_MODE"] = "1"
 # Frozen deterministic inputs — NEVER change these
 # =================================================================
 
-ROOT_KEY = bytes(range(32))       # 0x00..0x1f
+ROOT_KEY = bytes(range(32))  # 0x00..0x1f
 SALT = bytes.fromhex("0102030405060708090a0b0c0d0e0f10")
 PASSWORD = "testpassword123"
 FRAME_DATA = b"FOUNTAIN:5:600:2847:AAAA"
@@ -96,8 +96,7 @@ class TestGoldenRatchetChain:
         for i in range(5):
             mk2, state2 = ratchet_step(state2)
             assert mk2.hex() == msg_keys_run1[i], f"msg_key[{i}] changed!"
-            assert bytes(state2.chain_key).hex() == chain_keys_run1[i], \
-                f"chain_key[{i}] changed!"
+            assert bytes(state2.chain_key).hex() == chain_keys_run1[i], f"chain_key[{i}] changed!"
 
     def test_message_keys_all_unique(self):
         """All 5 message keys must be distinct."""
@@ -333,6 +332,7 @@ class TestGoldenCrossLanguage:
     def test_sha256_cross_language(self):
         """Rust SHA256 matches Python hashlib.sha256."""
         import hashlib
+
         backend = get_default_backend()
 
         test_inputs = [b"", b"abc", b"x" * 1000, PLAINTEXT, FRAME_DATA]
@@ -345,6 +345,7 @@ class TestGoldenCrossLanguage:
         """Rust HMAC-SHA256 matches Python hmac module."""
         import hashlib
         import hmac as hmac_mod
+
         backend = get_default_backend()
 
         key = ROOT_KEY
@@ -361,8 +362,12 @@ class TestGoldenCrossLanguage:
         # derive_key uses Argon2id internally with test mode params
         py_key = derive_key(PASSWORD, SALT)
         rs_key = backend.derive_key_argon2id(
-            PASSWORD.encode(), SALT,
-            memory_kib=32768, iterations=1, parallelism=1, output_len=32,
+            PASSWORD.encode(),
+            SALT,
+            memory_kib=32768,
+            iterations=1,
+            parallelism=1,
+            output_len=32,
         )
         assert py_key == rs_key, "Argon2id cross-language mismatch"
 

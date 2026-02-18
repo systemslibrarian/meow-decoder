@@ -118,9 +118,8 @@ class TestProductionBoundary:
 
         scanned = set(_get_production_files())
         unscanned = all_py - scanned
-        assert not unscanned, (
-            f"Files in production dirs not covered by scan:\n"
-            + "\n".join(f"  - {f.relative_to(WORKSPACE)}" for f in sorted(unscanned))
+        assert not unscanned, f"Files in production dirs not covered by scan:\n" + "\n".join(
+            f"  - {f.relative_to(WORKSPACE)}" for f in sorted(unscanned)
         )
 
     def test_entrypoints_exist(self):

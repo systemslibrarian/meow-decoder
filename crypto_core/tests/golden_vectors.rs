@@ -37,8 +37,8 @@
 mod golden {
     use crypto_core::pure_crypto::{
         aes_ctr_crypt, aes_gcm_decrypt, aes_gcm_encrypt, argon2_derive, constant_time_eq,
-        hkdf_derive, hmac_sha256, hmac_sha256_verify, sha256, Argon2Params, Nonce, Salt,
-        SecretKey, X25519KeyPair,
+        hkdf_derive, hmac_sha256, hmac_sha256_verify, sha256, Argon2Params, Nonce, Salt, SecretKey,
+        X25519KeyPair,
     };
 
     // ========================================================================
@@ -47,15 +47,15 @@ mod golden {
 
     /// 32-byte key: 0x00..0x1f
     const KEY_32: [u8; 32] = [
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-        0x0e, 0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b,
-        0x1c, 0x1d, 0x1e, 0x1f,
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1a, 0x1b, 0x1c, 0x1d,
+        0x1e, 0x1f,
     ];
 
     /// 16-byte salt: 0x01..0x10 (matches Python SALT)
     const SALT_16: [u8; 16] = [
-        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
-        0x0f, 0x10,
+        0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f,
+        0x10,
     ];
 
     /// 12-byte nonce: 0x00..0x0b
@@ -74,8 +74,8 @@ mod golden {
     /// Python IKM_32 = bytes(range(32)) = 0x00..0x1f
     /// These match KEY_32 and SALT_0_15 below.
     const SALT_0_15: [u8; 16] = [
-        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d,
-        0x0e, 0x0f,
+        0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e,
+        0x0f,
     ];
 
     const HKDF_INFO: &[u8] = b"meow_test_domain_v1";
@@ -102,7 +102,10 @@ mod golden {
     fn test_hkdf_sha256_different_info_different_output() {
         let out1 = hkdf_derive(&KEY_32, Some(&SALT_0_15), b"info_a", 32).unwrap();
         let out2 = hkdf_derive(&KEY_32, Some(&SALT_0_15), b"info_b", 32).unwrap();
-        assert_ne!(out1, out2, "Different HKDF info must produce different output");
+        assert_ne!(
+            out1, out2,
+            "Different HKDF info must produce different output"
+        );
     }
 
     // ========================================================================
@@ -111,8 +114,7 @@ mod golden {
 
     const HMAC_MSG: &[u8] = b"manifest_data_to_authenticate";
 
-    const EXPECTED_HMAC: &str =
-        "155c9c8e293e5793461d7068b815c2e53ac7dcbc3c0ff9df357d9543771d218b";
+    const EXPECTED_HMAC: &str = "155c9c8e293e5793461d7068b815c2e53ac7dcbc3c0ff9df357d9543771d218b";
 
     #[test]
     fn test_hmac_sha256_golden_vector() {
@@ -170,7 +172,10 @@ mod golden {
         let nonce = Nonce::from_bytes(&NONCE_12).unwrap();
         let ct = aes_gcm_encrypt(&key, &nonce, PLAINTEXT_AES, Some(AAD_AES)).unwrap();
         let pt = aes_gcm_decrypt(&key, &nonce, &ct, Some(AAD_AES)).unwrap();
-        assert_eq!(pt, PLAINTEXT_AES, "Roundtrip must recover original plaintext");
+        assert_eq!(
+            pt, PLAINTEXT_AES,
+            "Roundtrip must recover original plaintext"
+        );
     }
 
     #[test]
@@ -300,9 +305,9 @@ mod golden {
     fn test_argon2id_golden_vector() {
         let salt = Salt::from_bytes(&SALT_16).unwrap();
         let params = Argon2Params {
-            memory_kib: 32768,  // 32 MiB (test mode)
-            time: 1,            // 1 iteration (test mode)
-            parallelism: 1,     // 1 thread (test mode)
+            memory_kib: 32768, // 32 MiB (test mode)
+            time: 1,           // 1 iteration (test mode)
+            parallelism: 1,    // 1 thread (test mode)
         };
         let key = argon2_derive(PASSWORD, &salt, Some(params)).unwrap();
         assert_eq!(
@@ -392,7 +397,8 @@ mod golden {
         for i in 0..outputs.len() {
             for j in (i + 1)..outputs.len() {
                 assert_ne!(
-                    outputs[i], outputs[j],
+                    outputs[i],
+                    outputs[j],
                     "Domain separation failure: labels {:?} and {:?} produced same output",
                     std::str::from_utf8(DOMAIN_LABELS[i]).unwrap(),
                     std::str::from_utf8(DOMAIN_LABELS[j]).unwrap()
@@ -484,7 +490,10 @@ mod golden {
 
         let fk0 = hkdf_derive(&fmk, Some(&SALT_16), &info0, 32).unwrap();
         let fk1 = hkdf_derive(&fmk, Some(&SALT_16), &info1, 32).unwrap();
-        assert_ne!(fk0, fk1, "Different frame indices must produce different keys");
+        assert_ne!(
+            fk0, fk1,
+            "Different frame indices must produce different keys"
+        );
     }
 
     // ========================================================================
@@ -511,7 +520,10 @@ mod golden {
 
         assert_eq!(root_key.len(), 32);
         assert_eq!(chain_key.len(), 32);
-        assert_ne!(root_key, chain_key, "Root and chain keys must differ (domain separation)");
+        assert_ne!(
+            root_key, chain_key,
+            "Root and chain keys must differ (domain separation)"
+        );
 
         // Re-derive must match
         let root2 = hkdf_derive(&KEY_32, Some(&SALT_16), RATCHET_ROOT_INFO, 32).unwrap();
@@ -532,10 +544,7 @@ mod golden {
         assert_eq!(msg_key.len(), 32);
         assert_eq!(new_chain.len(), 32);
         assert_ne!(msg_key, new_chain, "Message key and new chain must differ");
-        assert_ne!(
-            chain_key, new_chain,
-            "Chain must advance (new != old)"
-        );
+        assert_ne!(chain_key, new_chain, "Chain must advance (new != old)");
     }
 
     // ========================================================================
@@ -552,9 +561,8 @@ mod golden {
     #[test]
     fn test_manifest_hmac_chain_golden() {
         // Step 1: Derive encryption key via Argon2id (or use frozen key)
-        let enc_key = hex_to_bytes(
-            "6ac6cc77eb141b6800458c2cd7ed5748cb81156df70a00cef32f5c6d3cc8634a",
-        );
+        let enc_key =
+            hex_to_bytes("6ac6cc77eb141b6800458c2cd7ed5748cb81156df70a00cef32f5c6d3cc8634a");
 
         // Step 2: Build HMAC key with domain prefix
         let mut hmac_key = MANIFEST_HMAC_KEY_PREFIX.to_vec();
@@ -584,9 +592,7 @@ mod golden {
     /// This test MUST pass before replacing Python AES-CTR with Rust backend.
     #[test]
     fn test_aes_256_ctr_golden_vector() {
-        let key = hex_to_bytes(
-            "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
-        );
+        let key = hex_to_bytes("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20");
         let nonce = hex_to_bytes("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff");
         let plaintext = hex_to_bytes(
             "6bc1bee22e409f96e93d7e117393172a\

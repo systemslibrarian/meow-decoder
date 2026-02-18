@@ -27,6 +27,7 @@ from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
 from .progress import ProgressBar
+
 # hardware_integration is lazy-imported where needed to avoid pulling in
 # cryptography at module-import time (see Step 2 of crypto migration).
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error

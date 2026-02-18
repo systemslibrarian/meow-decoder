@@ -1,4 +1,4 @@
-"""  # noqa: D205
+"""# noqa: D205
 Resume Capability for Meow Decoder - SECURED VERSION v3
 Save and resume partial decoding operations with encrypted state files
 SECURITY: State files encrypted using AES-256-GCM via Rust backend
@@ -207,9 +207,7 @@ class ResumeManager:
             try:
                 key = self._derive_state_key(password, manifest)
                 nonce = secrets.token_bytes(12)
-                ciphertext = _get_backend().aes_gcm_encrypt(
-                    key, nonce, state_json.encode(), None
-                )
+                ciphertext = _get_backend().aes_gcm_encrypt(key, nonce, state_json.encode(), None)
                 # Format: nonce(12) + ciphertext (includes GCM tag)
                 encrypted_data = nonce + ciphertext
 
@@ -268,9 +266,7 @@ class ResumeManager:
                     # Format: nonce(12) + ciphertext
                     nonce = encrypted_data[:12]
                     ciphertext = encrypted_data[12:]
-                    decrypted_data = _get_backend().aes_gcm_decrypt(
-                        key, nonce, ciphertext, None
-                    )
+                    decrypted_data = _get_backend().aes_gcm_decrypt(key, nonce, ciphertext, None)
 
                     data = json.loads(decrypted_data.decode())
                     return DecoderState.from_dict(data)
@@ -318,9 +314,7 @@ class ResumeManager:
                 # Format: nonce(12) + ciphertext
                 nonce = encrypted_data[:12]
                 ciphertext = encrypted_data[12:]
-                decrypted_data = _get_backend().aes_gcm_decrypt(
-                    key, nonce, ciphertext, None
-                )
+                decrypted_data = _get_backend().aes_gcm_decrypt(key, nonce, ciphertext, None)
 
                 # Parse JSON
                 data = json.loads(decrypted_data.decode())

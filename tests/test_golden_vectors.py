@@ -410,9 +410,7 @@ class TestGoldenAESCTR:
     """Freeze AES-256-CTR output — must match Rust golden_vectors.rs exactly."""
 
     # Frozen inputs (identical to Rust golden_vectors.rs test_aes_256_ctr_golden_vector)
-    CTR_KEY = bytes.fromhex(
-        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20"
-    )
+    CTR_KEY = bytes.fromhex("0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20")
     CTR_NONCE = bytes.fromhex("f0f1f2f3f4f5f6f7f8f9fafbfcfdfeff")
     CTR_PLAINTEXT = bytes.fromhex(
         "6bc1bee22e409f96e93d7e117393172a"
@@ -450,18 +448,10 @@ class TestGoldenAESCTR:
         """Chunked CTR with byte_offset must produce identical output to single-shot."""
         backend = get_default_backend()
         # Single-shot
-        ct_full = backend.aes_ctr_crypt(
-            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT, 0
-        )
+        ct_full = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT, 0)
         # Chunked: 16 + 32 + remaining
-        ct1 = backend.aes_ctr_crypt(
-            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[:16], 0
-        )
-        ct2 = backend.aes_ctr_crypt(
-            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[16:48], 16
-        )
-        ct3 = backend.aes_ctr_crypt(
-            self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[48:], 48
-        )
+        ct1 = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[:16], 0)
+        ct2 = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[16:48], 16)
+        ct3 = backend.aes_ctr_crypt(self.CTR_KEY, self.CTR_NONCE, self.CTR_PLAINTEXT[48:], 48)
         ct_chunked = ct1 + ct2 + ct3
         assert ct_chunked == ct_full, "Chunked AES-CTR must match single-shot"

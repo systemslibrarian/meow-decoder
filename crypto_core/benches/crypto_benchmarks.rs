@@ -167,9 +167,7 @@ fn bench_ml_kem(c: &mut Criterion) {
     let dk = Dk768::generate();
     let ek = dk.encapsulation_key();
 
-    group.bench_function("encapsulate", |b| {
-        b.iter(|| ek.encapsulate())
-    });
+    group.bench_function("encapsulate", |b| b.iter(|| ek.encapsulate()));
 
     // Pre-encapsulate for decap benchmark
     let (ciphertext, _shared_secret) = ek.encapsulate();
@@ -202,9 +200,7 @@ fn bench_ml_kem_1024(c: &mut Criterion) {
     let dk = Dk1024::generate();
     let ek = dk.encapsulation_key();
 
-    group.bench_function("encapsulate", |b| {
-        b.iter(|| ek.encapsulate())
-    });
+    group.bench_function("encapsulate", |b| b.iter(|| ek.encapsulate()));
 
     let (ciphertext, _) = ek.encapsulate();
 

@@ -27,6 +27,7 @@ from .fountain import FountainDecoder, unpack_droplet
 from .qr_code import QRCodeReader
 from .gif_handler import GIFDecoder
 from .progress import ProgressBar
+
 # hardware_integration is lazy-imported where needed to avoid pulling in
 # cryptography at module-import time (see Step 2 of crypto migration).
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
@@ -1097,8 +1098,11 @@ Examples:
             sys.exit(1)
         try:
             from .pq_hybrid import (
-                HybridKeyPair, LIBOQS_AVAILABLE, PRODUCTION_MODE,
-                _RUST_PQ_AVAILABLE, oqs as _pq_oqs,
+                HybridKeyPair,
+                LIBOQS_AVAILABLE,
+                PRODUCTION_MODE,
+                _RUST_PQ_AVAILABLE,
+                oqs as _pq_oqs,
             )
 
             if not LIBOQS_AVAILABLE:
@@ -1144,9 +1148,7 @@ Examples:
                 receiver_pq_keypair._pq_secret_bytes = pq_secret_bytes
             elif _pq_oqs is not None:
                 # Non-production fallback to Python oqs
-                receiver_pq_keypair.pq_kem = _pq_oqs.KeyEncapsulation(
-                    pq_algorithm, pq_secret_bytes
-                )
+                receiver_pq_keypair.pq_kem = _pq_oqs.KeyEncapsulation(pq_algorithm, pq_secret_bytes)
             else:
                 raise RuntimeError(
                     "PQ hybrid decryption requires either Rust PQ backend or liboqs. "

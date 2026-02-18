@@ -1077,6 +1077,7 @@ class TestHardwareOperations:
 
         # Also block the argon2 fallback
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):

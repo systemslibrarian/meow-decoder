@@ -282,9 +282,7 @@ class StreamingCipher:
         from io import BytesIO
 
         verified_stream = BytesIO(ciphertext)
-        return self._decrypt_verified_stream(
-            verified_stream, output_stream, enable_decompression
-        )
+        return self._decrypt_verified_stream(verified_stream, output_stream, enable_decompression)
 
     def _decrypt_verified_stream(
         self, input_stream: IO[bytes], output_stream: IO[bytes], enable_decompression: bool

@@ -321,7 +321,7 @@ if __name__ == "__main__":
 
     # Test indistinguishability
     is_indist, results = verify_indistinguishability(
-        superposition[: len(superposition) // 2], superposition[len(superposition) // 2:]
+        superposition[: len(superposition) // 2], superposition[len(superposition) // 2 :]
     )
     print(f"✅ Indistinguishable: {is_indist}")
     print(f"   Entropy diff: {results['entropy_diff']:.6f}")

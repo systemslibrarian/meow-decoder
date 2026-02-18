@@ -56,6 +56,7 @@ PRODUCTION_MODE = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
 _RUST_PQ_AVAILABLE = False
 try:
     import meow_crypto_rs as _pq_rs
+
     _RUST_PQ_AVAILABLE = hasattr(_pq_rs, "mlkem768_keygen")
 except ImportError:
     pass
@@ -73,6 +74,7 @@ elif not PRODUCTION_MODE:
     # Non-production: allow Python oqs as fallback for testing/development
     try:
         import oqs as _oqs_module  # noqa: F811
+
         oqs = _oqs_module  # type: ignore[assignment]
         LIBOQS_AVAILABLE = True
         PQ_ALGORITHM = PQ_ALGORITHM_768

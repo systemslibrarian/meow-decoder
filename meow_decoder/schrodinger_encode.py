@@ -141,27 +141,27 @@ class SchrodingerManifest:
             raise ValueError(f"Not a Schrödinger v5.5.0 manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset: offset + 16]
+        salt_a = data[offset : offset + 16]
         offset += 16
-        salt_b = data[offset: offset + 16]
+        salt_b = data[offset : offset + 16]
         offset += 16
-        nonce_a = data[offset: offset + 12]
+        nonce_a = data[offset : offset + 12]
         offset += 12
-        nonce_b = data[offset: offset + 12]
+        nonce_b = data[offset : offset + 12]
         offset += 12
-        reality_a_hmac = data[offset: offset + 32]
+        reality_a_hmac = data[offset : offset + 32]
         offset += 32
-        reality_b_hmac = data[offset: offset + 32]
+        reality_b_hmac = data[offset : offset + 32]
         offset += 32
-        metadata_a = data[offset: offset + 104]
+        metadata_a = data[offset : offset + 104]
         offset += 104
-        metadata_b = data[offset: offset + 104]
+        metadata_b = data[offset : offset + 104]
         offset += 104
         block_count, block_size, superposition_len = struct.unpack(
-            ">IIQ", data[offset: offset + 16]
+            ">IIQ", data[offset : offset + 16]
         )
         offset += 16
-        reserved = data[offset: offset + 32]
+        reserved = data[offset : offset + 32]
 
         return cls(
             magic=data[:4],
@@ -221,7 +221,7 @@ def schrodinger_encode_data(
     superposition = entangle_realities(cipher_a, cipher_b)
 
     # Split into blocks for fountain encoding
-    blocks = [superposition[i: i + block_size] for i in range(0, len(superposition), block_size)]
+    blocks = [superposition[i : i + block_size] for i in range(0, len(superposition), block_size)]
     if blocks and len(blocks[-1]) < block_size:
         # Pad the last block to ensure all blocks are the same size
         blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))

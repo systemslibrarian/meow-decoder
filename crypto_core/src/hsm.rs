@@ -392,13 +392,13 @@ impl HsmSession {
         let key_len = (key_type.key_bits() / 8) as u64;
 
         let template = vec![
-            Attribute::Token(true),        // Persistent key
-            Attribute::Private(true),      // Requires authentication
-            Attribute::Sensitive(true),    // Cannot be revealed in plaintext
-            Attribute::Extractable(false), // Cannot be exported
-            Attribute::Encrypt(true),      // Can encrypt
-            Attribute::Decrypt(true),      // Can decrypt
-            Attribute::Derive(true),       // Can derive keys
+            Attribute::Token(true),              // Persistent key
+            Attribute::Private(true),            // Requires authentication
+            Attribute::Sensitive(true),          // Cannot be revealed in plaintext
+            Attribute::Extractable(false),       // Cannot be exported
+            Attribute::Encrypt(true),            // Can encrypt
+            Attribute::Decrypt(true),            // Can decrypt
+            Attribute::Derive(true),             // Can derive keys
             Attribute::ValueLen(key_len.into()), // Key size
             Attribute::Label(label.as_bytes().to_vec()),
         ];

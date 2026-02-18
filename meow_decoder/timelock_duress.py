@@ -530,9 +530,9 @@ def decode_with_timelock(
 
     # Parse timelocked data
     puzzle_len = struct.unpack(">I", timelocked_data[:4])[0]
-    puzzle_data = timelocked_data[4: 4 + puzzle_len]
-    encrypted_key = timelocked_data[4 + puzzle_len: 4 + puzzle_len + 32]
-    cipher = timelocked_data[4 + puzzle_len + 32:]
+    puzzle_data = timelocked_data[4 : 4 + puzzle_len]
+    encrypted_key = timelocked_data[4 + puzzle_len : 4 + puzzle_len + 32]
+    cipher = timelocked_data[4 + puzzle_len + 32 :]
 
     # Solve puzzle
     config = TimeLockConfig()

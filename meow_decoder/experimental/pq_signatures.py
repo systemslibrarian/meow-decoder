@@ -96,8 +96,8 @@ class Signature:
 
         if algorithm == SIG_HYBRID:
             ed25519_len = struct.unpack(">H", data[1:3])[0]
-            ed25519_sig = data[3: 3 + ed25519_len]
-            dilithium_sig = data[3 + ed25519_len:]
+            ed25519_sig = data[3 : 3 + ed25519_len]
+            dilithium_sig = data[3 + ed25519_len :]
             return cls(
                 algorithm=algorithm,
                 signature=data[1:],  # Full signature data
@@ -366,11 +366,17 @@ def save_keypair(
 
         # Derive key from password using Argon2id (Rust backend)
         import os
+
         _test_mode = os.environ.get("MEOW_TEST_MODE", "0") == "1"
         _mem = 32768 if _test_mode else 524288
         _iters = 1 if _test_mode else 20
         key = backend.derive_key_argon2id(
-            password.encode(), salt, memory_kib=_mem, iterations=_iters, parallelism=1, output_len=32
+            password.encode(),
+            salt,
+            memory_kib=_mem,
+            iterations=_iters,
+            parallelism=1,
+            output_len=32,
         )
 
         encrypted = backend.aes_gcm_encrypt(key, nonce, private_data, None)
@@ -425,11 +431,17 @@ def load_keypair(
 
         backend = _get_backend()
         import os
+
         _test_mode = os.environ.get("MEOW_TEST_MODE", "0") == "1"
         _mem = 32768 if _test_mode else 524288
         _iters = 1 if _test_mode else 20
         key = backend.derive_key_argon2id(
-            password.encode(), salt, memory_kib=_mem, iterations=_iters, parallelism=1, output_len=32
+            password.encode(),
+            salt,
+            memory_kib=_mem,
+            iterations=_iters,
+            parallelism=1,
+            output_len=32,
         )
         private_data = backend.aes_gcm_decrypt(key, nonce, encrypted, None)
 

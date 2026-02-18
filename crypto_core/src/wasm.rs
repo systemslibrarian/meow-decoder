@@ -37,7 +37,7 @@ use {
     },
     js_sys::{Promise, Uint8Array},
     wasm_bindgen_futures::future_to_promise,
-    x25519_dalek::{StaticSecret, PublicKey},
+    x25519_dalek::{PublicKey, StaticSecret},
 };
 
 /// WASM result type for JavaScript interop
@@ -351,14 +351,13 @@ impl WasmX25519KeyPair {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Result<WasmX25519KeyPair, JsValue> {
         use crate::pure_crypto::X25519KeyPair;
-        let kp = X25519KeyPair::generate()
-            .map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
+        let kp = X25519KeyPair::generate().map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
         Ok(WasmX25519KeyPair {
             secret: kp.public_bytes().clone(), // This is a workaround - we'll use the struct
             public: kp.public_bytes().clone(),
         })
     }
-    
+
     /// Get public key bytes
     #[wasm_bindgen(getter)]
     pub fn public_key(&self) -> Uint8Array {
@@ -394,23 +393,23 @@ pub fn x25519_generate_keypair() -> WasmResult {
                     success: false,
                     data: vec![],
                     error: Some(format!("{:?}", e)),
-                }
+                },
             }
         }
         Err(e) => WasmResult {
             success: false,
             data: vec![],
             error: Some(format!("{:?}", e)),
-        }
+        },
     }
 }
 
 /// Perform X25519 Diffie-Hellman key exchange
-/// 
+///
 /// # Arguments
 /// * `my_secret` - 32-byte secret key
 /// * `their_public` - 32-byte public key
-/// 
+///
 /// # Returns
 /// 32-byte shared secret
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
@@ -430,14 +429,14 @@ pub fn x25519_diffie_hellman(my_secret: &[u8], their_public: &[u8]) -> WasmResul
             error: Some("Public key must be 32 bytes".into()),
         };
     }
-    
+
     let secret_arr: [u8; 32] = my_secret.try_into().unwrap();
     let public_arr: [u8; 32] = their_public.try_into().unwrap();
-    
+
     let secret = StaticSecret::from(secret_arr);
     let their_pk = PublicKey::from(public_arr);
     let shared = secret.diffie_hellman(&their_pk);
-    
+
     WasmResult {
         success: true,
         data: shared.as_bytes().to_vec(),
@@ -446,12 +445,12 @@ pub fn x25519_diffie_hellman(my_secret: &[u8], their_public: &[u8]) -> WasmResul
 }
 
 /// Encrypt with forward secrecy using X25519 ephemeral key exchange
-/// 
+///
 /// # Arguments
 /// * `plaintext` - Data to encrypt
 /// * `recipient_public` - Recipient's 32-byte X25519 public key
 /// * `password` - Password for additional key derivation
-/// 
+///
 /// # Returns
 /// ephemeral_public (32) || nonce (12) || ciphertext
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
@@ -468,58 +467,66 @@ pub fn encrypt_with_forward_secrecy(
             error: Some("Recipient public key must be 32 bytes".into()),
         };
     }
-    
+
     // Generate ephemeral key pair
     let ephemeral_secret_bytes = match random_bytes(32) {
         Ok(b) => b,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Failed to generate ephemeral key: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Failed to generate ephemeral key: {:?}", e)),
+            }
         }
     };
     let ephemeral_secret_arr: [u8; 32] = ephemeral_secret_bytes.try_into().unwrap();
     let ephemeral_secret = StaticSecret::from(ephemeral_secret_arr);
     let ephemeral_public = PublicKey::from(&ephemeral_secret);
-    
+
     // Perform DH
     let recipient_pk_arr: [u8; 32] = recipient_public.try_into().unwrap();
     let recipient_pk = PublicKey::from(recipient_pk_arr);
     let shared_secret = ephemeral_secret.diffie_hellman(&recipient_pk);
-    
+
     // Derive encryption key: HKDF(shared_secret || password)
     let mut ikm = Vec::new();
     ikm.extend_from_slice(shared_secret.as_bytes());
     ikm.extend_from_slice(password.as_bytes());
-    
+
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-fs-encrypt", 32) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
         }
     };
     let key = match SecretKey::from_bytes(&key_bytes) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid key: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid key: {:?}", e)),
+            }
         }
     };
-    
+
     // Generate nonce
     let nonce_bytes = match random_bytes(12) {
         Ok(n) => n,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Nonce generation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Nonce generation failed: {:?}", e)),
+            }
         }
     };
     let nonce = Nonce::from_bytes(&nonce_bytes).unwrap();
-    
+
     // Encrypt
     match aes_gcm_encrypt(&key, &nonce, plaintext, None) {
         Ok(ciphertext) => {
@@ -528,7 +535,7 @@ pub fn encrypt_with_forward_secrecy(
             output.extend_from_slice(ephemeral_public.as_bytes());
             output.extend_from_slice(&nonce_bytes);
             output.extend_from_slice(&ciphertext);
-            
+
             WasmResult {
                 success: true,
                 data: output,
@@ -539,12 +546,12 @@ pub fn encrypt_with_forward_secrecy(
             success: false,
             data: vec![],
             error: Some(format!("Encryption failed: {:?}", e)),
-        }
+        },
     }
 }
 
 /// Decrypt with forward secrecy using X25519
-/// 
+///
 /// # Arguments
 /// * `encrypted` - ephemeral_public (32) || nonce (12) || ciphertext
 /// * `my_secret` - Recipient's 32-byte X25519 secret key
@@ -556,7 +563,8 @@ pub fn decrypt_with_forward_secrecy(
     my_secret: &[u8],
     password: &str,
 ) -> WasmResult {
-    if encrypted.len() < 44 + 16 { // 32 + 12 + min 16 (tag)
+    if encrypted.len() < 44 + 16 {
+        // 32 + 12 + min 16 (tag)
         return WasmResult {
             success: false,
             data: vec![],
@@ -570,42 +578,46 @@ pub fn decrypt_with_forward_secrecy(
             error: Some("Secret key must be 32 bytes".into()),
         };
     }
-    
+
     // Unpack
     let ephemeral_public_bytes: [u8; 32] = encrypted[..32].try_into().unwrap();
     let nonce_bytes: [u8; 12] = encrypted[32..44].try_into().unwrap();
     let ciphertext = &encrypted[44..];
-    
+
     // Perform DH
     let my_secret_arr: [u8; 32] = my_secret.try_into().unwrap();
     let secret = StaticSecret::from(my_secret_arr);
     let ephemeral_pk = PublicKey::from(ephemeral_public_bytes);
     let shared_secret = secret.diffie_hellman(&ephemeral_pk);
-    
+
     // Derive decryption key
     let mut ikm = Vec::new();
     ikm.extend_from_slice(shared_secret.as_bytes());
     ikm.extend_from_slice(password.as_bytes());
-    
+
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-fs-encrypt", 32) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
         }
     };
     let key = match SecretKey::from_bytes(&key_bytes) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid key: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Invalid key: {:?}", e)),
+            }
         }
     };
-    
+
     let nonce = Nonce::from_bytes(&nonce_bytes).unwrap();
-    
+
     // Decrypt
     match aes_gcm_decrypt(&key, &nonce, ciphertext, None) {
         Ok(plaintext) => WasmResult {
@@ -617,7 +629,7 @@ pub fn decrypt_with_forward_secrecy(
             success: false,
             data: vec![],
             error: Some("Decryption failed (wrong key or corrupted data)".into()),
-        }
+        },
     }
 }
 
@@ -626,30 +638,30 @@ pub fn decrypt_with_forward_secrecy(
 // ============================================================================
 
 /// Generate ML-KEM-1024 key pair for post-quantum encryption
-/// 
+///
 /// Returns: secret_key || public_key (3168 + 1568 = 4736 bytes)
-/// 
+///
 /// ML-KEM-1024 provides NIST Level 5 security against quantum computers.
 #[cfg(all(feature = "wasm", feature = "ml-kem"))]
 #[wasm_bindgen]
 pub fn mlkem_generate_keypair() -> WasmResult {
-    use ml_kem::{DecapsulationKey1024 as DecapsulationKey, ExpandedKeyEncoding, KeyExport};
     use kem::Generate;
-    
+    use ml_kem::{DecapsulationKey1024 as DecapsulationKey, ExpandedKeyEncoding, KeyExport};
+
     // Generate key pair using system RNG (via getrandom feature)
     let dk = DecapsulationKey::generate();
     let ek = dk.encapsulation_key();
-    
+
     // Get bytes - use expanded format for decapsulation key (matches from_expanded_bytes)
-    #[allow(deprecated)]  // to_expanded_bytes deprecated but needed for serialization
+    #[allow(deprecated)] // to_expanded_bytes deprecated but needed for serialization
     let dk_bytes = dk.to_expanded_bytes();
     let ek_bytes = ek.to_bytes();
-    
+
     // Pack: secret_key || public_key
     let mut output = Vec::with_capacity(dk_bytes.len() + ek_bytes.len());
     output.extend_from_slice(&dk_bytes);
     output.extend_from_slice(&ek_bytes);
-    
+
     WasmResult {
         success: true,
         data: output,
@@ -668,12 +680,12 @@ pub fn mlkem_key_sizes() -> WasmResult {
         1568u32, // Ciphertext size
         32u32,   // Shared secret size
     ];
-    
+
     let mut output = Vec::with_capacity(16);
     for size in sizes.iter() {
         output.extend_from_slice(&size.to_le_bytes());
     }
-    
+
     WasmResult {
         success: true,
         data: output,
@@ -682,42 +694,49 @@ pub fn mlkem_key_sizes() -> WasmResult {
 }
 
 /// Encapsulate using ML-KEM-1024 public key
-/// 
+///
 /// Input: public_key (1568 bytes)
 /// Returns: ciphertext (1568 bytes) || shared_secret (32 bytes)
 #[cfg(all(feature = "wasm", feature = "ml-kem"))]
 #[wasm_bindgen]
 pub fn mlkem_encapsulate(public_key: &[u8]) -> WasmResult {
-    use ml_kem::EncapsulationKey1024 as EncapsulationKey;
     use kem::Encapsulate;
-    
+    use ml_kem::EncapsulationKey1024 as EncapsulationKey;
+
     // Convert bytes to EncapsulationKey
     let ek_array: ml_kem::array::Array<u8, _> = match public_key.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid public key length: expected 1568, got {}", public_key.len())),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!(
+                    "Invalid public key length: expected 1568, got {}",
+                    public_key.len()
+                )),
+            }
         }
     };
-    
+
     let ek = match EncapsulationKey::new(&ek_array) {
         Ok(k) => k,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid public key format".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid public key format".into()),
+            }
         }
     };
-    
+
     // Encapsulate - uses system RNG via getrandom feature
     let (ciphertext, shared_secret) = ek.encapsulate();
-    
+
     // Pack: ciphertext || shared_secret
     let mut output = Vec::with_capacity(1568 + 32);
     output.extend_from_slice(ciphertext.as_slice());
     output.extend_from_slice(shared_secret.as_slice());
-    
+
     WasmResult {
         success: true,
         data: output,
@@ -726,49 +745,61 @@ pub fn mlkem_encapsulate(public_key: &[u8]) -> WasmResult {
 }
 
 /// Decapsulate using ML-KEM-1024 secret key
-/// 
+///
 /// Input: secret_key (3168 bytes), ciphertext (1568 bytes)
 /// Returns: shared_secret (32 bytes)
 #[cfg(all(feature = "wasm", feature = "ml-kem"))]
 #[wasm_bindgen]
 pub fn mlkem_decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> WasmResult {
+    use kem::Decapsulate;
     use ml_kem::DecapsulationKey1024 as DecapsulationKey;
     use ml_kem::ExpandedKeyEncoding;
-    use kem::Decapsulate;
-    
+
     // Convert bytes to DecapsulationKey
     let dk_array: ml_kem::array::Array<u8, _> = match secret_key.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid secret key length: expected 3168, got {}", secret_key.len())),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!(
+                    "Invalid secret key length: expected 3168, got {}",
+                    secret_key.len()
+                )),
+            }
         }
     };
-    
-    #[allow(deprecated)]  // from_expanded_bytes deprecated but needed
+
+    #[allow(deprecated)] // from_expanded_bytes deprecated but needed
     let dk = match DecapsulationKey::from_expanded_bytes(&dk_array) {
         Ok(k) => k,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid secret key format".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid secret key format".into()),
+            }
         }
     };
-    
+
     // Convert ciphertext
     let ct_array: ml_kem::array::Array<u8, _> = match ciphertext.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Invalid ciphertext length: expected 1568, got {}", ciphertext.len())),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!(
+                    "Invalid ciphertext length: expected 1568, got {}",
+                    ciphertext.len()
+                )),
+            }
         }
     };
-    
+
     // Decapsulate - always succeeds (implicit rejection)
     let shared_secret = dk.decapsulate(&ct_array);
-    
+
     WasmResult {
         success: true,
         data: shared_secret.as_slice().to_vec(),
@@ -777,15 +808,15 @@ pub fn mlkem_decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> WasmResult {
 }
 
 /// Hybrid encryption: X25519 + ML-KEM-1024 + AES-256-GCM
-/// 
+///
 /// Provides security if EITHER classical OR post-quantum crypto holds.
-/// 
+///
 /// Input:
 /// - plaintext: Data to encrypt
 /// - x25519_recipient_public: Recipient's X25519 public key (32 bytes)
 /// - mlkem_recipient_public: Recipient's ML-KEM public key (1568 bytes)
 /// - password: Optional additional password
-/// 
+///
 /// Output:
 /// x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
 #[cfg(all(feature = "wasm", feature = "pure-crypto", feature = "ml-kem"))]
@@ -796,9 +827,9 @@ pub fn encrypt_hybrid_pq(
     mlkem_recipient_public: &[u8],
     password: &str,
 ) -> WasmResult {
-    use ml_kem::EncapsulationKey1024 as EncapsulationKey;
     use kem::Encapsulate;
-    
+    use ml_kem::EncapsulationKey1024 as EncapsulationKey;
+
     // Validate inputs
     if x25519_recipient_public.len() != 32 {
         return WasmResult {
@@ -814,86 +845,98 @@ pub fn encrypt_hybrid_pq(
             error: Some("ML-KEM public key must be 1568 bytes".into()),
         };
     }
-    
+
     // 1. X25519 ephemeral key exchange
     let x25519_ephemeral_secret = match random_bytes(32) {
         Ok(b) => b,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Failed to generate X25519 ephemeral: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Failed to generate X25519 ephemeral: {:?}", e)),
+            }
         }
     };
     let x25519_secret_arr: [u8; 32] = x25519_ephemeral_secret.clone().try_into().unwrap();
     let x25519_secret = StaticSecret::from(x25519_secret_arr);
     let x25519_ephemeral_public = PublicKey::from(&x25519_secret);
-    
+
     let x25519_recipient_arr: [u8; 32] = x25519_recipient_public.try_into().unwrap();
     let x25519_recipient_pk = PublicKey::from(x25519_recipient_arr);
     let x25519_shared = x25519_secret.diffie_hellman(&x25519_recipient_pk);
-    
+
     // 2. ML-KEM encapsulation
     let mlkem_ek_array: ml_kem::array::Array<u8, _> = match mlkem_recipient_public.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid ML-KEM public key".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid ML-KEM public key".into()),
+            }
         }
     };
     let mlkem_ek = match EncapsulationKey::new(&mlkem_ek_array) {
         Ok(k) => k,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid ML-KEM public key format".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid ML-KEM public key format".into()),
+            }
         }
     };
     let (mlkem_ciphertext, mlkem_shared) = mlkem_ek.encapsulate();
-    
+
     // 3. Hybrid key derivation: HKDF(x25519_shared || mlkem_shared || password)
     let mut ikm = Vec::with_capacity(64 + password.len());
     ikm.extend_from_slice(x25519_shared.as_bytes());
     ikm.extend_from_slice(mlkem_shared.as_slice());
     ikm.extend_from_slice(password.as_bytes());
-    
+
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-pq-hybrid-encrypt", 32) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
         }
     };
     let key = SecretKey::from_bytes(&key_bytes).unwrap();
-    
+
     // 4. Generate nonce and encrypt
     let nonce_bytes = match random_bytes(12) {
         Ok(n) => n,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Nonce generation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Nonce generation failed: {:?}", e)),
+            }
         }
     };
     let nonce = Nonce::from_bytes(&nonce_bytes).unwrap();
-    
+
     let ciphertext = match aes_gcm_encrypt(&key, &nonce, plaintext, None) {
         Ok(c) => c,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Encryption failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Encryption failed: {:?}", e)),
+            }
         }
     };
-    
+
     // 5. Pack output: x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || ciphertext
     let mut output = Vec::with_capacity(32 + 1568 + 12 + ciphertext.len());
     output.extend_from_slice(x25519_ephemeral_public.as_bytes());
     output.extend_from_slice(mlkem_ciphertext.as_slice());
     output.extend_from_slice(&nonce_bytes);
     output.extend_from_slice(&ciphertext);
-    
+
     WasmResult {
         success: true,
         data: output,
@@ -902,7 +945,7 @@ pub fn encrypt_hybrid_pq(
 }
 
 /// Hybrid decryption: X25519 + ML-KEM-1024 + AES-256-GCM
-/// 
+///
 /// Input:
 /// - encrypted: x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
 /// - x25519_secret: Recipient's X25519 secret key (32 bytes)
@@ -916,10 +959,10 @@ pub fn decrypt_hybrid_pq(
     mlkem_secret: &[u8],
     password: &str,
 ) -> WasmResult {
+    use kem::Decapsulate;
     use ml_kem::DecapsulationKey1024 as DecapsulationKey;
     use ml_kem::ExpandedKeyEncoding;
-    use kem::Decapsulate;
-    
+
     // Validate minimum size: 32 + 1568 + 12 + 16 = 1628
     if encrypted.len() < 1628 {
         return WasmResult {
@@ -939,70 +982,81 @@ pub fn decrypt_hybrid_pq(
         return WasmResult {
             success: false,
             data: vec![],
-            error: Some(format!("ML-KEM secret key must be 3168 bytes, got {}", mlkem_secret.len())),
+            error: Some(format!(
+                "ML-KEM secret key must be 3168 bytes, got {}",
+                mlkem_secret.len()
+            )),
         };
     }
-    
+
     // Unpack
     let x25519_ephemeral_public: [u8; 32] = encrypted[..32].try_into().unwrap();
     let mlkem_ciphertext = &encrypted[32..1600];
     let nonce_bytes: [u8; 12] = encrypted[1600..1612].try_into().unwrap();
     let ciphertext = &encrypted[1612..];
-    
+
     // 1. X25519 key exchange
     let x25519_secret_arr: [u8; 32] = x25519_secret.try_into().unwrap();
     let x25519_sk = StaticSecret::from(x25519_secret_arr);
     let x25519_ephemeral_pk = PublicKey::from(x25519_ephemeral_public);
     let x25519_shared = x25519_sk.diffie_hellman(&x25519_ephemeral_pk);
-    
+
     // 2. ML-KEM decapsulation
     let dk_array: ml_kem::array::Array<u8, _> = match mlkem_secret.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid ML-KEM secret key length".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid ML-KEM secret key length".into()),
+            }
         }
     };
-    
+
     #[allow(deprecated)]
     let dk = match DecapsulationKey::from_expanded_bytes(&dk_array) {
         Ok(k) => k,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid ML-KEM secret key format".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid ML-KEM secret key format".into()),
+            }
         }
     };
-    
+
     let ct_array: ml_kem::array::Array<u8, _> = match mlkem_ciphertext.try_into() {
         Ok(arr) => arr,
-        Err(_) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some("Invalid ML-KEM ciphertext".into()),
+        Err(_) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some("Invalid ML-KEM ciphertext".into()),
+            }
         }
     };
-    
+
     let mlkem_shared = dk.decapsulate(&ct_array);
-    
+
     // 3. Hybrid key derivation
     let mut ikm = Vec::with_capacity(64 + password.len());
     ikm.extend_from_slice(x25519_shared.as_bytes());
     ikm.extend_from_slice(mlkem_shared.as_slice());
     ikm.extend_from_slice(password.as_bytes());
-    
+
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-pq-hybrid-encrypt", 32) {
         Ok(k) => k,
-        Err(e) => return WasmResult {
-            success: false,
-            data: vec![],
-            error: Some(format!("Key derivation failed: {:?}", e)),
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Key derivation failed: {:?}", e)),
+            }
         }
     };
     let key = SecretKey::from_bytes(&key_bytes).unwrap();
     let nonce = Nonce::from_bytes(&nonce_bytes).unwrap();
-    
+
     // 4. Decrypt
     match aes_gcm_decrypt(&key, &nonce, ciphertext, None) {
         Ok(plaintext) => WasmResult {
@@ -1014,7 +1068,7 @@ pub fn decrypt_hybrid_pq(
             success: false,
             data: vec![],
             error: Some("Decryption failed (wrong keys or corrupted data)".into()),
-        }
+        },
     }
 }
 
@@ -1023,9 +1077,13 @@ pub fn decrypt_hybrid_pq(
 #[wasm_bindgen]
 pub fn pq_available() -> bool {
     #[cfg(feature = "ml-kem")]
-    { true }
+    {
+        true
+    }
     #[cfg(not(feature = "ml-kem"))]
-    { false }
+    {
+        false
+    }
 }
 
 // ============================================================================

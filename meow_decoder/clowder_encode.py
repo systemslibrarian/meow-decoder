@@ -208,7 +208,7 @@ def encode_clowder(
     yarn_ball_num = len(clowder_manifest.yarn_balls) + 1
 
     for i in range(0, len(remaining_files), max_files_per_yarn):
-        batch = remaining_files[i: i + max_files_per_yarn]
+        batch = remaining_files[i : i + max_files_per_yarn]
 
         print(f"\n🐱 Yarn Ball #{yarn_ball_num}:")
         print(f"  Files: {len(batch)}")

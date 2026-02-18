@@ -154,7 +154,9 @@ class DuressHandler:
             self.config.trigger_callback()
         elif self.config.trigger_callback:
             # Dummy callback execution time (call empty lambda)
-            def _(): return None
+            def _():
+                return None
+
             _()
 
         # Execute resume file wipe equivalently

@@ -429,7 +429,7 @@ class TestBuildFrameAAD:
         aad = build_frame_aad(42, salt, 5, 800, 10)
         # Frame index is 4 bytes little-endian after the prefix
         offset = len(RATCHET_AAD_PREFIX)
-        idx = struct.unpack("<I", aad[offset: offset + 4])[0]
+        idx = struct.unpack("<I", aad[offset : offset + 4])[0]
         assert idx == 42
 
     def test_aad_contains_salt(self, salt):

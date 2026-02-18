@@ -959,10 +959,7 @@ mod hsm_tests {
     fn test_hsm_uri_parse_valid() {
         let uri = "pkcs11:library-path=/usr/lib/softhsm/libsofthsm2.so;slot=0;token=meow";
         let parsed = HsmUri::parse(uri).unwrap();
-        assert_eq!(
-            parsed.library_path,
-            "/usr/lib/softhsm/libsofthsm2.so"
-        );
+        assert_eq!(parsed.library_path, "/usr/lib/softhsm/libsofthsm2.so");
         assert_eq!(parsed.slot_id, Some(0));
         assert_eq!(parsed.token_label, Some("meow".into()));
     }
@@ -1018,7 +1015,10 @@ mod tpm_tests {
     fn test_tpm_error_display_all_variants() {
         let errors = vec![
             (TpmError::NotFound, "not found"),
-            (TpmError::CommunicationFailed("test".into()), "communication"),
+            (
+                TpmError::CommunicationFailed("test".into()),
+                "communication",
+            ),
             (TpmError::AuthorizationFailed, "authorization"),
             (TpmError::PcrMismatch("test".into()), "mismatch"),
             (TpmError::KeyOperationFailed("test".into()), "key operation"),
@@ -1475,10 +1475,7 @@ mod pure_crypto_extended {
     #[test]
     fn test_nonce_invalid_length() {
         let result = Nonce::from_bytes(&[0u8; 8]);
-        assert!(matches!(
-            result,
-            Err(CryptoError::InvalidNonceSize(8, 12))
-        ));
+        assert!(matches!(result, Err(CryptoError::InvalidNonceSize(8, 12))));
     }
 
     #[test]
@@ -1566,7 +1563,9 @@ fn test_aead_wrapper_encrypt_with_manager() {
     let aad = b"";
 
     // Use the managed encrypt method
-    let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad).expect("Encrypt should work");
+    let (nonce, ciphertext) = wrapper
+        .encrypt(plaintext, aad)
+        .expect("Encrypt should work");
 
     // Decrypt with the returned nonce
     let ap = wrapper

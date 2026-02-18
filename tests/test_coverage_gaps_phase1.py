@@ -1,4 +1,5 @@
 import pytest
+
 """
 Coverage gap tests — Phase 1
 Targets uncovered lines in:
@@ -116,7 +117,9 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
 
-        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+        with pytest.raises(
+            ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"
+        ):
             dec_cipher.decrypt_stream(
                 input_stream=io.BytesIO(encrypted),
                 output_stream=dec_out,
@@ -208,7 +211,10 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
         import pytest
-        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+
+        with pytest.raises(
+            ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"
+        ):
             dec.decrypt_stream(
                 input_stream=io.BytesIO(encrypted),
                 output_stream=dec_out,
@@ -234,7 +240,9 @@ class TestStreamingCryptoCoverageGaps(unittest.TestCase):
         dec = StreamingCipher(key, nonce)
         encrypted = out.getvalue()
         dec_out = io.BytesIO()
-        with pytest.raises(ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"):
+        with pytest.raises(
+            ValueError, match="expected_mac is required. Unauthenticated decryption is forbidden"
+        ):
             dec.decrypt_stream(
                 input_stream=io.BytesIO(encrypted),
                 output_stream=dec_out,

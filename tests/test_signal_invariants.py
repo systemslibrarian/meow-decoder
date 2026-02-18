@@ -160,8 +160,10 @@ class TestInvariant2_JumpAheadDoS:
         import time
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=BLOCK_SIZE,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=BLOCK_SIZE,
             total_frames=MAX_SKIP_KEYS + 200,
         )
 
@@ -184,8 +186,10 @@ class TestInvariant2_JumpAheadDoS:
         """Frame at exactly MAX_SKIP_KEYS works; MAX_SKIP_KEYS+1 fails."""
         total = MAX_SKIP_KEYS + 10
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=BLOCK_SIZE,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=BLOCK_SIZE,
             total_frames=total,
         )
         # Encrypt all frames
@@ -194,8 +198,10 @@ class TestInvariant2_JumpAheadDoS:
 
         # Decode frame at MAX_SKIP_KEYS-1 (skipping 0..MAX_SKIP_KEYS-2)
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=BLOCK_SIZE,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=BLOCK_SIZE,
             total_frames=total,
         )
         # This should succeed (within skip limit)
@@ -220,16 +226,20 @@ class TestInvariant3_OutOfOrder:
         frames = [f"payload_{i:04d}".encode() for i in range(total)]
 
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=400,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=400,
             total_frames=total,
         )
         encrypted = [encoder.encrypt_next(f) for f in frames]
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=400,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=400,
             total_frames=total,
         )
 
@@ -253,16 +263,20 @@ class TestInvariant3_OutOfOrder:
         frames = [f"rev_{i}".encode() for i in range(total)]
 
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
         encrypted = [encoder.encrypt_next(f) for f in frames]
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
 
@@ -287,16 +301,20 @@ class TestInvariant4_ReplayRejection:
         """Same bytes sent twice → ValueError on second attempt."""
         total = 5
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
         encrypted = [encoder.encrypt_next(f"f{i}".encode()) for i in range(total)]
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
 
@@ -316,16 +334,20 @@ class TestInvariant4_ReplayRejection:
         """Every frame can be decrypted exactly once."""
         total = 10
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
         encrypted = [encoder.encrypt_next(f"f{i}".encode()) for i in range(total)]
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=total,
         )
 
@@ -355,16 +377,20 @@ class TestInvariant5_CrossSessionReplay:
         salt_b = bytes.fromhex("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")[:16]
 
         encoder = EncoderRatchet(
-            ROOT_KEY, salt_a,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            salt_a,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=5,
         )
         encrypted_a = [encoder.encrypt_next(f"a{i}".encode()) for i in range(5)]
         encoder.finalize()
 
         decoder_b = DecoderRatchet(
-            ROOT_KEY, salt_b,
-            k_blocks=K_BLOCKS, block_size=800,
+            ROOT_KEY,
+            salt_b,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=5,
         )
 
@@ -379,16 +405,20 @@ class TestInvariant5_CrossSessionReplay:
         key_b = bytes(range(1, 33))
 
         encoder = EncoderRatchet(
-            key_a, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            key_a,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=5,
         )
         encrypted = [encoder.encrypt_next(f"a{i}".encode()) for i in range(5)]
         encoder.finalize()
 
         decoder_b = DecoderRatchet(
-            key_b, SALT,
-            k_blocks=K_BLOCKS, block_size=800,
+            key_b,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=800,
             total_frames=5,
         )
 
@@ -501,46 +531,62 @@ class TestInvariant7_TranscriptBinding:
         data = b"Test data for AAD binding"
         password = "aad_test_pass"
 
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password, None, None
-        )
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, None, None)
 
         # Correct decryption works
-        pt = decrypt_to_raw(cipher, password, salt, nonce,
-                            orig_len=len(data), comp_len=len(comp), sha256=sha)
+        pt = decrypt_to_raw(
+            cipher, password, salt, nonce, orig_len=len(data), comp_len=len(comp), sha256=sha
+        )
         assert pt == data
 
         # Tampered orig_len → rejected
         with pytest.raises(Exception):
-            decrypt_to_raw(cipher, password, salt, nonce,
-                           orig_len=len(data) + 1, comp_len=len(comp), sha256=sha)
+            decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(data) + 1,
+                comp_len=len(comp),
+                sha256=sha,
+            )
 
     def test_aad_tampered_comp_len_rejected(self):
         """Tampered comp_len in AAD causes decryption failure."""
         data = b"Test data for comp_len binding"
         password = "aad_comp_test"
 
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password, None, None
-        )
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, None, None)
 
         with pytest.raises(Exception):
-            decrypt_to_raw(cipher, password, salt, nonce,
-                           orig_len=len(data), comp_len=len(comp) + 1, sha256=sha)
+            decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(data),
+                comp_len=len(comp) + 1,
+                sha256=sha,
+            )
 
     def test_aad_tampered_sha256_rejected(self):
         """Tampered SHA-256 hash in AAD causes decryption failure."""
         data = b"Test data for sha256 binding"
         password = "aad_sha_test"
 
-        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(
-            data, password, None, None
-        )
+        comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(data, password, None, None)
 
         bad_sha = bytes(32)  # All zeros
         with pytest.raises(Exception):
-            decrypt_to_raw(cipher, password, salt, nonce,
-                           orig_len=len(data), comp_len=len(comp), sha256=bad_sha)
+            decrypt_to_raw(
+                cipher,
+                password,
+                salt,
+                nonce,
+                orig_len=len(data),
+                comp_len=len(comp),
+                sha256=bad_sha,
+            )
 
     def test_frame_mac_aad_binding(self):
         """Frame MAC is bound to frame index and salt."""
@@ -596,16 +642,20 @@ class TestRatchetDeterminism:
         frames = [f"deterministic_{i}".encode() for i in range(total)]
 
         encoder = EncoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=BLOCK_SIZE,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=BLOCK_SIZE,
             total_frames=total,
         )
         encrypted = [encoder.encrypt_next(f) for f in frames]
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            ROOT_KEY, SALT,
-            k_blocks=K_BLOCKS, block_size=BLOCK_SIZE,
+            ROOT_KEY,
+            SALT,
+            k_blocks=K_BLOCKS,
+            block_size=BLOCK_SIZE,
             total_frames=total,
         )
         for i in range(total):
