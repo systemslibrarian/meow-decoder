@@ -218,6 +218,7 @@ class TestProductionRoundtrip:
         hb.drop(enc_handle)
 
         # Decrypt (derives its own key handle internally)
+        # mode_byte=0 matches encrypt_file_bytes_production default
         plaintext = decrypt_to_raw_production(
             cipher=cipher,
             password=password,
@@ -228,7 +229,7 @@ class TestProductionRoundtrip:
             sha256=sha,
             ephemeral_public_key=epk,
             pq_ciphertext=None,
-            mode_byte=0x02,
+            mode_byte=0,
         )
         assert plaintext == data, "Decrypted data must match original"
 
@@ -300,7 +301,7 @@ class TestProductionRoundtrip:
                 sha256=sha,
                 ephemeral_public_key=epk,
                 pq_ciphertext=None,
-                mode_byte=0x02,
+                mode_byte=0,
             )
 
     def test_handle_dropped_after_use(self):
