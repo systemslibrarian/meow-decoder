@@ -552,7 +552,7 @@ if __name__ == "__main__":
     # Test key derivation
     print("\n2. Testing key derivation...")
 
-    test_password = "test_password_123"
+    test_password = secrets.token_hex(16)  # random demo password
     test_salt = secrets.token_bytes(16)
 
     key, method = manager.derive_key_auto(test_password, test_salt)

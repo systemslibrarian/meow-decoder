@@ -1,5 +1,5 @@
 """
-Production Boundary Enforcement (Signal-Grade)
+Production Boundary Enforcement (Signal-Inspired)
 
 This test module defines and enforces the production boundary.
 No production code may import from _testonly or experimental.

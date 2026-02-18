@@ -1,5 +1,5 @@
 """
-Signal-Grade Protocol Invariant Tests
+Signal-Inspired Protocol Invariant Tests
 
 These tests verify the 7 critical protocol invariants that MUST hold
 for the Meow Decoder ratchet protocol to match Signal's security properties.

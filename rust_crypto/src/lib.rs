@@ -786,6 +786,34 @@ fn handle_hmac_sha256_verify(
     handles::handle_hmac_sha256_verify(key_handle, message, expected_tag).map_err(handle_err_to_py)
 }
 
+/// Compute HMAC-SHA256 with prefixed key: effective key = prefix || handle_key.
+/// Enables domain-separated HMAC (e.g. manifest auth) without exporting the secret.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256_prefixed<'py>(
+    py: Python<'py>,
+    key_handle: u64,
+    prefix: &[u8],
+    message: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let tag = handles::handle_hmac_sha256_prefixed(key_handle, prefix, message)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &tag))
+}
+
+/// Verify HMAC-SHA256 with prefixed key in constant time.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256_prefixed_verify(
+    key_handle: u64,
+    prefix: &[u8],
+    message: &[u8],
+    expected_tag: &[u8],
+) -> PyResult<bool> {
+    handles::handle_hmac_sha256_prefixed_verify(key_handle, prefix, message, expected_tag)
+        .map_err(handle_err_to_py)
+}
+
 /// Generate X25519 keypair. Private key stays in Rust.
 /// Returns (handle_id, public_key_bytes).
 #[cfg(feature = "python")]
@@ -1072,6 +1100,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_aes_gcm_decrypt, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed_verify, m)?)?;
     m.add_function(wrap_pyfunction!(handle_x25519_generate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_x25519_exchange, m)?)?;
     m.add_function(wrap_pyfunction!(handle_x25519_public, m)?)?;

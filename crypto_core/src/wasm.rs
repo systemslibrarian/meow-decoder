@@ -71,6 +71,21 @@ impl WasmResult {
     }
 }
 
+/// Zeroize sensitive data on drop to prevent lingering in WASM linear memory.
+/// WasmResult may hold decrypted plaintext or derived key bytes.
+#[cfg(feature = "wasm")]
+impl Drop for WasmResult {
+    fn drop(&mut self) {
+        // Zero the data buffer (may contain plaintext or key material)
+        for byte in self.data.iter_mut() {
+            unsafe {
+                std::ptr::write_volatile(byte, 0);
+            }
+        }
+        std::sync::atomic::compiler_fence(std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
 // ============================================================================
 // Encryption / Decryption
 // ============================================================================
@@ -353,8 +368,8 @@ impl WasmX25519KeyPair {
         use crate::pure_crypto::X25519KeyPair;
         let kp = X25519KeyPair::generate().map_err(|e| JsValue::from_str(&format!("{:?}", e)))?;
         Ok(WasmX25519KeyPair {
-            secret: kp.public_bytes().clone(), // This is a workaround - we'll use the struct
-            public: kp.public_bytes().clone(),
+            secret: *kp.secret_bytes(),
+            public: *kp.public_bytes(),
         })
     }
 
@@ -374,26 +389,12 @@ pub fn x25519_generate_keypair() -> WasmResult {
         Ok(kp) => {
             // Return secret_key (32 bytes) || public_key (32 bytes)
             let mut combined = Vec::with_capacity(64);
-            // We need to access the secret bytes - unfortunately X25519KeyPair doesn't expose them
-            // So we generate raw bytes directly
-            match random_bytes(32) {
-                Ok(secret_bytes) => {
-                    let secret_arr: [u8; 32] = secret_bytes.try_into().unwrap();
-                    let secret = StaticSecret::from(secret_arr);
-                    let public = PublicKey::from(&secret);
-                    combined.extend_from_slice(&secret_arr);
-                    combined.extend_from_slice(public.as_bytes());
-                    WasmResult {
-                        success: true,
-                        data: combined,
-                        error: None,
-                    }
-                }
-                Err(e) => WasmResult {
-                    success: false,
-                    data: vec![],
-                    error: Some(format!("{:?}", e)),
-                },
+            combined.extend_from_slice(kp.secret_bytes());
+            combined.extend_from_slice(kp.public_bytes());
+            WasmResult {
+                success: true,
+                data: combined,
+                error: None,
             }
         }
         Err(e) => WasmResult {
@@ -1155,8 +1156,23 @@ pub fn encode_data(data: &[u8], password: &str, block_size: Option<u32>) -> Wasm
 
     // 1. Compress
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());
-    encoder.write_all(data).unwrap();
-    let compressed = encoder.finish().unwrap();
+    if let Err(e) = encoder.write_all(data) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some(format!("Compression write failed: {}", e)),
+        };
+    }
+    let compressed = match encoder.finish() {
+        Ok(c) => c,
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Compression finish failed: {}", e)),
+            };
+        }
+    };
 
     // 2. Generate salt and nonce
     let salt_bytes = match random_bytes(16) {

@@ -450,7 +450,7 @@ class TestBuildFrameAAD:
         aad = build_frame_aad(42, salt, 5, 800, 10)
         # Frame index is 4 bytes little-endian after the prefix
         offset = len(RATCHET_AAD_PREFIX)
-        idx = struct.unpack("<I", aad[offset : offset + 4])[0]
+        idx = struct.unpack("<I", aad[offset: offset + 4])[0]
         assert idx == 42
 
     def test_aad_contains_salt(self, salt):
@@ -1902,7 +1902,14 @@ class TestRekeyBeacons:
 
 
 class TestMeowAliases:
-    """Verify the tasteful cat-themed public API aliases."""
+    """Verify the tasteful cat-themed public API aliases (opt-in via MEOW_CAT_API=1)."""
+
+    @pytest.fixture(autouse=True)
+    def _enable_cat_api(self, monkeypatch):
+        """Enable cat-themed aliases for this test class."""
+        monkeypatch.setenv("MEOW_CAT_API", "1")
+        from meow_decoder.ratchet import _register_cat_aliases
+        _register_cat_aliases()
 
     def test_paw_state_is_ratchet_state(self):
         from meow_decoder.ratchet import PawState

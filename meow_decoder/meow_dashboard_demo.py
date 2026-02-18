@@ -95,7 +95,7 @@ class MeowDashboard:
             # Password
             dpg.add_text("🔐 Strong Cat Password:")
             dpg.add_input_text(
-                tag="encode_password", password=True, width=500, hint="Meow@MyFluffyCat2026!"
+                tag="encode_password", password=True, width=500, hint="Enter a strong password"
             )
 
             dpg.add_spacer(height=10)

@@ -120,7 +120,7 @@ HEADER_ENC_INFO = b"meow_ratchet_header_v1"
 HEADER_MASK_INFO = b"meow_header_mask_v1"
 
 # ── Asymmetric Entropy Reinjection Constants (MSR v2.0) ─────────────────────
-# Signal-grade post-compromise security via periodic X25519 root key rotation.
+# Signal-inspired post-compromise security via periodic X25519 root key rotation.
 # Every rekey_interval frames, the sender generates a fresh X25519 keypair,
 # performs ECDH with the receiver's long-term public key, and rotates the root
 # key.  Compromise of chain_key[N] CANNOT yield keys after the next rekey,
@@ -258,7 +258,7 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Uni
 
 # ── Asymmetric Entropy Reinjection (MSR v2.0) ───────────────────────────────
 #
-# Signal-grade post-compromise security for unidirectional air-gap channels.
+# Signal-inspired post-compromise security for unidirectional air-gap channels.
 #
 # Protocol:
 #   At each rekey frame (every K frames), the sender:
@@ -377,7 +377,7 @@ def _asymmetric_root_rekey(
 ) -> Tuple[bytes, bytes]:
     """Rotate root key with asymmetric entropy and derive new chain key.
 
-    This is the core of Signal-grade post-compromise security:
+    This is the core of Signal-inspired post-compromise security:
         new_root  = HKDF(IKM=shared_secret, salt=old_root_key,
                          info=ASYM_REKEY_ROOT_INFO || epoch)
         new_chain = HKDF(new_root, salt, ASYM_REKEY_CHAIN_INFO)
@@ -1050,7 +1050,7 @@ class EncoderRatchet:
 
         # Plaintext beacon fallback (no receiver key → mix entropy via handle)
         if self._is_rekey_frame(frame_index) and self._receiver_public_key is None:
-            beacon_secret = os.urandom(REKEY_BEACON_SIZE)
+            beacon_secret = secrets.token_bytes(REKEY_BEACON_SIZE)
             beacon_header = beacon_secret
             new_mk_handle = _mix_beacon_handle(msg_key_handle, beacon_secret, self._salt)
             hb.drop(msg_key_handle)
@@ -1544,23 +1544,37 @@ class KeyDeletionReport:
         return derived == zeroized
 
 
-# ── Tasteful Meow API Layer ─────────────────────────────────────────────────
-# Cat-themed public aliases for the wrapper/demo layer.
-# Core crypto internals remain serious. The edge gets the cat. 🐱
-
-# Type aliases
-PawState = RatchetState
-WhiskerKeys = FrameKeys
-
-# Function aliases
-bury_in_litter = _secure_zero
-knead_subkey = derive_frame_keys
+# ── Tasteful Meow API Layer (opt-in) ────────────────────────────────────────
+# Cat-themed convenience aliases for the wrapper/demo layer.
+# These are NOT exported by default.  Import them explicitly or set
+#     MEOW_CAT_API=1
+# to enable them at module level.  Core crypto internals always use the
+# serious names (RatchetState, FrameKeys, init_ratchet, etc.).
 
 
-def prime_cat(password_key: bytes, salt: bytes) -> "PawState":
-    """Initialize a ratchet from the Prime Cat (root key).
+def _register_cat_aliases() -> None:
+    """Lazily register cat-themed aliases into this module's namespace."""
+    import sys
 
-    This is the tasteful meow alias for init_ratchet().
-    Use this at the wrapper/demo layer. Core crypto uses init_ratchet().
-    """
-    return init_ratchet(password_key, salt)
+    _mod = sys.modules[__name__]
+    # Type aliases
+    _mod.PawState = RatchetState  # type: ignore[attr-defined]
+    _mod.WhiskerKeys = FrameKeys  # type: ignore[attr-defined]
+    # Function aliases
+    _mod.bury_in_litter = _secure_zero  # type: ignore[attr-defined]
+    _mod.knead_subkey = derive_frame_keys  # type: ignore[attr-defined]
+
+    def prime_cat(password_key: bytes, salt: bytes) -> RatchetState:
+        """Initialize a ratchet from the Prime Cat (root key).
+
+        This is the tasteful meow alias for init_ratchet().
+        Use this at the wrapper/demo layer. Core crypto uses init_ratchet().
+        """
+        return init_ratchet(password_key, salt)
+
+    _mod.prime_cat = prime_cat  # type: ignore[attr-defined]
+
+
+# Auto-register when MEOW_CAT_API=1 (e.g. demo scripts, notebooks)
+if os.environ.get("MEOW_CAT_API", "0") == "1":
+    _register_cat_aliases()

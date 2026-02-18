@@ -737,7 +737,7 @@ Comprehensive tests in `tests/test_ratchet.py` (142 tests) and `tests/test_asymm
 | `TestConfigIntegration` | `enable_ratchet` flag in EncodingConfig |
 | **`TestMSRv1SecurityInvariants`** | **6 critical invariants: backward secrecy, DoS bound, OOO, replay, cross-session, nonce uniqueness** |
 | **`TestRekeyBeacons`** | **Beacon roundtrip (plaintext + KEM), OOO, size verification, wrong-key rejection** |
-| **`TestMeowAliases`** | **Cat-themed API: PawState, WhiskerKeys, bury_in_litter, knead_subkey, prime_cat** |
+| **`TestMeowAliases`** | **Cat-themed API (opt-in via `MEOW_CAT_API=1`): PawState, WhiskerKeys, bury_in_litter, knead_subkey, prime_cat** |
 | **`TestHeaderEncryption`** | **HKDF-XOR mask uniqueness, encryption/decryption roundtrip, observer indistinguishability** |
 | **`TestKeyCommitment`** | **HMAC-SHA256 commitment determinism, wrong-key rejection, truncation to 128 bits** |
 | **`TestSignalParityHardening`** | **Full encoder/decoder roundtrip with header encryption + key commitment, tamper detection** |

@@ -215,7 +215,11 @@ impl SealedBlob {
 
         let mut offset = 0;
 
-        let private_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        let private_len = u32::from_le_bytes(
+            data[offset..offset + 4]
+                .try_into()
+                .map_err(|_| TpmError::UnsealFailed("Invalid private length field".into()))?,
+        ) as usize;
         offset += 4;
 
         if data.len() < offset + private_len + 8 {
@@ -225,15 +229,35 @@ impl SealedBlob {
         let private = data[offset..offset + private_len].to_vec();
         offset += private_len;
 
-        let public_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        if offset + 4 > data.len() {
+            return Err(TpmError::UnsealFailed("Truncated public length".into()));
+        }
+        let public_len = u32::from_le_bytes(
+            data[offset..offset + 4]
+                .try_into()
+                .map_err(|_| TpmError::UnsealFailed("Invalid public length field".into()))?,
+        ) as usize;
         offset += 4;
 
+        if offset + public_len > data.len() {
+            return Err(TpmError::UnsealFailed("Truncated public data".into()));
+        }
         let public = data[offset..offset + public_len].to_vec();
         offset += public_len;
 
-        let pcr_len = u32::from_le_bytes(data[offset..offset + 4].try_into().unwrap()) as usize;
+        if offset + 4 > data.len() {
+            return Err(TpmError::UnsealFailed("Truncated PCR length".into()));
+        }
+        let pcr_len = u32::from_le_bytes(
+            data[offset..offset + 4]
+                .try_into()
+                .map_err(|_| TpmError::UnsealFailed("Invalid PCR length field".into()))?,
+        ) as usize;
         offset += 4;
 
+        if offset + pcr_len > data.len() {
+            return Err(TpmError::UnsealFailed("Truncated PCR data".into()));
+        }
         let pcr_selection = data[offset..offset + pcr_len].to_vec();
 
         Ok(Self {

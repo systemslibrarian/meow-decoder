@@ -156,6 +156,85 @@ def derive_shared_secret(
                 pass
 
 
+def derive_shared_secret_handle(
+    ephemeral_private: Union[int, bytes],
+    receiver_public: bytes,
+    password: str,
+    salt: bytes,
+    info: bytes = b"meow_forward_secrecy_v1",
+    protocol_version: Optional[int] = None,
+    ephemeral_public: Optional[bytes] = None,
+    pq_ciphertext_hash: Optional[bytes] = None,
+    mode_flags: int = 0,
+) -> int:
+    """
+    Derive shared secret using X25519 + password via HKDF — returns opaque handle.
+
+    Identical to derive_shared_secret() but the derived key NEVER enters Python.
+    Caller MUST drop the returned handle when done.
+
+    Returns:
+        int handle ID pointing to the 32-byte shared secret inside Rust
+    """
+    if isinstance(ephemeral_private, bytes):
+        if len(ephemeral_private) != 32:
+            raise ValueError(
+                f"Ephemeral private key must be 32 bytes, got {len(ephemeral_private)}"
+            )
+    if len(receiver_public) != 32:
+        raise ValueError(f"Receiver public key must be 32 bytes, got {len(receiver_public)}")
+    if len(salt) != 16:
+        raise ValueError("Salt must be 16 bytes")
+
+    hb = get_handle_backend()
+    backend = get_default_backend()
+    imported_handle = None
+
+    try:
+        if isinstance(ephemeral_private, bytes):
+            private_handle = hb.import_x25519_private(ephemeral_private)
+            imported_handle = private_handle
+        else:
+            private_handle = ephemeral_private
+
+        shared_handle = hb.x25519_exchange(private_handle, receiver_public)
+
+        # FIX-C3 v2: Full transcript binding
+        if protocol_version is not None:
+            bound_info = b"meow_fs_bound_v2:"
+            bound_info += struct.pack(">B", protocol_version)
+            bound_info += struct.pack(">B", mode_flags & 0xFF)
+            bound_info += backend.sha256(receiver_public)
+            if ephemeral_public is not None:
+                if len(ephemeral_public) != 32:
+                    raise ValueError(
+                        f"Ephemeral public key must be 32 bytes, got {len(ephemeral_public)}"
+                    )
+                bound_info += ephemeral_public
+            if pq_ciphertext_hash is not None:
+                if len(pq_ciphertext_hash) != 32:
+                    raise ValueError(
+                        f"PQ ciphertext hash must be 32 bytes, got {len(pq_ciphertext_hash)}"
+                    )
+                bound_info += pq_ciphertext_hash
+        else:
+            bound_info = info
+
+        password_bytes = password.encode("utf-8")
+        derived_handle = hb.mix_hkdf(shared_handle, password_bytes, salt, bound_info, 32)
+
+        # Drop intermediate handles but NOT derived_handle — caller owns it
+        hb.drop(shared_handle)
+
+        return derived_handle
+    finally:
+        if imported_handle is not None:
+            try:
+                hb.drop(imported_handle)
+            except Exception:
+                pass
+
+
 def serialize_public_key(public_key: bytes) -> bytes:
     """
     Serialize X25519 public key to bytes.

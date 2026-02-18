@@ -402,6 +402,19 @@ class HandleBackend:
         """Verify HMAC-SHA256 constant-time using key handle."""
         return self._rs.handle_hmac_sha256_verify(key_handle, message, expected_tag)
 
+    def hmac_sha256_prefixed(self, key_handle: int, prefix: bytes, message: bytes) -> bytes:
+        """Compute HMAC-SHA256 with effective key = prefix || handle_key.
+        All key material stays in Rust. No export needed."""
+        return self._rs.handle_hmac_sha256_prefixed(key_handle, prefix, message)
+
+    def hmac_sha256_prefixed_verify(
+        self, key_handle: int, prefix: bytes, message: bytes, expected_tag: bytes
+    ) -> bool:
+        """Verify HMAC-SHA256 with prefixed key in constant time."""
+        return self._rs.handle_hmac_sha256_prefixed_verify(
+            key_handle, prefix, message, expected_tag
+        )
+
     # ── X25519 (private key stays in Rust) ──
 
     def x25519_generate_keypair(self) -> tuple:

@@ -139,9 +139,12 @@ impl AssociatedData {
     }
 }
 
+/// Convenience conversion — panics if AAD exceeds MAX_LEN.
+/// Prefer `AssociatedData::new()` when handling untrusted input.
 impl From<&[u8]> for AssociatedData {
     fn from(bytes: &[u8]) -> Self {
-        Self::new(bytes.to_vec()).expect("AAD from slice should not exceed max")
+        Self::new(bytes.to_vec())
+            .expect("AAD from slice exceeds MAX_LEN; use TryFrom for untrusted input")
     }
 }
 

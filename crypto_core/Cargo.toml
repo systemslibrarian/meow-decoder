@@ -37,7 +37,7 @@ ctr = { version = "0.9", optional = true }
 cipher = { version = "0.4", optional = true }
 
 # Secure memory zeroization
-zeroize = { version = "1.7", features = ["derive"] }
+zeroize = { version = "1.8", features = ["derive"] }
 
 # Secure random number generation
 getrandom = { version = "0.2", features = ["std"] }
@@ -87,7 +87,7 @@ ml-kem = { version = "0.3.0-pre", optional = true, features = ["getrandom"] }
 
 # Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
 # Using >=0.1.0-rc.5 to fix GHSA-h37v-hp6w-2pp8 (off-by-two in UseHint)
-ml-dsa = { version = ">=0.1.0-rc.5", optional = true }
+ml-dsa = { version = ">=0.1.0-rc.5, <0.2", optional = true }
 
 # KEM traits for ml-kem (Generate, Encapsulate, Decapsulate)
 # Must match version expected by ml-kem (0.3.0-rc.2)

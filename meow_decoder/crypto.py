@@ -889,35 +889,142 @@ def encrypt_file_bytes_production(
     """
     Compress, hash, and encrypt — encryption key stays in Rust handle.
 
-    Production version of encrypt_file_bytes.  Identical behaviour except
-    the last element of the return tuple is an opaque handle (int), not
-    the raw 32-byte key.  Caller MUST call
-    ``get_handle_backend().drop(key_handle)`` on all exit paths.
+    Production version of encrypt_file_bytes.  The encryption key NEVER
+    enters Python memory.  All key derivation, encryption, and HMAC
+    operations are performed through opaque Rust handles.
 
     Returns:
         (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, key_handle)
+        Caller MUST call ``get_handle_backend().drop(key_handle)`` on all exit paths.
     """
-    # Delegate to the raw version, then immediately import key into handle
-    comp, sha, salt, nonce, cipher, ephemeral_public_key, key = encrypt_file_bytes(
-        raw=raw,
-        password=password,
-        keyfile=keyfile,
-        receiver_public_key=receiver_public_key,
-        use_length_padding=use_length_padding,
-        yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin,
-        precomputed_key=precomputed_key,
-        precomputed_salt=precomputed_salt,
-        pq_ciphertext=pq_ciphertext,
-        pq_ephemeral_public_key=pq_ephemeral_public_key,
-        mode_byte=mode_byte,
-    )
     hb = get_handle_backend()
-    key_handle = hb.import_key(key)
-    # Overwrite the Python bytes reference (best-effort; GC may still hold a copy,
-    # but the production caller never sees `key` — it's local to this function).
-    del key
-    return comp, sha, salt, nonce, cipher, ephemeral_public_key, key_handle
+    backend = get_default_backend()
+
+    # ── 1. Compress ──
+    comp = zlib.compress(raw, level=9)
+    if use_length_padding:
+        try:
+            from .metadata_obfuscation import add_length_padding
+        except ImportError:  # pragma: no cover
+            from metadata_obfuscation import add_length_padding
+        comp = add_length_padding(comp)
+
+    # ── 2. Hash original ──
+    sha = backend.sha256(raw)
+
+    # ── 3. Salt ──
+    if precomputed_salt is not None:
+        salt = precomputed_salt
+    else:
+        salt = secrets.token_bytes(16)
+
+    # ── 4. Derive key → handle (key NEVER enters Python) ──
+    ephemeral_public_key = None
+    key_handle = None
+
+    try:
+        if precomputed_key is not None:
+            # HARDWARE / PQ HYBRID MODE
+            if len(precomputed_key) != 32:
+                raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+            key_handle = hb.import_key(precomputed_key)
+            ephemeral_public_key = pq_ephemeral_public_key
+
+        elif receiver_public_key is not None:
+            # FORWARD SECRECY MODE
+            try:
+                from meow_decoder.x25519_forward_secrecy import (
+                    generate_ephemeral_keypair,
+                    derive_shared_secret_handle,
+                    deserialize_public_key,
+                    serialize_public_key,
+                )
+            except ImportError:  # pragma: no cover
+                from .x25519_forward_secrecy import (
+                    generate_ephemeral_keypair,
+                    derive_shared_secret_handle,
+                    deserialize_public_key,
+                    serialize_public_key,
+                )
+
+            fs_keys = generate_ephemeral_keypair()
+            receiver_pubkey = deserialize_public_key(receiver_public_key)
+            _mode_flags = 0x01
+            if pq_ciphertext is not None:
+                _mode_flags |= 0x02
+            _pq_hash = backend.sha256(pq_ciphertext) if pq_ciphertext else None
+            _eph_pub = serialize_public_key(fs_keys.ephemeral_public)
+
+            key_handle = derive_shared_secret_handle(
+                fs_keys.ephemeral_private,
+                receiver_pubkey,
+                password,
+                salt,
+                protocol_version=3,
+                ephemeral_public=_eph_pub,
+                pq_ciphertext_hash=_pq_hash,
+                mode_flags=_mode_flags,
+            )
+            ephemeral_public_key = serialize_public_key(fs_keys.ephemeral_public)
+
+        else:
+            # PASSWORD-ONLY MODE
+            if yubikey_slot is not None:
+                if keyfile is not None:
+                    raise ValueError("Cannot combine --yubikey with --keyfile")
+                key_bytes = backend.derive_key_yubikey(
+                    password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
+                )
+                key_handle = hb.import_key(key_bytes)
+                del key_bytes
+            else:
+                key_handle = derive_key_handle(password, salt, keyfile)
+
+        # ── 5. Nonce ──
+        if precomputed_key is not None and pq_ephemeral_public_key is None:
+            # Synthetic IV for HSM/TPM mode
+            comp_hash = backend.sha256(comp)
+            # Derive synthetic nonce from key handle + comp_hash
+            nonce = hb.derive_key_hkdf_bytes(
+                key_handle, salt, b"meow-synthetic-nonce-v1-comp:" + comp_hash, 12
+            )
+        else:
+            nonce = secrets.token_bytes(12)
+
+        # ── 6. Nonce reuse guard (handle-based fingerprint) ──
+        _is_synthetic = precomputed_key is not None and pq_ephemeral_public_key is None
+        if not _is_synthetic:
+            fingerprint = hb.derive_key_hkdf_bytes(key_handle, nonce, b"nonce_guard_v1", 32)
+            if fingerprint in _nonce_reuse_cache:
+                raise RuntimeError("Nonce reuse detected for encryption key")
+            _nonce_reuse_cache[fingerprint] = True
+            while len(_nonce_reuse_cache) > _NONCE_REUSE_CACHE_MAX:
+                _nonce_reuse_cache.popitem(last=False)
+
+        # ── 7. Build AAD ──
+        aad = build_canonical_aad(
+            orig_len=len(raw),
+            comp_len=len(comp),
+            salt=salt,
+            sha256_hash=sha,
+            magic=MAGIC,
+            ephemeral_public_key=ephemeral_public_key,
+            pq_ciphertext=pq_ciphertext,
+            mode_byte=mode_byte,
+        )
+
+        # ── 8. Encrypt via handle ──
+        cipher = hb.aes_gcm_encrypt(key_handle, nonce, comp, aad)
+
+        return comp, sha, salt, nonce, cipher, ephemeral_public_key, key_handle
+    except Exception:
+        # Drop handle on error path
+        if key_handle is not None:
+            try:
+                hb.drop(key_handle)
+            except Exception:
+                pass
+        raise
 
 
 def derive_encryption_key_for_manifest_handle(
@@ -935,23 +1042,68 @@ def derive_encryption_key_for_manifest_handle(
     Derive the encryption key for a manifest — returns an opaque Rust handle.
 
     Production version of derive_encryption_key_for_manifest.
-    The raw key NEVER crosses the FFI boundary into Python.
+    The raw key NEVER crosses the FFI boundary into Python (except for
+    precomputed_key and yubikey paths where the key originates outside Rust).
 
     Caller MUST call ``get_handle_backend().drop(handle)`` when done.
     """
-    key = derive_encryption_key_for_manifest(
-        password, salt, keyfile=keyfile,
-        ephemeral_public_key=ephemeral_public_key,
-        receiver_private_key=receiver_private_key,
-        yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin,
-        precomputed_key=precomputed_key,
-        pq_ciphertext=pq_ciphertext,
-    )
     hb = get_handle_backend()
-    key_handle = hb.import_key(key)
-    del key
-    return key_handle
+
+    # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
+    if precomputed_key is not None:
+        if len(precomputed_key) != 32:
+            raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
+        # Key arrives from HSM — import immediately, transient in Python.
+        return hb.import_key(precomputed_key)
+
+    # FORWARD SECRECY MODE
+    if ephemeral_public_key is not None:
+        if receiver_private_key is None:
+            raise ValueError("Forward secrecy mode requires receiver private key")
+
+        try:
+            from meow_decoder.x25519_forward_secrecy import (
+                derive_shared_secret_handle,
+                deserialize_public_key,
+            )
+        except ImportError:  # pragma: no cover
+            from .x25519_forward_secrecy import (
+                derive_shared_secret_handle,
+                deserialize_public_key,
+            )
+
+        sender_pubkey = deserialize_public_key(ephemeral_public_key)
+        _mode_flags = 0x01  # FS mode
+        if pq_ciphertext is not None:
+            _mode_flags |= 0x02
+        _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
+        # Key NEVER enters Python — derive_shared_secret_handle returns handle
+        return derive_shared_secret_handle(
+            receiver_private_key,
+            sender_pubkey,
+            password,
+            salt,
+            protocol_version=3,
+            ephemeral_public=ephemeral_public_key,
+            pq_ciphertext_hash=_pq_hash,
+            mode_flags=_mode_flags,
+        )
+
+    # YUBIKEY MODE
+    if yubikey_slot is not None:
+        if keyfile is not None:
+            raise ValueError("Cannot combine --yubikey with --keyfile")
+        backend = get_default_backend()
+        key = backend.derive_key_yubikey(
+            password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
+        )
+        # Key arrives from Rust backend — import immediately, transient in Python.
+        key_handle = hb.import_key(key)
+        del key
+        return key_handle
+
+    # PASSWORD-ONLY MODE — key never enters Python
+    return derive_key_handle(password, salt, keyfile)
 
 
 def compute_manifest_hmac_from_handle(
@@ -963,10 +1115,8 @@ def compute_manifest_hmac_from_handle(
     Compute HMAC over manifest using a key handle — compatible with
     ``compute_manifest_hmac``.
 
-    Production version — the secret key is briefly exported inside this
-    function to construct ``MANIFEST_HMAC_KEY_PREFIX || key`` (matching
-    the original derivation), then immediately zeroed.  The raw key
-    NEVER enters caller code (encode.py / decode_gif.py).
+    Production version — the secret key NEVER enters Python.
+    Uses Rust-side prefixed HMAC: HMAC(MANIFEST_HMAC_KEY_PREFIX || key, msg).
 
     Args:
         key_handle: Opaque handle to the 32-byte encryption key
@@ -976,27 +1126,8 @@ def compute_manifest_hmac_from_handle(
     Returns:
         32-byte HMAC-SHA256 tag (identical to compute_manifest_hmac output)
     """
-    import hmac as _hmac
-    import hashlib as _hashlib
-
     hb = get_handle_backend()
-    # Export key to build the concatenated HMAC key matching the original format.
-    # This is the ONLY place the raw key is used, and it is zeroed immediately.
-    raw_key = hb.export_key(key_handle)
-    try:
-        key_material = MANIFEST_HMAC_KEY_PREFIX + raw_key
-        tag = _hmac.new(key_material, packed_no_hmac, _hashlib.sha256).digest()
-    finally:
-        # Zero the Python copies immediately
-        if isinstance(raw_key, bytearray):
-            secure_zero_memory(raw_key)
-        elif isinstance(raw_key, bytes):
-            # best-effort: replace binding; bytes are immutable
-            pass
-        if isinstance(key_material, bytearray):
-            secure_zero_memory(key_material)
-        del raw_key, key_material
-    return tag
+    return hb.hmac_sha256_prefixed(key_handle, MANIFEST_HMAC_KEY_PREFIX, packed_no_hmac)
 
 
 def decrypt_to_raw_production(

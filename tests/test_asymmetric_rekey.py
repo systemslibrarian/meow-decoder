@@ -1,5 +1,5 @@
 """
-Tests for MSR v2.0 Asymmetric Entropy Reinjection (Signal-Grade PCS).
+Tests for MSR v2.0 Asymmetric Entropy Reinjection (Signal-Inspired PCS).
 
 Verifies:
     - Basic roundtrip with asymmetric root key rotation
@@ -332,7 +332,7 @@ class TestAsymmetricRekeyRoundtrip:
 
 
 class TestPostCompromiseSecurity:
-    """Verify that asymmetric rekey provides Signal-grade PCS."""
+    """Verify that asymmetric rekey provides Signal-inspired PCS."""
 
     def test_compromised_state_cannot_decrypt_after_rekey(self, x25519_keypair):
         """

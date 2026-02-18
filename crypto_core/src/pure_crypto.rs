@@ -515,6 +515,11 @@ impl X25519KeyPair {
         &self.public
     }
 
+    /// Get secret key bytes (consuming — caller must zeroize after use)
+    pub fn secret_bytes(&self) -> &[u8; X25519_KEY_SIZE] {
+        &self.secret
+    }
+
     /// Perform Diffie-Hellman key exchange
     #[cfg(feature = "pure-crypto")]
     pub fn diffie_hellman(

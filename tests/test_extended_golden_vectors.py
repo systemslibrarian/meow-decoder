@@ -1,5 +1,5 @@
 """
-Extended Golden Vectors — Signal-Grade Byte-Level Equivalence Tests
+Extended Golden Vectors — Signal-Inspired Byte-Level Equivalence Tests
 
 These vectors freeze end-to-end pipeline outputs at the byte level.
 ANY change in output is a CRITICAL regression indicating the crypto

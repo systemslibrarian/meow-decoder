@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import gc
 import os
+import secrets
 from typing import Final
 
 from cryptography.hazmat.primitives import hashes, serialization
@@ -68,8 +69,8 @@ def encode_file(
     if shared_secret == b"\x00" * 32:
         raise ValueError("Invalid recipient public key (low-order point)")
 
-    hkdf_salt = os.urandom(16)
-    aead_nonce = os.urandom(24)
+    hkdf_salt = secrets.token_bytes(16)
+    aead_nonce = secrets.token_bytes(24)
 
     kdf_info_length = len(KDF_INFO).to_bytes(1, "big")
     header_before_sig = (

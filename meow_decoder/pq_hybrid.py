@@ -1,8 +1,13 @@
 """
-Post-Quantum Hybrid Cryptography
-Combines X25519 (classical) + ML-KEM (Kyber) for quantum resistance
+╔══════════════════════════════════════════════════════════════════════════════╗
+║  ⚠️  EXPERIMENTAL — Post-Quantum Hybrid Cryptography                       ║
+║                                                                            ║
+║  This module is EXPERIMENTAL and has NOT been independently audited.        ║
+║  Do NOT rely on it for production security without third-party review.      ║
+║  See security_warnings.py for the full maturity assessment.                ║
+╚══════════════════════════════════════════════════════════════════════════════╝
 
-⚠️  EXPERIMENTAL: See security_warnings.py for maturity assessment.
+Combines X25519 (classical) + ML-KEM (Kyber) for quantum resistance.
 
 Security Model:
 - Hybrid key agreement: X25519 ⊕ ML-KEM

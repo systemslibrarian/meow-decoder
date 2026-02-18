@@ -23,7 +23,7 @@ pqcrypto-traits = { version = "0.3.5", optional = true }
 sha2 = "0.10"
 hmac = "0.12"
 hkdf = "0.12"
-zeroize = { version = "1.7", features = ["derive"] }
+zeroize = { version = "1.8", features = ["derive"] }
 
 [features]
 default = []

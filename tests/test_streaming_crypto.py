@@ -1589,13 +1589,13 @@ class TestStreamingCryptoBoost:
 
 
 # =====================================================
-# Signal-Grade Streaming Auth Tests (Step 5)
+# Signal-Inspired Streaming Auth Tests (Step 5)
 # =====================================================
 
 
 class TestStreamingFailClosed:
     """
-    Signal-grade fail-closed tests for streaming crypto.
+    Signal-inspired fail-closed tests for streaming crypto.
 
     These tests verify that NO plaintext is released under any
     failure condition. All must pass for production deployment.
@@ -1886,7 +1886,7 @@ class TestStreamingCryptoAuthentication:
         assert mac1 != mac2
 
     def test_decrypt_without_mac_raises_valueerror(self):
-        """Decrypt without MAC must raise ValueError (fail-closed, Signal-grade)."""
+        """Decrypt without MAC must raise ValueError (fail-closed, Signal-inspired)."""
         key = secrets.token_bytes(32)
         plaintext = b"Unauthenticated decryption must fail"
 

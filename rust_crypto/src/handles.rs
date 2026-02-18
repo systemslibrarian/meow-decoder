@@ -490,6 +490,66 @@ pub fn handle_hmac_sha256_verify(
     Ok(computed.as_slice().ct_eq(expected_tag).into())
 }
 
+/// Compute HMAC-SHA256 with the effective key = `prefix || handle_key_bytes`.
+///
+/// This enables domain-separated HMAC (e.g. manifest authentication:
+/// `HMAC(MANIFEST_HMAC_KEY_PREFIX || enc_key, manifest_bytes)`) without ever
+/// exporting the secret key to Python.
+///
+/// All temporary key material is zeroized before returning.
+pub fn handle_hmac_sha256_prefixed(
+    key_handle: HandleId,
+    prefix: &[u8],
+    message: &[u8],
+) -> Result<Vec<u8>, HandleError> {
+    with_handle(key_handle, |payload| {
+        let key_bytes = match payload {
+            HandlePayload::SymmetricKey(k) => k.as_bytes(),
+            HandlePayload::HmacKey(h) => h.key.as_bytes(),
+            HandlePayload::Session(s) => s
+                .mac_key
+                .as_ref()
+                .map(|k| k.as_bytes())
+                .ok_or(HandleError::HandleTypeMismatch)?,
+            _ => return Err(HandleError::HandleTypeMismatch),
+        };
+
+        // Build prefix || key_bytes — the combined HMAC key
+        let mut hmac_key = Vec::with_capacity(prefix.len() + key_bytes.len());
+        hmac_key.extend_from_slice(prefix);
+        hmac_key.extend_from_slice(key_bytes);
+
+        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(&hmac_key).map_err(|_| {
+            HandleError::InvalidKeyLength {
+                expected: 32,
+                got: hmac_key.len(),
+            }
+        })?;
+        mac.update(message);
+        let tag = mac.finalize().into_bytes().to_vec();
+
+        // Zeroize the concatenated key material
+        hmac_key.zeroize();
+
+        Ok(tag)
+    })
+}
+
+/// Verify HMAC-SHA256 with prefixed key in constant time.
+/// Effective key = `prefix || handle_key_bytes`.
+pub fn handle_hmac_sha256_prefixed_verify(
+    key_handle: HandleId,
+    prefix: &[u8],
+    message: &[u8],
+    expected_tag: &[u8],
+) -> Result<bool, HandleError> {
+    let computed = handle_hmac_sha256_prefixed(key_handle, prefix, message)?;
+    if computed.len() != expected_tag.len() {
+        return Ok(false);
+    }
+    Ok(computed.as_slice().ct_eq(expected_tag).into())
+}
+
 // ─── Public API: X25519 ────────────────────────────────────────────────────
 
 /// Generate X25519 keypair. Private key stays in Rust handle.

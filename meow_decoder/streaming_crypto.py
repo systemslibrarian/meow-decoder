@@ -245,7 +245,7 @@ class StreamingCipher:
         """
         Decrypt stream with MANDATORY authentication verification.
 
-        SECURITY (Signal-grade, 2026-02-18):
+        SECURITY (Signal-inspired, 2026-02-18):
         MAC verification is MANDATORY. The expected_mac parameter MUST be provided.
         No plaintext is released until authentication succeeds.
         Passing expected_mac=None raises ValueError immediately.

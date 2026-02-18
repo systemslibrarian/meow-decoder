@@ -302,7 +302,7 @@ def litter_box_cleanup(*buffers):
         For guaranteed zeroing, use the Rust backend (zeroize crate).
 
     Example:
-        key = bytearray(os.urandom(32))
+        key = bytearray(secrets.token_bytes(32))
         with litter_box_cleanup(key):
             encrypt(key, data)
         # key is now zeroed (best-effort)
