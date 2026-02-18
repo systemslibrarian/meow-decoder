@@ -176,7 +176,7 @@ class CryptoBackend:
 
 ### Modifying Rust Primitive Function Names
 
-The 16 PyO3 bindings in `meow_crypto_rs` are the API contract. Every Layer 3 module depends on these exact names.
+The 52 PyO3 bindings in `meow_crypto_rs` are the API contract (16 base ops + 36 opaque handle ops). Every Layer 3 module depends on these exact names.
 
 ```
 ❌ FORBIDDEN renames:

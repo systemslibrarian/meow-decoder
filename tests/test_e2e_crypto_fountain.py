@@ -6,6 +6,13 @@ Covers ChatGPT audit Requirements 1 (PQ roundtrip) and 5 (reliability harness).
 Tests the full crypto+fountain pipeline without QR/GIF (those are presentation-layer).
 """
 
+from meow_decoder.fountain import (
+    FountainEncoder,
+    FountainDecoder,
+    pack_droplet,
+    unpack_droplet,
+)
+from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw, build_canonical_aad
 import hashlib
 import os
 import random
@@ -15,13 +22,6 @@ import pytest
 
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
-from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw, build_canonical_aad
-from meow_decoder.fountain import (
-    FountainEncoder,
-    FountainDecoder,
-    pack_droplet,
-    unpack_droplet,
-)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -409,12 +409,7 @@ class TestPQHybridRoundtrip:
         keypair = generate_hybrid_keypair()
 
         # Get receiver's classical public key bytes
-        from cryptography.hazmat.primitives import serialization
-
-        receiver_classical_public = keypair.classical_private.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        receiver_classical_public = keypair.classical_public_bytes
         receiver_pq_public = keypair.pq_public_key
 
         # Encapsulate
@@ -475,15 +470,10 @@ class TestPQHybridRoundtrip:
             hybrid_decapsulate,
             generate_hybrid_keypair,
         )
-        from cryptography.hazmat.primitives import serialization
-
         keypair_sender = generate_hybrid_keypair()
         keypair_wrong = generate_hybrid_keypair()
 
-        sender_classical_pub = keypair_sender.classical_private.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        sender_classical_pub = keypair_sender.classical_public_bytes
 
         shared_secret, eph_pub, pq_ct, _ = hybrid_encapsulate(
             receiver_classical_public=sender_classical_pub,
@@ -501,13 +491,9 @@ class TestPQHybridRoundtrip:
     def test_pq_ciphertext_size_is_1568(self):
         """ML-KEM-1024 ciphertext must be exactly 1568 bytes."""
         from meow_decoder.pq_hybrid import hybrid_encapsulate, generate_hybrid_keypair
-        from cryptography.hazmat.primitives import serialization
 
         keypair = generate_hybrid_keypair()
-        pub = keypair.classical_private.public_key().public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
+        pub = keypair.classical_public_bytes
 
         _, _, pq_ct, _ = hybrid_encapsulate(
             receiver_classical_public=pub,

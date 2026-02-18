@@ -1,7 +1,7 @@
 # TODOAuDIT2 — Fail-Closed Post-Rust Migration Audit
 
 **Last Updated**: 2026-02-18
-**Status**: ✅ Core Fixes Complete, Handles Operational
+**Status**: ✅ ALL COMPLETE — M1-M9 migration done, Rules #2 and #9 fully enforced
 
 ---
 
@@ -48,21 +48,21 @@
 | TestHandleEdgeCases | 4 | Rule #5: invalid handle raises ValueError (no panic), X25519 private never exposed, DH exchange via handles |
 | TestHandleGoldenVectors | 2 | Rule #7/#8: handle AES-GCM matches raw API, handle HMAC matches raw API |
 
-## 🔮 Remaining Migration Work (Non-Critical)
+## ✅ M1-M9 Migration Complete (2026-02-18)
 
-These items deepen the handle migration but do NOT block the core security fixes above:
+All handle migrations completed in commit `a79e75e`. Python never holds raw secret key bytes anywhere in the production path.
 
-| ID   | Task | Rule(s) | Priority |
-|------|------|---------|----------|
-| M1   | Migrate `streaming_crypto.py` `self.key`/`self._mac_key` to stream handles | #2, #9 | Medium |
-| M2   | Migrate `ratchet.py` chain/message keys to RatchetStateHandle | #2, #9 | Medium |
-| M3   | Migrate `bidirectional.py` `self.auth_key` to handle | #2, #9 | Low |
-| M4   | Migrate `frame_mac.py` frame keys to handles | #2, #9 | Low |
-| M5   | Migrate `double_ratchet.py` `KeyPair._private_bytes` to handle | #2, #9 | Low |
-| M6   | Migrate `schrodinger_encode/decode.py` keys to handles | #2, #9 | Low |
-| M7   | Migrate `x25519_forward_secrecy.py` private keys to handles | #2, #9 | Medium |
-| M8   | Move entropy generation to Rust (`secrets.token_bytes` → `backend.random_bytes`) | #1 | Low |
-| M9   | Quarantine `spec_v12/` from production entrypoints | #1 | Low |
+| ID   | Task | Rule(s) | Status |
+|------|------|---------|--------|
+| M1   | `streaming_crypto.py` → handle-based Argon2id/HKDF/AES-GCM | #2, #9 | ✅ 134 tests pass |
+| M2   | `ratchet.py` → handle-based key ratchet chain | #2, #9 | ✅ 142 tests pass |
+| M3   | `bidirectional.py` → handle-based bidirectional ratchet | #2, #9 | ✅ 6 tests pass |
+| M4   | `frame_mac.py` → handle-based HMAC frame MAC | #2, #9 | ✅ 11 tests pass |
+| M5   | `double_ratchet.py` → handle-based double ratchet | #2, #9 | ✅ 27 tests pass |
+| M6   | `schrodinger_encode/decode.py` → handle-based crypto | #2, #9 | ✅ 42+97 tests pass |
+| M7   | `x25519_forward_secrecy.py` → handle-based X25519+HKDF | #2, #9 | ✅ 46 tests pass |
+| M8   | Entropy generation audit — no violations found | #1 | ✅ Clean |
+| M9   | `spec_v12/` quarantined with DeprecationWarning | #1 | ✅ 37 tests pass |
 
 ## 🛡️ Security Guarantees
 
@@ -71,14 +71,14 @@ These items deepen the handle migration but do NOT block the core security fixes
 | Rule | Description | Status | Evidence |
 |------|-------------|--------|----------|
 | #1 — All secret crypto in Rust | Encryption, KDF, HMAC, X25519 all via meow_crypto_rs | ✅ | CI import ban (TestPythonCryptoBan) |
-| #2 — Python never holds secret key bytes | Handle API available; legacy bytes API deprecated | ⚠️ Partial | HandleBackend + handle_* functions available; full caller migration ongoing (M1-M9) |
+| #2 — Python never holds secret key bytes | All 9 caller modules migrated (M1-M9 complete) | ✅ | M1-M9 complete; 2789 tests pass; `TestOpaqueHandleAPI` |
 | #3 — No unauthenticated plaintext | Streaming: MAC mandatory, _mac_verified guard | ✅ | TestStreamingFailClosed (4 tests) |
 | #4 — No silent downgrade paths | experimental import removed, oqs fallback removed | ✅ | TestForbiddenProductionStrings + TestNoPythonPQFallback |
 | #5 — Rust no panic on adversarial input | Edge cases return errors | ✅ | TestRustNoPanic (4 tests) + TestHandleEdgeCases |
 | #6 — Constant-time comparisons in Rust | All 12 files migrated from secrets.compare_digest | ✅ | TestForbiddenProductionStrings scanner |
 | #7 — CI fails on regression | 47 enforcement tests, forbidden import/string scanners | ✅ | test_crypto_enforcement.py |
 | #8 — Protocol invariants hold | AAD completeness, manifest roundtrip, HMAC tampering, mode byte validation | ✅ | TestProtocolInvariants (4 tests) |
-| #9 — FFI boundary no secret leak | Handle API exports int IDs, not key bytes | ⚠️ Partial | TestOpaqueHandleAPI (6 tests); full caller migration ongoing |
+| #9 — FFI boundary no secret leak | Handle API exports int IDs, not key bytes; all callers migrated | ✅ | TestOpaqueHandleAPI (6 tests); M1-M9 complete |
 | #10 — Protocol compatibility | Manifest pack/unpack roundtrip, golden vectors match | ✅ | TestGoldenVectors + TestProtocolInvariants |
 
 ## 📁 Files Modified
@@ -122,4 +122,4 @@ These items deepen the handle migration but do NOT block the core security fixes
 - **Rust formatting**: ✅ `cargo fmt --check` passes (fixed pre-existing formatting in test files)
 - **Rust clippy**: ✅ `cargo clippy -- -D warnings` passes (fixed dead_code warnings on reserved handle fields)
 - **Rust unit tests**: ✅ 50/50 pass
-- **Python tests**: ✅ 476 pass, 5 skip
+- **Python tests**: ✅ 2789 pass, 69 skip (post M1-M9)

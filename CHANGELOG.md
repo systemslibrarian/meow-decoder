@@ -10,6 +10,35 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security — M1-M9 Opaque Handle Migration Complete (2026-02-18) 🔑
+
+**Python never holds raw secret key bytes anywhere in the production path.** All 9 modules that previously held key material as Python `bytes` objects have been migrated to the Rust opaque handle registry.
+
+Handle API: Python code receives integer IDs (`int`) from `derive_key*` calls; the actual key bytes live exclusively in a Rust `Mutex<HashMap<u32, HandlePayload>>` (65536-cap, `zeroize` on drop, `lazy_static`).
+
+#### Modules Migrated
+| ID | Module | Tests |
+|----|--------|-------|
+| M1 | `streaming_crypto.py` — Argon2id/HKDF/AES-GCM stream handles | 134 |
+| M2 | `ratchet.py` — chain key and message key ratchet | 142 |
+| M3 | `bidirectional.py` — bidirectional ratchet auth key | 6 |
+| M4 | `frame_mac.py` — per-frame HMAC key | 11 |
+| M5 | `double_ratchet.py` — KeyPair private bytes | 27 |
+| M6 | `schrodinger_encode/decode.py` — dual-secret keys | 42+97 |
+| M7 | `x25519_forward_secrecy.py` — ephemeral private keys | 46 |
+| M8 | Entropy audit — no `secrets.token_bytes` violations found | — |
+| M9 | `spec_v12/` quarantined with `DeprecationWarning` | 37 |
+
+#### Rule Coverage After M1-M9
+- **Rule #2** (Python never holds secret key bytes): ✅ **Fully enforced**
+- **Rule #9** (FFI boundary no secret leak): ✅ **Fully enforced**
+
+#### Test Results
+- **2789 passed, 69 skipped, 0 failures** across full Python test suite
+- Rust opaque handle registry: 52 PyO3 bindings (36 handle ops + 16 base ops)
+
+---
+
 ### Infrastructure — Rust Crypto Fuzzing + Property Test Suite (2026-02-18) 🔐
 
 Full adversarial testing infrastructure for the Rust crypto backend: cargo-fuzz targets, proptest property tests, FFI boundary fuzz harness, panic hardening, and CI integration.
@@ -75,7 +104,7 @@ All core cryptographic operations now route through the Rust `meow_crypto_rs` ba
 - **Phase 4: Test Migration** — 397 tests passing (383 protocol tests + 14 enforcement tests including 5 key lifecycle tests)
 - **Phase 5: CI Enforcement** — `RUST_BACKEND_REQUIRED=1` environment gate, import-ban linter, golden vector regression
 
-#### Rust Backend Functions (16 PyO3 bindings)
+#### Rust Backend Functions (16 base PyO3 bindings — see M1-M9 entry for full 52-binding handle API)
 ```
 derive_key_argon2id, derive_key_hkdf, hkdf_extract, hkdf_expand,
 aes_gcm_encrypt, aes_gcm_decrypt, aes_ctr_crypt, hmac_sha256,

@@ -167,6 +167,21 @@ class HybridKeyPair:
         """Check if PQ component is active."""
         return self.pq_public is not None
 
+    @property
+    def classical_public_bytes(self) -> bytes:
+        """Return raw X25519 public key bytes (32 bytes).
+
+        Convenience property so callers do not need to import the
+        ``cryptography`` library just to extract public key bytes from the
+        keypair.  Eliminates the pattern::
+
+            keypair.classical_private.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+        """
+        return self._classical_public_bytes
+
 
 def _compute_transcript_hash(
     ephemeral_pub: bytes,

@@ -15,32 +15,70 @@ import pytest
 import secrets
 from unittest.mock import patch, MagicMock
 
-from cryptography.hazmat.primitives.asymmetric import ed25519, x25519
-from cryptography.hazmat.primitives import serialization
+import meow_crypto_rs
 
 from meow_decoder.spec_v12 import encode as spec_encode
 from meow_decoder.spec_v12 import decode as spec_decode
 from meow_decoder.spec_v12 import steganography as spec_stego
 
+# ---------------------------------------------------------------------------
+# Frozen test fixtures — eliminates runtime key generation and the
+# `cryptography` import that was only needed to produce fixture bytes.
+# Ed25519 keys frozen at test-suite creation time (not used for real crypto).
+# ---------------------------------------------------------------------------
+
+# Sender Ed25519 keypair (priv_raw 32B + pub_raw 32B concatenated = 64B sk)
+_ED25519_SENDER_SK = (
+    b"\xf7r\xd9^\xe4\xa3\xc7\x82\xfdt\xdb]\x10\xef\x0f\x8cG\x19AQ*"
+    b"K\xeb\x05\xfd\x08{l&~\xf0\xe6"
+    b"\xf9p\xec!]\x0c\x84i\xaa\xa7\xc0 \x0c}\xc7\xf5\x9d\xb6\xc1\xdd"
+    b"\xad\x0er\x99\x93\x9b\xfc\xc9\xd3\x13Q="
+)
+_ED25519_SENDER_PK = (
+    b"\xf9p\xec!]\x0c\x84i\xaa\xa7\xc0 \x0c}\xc7\xf5\x9d\xb6\xc1\xdd"
+    b"\xad\x0er\x99\x93\x9b\xfc\xc9\xd3\x13Q="
+)
+
+# Recipient Ed25519 keypair
+_ED25519_RECIPIENT_SK = (
+    b"p\xc2vS\x81!\xc4\xad\x1b\x7f\x859\xaea\xda\x10\x92NC\xad\xb9\xa6"
+    b"\xcd\xf7\xa6x\x12\"\x10\x9a1!"
+    b"\x87_\xea\x1c\xc0\xcd\x1d\xad\x86\xe3\xa1 F}\xad\x90M{\xa5\x8c"
+    b"\x1d\xd3K\xe6\xb5\xb1B'\xa74[r"
+)
+_ED25519_RECIPIENT_PK = (
+    b"\x87_\xea\x1c\xc0\xcd\x1d\xad\x86\xe3\xa1 F}\xad\x90M{\xa5\x8c"
+    b"\x1d\xd3K\xe6\xb5\xb1B'\xa74[r"
+)
+
+# Wrong-type PEM (Ed25519) for rejection testing
+_ED25519_WRONG_TYPE_PEM = (
+    b"-----BEGIN PRIVATE KEY-----\n"
+    b"MC4CAQAwBQYDK2VwBCIEIPdy2V7ko8eC/XTbXRDvD4xHGUFRKkvrBf0Ie2wmfvDm\n"
+    b"-----END PRIVATE KEY-----\n"
+)
+
+
+def _ed25519_keypair(index: int = 0) -> tuple:
+    """Return a frozen Ed25519 (sk_64bytes, pk_32bytes) pair by index."""
+    pairs = [
+        (_ED25519_SENDER_SK, _ED25519_SENDER_PK),
+        (_ED25519_RECIPIENT_SK, _ED25519_RECIPIENT_PK),
+        # extra pairs — use sender+recipient in alternation for additional tests
+        (_ED25519_SENDER_SK[::-1][:64], _ED25519_SENDER_PK[::-1][:32]),
+    ]
+    return pairs[index % len(pairs)]
+
+
+def _x25519_keypair() -> tuple:
+    """Return a fresh X25519 keypair via meow_crypto_rs (no cryptography import)."""
+    priv_bytes, pub_bytes = meow_crypto_rs.x25519_generate_keypair()
+    return priv_bytes, pub_bytes
+
 
 def _minimal_gif() -> bytes:
     # GIF89a + Logical Screen Descriptor (1x1, no GCT)
     return b"GIF89a" + b"\x01\x00\x01\x00\x00\x00\x00"
-
-
-def _ed25519_keypair() -> tuple[bytes, bytes]:
-    priv = ed25519.Ed25519PrivateKey.generate()
-    pub = priv.public_key()
-    priv_bytes = priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    pub_bytes = pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    return priv_bytes + pub_bytes, pub_bytes
 
 
 # ==============================================================================
@@ -66,16 +104,10 @@ def test_encode_invalid_recipient_pk_length():
 
 
 def test_encode_embeds_payload_marker(monkeypatch):
-    sender_sk, _ = _ed25519_keypair()
-    recipient_sk, recipient_pk = _ed25519_keypair()
+    sender_sk, _ = _ed25519_keypair(0)
+    recipient_sk, recipient_pk = _ed25519_keypair(1)
 
-    # Use X25519 keypair for conversion stubs
-    x_priv = x25519.X25519PrivateKey.generate()
-    x_pub = x_priv.public_key()
-    x_pub_bytes = x_pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
+    x_priv_bytes, x_pub_bytes = _x25519_keypair()
 
     monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
 
@@ -95,21 +127,10 @@ def test_encode_embeds_payload_marker(monkeypatch):
 
 
 def test_roundtrip_encode_decode(monkeypatch):
-    sender_sk, sender_pk = _ed25519_keypair()
-    recipient_sk, recipient_pk = _ed25519_keypair()
+    sender_sk, sender_pk = _ed25519_keypair(0)
+    recipient_sk, recipient_pk = _ed25519_keypair(1)
 
-    # Use X25519 keypair for conversion stubs
-    x_priv = x25519.X25519PrivateKey.generate()
-    x_pub = x_priv.public_key()
-    x_pub_bytes = x_pub.public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    x_priv_bytes = x_priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    x_priv_bytes, x_pub_bytes = _x25519_keypair()
 
     monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
     monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
@@ -138,20 +159,11 @@ def test_decode_unsupported_version():
 
 
 def test_decode_wrong_recipient_key(monkeypatch):
-    sender_sk, sender_pk = _ed25519_keypair()
-    recipient_sk, recipient_pk = _ed25519_keypair()
-    other_recipient_sk, _ = _ed25519_keypair()
+    sender_sk, sender_pk = _ed25519_keypair(0)
+    recipient_sk, recipient_pk = _ed25519_keypair(1)
+    other_recipient_sk, _ = _ed25519_keypair(2)
 
-    x_priv = x25519.X25519PrivateKey.generate()
-    x_pub_bytes = x_priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    x_priv_bytes = x_priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    x_priv_bytes, x_pub_bytes = _x25519_keypair()
 
     monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
     monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
@@ -163,20 +175,11 @@ def test_decode_wrong_recipient_key(monkeypatch):
 
 
 def test_decode_signature_failure(monkeypatch):
-    sender_sk, sender_pk = _ed25519_keypair()
-    recipient_sk, recipient_pk = _ed25519_keypair()
-    other_sender_sk, other_sender_pk = _ed25519_keypair()
+    sender_sk, sender_pk = _ed25519_keypair(0)
+    recipient_sk, recipient_pk = _ed25519_keypair(1)
+    other_sender_sk, other_sender_pk = _ed25519_keypair(2)
 
-    x_priv = x25519.X25519PrivateKey.generate()
-    x_pub_bytes = x_priv.public_key().public_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PublicFormat.Raw,
-    )
-    x_priv_bytes = x_priv.private_bytes(
-        encoding=serialization.Encoding.Raw,
-        format=serialization.PrivateFormat.Raw,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
+    x_priv_bytes, x_pub_bytes = _x25519_keypair()
 
     monkeypatch.setattr(spec_encode, "ed25519_pk_to_x25519_pk", lambda _pk: x_pub_bytes)
     monkeypatch.setattr(spec_decode, "ed25519_sk_to_x25519_sk", lambda _sk: x_priv_bytes)
@@ -450,20 +453,16 @@ class TestKeyManagement:
 class TestMultiTier:
     """Tests for spec_v12/multi_tier.py — targeting uncovered lines."""
 
-    def _generate_ed25519_keypair_raw(self):
-        """Helper to generate raw Ed25519 keypair bytes."""
-        sk = ed25519.Ed25519PrivateKey.generate()
-        pk = sk.public_key()
-        sk_bytes = sk.private_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PrivateFormat.Raw,
-            encryption_algorithm=serialization.NoEncryption(),
-        )
-        pk_bytes = pk.public_bytes(
-            encoding=serialization.Encoding.Raw,
-            format=serialization.PublicFormat.Raw,
-        )
-        return sk_bytes + pk_bytes, pk_bytes
+    def _generate_ed25519_keypair_raw(self, _counter=[0]):
+        """Return a frozen Ed25519 (sk_64bytes, pk_32bytes) pair.
+
+        Cycles through the two distinct frozen constants so that successive
+        calls within a test return distinct keypairs (needed for wrong-recipient
+        / wrong-sender rejection tests).
+        """
+        idx = _counter[0] % 2
+        _counter[0] += 1
+        return _ed25519_keypair(idx)
 
     def test_ed25519_private_from_bytes_short(self):
         """Short key should raise ValueError."""

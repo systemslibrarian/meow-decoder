@@ -79,7 +79,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ### Rust Expansion
 - [x] **Rust Crypto Backend Complete**: Full migration of secret-handling crypto from Python → Rust
-	- All 16 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM
+    - All 52 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM, + opaque handle registry
 	- Constant-time via `subtle` crate, secure zeroing via `zeroize` crate
 	- CI enforces `RUST_BACKEND_REQUIRED=1` — no Python fallback
 	- 397 tests passing (383 protocol + 14 enforcement)

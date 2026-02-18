@@ -381,32 +381,27 @@ class TestLoadReceiverKeypair:
 
     def test_legacy_pem_invalid_type_raises(self):
         """Legacy PEM path rejects non-X25519 keys."""
+        # Frozen Ed25519 PEM — wrong key type, used to verify rejection.
+        # Generated once with Ed25519PrivateKey.generate() and frozen here
+        # to eliminate the cryptography import from test code.
+        _ED25519_WRONG_TYPE_PEM = (
+            b"-----BEGIN PRIVATE KEY-----\n"
+            b"MC4CAQAwBQYDK2VwBCIEIPdy2V7ko8eC/XTbXRDvD4xHGUFRKkvrBf0Ie2wmfvDm\n"
+            b"-----END PRIVATE KEY-----\n"
+        )
         with tempfile.TemporaryDirectory() as tmpdir:
             private_file = os.path.join(tmpdir, "private.pem")
             public_file = os.path.join(tmpdir, "public.key")
 
-            # Write a fake PEM that isn't X25519 — use Ed25519 PEM
-            try:
-                from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-                from cryptography.hazmat.primitives import serialization
+            with open(private_file, "wb") as f:
+                f.write(_ED25519_WRONG_TYPE_PEM)
 
-                ed_key = Ed25519PrivateKey.generate()
-                pem_data = ed_key.private_bytes(
-                    encoding=serialization.Encoding.PEM,
-                    format=serialization.PrivateFormat.PKCS8,
-                    encryption_algorithm=serialization.NoEncryption(),
-                )
-                with open(private_file, "wb") as f:
-                    f.write(pem_data)
+            _, public = generate_receiver_keypair()
+            with open(public_file, "wb") as f:
+                f.write(public)
 
-                _, public = generate_receiver_keypair()
-                with open(public_file, "wb") as f:
-                    f.write(public)
-
-                with pytest.raises(ValueError, match="Unsupported key format"):
-                    load_receiver_keypair(private_file, public_file)
-            except ImportError:
-                pytest.skip("cryptography not installed — legacy PEM test skipped")
+            with pytest.raises(ValueError, match="Unsupported key format"):
+                load_receiver_keypair(private_file, public_file)
 
 
 class TestGenerateReceiverKeysCli:

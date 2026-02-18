@@ -304,7 +304,7 @@ The Rust crypto core (`crypto_core/src/`) is a deliberately small, tightly-scope
 
 This is not increasing cryptographic strength. It is increasing **implementation security**, **operational robustness**, **secret hygiene**, **side-channel discipline**, and **architectural integrity**. That is a meaningful upgrade.
 
-### **Backend Functions (16 PyO3 bindings)**
+### **Backend Functions (52 PyO3 bindings)**
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐

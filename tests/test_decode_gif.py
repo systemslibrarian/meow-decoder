@@ -1360,21 +1360,20 @@ def test_main_hardware_auto_receiver_conflict(tmp_path):
 
 
 def test_main_receiver_privkey_wrong_type(tmp_path, monkeypatch):
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-    from cryptography.hazmat.primitives import serialization
+    # Frozen Ed25519 PEM (wrong key type) — used to verify CLI rejects
+    # non-X25519 keys.  Generated once and frozen to remove cryptography import.
+    _ED25519_WRONG_TYPE_PEM = (
+        b"-----BEGIN PRIVATE KEY-----\n"
+        b"MC4CAQAwBQYDK2VwBCIEIPdy2V7ko8eC/XTbXRDvD4xHGUFRKkvrBf0Ie2wmfvDm\n"
+        b"-----END PRIVATE KEY-----\n"
+    )
 
     input_path = tmp_path / "in.gif"
     input_path.write_bytes(b"GIF89a")
     output_path = tmp_path / "out.txt"
 
-    privkey = Ed25519PrivateKey.generate()
-    privkey_pem = privkey.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
     privkey_path = tmp_path / "ed.pem"
-    privkey_path.write_bytes(privkey_pem)
+    privkey_path.write_bytes(_ED25519_WRONG_TYPE_PEM)
 
     monkeypatch.setattr(decode_mod, "getpass", lambda *args, **kwargs: "")
 
