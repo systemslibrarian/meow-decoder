@@ -1,6 +1,6 @@
 /**
  * Meow Decoder - Service Worker for Caching
- * 
+ *
  * Caches WASM modules and static assets for instant loading on repeat visits.
  * This is a performance optimization only - no crypto operations happen here.
  */
@@ -12,22 +12,22 @@ const PRECACHE_ASSETS = [
     './',
     './index.html',
     './crypto-worker.js',
-    './crypto_core/pkg/crypto_core.js',
-    './crypto_core/pkg/crypto_core_bg.wasm',
+    './crypto_core.js',
+    './crypto_core_bg.wasm',
     './assets/meow-decoder-logo.svg'
 ];
 
 // Install event - cache critical assets
 self.addEventListener('install', (event) => {
     console.log('[SW] Installing service worker...');
-    
+
     event.waitUntil(
         caches.open(CACHE_NAME)
             .then((cache) => {
                 console.log('[SW] Caching critical assets');
                 // Use addAll with error handling for each asset
                 return Promise.allSettled(
-                    PRECACHE_ASSETS.map(url => 
+                    PRECACHE_ASSETS.map(url =>
                         cache.add(url).catch(err => {
                             console.warn(`[SW] Failed to cache ${url}:`, err.message);
                         })
@@ -44,7 +44,7 @@ self.addEventListener('install', (event) => {
 // Activate event - clean up old caches
 self.addEventListener('activate', (event) => {
     console.log('[SW] Activating service worker...');
-    
+
     event.waitUntil(
         caches.keys()
             .then((cacheNames) => {
@@ -67,12 +67,12 @@ self.addEventListener('activate', (event) => {
 // Fetch event - use appropriate caching strategy per resource type
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
-    
+
     // Only cache same-origin requests
     if (url.origin !== location.origin) {
         return;
     }
-    
+
     // HTML files: ALWAYS network-first (so code changes load immediately)
     if (url.pathname.endsWith('.html') || url.pathname === '/' || url.pathname.endsWith('/')) {
         event.respondWith(
@@ -92,7 +92,7 @@ self.addEventListener('fetch', (event) => {
         );
         return;
     }
-    
+
     // Static assets (WASM, JS, images): cache-first with background revalidation
     if (shouldCache(url.pathname)) {
         event.respondWith(
@@ -103,7 +103,7 @@ self.addEventListener('fetch', (event) => {
                         updateCache(event.request);
                         return cachedResponse;
                     }
-                    
+
                     // Not in cache - fetch from network and cache it
                     return fetch(event.request)
                         .then((response) => {
@@ -126,7 +126,7 @@ function shouldCache(pathname) {
            pathname.endsWith('.js') ||
            pathname.endsWith('.svg') ||
            pathname.endsWith('.png') ||
-           pathname.includes('/crypto_core/pkg/');
+           pathname.includes('/crypto_core');
 }
 
 // Update cache in background (stale-while-revalidate)
@@ -148,7 +148,7 @@ self.addEventListener('message', (event) => {
     if (event.data === 'skipWaiting') {
         self.skipWaiting();
     }
-    
+
     if (event.data === 'clearCache') {
         caches.delete(CACHE_NAME)
             .then(() => console.log('[SW] Cache cleared'));

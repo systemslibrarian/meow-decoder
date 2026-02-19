@@ -33,7 +33,7 @@ import secrets
 import struct
 from typing import Tuple, Optional
 
-from .crypto_backend import get_default_backend
+from .crypto_backend import get_default_backend, get_handle_backend
 from .security_warnings import warn_pq_experimental
 
 # ── ML-KEM variant constants ─────────────────────────────────────────────────
@@ -397,6 +397,136 @@ def hybrid_decapsulate(
     )
 
     return shared_secret
+
+
+# ── Handle-based PQXDH (zero Python key bytes) ──────────────────────────────
+
+
+def hybrid_encapsulate_handle(
+    receiver_classical_public: bytes,
+    receiver_pq_public: Optional[bytes] = None,
+    paranoid: bool = False,
+) -> Tuple[int, bytes, Optional[bytes]]:
+    """Handle-based hybrid key encapsulation — no secret bytes in Python.
+
+    Same PQXDH derivation as hybrid_encapsulate() but the final shared
+    secret is stored as an opaque Rust handle.  The PQ shared secret
+    crosses FFI momentarily (ML-KEM encap runs in Rust, result passed
+    back to Rust PQXDH) but the FINAL key NEVER enters Python.
+
+    Args:
+        receiver_classical_public: Receiver's X25519 public key (32 bytes)
+        receiver_pq_public: Receiver's ML-KEM public key or None
+        paranoid: Use ML-KEM-1024 instead of ML-KEM-768
+
+    Returns:
+        (shared_secret_handle, ephemeral_classical_public, pq_ciphertext)
+        - shared_secret_handle: Opaque Rust handle to 32-byte key
+        - ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
+        - pq_ciphertext: ML-KEM ciphertext or None
+
+    Caller MUST call ``get_handle_backend().drop(shared_secret_handle)``
+    when the handle is no longer needed.
+    """
+    hb = get_handle_backend()
+
+    # Try PQ encapsulation
+    pq_ciphertext = None
+    pq_shared_secret = None
+
+    if receiver_pq_public is not None:
+        if not LIBOQS_AVAILABLE or not _RUST_PQ_AVAILABLE:
+            raise RuntimeError("Post-quantum requested but Rust PQ backend unavailable")
+        try:
+            # ML-KEM encap runs in Rust — pq_shared_secret briefly in Python
+            pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
+        except Exception as e:
+            raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
+
+    # Full PQXDH derivation inside Rust — shared secret stays in Rust
+    shared_secret_handle, ephemeral_public_bytes = hb.pqxdh_encapsulate(
+        receiver_classical_pub=receiver_classical_public,
+        pq_shared_secret=pq_shared_secret,
+        extract_salt=PQXDH_EXTRACT_SALT,
+        info_prefix=PQXDH_INFO_PREFIX if pq_shared_secret is not None else CLASSICAL_INFO,
+        transcript_domain=PQXDH_TRANSCRIPT_DOMAIN,
+        receiver_pq_pub=receiver_pq_public,
+        pq_ciphertext=pq_ciphertext,
+    )
+
+    # Zeroize transient PQ shared secret if it existed in Python
+    if pq_shared_secret is not None:
+        # bytes are immutable in CPython so we can't truly zeroize, but
+        # deleting the reference lets GC reclaim it sooner.
+        del pq_shared_secret
+
+    return shared_secret_handle, ephemeral_public_bytes, pq_ciphertext
+
+
+def hybrid_decapsulate_handle(
+    ephemeral_classical_public: bytes,
+    pq_ciphertext: Optional[bytes],
+    receiver_keypair: "HybridKeyPair",
+) -> int:
+    """Handle-based hybrid key decapsulation — no secret bytes in Python.
+
+    Same PQXDH derivation as hybrid_decapsulate() but the final shared
+    secret is stored as an opaque Rust handle.
+
+    Args:
+        ephemeral_classical_public: Sender's ephemeral X25519 public (32 bytes)
+        pq_ciphertext: ML-KEM ciphertext or None
+        receiver_keypair: Receiver's hybrid keypair
+
+    Returns:
+        shared_secret_handle: Opaque Rust handle to 32-byte key.
+        Caller MUST drop when no longer needed.
+    """
+    hb = get_handle_backend()
+
+    # Try PQ decapsulation
+    pq_shared_secret = None
+    if pq_ciphertext is not None:
+        if receiver_keypair._pq_secret_bytes is None:
+            raise RuntimeError(
+                "Post-quantum ciphertext provided but receiver has no PQ secret key"
+            )
+        if not _RUST_PQ_AVAILABLE:
+            raise RuntimeError("Rust PQ backend required for PQ decapsulation")
+        try:
+            pq_shared_secret = _pq_rs.mlkem768_decapsulate(
+                receiver_keypair._pq_secret_bytes, pq_ciphertext
+            )
+        except Exception as e:
+            raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
+
+    # Get receiver's public keys for transcript binding
+    receiver_classical_pub, receiver_pq_pub = receiver_keypair.export_public_keys()
+
+    # Import receiver's X25519 private key as handle for Rust-side ECDH
+    priv_handle = hb.import_x25519_private(receiver_keypair._classical_private_bytes)
+
+    try:
+        # Full PQXDH derivation inside Rust — shared secret stays in Rust
+        shared_secret_handle = hb.pqxdh_decapsulate(
+            ephemeral_classical_pub=ephemeral_classical_public,
+            receiver_private_handle=priv_handle,
+            pq_shared_secret=pq_shared_secret,
+            receiver_classical_pub=receiver_classical_pub,
+            extract_salt=PQXDH_EXTRACT_SALT,
+            info_prefix=PQXDH_INFO_PREFIX if pq_shared_secret is not None else CLASSICAL_INFO,
+            transcript_domain=PQXDH_TRANSCRIPT_DOMAIN,
+            receiver_pq_pub=receiver_pq_pub,
+            pq_ciphertext=pq_ciphertext,
+        )
+    finally:
+        hb.drop(priv_handle)
+
+    # Zeroize transient PQ shared secret
+    if pq_shared_secret is not None:
+        del pq_shared_secret
+
+    return shared_secret_handle
 
 
 def check_pq_available(paranoid: bool = False) -> Tuple[bool, str]:

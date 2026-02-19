@@ -10,6 +10,8 @@ branch = true
 source =
     meow_decoder
 omit =
+    # Archived (non-production) modules
+    meow_decoder/_archive/*
     # Debug/verbose variants
     meow_decoder/*_DEBUG.py
     # GUI modules (require dearpygui, X11)

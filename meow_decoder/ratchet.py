@@ -217,24 +217,25 @@ def _mix_beacon_handle(message_key_handle: int, beacon_secret: bytes, salt: byte
     return hb.mix_hkdf(message_key_handle, beacon_secret, salt, REKEY_BEACON_INFO, 32)
 
 
-def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[bytes, bytes]:
+def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[int, bytes]:
     """Generate X25519 KEM rekey beacon.
 
     Returns:
-        (shared_secret, ephemeral_public_bytes) — shared_secret is mixed
-        into the message key; ephemeral_public is embedded in the frame.
+        (shared_secret_handle, ephemeral_public_bytes) — shared_secret
+        is an opaque Rust handle (never materialized in Python);
+        ephemeral_public is embedded in the frame.
     """
     hb = get_handle_backend()
     eph_handle, ephemeral_public_bytes = hb.x25519_generate_keypair()
     shared_handle = hb.x25519_exchange(eph_handle, receiver_public_key)
-    # Domain-separated KDF (shared_secret stays as bytes - transient local)
-    shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
+    # Domain-separated KDF — returns handle, secret stays in Rust
+    shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
     hb.drop(eph_handle)
     hb.drop(shared_handle)
-    return shared_secret, ephemeral_public_bytes
+    return shared_secret_handle, ephemeral_public_bytes
 
 
-def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Union[bytes, int]) -> bytes:
+def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Union[bytes, int]) -> int:
     """Recover shared secret from X25519 KEM rekey beacon.
 
     Args:
@@ -242,15 +243,16 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Uni
         receiver_private_key: Receiver's X25519 private key (bytes or handle)
 
     Returns:
-        32-byte shared secret to mix into message key
+        Handle to 32-byte shared secret (opaque, never in Python)
     """
     hb = get_handle_backend()
     priv_handle, cleanup = _ensure_handle(receiver_private_key)
     try:
         shared_handle = hb.x25519_exchange(priv_handle, ephemeral_public_bytes)
-        shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
+        # Domain-separated KDF — returns handle, secret stays in Rust
+        shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
         hb.drop(shared_handle)
-        return shared_secret
+        return shared_secret_handle
     finally:
         if cleanup:
             hb.drop(priv_handle)
@@ -305,23 +307,24 @@ def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Uni
 
 def _generate_asym_rekey(
     receiver_public_key: bytes,
-) -> Tuple[bytes, bytes]:
+) -> Tuple[int, bytes]:
     """Generate X25519 ephemeral keypair and ECDH for asymmetric root rekey.
 
     This is the sender-side operation: generate an ephemeral keypair,
     perform ECDH with the receiver's long-term public key, and return
-    the shared secret + ephemeral public key for embedding in the frame.
+    a handle to the shared secret + ephemeral public key for the frame.
 
     Args:
         receiver_public_key: Receiver's long-term X25519 public key (32 bytes)
 
     Returns:
-        (shared_secret, ephemeral_public_bytes):
-            shared_secret: 32-byte ECDH-derived secret for root rotation
+        (shared_secret_handle, ephemeral_public_bytes):
+            shared_secret_handle: Opaque Rust handle (secret never in Python)
             ephemeral_public_bytes: 32-byte ephemeral public key for frame header
 
     Security:
         - Ephemeral private key stays in Rust handle (never in Python)
+        - Shared secret stays in Rust handle (never in Python)
         - HKDF domain separation (ASYM_REKEY_KEM_INFO) prevents cross-use
         - shared_secret requires receiver_private_key to reconstruct
     """
@@ -329,18 +332,18 @@ def _generate_asym_rekey(
     eph_handle, ephemeral_public_bytes = hb.x25519_generate_keypair()
     shared_handle = hb.x25519_exchange(eph_handle, receiver_public_key)
 
-    # Domain-separated KDF - distinct from beacon KEM and FS derivation
-    shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
+    # Domain-separated KDF — returns handle, secret stays in Rust
+    shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
 
     hb.drop(eph_handle)
     hb.drop(shared_handle)
-    return shared_secret, ephemeral_public_bytes
+    return shared_secret_handle, ephemeral_public_bytes
 
 
 def _recover_asym_rekey(
     ephemeral_public_bytes: bytes,
     receiver_private_key: Union[bytes, int],
-) -> bytes:
+) -> int:
     """Recover ECDH shared secret for asymmetric root rekey (decoder side).
 
     Args:
@@ -348,7 +351,8 @@ def _recover_asym_rekey(
         receiver_private_key: Receiver's long-term X25519 private key (bytes or handle)
 
     Returns:
-        32-byte ECDH-derived secret (must match sender's _generate_asym_rekey output)
+        Handle to 32-byte ECDH-derived secret (must match sender's
+        _generate_asym_rekey output). Secret never enters Python.
     """
     hb = get_handle_backend()
     if isinstance(receiver_private_key, int):
@@ -360,10 +364,10 @@ def _recover_asym_rekey(
         cleanup = True
     try:
         shared_handle = hb.x25519_exchange(priv_handle, ephemeral_public_bytes)
-        # Same domain separator as sender - MUST match _generate_asym_rekey
-        shared_secret = hb.derive_key_hkdf_bytes(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
+        # Same domain separator as sender — returns handle, MUST match
+        shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", ASYM_REKEY_KEM_INFO, 32)
         hb.drop(shared_handle)
-        return shared_secret
+        return shared_secret_handle
     finally:
         if cleanup:
             hb.drop(priv_handle)
@@ -428,20 +432,24 @@ def _asymmetric_root_rekey(
 
 def _asymmetric_root_rekey_handle(
     root_key_handle: int,
-    shared_secret: bytes,
+    shared_secret_handle: int,
     salt: bytes,
     epoch: int,
 ) -> Tuple[int, int]:
-    """Handle-based asymmetric root rekey. Root key stays in Rust.
+    """Handle-based asymmetric root rekey. All secrets stay in Rust.
 
-    Returns (new_root_handle, new_chain_handle). Old root/chain handles
-    must be dropped by caller.
+    Both root_key and shared_secret are opaque Rust handles — no secret
+    bytes ever enter Python memory.
+
+    Returns (new_root_handle, new_chain_handle). Caller MUST drop the old
+    root/chain handles and the consumed shared_secret_handle.
     """
     hb = get_handle_backend()
     epoch_info = ASYM_REKEY_ROOT_INFO + struct.pack(">I", epoch)
 
-    # HKDF(IKM=shared_secret, salt=root_key_handle, info=epoch_info)
-    new_root_handle = hb.hkdf_with_handle_salt(shared_secret, root_key_handle, epoch_info, 32)
+    # HKDF(IKM=shared_secret_handle, salt=root_key_handle, info=epoch_info)
+    # Both inputs are handles — no bytes cross the boundary
+    new_root_handle = hb.hkdf_two_handles(shared_secret_handle, root_key_handle, epoch_info, 32)
 
     # Derive new chain from new root handle
     new_chain_handle = _hkdf_derive_handle(new_root_handle, salt, ASYM_REKEY_CHAIN_INFO, 32)
@@ -1021,15 +1029,15 @@ class EncoderRatchet:
         # ─── MSR v2.0: Asymmetric root key rotation (before ratchet step) ───
         beacon_header = b""
         if self._is_rekey_frame(frame_index) and self._receiver_public_key is not None:
-            shared_secret, eph_pub = _generate_asym_rekey(self._receiver_public_key)
+            shared_secret_handle, eph_pub = _generate_asym_rekey(self._receiver_public_key)
             beacon_header = eph_pub
 
             self._state.epoch += 1
 
-            # Handle-based root rekey (root key bytes never enter Python)
+            # Handle-based root rekey (all secrets stay in Rust)
             new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
                 root_key_handle=self._state.root_key,
-                shared_secret=shared_secret,
+                shared_secret_handle=shared_secret_handle,
                 salt=self._salt,
                 epoch=self._state.epoch,
             )
@@ -1041,6 +1049,7 @@ class EncoderRatchet:
                 hb.drop(old_rk)
             if isinstance(old_ck, int):
                 hb.drop(old_ck)
+            hb.drop(shared_secret_handle)
 
             self._state.root_key = new_root_h
             self._state.chain_key = new_chain_h
@@ -1215,16 +1224,16 @@ class DecoderRatchet:
     def _execute_rekey(self, epoch: int) -> None:
         """Execute asymmetric root key rotation for the given epoch.
 
-        Uses handle-based _asymmetric_root_rekey_handle so root key bytes
-        never enter Python.
+        Uses handle-based _asymmetric_root_rekey_handle so all secret
+        key bytes stay in Rust and never enter Python memory.
         """
         eph_pub = self._received_rekey_material.pop(epoch)
-        shared_secret = _recover_asym_rekey(eph_pub, self._receiver_private_key)
+        shared_secret_handle = _recover_asym_rekey(eph_pub, self._receiver_private_key)
 
         hb = get_handle_backend()
         new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
             root_key_handle=self._state.root_key,
-            shared_secret=shared_secret,
+            shared_secret_handle=shared_secret_handle,
             salt=self._salt,
             epoch=epoch,
         )
@@ -1236,6 +1245,7 @@ class DecoderRatchet:
             hb.drop(old_rk)
         if isinstance(old_ck, int):
             hb.drop(old_ck)
+        hb.drop(shared_secret_handle)
 
         self._state.root_key = new_root_h
         self._state.chain_key = new_chain_h

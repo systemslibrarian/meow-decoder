@@ -116,7 +116,7 @@ The web demo lets you choose security strength:
 - **Fast** (64 MiB, 3 iter) — Quick demos
 - **Standard** (128 MiB, 8 iter) — General use
 - **High** (256 MiB, 15 iter) — Sensitive data
-- **Paranoid** (512 MiB, 20 iter) — **Matches CLI** for life-critical data
+- **Paranoid** (512 MiB, 20 iter) — **Matches CLI production defaults** for life-critical data
 
 ⚠️ **For maximum security equivalent to the CLI, select "Paranoid" mode.**
 

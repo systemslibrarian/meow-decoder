@@ -118,20 +118,20 @@ cargo test -p crypto_core
 def encrypt_data(data: bytes, password: str) -> tuple[bytes, bytes]:
     """
     Encrypt data using AES-256-GCM with Argon2id key derivation.
-    
+
     Args:
         data: Raw bytes to encrypt
         password: User-provided password (will be stretched)
-    
+
     Returns:
         Tuple of (ciphertext, nonce)
-    
+
     Raises:
         ValueError: If password is empty
         RuntimeError: If encryption fails
-    
+
     Security:
-        - Uses Argon2id with 256 MiB memory cost
+        - Uses Argon2id with 512 MiB memory cost
         - Nonce is randomly generated (never reused)
         - Ciphertext includes GCM authentication tag
     """
@@ -176,12 +176,17 @@ mypy meow_decoder/
 ### Test Categories
 | Test File | Purpose |
 |-----------|---------|
-| `test_crypto.py` | Core encryption/decryption |
-| `test_security.py` | Security properties (125+ tests) |
+| `test_crypto.py` | Core encryption/decryption (205 tests) |
+| `test_crypto_backend.py` | Rust crypto backend bindings (105 tests) |
+| `test_security.py` | Security properties (20+ tests) |
 | `test_adversarial.py` | Attack resistance |
 | `test_encode.py` | Encoding pipeline, QR generation |
 | `test_decode_gif.py` | GIF decoding, frame extraction |
 | `test_fountain.py` | Fountain code encoding |
+| `test_ratchet.py` | Per-frame symmetric ratchet (142 tests) |
+| `test_pq_hybrid.py` | Post-quantum hybrid encryption |
+| `test_golden_vectors.py` | Frozen golden vector regression |
+| `test_crypto_enforcement.py` | AST-enforced Python crypto ban |
 
 ### Adding Tests
 - Every new feature needs tests

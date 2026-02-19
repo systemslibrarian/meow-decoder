@@ -312,6 +312,60 @@ pub fn handle_derive_hkdf(
     insert_handle(HandlePayload::SymmetricKey(key))
 }
 
+/// Derive a key via HKDF(password || keyfile) → Argon2id and store as handle.
+///
+/// This performs the full keyfile-combined KDF without any intermediate secret
+/// bytes crossing the FFI boundary:
+///   1. HKDF(password || keyfile, domain_sep, "password_keyfile_combine", 64)
+///   2. Argon2id(combined, salt, params) → 32-byte key
+///   3. Store key as opaque handle
+///
+/// All intermediate buffers are zeroized.
+pub fn handle_derive_key_argon2id_with_keyfile(
+    password: &[u8],
+    keyfile: &[u8],
+    keyfile_domain_sep: &[u8],
+    salt: &[u8],
+    memory_kib: u32,
+    iterations: u32,
+    parallelism: u32,
+) -> Result<HandleId, HandleError> {
+    use argon2::{Algorithm, Argon2, Params, Version};
+
+    if salt.len() != 16 {
+        return Err(HandleError::InvalidKeyLength {
+            expected: 16,
+            got: salt.len(),
+        });
+    }
+
+    // Step 1: HKDF(password || keyfile, domain_sep, "password_keyfile_combine", 64)
+    let mut ikm = Vec::with_capacity(password.len() + keyfile.len());
+    ikm.extend_from_slice(password);
+    ikm.extend_from_slice(keyfile);
+
+    let hkdf = Hkdf::<Sha256>::new(Some(keyfile_domain_sep), &ikm);
+    let mut combined = vec![0u8; 64];
+    hkdf.expand(b"password_keyfile_combine", &mut combined)
+        .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
+    ikm.zeroize();
+
+    // Step 2: Argon2id(combined, salt, params) → 32-byte key
+    let params = Params::new(memory_kib, iterations, parallelism, Some(32))
+        .map_err(|e| HandleError::HkdfFailed(format!("Invalid Argon2 params: {}", e)))?;
+    let argon2 = Argon2::new(Algorithm::Argon2id, Version::V0x13, params);
+
+    let mut output = [0u8; 32];
+    argon2
+        .hash_password_into(&combined, salt, &mut output)
+        .map_err(|e| HandleError::HkdfFailed(format!("Argon2id failed: {}", e)))?;
+    combined.zeroize();
+
+    let key = SecretKey::new(&output)?;
+    output.zeroize();
+    insert_handle(HandlePayload::SymmetricKey(key))
+}
+
 /// Derive HKDF from a key handle and return the raw derived bytes.
 /// USE ONLY for non-secret derived values (nonces, header masks, AAD components).
 /// For secret derived keys, use handle_derive_hkdf() which returns a handle.
@@ -784,12 +838,18 @@ pub fn handle_ratchet_new(
 }
 
 /// Ratchet step: advance chain key, return message key handle.
+///
+/// NOTE: We must not call `insert_handle` inside `with_handle_mut` because
+/// both acquire the global REGISTRY Mutex, causing a deadlock (std Mutex is
+/// not reentrant). Instead we extract the derived bytes while holding the
+/// lock, release it, then insert the new handle separately.
 pub fn handle_ratchet_step(
     ratchet_handle: HandleId,
     step_info: &[u8],
     msg_info: &[u8],
 ) -> Result<HandleId, HandleError> {
-    with_handle_mut(ratchet_handle, |payload| {
+    // Phase 1: mutate the ratchet state and extract the message key bytes.
+    let msg_bytes = with_handle_mut(ratchet_handle, |payload| {
         let ratchet = match payload {
             HandlePayload::Ratchet(r) => r,
             _ => return Err(HandleError::HandleTypeMismatch),
@@ -814,9 +874,12 @@ pub fn handle_ratchet_step(
         ratchet.chain_key = SecretKey { bytes: new_chain };
         ratchet.step_index += 1;
 
-        let msg_key = SecretKey { bytes: msg_bytes };
-        insert_handle(HandlePayload::SymmetricKey(msg_key))
-    })
+        Ok(msg_bytes)
+    })?;
+
+    // Phase 2: insert the message key handle (lock is no longer held).
+    let msg_key = SecretKey { bytes: msg_bytes };
+    insert_handle(HandlePayload::SymmetricKey(msg_key))
 }
 
 // ─── Public API: Mixed HKDF operations ──────────────────────────────────────
@@ -1100,6 +1163,166 @@ pub fn handle_aes_ctr_crypt(
     })
 }
 
+// ─── Public API: PQXDH Hybrid Key Exchange (handle-only) ────────────────────
+
+/// PQXDH-style hybrid encapsulation: X25519 + HMAC-Extract + HKDF-Expand.
+///
+/// Performs the full PQXDH key agreement inside Rust with no secret bytes
+/// returned to the caller.  Returns (shared_secret_handle, ephemeral_pub).
+///
+/// Steps performed:
+///   1. Generate ephemeral X25519 keypair
+///   2. ECDH(ephemeral_private, receiver_classical_pub) → classical_shared
+///   3. combined_ikm = classical_shared [|| pq_shared_secret]
+///   4. PRK = HMAC-SHA256(extract_salt, combined_ikm)
+///   5. transcript_hash = SHA-256(transcript_domain || eph_pub || receiver_pub [|| pq_pub] [|| pq_ct])
+///   6. info = info_prefix || transcript_hash
+///   7. shared_secret = HKDF-Expand(PRK, info, 32)
+///   8. Store shared_secret as handle; zeroize all intermediates
+///
+/// All intermediate secrets (classical_shared, combined_ikm, PRK) are
+/// zeroized before returning.  Only the ephemeral public key (non-secret)
+/// crosses back to Python.
+pub fn handle_pqxdh_encapsulate(
+    receiver_classical_pub: &[u8],
+    pq_shared_secret: Option<&[u8]>,
+    extract_salt: &[u8],
+    info_prefix: &[u8],
+    transcript_domain: &[u8],
+    receiver_pq_pub: Option<&[u8]>,
+    pq_ciphertext: Option<&[u8]>,
+) -> Result<(HandleId, [u8; 32]), HandleError> {
+    if receiver_classical_pub.len() != 32 {
+        return Err(HandleError::InvalidPublicKeyLength);
+    }
+
+    // 1. Generate ephemeral X25519 keypair
+    let (eph_private, eph_public) = X25519Private::generate();
+
+    // 2. ECDH
+    let mut pub_bytes = [0u8; 32];
+    pub_bytes.copy_from_slice(receiver_classical_pub);
+    let mut classical_shared = eph_private.exchange(&pub_bytes);
+
+    // 3. Combine IKM
+    let mut combined_ikm = classical_shared.to_vec();
+    if let Some(pq_ss) = pq_shared_secret {
+        combined_ikm.extend_from_slice(pq_ss);
+    }
+
+    // 4. HMAC-Extract: PRK = HMAC-SHA256(extract_salt, combined_ikm)
+    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(extract_salt)
+        .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
+    mac.update(&combined_ikm);
+    let prk = mac.finalize().into_bytes();
+    combined_ikm.zeroize();
+    classical_shared.zeroize();
+
+    // 5. Transcript hash
+    let mut transcript_data = transcript_domain.to_vec();
+    transcript_data.extend_from_slice(&eph_public);
+    transcript_data.extend_from_slice(receiver_classical_pub);
+    if let Some(rpq) = receiver_pq_pub {
+        transcript_data.extend_from_slice(rpq);
+    }
+    if let Some(pq_ct) = pq_ciphertext {
+        transcript_data.extend_from_slice(pq_ct);
+    }
+    use sha2::{Digest, Sha256 as Sha256Hasher};
+    let transcript_hash = Sha256Hasher::digest(&transcript_data);
+
+    // 6. Info = prefix || transcript_hash
+    let mut info = info_prefix.to_vec();
+    info.extend_from_slice(&transcript_hash);
+
+    // 7. HKDF-Expand(PRK, info, 32)
+    let hkdf = hkdf::Hkdf::<Sha256>::from_prk(&prk)
+        .map_err(|e| HandleError::HkdfFailed(format!("PRK: {:?}", e)))?;
+    let mut okm = [0u8; 32];
+    hkdf.expand(&info, &mut okm)
+        .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
+
+    // 8. Store as handle
+    let key = SecretKey::new(&okm)?;
+    okm.zeroize();
+    let handle = insert_handle(HandlePayload::SymmetricKey(key))?;
+
+    Ok((handle, eph_public))
+}
+
+/// PQXDH-style hybrid decapsulation (receiver side).
+///
+/// Same derivation as encapsulate but uses the receiver's private key handle
+/// for the ECDH step.  No secret bytes cross the FFI boundary.
+pub fn handle_pqxdh_decapsulate(
+    ephemeral_classical_pub: &[u8],
+    receiver_private_handle: HandleId,
+    pq_shared_secret: Option<&[u8]>,
+    receiver_classical_pub: &[u8],
+    extract_salt: &[u8],
+    info_prefix: &[u8],
+    transcript_domain: &[u8],
+    receiver_pq_pub: Option<&[u8]>,
+    pq_ciphertext: Option<&[u8]>,
+) -> Result<HandleId, HandleError> {
+    if ephemeral_classical_pub.len() != 32 {
+        return Err(HandleError::InvalidPublicKeyLength);
+    }
+    if receiver_classical_pub.len() != 32 {
+        return Err(HandleError::InvalidPublicKeyLength);
+    }
+
+    // 1. ECDH using receiver private handle
+    let mut eph_pub = [0u8; 32];
+    eph_pub.copy_from_slice(ephemeral_classical_pub);
+    let mut classical_shared = with_handle(receiver_private_handle, |payload| match payload {
+        HandlePayload::X25519Key(k) => Ok(k.exchange(&eph_pub)),
+        _ => Err(HandleError::HandleTypeMismatch),
+    })?;
+
+    // 2. Combine IKM
+    let mut combined_ikm = classical_shared.to_vec();
+    if let Some(pq_ss) = pq_shared_secret {
+        combined_ikm.extend_from_slice(pq_ss);
+    }
+
+    // 3. HMAC-Extract
+    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(extract_salt)
+        .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
+    mac.update(&combined_ikm);
+    let prk = mac.finalize().into_bytes();
+    combined_ikm.zeroize();
+    classical_shared.zeroize();
+
+    // 4. Transcript hash
+    let mut transcript_data = transcript_domain.to_vec();
+    transcript_data.extend_from_slice(ephemeral_classical_pub);
+    transcript_data.extend_from_slice(receiver_classical_pub);
+    if let Some(rpq) = receiver_pq_pub {
+        transcript_data.extend_from_slice(rpq);
+    }
+    if let Some(pq_ct) = pq_ciphertext {
+        transcript_data.extend_from_slice(pq_ct);
+    }
+    use sha2::{Digest, Sha256 as Sha256Hasher};
+    let transcript_hash = Sha256Hasher::digest(&transcript_data);
+
+    // 5. Info
+    let mut info = info_prefix.to_vec();
+    info.extend_from_slice(&transcript_hash);
+
+    // 6. HKDF-Expand
+    let hkdf = hkdf::Hkdf::<Sha256>::from_prk(&prk)
+        .map_err(|e| HandleError::HkdfFailed(format!("PRK: {:?}", e)))?;
+    let mut okm = [0u8; 32];
+    hkdf.expand(&info, &mut okm)
+        .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
+
+    let key = SecretKey::new(&okm)?;
+    okm.zeroize();
+    insert_handle(HandlePayload::SymmetricKey(key))
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -1201,6 +1424,43 @@ mod tests {
         assert_eq!(pt, b"test");
 
         handle_drop(h).unwrap();
+    }
+
+    #[test]
+    fn test_argon2id_with_keyfile_handle() {
+        let h = handle_derive_key_argon2id_with_keyfile(
+            b"password",
+            b"keyfile_content_here",
+            b"meow_keyfile_separation_v2",
+            &[0u8; 16],
+            1024,
+            1,
+            1,
+        )
+        .unwrap();
+        assert!(handle_exists(h));
+
+        // Can use for encryption
+        let nonce = [0u8; 12];
+        let ct = handle_aes_gcm_encrypt(h, &nonce, b"test_keyfile", None).unwrap();
+        let pt = handle_aes_gcm_decrypt(h, &nonce, &ct, None).unwrap();
+        assert_eq!(pt, b"test_keyfile");
+
+        handle_drop(h).unwrap();
+    }
+
+    #[test]
+    fn test_argon2id_with_keyfile_invalid_salt() {
+        let result = handle_derive_key_argon2id_with_keyfile(
+            b"password",
+            b"keyfile",
+            b"domain",
+            &[0u8; 8], // wrong salt length
+            1024,
+            1,
+            1,
+        );
+        assert!(result.is_err());
     }
 
     #[test]

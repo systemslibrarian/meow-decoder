@@ -692,6 +692,87 @@ fn handle_derive_key_argon2id(
         .map_err(handle_err_to_py)
 }
 
+/// Derive key via HKDF(password || keyfile) → Argon2id, store as handle.
+/// No intermediate secret bytes cross into Python.
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_derive_key_argon2id_with_keyfile(
+    password: &[u8],
+    keyfile: &[u8],
+    keyfile_domain_sep: &[u8],
+    salt: &[u8],
+    memory_kib: u32,
+    iterations: u32,
+    parallelism: u32,
+) -> PyResult<u64> {
+    handles::handle_derive_key_argon2id_with_keyfile(
+        password,
+        keyfile,
+        keyfile_domain_sep,
+        salt,
+        memory_kib,
+        iterations,
+        parallelism,
+    )
+    .map_err(handle_err_to_py)
+}
+
+/// Derive key via YubiKey and store as opaque handle. Key never enters Python.
+#[cfg(all(feature = "python", feature = "yubikey"))]
+#[pyfunction]
+#[pyo3(signature = (password, salt, slot="9d", pin=None))]
+fn handle_yubikey_derive_key(
+    password: &[u8],
+    salt: &[u8],
+    slot: &str,
+    pin: Option<String>,
+) -> PyResult<u64> {
+    if salt.len() != 16 {
+        return Err(PyValueError::new_err(format!(
+            "Salt must be exactly 16 bytes, got {}",
+            salt.len()
+        )));
+    }
+
+    let piv_slot = parse_piv_slot(slot)?;
+    let mut yubikey = YubiKeyProvider::connect()
+        .map_err(|e| PyValueError::new_err(format!("YubiKey connection failed: {e:?}")))?;
+
+    let pin_obj = pin.as_ref().map(|p| YubiKeyPin::new(p.clone()));
+    let pin_ref = pin_obj.as_ref();
+
+    if let Some(pin) = pin_ref {
+        yubikey.verify_pin(pin).map_err(|e| {
+            PyValueError::new_err(format!("YubiKey PIN verification failed: {e:?}"))
+        })?;
+    }
+
+    let mut key = derive_key_with_yubikey(password, salt, &mut yubikey, piv_slot, pin_ref)
+        .map_err(|e| PyValueError::new_err(format!("YubiKey derivation failed: {e:?}")))?;
+
+    // Store key as handle — key bytes never leave Rust
+    let handle = handles::handle_import_key(&key).map_err(handle_err_to_py)?;
+    key.zeroize();
+    Ok(handle)
+}
+
+/// Stub when YubiKey feature is not enabled.
+#[cfg(all(feature = "python", not(feature = "yubikey")))]
+#[pyfunction]
+#[pyo3(signature = (password, salt, slot="9d", pin=None))]
+#[allow(unused_variables)]
+fn handle_yubikey_derive_key(
+    password: &[u8],
+    salt: &[u8],
+    slot: &str,
+    pin: Option<String>,
+) -> PyResult<u64> {
+    Err(PyValueError::new_err(
+        "YubiKey support not enabled in Rust backend. Rebuild with: \
+         maturin develop --release --features yubikey",
+    ))
+}
+
 /// Derive key via HKDF from a handle. Returns new handle ID.
 #[cfg(feature = "python")]
 #[pyfunction]
@@ -1043,6 +1124,64 @@ fn handle_count() -> usize {
     handles::handle_count()
 }
 
+/// PQXDH hybrid encapsulation: full key agreement inside Rust.
+/// No secret bytes cross FFI. Returns (shared_secret_handle, ephemeral_public_bytes).
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (receiver_classical_pub, pq_shared_secret, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]
+fn handle_pqxdh_encapsulate<'py>(
+    py: Python<'py>,
+    receiver_classical_pub: &[u8],
+    pq_shared_secret: Option<&[u8]>,
+    extract_salt: &[u8],
+    info_prefix: &[u8],
+    transcript_domain: &[u8],
+    receiver_pq_pub: Option<&[u8]>,
+    pq_ciphertext: Option<&[u8]>,
+) -> PyResult<(u64, Bound<'py, PyBytes>)> {
+    let (handle, eph_pub) = handles::handle_pqxdh_encapsulate(
+        receiver_classical_pub,
+        pq_shared_secret,
+        extract_salt,
+        info_prefix,
+        transcript_domain,
+        receiver_pq_pub,
+        pq_ciphertext,
+    )
+    .map_err(handle_err_to_py)?;
+    Ok((handle, PyBytes::new(py, &eph_pub)))
+}
+
+/// PQXDH hybrid decapsulation: full key agreement inside Rust.
+/// No secret bytes cross FFI. Returns shared_secret_handle.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (ephemeral_classical_pub, receiver_private_handle, pq_shared_secret, receiver_classical_pub, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]
+fn handle_pqxdh_decapsulate(
+    ephemeral_classical_pub: &[u8],
+    receiver_private_handle: u64,
+    pq_shared_secret: Option<&[u8]>,
+    receiver_classical_pub: &[u8],
+    extract_salt: &[u8],
+    info_prefix: &[u8],
+    transcript_domain: &[u8],
+    receiver_pq_pub: Option<&[u8]>,
+    pq_ciphertext: Option<&[u8]>,
+) -> PyResult<u64> {
+    handles::handle_pqxdh_decapsulate(
+        ephemeral_classical_pub,
+        receiver_private_handle,
+        pq_shared_secret,
+        receiver_classical_pub,
+        extract_salt,
+        info_prefix,
+        transcript_domain,
+        receiver_pq_pub,
+        pq_ciphertext,
+    )
+    .map_err(handle_err_to_py)
+}
+
 #[cfg(feature = "python")]
 #[pymodule]
 fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -1093,6 +1232,11 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Opaque Handle API (no secret bytes cross FFI)
     m.add_function(wrap_pyfunction!(handle_import_key, m)?)?;
     m.add_function(wrap_pyfunction!(handle_derive_key_argon2id, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        handle_derive_key_argon2id_with_keyfile,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(handle_yubikey_derive_key, m)?)?;
     m.add_function(wrap_pyfunction!(handle_derive_hkdf, m)?)?;
     m.add_function(wrap_pyfunction!(handle_derive_hkdf_raw, m)?)?;
     m.add_function(wrap_pyfunction!(handle_derive_hkdf_bytes, m)?)?;
@@ -1124,6 +1268,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_hkdf_two_handles, m)?)?;
     m.add_function(wrap_pyfunction!(handle_drop, m)?)?;
     m.add_function(wrap_pyfunction!(handle_export_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_pqxdh_encapsulate, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_pqxdh_decapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_exists, m)?)?;
     m.add_function(wrap_pyfunction!(handle_count, m)?)?;
 

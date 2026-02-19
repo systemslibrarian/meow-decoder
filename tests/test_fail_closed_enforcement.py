@@ -24,7 +24,7 @@ WORKSPACE = pathlib.Path(__file__).parent.parent
 PRODUCTION_ROOT = WORKSPACE / "meow_decoder"
 
 # Directories excluded from production scanning
-EXCLUDED_DIRS = {"_testonly", "experimental", "__pycache__"}
+EXCLUDED_DIRS = {"_testonly", "_archive", "experimental", "__pycache__"}
 
 # Production entrypoints that MUST NOT hold raw key bytes
 PRODUCTION_ENTRYPOINTS = [

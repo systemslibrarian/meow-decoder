@@ -88,6 +88,7 @@ include = '\.pyi?$'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+norecursedirs = ["_archive", "__pycache__", ".git"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -198,4 +199,4 @@ ignore_errors = true
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["meow_decoder*"]
-exclude = ["assets*", "sounds*", "legacy_py*"]
+exclude = ["assets*", "sounds*", "legacy_py*", "meow_decoder._archive*"]

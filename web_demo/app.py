@@ -20,7 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from meow_decoder.encode import encode_file
 from meow_decoder.decode_gif import decode_gif
 from meow_decoder.config import EncodingConfig, DecodingConfig
-from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
+from meow_decoder.crypto_backend import get_handle_backend
 import base64
 import json
 
@@ -967,11 +968,11 @@ def cat_mode_encrypt_server():
         message_bytes = message.encode("utf-8")
 
         # Encrypt with full Argon2id + AES-256-GCM
-        # Returns: (compressed, sha256, salt, nonce, ciphertext, ephemeral_key, encryption_key)
+        # Returns: (compressed, sha256, salt, nonce, ciphertext, ephemeral_key, key_handle)
         # Disable length padding for Cat Mode - padding inflates small messages
         # (e.g. 17 bytes → 1024 bytes), making transmission 60× slower
-        compressed, sha256_hash, salt, nonce, ciphertext, ephemeral_key, encryption_key = (
-            encrypt_file_bytes(
+        compressed, sha256_hash, salt, nonce, ciphertext, ephemeral_key, key_handle = (
+            encrypt_file_bytes_production(
                 raw=message_bytes,
                 password=password,
                 keyfile=None,
@@ -979,6 +980,11 @@ def cat_mode_encrypt_server():
                 use_length_padding=False,
             )
         )
+        # Drop the key handle — we don't need the key after encryption
+        try:
+            get_handle_backend().drop(key_handle)
+        except Exception:
+            pass
 
         # Pack the encrypted data into a binary payload with AAD fields
         # Format: [orig_len (4B)] [comp_len (4B)] [sha256 (32B)] [salt (16B)] [nonce (12B)] [ciphertext (variable)]
@@ -1050,8 +1056,8 @@ def decode_cat_binary():
             nonce = binary_payload[56:68]
             ciphertext = binary_payload[68:]
 
-            # Decrypt using decrypt_to_raw with full AAD
-            decrypted_bytes = decrypt_to_raw(
+            # Decrypt using decrypt_to_raw_production with full AAD
+            decrypted_bytes = decrypt_to_raw_production(
                 cipher=ciphertext,
                 password=password,
                 salt=salt,

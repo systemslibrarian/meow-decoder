@@ -33,7 +33,8 @@ os.environ["MEOW_TEST_MODE"] = "1"
 from meow_decoder.encode import encode_file
 from meow_decoder.decode_gif import decode_gif
 from meow_decoder.config import EncodingConfig, DecodingConfig
-from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
+from meow_decoder.crypto_backend import get_handle_backend
 
 
 @dataclass
@@ -307,9 +308,9 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
     Test Cat Mode server-side encryption API (simulates /cat-mode-encrypt-server).
 
     This tests the binary encrypt/decrypt flow used by Cat Mode eye blinking:
-    1. encrypt_file_bytes() → binary payload
+    1. encrypt_file_bytes_production() → binary payload
     2. Binary → hex → (simulated transmission) → hex → binary
-    3. decrypt_to_raw() → original message
+    3. decrypt_to_raw_production() → original message
     """
     start_time = time.time()
 
@@ -321,8 +322,8 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
     try:
         # Encrypt (simulating /cat-mode-encrypt-server endpoint)
         encode_start = time.time()
-        compressed, sha256_hash, salt, nonce, ciphertext, ephemeral_key, encryption_key = (
-            encrypt_file_bytes(
+        compressed, sha256_hash, salt, nonce, ciphertext, ephemeral_key, key_handle = (
+            encrypt_file_bytes_production(
                 raw=message_bytes,
                 password=password,
                 keyfile=None,
@@ -330,6 +331,11 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
                 use_length_padding=False,  # Cat Mode disables padding for faster transmission
             )
         )
+        # Drop the key handle — not needed after encryption
+        try:
+            get_handle_backend().drop(key_handle)
+        except Exception:
+            pass
 
         # Pack binary payload (same as app.py)
         orig_len = len(message_bytes)
@@ -353,7 +359,7 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
         recv_nonce = received_bytes[56:68]
         recv_ciphertext = received_bytes[68:]
 
-        decrypted_bytes = decrypt_to_raw(
+        decrypted_bytes = decrypt_to_raw_production(
             cipher=recv_ciphertext,
             password=password,
             salt=recv_salt,

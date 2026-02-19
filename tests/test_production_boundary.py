@@ -22,9 +22,10 @@ WORKSPACE = pathlib.Path(__file__).parent.parent
 
 PRODUCTION_ROOT = WORKSPACE / "meow_decoder"
 
-# Directories EXCLUDED from production (test-only, experimental)
+# Directories EXCLUDED from production (test-only, experimental, archived)
 EXCLUDED_DIRS = {
     "_testonly",
+    "_archive",
     "experimental",
     "__pycache__",
 }
@@ -33,7 +34,7 @@ EXCLUDED_DIRS = {
 PRODUCTION_ENTRYPOINTS = [
     "encode.py",
     "decode_gif.py",
-    "meow_encode.py",
+    "deadmans_switch_cli.py",
 ]
 
 # Modules that must NEVER be imported by production code
@@ -129,10 +130,12 @@ class TestProductionBoundary:
             assert ep_path.exists(), f"Production entrypoint {ep} does not exist"
 
     def test_testonly_dir_exists(self):
-        """The _testonly directory must exist for test-only modules."""
+        """The _testonly directory must exist (archived or at root)."""
         testonly = PRODUCTION_ROOT / "_testonly"
-        assert testonly.exists(), "_testonly directory missing"
-        assert (testonly / "__init__.py").exists(), "_testonly/__init__.py missing"
+        testonly_archived = PRODUCTION_ROOT / "_archive" / "_testonly"
+        assert testonly.exists() or testonly_archived.exists(), (
+            "_testonly directory missing (not at root or in _archive)"
+        )
 
 
 class TestProductionEntrypointPurity:

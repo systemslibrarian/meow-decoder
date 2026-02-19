@@ -48,10 +48,15 @@ class GIFEncoder:
             raise ValueError("No frames provided")
 
         # Ensure all frames are same size.
-        # Note: We do NOT force bilevel conversion here because it can collapse
-        # distinct frames (e.g., grayscale → 1-bit) and reduce frame count.
-        # QR frames are already high-contrast; keeping RGB preserves fidelity.
-        size = frames[0].size
+        # Use the LARGEST frame size to avoid downscaling QR codes.
+        # The manifest QR is typically smaller than droplet QRs; using the
+        # first frame's size (old behavior) forced droplet QR codes to be
+        # downscaled with a non-integer ratio, corrupting their grid alignment
+        # and making them unreadable by pyzbar.
+        # Upscaling smaller frames (manifest) with NEAREST is safe for QR.
+        max_w = max(f.size[0] for f in frames)
+        max_h = max(f.size[1] for f in frames)
+        size = (max_w, max_h)
         normalized_frames = []
 
         for frame in frames:
@@ -90,13 +95,15 @@ class GIFEncoder:
         if not frames:
             raise ValueError("No frames provided")
 
-        # Normalize frames
-        size = frames[0].size
+        # Normalize frames — use largest size to preserve QR fidelity
+        max_w = max(f.size[0] for f in frames)
+        max_h = max(f.size[1] for f in frames)
+        size = (max_w, max_h)
         normalized_frames = []
 
         for frame in frames:
             if frame.size != size:
-                frame = frame.resize(size, Image.Resampling.LANCZOS)
+                frame = frame.resize(size, Image.Resampling.NEAREST)  # NEAREST for QR
 
             if frame.mode != "RGB":
                 frame = frame.convert("RGB")

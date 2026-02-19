@@ -45,7 +45,7 @@ cargo add crypto_core --features full
 > **PQ Backend Note:** Two post-quantum backends are available:
 > - `pq-crypto`: Pure Rust (RustCrypto ml-kem/ml-dsa 0.1.0-rc) - easy to build, no external deps
 > - `liboqs-native`: C library bindings (liboqs) - production-tested, NIST finalist reference impl
-> 
+>
 > Use `pq-crypto` for ease; use `liboqs-native` for production deployments.
 
 ---
@@ -183,7 +183,7 @@ let plaintext = aes_gcm_decrypt(&key, &nonce, &ciphertext, aad)?;
 // Argon2id key derivation (memory-hard)
 let password = b"correct horse battery staple";
 let salt = Salt::random();
-let derived = argon2_derive(password, &salt, 256 * 1024, 3, 4)?;  // 256 MiB, 3 iter
+let derived = argon2_derive(password, &salt, 512 * 1024, 20, 4)?;  // 512 MiB, 20 iter (production)
 
 // HKDF-SHA256 key expansion
 let prk = hkdf_derive(&ikm, &salt, b"meow-encoder-v1", 32)?;
@@ -370,18 +370,18 @@ fn main() -> Result<(), crypto_core::AeadError> {
     // Create wrapper with 256-bit key
     let key = [0x42u8; KEY_SIZE];
     let wrapper = AeadWrapper::new(&key)?;
-    
+
     // Encrypt with automatic nonce management
     let plaintext = b"Secret message";
     let aad = b"additional authenticated data";
     let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad)?;
-    
+
     // Decrypt and verify authentication
     let authenticated = wrapper.decrypt(&nonce, &ciphertext, aad)?;
-    
+
     // Access plaintext (proof of authentication)
     println!("Decrypted: {:?}", authenticated.data());
-    
+
     Ok(())
 }
 ```
@@ -390,9 +390,9 @@ fn main() -> Result<(), crypto_core::AeadError> {
 
 ```rust
 // ❌ This won't compile - can't construct AuthenticatedPlaintext directly
-let fake = AuthenticatedPlaintext { 
-    data: vec![1,2,3], 
-    _authenticated: () 
+let fake = AuthenticatedPlaintext {
+    data: vec![1,2,3],
+    _authenticated: ()
 };
 
 // ❌ This won't compile - UniqueNonce consumed on use
@@ -485,8 +485,8 @@ proof fn nonce_uniqueness(nm: &NonceManager, n1: UniqueNonce, n2: UniqueNonce)
 
 ```verus
 proof fn auth_then_output(ap: AuthenticatedPlaintext)
-    ensures exists|k, n, ct, aad| 
-        decrypt(k, n, ct, aad).is_ok() && 
+    ensures exists|k, n, ct, aad|
+        decrypt(k, n, ct, aad).is_ok() &&
         decrypt(k, n, ct, aad).unwrap() == ap
 {
     // ap can only come from successful decrypt()
@@ -565,7 +565,7 @@ use crypto_core::AeadWrapper;
 pub fn encrypt(key: &[u8], plaintext: &[u8], aad: &[u8]) -> Result<Vec<u8>, Error> {
     let wrapper = AeadWrapper::new(key)?;
     let (nonce, ciphertext) = wrapper.encrypt(plaintext, aad)?;
-    
+
     // Return nonce || ciphertext
     let mut result = nonce.to_vec();
     result.extend(ciphertext);

@@ -4,8 +4,9 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 96 test files, 2413 Python tests + 261 Rust tests = **2674 total**.
+**Current stats (February 2026):** 57 active test files (52 archived to `tests/_archive/`), 1492 active Python tests + 465 Rust tests.
 **Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
+**Surface area minimization (2026-02-18):** 45 non-production source modules archived to `meow_decoder/_archive/`; 52 test files covering only archived modules moved to `tests/_archive/`. See `docs/SURFACE_AREA_MINIMIZATION.md` for full report.
 **Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
 
 ### Consolidation History (February 2026)
@@ -26,14 +27,13 @@ This document summarizes the security-focused test suite created for Meow Decode
 |------|-------|---------|
 | `test_crypto.py` | 205 | Core AES-256-GCM encryption, KDF, AAD construction, manifest bounds, timing harness |
 | `test_crypto_backend.py` | 105 | Rust crypto backend bindings |
-| `test_crypto_enhanced.py` | 87 | Enhanced crypto with secure memory, SecureBytes |
 | `test_constant_time.py` | 45 | Constant-time comparison, secure memset, timing consistency |
 | `test_frame_mac.py` | 11 | Frame MAC authentication, key derivation, pack/unpack |
-| `test_streaming_crypto.py` | 113 | Streaming encryption, MAC authentication, memory monitoring |
 | `test_fountain.py` | 12 | Fountain code encoding/decoding, droplet generation |
 | `test_golden_vectors.py` | 30 | Frozen golden vectors: Argon2id, HKDF, AES-GCM, HMAC, SHA-256, AAD, ratchet, pipeline |
-| `test_crypto_enforcement.py` | 5 | AST-enforced Python crypto ban — fail-closed CI gate |
 | `test_ratchet.py` | 142 | MSR v1 symmetric ratchet: domain separation, forward secrecy, replay, commitment tags |
+
+> **Archived from TIER 1:** `test_crypto_enhanced.py`, `test_streaming_crypto.py`, `test_crypto_enforcement.py` — moved to `tests/_archive/`
 
 ### TIER 2: Core Pipeline Tests (90%+ coverage target)
 
@@ -44,12 +44,13 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_gif_handler.py` | 13 | GIF creation, frame handling, size validation |
 | `test_qr_code.py` | 16 | QR code generation and reading |
 | `test_config.py` | 17 | EncodingConfig, MeowConfig, DuressConfig |
-| `test_spec_v12.py` | 37 | Spec v1.2 encode/decode, key management, steganography |
 | `test_metadata_obfuscation.py` | 17 | Length padding, corruption detection |
-| `test_coverage_gaps_phase1.py` | 79 | Cross-module coverage gaps (streaming crypto, schrodinger, manifests) |
 | `test_e2e_crypto_fountain.py` | 23 | E2E pipeline: encrypt→fountain→corrupt/reorder/drop→decode→decrypt |
 | `test_e2e_ratchet_pipeline.py` | 23 | E2E pipeline with per-frame ratchet under loss/reorder |
+| `test_e2e_gif_ratchet.py` | — | E2E GIF + ratchet integration |
 | `test_fountain_montecarlo.py` | 10 | Monte Carlo statistical reliability of LT codes under frame loss |
+
+> **Archived from TIER 2:** `test_spec_v12.py`, `test_coverage_gaps_phase1.py` — moved to `tests/_archive/`
 
 ### TIER 3: Security Features Tests
 
@@ -59,29 +60,18 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_adversarial.py` | 20 | Hostile input handling, corruption resilience |
 | `test_sidechannel.py` | 11 | Side-channel resistance |
 | `test_invariants.py` | 11 | Security invariant checks |
-| `test_forward_secrecy.py` | 34 | X25519 forward secrecy (MEOW3) |
-| `test_x25519_forward_secrecy.py` | 45 | X25519 key derivation, hybrid keys |
-| `test_forward_secrecy_decoder.py` | 5 | Forward secrecy decoding |
-| `test_forward_secrecy_encoder.py` | 3 | Forward secrecy encoding |
-| `test_forward_secrecy_x25519.py` | 7 | Legacy X25519 compat |
+| `test_x25519_forward_secrecy.py` | 42 | X25519 key derivation, ephemeral keys, hybrid keys |
 | `test_duress_mode.py` | 57 | Duress mode, decoy data, timing equalization |
 | `test_timelock_duress.py` | 32 | Timelock puzzles, countdown duress, deadman switch |
-| `test_schrodinger.py` | 40 | Schrödinger dual-secret encode/decode (merged from comprehensive) |
-| `test_quantum_mixer.py` | 97 | Quantum entanglement/collapse, statistical tests (merged from comprehensive) |
-| `test_multi_secret.py` | 84 | Multi-secret encoding, Merkle trees, indistinguishability |
-| `test_secure_bridge.py` | 60 | Rust secure bridge, key handles, HMAC |
-| `test_secure_cleanup.py` | 13 | Sensitive buffer registration, cleanup |
-| `test_high_security.py` | 34 | High security mode, secure wipe, memory protection |
-| `test_entropy_boost.py` | 90 | Entropy pool, enhanced salt/nonce, hardware entropy |
-| `test_double_ratchet.py` | 27 | Signal-style key ratcheting |
 | `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-1024) |
 | `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
-| `test_pq_signatures.py` | 10 | Post-quantum signatures |
-| `test_pq_crypto.py` | 3 | Post-quantum module imports (pq_crypto_real, pq_hybrid, pq_signatures) |
 | `test_pqxdh_upgrade.py` | 25 | PQXDH: ML-KEM-768/1024, transcript binding, backward compat |
 | `test_asymmetric_rekey.py` | 40 | MSR v2 asymmetric rekey: PCS, forward secrecy, rollback resistance |
-| `test_schrodinger_encode.py` | 1 | Schrödinger encoder module import |
-| `test_schrodinger_decode.py` | 1 | Schrödinger decoder module import |
+| `test_high_security.py` | 34 | High security mode, secure wipe, memory protection |
+| `test_audit_fixes.py` | — | OPUS-AUDIT remediation verification |
+| `test_signal_invariants.py` | — | Signal protocol invariant enforcement |
+
+> **Archived from TIER 3:** `test_forward_secrecy.py`, `test_forward_secrecy_decoder.py`, `test_forward_secrecy_encoder.py`, `test_forward_secrecy_x25519.py`, `test_schrodinger.py`, `test_quantum_mixer.py`, `test_multi_secret.py`, `test_secure_bridge.py`, `test_secure_cleanup.py`, `test_entropy_boost.py`, `test_double_ratchet.py`, `test_pq_signatures.py`, `test_pq_crypto.py`, `test_schrodinger_encode.py`, `test_schrodinger_decode.py` — moved to `tests/_archive/`
 
 ### TIER 4: UI/Integration/Infrastructure Tests
 
@@ -89,51 +79,47 @@ This document summarizes the security-focused test suite created for Meow Decode
 |------|-------|---------|
 | `test_cat_errors.py` | 51 | Cat-themed error system, fur_ball_error, pounce_on_errors |
 | `test_cat_utils.py` | 78 | PurrLogger, NineLivesRetry, CatBreed, ASCII art |
-| `test_catnip_fountain.py` | 14 | Catnip fountain encoder/decoder |
 | `test_tamper_report.py` | 19 | TamperReport rendering, JSON export |
 | `test_bridge_protocol.py` | 21 | Mobile bridge wire protocol |
 | `test_fuzz_targets.py` | 122 | Comprehensive fuzz harness testing |
 | `test_property_based.py` | 20 | Hypothesis property-based tests |
 | `test_rust_crypto_backend.py` | 12 | Rust backend integration |
 | `test_hardware_integration.py` | 70 | Hardware security module integration |
-| `test_hardware_keys.py` | 44 | Hardware key management |
 | `test_stego_advanced.py` | 16 | Advanced steganography modes |
-| `test_meow_encode.py` | 5 | CLI encode integration |
-| `test_decoy_generator.py` | 12 | Decoy data generation |
-| `test_merkle_tree.py` | 78 | Merkle tree construction/verification |
-| `test_ninja_cat_ultra.py` | 37 | Ninja cat encoding mode (merged from comprehensive) |
-| `test_prowling_mode.py` | 21 | Prowling mode steganography |
-| `test_resume_secured.py` | 62 | Secure resume/checkpoint |
-| `test_profiling_improved.py` | 60 | Performance profiling |
-| `test_progress_modules.py` | 16 | Progress tracking (merged from comprehensive) |
-| `test_ascii_qr.py` | 12 | ASCII QR rendering (merged from comprehensive) |
-| `test_bidirectional.py` | 6 | Bidirectional transfer |
-| `test_clowder.py` | 7 | Clowder multi-device (merged from comprehensive) |
-| `test_dashboard_gui.py` | 2 | Dashboard GUI |
 | `test_deadmans_switch_cli.py` | 5 | Dead man's switch CLI |
-| `test_debug_modules.py` | 9 | Debug module variants (merged from comprehensive) |
-| `test_logo_and_gui.py` | 11 | Logo/GUI rendering (comprehensive was subset) |
+| `test_logo_eyes.py` | 3 | Logo eyes encoder, LogoConfig |
+| `test_mobile_bridge.py` | 22 | Mobile bridge CLI handler, protocol data classes, BLE/USB |
+| `test_progress.py` | 6 | ProgressBar class (production-only subset) |
 | `test_security_warnings.py` | 4 | Security warning display |
-| `test_webcam_modules.py` | 8 | Webcam capture modules (merged from comprehensive) |
-| `test_clowder_decode.py` | 3 | Clowder decode module, password hashing |
-| `test_clowder_encode.py` | 2 | Clowder encode module, ClowderManifest |
-| `test_clowder_modules.py` | 9 | Clowder modules coverage (decode, encode, 95% target) |
 | `test_crypto_DEBUG.py` | 2 | **DEPRECATED** — import smoke for quarantined `legacy_py/crypto_DEBUG.py` (safe to delete) |
 | `test_encode_DEBUG.py` | 2 | **DEPRECATED** — import smoke for deprecated `encode_DEBUG` (safe to delete) |
-| `test_decode_webcam_with_resume.py` | 1 | Webcam decode with resume module import |
-| `test_gui.py` | 6 | GUI module imports (dashboard, enhanced, logo) |
-| `test_gui_logo_example.py` | 2 | GUI logo example module |
-| `test_gui_modules.py` | 6 | GUI modules coverage (logo window, dpg handling) |
-| `test_hardware.py` | 8 | Hardware integration, HardwareSecurityProvider |
-| `test_hardware_modules.py` | 10 | Hardware modules coverage (capabilities, providers) |
-| `test_logo_eyes.py` | 3 | Logo eyes encoder, LogoConfig |
-| `test_meow_dashboard_demo.py` | 2 | Dashboard demo module import |
-| `test_meow_gui_enhanced.py` | 2 | Enhanced GUI module, MeowGuiEnhanced |
-| `test_mobile_bridge.py` | 22 | Mobile bridge CLI handler, protocol data classes, BLE/USB |
-| `test_progress.py` | 8 | Progress bar module, ProgressBar class |
-| `test_progress_bar.py` | 3 | progress_bar module import, ProgressBar |
 | `test_setup.py` | 1 | Package setup.py/pyproject.toml validation |
-| `test_webcam_enhanced.py` | 1 | Enhanced webcam module import |
+| `test_cat_js_runner.py` | — | JavaScript cat mode test runner |
+
+> **Archived from TIER 4:** `test_catnip_fountain.py`, `test_hardware_keys.py`, `test_meow_encode.py`, `test_decoy_generator.py`, `test_merkle_tree.py`, `test_ninja_cat_ultra.py`, `test_prowling_mode.py`, `test_resume_secured.py`, `test_profiling_improved.py`, `test_progress_modules.py`, `test_ascii_qr.py`, `test_bidirectional.py`, `test_clowder.py`, `test_dashboard_gui.py`, `test_debug_modules.py`, `test_logo_and_gui.py`, `test_webcam_modules.py`, `test_clowder_decode.py`, `test_clowder_encode.py`, `test_clowder_modules.py`, `test_decode_webcam_with_resume.py`, `test_gui.py`, `test_gui_logo_example.py`, `test_gui_modules.py`, `test_hardware.py`, `test_hardware_modules.py`, `test_meow_dashboard_demo.py`, `test_meow_gui_enhanced.py`, `test_progress_bar.py`, `test_webcam_enhanced.py` — moved to `tests/_archive/`
+
+### TIER 5: CI/Enforcement Gate Tests
+
+| File | Tests | Purpose |
+|------|-------|---------|
+| `test_production_boundary.py` | — | Production module boundary enforcement |
+| `test_production_import_boundary.py` | 5 | Surface area regression: allowlist, staleness, archive guard |
+| `test_no_experimental_imports_in_production.py` | — | No experimental imports in production code |
+| `test_fail_closed_enforcement.py` | — | Fail-closed crypto enforcement |
+| `test_no_overclaims.py` | — | No security overclaims in docs |
+| `test_no_python_key_bytes.py` | — | No raw Python key bytes in production |
+| `test_zero_key_bytes.py` | — | Key zeroization enforcement |
+| `test_profile_required_and_checked.py` | — | Profile checks enforcement |
+
+### Archived Tests (`tests/_archive/`)
+
+52 test files covering non-production modules were moved to `tests/_archive/` during the February 2026 surface area minimization. These files are:
+
+- **Not collected by pytest** (via `norecursedirs` in `pyproject.toml` and `conftest.py` in the archive dir)
+- **Not included in coverage** (via `.coveragerc` omit rules)
+- **Preserved intact** for restoration if their corresponding source modules return to production
+
+See `docs/SURFACE_AREA_MINIMIZATION.md` for the complete list and restoration instructions.
 
 ### Rust Crypto Backend Tests
 
@@ -358,7 +344,7 @@ fail_under = 35  # Incrementally increase to 80%+
 | **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
 | **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
-**Status:** Test suite consolidated (Phase 0 + Phase 1 complete). 87 test files, 2413 Python tests. All `*_comprehensive.py` files merged into 1-to-1 counterparts.
+**Status:** Test suite consolidated (Phase 0 + Phase 1 complete) and minimized (surface area reduction). 57 active test files, 1492 active Python tests. 52 test files archived to `tests/_archive/`. All `*_comprehensive.py` files merged into 1-to-1 counterparts.
 
 ## Running Tests
 
@@ -383,7 +369,7 @@ pytest tests/test_fuzz_targets.py -v
 pytest tests/test_fuzz_targets.py tests/test_property_based.py -v
 
 # ============ Rust Crypto Tests ============
-# Run all 128 Rust crypto tests
+# Run all 206 Rust crypto tests
 cargo test -p meow_crypto_rs
 
 # Run individual Rust test suites
@@ -406,9 +392,10 @@ cargo test --test proptest_crypto             # 23 property tests
 # 🧪 Meow Decoder Testing Infrastructure - Complete Overview
 
 **Last Updated:** 2026-02-18
-**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Rust Fuzzing Suite
-**Total Test Coverage:** 2,413 tests (Python) + 316 tests (Rust) = **2,729 total tests**
-**Test Files:** 96 Python test files + 9 Rust test files
+**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Surface Area Minimization
+**Total Active Tests:** 1,492 tests (Python) + 465 tests (Rust) = **1,957 total active tests**
+**Active Test Files:** 57 Python test files + 9 Rust test files
+**Archived Test Files:** 52 Python test files in `tests/_archive/` (covering non-production modules)
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
 ---
@@ -417,7 +404,7 @@ cargo test --test proptest_crypto             # 23 property tests
 
 ```
 									┌──────────────┐
-									│ E2E/CI Tests │  ← NEW Phase 5 Week 1
+									│ E2E/CI Tests │  ← Phase 5 Week 1
 									│  (21 videos) │
 									└──────────────┘
 								 ┌────────────────┐
@@ -425,11 +412,14 @@ cargo test --test proptest_crypto             # 23 property tests
 								 │ Tests (80)     │
 								 └────────────────┘
 							 ┌──────────────────────┐
-							 │ Security Tests (500+)│
+							 │ Security Tests (300+)│
 							 └──────────────────────┘
 						┌─────────────────────────────┐
-						│ Unit Tests (2,000+)         │
+						│ Unit Tests (1,100+)         │
 						└─────────────────────────────┘
+      ┌─────────────────────────────────────────────┐
+      │ Archived Tests (52 files in tests/_archive/)│
+      └─────────────────────────────────────────────┘
 ```
 
 ---
@@ -539,7 +529,8 @@ python3 tests/run_error_tests.py
 
 ## 🔐 Security Test Suite (Python)
 
-**Total:** 2,413+ tests across 96 files
+**Active:** 1,492+ tests across 57 files
+**Archived:** 52 test files in `tests/_archive/` (covering non-production modules)
 **Coverage:** 92% overall, 97%+ for crypto-critical modules
 
 ### Post-Rust Migration Audit (February 2026)
@@ -626,7 +617,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 ## 🦀 Rust Test Suite
 
-**Total:** 316 tests across 2 packages
+**Total:** 465 tests across 2 packages
 
 ### Package 1: rust_crypto (PyO3 Bindings) - 206 tests
 
@@ -788,10 +779,11 @@ open htmlcov/index.html
 ```
 
 **Current Coverage (February 2026):**
-- Overall: **92%**
+- Overall (production modules only): **92%**
 - Crypto modules: **97%+**
 - Core pipeline: **89%**
 - UI/CLI: **75%** (expected lower)
+- Non-production modules: archived to `meow_decoder/_archive/`, excluded from coverage
 
 ### Rust Coverage (tarpaulin)
 

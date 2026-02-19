@@ -16,6 +16,27 @@ from typing import Tuple, Optional
 
 from .crypto_backend import get_default_backend, get_handle_backend, secure_zero_memory
 
+# ── Production Mode Guard ────────────────────────────────────────────────────
+# When MEOW_PRODUCTION_MODE=1 (default), legacy bytes-returning crypto APIs
+# are FORBIDDEN.  Production code MUST use *_production() / *_handle() variants
+# that keep all secret key material inside opaque Rust handles.
+#
+# Setting MEOW_PRODUCTION_MODE=0 or MEOW_TEST_MODE=1 disables the guard
+# (for tests plus legacy tooling only).
+_PRODUCTION_MODE = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+
+
+def _legacy_guard(fn_name: str) -> None:
+    """Raise if a legacy bytes-returning API is called in production mode."""
+    if _PRODUCTION_MODE and not _TEST_MODE:
+        raise RuntimeError(
+            f"{fn_name}() is PRODUCTION-FORBIDDEN.  "
+            "Use the *_production() or *_handle() variant instead, which keeps "
+            "all secret key bytes inside Rust handles.  Set MEOW_TEST_MODE=1 "
+            "or MEOW_PRODUCTION_MODE=0 to use this function in tests."
+        )
+
+
 # Magic bytes for manifest version identification
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 
@@ -389,7 +410,10 @@ def pack_manifest_core(manifest: "Manifest", include_duress_tag: bool = True) ->
 
 def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> bytes:
     """
-    Derive encryption key using Argon2id.
+    PRODUCTION-FORBIDDEN: Derive encryption key using Argon2id.
+
+    This function returns raw key bytes.  In production, use
+    ``derive_key_handle()`` which keeps all key material in Rust.
 
     Args:
         password: User passphrase (minimum 8 characters)
@@ -401,7 +425,9 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
 
     Raises:
         ValueError: If password is empty, too short, or salt is wrong length
+        RuntimeError: If called in production mode
     """
+    _legacy_guard("derive_key")
     if not password:
         raise ValueError("Password cannot be empty")
     if len(password) < MIN_PASSWORD_LENGTH:
@@ -456,6 +482,10 @@ def derive_key_handle(
     The 32-byte key NEVER enters Python memory.  Callers interact with
     the key exclusively through the handle ID.
 
+    When a keyfile is provided, the HKDF combination and Argon2id
+    derivation are performed entirely inside Rust — no intermediate
+    secret bytes cross the FFI boundary.
+
     Args:
         password: User passphrase (minimum 8 characters)
         salt:     Random salt (16 bytes)
@@ -478,31 +508,31 @@ def derive_key_handle(
 
     hb = get_handle_backend()
 
-    secret = password.encode("utf-8")
-    if keyfile:
-        # Combine password and keyfile via HKDF (raw bytes path — no handle for IKM yet)
-        backend = get_default_backend()
-        secret = backend.derive_key_hkdf(
-            secret + keyfile,
-            KEYFILE_DOMAIN_SEP,
-            b"password_keyfile_combine",
-            64,
-        )
-
-    secret_buf = bytearray(secret)
+    password_bytes = password.encode("utf-8")
     try:
-        handle = hb.derive_key_argon2id(
-            bytes(secret_buf),
-            salt,
-            memory_kib=ARGON2_MEMORY,
-            iterations=ARGON2_ITERATIONS,
-            parallelism=ARGON2_PARALLELISM,
-        )
+        if keyfile:
+            # HKDF(password || keyfile) → Argon2id, entirely in Rust.
+            # No intermediate secret bytes enter Python.
+            handle = hb.derive_key_argon2id_with_keyfile(
+                password_bytes,
+                keyfile,
+                KEYFILE_DOMAIN_SEP,
+                salt,
+                memory_kib=ARGON2_MEMORY,
+                iterations=ARGON2_ITERATIONS,
+                parallelism=ARGON2_PARALLELISM,
+            )
+        else:
+            handle = hb.derive_key_argon2id(
+                password_bytes,
+                salt,
+                memory_kib=ARGON2_MEMORY,
+                iterations=ARGON2_ITERATIONS,
+                parallelism=ARGON2_PARALLELISM,
+            )
         return handle
     except Exception as e:
         raise RuntimeError(f"Key derivation failed: {e}")
-    finally:
-        secure_zero_memory(secret_buf)
 
 
 def encrypt_file_bytes_handle(
@@ -642,42 +672,15 @@ def encrypt_file_bytes(
     mode_byte: int = 0,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], bytes]:
     """
-    Compress, hash, and encrypt file data with authenticated additional data (AAD).
+    PRODUCTION-FORBIDDEN: This function returns the raw encryption key.
 
-    Args:
-        raw: Raw file bytes
-        password: Encryption password
-        keyfile: Optional keyfile content
-        receiver_public_key: Optional X25519 public key for forward secrecy (32 bytes)
-                            If provided, enables forward secrecy mode
-        use_length_padding: Add length padding to hide true size (default: True)
-        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
-                        If provided, skips Argon2id derivation and uses this key
-        precomputed_salt: Salt used for precomputed_key (required if precomputed_key provided)
-        pq_ciphertext: Optional ML-KEM ciphertext for AAD binding
-        pq_ephemeral_public_key: Optional X25519 ephemeral public key from PQ
-                                hybrid_encapsulate().  When provided in precomputed_key
-                                mode, it is stored in the manifest and included in
-                                the AAD so the decoder can call hybrid_decapsulate().
-
-    Returns:
-        Tuple of (compressed, sha256, salt, nonce, ciphertext, ephemeral_public_key, encryption_key)
-        - ephemeral_public_key is None if password-only mode
-        - ephemeral_public_key is 32 bytes if forward secrecy or PQ hybrid mode
-        - encryption_key is the 32-byte key used for encryption (needed for HMAC computation)
+    Use ``encrypt_file_bytes_production()`` instead, which keeps the key
+    in an opaque Rust handle.
 
     Raises:
-        RuntimeError: If encryption fails
-
-    Security:
-        - Uses AES-256-GCM with AAD for manifest authentication
-        - AAD includes: orig_len, comp_len, salt, sha256, magic
-        - Prevents tampering with metadata
-        - Nonce is unique per encryption (never reused)
-        - Forward secrecy: Ephemeral X25519 keys if receiver_public_key provided
-        - PQ hybrid: Ephemeral key from hybrid_encapsulate if pq_ephemeral_public_key provided
-        - Length padding: Rounds to size classes to hide true size
+        RuntimeError: If called in production mode
     """
+    _legacy_guard("encrypt_file_bytes")
     try:
         # Optionally log via purr mode
         logger = None
@@ -885,6 +888,7 @@ def encrypt_file_bytes_production(
     pq_ciphertext: Optional[bytes] = None,
     pq_ephemeral_public_key: Optional[bytes] = None,
     mode_byte: int = 0,
+    precomputed_key_handle: Optional[int] = None,
 ) -> Tuple[bytes, bytes, bytes, bytes, bytes, Optional[bytes], int]:
     """
     Compress, hash, and encrypt — encryption key stays in Rust handle.
@@ -921,10 +925,17 @@ def encrypt_file_bytes_production(
     # ── 4. Derive key → handle (key NEVER enters Python) ──
     ephemeral_public_key = None
     key_handle = None
+    _handle_owned = True  # we own it unless caller passes precomputed_key_handle
 
     try:
-        if precomputed_key is not None:
-            # HARDWARE / PQ HYBRID MODE
+        if precomputed_key_handle is not None:
+            # HANDLE-BASED PQ HYBRID — key already in Rust, zero Python bytes
+            key_handle = precomputed_key_handle
+            _handle_owned = False  # caller owns this handle
+            ephemeral_public_key = pq_ephemeral_public_key
+
+        elif precomputed_key is not None:
+            # HARDWARE / LEGACY PQ HYBRID MODE
             if len(precomputed_key) != 32:
                 raise ValueError(f"Precomputed key must be 32 bytes, got {len(precomputed_key)}")
             key_handle = hb.import_key(precomputed_key)
@@ -972,11 +983,10 @@ def encrypt_file_bytes_production(
             if yubikey_slot is not None:
                 if keyfile is not None:
                     raise ValueError("Cannot combine --yubikey with --keyfile")
-                key_bytes = backend.derive_key_yubikey(
+                # Key derived via YubiKey stays in Rust handle — never enters Python
+                key_handle = hb.derive_key_yubikey(
                     password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
                 )
-                key_handle = hb.import_key(key_bytes)
-                del key_bytes
             else:
                 key_handle = derive_key_handle(password, salt, keyfile)
 
@@ -1018,8 +1028,8 @@ def encrypt_file_bytes_production(
 
         return comp, sha, salt, nonce, cipher, ephemeral_public_key, key_handle
     except Exception:
-        # Drop handle on error path
-        if key_handle is not None:
+        # Drop handle on error path (only if we created it)
+        if key_handle is not None and _handle_owned:
             try:
                 hb.drop(key_handle)
             except Exception:
@@ -1042,8 +1052,8 @@ def derive_encryption_key_for_manifest_handle(
     Derive the encryption key for a manifest — returns an opaque Rust handle.
 
     Production version of derive_encryption_key_for_manifest.
-    The raw key NEVER crosses the FFI boundary into Python (except for
-    precomputed_key and yubikey paths where the key originates outside Rust).
+    The raw key NEVER crosses the FFI boundary into Python(except for
+                                                           precomputed_key and yubikey paths where the key originates outside Rust).
 
     Caller MUST call ``get_handle_backend().drop(handle)`` when done.
     """
@@ -1077,6 +1087,9 @@ def derive_encryption_key_for_manifest_handle(
         if pq_ciphertext is not None:
             _mode_flags |= 0x02
         _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
+        # Compute receiver's static public key from their private key
+        # for transcript binding (FIX-C3v2: encode hashes recv_pub, not eph_pub)
+        _recv_static_pub = get_default_backend().x25519_public_from_private(receiver_private_key)
         # Key NEVER enters Python — derive_shared_secret_handle returns handle
         return derive_shared_secret_handle(
             receiver_private_key,
@@ -1087,20 +1100,17 @@ def derive_encryption_key_for_manifest_handle(
             ephemeral_public=ephemeral_public_key,
             pq_ciphertext_hash=_pq_hash,
             mode_flags=_mode_flags,
+            static_receiver_public=_recv_static_pub,
         )
 
-    # YUBIKEY MODE
+    # YUBIKEY MODE — key never enters Python
     if yubikey_slot is not None:
         if keyfile is not None:
             raise ValueError("Cannot combine --yubikey with --keyfile")
-        backend = get_default_backend()
-        key = backend.derive_key_yubikey(
+        # Key derived via YubiKey stays in Rust handle — never enters Python
+        return hb.derive_key_yubikey(
             password.encode("utf-8"), salt, slot=yubikey_slot, pin=yubikey_pin
         )
-        # Key arrives from Rust backend — import immediately, transient in Python.
-        key_handle = hb.import_key(key)
-        del key
-        return key_handle
 
     # PASSWORD-ONLY MODE — key never enters Python
     return derive_key_handle(password, salt, keyfile)
@@ -1112,11 +1122,12 @@ def compute_manifest_hmac_from_handle(
     packed_no_hmac: bytes,
 ) -> bytes:
     """
-    Compute HMAC over manifest using a key handle — compatible with
-    ``compute_manifest_hmac``.
+    Compute HMAC over manifest using a key handle.
 
     Production version — the secret key NEVER enters Python.
-    Uses Rust-side prefixed HMAC: HMAC(MANIFEST_HMAC_KEY_PREFIX || key, msg).
+    Delegates to ``compute_manifest_hmac_handle`` which derives the HMAC
+    key via HKDF inside Rust and then computes HMAC-SHA256, keeping all
+    secret material in opaque handles.
 
     Args:
         key_handle: Opaque handle to the 32-byte encryption key
@@ -1124,10 +1135,9 @@ def compute_manifest_hmac_from_handle(
         packed_no_hmac: Serialized manifest without HMAC field
 
     Returns:
-        32-byte HMAC-SHA256 tag (identical to compute_manifest_hmac output)
+        32-byte HMAC-SHA256 tag
     """
-    hb = get_handle_backend()
-    return hb.hmac_sha256_prefixed(key_handle, MANIFEST_HMAC_KEY_PREFIX, packed_no_hmac)
+    return compute_manifest_hmac_handle(key_handle, salt, packed_no_hmac)
 
 
 def decrypt_to_raw_production(
@@ -1146,25 +1156,36 @@ def decrypt_to_raw_production(
     precomputed_key: Optional[bytes] = None,
     pq_ciphertext: Optional[bytes] = None,
     mode_byte: int = 0,
+    precomputed_key_handle: Optional[int] = None,
 ) -> bytes:
     """
     Decrypt and decompress — key stays in Rust handle throughout.
 
     Production version of decrypt_to_raw.  The raw key NEVER enters
     Python memory.  Uses handle-based AES-GCM internally.
+
+    When ``precomputed_key_handle`` is provided(from hybrid_encapsulate_handle
+                                                or hybrid_decapsulate_handle), NO import_key call is needed and zero
+    secret bytes ever exist in Python.
     """
     hb = get_handle_backend()
 
-    # Derive key → handle
-    key_handle = derive_encryption_key_for_manifest_handle(
-        password, salt, keyfile=keyfile,
-        ephemeral_public_key=ephemeral_public_key,
-        receiver_private_key=receiver_private_key,
-        yubikey_slot=yubikey_slot,
-        yubikey_pin=yubikey_pin,
-        precomputed_key=precomputed_key,
-        pq_ciphertext=pq_ciphertext,
-    )
+    # If caller already has a handle (PQ hybrid path), use it directly
+    key_handle_is_owned = True
+    if precomputed_key_handle is not None:
+        key_handle = precomputed_key_handle
+        key_handle_is_owned = False  # caller owns it
+    else:
+        # Derive key → handle
+        key_handle = derive_encryption_key_for_manifest_handle(
+            password, salt, keyfile=keyfile,
+            ephemeral_public_key=ephemeral_public_key,
+            receiver_private_key=receiver_private_key,
+            yubikey_slot=yubikey_slot,
+            yubikey_pin=yubikey_pin,
+            precomputed_key=precomputed_key,
+            pq_ciphertext=pq_ciphertext,
+        )
     try:
         if orig_len is None or comp_len is None or sha256 is None:
             raise ValueError(
@@ -1207,7 +1228,8 @@ def decrypt_to_raw_production(
             raise ValueError("Decompression bomb detected")
         return chunk + remaining
     finally:
-        hb.drop(key_handle)
+        if key_handle_is_owned:
+            hb.drop(key_handle)
 
 
 def verify_manifest_hmac_production(
@@ -1271,37 +1293,15 @@ def decrypt_to_raw(
     mode_byte: int = 0,
 ) -> bytes:
     """
-    Decrypt and decompress file data with AAD verification.
+    PRODUCTION-FORBIDDEN: Decrypt — raw key enters Python memory.
 
-    Args:
-        cipher: Encrypted data
-        password: Decryption password
-        salt: Salt used during encryption
-        nonce: Nonce used during encryption
-        keyfile: Optional keyfile content
-        orig_len: Original length (for AAD reconstruction)
-        comp_len: Compressed length (for AAD reconstruction)
-        sha256: Original hash (for AAD reconstruction)
-        ephemeral_public_key: Optional ephemeral X25519 public key (32 bytes)
-                             Present = forward secrecy mode
-                             None = password-only mode
-        receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
-        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
-                        If provided, skips key derivation and uses this key
-
-    Returns:
-        Decrypted and decompressed plaintext
+    Use ``decrypt_to_raw_production()`` instead, which keeps the key
+    in an opaque Rust handle throughout.
 
     Raises:
-        RuntimeError: If decryption or decompression fails
-        ValueError: If forward secrecy mode but receiver_private_key missing
-
-    Security:
-        - Verifies AAD before decrypting
-        - Ensures manifest hasn't been tampered with
-        - Fails if AAD doesn't match
-        - Forward secrecy: Uses receiver's private key + sender's ephemeral public key
+        RuntimeError: If called in production mode
     """
+    _legacy_guard("decrypt_to_raw")
     try:
         # Optionally log via purr mode
         logger = None
@@ -1745,24 +1745,11 @@ def derive_encryption_key_for_manifest(
     pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """
-    Derive the encryption key for a manifest, matching encryption/decryption paths.
+    PRODUCTION-FORBIDDEN: Returns raw key bytes.
 
-    This helper centralizes key derivation to keep frame MAC and HMAC derivations
-    consistent and avoids subtle divergence.
-
-    Args:
-        password: User password
-        salt: Salt from manifest
-        keyfile: Optional keyfile content
-        ephemeral_public_key: Optional ephemeral X25519 public key (forward secrecy mode)
-        receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present)
-        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
-                        If provided, skips key derivation and returns this key
-        pq_ciphertext: Optional PQ ciphertext (FIX-C3 v2 transcript binding)
-
-    Returns:
-        32-byte encryption key
+    Use ``derive_encryption_key_for_manifest_handle()`` instead.
     """
+    _legacy_guard("derive_encryption_key_for_manifest")
     # HARDWARE PRE-DERIVED KEY MODE (HSM/TPM)
     if precomputed_key is not None:
         if len(precomputed_key) != 32:
@@ -1787,6 +1774,8 @@ def derive_encryption_key_for_manifest(
         if pq_ciphertext is not None:
             _mode_flags |= 0x02
         _pq_hash = get_default_backend().sha256(pq_ciphertext) if pq_ciphertext else None
+        # Compute receiver's static public key for transcript binding
+        _recv_static_pub = get_default_backend().x25519_public_from_private(receiver_private_key)
         return derive_shared_secret(
             receiver_private_key,
             sender_pubkey,
@@ -1796,6 +1785,7 @@ def derive_encryption_key_for_manifest(
             ephemeral_public=ephemeral_public_key,
             pq_ciphertext_hash=_pq_hash,
             mode_flags=_mode_flags,
+            static_receiver_public=_recv_static_pub,
         )
 
     if yubikey_slot is not None:
@@ -1822,27 +1812,11 @@ def compute_manifest_hmac(
     pq_ciphertext: Optional[bytes] = None,
 ) -> bytes:
     """
-    Compute HMAC over manifest (without the hmac field itself).
+    PRODUCTION-FORBIDDEN: Uses raw key bytes for HMAC.
 
-    Args:
-        password: User password
-        salt: Salt from manifest
-        packed_no_hmac: Serialized manifest without HMAC field
-        keyfile: Optional keyfile content
-        ephemeral_public_key: Optional ephemeral X25519 public key (forward secrecy mode)
-        receiver_private_key: Receiver's X25519 private key (required if ephemeral_public_key present during decoding)
-        encryption_key: Pre-derived encryption key (32 bytes) - if provided, used directly instead of deriving
-
-    Returns:
-        32-byte HMAC-SHA256 tag
-
-    Security:
-        - Uses same key derivation as encryption
-        - Forward secrecy mode: Uses X25519 shared secret
-        - Password-only mode: Uses Argon2id key derivation
-        - During encoding: encryption_key is provided directly
-        - During decoding: key is derived from receiver_private_key + ephemeral_public_key
+    Use ``compute_manifest_hmac_from_handle()`` instead.
     """
+    _legacy_guard("compute_manifest_hmac")
     # Use pre-derived key if provided (encoding path)
     if encryption_key is not None:
         key = encryption_key
@@ -1878,25 +1852,11 @@ def verify_manifest_hmac(
     precomputed_key: Optional[bytes] = None,
 ) -> bool:
     """
-    Verify manifest HMAC with constant-time comparison and timing equalization.
+    PRODUCTION-FORBIDDEN: Uses raw key bytes for HMAC verification.
 
-    Args:
-        password: User password
-        manifest: Manifest to verify
-        keyfile: Optional keyfile content
-        receiver_private_key: Receiver's X25519 private key (required if manifest has ephemeral_public_key)
-        precomputed_key: Optional pre-derived 32-byte key (HSM/TPM/hardware mode)
-                        If provided, skips key derivation and uses this key for HMAC verification
-
-    Returns:
-        True if HMAC is valid
-
-    Security:
-        - Constant-time comparison prevents timing attacks
-        - Timing equalization adds defense in depth
-        - Prevents password/keyfile oracle attacks
-        - Supports forward secrecy mode with X25519
+    Use ``verify_manifest_hmac_production()`` instead.
     """
+    _legacy_guard("verify_manifest_hmac")
     # Pack manifest without HMAC
     packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
 

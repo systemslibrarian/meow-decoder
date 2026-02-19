@@ -93,39 +93,35 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ---
 ### Formal Methods
-- [ ] **Formal Verification**: Verus/Coq proofs for crypto primitives
+- [ ] **Formal Verification**: CI-gated Verus/Coq proofs for crypto primitives
+
 ### Third-Party Audit
 - [ ] **Professional Audit**: Engage security firm for full review
- [ ] Rust crypto backend for true constant-time
- [ ] Hardware security module (HSM) support
- [ ] FIDO2/WebAuthn integration
 - [ ] **Penetration Testing**: Red team assessment
 - [ ] **CVE Process**: Establish responsible disclosure workflow
- [ ] Formal verification of core crypto paths
- [ ] Side-channel resistant implementation
- [ ] Independent security audit
 
-- [ ] **FIPS 140-3**: Module validation (if demand exists)
-- [ ] **Common Criteria**: EAL evaluation (if demand exists)
+### Certification (If Demand Exists)
+- [ ] **FIPS 140-3**: Module validation
+- [ ] **Common Criteria**: EAL evaluation
 
 ---
 
+## Summary
+
+| Phase | Description | Status |
+|-------|-------------|--------|
 | 1 | Basic encryption (AES-GCM, Argon2id) | ✅ Complete |
 | 2 | Forward secrecy (X25519, ratcheting) | ✅ Complete |
-| 6 | Third-party audit | 🔮 Planned |
----
+| 3 | Post-quantum hybrid (ML-KEM-768/1024 PQXDH) | ✅ Complete |
+| 4 | Rust crypto backend (52 PyO3 bindings) | ✅ Complete |
+| 5 | Hardware keys (HSM/YubiKey/TPM) | ✅ Complete |
+| 6 | Opaque handle migration (M1–M9) | ✅ Complete |
+| 7 | Third-party audit | 🔮 Planned |
 
+---
 
 For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible disclosure.
 
 ---
 
 *Last Updated: February 18, 2026*
-
-# Update pytest configuration
-# Update coverage targets
-# Update CI pipeline
-
-# Mark old files as deprecated
-# Add migration notes
-# Remove after grace period

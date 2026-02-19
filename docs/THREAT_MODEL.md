@@ -602,17 +602,19 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 **What's Implemented:**
 - `pq_hybrid.py` with ML-KEM-768 + X25519 (default) / ML-KEM-1024 (paranoid) — primary PQ module (experimental, not externally audited)
 - `pq_crypto_real.py` is **deprecated** (emits `DeprecationWarning`, forced to ML-KEM-1024)
-- Graceful fallback if liboqs not installed
+- All PQ crypto routes through the Rust backend (`meow_crypto_rs`) in production
 - Security: Safe if EITHER classical OR quantum crypto holds
 - Dilithium3 signatures for quantum-resistant manifest authentication (FIPS 204)
 
 **How to Enable PQ Mode:**
 ```bash
-# Install liboqs (requires compilation)
-pip install liboqs-python
+# PQ mode is ON by default (enable_pq=True in config.py).
+# All PQ crypto routes through the Rust backend (meow_crypto_rs).
+# No separate Python library installation is required.
+meow-encode -i secret.pdf -o secret.gif -p "password"
 
-# PQ mode is now default, but can be explicitly enabled:
-meow-encode --pq -i secret.pdf -o secret.gif -p "password"
+# Paranoid mode (ML-KEM-1024 instead of the default ML-KEM-768):
+meow-encode --paranoid -i secret.pdf -o secret.gif -p "password"
 ```
 
 **Note:** ML-KEM-768 is the default; ML-KEM-1024 available as --paranoid. PQ mode is experimental.
@@ -718,34 +720,35 @@ These threats cannot be mitigated by software alone:
 ### Level 1: Default Security (AI-Hardened - Already Maximum!)
 Already enabled out of the box:
 - ✅ AES-256-GCM encryption
-- ✅ Argon2id (**256 MiB, 10 iterations**)
+- ✅ Argon2id (**512 MiB, 20 iterations**)
 - ✅ Forward secrecy (X25519)
 - ✅ Frame MAC authentication
 - ✅ Metadata padding
+- ✅ Rust crypto backend (constant-time via `subtle`, zeroing via `zeroize`)
 - ✅ Post-quantum crypto (ML-KEM-768 default / ML-KEM-1024 paranoid when liboqs installed)
 
 ### Level 2: Enhanced Security
 For even higher security (if you have the hardware):
 ```python
 # In config.py or via CLI
-config.crypto.argon2_memory = 262144      # 256 MiB
-config.crypto.argon2_iterations = 10      # 10 passes
+config.crypto.argon2_memory = 524288      # 512 MiB (already default)
+config.crypto.argon2_iterations = 20      # 20 passes (already default)
 config.encoding.redundancy = 2.5          # Higher error tolerance
 ```
 
 CLI:
 ```bash
 meow-encode -i secret.pdf -o secret.gif \
-    --argon2-memory 262144 \
-    --argon2-iterations 10 \
+    --argon2-memory 524288 \
+    --argon2-iterations 20 \
     --redundancy 2.5
 ```
 
 ### Level 3: Maximum Security
 For long-term archival / journalist sources:
 ```bash
-# Install post-quantum crypto
-pip install liboqs-python
+# PQ crypto is handled by the Rust backend (meow_crypto_rs).
+# No separate installation required.
 
 # Use Schrödinger mode + PQ + enhanced Argon2
 meow-schrodinger-encode \
@@ -764,8 +767,8 @@ meow-schrodinger-encode \
 export MEOW_ARGON2_MEMORY=1048576    # 1 GiB
 export MEOW_ARGON2_ITERATIONS=20
 
-# 3. PQ hybrid mode
-pip install liboqs-python
+# 3. PQ hybrid mode (handled by Rust backend, no extra install needed)
+# ML-KEM-768 is default; --paranoid for ML-KEM-1024
 
 # 4. Schrödinger dual secrets
 meow-schrodinger-encode --pq ...
@@ -842,18 +845,26 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ## 🔮 **FUTURE ROADMAP FOR STRONGER SECURITY**
 
-### Post v1.0 (Planned):
-- [ ] Rust crypto backend for true constant-time
-- [ ] Hardware security module (HSM) support
-- [ ] FIDO2/WebAuthn integration
-- [ ] Formal verification of core crypto paths
-- [ ] Side-channel resistant implementation
-- [ ] Independent security audit
+### Completed (Post v1.0):
+- [x] Rust crypto backend for true constant-time (52 PyO3 bindings, `subtle` + `zeroize` crates)
+- [x] Hardware security module (HSM/PKCS#11) support — CLI-wired via `--hsm-slot`
+- [x] YubiKey PIV/FIDO2 support — CLI-wired via `--yubikey`
+- [x] TPM 2.0 binding — CLI-wired via `--tpm-derive`
+- [x] WebAuthn browser prototype (`examples/webauthn-hardware.js`)
+- [x] Post-quantum ML-KEM-768 (default) / ML-KEM-1024 (paranoid) via Rust backend
+- [x] Opaque handle migration (M1–M9): Python never holds raw secret key bytes
+- [x] cargo-fuzz + property test suite for Rust crypto
+
+### Planned:
+- [ ] Independent third-party security audit
+- [ ] Formal verification of core crypto paths (Verus/Coq CI-gated proofs)
+- [ ] FIPS 140-3 module validation (if demand exists)
+- [ ] Side-channel resistant hardware integration (Faraday, power analysis countermeasures)
 
 ### Community Contributions Welcome:
 - Security researchers: Open issues for vulnerabilities
 - Cryptographers: Review implementation
-- Rust developers: Help with crypto backend
+- Rust developers: Help expand crypto core
 
 ---
 
@@ -876,6 +887,6 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ---
 
-**Document Version:** 1.0.0
-**Last Updated:** 2026-01-25
+**Document Version:** 1.1.0
+**Last Updated:** 2026-02-18
 **Security Contact:** Open a GitHub issue with [SECURITY] tag

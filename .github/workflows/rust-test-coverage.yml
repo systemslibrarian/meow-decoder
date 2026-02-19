@@ -5,23 +5,23 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 permissions:
-  contents: read  # Default: read-only (write scoped to job level for badge push)
+  contents: read # Default: read-only (write scoped to job level for badge push)
 
 jobs:
   test-and-coverage:
     name: Test + Tarpaulin Coverage (Ubuntu)
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # Required to push coverage badge (only on main)
+      contents: write # Required to push coverage badge (only on main)
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          fetch-depth: 0  # Useful if you need git history for anything
+          fetch-depth: 0 # Useful if you need git history for anything
 
       - name: Install Rust stable toolchain
         uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
@@ -40,7 +40,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y libpcsclite-dev libudev-dev pkg-config bc
-        
+
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
@@ -61,9 +61,8 @@ jobs:
             --exclude-files "src/hsm.rs" \
             --exclude-files "src/tpm.rs" \
             --exclude-files "src/yubikey_piv.rs" \
-            --exclude-files "src/verus_proofs.rs" \
-            --exclude-files "src/verus_kdf_proofs.rs" 2>&1 | tee tarpaulin-output.txt
-          
+            -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
+
           # Extract coverage percentage from output
           COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
@@ -80,8 +79,9 @@ jobs:
             --out Json \
             --output-dir . \
             --timeout 300 \
-            --exclude-files "src/lib.rs" 2>&1 | tee tarpaulin-output.txt
-          
+            --exclude-files "src/lib.rs" \
+            -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
+
           COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "rust_crypto coverage: $COVERAGE%"
@@ -92,7 +92,7 @@ jobs:
         run: |
           COVERAGE_CORE="${{ steps.tarpaulin.outputs.coverage }}"
           COVERAGE_RUST_CRYPTO="${{ steps.tarpaulin_rust_crypto.outputs.coverage }}"
-          
+
           # Calculate combined coverage (simple average)
           # In future, could weight by lines of code
           if [ -n "$COVERAGE_CORE" ] && [ -n "$COVERAGE_RUST_CRYPTO" ]; then
@@ -102,9 +102,9 @@ jobs:
           else
             COVERAGE="0"
           fi
-          
+
           echo "Combined Rust coverage: ${COVERAGE}% (crypto_core: ${COVERAGE_CORE}%, rust_crypto: ${COVERAGE_RUST_CRYPTO}%)"
-          
+
           # Determine badge color based on coverage
           if (( $(echo "$COVERAGE >= 90" | bc -l) )); then
             COLOR="4c1"  # brightgreen
@@ -117,7 +117,7 @@ jobs:
           else
             COLOR="e05d44"  # red
           fi
-          
+
           # Generate SVG badge
           cat > assets/coverage.svg << EOF
           <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="168" height="20" role="img" aria-label="Rust Combined: ${COVERAGE}%">

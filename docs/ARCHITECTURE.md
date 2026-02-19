@@ -500,7 +500,7 @@ Meow Decoder's cat-themed identity is part of the project, but it must not leak 
 ```
 PASSWORD + SALT
     │
-    │  Argon2id (47 MB, 2 iter)
+    │  Argon2id (512 MiB, 20 iter)
     ▼
 256-bit MASTER KEY
     │
@@ -941,16 +941,16 @@ MEMORY USAGE:
 
 4. DEPENDENCIES
    ├─ Python stdlib     [LOW RISK]
-   ├─ cryptography      [LOW RISK - well-audited]
+   ├─ meow_crypto_rs    [LOW RISK - Rust crypto backend, constant-time]
    ├─ Pillow            [MEDIUM RISK - monitor CVEs]
    ├─ opencv-python     [MEDIUM RISK - C++ code]
    └─ Third-party libs  [MEDIUM RISK - supply chain]
 
 5. SIDE CHANNELS
-   ├─ Timing            [HIGH RISK - Python not const-time]
+   ├─ Timing            [LOW RISK - Rust `subtle` crate, constant-time]
    ├─ Power analysis    [HIGH RISK - no mitigation]
    ├─ EM emissions      [HIGH RISK - no mitigation]
-   └─ Cache timing      [HIGH RISK - no mitigation]
+   └─ Cache timing      [LOW RISK - Rust bitsliced AES]
 
 6. OPERATIONAL
    ├─ Password entry    [HIGH RISK - keyloggers]
@@ -968,14 +968,15 @@ OVERALL RISK: MEDIUM
 
 Want to add new features? Here are the extension points:
 
-### **1. New Manifest Version (MEOW5)**
+### **1. New Manifest Version**
 ```python
-# In crypto.py
-MANIFEST_VERSION_5 = 0x05
-
-def pack_manifest_v5(manifest: Manifest, extensions: dict) -> bytes:
-    """Pack MEOW5 manifest with new features."""
-    # Your code here
+# In crypto.py — new manifest versions follow this pattern
+# MEOW2 through MEOW5 are already implemented:
+#   MODE_MEOW2 = 0x02 (password-only)
+#   MODE_MEOW3 = 0x03 (X25519 forward secrecy)
+#   MODE_MEOW4 = 0x04 (ML-KEM-1024 + X25519, paranoid)
+#   MODE_MEOW5 = 0x05 (ML-KEM-768 + X25519, default PQ hybrid)
+# Adding a new version requires updating pack_manifest/unpack_manifest
 ```
 
 ### **2. New Steganography Algorithm**

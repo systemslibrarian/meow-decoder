@@ -276,7 +276,14 @@ def _patch_encode_pipeline(monkeypatch):
 
     monkeypatch.setattr(frame_mac, "pack_frame_with_mac", lambda payload, *a, **k: payload)
     monkeypatch.setattr(frame_mac, "derive_frame_master_key", lambda *a, **k: b"k" * 32)
+    monkeypatch.setattr(frame_mac, "derive_frame_master_key_handle", lambda *a, **k: 88888)
     monkeypatch.setattr(frame_mac, "FrameMACStats", _DummyFrameMACStats)
+
+    # Mock the handle backend's drop() so fake handles don't raise errors
+    class _FakeHB:
+        def drop(self, handle):
+            pass
+    monkeypatch.setattr(enc, "get_handle_backend", lambda: _FakeHB())
 
 
 def _patch_encode_file(monkeypatch, record=None):
@@ -345,10 +352,10 @@ def test_encode_file_verbose_meow2_manifest_print(monkeypatch, tmp_path, capsys)
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -808,10 +815,10 @@ def test_encode_file_verbose_meow4_manifest_print(monkeypatch, tmp_path, capsys)
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -1425,10 +1432,10 @@ def test_encode_file_verbose_meow3_with_pubkey_print(monkeypatch, tmp_path, caps
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -1450,10 +1457,10 @@ def test_encode_file_verbose_meow2_password_only_print(monkeypatch, tmp_path, ca
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -1481,10 +1488,10 @@ def test_encode_file_yubikey_kwargs_passed(monkeypatch, tmp_path):
 
     def _fake_encrypt(**kw):
         captured_kwargs.update(kw)
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -1509,10 +1516,10 @@ def test_encode_file_verbose_duress_print(monkeypatch, tmp_path, capsys):
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "compute_duress_tag", lambda *a, **k: b"d" * 32)
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
@@ -1539,10 +1546,10 @@ def test_encode_file_verbose_ephemeral_key_print(monkeypatch, tmp_path, capsys):
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", b"e" * 32, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 
@@ -1564,10 +1571,10 @@ def test_encode_file_secure_zero_exception_swallowed(monkeypatch, tmp_path):
     _patch_encode_pipeline(monkeypatch)
 
     def _fake_encrypt(**kw):
-        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, b"k" * 32)
+        return (b"c", b"s" * 32, b"1" * 16, b"2" * 12, b"cipher", None, 99999)
 
-    monkeypatch.setattr(enc, "encrypt_file_bytes", _fake_encrypt)
-    monkeypatch.setattr(enc, "compute_manifest_hmac", lambda *a, **k: b"h" * 32)
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
     monkeypatch.setattr(enc, "pack_manifest_core", lambda *a, **k: b"core")
     monkeypatch.setattr(enc, "pack_manifest", lambda *a, **k: b"manifest")
 

@@ -450,8 +450,12 @@ def decode_gif(
         if _has_ratchet:
             from .ratchet import DecoderRatchet
 
-            # Only droplet frames are ratchet-encrypted (manifest is not)
-            total_droplet_frames = len(qr_data_list) - 1  # exclude manifest
+            # Only droplet frames are ratchet-encrypted (manifest is not).
+            # CRITICAL: Use the GIF frame count (deterministic, set by encoder),
+            # NOT len(qr_data_list) which depends on QR scanning success.
+            # The ratchet AAD binds total_frames, so a mismatch causes ALL
+            # AES-GCM decryptions to fail — even if only 1 QR frame was lost.
+            total_droplet_frames = len(frames) - 1  # GIF frame count minus manifest
             _rekey_interval = getattr(config, "rekey_beacon_interval", 0) if config else 0
             decoder_ratchet = DecoderRatchet(
                 root_key=key_handle,
@@ -620,11 +624,11 @@ def decode_gif(
     try:
         # FIX-GPT-1: PQ hybrid decapsulation (MEOW4).
         # When the manifest carries pq_ciphertext, the encoder used
-        # hybrid_encapsulate() to derive the encryption key.  The decoder
-        # must call hybrid_decapsulate() to reconstruct the same key and
-        # pass it as precomputed_key (skip Argon2id / X25519 inside
-        # decrypt_to_raw).
+        # hybrid_encapsulate_handle() to derive the encryption key.  The
+        # decoder must call hybrid_decapsulate_handle() to reconstruct the
+        # same key as an opaque Rust handle — zero secret bytes in Python.
         pq_precomputed_key = precomputed_key  # default: whatever the caller passed
+        pq_precomputed_key_handle = None  # handle-based PQ path
         pq_private_key = receiver_private_key  # default: X25519 private for FS
 
         if manifest.pq_ciphertext is not None:
@@ -642,17 +646,19 @@ def decode_gif(
                     "The manifest may be corrupt or was encoded with a buggy version."
                 )
             try:
-                from .pq_hybrid import hybrid_decapsulate
+                from .pq_hybrid import hybrid_decapsulate_handle
             except ImportError:
-                from meow_decoder.pq_hybrid import hybrid_decapsulate
+                from meow_decoder.pq_hybrid import hybrid_decapsulate_handle
 
-            pq_precomputed_key = hybrid_decapsulate(
+            pq_precomputed_key_handle = hybrid_decapsulate_handle(
                 ephemeral_classical_public=manifest.ephemeral_public_key,
                 pq_ciphertext=manifest.pq_ciphertext,
                 receiver_keypair=receiver_pq_keypair,
             )
+            # Handle path: no raw bytes to pass, clear the legacy path
+            pq_precomputed_key = None
             # In PQ hybrid mode, the X25519 exchange already happened inside
-            # hybrid_decapsulate; don't trigger a second one in decrypt_to_raw.
+            # hybrid_decapsulate_handle; don't trigger a second one.
             pq_private_key = None
 
             if verbose:
@@ -678,11 +684,25 @@ def decode_gif(
             precomputed_key=pq_precomputed_key,
             pq_ciphertext=manifest.pq_ciphertext,
             mode_byte=manifest.mode_byte,
+            precomputed_key_handle=pq_precomputed_key_handle,
         )
+
+        # Drop PQ handle after decryption (we own it)
+        if pq_precomputed_key_handle is not None:
+            from .crypto_backend import get_handle_backend as _ghb
+            _ghb().drop(pq_precomputed_key_handle)
+            pq_precomputed_key_handle = None  # prevent double-drop
 
         if verbose and manifest.ephemeral_public_key:
             print(f"  ✅ Forward secrecy: Decrypted using ephemeral key")
     except Exception as e:
+        # Drop PQ handle even on error
+        if pq_precomputed_key_handle is not None:
+            try:
+                from .crypto_backend import get_handle_backend as _ghb2
+                _ghb2().drop(pq_precomputed_key_handle)
+            except Exception:
+                pass
         raise RuntimeError(f"Decryption failed: {e}")
 
     # Verify SHA256
@@ -960,7 +980,7 @@ Examples:
             # integrate with the fountain decoder directly
             try:
                 from .fountain import FountainDecoder
-                from .crypto import decrypt_to_raw
+                from .crypto import decrypt_to_raw_production
 
                 # Process frames through fountain decoder
                 decoder = FountainDecoder()
@@ -969,7 +989,11 @@ Examples:
 
                 if decoder.is_complete():
                     encrypted = decoder.get_decoded()
-                    plaintext = decrypt_to_raw(encrypted, decode_args.password)
+                    plaintext = decrypt_to_raw_production(
+                        encrypted, decode_args.password,
+                        salt=decode_args.salt,
+                        nonce=decode_args.nonce,
+                    )
                     decode_args.output.write_bytes(plaintext)
                     return True
                 return False

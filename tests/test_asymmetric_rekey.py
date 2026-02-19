@@ -80,18 +80,26 @@ def frame_data():
 class TestAsymmetricRekeyPrimitives:
     """Test the low-level asymmetric rekey functions."""
 
+    def _export(self, handle: int) -> bytes:
+        """Export handle key bytes for test comparison (test mode only)."""
+        from meow_decoder.crypto_backend import get_handle_backend
+        hb = get_handle_backend()
+        return hb.export_key(handle)
+
     def test_generate_recover_roundtrip(self, x25519_keypair):
         """_generate_asym_rekey and _recover_asym_rekey produce identical shared secrets."""
         priv_bytes, pub_bytes = x25519_keypair
-        shared_sender, eph_pub = _generate_asym_rekey(pub_bytes)
-        shared_receiver = _recover_asym_rekey(eph_pub, priv_bytes)
-        assert shared_sender == shared_receiver
+        shared_sender_h, eph_pub = _generate_asym_rekey(pub_bytes)
+        shared_receiver_h = _recover_asym_rekey(eph_pub, priv_bytes)
+        # Handles are opaque ints — export bytes for comparison (test-only)
+        assert self._export(shared_sender_h) == self._export(shared_receiver_h)
 
     def test_shared_secret_is_32_bytes(self, x25519_keypair):
         """Shared secret output is exactly 32 bytes."""
         _, pub_bytes = x25519_keypair
-        shared, eph_pub = _generate_asym_rekey(pub_bytes)
-        assert len(shared) == 32
+        shared_h, eph_pub = _generate_asym_rekey(pub_bytes)
+        # shared_h is an opaque handle (int), export to verify length
+        assert len(self._export(shared_h)) == 32
         assert len(eph_pub) == 32
 
     def test_ephemeral_keys_are_unique(self, x25519_keypair):
@@ -104,11 +112,11 @@ class TestAsymmetricRekeyPrimitives:
     def test_wrong_private_key_fails(self, x25519_keypair):
         """Recovery with wrong private key produces different shared secret."""
         _, pub_bytes = x25519_keypair
-        shared_sender, eph_pub = _generate_asym_rekey(pub_bytes)
+        shared_sender_h, eph_pub = _generate_asym_rekey(pub_bytes)
 
         wrong_priv_bytes, _ = meow_crypto_rs.x25519_generate_keypair()
-        shared_wrong = _recover_asym_rekey(eph_pub, wrong_priv_bytes)
-        assert shared_sender != shared_wrong
+        shared_wrong_h = _recover_asym_rekey(eph_pub, wrong_priv_bytes)
+        assert self._export(shared_sender_h) != self._export(shared_wrong_h)
 
     def test_asymmetric_root_rekey_deterministic(self):
         """Same inputs produce same outputs."""

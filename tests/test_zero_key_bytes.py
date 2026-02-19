@@ -253,25 +253,25 @@ class TestProductionRoundtrip:
             tag2 = compute_manifest_hmac_from_handle(handle, salt, packed)
             assert tag == tag2, "HMAC must be deterministic"
 
-            # Verify via prefixed_verify (constant-time)
-            ok = hb.hmac_sha256_prefixed_verify(
+            # Verify by deriving the same HMAC sub-key (mirroring
+            # compute_manifest_hmac_handle: HKDF from enc key → plain HMAC)
+            hmac_key = hb.derive_key_hkdf(
                 handle,
                 b"meow_manifest_auth_v2",
-                packed,
-                tag,
+                b"manifest_hmac_v2",
+                32,
             )
-            assert ok, "HMAC verification must succeed for correct tag"
+            try:
+                ok = hb.hmac_sha256_verify(hmac_key, packed, tag)
+                assert ok, "HMAC verification must succeed for correct tag"
 
-            # Tampered tag must fail
-            bad_tag = bytearray(tag)
-            bad_tag[0] ^= 0xFF
-            bad = hb.hmac_sha256_prefixed_verify(
-                handle,
-                b"meow_manifest_auth_v2",
-                packed,
-                bytes(bad_tag),
-            )
-            assert not bad, "HMAC verification must fail for tampered tag"
+                # Tampered tag must fail
+                bad_tag = bytearray(tag)
+                bad_tag[0] ^= 0xFF
+                bad = hb.hmac_sha256_verify(hmac_key, packed, bytes(bad_tag))
+                assert not bad, "HMAC verification must fail for tampered tag"
+            finally:
+                hb.drop(hmac_key)
         finally:
             hb.drop(handle)
 

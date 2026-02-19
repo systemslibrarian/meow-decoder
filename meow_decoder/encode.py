@@ -202,9 +202,9 @@ def encode_file(
     pq_ciphertext = None
     if use_pq and receiver_public_key is not None:
         try:
-            from .pq_hybrid import hybrid_encapsulate, check_pq_available
+            from .pq_hybrid import hybrid_encapsulate_handle, check_pq_available
         except ImportError:
-            from meow_decoder.pq_hybrid import hybrid_encapsulate, check_pq_available
+            from meow_decoder.pq_hybrid import hybrid_encapsulate_handle, check_pq_available
 
         available, msg = check_pq_available()
         if not available:
@@ -220,23 +220,24 @@ def encode_file(
                 "back to classical-only. Either provide a PQ public key or disable PQ mode."
             )
 
-        pq_shared_secret, eph_classical_pub, pq_ciphertext, _ = hybrid_encapsulate(
+        # Handle-based PQ hybrid — shared secret NEVER enters Python
+        pq_key_handle, eph_classical_pub, pq_ciphertext = hybrid_encapsulate_handle(
             receiver_classical_public=receiver_public_key,
             receiver_pq_public=receiver_pq_public,
             paranoid=_pq_paranoid,
         )
 
         if pq_ciphertext is not None:
-            # PQ hybrid mode: use the hybrid shared secret as the encryption key
-            encrypt_kwargs["precomputed_key"] = pq_shared_secret
+            # PQ hybrid mode: use handle directly — zero raw key bytes
+            encrypt_kwargs["precomputed_key_handle"] = pq_key_handle
             encrypt_kwargs["precomputed_salt"] = None  # Salt will be generated fresh
             # Don't do a separate X25519 exchange inside encrypt_file_bytes
             encrypt_kwargs["receiver_public_key"] = None
             encrypt_kwargs["pq_ciphertext"] = pq_ciphertext
             # FIX-GPT-1: Store the ephemeral classical public key so the decoder
-            # can call hybrid_decapsulate().  Without this, the manifest would
-            # have ephemeral_public_key=None and the decoder couldn't reconstruct
-            # the hybrid shared secret.
+            # can call hybrid_decapsulate_handle().  Without this, the manifest
+            # would have ephemeral_public_key=None and the decoder couldn't
+            # reconstruct the hybrid shared secret.
             encrypt_kwargs["pq_ephemeral_public_key"] = eph_classical_pub
             _pq_variant = "ML-KEM-1024" if _pq_paranoid else "ML-KEM-768"
             _ct_size = len(pq_ciphertext)
@@ -244,11 +245,11 @@ def encode_file(
                 print(f"  🔮 PQ hybrid: {_pq_variant} ciphertext generated ({_ct_size} bytes)")
         else:
             # FIX-GPT-1: This should never happen since we validated receiver_pq_public above.
-            # If hybrid_encapsulate returned None pq_ciphertext despite receiving a PQ key,
-            # that's a bug in the encapsulation layer — fail closed.
+            # If hybrid_encapsulate_handle returned None pq_ciphertext despite
+            # receiving a PQ key, that's a bug — fail closed.
             raise RuntimeError(
                 "PQ hybrid encapsulation failed: pq_ciphertext is None despite "
-                "receiver_pq_public being provided. This indicates a bug in hybrid_encapsulate()."
+                "receiver_pq_public being provided. This indicates a bug in hybrid_encapsulate_handle()."
             )
             if verbose:
                 print(f"  ℹ️  PQ hybrid: Classical-only fallback (no PQ ciphertext)")

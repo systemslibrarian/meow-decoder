@@ -15,7 +15,7 @@ A minimal Flask web interface for Meow Decoder featuring **Cat Mode** as a flags
 
 ### Prerequisites
 
-- Python 3.8+
+- Python 3.10+
 - System dependencies for pyzbar:
   - **Ubuntu/Debian**: `sudo apt-get install libzbar0`
   - **macOS**: `brew install zbar`
@@ -195,8 +195,8 @@ Cat Mode is the **flagship feature** of this demo. When enabled:
 
 This is a **demonstration instance**. The UI displays a banner warning:
 
-> ⚠️ **Demo Environment Only**  
-> This is a demonstration instance. Do not upload sensitive files.  
+> ⚠️ **Demo Environment Only**
+> This is a demonstration instance. Do not upload sensitive files.
 > Files are automatically deleted after 30 minutes.
 
 For production use:

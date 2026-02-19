@@ -68,6 +68,7 @@ def derive_shared_secret(
     ephemeral_public: Optional[bytes] = None,
     pq_ciphertext_hash: Optional[bytes] = None,
     mode_flags: int = 0,
+    static_receiver_public: Optional[bytes] = None,
 ) -> bytes:
     """
     Derive shared secret using X25519 + password via HKDF.
@@ -84,6 +85,10 @@ def derive_shared_secret(
         ephemeral_public: Sender's ephemeral public key (32 bytes) for transcript.
         pq_ciphertext_hash: SHA-256 of PQ ciphertext (32 bytes) if PQ mode active.
         mode_flags: Bitmask encoding manifest mode (FS=0x01, PQ=0x02, duress=0x04).
+        static_receiver_public: Receiver's static public key for transcript binding
+            (FIX-C3v2). When decoding, receiver_public is the sender's ephemeral
+            key (for DH), but the transcript hash must use the receiver's static
+            public key to match the encode side. If None, receiver_public is used.
 
     Returns:
         32-byte shared secret for encryption
@@ -114,11 +119,15 @@ def derive_shared_secret(
         shared_handle = hb.x25519_exchange(private_handle, receiver_public)
 
         # FIX-C3 v2: Full transcript binding
+        # Use static_receiver_public for the transcript hash when provided
+        # (decode side), otherwise use receiver_public (encode side).
+        # This ensures both sides hash the RECEIVER's static public key.
+        receiver_pub_for_binding = static_receiver_public or receiver_public
         if protocol_version is not None:
             bound_info = b"meow_fs_bound_v2:"
             bound_info += struct.pack(">B", protocol_version)
             bound_info += struct.pack(">B", mode_flags & 0xFF)
-            bound_info += backend.sha256(receiver_public)
+            bound_info += backend.sha256(receiver_pub_for_binding)
             if ephemeral_public is not None:
                 if len(ephemeral_public) != 32:
                     raise ValueError(
@@ -166,12 +175,19 @@ def derive_shared_secret_handle(
     ephemeral_public: Optional[bytes] = None,
     pq_ciphertext_hash: Optional[bytes] = None,
     mode_flags: int = 0,
+    static_receiver_public: Optional[bytes] = None,
 ) -> int:
     """
     Derive shared secret using X25519 + password via HKDF — returns opaque handle.
 
     Identical to derive_shared_secret() but the derived key NEVER enters Python.
     Caller MUST drop the returned handle when done.
+
+    Args:
+        static_receiver_public: Receiver's static public key for transcript
+            binding (FIX-C3v2). On decode side, receiver_public is the sender's
+            ephemeral key (for DH), but the transcript must hash the receiver's
+            static public key to match encode. If None, receiver_public is used.
 
     Returns:
         int handle ID pointing to the 32-byte shared secret inside Rust
@@ -200,11 +216,14 @@ def derive_shared_secret_handle(
         shared_handle = hb.x25519_exchange(private_handle, receiver_public)
 
         # FIX-C3 v2: Full transcript binding
+        # Use static_receiver_public for the transcript hash when provided
+        # (decode side), otherwise use receiver_public (encode side).
+        receiver_pub_for_binding = static_receiver_public or receiver_public
         if protocol_version is not None:
             bound_info = b"meow_fs_bound_v2:"
             bound_info += struct.pack(">B", protocol_version)
             bound_info += struct.pack(">B", mode_flags & 0xFF)
-            bound_info += backend.sha256(receiver_public)
+            bound_info += backend.sha256(receiver_pub_for_binding)
             if ephemeral_public is not None:
                 if len(ephemeral_public) != 32:
                     raise ValueError(

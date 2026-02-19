@@ -27,7 +27,7 @@
         h1 { color: #00ff88; text-align: center; margin-bottom: 5px; }
         h2 { color: #00ccff; margin-top: 0; }
         .subtitle { text-align: center; color: #888; margin-bottom: 20px; }
-        
+
         .step {
             background: rgba(255, 255, 255, 0.08);
             border-radius: 12px;
@@ -49,7 +49,7 @@
         }
         .step h2 { display: inline; vertical-align: middle; }
         .step-desc { color: #aaa; margin: 10px 0 15px 40px; font-size: 0.9em; }
-        
+
         label { display: block; margin: 12px 0 5px; color: #00ccff; font-weight: 500; }
         input, textarea {
             width: 100%;
@@ -68,7 +68,7 @@
             cursor: pointer;
         }
         input:focus, textarea:focus { border-color: #00ccff; outline: none; }
-        
+
         button {
             background: linear-gradient(135deg, #00ff88 0%, #00ccff 100%);
             color: #1a1a2e;
@@ -88,12 +88,12 @@
             border: 2px solid #00ccff;
             color: #00ccff;
         }
-        
+
         .status { padding: 12px; border-radius: 6px; margin: 15px 0; text-align: center; }
         .status.loading { background: #ff9800; color: #000; }
         .status.ready { background: #4caf50; color: #fff; }
         .status.error { background: #f44336; color: #fff; }
-        
+
         /* Loading spinner for buttons */
         .btn-loading {
             position: relative;
@@ -116,7 +116,7 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-        
+
         /* Progress overlay */
         .progress-overlay {
             display: none;
@@ -145,7 +145,7 @@
             font-size: 1.2em;
             color: #00ccff;
         }
-        
+
         .qr-container {
             text-align: center;
             padding: 20px;
@@ -158,14 +158,14 @@
             justify-content: center;
             align-items: center;
         }
-        #qrcode, #schrodingerQrcode { 
-            display: flex; 
-            justify-content: center; 
+        #qrcode, #schrodingerQrcode {
+            display: flex;
+            justify-content: center;
             align-items: center;
         }
-        #qrcode canvas, #qrcode img, #schrodingerQrcode canvas, #schrodingerQrcode img { 
-            max-width: 100%; 
-            height: auto; 
+        #qrcode canvas, #qrcode img, #schrodingerQrcode canvas, #schrodingerQrcode img {
+            max-width: 100%;
+            height: auto;
             display: block;
             margin: 0 auto;
         }
@@ -180,7 +180,7 @@
             color: #999;
             border-radius: 8px;
         }
-        
+
         .result-box {
             background: #0a2a0a;
             border: 2px solid #00ff88;
@@ -193,9 +193,9 @@
         .result-box h3 { margin: 0 0 10px 0; color: #00ff88; }
         .result-box.error h3 { color: #ff4444; }
         .result-box .message { font-size: 1.3em; word-break: break-word; }
-        
+
         .hidden { display: none; }
-        
+
         .intro {
             background: rgba(0, 204, 255, 0.1);
             border: 1px solid rgba(0, 204, 255, 0.3);
@@ -204,9 +204,9 @@
             margin-bottom: 20px;
         }
         .intro p { margin: 8px 0; line-height: 1.5; }
-        
+
         .cat-header { text-align: center; font-size: 2.5em; margin-bottom: 0; }
-        
+
         .workflow-diagram {
             display: flex;
             justify-content: center;
@@ -222,7 +222,7 @@
             border-radius: 20px;
             font-size: 0.9em;
         }
-        
+
         #log {
             background: #000;
             padding: 15px;
@@ -235,13 +235,13 @@
             overflow-y: auto;
             margin-top: 10px;
         }
-        
+
         .copy-btn {
             padding: 8px 16px;
             font-size: 0.9em;
             margin-top: 10px;
         }
-        
+
         .tabs {
             display: flex;
             gap: 5px;
@@ -258,7 +258,7 @@
         }
         .tab.active { background: rgba(255,255,255,0.1); color: #00ccff; border-color: #00ccff; }
         .tab-content { border: 1px solid #333; border-radius: 0 8px 8px 8px; padding: 20px; }
-        
+
         .mode-tabs {
             display: flex;
             justify-content: center;
@@ -279,25 +279,25 @@
             margin-right: -1px;
         }
         .mode-tab:hover { background: rgba(255,255,255,0.1); color: #00ccff; }
-        .mode-tab.active { 
-            background: rgba(0,204,255,0.15); 
+        .mode-tab.active {
+            background: rgba(0,204,255,0.15);
             border-color: #00ccff;
             border-bottom: 1px solid transparent;
             color: #00ccff;
             position: relative;
             z-index: 1;
         }
-        
+
         .mode-content { display: none !important; visibility: hidden; }
         .mode-content.active { display: block !important; visibility: visible; }
-        
+
         .schrodinger-box {
             background: linear-gradient(135deg, rgba(138,43,226,0.1) 0%, rgba(0,204,255,0.1) 100%);
             border: 1px solid #8a2be2;
         }
         .quantum-label { color: #8a2be2; }
         .logo { max-width: 350px; width: 100%; display: block; margin: 0 auto 20px; }
-        
+
         /* Animated Mode - Video + QR Reveal */
         .animated-stage {
             position: relative;
@@ -387,13 +387,13 @@
         <div class="progress-spinner"></div>
         <div id="progressText" class="progress-text">Encrypting...</div>
     </div>
-    
+
     <img src="../assets/meow-decoder-logo.png" alt="Meow Decoder" class="logo">
     <h1>Meow Decoder - WASM Demo</h1>
     <p class="subtitle">Encrypt secrets into QR codes, decrypt with password</p>
-    
+
     <div id="wasmStatus" class="status loading">⏳ Loading WASM crypto module...</div>
-    
+
     <div class="intro">
         <p><strong>🎯 What this demo shows:</strong> Secure air-gap file transfer using QR codes. Encrypt on one device, photograph the QR, decrypt on another device.</p>
         <div class="workflow-diagram">
@@ -516,59 +516,59 @@
             <span class="step-number" style="background: #00c864;">1</span>
             <h2>🔑 Generate Your Key Pair</h2>
             <p class="step-desc">Forward secrecy uses X25519 ephemeral keys. Each message uses a unique key that's destroyed after use — even if your long-term key is compromised, past messages remain safe.</p>
-            
+
             <div style="background: rgba(0,200,100,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
                 <p style="margin: 0 0 10px 0;"><strong>Your Public Key:</strong></p>
                 <textarea id="fsMyPublicKey" rows="2" readonly placeholder="Click 'Generate Key Pair' to create..." style="font-family: monospace; font-size: 0.85em;"></textarea>
                 <p style="margin: 10px 0 0 0; color: #888; font-size: 0.85em;">Share this public key with anyone who wants to send you encrypted messages.</p>
             </div>
-            
+
             <button id="fsGenerateBtn" onclick="fsGenerateKeyPair()">🔑 Generate Key Pair</button>
             <button class="secondary" onclick="fsExportKeyPair()">💾 Export Key Pair</button>
             <input type="file" id="fsImportFile" accept=".json" style="display: none;" onchange="fsImportKeyPair(this)">
             <button class="secondary" onclick="document.getElementById('fsImportFile').click()">📥 Import Key Pair</button>
-            
+
             <div id="fsKeyStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
         </div>
-        
+
         <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">2</span>
             <h2>📤 Encrypt with Forward Secrecy</h2>
             <p class="step-desc">Enter the recipient's public key and your message. An ephemeral key is generated for each encryption.</p>
-            
+
             <label for="fsRecipientKey">Recipient's Public Key:</label>
             <textarea id="fsRecipientKey" rows="2" placeholder="Paste recipient's public key here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <label for="fsMessage">🔒 Secret Message:</label>
             <textarea id="fsMessage" rows="3" placeholder="Type your secret message...">This message has forward secrecy! 🔐</textarea>
-            
+
             <label for="fsPassword">🔑 Additional Password (optional):</label>
             <input type="password" id="fsPassword" placeholder="Optional extra password protection">
-            
+
             <button id="fsEncryptBtn" onclick="fsEncrypt()">🔐 Encrypt with Forward Secrecy</button>
         </div>
-        
+
         <div id="fsEncryptedSection" class="step hidden" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">3</span>
             <h2>📦 Encrypted Message</h2>
             <p class="step-desc">This contains an ephemeral public key + encrypted data. Share via QR or copy the payload.</p>
-            
+
             <div class="qr-container">
                 <div id="fsQrcode"></div>
             </div>
-            
+
             <label for="fsPayload">Encrypted Payload:</label>
             <textarea id="fsPayload" rows="3" readonly style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <button class="secondary" onclick="copyFsPayload()">📋 Copy Payload</button>
             <button class="secondary" onclick="downloadFsQR()">💾 Save QR</button>
         </div>
-        
+
         <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">4</span>
             <h2>📥 Decrypt Forward Secrecy Message</h2>
             <p class="step-desc">Upload a QR code image or paste an encrypted payload to decrypt using your private key.</p>
-            
+
             <div style="background: rgba(0,200,100,0.1); border: 2px dashed #00c864; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center;">
                 <div style="font-size: 1.5em; margin-bottom: 5px;">📸</div>
                 <p style="color: #00c864; margin: 0 0 8px 0;"><strong>Upload QR Code Image</strong></p>
@@ -577,17 +577,17 @@
                 <button class="secondary" onclick="document.getElementById('fsQrUpload').click()" style="border-color: #00c864; color: #00c864;">📤 Choose Image / Take Photo</button>
                 <div id="fsScanStatus" style="margin-top: 8px; font-size: 0.9em;"></div>
             </div>
-            
+
             <div style="text-align: center; color: #666; margin: 5px 0;">— or paste payload directly —</div>
-            
+
             <label for="fsDecryptPayload">Encrypted Payload:</label>
             <textarea id="fsDecryptPayload" rows="3" placeholder="Paste encrypted FS payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <label for="fsDecryptPassword">Password (if used):</label>
             <input type="password" id="fsDecryptPassword" placeholder="Enter password if one was used">
-            
+
             <button id="fsDecryptBtn" onclick="fsDecrypt()">🔓 Decrypt</button>
-            
+
             <div id="fsDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
         </div>
     </div>
@@ -598,30 +598,30 @@
             <span class="step-number" style="background: linear-gradient(135deg, #8a2be2 0%, #00c8ff 100%);">1</span>
             <h2>🔮 Generate Post-Quantum Key Pair</h2>
             <p class="step-desc"><strong>Hybrid X25519 + ML-KEM-1024 encryption.</strong> Secure against both classical computers AND future quantum computers. This is NIST's newly standardized post-quantum algorithm!</p>
-            
+
             <div style="background: rgba(138,43,226,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #8a2be2;">
                 <p style="margin: 0; font-size: 0.9em;"><strong>🛡️ Why Post-Quantum?</strong></p>
                 <p style="margin: 8px 0 0 0; color: #ccc; font-size: 0.85em;">Standard encryption (RSA, ECDH) will be broken by quantum computers. ML-KEM-1024 uses lattice-based math that remains secure. We combine it with X25519 for <strong>hybrid security</strong> — safe even if one algorithm fails.</p>
             </div>
-            
+
             <div id="pqNotAvailable" style="display: none; background: rgba(255,100,100,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #ff6464;">
                 <p style="margin: 0; color: #ff6464;"><strong>⚠️ Post-Quantum Not Available</strong></p>
                 <p style="margin: 8px 0 0 0; color: #ccc; font-size: 0.9em;">This build of Meow Decoder was compiled without ML-KEM support. Rebuild with <code>--features wasm-pq</code> to enable.</p>
             </div>
-            
+
             <div id="pqKeySection">
                 <div style="background: rgba(0,200,255,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
                     <p style="margin: 0 0 10px 0;"><strong>Your X25519 Public Key (32 bytes):</strong></p>
                     <textarea id="pqX25519PublicKey" rows="1" readonly placeholder="Generate keys first..." style="font-family: monospace; font-size: 0.85em;"></textarea>
                 </div>
-                
+
                 <div style="background: rgba(138,43,226,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
                     <p style="margin: 0 0 10px 0;"><strong>Your ML-KEM-1024 Public Key (1568 bytes):</strong></p>
                     <textarea id="pqMlkemPublicKey" rows="3" readonly placeholder="Generate keys first..." style="font-family: monospace; font-size: 0.85em;"></textarea>
                 </div>
-                
+
                 <p style="margin: 10px 0; color: #888; font-size: 0.85em;">Share BOTH public keys with anyone who wants to send you quantum-resistant encrypted messages.</p>
-                
+
                 <button id="pqGenerateBtn" onclick="pqGenerateKeyPair()">🔮 Generate Post-Quantum Keys</button>
                 <button class="secondary" onclick="pqExportKeyPair()">💾 Export Key Pair</button>
                 <label for="pqImportFile" class="file-upload-label" style="display: inline-block; padding: 10px 20px; background: #4a4a8a; border-radius: 6px; cursor: pointer; margin-left: 10px;">
@@ -630,42 +630,42 @@
                 <input type="file" id="pqImportFile" accept=".json" style="display: none;" onchange="pqImportKeyPair(event)">
             </div>
         </div>
-        
+
         <div class="step" style="background: linear-gradient(135deg, rgba(100,200,100,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #64c864;">
             <span class="step-number" style="background: #64c864;">2</span>
             <h2>📤 Encrypt with Post-Quantum</h2>
-            
+
             <label for="pqRecipientX25519">Recipient's X25519 Public Key:</label>
             <textarea id="pqRecipientX25519" rows="1" placeholder="Paste recipient's X25519 public key (base64)..." style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <label for="pqRecipientMlkem">Recipient's ML-KEM Public Key:</label>
             <textarea id="pqRecipientMlkem" rows="3" placeholder="Paste recipient's ML-KEM public key (base64)..." style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <label for="pqMessage">Secret Message:</label>
             <textarea id="pqMessage" rows="3" placeholder="Type your quantum-resistant secret message...">This message is safe from quantum computers! 🔮🛡️</textarea>
-            
+
             <label for="pqPassword">Additional Password (optional):</label>
             <input type="password" id="pqPassword" placeholder="Extra password layer (can be empty)">
-            
+
             <button id="pqEncryptBtn" onclick="pqEncrypt()">🔮 Encrypt with Post-Quantum</button>
-            
+
             <div id="pqEncryptResult" style="display: none; margin-top: 15px;">
                 <label for="pqEncryptedOutput">Encrypted PQ Payload (send this):</label>
                 <textarea id="pqEncryptedOutput" rows="4" readonly style="font-family: monospace; font-size: 0.85em;"></textarea>
                 <button class="secondary" onclick="copyToClipboard(document.getElementById('pqEncryptedOutput').value, 'PQ encrypted payload')">📋 Copy</button>
                 <button class="secondary" onclick="pqGenerateQR()">📱 Generate QR Code</button>
             </div>
-            
+
             <div id="pqQrSection" style="display: none; text-align: center; margin-top: 15px;">
                 <canvas id="pqQrCanvas" style="max-width: 100%; border: 4px solid #8a2be2; border-radius: 12px;"></canvas>
             </div>
         </div>
-        
+
         <div class="step" style="background: linear-gradient(135deg, rgba(100,100,200,0.1) 0%, rgba(138,43,226,0.1) 100%); border: 1px solid #6464c8;">
             <span class="step-number" style="background: #6464c8;">3</span>
             <h2>📥 Decrypt Post-Quantum Message</h2>
             <p class="step-desc">Upload a QR code image or paste an encrypted PQ payload and use your private keys to decrypt.</p>
-            
+
             <div style="background: rgba(138,43,226,0.1); border: 2px dashed #8a2be2; border-radius: 10px; padding: 15px; margin: 10px 0; text-align: center;">
                 <div style="font-size: 1.5em; margin-bottom: 5px;">📸</div>
                 <p style="color: #8a2be2; margin: 0 0 8px 0;"><strong>Upload QR Code Image</strong></p>
@@ -674,17 +674,17 @@
                 <button class="secondary" onclick="document.getElementById('pqQrUpload').click()" style="border-color: #8a2be2; color: #8a2be2;">📤 Choose Image / Take Photo</button>
                 <div id="pqScanStatus" style="margin-top: 8px; font-size: 0.9em;"></div>
             </div>
-            
+
             <div style="text-align: center; color: #666; margin: 5px 0;">— or paste payload directly —</div>
-            
+
             <label for="pqDecryptPayload">Encrypted PQ Payload:</label>
             <textarea id="pqDecryptPayload" rows="3" placeholder="Paste encrypted PQ payload here..." style="font-family: monospace; font-size: 0.85em;"></textarea>
-            
+
             <label for="pqDecryptPassword">Password (if used):</label>
             <input type="password" id="pqDecryptPassword" placeholder="Enter password if one was used">
-            
+
             <button id="pqDecryptBtn" onclick="pqDecrypt()">🔓 Decrypt</button>
-            
+
             <div id="pqDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
         </div>
     </div>
@@ -695,7 +695,7 @@
             <span class="step-number" style="background: #ff6464;">📹</span>
             <h2>📹 Live Webcam QR Scanner</h2>
             <p class="step-desc">Use your camera to scan a QR code generated by one of the encryption modes in this app, then decrypt it here.</p>
-            
+
             <div style="background: rgba(255,100,100,0.12); padding: 14px 16px; border-radius: 8px; margin: 12px 0 18px 0; border-left: 4px solid #ff6464;">
                 <p style="margin: 0 0 8px 0; color: #ff9a9a; font-weight: bold;">Which tabs generate scannable QR codes?</p>
                 <ul style="color: #ccc; margin: 0; padding-left: 20px; line-height: 1.7;">
@@ -706,7 +706,7 @@
                 </ul>
                 <p style="margin: 8px 0 0 0; color: #888; font-size: 0.88em;">Encrypt something in one of those tabs first, then point your camera at the resulting QR code to scan and decrypt it here.</p>
             </div>
-            
+
             <div style="text-align: center; margin: 20px 0;">
                 <video id="webcamVideo" style="max-width: 100%; width: 400px; border-radius: 12px; border: 3px solid #ff6464; display: none;"></video>
                 <canvas id="webcamCanvas" style="display: none;"></canvas>
@@ -714,26 +714,26 @@
                     <span style="color: #ff6464; font-size: 1.2em;">📷 Click Start to enable camera</span>
                 </div>
             </div>
-            
+
             <div style="text-align: center; margin: 15px 0;">
                 <button id="webcamStartBtn" onclick="startWebcam()">📷 Start Camera</button>
                 <button id="webcamStopBtn" onclick="stopWebcam()" class="secondary" style="display: none;">⏹️ Stop</button>
             </div>
-            
+
             <div id="webcamStatus" style="text-align: center; margin: 10px 0; font-size: 0.9em; color: #888;">
                 Camera not started
             </div>
-            
+
             <div id="webcamScanResult" style="display: none; margin-top: 15px;">
                 <label for="webcamPayload">Scanned Payload:</label>
                 <textarea id="webcamPayload" rows="2" readonly style="font-family: monospace;"></textarea>
-                
+
                 <label for="webcamDecryptPassword">🔑 Password:</label>
                 <input type="password" id="webcamDecryptPassword" placeholder="Enter password to decrypt">
-                
+
                 <button onclick="webcamDecrypt()">🔓 Decrypt Scanned QR</button>
             </div>
-            
+
             <div id="webcamDecryptResult" class="result-box hidden" style="margin-top: 15px;"></div>
         </div>
     </div>
@@ -745,7 +745,7 @@
             <span class="step-number" style="background: #ff3232;">1</span>
             <h2>🚨 Encrypt with Panic Password</h2>
             <p class="step-desc">Encrypt a secret message with <strong>two passwords</strong>: a real password for decryption, and a panic password that shows fake decoy content and wipes stored keys.</p>
-            
+
             <div style="background: rgba(255,50,50,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ff3232;">
                 <p style="margin: 0; color: #ff6464;"><strong>⚠️ How Duress Mode Works:</strong></p>
                 <ul style="color: #ccc; margin: 10px 0; padding-left: 20px;">
@@ -757,9 +757,9 @@
                     <li>Wrong password → decryption fails (normal behavior)</li>
                 </ul>
             </div>
-            
+
             <label for="duressSecretMessage">🔒 Secret Message:</label>
-            
+
             <!-- File Upload Option -->
             <div style="background: rgba(255,50,50,0.1); border: 2px dashed #ff3232; border-radius: 10px; padding: 15px; margin: 0 0 15px 0; text-align: center;">
                 <div style="font-size: 1.5em; margin-bottom: 5px;">📁</div>
@@ -770,82 +770,82 @@
                 <span id="duressFileUploadInfo" style="margin-left: 10px; color: #888;"></span>
                 <button id="duressFileClearBtn" class="secondary" style="display: none; margin-left: 10px; border-color: #ff3232; color: #ff3232;" onclick="clearDuressFileUpload()">✖️ Clear</button>
             </div>
-            
+
             <div style="text-align: center; color: #666; margin: 10px 0;">— or enter text message —</div>
-            
+
             <textarea id="duressSecretMessage" rows="3" placeholder="Type your secret message here...">Top secret project plans — do not share!</textarea>
-            
+
             <label for="duressRealPassword">🔑 Real Password:</label>
             <input type="password" id="duressRealPassword" placeholder="Password for real decryption">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressReal" onchange="togglePassword('duressRealPassword', this.checked)">
                 <label for="showDuressReal" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
-            
+
             <label for="duressPassword" style="color: #ff6464;">🚨 Panic Password:</label>
             <input type="password" id="duressPassword" placeholder="Password that triggers decoy + key wipe">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duressPassword', this.checked)">
                 <label for="showDuressPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
-            
+
             <label for="duressDecoyMessage">📝 Decoy Message (shown when panic triggered):</label>
             <textarea id="duressDecoyMessage" rows="2" placeholder="Innocent message to show attacker...">Nothing important here, just my shopping list.</textarea>
-            
+
             <button id="duressEncryptBtn" disabled onclick="duressEncryptToQR()" style="background: linear-gradient(135deg, #ff6464 0%, #ff3232 100%);">🚨 Encrypt & Generate QR</button>
         </div>
-        
+
         <!-- STEP 2: QR CODE OUTPUT -->
         <div id="duressQrSection" class="step hidden" style="border: 2px solid #ff3232;">
             <span class="step-number" style="background: #ff3232;">2</span>
             <h2>🚨 Encrypted QR Code (with Duress Tag)</h2>
             <p class="step-desc">This QR code contains your encrypted message <strong>plus</strong> an embedded duress tag. The panic password triggers decoy mode — indistinguishable from a normal failure to an attacker.</p>
-            
+
             <div class="qr-container">
                 <div id="duressQrcode" style="border: 4px solid #ff3232; border-radius: 12px; display: inline-block; padding: 6px; background: white;"></div>
             </div>
             <p style="color: #ff6464; font-size: 0.8em; text-align: center; margin-top: 5px;">🚨 Red border = Duress Mode</p>
-            
+
             <div style="text-align: center;">
                 <button class="secondary copy-btn" onclick="downloadDuressQR()">💾 Save QR Image</button>
                 <button class="secondary copy-btn" onclick="copyDuressPayload()">📋 Copy Encrypted Data</button>
             </div>
-            
+
             <p style="text-align: center; color: #888; font-size: 0.85em; margin-top: 15px;">
                 ⬇️ Try decrypting below with <strong style="color:#00ff88;">the real password</strong> or <strong style="color:#ff6464;">the panic password</strong>
             </p>
         </div>
-        
+
         <!-- STEP 3: DECRYPT (DURESS-AWARE) -->
         <div class="step" style="border: 1px solid #ff3232;">
             <span class="step-number" style="background: #ff3232;">3</span>
             <h2>🔓 Decrypt (Duress-Aware)</h2>
             <p class="step-desc">Enter a password to decrypt. The real password reveals the secret. The panic password shows the decoy and wipes keys. Try both!</p>
-            
+
             <!-- QR Upload for Duress -->
             <div style="background: rgba(255,50,50,0.1); border: 2px dashed #ff3232; border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center;">
                 <input type="file" id="duressQrUpload" accept="image/*" style="display: none;" onchange="scanDuressQR(this)">
                 <button class="secondary" style="border-color: #ff3232; color: #ff3232;" onclick="document.getElementById('duressQrUpload').click()">📸 Upload Duress QR Photo</button>
                 <div id="duressScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
             </div>
-            
+
             <label for="duressEncryptedPayload">📦 Encrypted Payload:</label>
             <textarea id="duressEncryptedPayload" rows="2" placeholder="Encrypt a message above, upload a QR photo, or paste payload here..." style="color: #ccc;"></textarea>
-            
+
             <label for="duressDecryptPassword">🔑 Enter Password:</label>
             <input type="password" id="duressDecryptPassword" placeholder="Real password or panic password...">
             <div style="margin-top: 5px;">
                 <input type="checkbox" id="showDuressDecrypt" onchange="togglePassword('duressDecryptPassword', this.checked)">
                 <label for="showDuressDecrypt" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
-            
+
             <div style="display: flex; gap: 10px; margin-top: 10px;">
                 <button id="duressDecryptBtn" class="secondary" onclick="duressDecrypt()">🔓 Decrypt</button>
                 <button class="secondary" onclick="document.getElementById('duressDecryptPassword').value=document.getElementById('duressRealPassword').value; duressDecrypt();" style="border-color: #00ff88; color: #00ff88;">✅ Try Real Password</button>
                 <button class="secondary" onclick="document.getElementById('duressDecryptPassword').value=document.getElementById('duressPassword').value; duressDecrypt();" style="border-color: #ff6464; color: #ff6464;">🚨 Try Panic Password</button>
             </div>
         </div>
-        
+
         <!-- RESULT -->
         <div id="duressResultSection" class="hidden">
             <div id="duressResult" class="result-box"></div>
@@ -856,13 +856,13 @@
 
     <!-- STANDARD MODE -->
     <div id="standardMode" class="mode-content active">
-    
+
     <!-- STEP 1: ENCODE (Standard) -->
     <div class="step">
         <span class="step-number">1</span>
         <h2>Create Encrypted QR Code</h2>
         <p class="step-desc">Enter your secret message or upload a file, then add a password. The data will be encrypted and encoded into a QR code (or animated GIF for larger files).</p>
-        
+
         <!-- File Upload Option -->
         <div style="background: rgba(0,255,136,0.1); border: 2px dashed #00ff88; border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center;">
             <div style="font-size: 1.5em; margin-bottom: 5px;">📁</div>
@@ -873,27 +873,27 @@
             <span id="fileUploadInfo" style="margin-left: 10px; color: #888;"></span>
             <button id="fileClearBtn" class="secondary" style="display: none; margin-left: 10px;" onclick="clearFileUpload()">✖️ Clear</button>
         </div>
-        
+
         <div style="text-align: center; color: #666; margin: 10px 0;">— or enter text message —</div>
-        
+
         <label for="secretMessage">🔒 Secret Message:</label>
         <textarea id="secretMessage" rows="3" placeholder="Type your secret message here...">Hello from Meow Decoder! This message is encrypted. 🐱</textarea>
-        
+
         <label for="encryptPassword">🔑 Password:</label>
         <input type="password" id="encryptPassword" placeholder="Enter encryption password" value="CatSecret123">
-        
+
         <div style="margin-top: 5px;">
             <input type="checkbox" id="showPassword1" onchange="togglePassword('encryptPassword', this.checked)">
             <label for="showPassword1" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
         </div>
-        
+
         <!-- Security Level is now in the global bar above all tabs -->
-        
+
         <div style="margin-top: 10px;">
             <input type="checkbox" id="useAnimatedGif">
             <label for="useAnimatedGif" style="display: inline; color: #00ccff; font-size: 0.9em;">🎞️ Generate Animated GIF (multiple QR frames)</label>
         </div>
-        
+
         <button id="encryptBtn" disabled onclick="encryptToQR()">🔐 Encrypt & Generate QR</button>
     </div>
 
@@ -902,16 +902,16 @@
         <span class="step-number">2</span>
         <h2>Your Encrypted QR Code</h2>
         <p class="step-desc">This QR code contains your encrypted message. Share it anywhere — only someone with the password can read it!</p>
-        
+
         <div class="qr-container">
             <div id="qrcode"></div>
         </div>
-        
+
         <div style="text-align: center;">
             <button class="secondary copy-btn" onclick="downloadQR()">💾 Save QR Image</button>
             <button class="secondary copy-btn" onclick="copyPayload()">📋 Copy Encrypted Data</button>
         </div>
-        
+
         <p style="text-align: center; color: #888; font-size: 0.85em; margin-top: 15px;">
             ⬇️ Now try decrypting it below with the password
         </p>
@@ -922,7 +922,7 @@
         <span class="step-number">3</span>
         <h2>Decrypt the Message</h2>
         <p class="step-desc">Upload a photo of the QR code, or paste the encrypted payload. Enter the password to reveal the hidden message!</p>
-        
+
         <!-- QR Upload Section -->
         <div style="background: rgba(0,204,255,0.1); border: 2px dashed #00ccff; border-radius: 10px; padding: 20px; margin: 15px 0; text-align: center;">
             <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
@@ -936,20 +936,20 @@
                 <img id="previewImg" style="max-width: 200px; max-height: 200px; border-radius: 8px; border: 2px solid #00ccff;">
             </div>
         </div>
-        
+
         <div style="text-align: center; color: #666; margin: 10px 0;">— or paste payload directly —</div>
-        
+
         <label for="encryptedPayload">📦 Encrypted Payload:</label>
         <textarea id="encryptedPayload" rows="2" placeholder="Encrypted data will appear here after Step 1, QR scan, or paste your own..."></textarea>
-        
+
         <label for="decryptPassword">🔑 Password:</label>
         <input type="password" id="decryptPassword" placeholder="Enter decryption password">
-        
+
         <div style="margin-top: 5px;">
             <input type="checkbox" id="showPassword2" onchange="togglePassword('decryptPassword', this.checked)">
             <label for="showPassword2" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
         </div>
-        
+
         <button id="decryptBtn" disabled onclick="decryptFromPayload()">🔓 Decrypt Message</button>
         <button class="secondary" onclick="tryWrongPassword()">🎭 Try Wrong Password</button>
     </div>
@@ -961,17 +961,17 @@
             <div id="resultMessage" class="message"></div>
         </div>
     </div>
-    
+
     </div><!-- End Standard Mode -->
 
     <!-- SCHRÖDINGER MODE -->
     <div id="schrodingerMode" class="mode-content">
-    
+
     <div class="step schrodinger-box">
         <span class="step-number" style="background: #8a2be2;">1</span>
         <h2>🐱 Schrödinger's Encryption</h2>
         <p class="step-desc">Encode <strong>two different secrets</strong> with <strong>two different passwords</strong>. Each password reveals a different message — with no way to prove the other exists!</p>
-        
+
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; border-radius: 8px; padding: 15px;">
                 <h4 style="color: #00ff88; margin: 0 0 10px 0;">🟢 Reality A (Real Secret)</h4>
@@ -982,7 +982,7 @@
                 <input type="checkbox" id="showPasswordA" onchange="togglePassword('passwordA', this.checked)">
                 <label for="showPasswordA" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
-            
+
             <div style="background: rgba(255,136,0,0.1); border: 1px solid #ff8800; border-radius: 8px; padding: 15px;">
                 <h4 style="color: #ff8800; margin: 0 0 10px 0;">🟠 Reality B (Decoy Secret)</h4>
                 <label for="secretB" class="quantum-label">Secret Message B:</label>
@@ -993,61 +993,61 @@
                 <label for="showPasswordB" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
             </div>
         </div>
-        
+
         <div style="text-align: center; margin-top: 15px;">
             <button id="schrodingerEncryptBtn" disabled onclick="schrodingerEncrypt()">🐱 Create Quantum QR Code</button>
         </div>
-        
+
         <p style="text-align: center; color: #8a2be2; font-size: 0.85em; margin-top: 15px;">
             ⚛️ Both secrets occupy the same QR code in superposition. The password "collapses" to one reality.
         </p>
     </div>
-    
+
     <!-- Schrödinger QR Output -->
     <div id="schrodingerQrSection" class="step schrodinger-box hidden">
         <span class="step-number" style="background: #8a2be2;">2</span>
         <h2>🐱 Quantum QR Code</h2>
         <p class="step-desc">This single QR contains BOTH secrets in superposition. Neither can be proven to exist without its password.</p>
-        
+
         <div class="qr-container">
             <div id="schrodingerQrcode" style="border: 4px solid #8a2be2; border-radius: 12px; display: inline-block; padding: 6px; background: white;"></div>
             <p style="color: #8a2be2; font-size: 0.8em; margin-top: 5px;">⚛️ Purple border = Schrödinger Mode</p>
         </div>
-        
+
         <div style="text-align: center;">
             <button class="secondary copy-btn" onclick="downloadSchrodingerQR()">💾 Save Quantum QR</button>
             <button class="secondary copy-btn" onclick="copySchrodingerPayload()">📋 Copy Quantum Data</button>
         </div>
     </div>
-    
+
     <!-- Schrödinger Decrypt -->
     <div class="step schrodinger-box">
         <span class="step-number" style="background: #8a2be2;">3</span>
         <h2>🔓 Collapse the Superposition</h2>
         <p class="step-desc">Enter a password to "observe" one reality. Try both passwords to see different messages emerge!</p>
-        
+
         <!-- QR Upload for Schrödinger -->
         <div style="background: rgba(138,43,226,0.1); border: 2px dashed #8a2be2; border-radius: 10px; padding: 15px; margin: 15px 0; text-align: center;">
             <input type="file" id="schrodingerQrUpload" accept="image/*" style="display: none;" onchange="scanSchrodingerQR(this)">
             <button class="secondary" style="border-color: #8a2be2; color: #8a2be2;" onclick="document.getElementById('schrodingerQrUpload').click()">📸 Upload Quantum QR Photo</button>
             <div id="schrodingerScanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
         </div>
-        
+
         <label for="schrodingerPayload" class="quantum-label">📦 Quantum Payload:</label>
         <textarea id="schrodingerPayload" rows="2" placeholder="Quantum encrypted data (from QR or paste)..."></textarea>
-        
+
         <label for="collapsePassword" class="quantum-label">🔑 Password (determines which reality you observe):</label>
         <input type="password" id="collapsePassword" placeholder="Enter password to collapse superposition">
         <input type="checkbox" id="showCollapsePassword" onchange="togglePassword('collapsePassword', this.checked)">
         <label for="showCollapsePassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
-        
+
         <div style="margin-top: 15px;">
             <button id="collapseBtn" disabled onclick="collapseReality()">⚛️ Collapse & Decrypt</button>
             <button class="secondary" onclick="document.getElementById('collapsePassword').value = 'RealSecret123'; collapseReality();">🟢 Try Password A</button>
             <button class="secondary" onclick="document.getElementById('collapsePassword').value = 'DecoyPass456'; collapseReality();">🟠 Try Password B</button>
         </div>
     </div>
-    
+
     <!-- Schrödinger Result -->
     <div id="schrodingerResultSection" class="hidden">
         <div id="schrodingerResultBox" class="result-box">
@@ -1055,7 +1055,7 @@
             <div id="schrodingerResultMessage" class="message"></div>
         </div>
     </div>
-    
+
     </div><!-- End Schrödinger Mode -->
 
     <!-- STEGO MODE -->
@@ -1117,18 +1117,18 @@
 
     <!-- FOUNTAIN CODES - Loss-tolerant encoding for frame drops -->
     <script src="fountain-codes.js"></script>
-    
+
 
     <script type="module">
         let wasm = null;
         let QRCode = null;
         let jsQR = null;
-        
+
         // FOUNTAIN DECODER STATE - For multi-frame QR collection
         let fountainDecoder = null;
         let fountainParams = null; // {kBlocks, blockSize, originalLength}
         let collectedDropletSeeds = new Set(); // Track which droplets we've already collected
-        
+
         // ============================================
         // Web Worker for responsive crypto operations
         // ============================================
@@ -1137,7 +1137,7 @@
         let useWorker = true;  // Set to false to disable worker
         const pendingRequests = new Map();
         let requestId = 0;
-        
+
         // Initialize the crypto worker
         function initCryptoWorker() {
             return new Promise((resolve) => {
@@ -1149,13 +1149,13 @@
                         resolve(false);
                         return;
                     }
-                    
+
                     // Create worker with module type for ES6 imports
                     cryptoWorker = new Worker('crypto-worker.js', { type: 'module' });
-                    
+
                     cryptoWorker.onmessage = (e) => {
                         const { type, id, success, data, error, ready } = e.data;
-                        
+
                         if (type === 'ready') {
                             if (success) {
                                 workerReady = true;
@@ -1168,7 +1168,7 @@
                             }
                             return;
                         }
-                        
+
                         if (type === 'pong') {
                             const pending = pendingRequests.get(id);
                             if (pending) {
@@ -1177,7 +1177,7 @@
                             }
                             return;
                         }
-                        
+
                         // Handle result/error from worker
                         const pending = pendingRequests.get(id);
                         if (pending) {
@@ -1189,14 +1189,14 @@
                             }
                         }
                     };
-                    
+
                     cryptoWorker.onerror = (err) => {
                         log(`⚠️ Worker error: ${err.message}, using main thread`);
                         useWorker = false;
                         workerReady = false;
                         resolve(false);
                     };
-                    
+
                     // Timeout if worker doesn't respond
                     setTimeout(() => {
                         if (!workerReady) {
@@ -1205,7 +1205,7 @@
                             resolve(false);
                         }
                     }, 5000);
-                    
+
                 } catch (err) {
                     log(`⚠️ Failed to create worker: ${err.message}`);
                     useWorker = false;
@@ -1213,7 +1213,7 @@
                 }
             });
         }
-        
+
         // Promise-based wrapper for worker calls
         function workerCall(type, payload) {
             return new Promise((resolve, reject) => {
@@ -1221,13 +1221,13 @@
                     reject(new Error('Worker not ready'));
                     return;
                 }
-                
+
                 const id = requestId++;
                 const timeout = setTimeout(() => {
                     pendingRequests.delete(id);
                     reject(new Error('Worker call timeout'));
                 }, 30000);  // 30s timeout for slow key derivation
-                
+
                 pendingRequests.set(id, {
                     resolve: (result) => {
                         clearTimeout(timeout);
@@ -1238,11 +1238,11 @@
                         reject(err);
                     }
                 });
-                
+
                 cryptoWorker.postMessage({ type, id, payload });
             });
         }
-        
+
         // ============================================
         // Security Level Presets (Argon2id parameters)
         // ============================================
@@ -1252,16 +1252,16 @@
             high:     { memoryKib: 262144, iterations: 15, label: 'High (256 MiB, 15 iter)' },
             paranoid: { memoryKib: 524288, iterations: 20, label: 'Paranoid (512 MiB, 20 iter)' }
         };
-        
+
         function getSecurityLevel() {
             const selector = document.getElementById('securityLevel');
             return selector ? (selector.value || 'standard') : 'standard';
         }
-        
+
         function getSecurityParams() {
             return SECURITY_LEVELS[getSecurityLevel()] || SECURITY_LEVELS.standard;
         }
-        
+
         // ============================================
         // Payload packing helpers (store Argon2 params)
         // ============================================
@@ -1346,7 +1346,7 @@
                 const params = getSecurityParams();
                 const mem = memoryKib || params.memoryKib;
                 const iter = iterations || params.iterations;
-                
+
                 if (useWorker && workerReady) {
                     return await workerCall('derive_key', {
                         password: password,
@@ -1358,7 +1358,7 @@
                     return wasm.derive_key(password, salt, mem, iter);
                 }
             },
-            
+
             async encrypt(plaintext, key, nonce, aad = null) {
                 if (useWorker && workerReady) {
                     return await workerCall('encrypt', {
@@ -1371,7 +1371,7 @@
                     return wasm.encrypt(plaintext, key, nonce, aad);
                 }
             },
-            
+
             async decrypt(ciphertext, key, nonce, aad = null) {
                 if (useWorker && workerReady) {
                     return await workerCall('decrypt', {
@@ -1384,7 +1384,7 @@
                     return wasm.decrypt(ciphertext, key, nonce, aad);
                 }
             },
-            
+
             async generateSalt() {
                 if (useWorker && workerReady) {
                     return await workerCall('generate_salt', {});
@@ -1392,7 +1392,7 @@
                     return wasm.generate_salt();
                 }
             },
-            
+
             async generateNonce() {
                 if (useWorker && workerReady) {
                     return await workerCall('generate_nonce', {});
@@ -1401,7 +1401,7 @@
                 }
             }
         };
-        
+
         // ============================================
         // Progress/loading helpers
         // ============================================
@@ -1409,11 +1409,11 @@
             document.getElementById('progressText').textContent = message;
             document.getElementById('progressOverlay').classList.add('active');
         }
-        
+
         function hideProgress() {
             document.getElementById('progressOverlay').classList.remove('active');
         }
-        
+
         function setButtonLoading(buttonId, loading) {
             const btn = document.getElementById(buttonId);
             if (btn) {
@@ -1426,25 +1426,25 @@
                 }
             }
         }
-        
+
         // Load QRCode library dynamically (for generating QR codes)
         async function loadQRCode() {
             if (QRCode) return QRCode;
-            
+
             const cdnUrls = [
                 'qrcode.min.js',
                 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
                 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
                 'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
             ];
-            
+
             for (const url of cdnUrls) {
                 try {
                     log(`Trying QRCode from: ${url.split('/')[2]}...`);
                     const script = document.createElement('script');
                     script.src = url;
                     document.head.appendChild(script);
-                    
+
                     await new Promise((resolve, reject) => {
                         script.onload = () => {
                             // Poll for QRCode to become available (more reliable than fixed delay)
@@ -1464,7 +1464,7 @@
                         // Timeout after 5 seconds
                         setTimeout(() => reject(new Error('timeout')), 5000);
                     });
-                    
+
                     if (window.QRCode && typeof window.QRCode.toCanvas === 'function') {
                         QRCode = window.QRCode;
                         log(`✅ QRCode loaded from ${url.split('/')[2]}`);
@@ -1477,35 +1477,35 @@
                     log(`⚠️ CDN failed: ${url.split('/')[2]} - ${e.message}`);
                 }
             }
-            
+
             log('❌ All QRCode CDNs failed');
             return null;
         }
-        
+
         // Load jsQR library dynamically (for scanning QR codes)
         async function loadJsQR() {
             if (jsQR) return jsQR;
-            
+
             const cdnUrls = [
                 'jsQR.js',
                 'https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js',
                 'https://unpkg.com/jsqr@1.4.0/dist/jsQR.js',
                 'https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.4.0/jsQR.min.js'
             ];
-            
+
             for (const url of cdnUrls) {
                 try {
                     log(`Loading jsQR from: ${url.split('/')[2]}...`);
                     const script = document.createElement('script');
                     script.src = url;
                     document.head.appendChild(script);
-                    
+
                     await new Promise((resolve, reject) => {
                         script.onload = resolve;
                         script.onerror = reject;
                         setTimeout(() => reject(new Error('timeout')), 5000);
                     });
-                    
+
                     if (window.jsQR) {
                         jsQR = window.jsQR;
                         log(`✅ jsQR loaded from ${url.split('/')[2]}`);
@@ -1518,22 +1518,22 @@
                     log(`⚠️ jsQR CDN failed: ${url.split('/')[2]} - ${e.message || 'load error'}`);
                 }
             }
-            
+
             log('❌ All jsQR CDNs failed — QR scanning will not work');
             return null;
         }
-        
+
         // Scan QR code from uploaded image
         window.scanUploadedQR = async function(input) {
             const statusEl = document.getElementById('scanStatus');
             const previewEl = document.getElementById('uploadPreview');
             const previewImg = document.getElementById('previewImg');
-            
+
             if (!input.files || !input.files[0]) return;
-            
+
             const file = input.files[0];
             statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
-            
+
             try {
                 // Read and display image
                 const reader = new FileReader();
@@ -1542,11 +1542,11 @@
                     reader.onerror = reject;
                     reader.readAsDataURL(file);
                 });
-                
+
                 // Show preview
                 previewImg.src = imageData;
                 previewEl.style.display = 'block';
-                
+
                 // Load image to canvas
                 const img = new Image();
                 await new Promise((resolve, reject) => {
@@ -1554,9 +1554,9 @@
                     img.onerror = reject;
                     img.src = imageData;
                 });
-                
+
                 let qrData = null;
-                
+
                 // Strategy 1: Native BarcodeDetector (Chrome/Edge — most reliable)
                 if (!qrData && 'BarcodeDetector' in window) {
                     try {
@@ -1570,14 +1570,14 @@
                         log(`📸 BarcodeDetector failed: ${e.message}`);
                     }
                 }
-                
+
                 // Strategy 2: jsQR multi-scale
                 if (!qrData) {
                     if (!jsQR) await loadJsQR();
                     if (jsQR) {
                         const canvas = document.getElementById('scanCanvas');
                         const ctx = canvas.getContext('2d');
-                        
+
                         const scales = [1, 0.75, 0.5, 1.5, 2];
                         for (const scale of scales) {
                             const w = Math.round(img.width * scale);
@@ -1593,7 +1593,7 @@
                                 break;
                             }
                         }
-                        
+
                         // Try binarization
                         if (!qrData) {
                             canvas.width = img.width;
@@ -1615,10 +1615,10 @@
                         }
                     }
                 }
-                
+
                 if (qrData) {
                     log(`📸 QR code scanned: ${qrData.substring(0, 50)}...`);
-                    
+
                     if (qrData.startsWith('MEOW:')) {
                         document.getElementById('encryptedPayload').value = qrData;
                         statusEl.innerHTML = '<span style="color: #00ff88;">✅ QR code scanned successfully! Enter password below to decrypt.</span>';
@@ -1632,16 +1632,16 @@
                     statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found in image. Try a clearer photo.</span>';
                     log('❌ No QR code detected in uploaded image');
                 }
-                
+
             } catch (err) {
                 statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
                 log(`❌ QR scan error: ${err.message}`);
             }
-            
+
             // Clear input so same file can be uploaded again
             input.value = '';
         };
-        
+
         // ============================================================
         // GENERIC QR SCAN TO FIELD
         // Reusable QR scanner that populates any target textarea.
@@ -1649,12 +1649,12 @@
         // ============================================================
         window.scanQRToField = async function(input, targetFieldId, statusElId) {
             const statusEl = document.getElementById(statusElId);
-            
+
             if (!input.files || !input.files[0]) return;
-            
+
             const file = input.files[0];
             statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
-            
+
             try {
                 const reader = new FileReader();
                 const imageData = await new Promise((resolve, reject) => {
@@ -1662,16 +1662,16 @@
                     reader.onerror = reject;
                     reader.readAsDataURL(file);
                 });
-                
+
                 const img = new Image();
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
                     img.onerror = reject;
                     img.src = imageData;
                 });
-                
+
                 let qrData = null;
-                
+
                 // Strategy 1: Native BarcodeDetector
                 if ('BarcodeDetector' in window) {
                     try {
@@ -1685,14 +1685,14 @@
                         log(`📸 [${targetFieldId}] BarcodeDetector failed: ${e.message}`);
                     }
                 }
-                
+
                 // Strategy 2: jsQR multi-scale with binarization fallback
                 if (!qrData) {
                     if (!jsQR) await loadJsQR();
                     if (jsQR) {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                        
+
                         const scales = [1, 0.75, 0.5, 1.5, 2, 3];
                         for (const scale of scales) {
                             const w = Math.round(img.width * scale);
@@ -1708,7 +1708,7 @@
                                 break;
                             }
                         }
-                        
+
                         // Try binarization
                         if (!qrData) {
                             canvas.width = img.width;
@@ -1730,7 +1730,7 @@
                         }
                     }
                 }
-                
+
                 if (qrData) {
                     document.getElementById(targetFieldId).value = qrData;
                     statusEl.innerHTML = '<span style="color: #00ff88;">✅ QR code scanned! Payload loaded — enter password and click Decrypt.</span>';
@@ -1739,33 +1739,33 @@
                     statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found. Try a clearer photo with good lighting.</span>';
                     log(`❌ [${targetFieldId}] No QR code detected`);
                 }
-                
+
             } catch (err) {
                 statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
                 log(`❌ [${targetFieldId}] QR scan error: ${err.message}`);
             }
-            
+
             input.value = '';
         };
-        
-        
+
+
         // Utility functions
         const encoder = new TextEncoder();
         const decoder = new TextDecoder();
-        
+
         function escapeHtml(text) {
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
         }
-        
+
         /**
          * Transform technical error messages to user-friendly guidance.
          * Returns { title, message, suggestions } for display.
          */
         function getUserFriendlyError(err) {
             const msg = (err.message || err).toLowerCase();
-            
+
             // Mapping of error patterns to user-friendly guidance
             const errorMap = [
                 {
@@ -1831,14 +1831,14 @@
                     ]
                 }
             ];
-            
+
             // Find matching error pattern
             for (const entry of errorMap) {
                 if (entry.patterns.some(p => msg.includes(p))) {
                     return entry;
                 }
             }
-            
+
             // Default fallback for unrecognized errors
             return {
                 title: '❌ Decode Failed',
@@ -1851,11 +1851,11 @@
                 ]
             };
         }
-        
+
         function bytesToHex(bytes) {
             return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
         }
-        
+
         function hexToBytes(hex) {
             if (hex.length % 2 !== 0) throw new Error('Invalid hex string');
             const bytes = new Uint8Array(hex.length / 2);
@@ -1864,7 +1864,7 @@
             }
             return bytes;
         }
-        
+
         function bytesToBase64(bytes) {
             // Process in chunks to avoid "too many function arguments" for large arrays
             const chunkSize = 8192;
@@ -1875,7 +1875,7 @@
             }
             return btoa(binary);
         }
-        
+
         function base64ToBytes(base64) {
             const binary = atob(base64);
             const bytes = new Uint8Array(binary.length);
@@ -1884,14 +1884,14 @@
             }
             return bytes;
         }
-        
+
         function log(msg) {
             const logEl = document.getElementById('log');
             const time = new Date().toISOString().substr(11, 8);
             logEl.textContent += `${time} | ${msg}\n`;
             logEl.scrollTop = logEl.scrollHeight;
         }
-        
+
         // ============================================
         // INLINE QR CODE GENERATOR (zero dependencies)
         // Minimal QR encoder supporting byte mode, versions 1-40, ECC level L
@@ -1935,11 +1935,11 @@
                 if (dataBytes.length <= getDataCapacityL(v)) { version = v; break; }
             }
             if (version === 0) return null; // Too large
-            
+
             const n = 17 + version * 4; // Module count
             const grid = Array.from({length: n}, () => new Uint8Array(n));
             const reserved = Array.from({length: n}, () => new Uint8Array(n));
-            
+
             // Place finder patterns
             function placeFinder(row, col) {
                 for (let r = -1; r <= 7; r++) {
@@ -1956,7 +1956,7 @@
             placeFinder(0, 0);
             placeFinder(0, n - 7);
             placeFinder(n - 7, 0);
-            
+
             // Place alignment patterns (versions 2+)
             if (version >= 2) {
                 const positions = getAlignmentPositions(version);
@@ -1974,7 +1974,7 @@
                     }
                 }
             }
-            
+
             // Place timing patterns
             for (let i = 8; i < n - 8; i++) {
                 grid[6][i] = i % 2 === 0 ? 1 : 0;
@@ -1982,7 +1982,7 @@
                 grid[i][6] = i % 2 === 0 ? 1 : 0;
                 reserved[i][6] = 1;
             }
-            
+
             // Reserve format info areas
             for (let i = 0; i < 8; i++) {
                 reserved[8][i] = 1; reserved[8][n - 1 - i] = 1;
@@ -1990,7 +1990,7 @@
             }
             reserved[8][8] = 1;
             grid[n - 8][8] = 1; reserved[n - 8][8] = 1; // Dark module
-            
+
             // Reserve version info for version >= 7
             if (version >= 7) {
                 for (let i = 0; i < 6; i++) {
@@ -2000,20 +2000,20 @@
                     }
                 }
             }
-            
+
             // Encode data in byte mode with ECC level L
             const totalCodewords = getQRTotalCodewords(version);
             const eccPerBlock = getECCPerBlock(version);
             const numBlocks = getNumBlocks(version);
             const dataCodewords = totalCodewords - eccPerBlock * numBlocks;
-            
+
             // Build data bitstream: mode(4) + count(8 or 16) + data + terminator + padding
             const bits = [];
             function pushBits(val, len) { for (let i = len - 1; i >= 0; i--) bits.push((val >> i) & 1); }
             pushBits(0b0100, 4); // Byte mode
             pushBits(dataBytes.length, version >= 10 ? 16 : 8); // Character count
             for (const b of dataBytes) pushBits(b, 8);
-            
+
             // Terminator
             const maxBits = dataCodewords * 8;
             for (let i = 0; i < 4 && bits.length < maxBits; i++) bits.push(0);
@@ -2023,7 +2023,7 @@
             const padBytes = [0xEC, 0x11];
             let padIdx = 0;
             while (bits.length < maxBits) { pushBits(padBytes[padIdx % 2], 8); padIdx++; }
-            
+
             // Convert to codewords
             const codewords = [];
             for (let i = 0; i < bits.length; i += 8) {
@@ -2031,17 +2031,17 @@
                 for (let j = 0; j < 8; j++) val = (val << 1) | (bits[i + j] || 0);
                 codewords.push(val);
             }
-            
+
             // Split into blocks and generate ECC
             const blocks = splitIntoBlocks(codewords, version, numBlocks, dataCodewords, eccPerBlock);
-            
+
             // Interleave data and ECC codewords
             const interleaved = interleaveBlocks(blocks, eccPerBlock);
-            
+
             // Place data bits on grid
             const allBits = [];
             for (const b of interleaved) for (let i = 7; i >= 0; i--) allBits.push((b >> i) & 1);
-            
+
             let bitIdx = 0;
             // Traverse right-to-left in 2-column strips, bottom-to-top then top-to-bottom alternating
             let upward = true;
@@ -2060,7 +2060,7 @@
                 }
                 upward = !upward;
             }
-            
+
             // Apply mask pattern 0 (checkerboard) and write format info
             for (let r = 0; r < n; r++) {
                 for (let c = 0; c < n; c++) {
@@ -2069,7 +2069,7 @@
                     }
                 }
             }
-            
+
             // Write format info for mask 0, ECC level L
             const formatBits = getFormatBits(0); // mask 0, level L
             const formatPositions1 = [[8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,7],[8,8],[7,8],[5,8],[4,8],[3,8],[2,8],[1,8],[0,8]];
@@ -2079,7 +2079,7 @@
                 grid[formatPositions1[i][0]][formatPositions1[i][1]] = bit;
                 grid[formatPositions2[i][0]][formatPositions2[i][1]] = bit;
             }
-            
+
             // Write version info for version >= 7
             if (version >= 7) {
                 const versionBits = getVersionBits(version);
@@ -2093,10 +2093,10 @@
                     }
                 }
             }
-            
+
             return grid;
         }
-        
+
         function getAlignmentPositions(version) {
             // Hardcoded from ISO 18004 Table E.1 - authoritative positions per version
             const table = [
@@ -2144,17 +2144,17 @@
             ];
             return table[version] || [];
         }
-        
+
         function getQRTotalCodewords(version) {
             const table = [0,26,44,70,100,134,172,196,242,292,346,404,466,532,581,655,733,815,901,991,1085,1156,1258,1364,1474,1588,1706,1828,1921,2051,2185,2323,2465,2611,2761,2876,3034,3196,3362,3532,3706];
             return table[version];
         }
-        
+
         function getECCPerBlock(version) {
             const table = [0,7,10,15,20,26,18,20,24,30,18,20,24,26,30,22,24,28,30,28,28,28,28,30,30,26,28,30,30,30,30,30,30,30,30,30,30,30,30,30,30];
             return table[version];
         }
-        
+
         // Data capacity per version at ECC level L (byte mode)
         function getDataCapacityL(version) {
             const table = [0,19,34,55,80,108,136,156,194,232,274,324,370,428,461,523,589,
@@ -2162,7 +2162,7 @@
                 1732,1840,1952,2068,2188,2303,2431,2563,2699,2809,2953];
             return table[version];
         }
-        
+
         function getNumBlocks(version) {
             // Computed from spec: numBlocks = totalEC / eccPerBlock
             // where totalEC = totalCodewords - dataCapacity
@@ -2171,13 +2171,13 @@
             const ecc = getECCPerBlock(version);
             return Math.round((total - data) / ecc);
         }
-        
+
         function splitIntoBlocks(dataCodewords, version, numBlocks, totalData, eccPerBlock) {
             // Some versions have blocks of different sizes
             const shortBlockData = Math.floor(totalData / numBlocks);
             const longBlocks = totalData % numBlocks;
             const shortBlocks = numBlocks - longBlocks;
-            
+
             const blocks = [];
             let offset = 0;
             for (let i = 0; i < numBlocks; i++) {
@@ -2189,7 +2189,7 @@
             }
             return blocks;
         }
-        
+
         function interleaveBlocks(blocks, eccPerBlock) {
             const result = [];
             const maxDataLen = Math.max(...blocks.map(b => b.data.length));
@@ -2205,7 +2205,7 @@
             }
             return result;
         }
-        
+
         // Reed-Solomon ECC generator over GF(256)
         function generateECC(data, numEcc) {
             // GF(256) with polynomial 0x11d
@@ -2218,12 +2218,12 @@
                 val = (val << 1) ^ (val >= 128 ? 0x11d : 0);
             }
             for (let i = 255; i < 512; i++) gfExp[i] = gfExp[i - 255];
-            
+
             function gfMul(a, b) {
                 if (a === 0 || b === 0) return 0;
                 return gfExp[gfLog[a] + gfLog[b]];
             }
-            
+
             // Generate generator polynomial
             let gen = [1];
             for (let i = 0; i < numEcc; i++) {
@@ -2234,7 +2234,7 @@
                 }
                 gen = newGen;
             }
-            
+
             // Polynomial division
             const result = new Array(numEcc).fill(0);
             const msg = [...data, ...result];
@@ -2248,13 +2248,13 @@
             }
             return msg.slice(data.length);
         }
-        
+
         function getFormatBits(mask) {
             // Level L = 01, precomputed format strings for masks 0-7
             const formats = [0x77c4, 0x72f3, 0x7daa, 0x789d, 0x662f, 0x6318, 0x6c41, 0x6976];
             return formats[mask] || formats[0];
         }
-        
+
         function getVersionBits(version) {
             const table = [0,0,0,0,0,0,0,0x07c94,0x085bc,0x09a99,0x0a4d3,0x0bbf6,0x0c762,0x0d847,0x0e60d,0x0f928,
                 0x10b78,0x1145d,0x12a17,0x13532,0x149a6,0x15683,0x168c9,0x177ec,0x18ec4,0x191e1,0x1afab,
@@ -2262,16 +2262,16 @@
                 0x26a64,0x27541,0x28c69];
             return table[version] || 0;
         }
-        
+
         // ============================================
         // END INLINE QR CODE GENERATOR
         // ============================================
-        
+
         // Fallback QR generation using API service
         async function generateQRFallback(containerId, data) {
             log('⚠️ Using QR API fallback...');
             const container = document.getElementById(containerId);
-            
+
             // First try: inline canvas-based QR generation (no CDN needed)
             try {
                 const canvas = inlineQRToCanvas(data, 300);
@@ -2285,28 +2285,28 @@
             } catch (e) {
                 log(`⚠️ Inline QR failed: ${e.message}`);
             }
-            
+
             // Second try: external QR API services
             const encoded = encodeURIComponent(data);
-            
+
             // Try multiple QR API services
             const apis = [
                 `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encoded}`,
                 `https://quickchart.io/qr?size=300&text=${encoded}`
             ];
-            
+
             for (const apiUrl of apis) {
                 try {
                     const img = document.createElement('img');
                     img.style.cssText = 'max-width: 300px; border-radius: 8px; background: white; padding: 10px;';
-                    
+
                     await new Promise((resolve, reject) => {
                         img.onload = resolve;
                         img.onerror = reject;
                         img.src = apiUrl;
                         setTimeout(() => reject(new Error('timeout')), 8000);
                     });
-                    
+
                     container.innerHTML = '';
                     container.appendChild(img);
                     log('✅ QR code generated via API');
@@ -2315,10 +2315,10 @@
                     log(`⚠️ API failed: ${apiUrl.split('/')[2]}`);
                 }
             }
-            
+
             // Final fallback: show as text
             container.innerHTML = `
-                <div style="background: #fff; color: #333; font-size: 11px; word-break: break-all; 
+                <div style="background: #fff; color: #333; font-size: 11px; word-break: break-all;
                             padding: 15px; border-radius: 8px; max-width: 300px; margin: 0 auto;
                             font-family: monospace; text-align: left;">
                     <strong style="color: #f44336;">⚠️ QR generation failed</strong><br>
@@ -2328,42 +2328,42 @@
             log('❌ All QR methods failed, showing raw payload');
             return false;
         }
-        
+
         // Toggle password visibility
         window.togglePassword = function(inputId, show) {
             document.getElementById(inputId).type = show ? 'text' : 'password';
         };
-        
+
         // ============================================
         // FILE UPLOAD HANDLING
         // ============================================
         let uploadedFileData = null;
         let uploadedFileName = null;
-        
+
         window.handleFileUpload = function(input) {
             const file = input.files[0];
             if (!file) return;
-            
+
             uploadedFileName = file.name;
             const reader = new FileReader();
-            
+
             reader.onload = function(e) {
                 uploadedFileData = new Uint8Array(e.target.result);
                 document.getElementById('fileUploadInfo').textContent = `${file.name} (${uploadedFileData.length} bytes)`;
                 document.getElementById('fileClearBtn').style.display = 'inline-block';
                 document.getElementById('secretMessage').placeholder = 'File selected - message will be ignored';
-                
+
                 // Auto-check animated GIF for larger files
                 if (uploadedFileData.length > 2000) {
                     document.getElementById('useAnimatedGif').checked = true;
                 }
-                
+
                 log(`📁 File loaded: ${file.name} (${uploadedFileData.length} bytes)`);
             };
-            
+
             reader.readAsArrayBuffer(file);
         };
-        
+
         window.clearFileUpload = function() {
             uploadedFileData = null;
             uploadedFileName = null;
@@ -2373,7 +2373,7 @@
             document.getElementById('secretMessage').placeholder = 'Type your secret message here...';
             document.getElementById('useAnimatedGif').checked = false;
         };
-        
+
         // ============================================
         // ANIMATED GIF GENERATION
         // ============================================
@@ -2381,14 +2381,14 @@
             // Simple GIF encoder using canvas frames
             // Returns a data URL for the animated GIF
             log(`🎞️ Generating animated GIF with ${frames.length} frames...`);
-            
+
             // We'll use a simple approach: create individual QR codes and animate with JS
             // For a real animated GIF, we'd need gif.js library
             // For now, return a canvas-based animation container
-            
+
             return { frames, width, height, delay };
         }
-        
+
         // Split data into chunks for animated QR
         function splitIntoChunks(data, chunkSize) {
             const chunks = [];
@@ -2401,56 +2401,56 @@
         // Initialize WASM
         async function initWasm() {
             const statusEl = document.getElementById('wasmStatus');
-            
+
             try {
                 // Start crypto worker and QR libraries in background (don't block)
                 const workerPromise = initCryptoWorker();
-                
+
                 // Load WASM first - this is critical
                 const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
                 await wasmModule.default();
                 wasm = wasmModule;
-                
+
                 // Wait for worker to be ready
                 await workerPromise;
-                
+
                 // Enable buttons immediately - QR libraries loaded lazily
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 enableStegoButtons();
-                
+
                 const workerStatus = useWorker && workerReady ? '(off-thread)' : '(main thread)';
                 statusEl.className = 'status ready';
                 statusEl.textContent = `✅ Ready! ${workerStatus}`;
-                
+
                 log('🐱 Meow Decoder WASM initialized');
                 log(`📦 Crypto: AES-256-GCM + Argon2id ${workerStatus}`);
-                
+
                 // Load QR libraries in background after WASM is ready
                 Promise.all([loadQRCode(), loadJsQR()]).then(() => {
                     log('📊 QR libraries loaded');
                 }).catch(() => {
                     log('⚠️ QR libraries will load on first use');
                 });
-                
+
             } catch (err) {
                 statusEl.className = 'status error';
                 statusEl.innerHTML = `❌ Failed to load WASM: ${err.message}<br><small>Run <code>make build-wasm</code> and serve via HTTP server</small>`;
                 log(`ERROR: ${err.message}`);
             }
         }
-        
+
         // Encrypt message and generate QR
         window.encryptToQR = async function() {
             if (!wasm) return;
-            
+
             const message = document.getElementById('secretMessage').value;
             const password = document.getElementById('encryptPassword').value;
             const useAnimated = document.getElementById('useAnimatedGif').checked;
-            
+
             // Check for file upload or message
             let dataToEncrypt;
             let isFile = false;
-            
+
             if (uploadedFileData) {
                 dataToEncrypt = uploadedFileData;
                 isFile = true;
@@ -2462,107 +2462,107 @@
                 alert('Please enter a secret message or upload a file');
                 return;
             }
-            
+
             if (!password) { alert('Please enter a password'); return; }
-            
+
             setButtonLoading('encryptBtn', true);
             showProgress('Deriving encryption key...');
-            
+
             try {
                 // Generate random salt and nonce using WASM helpers
                 const saltResult = await crypto.generateSalt();
                 const nonceResult = await crypto.generateNonce();
-                
+
                 if (!saltResult.success || !nonceResult.success) {
                     throw new Error('Failed to generate random values');
                 }
                 const salt = saltResult.data;
                 const nonce = nonceResult.data;
-                
+
                 log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
                 log(`   Nonce: ${bytesToHex(nonce)}`);
-                
+
                 // Derive key from password (runs in worker for responsive UI)
                 const secParams = getSecurityParams();
                 log(`   Deriving key with Argon2id (${secParams.label})...`);
                 const passwordBytes = encoder.encode(password);
                 const keyResult = await crypto.deriveKey(passwordBytes, salt, secParams.memoryKib, secParams.iterations);
-                
+
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
                 }
                 log(`   Key derived: ${bytesToHex(keyResult.data).substring(0, 16)}...`);
-                
+
                 // Encrypt the data
                 const encResult = await crypto.encrypt(dataToEncrypt, keyResult.data, nonce, null);
-                
+
                 if (!encResult.success) {
                     throw new Error(encResult.error);
                 }
                 log(`   Ciphertext: ${encResult.data.length} bytes`);
-                
+
                 const packed = packPayload(salt, nonce, encResult.data, isFile ? uploadedFileName : null);
                 log(`   Argon2id params stored in payload (v${packed[0]})`);
-                
+
                 // Encode as base64 for QR
                 const payload = 'MEOW:' + bytesToBase64(packed);
                 log(`   Payload: ${payload.length} chars (MEOW: prefix + base64)`);
-                
+
                 // Ensure QRCode library is loaded before generating QR
                 if (!QRCode) {
                     log('📦 Loading QRCode library...');
                     await loadQRCode();
                 }
-                
+
                 // Generate QR code (or animated GIF)
                 document.getElementById('qrcode').innerHTML = '';
                 if (window.animatedQrInterval) { clearInterval(window.animatedQrInterval); window.animatedQrInterval = null; }
-                
+
                 const needsMultiFrame = payload.length > 2500;
                 if (useAnimated && !needsMultiFrame) {
                     log('ℹ️ Payload fits in a single QR — animated multi-frame not needed');
                 }
-                
+
                 if (needsMultiFrame) {
                     // Generate animated multi-frame QR sequence WITH FOUNTAIN CODES
                     log('🎞️ Payload too large for single QR, using fountain codes for frame-loss tolerance...');
-                    
+
                     // FOUNTAIN ENCODING - Loss-tolerant rateless code
                     const payloadBytes = encoder.encode(payload); // Full MEOW: payload
                     const blockSize = 600; // Bytes per fountain block (fits in QR with overhead)
                     const kBlocks = Math.ceil(payloadBytes.length / blockSize);
                     const redundancy = 1.5; // 50% overhead = can lose 33% of frames
                     const numDroplets = Math.ceil(kBlocks * redundancy);
-                    
+
                     log(`   📦 Payload: ${payloadBytes.length} bytes → ${kBlocks} blocks × ${blockSize} bytes`);
                     log(`   ⛲ Fountain encoding: generating ${numDroplets} droplets (${Math.round(redundancy*100)}% redundancy)`);
                     log(`   ✅ Can decode with ANY ${kBlocks} droplets! Frame loss tolerant.`);
-                    
+
                     // Create fountain encoder
                     const fountainEncoder = new FountainEncoder(payloadBytes, kBlocks, blockSize);
-                    
+
                     // Generate droplets and pack into QR frames
                     const frameCanvases = [];
                     const useQRCodeLib = QRCode && typeof QRCode.toCanvas === 'function';
-                    
+
                     // Create frame container
                     const container = document.createElement('div');
                     container.id = 'animatedQrContainer';
                     container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
-                    
+
                     for (let i = 0; i < numDroplets; i++) {
                         const droplet = fountainEncoder.generateDroplet(i);
                         const packedDroplet = droplet.pack();
-                        
+
                         // Base64 encode droplet with metadata header
                         const dropletB64 = bytesToBase64(packedDroplet);
                         const framePayload = `FOUNTAIN:${kBlocks}:${blockSize}:${payloadBytes.length}:${dropletB64}`;
-                        
+
                         if (useQRCodeLib) {
                             const canvas = document.createElement('canvas');
                             canvas.style.cssText = `position: absolute; top: 0; left: 0; display: ${i === 0 ? 'block' : 'none'};`;
-                            await QRCode.toCanvas(canvas, framePayload, { 
-                                width: 300, margin: 2, 
+                            await QRCode.toCanvas(canvas, framePayload, {
+                                width: 300, margin: 2,
                                 color: { dark: '#000000', light: '#ffffff' },
                                 errorCorrectionLevel: 'M'
                             });
@@ -2578,23 +2578,23 @@
                             }
                         }
                     }
-                    
+
                     // Add info box
                     const infoEl = document.createElement('div');
                     infoEl.id = 'fountainInfo';
                     infoEl.style.cssText = 'text-align: center; margin-top: 5px; color: #888; font-size: 0.85em;';
                     infoEl.innerHTML = `⛲ <strong>Fountain Coded</strong> - ${kBlocks} blocks, ${numDroplets} droplets`;
-                    
+
                     // Add frame counter
                     const counterEl = document.createElement('div');
                     counterEl.id = 'frameCounter';
                     counterEl.style.cssText = 'text-align: center; margin-top: 2px; color: #00ccff; font-weight: bold;';
                     counterEl.textContent = `Frame 1 / ${numDroplets}`;
-                    
+
                     document.getElementById('qrcode').appendChild(container);
                     document.getElementById('qrcode').appendChild(infoEl);
                     document.getElementById('qrcode').appendChild(counterEl);
-                    
+
                     // Animate frames
                     let currentFrame = 0;
                     window.animatedQrInterval = setInterval(() => {
@@ -2603,12 +2603,12 @@
                         frameCanvases[currentFrame].style.display = 'block';
                         counterEl.textContent = `Frame ${currentFrame + 1} / ${numDroplets}`;
                     }, 500); // 500ms per frame = 2 FPS
-                    
+
                     log(`✅ Fountain-coded animation generated! Can scan ANY ${kBlocks}+ frames to decode.`);
-                    
+
                 } else if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
-                        await QRCode.toCanvas(document.getElementById('qrcode').appendChild(document.createElement('canvas')), 
+                        await QRCode.toCanvas(document.getElementById('qrcode').appendChild(document.createElement('canvas')),
                             payload, { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
                         log('✅ QR code generated!');
                     } catch (qrErr) {
@@ -2620,19 +2620,19 @@
                     // Fallback: use QR API service
                     await generateQRFallback('qrcode', payload);
                 }
-                
+
                 // Show QR section and fill decrypt field
                 document.getElementById('qrSection').classList.remove('hidden');
                 document.getElementById('encryptedPayload').value = payload;
                 document.getElementById('decryptPassword').value = ''; // Clear for user to enter
-                
+
                 // Store for copy/download
                 window.currentPayload = payload;
                 log('');
-                
+
                 // Hide result section
                 document.getElementById('resultSection').classList.add('hidden');
-                
+
             } catch (err) {
                 log(`❌ Error: ${err.message}`);
                 alert('Encryption failed: ' + err.message);
@@ -2641,46 +2641,46 @@
                 setButtonLoading('encryptBtn', false);
             }
         };
-        
+
         // Decrypt from payload
         window.decryptFromPayload = async function() {
             if (!wasm) return;
-            
+
             const payload = document.getElementById('encryptedPayload').value.trim();
             const password = document.getElementById('decryptPassword').value;
-            
+
             if (!payload) { alert('Please enter encrypted payload or generate one in Step 1'); return; }
             if (!password) { alert('Please enter the password'); return; }
-            
+
             setButtonLoading('decryptBtn', true);
             showProgress('Deriving decryption key...');
-            
+
             log(`\n🔓 Decrypting...`);
-            
+
             try {
                 // Validate and parse payload
                 if (!payload.startsWith('MEOW:')) {
                     throw new Error('Invalid payload format (must start with MEOW:)');
                 }
-                
+
                 const packed = base64ToBytes(payload.substring(5));
                 log(`   Payload size: ${packed.length} bytes`);
-                
+
                 // Unpack based on version byte
                 if (packed.length < 30) {
                     throw new Error('Payload too short');
                 }
-                
+
                 const { salt, nonce, ciphertext, fileName: decodedFileName, memoryKib: storedMemoryKib, iterations: storedIterations, version } = unpackPayload(packed);
                 if (decodedFileName) log(`   File: ${decodedFileName}`);
                 if (storedMemoryKib) log(`   Argon2id params from payload: ${storedMemoryKib} KiB, ${storedIterations} iter`);
                 else log(`   ⚠️ Legacy v${version} format: using current security level for key derivation`);
-                
+
                 log(`   Version: ${version}`);
                 log(`   Salt: ${bytesToHex(salt).substring(0, 16)}...`);
                 log(`   Nonce: ${bytesToHex(nonce)}`);
                 log(`   Ciphertext: ${ciphertext.length} bytes`);
-                
+
                 // Derive key from password using stored params (v3/v4) or selector (v1/v2 legacy)
                 if (storedMemoryKib && storedIterations) {
                     log(`   Deriving key with stored Argon2id params (${storedMemoryKib} KiB, ${storedIterations} iter)...`);
@@ -2690,15 +2690,15 @@
                 }
                 const passwordBytes = encoder.encode(password);
                 const keyResult = await crypto.deriveKey(passwordBytes, salt, storedMemoryKib, storedIterations);
-                
+
                 if (!keyResult.success) {
                     throw new Error(keyResult.error);
                 }
-                
+
                 // Decrypt
                 log('   Decrypting with AES-256-GCM...');
                 const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
-                
+
                 if (!decResult.success) {
                     // Authentication failed - wrong password or tampered data
                     log('❌ Decryption FAILED - authentication error');
@@ -2707,10 +2707,10 @@
                     setButtonLoading('decryptBtn', false);
                     return;
                 }
-                
+
                 const plaintext = decoder.decode(decResult.data);
                 log(`✅ Decrypted: "${plaintext.substring(0, 50)}${plaintext.length > 50 ? '...' : ''}"`);
-                
+
                 if (decodedFileName) {
                     // File mode: offer download
                     const blob = new Blob([decResult.data]);
@@ -2720,7 +2720,7 @@
                 } else {
                     showResult(true, plaintext);
                 }
-                
+
             } catch (err) {
                 log(`❌ Error: ${err.message}`);
                 showResult(false, err.message);
@@ -2729,7 +2729,7 @@
                 setButtonLoading('decryptBtn', false);
             }
         };
-        
+
         // Try wrong password demo
         window.tryWrongPassword = function() {
             const payload = document.getElementById('encryptedPayload').value;
@@ -2740,16 +2740,16 @@
             document.getElementById('decryptPassword').value = 'WrongPassword123';
             decryptFromPayload();
         };
-        
+
         // Show result box
         function showResult(success, message) {
             const section = document.getElementById('resultSection');
             const box = document.getElementById('resultBox');
             const title = document.getElementById('resultTitle');
             const msg = document.getElementById('resultMessage');
-            
+
             section.classList.remove('hidden');
-            
+
             if (success) {
                 box.className = 'result-box';
                 title.textContent = '✨ Decrypted Message';
@@ -2759,18 +2759,18 @@
                 title.textContent = '❌ Decryption Failed';
                 msg.textContent = message;
             }
-            
+
             section.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        
+
         // Download QR as image
         window.downloadQR = function() {
             const canvas = document.querySelector('#qrcode canvas');
             const img = document.querySelector('#qrcode img');
-            
+
             const link = document.createElement('a');
             link.download = 'meow-secret.png';
-            
+
             if (canvas) {
                 link.href = canvas.toDataURL('image/png');
             } else if (img) {
@@ -2779,11 +2779,11 @@
                 alert('Generate QR code first');
                 return;
             }
-            
+
             link.click();
             log('💾 QR image downloaded');
         };
-        
+
         // Copy payload
         window.copyPayload = function() {
             if (!window.currentPayload) { alert('Generate QR code first'); return; }
@@ -2791,17 +2791,17 @@
             log('📋 Payload copied to clipboard');
             alert('Encrypted payload copied!');
         };
-        
+
         // ============================================================
         // STEGO MODE FUNCTIONS
         // ============================================================
-        
+
         // Enable stego buttons (works even without WASM for demo mode)
         function enableStegoButtons() {
             document.getElementById('stegoEncodeBtn').disabled = false;
             document.getElementById('stegoDecodeBtn').disabled = false;
         }
-        
+
         // Enable stego buttons immediately for demo mode
         enableStegoButtons();
 
@@ -2826,14 +2826,14 @@
             const fullData = new Uint8Array(4 + msgBytes.length);
             fullData.set(lenBytes, 0);
             fullData.set(msgBytes, 4);
-            
+
             const data = imageData.data;
             const maxBytes = Math.floor(data.length / 8); // 1 bit per channel, 8 channels per byte
-            
+
             if (fullData.length > maxBytes) {
                 throw new Error(`Message too long! Max ${maxBytes} bytes, got ${fullData.length}`);
             }
-            
+
             let bitIndex = 0;
             for (let i = 0; i < fullData.length; i++) {
                 for (let bit = 7; bit >= 0; bit--) {
@@ -2841,19 +2841,19 @@
                     // Skip alpha channel (every 4th value)
                     const channelIndex = pixelIndex + Math.floor(pixelIndex / 3);
                     if (channelIndex >= data.length) break;
-                    
+
                     const bitValue = (fullData[i] >> bit) & 1;
                     data[channelIndex] = (data[channelIndex] & 0xFE) | bitValue;
                     bitIndex++;
                 }
             }
-            
+
             return imageData;
         }
-        
+
         function extractLSB(imageData) {
             const data = imageData.data;
-            
+
             // First extract the length (4 bytes = 32 bits)
             let lengthBits = [];
             let bitIndex = 0;
@@ -2863,16 +2863,16 @@
                 lengthBits.push(data[channelIndex] & 1);
                 bitIndex++;
             }
-            
+
             let length = 0;
             for (let i = 0; i < 32; i++) {
                 length = (length << 1) | lengthBits[i];
             }
-            
+
             if (length <= 0 || length > 100000) {
                 throw new Error('No hidden message found or corrupted data');
             }
-            
+
             // Extract the message bytes
             const msgBytes = new Uint8Array(length);
             for (let i = 0; i < length; i++) {
@@ -2885,7 +2885,7 @@
                 }
                 msgBytes[i] = byte;
             }
-            
+
             return decoder.decode(msgBytes);
         }
 
@@ -2902,7 +2902,7 @@
 
             try {
                 let payload;
-                
+
                 // Try WASM encryption if available, otherwise use plaintext demo
                 if (wasm && wasm.generate_salt) {
                     const saltResult = await crypto.generateSalt();
@@ -2933,13 +2933,13 @@
                         canvas.height = img.height;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0);
-                        
+
                         try {
                             // Get image data and embed message
                             let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
                             imageData = embedLSB(imageData, payload);
                             ctx.putImageData(imageData, 0, 0);
-                            
+
                             const outUrl = canvas.toDataURL('image/png');
                             document.getElementById('stegoImageContainer').innerHTML = `
                                 <img src='${outUrl}' style='max-width: 320px; border-radius: 8px; box-shadow: 0 2px 8px #0003;'>
@@ -3000,11 +3000,11 @@
                             const ctx = canvas.getContext('2d');
                             ctx.drawImage(img, 0, 0);
                             const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                            
+
                             // Extract hidden payload from LSB
                             const payload = extractLSB(imgData);
                             log(`🔍 [Stego] Extracted payload: ${payload.substring(0, 30)}...`);
-                            
+
                             if (payload.startsWith('MEOW:')) {
                                 // Encrypted with WASM - decrypt it
                                 if (!wasm) {
@@ -3054,7 +3054,7 @@
             }
         };
 
-        
+
         // ============================================================
         // ANIMATED MODE FUNCTIONS (Video + QR Reveal)
         // ============================================================
@@ -3365,8 +3365,10 @@
                 if (!decResult.success) throw new Error(decResult.error || 'Wrong password');
 
                 if (fileName) {
+                    const blob = new Blob([decResult.data]);
+                    const url = URL.createObjectURL(blob);
                     resultBox.className = 'result-box';
-                    resultBox.innerHTML = `<h3>✅ File Decrypted</h3><div class="message">${fileName} (${decResult.data.length} bytes)</div>`;
+                    resultBox.innerHTML = `<h3>✅ File Decrypted</h3><div class="message"><a href="${url}" download="${escapeHtml(fileName)}" style="color: #00ff88; font-weight: bold; font-size: 1.1em;">💾 Download ${escapeHtml(fileName)}</a> (${decResult.data.length} bytes)</div>`;
                 } else {
                     const text = decoder.decode(decResult.data);
                     resultBox.className = 'result-box';
@@ -3399,12 +3401,12 @@
             });
         };
 
-        
-        
+
+
         // ============================================================
         // SCHRÖDINGER MODE FUNCTIONS
         // ============================================================
-        
+
         // Switch between modes
         window.switchMode = function(mode) {
             // Update tabs
@@ -3413,22 +3415,22 @@
             // Update content
             document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
             document.getElementById(mode + 'Mode').classList.add('active');
-            const modeNames = { 
-                standard: 'Standard', 
+            const modeNames = {
+                standard: 'Standard',
                 forwardSecrecy: 'Forward Secrecy',
                 postQuantum: 'Post-Quantum',
-                schrodinger: 'Schrödinger', 
-                stego: 'Stego', 
+                schrodinger: 'Schrödinger',
+                stego: 'Stego',
                 webcam: 'Webcam',
                 duress: 'Duress',
             };
             log(`🔀 Switched to ${modeNames[mode] || mode} mode`);
-            
+
             // Stop webcam when leaving webcam mode
             if (mode !== 'webcam') {
                 stopWebcam();
             }
-            
+
             // Stop cat animation when leaving cat animated mode
             if (mode !== 'animated') {
                 const vid = document.getElementById('animatedVideo');
@@ -3439,37 +3441,37 @@
                 }
             }
         };
-        
+
         // ============================================================
         // FORWARD SECRECY MODE FUNCTIONS
         // ============================================================
-        
+
         let fsKeyPair = null;  // Store the key pair in memory
-        
+
         // Generate X25519 key pair
         window.fsGenerateKeyPair = async function() {
             if (!wasm) { alert('WASM not loaded'); return; }
-            
+
             try {
                 log('🔑 [FS] Generating X25519 key pair...');
                 const result = wasm.x25519_generate_keypair();
-                
+
                 if (!result.success) {
                     throw new Error(result.error || 'Failed to generate key pair');
                 }
-                
+
                 // Result contains secret (32 bytes) || public (32 bytes)
                 const keyData = result.data;
                 fsKeyPair = {
                     secret: keyData.slice(0, 32),
                     public: keyData.slice(32, 64)
                 };
-                
+
                 // Display public key
                 const publicKeyB64 = bytesToBase64(fsKeyPair.public);
                 document.getElementById('fsMyPublicKey').value = publicKeyB64;
                 document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair generated! Share your public key above.</span>';
-                
+
                 // WARNING: Secret key stored in localStorage as base64.
                 // This is NOT encrypted — acceptable for a demo/prototype but
                 // production deployments should use IndexedDB with SubtleCrypto
@@ -3479,27 +3481,27 @@
                     public: publicKeyB64,
                     _warning: 'Secret key stored unencrypted — demo only'
                 }));
-                
+
                 log('✅ [FS] Key pair generated and stored');
-                
+
             } catch (err) {
                 log('❌ [FS] Error: ' + err.message);
                 alert('Failed to generate key pair: ' + err.message);
             }
         };
-        
+
         // Export key pair to file
         window.fsExportKeyPair = function() {
             if (!fsKeyPair) {
                 alert('Generate a key pair first!');
                 return;
             }
-            
+
             // Warn user about secret key in export
             if (!confirm('⚠️ WARNING: This file contains your SECRET KEY.\n\nAnyone with this file can decrypt your messages.\nStore it securely and never share it.\n\nContinue with export?')) {
                 return;
             }
-            
+
             const exportData = {
                 type: 'meow-fs-keypair',
                 version: 1,
@@ -3508,7 +3510,7 @@
                 created: new Date().toISOString(),
                 warning: 'KEEP SECRET! Anyone with this file can decrypt your messages.'
             };
-            
+
             const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -3516,15 +3518,15 @@
             a.download = 'meow-fs-keypair-KEEP-SECRET.json';
             a.click();
             URL.revokeObjectURL(url);
-            
+
             log('💾 [FS] Key pair exported (contains secret key — store securely!)');
         };
-        
+
         // Import key pair from file
         window.fsImportKeyPair = function(input) {
             const file = input.files[0];
             if (!file) return;
-            
+
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
@@ -3532,20 +3534,20 @@
                     if (data.type !== 'meow-fs-keypair') {
                         throw new Error('Invalid key pair file');
                     }
-                    
+
                     fsKeyPair = {
                         secret: base64ToBytes(data.secret),
                         public: base64ToBytes(data.public)
                     };
-                    
+
                     document.getElementById('fsMyPublicKey').value = data.public;
                     document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair imported!</span>';
-                    
+
                     localStorage.setItem('meow_fs_keypair', JSON.stringify({
                         secret: data.secret,
                         public: data.public
                     }));
-                    
+
                     log('📥 [FS] Key pair imported');
                 } catch (err) {
                     alert('Invalid key pair file: ' + err.message);
@@ -3554,7 +3556,7 @@
             reader.readAsText(file);
             input.value = '';
         };
-        
+
         // Load saved key pair on init
         function loadFsKeyPair() {
             const saved = localStorage.getItem('meow_fs_keypair');
@@ -3573,37 +3575,37 @@
                 }
             }
         }
-        
+
         // Encrypt with forward secrecy
         window.fsEncrypt = async function() {
             if (!wasm) { alert('WASM not loaded'); return; }
-            
+
             const recipientKey = document.getElementById('fsRecipientKey').value.trim();
             const message = document.getElementById('fsMessage').value;
             const password = document.getElementById('fsPassword').value || '';
-            
+
             if (!recipientKey) { alert('Enter recipient\'s public key'); return; }
             if (!message) { alert('Enter a message'); return; }
-            
+
             try {
                 log('🔐 [FS] Encrypting with forward secrecy...');
-                
+
                 const recipientPublic = base64ToBytes(recipientKey);
                 if (recipientPublic.length !== 32) {
                     throw new Error('Invalid public key (must be 32 bytes base64)');
                 }
-                
+
                 const plaintext = encoder.encode(message);
                 const result = wasm.encrypt_with_forward_secrecy(plaintext, recipientPublic, password);
-                
+
                 if (!result.success) {
                     throw new Error(result.error || 'Encryption failed');
                 }
-                
+
                 const payload = 'FS:' + bytesToBase64(result.data);
                 document.getElementById('fsPayload').value = payload;
                 window.currentFsPayload = payload;
-                
+
                 // Generate QR
                 document.getElementById('fsQrcode').innerHTML = '';
                 if (!QRCode) await loadQRCode();
@@ -3616,47 +3618,47 @@
                 } else {
                     await generateQRFallback('fsQrcode', payload);
                 }
-                
+
                 document.getElementById('fsEncryptedSection').classList.remove('hidden');
                 log('✅ [FS] Encrypted with ephemeral X25519 key');
-                
+
             } catch (err) {
                 log('❌ [FS] Error: ' + err.message);
                 alert('Encryption failed: ' + err.message);
             }
         };
-        
+
         // Decrypt forward secrecy message
         window.fsDecrypt = async function() {
             if (!wasm) { alert('WASM not loaded'); return; }
             if (!fsKeyPair) { alert('Generate or import your key pair first!'); return; }
-            
+
             const payload = document.getElementById('fsDecryptPayload').value.trim();
             const password = document.getElementById('fsDecryptPassword').value || '';
             const resultBox = document.getElementById('fsDecryptResult');
-            
+
             if (!payload) { alert('Enter encrypted payload'); return; }
-            
+
             try {
                 log('🔓 [FS] Decrypting...');
-                
+
                 if (!payload.startsWith('FS:')) {
                     throw new Error('Invalid payload - must start with FS:');
                 }
-                
+
                 const encrypted = base64ToBytes(payload.substring(3));
                 const result = wasm.decrypt_with_forward_secrecy(encrypted, fsKeyPair.secret, password);
-                
+
                 if (!result.success) {
                     throw new Error(result.error || 'Decryption failed');
                 }
-                
+
                 const plaintext = decoder.decode(result.data);
                 resultBox.className = 'result-box';
                 resultBox.innerHTML = `<h3>✨ Decrypted (Forward Secrecy)</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('✅ [FS] Decrypted successfully');
-                
+
             } catch (err) {
                 resultBox.className = 'result-box error';
                 resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
@@ -3664,13 +3666,13 @@
                 log('❌ [FS] Error: ' + err.message);
             }
         };
-        
+
         window.copyFsPayload = function() {
             if (!window.currentFsPayload) { alert('Encrypt a message first'); return; }
             navigator.clipboard.writeText(window.currentFsPayload);
             alert('Payload copied!');
         };
-        
+
         window.downloadFsQR = function() {
             const canvas = document.querySelector('#fsQrcode canvas');
             if (!canvas) { alert('Generate QR first'); return; }
@@ -3679,17 +3681,17 @@
             link.href = canvas.toDataURL('image/png');
             link.click();
         };
-        
+
         // ============================================================
         // POST-QUANTUM MODE FUNCTIONS (ML-KEM-1024 + X25519 Hybrid)
         // ============================================================
-        
+
         let pqKeyPair = null; // { x25519Secret, x25519Public, mlkemSecret, mlkemPublic }
-        
+
         // Check if PQ is available on WASM load
         async function checkPqAvailability() {
             if (!cryptoWorker) return;
-            
+
             return new Promise((resolve) => {
                 const id = nextWorkerId++;
                 workerCallbacks.set(id, (result) => {
@@ -3703,16 +3705,16 @@
                 cryptoWorker.postMessage({ type: 'pq_available', id, payload: {} });
             });
         }
-        
+
         // Generate Post-Quantum key pair (X25519 + ML-KEM)
         window.pqGenerateKeyPair = async function() {
             const btn = document.getElementById('pqGenerateBtn');
             btn.disabled = true;
             btn.textContent = '🔮 Generating...';
-            
+
             try {
                 log('🔮 [PQ] Generating X25519 key pair...');
-                
+
                 // Generate X25519 keys via worker
                 const x25519Result = await new Promise((resolve, reject) => {
                     const id = nextWorkerId++;
@@ -3722,9 +3724,9 @@
                     });
                     cryptoWorker.postMessage({ type: 'x25519_generate_keypair', id, payload: {} });
                 });
-                
+
                 log('🔮 [PQ] Generating ML-KEM-1024 key pair...');
-                
+
                 // Generate ML-KEM keys via worker
                 const mlkemResult = await new Promise((resolve, reject) => {
                     const id = nextWorkerId++;
@@ -3734,7 +3736,7 @@
                     });
                     cryptoWorker.postMessage({ type: 'mlkem_generate_keypair', id, payload: {} });
                 });
-                
+
                 // Store key pair
                 pqKeyPair = {
                     x25519Secret: x25519Result.secretKey,
@@ -3742,11 +3744,11 @@
                     mlkemSecret: mlkemResult.secretKey,
                     mlkemPublic: mlkemResult.publicKey
                 };
-                
+
                 // Display public keys as base64
                 document.getElementById('pqX25519PublicKey').value = bytesToBase64(pqKeyPair.x25519Public);
                 document.getElementById('pqMlkemPublicKey').value = bytesToBase64(pqKeyPair.mlkemPublic);
-                
+
                 // WARNING: Secret keys stored in localStorage as base64.
                 // This is NOT encrypted — acceptable for a demo/prototype but
                 // production deployments should use IndexedDB with SubtleCrypto
@@ -3760,11 +3762,11 @@
                     _warning: 'Secret keys stored unencrypted — demo only'
                 };
                 localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
-                
+
                 log('✅ [PQ] Post-quantum key pair generated and saved!');
                 log(`   X25519 public: ${keyData.x25519Public.substring(0, 20)}...`);
                 log(`   ML-KEM public: ${keyData.mlkemPublic.substring(0, 20)}...`);
-                
+
             } catch (err) {
                 log('❌ [PQ] Key generation failed: ' + err.message);
                 alert('Key generation failed: ' + err.message);
@@ -3773,19 +3775,19 @@
                 btn.textContent = '🔮 Generate Post-Quantum Keys';
             }
         };
-        
+
         // Export key pair to JSON file
         window.pqExportKeyPair = function() {
             if (!pqKeyPair) {
                 alert('Generate a key pair first');
                 return;
             }
-            
+
             // Warn user about secret keys in export
             if (!confirm('⚠️ WARNING: This file contains your SECRET KEYS (X25519 + ML-KEM).\n\nAnyone with this file can decrypt your messages.\nStore it securely and never share it.\n\nContinue with export?')) {
                 return;
             }
-            
+
             const keyData = {
                 type: 'meow-pq-keypair',
                 version: 1,
@@ -3796,29 +3798,29 @@
                 created: new Date().toISOString(),
                 warning: 'KEEP SECRET! Anyone with this file can decrypt your messages.'
             };
-            
+
             const blob = new Blob([JSON.stringify(keyData, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = 'meow-pq-keypair-KEEP-SECRET.json';
             link.href = URL.createObjectURL(blob);
             link.click();
-            
+
             log('💾 [PQ] Key pair exported (contains secret keys — store securely!)');
         };
-        
+
         // Import key pair from JSON file
         window.pqImportKeyPair = async function(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
+
             try {
                 const text = await file.text();
                 const keyData = JSON.parse(text);
-                
+
                 if (keyData.type !== 'meow-pq-keypair') {
                     throw new Error('Invalid key file type');
                 }
-                
+
                 // Decode base64 keys
                 pqKeyPair = {
                     x25519Secret: Uint8Array.from(atob(keyData.x25519Secret), c => c.charCodeAt(0)),
@@ -3826,32 +3828,32 @@
                     mlkemSecret: Uint8Array.from(atob(keyData.mlkemSecret), c => c.charCodeAt(0)),
                     mlkemPublic: Uint8Array.from(atob(keyData.mlkemPublic), c => c.charCodeAt(0))
                 };
-                
+
                 // Display public keys
                 document.getElementById('pqX25519PublicKey').value = keyData.x25519Public;
                 document.getElementById('pqMlkemPublicKey').value = keyData.mlkemPublic;
-                
+
                 // Save to localStorage
                 localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
-                
+
                 log('📂 [PQ] Key pair imported successfully');
-                
+
             } catch (err) {
                 log('❌ [PQ] Import failed: ' + err.message);
                 alert('Failed to import key pair: ' + err.message);
             }
-            
+
             // Reset file input
             event.target.value = '';
         };
-        
+
         // Encrypt with post-quantum (hybrid X25519 + ML-KEM)
         window.pqEncrypt = async function() {
             const message = document.getElementById('pqMessage').value;
             const recipientX25519 = document.getElementById('pqRecipientX25519').value.trim();
             const recipientMlkem = document.getElementById('pqRecipientMlkem').value.trim();
             const password = document.getElementById('pqPassword').value;
-            
+
             if (!message) {
                 alert('Enter a message to encrypt');
                 return;
@@ -3860,16 +3862,16 @@
                 alert('Enter both recipient public keys (X25519 and ML-KEM)');
                 return;
             }
-            
+
             const btn = document.getElementById('pqEncryptBtn');
             btn.disabled = true;
             btn.textContent = '🔮 Encrypting...';
-            
+
             try {
                 // Decode recipient public keys from base64
                 const x25519Public = Uint8Array.from(atob(recipientX25519), c => c.charCodeAt(0));
                 const mlkemPublic = Uint8Array.from(atob(recipientMlkem), c => c.charCodeAt(0));
-                
+
                 // Validate key sizes
                 if (x25519Public.length !== 32) {
                     throw new Error(`Invalid X25519 key size: expected 32, got ${x25519Public.length}`);
@@ -3877,9 +3879,9 @@
                 if (mlkemPublic.length !== 1568) {
                     throw new Error(`Invalid ML-KEM key size: expected 1568, got ${mlkemPublic.length}`);
                 }
-                
+
                 log('🔮 [PQ] Encrypting with hybrid X25519 + ML-KEM-1024...');
-                
+
                 // Encrypt via worker
                 const plaintext = new TextEncoder().encode(message);
                 const result = await new Promise((resolve, reject) => {
@@ -3888,9 +3890,9 @@
                         if (result.success) resolve(result);
                         else reject(new Error(result.error));
                     });
-                    cryptoWorker.postMessage({ 
-                        type: 'encrypt_hybrid_pq', 
-                        id, 
+                    cryptoWorker.postMessage({
+                        type: 'encrypt_hybrid_pq',
+                        id,
                         payload: {
                             plaintext: plaintext,
                             x25519_public: x25519Public,
@@ -3899,19 +3901,19 @@
                         }
                     });
                 });
-                
+
                 // Format output with HYBRID-PQ: prefix (X25519 + ML-KEM hybrid)
                 const encrypted = result.data;
                 const base64Payload = bytesToBase64(encrypted);
                 const fullPayload = `HYBRID-PQ:${base64Payload}`;
-                
+
                 document.getElementById('pqEncryptedOutput').value = fullPayload;
                 document.getElementById('pqEncryptResult').style.display = 'block';
                 window.currentPqPayload = fullPayload;
-                
+
                 log('✅ [PQ] Post-quantum encryption complete!');
                 log(`   Payload size: ${encrypted.length} bytes (${fullPayload.length} chars base64)`);
-                
+
             } catch (err) {
                 log('❌ [PQ] Encryption failed: ' + err.message);
                 alert('Encryption failed: ' + err.message);
@@ -3920,7 +3922,7 @@
                 btn.textContent = '🔮 Encrypt with Post-Quantum';
             }
         };
-        
+
         // Generate QR for PQ encrypted message
         window.pqGenerateQR = async function() {
             const payload = window.currentPqPayload;
@@ -3928,9 +3930,9 @@
                 alert('Encrypt a message first');
                 return;
             }
-            
+
             const canvas = document.getElementById('pqQrCanvas');
-            
+
             // Load qrcode-generator if not available
             if (typeof qrcode === 'undefined' && !window.qrcode) {
                 try {
@@ -3950,22 +3952,22 @@
             const qr = qrGen(0, 'L');
             qr.addData(payload);
             qr.make();
-            
+
             const size = 400;
             const moduleCount = qr.getModuleCount();
             const cellSize = size / moduleCount;
-            
+
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
-            
+
             // Purple gradient background for PQ
             const gradient = ctx.createLinearGradient(0, 0, size, size);
             gradient.addColorStop(0, '#200040');
             gradient.addColorStop(1, '#004060');
             ctx.fillStyle = gradient;
             ctx.fillRect(0, 0, size, size);
-            
+
             // Draw QR modules
             ctx.fillStyle = '#00ffff';
             for (let row = 0; row < moduleCount; row++) {
@@ -3975,17 +3977,17 @@
                     }
                 }
             }
-            
+
             document.getElementById('pqQrSection').style.display = 'block';
             log('📱 [PQ] QR code generated');
         };
-        
+
         // Decrypt post-quantum message
         window.pqDecrypt = async function() {
             let payload = document.getElementById('pqDecryptPayload').value.trim();
             const password = document.getElementById('pqDecryptPassword').value;
             const resultBox = document.getElementById('pqDecryptResult');
-            
+
             if (!payload) {
                 alert('Paste an encrypted PQ payload');
                 return;
@@ -3994,22 +3996,22 @@
                 alert('Import or generate your key pair first');
                 return;
             }
-            
+
             // Remove HYBRID-PQ: prefix if present
             if (payload.startsWith('HYBRID-PQ:')) {
                 payload = payload.substring(10);
             }
-            
+
             const btn = document.getElementById('pqDecryptBtn');
             btn.disabled = true;
             btn.textContent = '🔓 Decrypting...';
-            
+
             try {
                 log('🔮 [PQ] Decrypting with hybrid X25519 + ML-KEM-1024...');
-                
+
                 // Decode base64
                 const encrypted = Uint8Array.from(atob(payload), c => c.charCodeAt(0));
-                
+
                 // Decrypt via worker
                 const result = await new Promise((resolve, reject) => {
                     const id = nextWorkerId++;
@@ -4017,9 +4019,9 @@
                         if (result.success) resolve(result);
                         else reject(new Error(result.error));
                     });
-                    cryptoWorker.postMessage({ 
-                        type: 'decrypt_hybrid_pq', 
-                        id, 
+                    cryptoWorker.postMessage({
+                        type: 'decrypt_hybrid_pq',
+                        id,
                         payload: {
                             encrypted: encrypted,
                             x25519_secret: pqKeyPair.x25519Secret,
@@ -4028,14 +4030,14 @@
                         }
                     });
                 });
-                
+
                 const plaintext = new TextDecoder().decode(result.data);
-                
+
                 resultBox.innerHTML = `<h3>✨ Decrypted (Post-Quantum)</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
                 resultBox.classList.remove('hidden');
-                
+
                 log('✅ [PQ] Post-quantum decryption complete!');
-                
+
             } catch (err) {
                 resultBox.innerHTML = `<h3 style="color: #ff6464;">❌ Decryption Failed</h3><p>${escapeHtml(err.message)}</p>`;
                 resultBox.classList.remove('hidden');
@@ -4045,7 +4047,7 @@
                 btn.textContent = '🔓 Decrypt';
             }
         };
-        
+
         // Load saved PQ key pair on startup
         function loadSavedPqKeyPair() {
             try {
@@ -4066,48 +4068,48 @@
                 console.error('Failed to load PQ key pair:', e);
             }
         }
-        
+
         // ============================================================
         // WEBCAM MODE FUNCTIONS
         // ============================================================
-        
+
         let webcamStream = null;
         let webcamScanning = false;
         let webcamAnimationId = null;
-        
+
         window.startWebcam = async function() {
             try {
                 const video = document.getElementById('webcamVideo');
                 const placeholder = document.getElementById('webcamPlaceholder');
                 const statusEl = document.getElementById('webcamStatus');
-                
+
                 statusEl.textContent = 'Requesting camera access...';
-                
+
                 const stream = await navigator.mediaDevices.getUserMedia({
                     video: { facingMode: 'environment' }  // Prefer back camera
                 });
-                
+
                 webcamStream = stream;
                 video.srcObject = stream;
                 video.play();
-                
+
                 video.style.display = 'block';
                 placeholder.style.display = 'none';
                 document.getElementById('webcamStartBtn').style.display = 'none';
                 document.getElementById('webcamStopBtn').style.display = 'inline-block';
-                
+
                 statusEl.innerHTML = '<span style="color: #00ff88;">📷 Camera active - scanning for QR codes...</span>';
                 log('📷 [Webcam] Camera started');
-                
+
                 webcamScanning = true;
                 scanWebcamFrame();
-                
+
             } catch (err) {
                 document.getElementById('webcamStatus').innerHTML = `<span style="color: #ff6464;">❌ Camera error: ${err.message}</span>`;
                 log('❌ [Webcam] Error: ' + err.message);
             }
         };
-        
+
         window.stopWebcam = function() {
             if (webcamStream) {
                 webcamStream.getTracks().forEach(track => track.stop());
@@ -4117,44 +4119,44 @@
             if (webcamAnimationId) {
                 cancelAnimationFrame(webcamAnimationId);
             }
-            
+
             // Reset fountain decoder state
             fountainDecoder = null;
             fountainParams = null;
             collectedDropletSeeds.clear();
-            
+
             const video = document.getElementById('webcamVideo');
             const placeholder = document.getElementById('webcamPlaceholder');
             if (video) video.style.display = 'none';
             if (placeholder) placeholder.style.display = 'flex';
-            
+
             const startBtn = document.getElementById('webcamStartBtn');
             const stopBtn = document.getElementById('webcamStopBtn');
             if (startBtn) startBtn.style.display = 'inline-block';
             if (stopBtn) stopBtn.style.display = 'none';
-            
+
             const statusEl = document.getElementById('webcamStatus');
             if (statusEl) statusEl.textContent = 'Camera stopped';
         };
-        
+
         async function scanWebcamFrame() {
             if (!webcamScanning) return;
-            
+
             const video = document.getElementById('webcamVideo');
             const canvas = document.getElementById('webcamCanvas');
             const ctx = canvas.getContext('2d');
-            
+
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 ctx.drawImage(video, 0, 0);
-                
+
                 const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                
+
                 // Scan for QR code
                 if (jsQR) {
                     const code = jsQR(imageData.data, imageData.width, imageData.height);
-                    
+
                     // Handle FOUNTAIN-coded multi-frame QR
                     if (code && code.data.startsWith('FOUNTAIN:')) {
                         const parts = code.data.split(':');
@@ -4163,7 +4165,7 @@
                             const blockSize = parseInt(parts[2]);
                             const originalLength = parseInt(parts[3]);
                             const dropletB64 = parts[4];
-                            
+
                             // Initialize decoder if needed
                             if (!fountainDecoder || fountainParams?.kBlocks !== kBlocks) {
                                 fountainDecoder = new FountainDecoder(kBlocks, blockSize, originalLength);
@@ -4171,30 +4173,30 @@
                                 collectedDropletSeeds.clear();
                                 log(`⛲ [Fountain] Started collecting: need ${kBlocks} droplets for ${originalLength} bytes`);
                             }
-                            
+
                             // Unpack and add droplet
                             const packedDroplet = base64ToBytes(dropletB64);
                             const droplet = Droplet.unpack(packedDroplet, blockSize);
-                            
+
                             // Skip duplicate droplets
                             if (!collectedDropletSeeds.has(droplet.seed)) {
                                 collectedDropletSeeds.add(droplet.seed);
                                 const isComplete = fountainDecoder.addDroplet(droplet);
-                                
+
                                 const progress = fountainDecoder.getProgress();
                                 const statusEl = document.getElementById('webcamStatus');
                                 statusEl.innerHTML = `<span style="color: #00ff88;">⛲ Collecting droplets: ${collectedDropletSeeds.size} scanned, ${Math.round(progress*100)}% decoded (${fountainDecoder.decodedCount}/${kBlocks} blocks)</span>`;
-                                
+
                                 if (isComplete) {
                                     // DECODE COMPLETE!
                                     const recoveredBytes = fountainDecoder.getData(originalLength);
                                     const payload = decoder.decode(recoveredBytes);
-                                    
+
                                     document.getElementById('webcamPayload').value = payload;
                                     document.getElementById('webcamScanResult').style.display = 'block';
                                     statusEl.innerHTML = `<span style="color: #00ff88;">✅ Fountain decode complete! Scanned ${collectedDropletSeeds.size} droplets. Enter password to decrypt.</span>`;
                                     log(`✅ [Fountain] Decoded from ${collectedDropletSeeds.size}/${kBlocks}+ droplets (${Math.round(collectedDropletSeeds.size/kBlocks*100)}% efficiency)`);
-                                    
+
                                     // Reset for next scan
                                     fountainDecoder = null;
                                     fountainParams = null;
@@ -4213,41 +4215,41 @@
                     }
                 }
             }
-            
+
             webcamAnimationId = requestAnimationFrame(scanWebcamFrame);
         }
-        
+
         window.webcamDecrypt = async function() {
             const payload = document.getElementById('webcamPayload').value;
             const password = document.getElementById('webcamDecryptPassword').value;
             const resultBox = document.getElementById('webcamDecryptResult');
-            
+
             if (!payload) { alert('No QR code scanned'); return; }
             if (!password) { alert('Enter password'); return; }
-            
+
             try {
                 log('🔓 [Webcam] Decrypting scanned payload...');
-                
+
                 let plaintext;
-                
+
                 if (payload.startsWith('MEOW:')) {
                     // Standard decrypt — use unpackPayload for v1-v4 support
                     const packed = base64ToBytes(payload.substring(5));
                     const parsed = unpackPayload(packed);
-                    
+
                     const keyResult = await crypto.deriveKey(encoder.encode(password), parsed.salt, parsed.memoryKib, parsed.iterations);
                     const decResult = await crypto.decrypt(parsed.ciphertext, keyResult.data, parsed.nonce, null);
-                    
+
                     if (!decResult.success) throw new Error('Wrong password or corrupted data');
                     plaintext = decoder.decode(decResult.data);
-                    
+
                 } else if (payload.startsWith('QUANTUM:')) {
                     // Schrödinger decrypt
                     const packed = base64ToBytes(payload.substring(8));
                     // (Similar to collapseReality function)
                     // For simplicity, try both realities
                     throw new Error('Use Schrödinger mode to decrypt QUANTUM payloads');
-                    
+
                 } else if (payload.startsWith('FS:')) {
                     // Forward secrecy
                     if (!fsKeyPair) throw new Error('Load your key pair in Forward Secrecy mode first');
@@ -4255,12 +4257,12 @@
                     const result = wasm.decrypt_with_forward_secrecy(encrypted, fsKeyPair.secret, password);
                     if (!result.success) throw new Error(result.error || 'Decryption failed');
                     plaintext = decoder.decode(result.data);
-                    
+
                 } else if (payload.startsWith('HYBRID-PQ:')) {
                     // Post-Quantum hybrid (X25519 + ML-KEM)
                     if (!pqKeyPair) throw new Error('Load your key pair in Post-Quantum mode first');
                     const encrypted = base64ToBytes(payload.substring(10));
-                    
+
                     // Decrypt via WASM (no worker, direct call for webcam speed)
                     const result = wasm.decrypt_hybrid_pq(
                         encrypted,
@@ -4271,12 +4273,12 @@
                     if (!result.success) throw new Error(result.error || 'Decryption failed');
                     plaintext = decoder.decode(result.data);
                 }
-                
+
                 resultBox.className = 'result-box';
                 resultBox.innerHTML = `<h3>✨ Decrypted from Camera</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('✅ [Webcam] Decrypted successfully');
-                
+
             } catch (err) {
                 resultBox.className = 'result-box error';
                 resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
@@ -4284,22 +4286,22 @@
                 log('❌ [Webcam] Error: ' + err.message);
             }
         };
-        
+
         // ============================================================
         // DURESS MODE FUNCTIONS — Full encrypt → QR → decrypt workflow
         // ============================================================
-        
+
         // Duress file upload handling
         let duressUploadedFileData = null;
         let duressUploadedFileName = null;
-        
+
         window.handleDuressFileUpload = function(input) {
             const file = input.files[0];
             if (!file) return;
-            
+
             duressUploadedFileName = file.name;
             const reader = new FileReader();
-            
+
             reader.onload = function(e) {
                 duressUploadedFileData = new Uint8Array(e.target.result);
                 document.getElementById('duressFileUploadInfo').textContent = `${file.name} (${duressUploadedFileData.length} bytes)`;
@@ -4307,10 +4309,10 @@
                 document.getElementById('duressSecretMessage').placeholder = 'File selected — message will be ignored';
                 log(`📁 [Duress] File loaded: ${file.name} (${duressUploadedFileData.length} bytes)`);
             };
-            
+
             reader.readAsArrayBuffer(file);
         };
-        
+
         window.clearDuressFileUpload = function() {
             duressUploadedFileData = null;
             duressUploadedFileName = null;
@@ -4319,33 +4321,33 @@
             document.getElementById('duressFileClearBtn').style.display = 'none';
             document.getElementById('duressSecretMessage').placeholder = 'Type your secret message here...';
         };
-        
+
         // Duress payload format: DURESS:<base64>
         // Packed bytes: version(1) + salt(16) + nonce(12) + duressTagLen(1) + duressTag(32) + decoyLen(2) + decoyBytes + ciphertext
         // Version 0x10 = Duress mode v1
-        
+
         window.duressEncryptToQR = async function() {
             if (!wasm) { alert('WASM not loaded'); return; }
-            
+
             const message = document.getElementById('duressSecretMessage').value;
             const realPassword = document.getElementById('duressRealPassword').value;
             const panicPassword = document.getElementById('duressPassword').value;
             const decoyMessage = document.getElementById('duressDecoyMessage').value;
-            
+
             const hasFile = duressUploadedFileData !== null;
             if (!hasFile && !message) { alert('Enter a secret message or upload a file'); return; }
             if (!realPassword) { alert('Enter a real password'); return; }
             if (!panicPassword) { alert('Enter a panic password'); return; }
             if (realPassword === panicPassword) { alert('Real password and panic password must be different!'); return; }
-            
+
             setButtonLoading('duressEncryptBtn', true);
             showProgress('Encrypting with duress tag...');
-            
+
             log('\n🚨 [Duress] Encrypting message with duress tag...');
             log(`   Real password: ${realPassword.substring(0,3)}***`);
             log(`   Panic password: ${panicPassword.substring(0,3)}***`);
             log(`   Decoy message: "${decoyMessage.substring(0,30)}..."`);
-            
+
             try {
                 // Generate salt and nonce
                 const saltResult = await crypto.generateSalt();
@@ -4353,13 +4355,13 @@
                 if (!saltResult.success || !nonceResult.success) throw new Error('Failed to generate random values');
                 const salt = saltResult.data;
                 const nonce = nonceResult.data;
-                
+
                 // Derive key from REAL password
                 const duressSecParams = getSecurityParams();
                 const realKeyResult = await crypto.deriveKey(encoder.encode(realPassword), salt, duressSecParams.memoryKib, duressSecParams.iterations);
                 if (!realKeyResult.success) throw new Error(realKeyResult.error);
                 log('   ✅ Real encryption key derived');
-                
+
                 // Encrypt the real message or file
                 const plaintext = hasFile ? duressUploadedFileData : encoder.encode(message);
                 if (hasFile) {
@@ -4368,24 +4370,24 @@
                 const encResult = await crypto.encrypt(plaintext, realKeyResult.data, nonce, null);
                 if (!encResult.success) throw new Error(encResult.error);
                 log(`   ✅ Message encrypted: ${encResult.data.length} bytes ciphertext`);
-                
+
                 // Compute duress tag: HMAC-SHA256(SHA256(panic_password + salt), salt + ciphertext_hash)
                 // This binds the duress tag to the specific payload so it can't be transplanted
                 const panicKeyBytes = encoder.encode(panicPassword);
                 const panicSaltConcat = new Uint8Array(panicKeyBytes.length + salt.length);
                 panicSaltConcat.set(panicKeyBytes, 0);
                 panicSaltConcat.set(salt, panicKeyBytes.length);
-                
+
                 // Use WASM HMAC if available, otherwise compute in JS
                 let duressTag;
-                if (wasm && wasm.hmac_sha256) {
+                if (wasm && wasm.hmac) {
                     // Hash the panic password with salt as the key
-                    const duressKeyResult = wasm.hmac_sha256(salt, panicSaltConcat);
+                    const duressKeyResult = wasm.hmac(salt, panicSaltConcat);
                     // HMAC the ciphertext prefix with the duress key for binding
                     const bindingData = new Uint8Array(salt.length + Math.min(encResult.data.length, 64));
                     bindingData.set(salt, 0);
                     bindingData.set(encResult.data.slice(0, 64), salt.length);
-                    duressTag = wasm.hmac_sha256(duressKeyResult, bindingData);
+                    duressTag = wasm.hmac(duressKeyResult, bindingData);
                 } else {
                     // JS fallback: simple hash-based tag
                     const tagInput = new Uint8Array(panicSaltConcat.length + salt.length + 64);
@@ -4396,11 +4398,11 @@
                     duressTag = new Uint8Array(tagHash);
                 }
                 log(`   ✅ Duress tag computed: ${bytesToHex(duressTag).substring(0,16)}...`);
-                
+
                 // Encode decoy message
                 const decoyBytes = encoder.encode(decoyMessage || 'Nothing to see here.');
                 const decoyLen = Math.min(decoyBytes.length, 65535); // 2-byte length
-                
+
                 // Pack: version(1) + memKib(4 LE) + iter(1) + salt(16) + nonce(12) + duressTag(32) + decoyLen(2) + decoyBytes + ciphertext
                 const packed = new Uint8Array(1 + 4 + 1 + 16 + 12 + 32 + 2 + decoyLen + encResult.data.length);
                 let offset = 0;
@@ -4415,28 +4417,28 @@
                 packed[offset++] = decoyLen & 0xFF;
                 packed.set(decoyBytes.slice(0, decoyLen), offset); offset += decoyLen;
                 packed.set(encResult.data, offset);
-                
+
                 const payload = 'DURESS:' + bytesToBase64(packed);
                 log(`   ✅ Payload: ${payload.length} chars (DURESS: prefix + base64)`);
-                
+
                 // Store for later
                 window.currentDuressPayload = payload;
-                
+
                 // Generate QR code
                 document.getElementById('duressQrcode').innerHTML = '';
                 if (!QRCode) await loadQRCode();
-                
+
                 if (payload.length > 2500) {
                     // Multi-frame animated QR
                     const chunkSize = 800;
                     const chunks = [];
                     const b64 = payload.substring(7); // remove DURESS:
                     for (let i = 0; i < b64.length; i += chunkSize) chunks.push(b64.slice(i, i + chunkSize));
-                    
+
                     const container = document.createElement('div');
                     container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
                     const frames = [];
-                    
+
                     for (let i = 0; i < chunks.length; i++) {
                         const fp = `DURESS-${i+1}/${chunks.length}:${chunks[i]}`;
                         let canvas;
@@ -4452,13 +4454,13 @@
                             frames.push(canvas);
                         }
                     }
-                    
+
                     const counter = document.createElement('div');
                     counter.style.cssText = 'text-align: center; margin-top: 5px; color: #ff6464; font-weight: bold;';
                     counter.textContent = `Frame 1 / ${chunks.length}`;
                     document.getElementById('duressQrcode').appendChild(container);
                     document.getElementById('duressQrcode').appendChild(counter);
-                    
+
                     let cur = 0;
                     if (window.duressQrInterval) clearInterval(window.duressQrInterval);
                     window.duressQrInterval = setInterval(() => {
@@ -4467,7 +4469,7 @@
                         frames[cur].style.display = 'block';
                         counter.textContent = `Frame ${cur + 1} / ${chunks.length}`;
                     }, 500);
-                    
+
                     log(`   🎞️ Animated QR: ${chunks.length} frames`);
                 } else if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
@@ -4481,15 +4483,15 @@
                 } else {
                     await generateQRFallback('duressQrcode', payload);
                 }
-                
+
                 // Show QR section and fill decrypt field
                 document.getElementById('duressQrSection').classList.remove('hidden');
                 document.getElementById('duressEncryptedPayload').value = payload;
                 document.getElementById('duressDecryptPassword').value = '';
                 document.getElementById('duressResultSection').classList.add('hidden');
-                
+
                 log('   ✅ Duress-mode QR ready! Try decrypting with either password.');
-                
+
             } catch (err) {
                 log(`❌ [Duress] Error: ${err.message}`);
                 alert('Encryption failed: ' + err.message);
@@ -4498,31 +4500,31 @@
                 setButtonLoading('duressEncryptBtn', false);
             }
         };
-        
+
         window.duressDecrypt = async function() {
             if (!wasm) { alert('WASM not loaded'); return; }
-            
+
             const payload = document.getElementById('duressEncryptedPayload').value.trim();
             const password = document.getElementById('duressDecryptPassword').value;
             const resultEl = document.getElementById('duressResult');
             const resultSection = document.getElementById('duressResultSection');
-            
+
             if (!payload) { alert('Encrypt a message first (Step 1)'); return; }
             if (!password) { alert('Enter a password'); return; }
-            
+
             log('\n🔓 [Duress] Attempting decryption...');
-            
+
             try {
                 if (!payload.startsWith('DURESS:')) throw new Error('Invalid payload (expected DURESS: prefix)');
-                
+
                 const packed = base64ToBytes(payload.substring(7));
                 if (packed.length < 63) throw new Error('Payload too short');
-                
+
                 // Unpack
                 let offset = 0;
                 const version = packed[offset++];
                 let duressMemKib = null, duressIter = null;
-                
+
                 if (version === 0x11) {
                     // Duress v2: has Argon2 params
                     const dv = new DataView(packed.buffer, packed.byteOffset);
@@ -4531,33 +4533,33 @@
                 } else if (version !== 0x10) {
                     throw new Error(`Unknown duress version: 0x${version.toString(16)}`);
                 }
-                
+
                 const salt = packed.slice(offset, offset + 16); offset += 16;
                 const nonce = packed.slice(offset, offset + 12); offset += 12;
                 const storedDuressTag = packed.slice(offset, offset + 32); offset += 32;
                 const decoyLen = (packed[offset] << 8) | packed[offset + 1]; offset += 2;
                 const decoyBytes = packed.slice(offset, offset + decoyLen); offset += decoyLen;
                 const ciphertext = packed.slice(offset);
-                
+
                 log(`   Version: 0x${version.toString(16)} (Duress ${version === 0x11 ? 'v2' : 'v1'})`);
                 if (duressMemKib) log(`   Argon2id params: ${duressMemKib} KiB, ${duressIter} iter`);
                 log(`   Duress tag: ${bytesToHex(storedDuressTag).substring(0,16)}...`);
                 log(`   Decoy: ${decoyLen} bytes`);
                 log(`   Ciphertext: ${ciphertext.length} bytes`);
-                
+
                 // Check if this is the panic password by recomputing the duress tag
                 const testKeyBytes = encoder.encode(password);
                 const testSaltConcat = new Uint8Array(testKeyBytes.length + salt.length);
                 testSaltConcat.set(testKeyBytes, 0);
                 testSaltConcat.set(salt, testKeyBytes.length);
-                
+
                 let computedTag;
-                if (wasm && wasm.hmac_sha256) {
-                    const duressKeyResult = wasm.hmac_sha256(salt, testSaltConcat);
+                if (wasm && wasm.hmac) {
+                    const duressKeyResult = wasm.hmac(salt, testSaltConcat);
                     const bindingData = new Uint8Array(salt.length + Math.min(ciphertext.length, 64));
                     bindingData.set(salt, 0);
                     bindingData.set(ciphertext.slice(0, 64), salt.length);
-                    computedTag = wasm.hmac_sha256(duressKeyResult, bindingData);
+                    computedTag = wasm.hmac(duressKeyResult, bindingData);
                 } else {
                     const tagInput = new Uint8Array(testSaltConcat.length + salt.length + 64);
                     tagInput.set(testSaltConcat, 0);
@@ -4566,7 +4568,7 @@
                     const tagHash = await window.crypto.subtle.digest('SHA-256', tagInput);
                     computedTag = new Uint8Array(tagHash);
                 }
-                
+
                 // Constant-time-ish comparison (JS can't truly guarantee constant-time)
                 let isDuress = computedTag.length === storedDuressTag.length;
                 let diff = 0;
@@ -4574,12 +4576,12 @@
                     diff |= computedTag[i] ^ storedDuressTag[i];
                 }
                 isDuress = isDuress && (diff === 0);
-                
+
                 if (isDuress) {
                     // 🚨 DURESS TRIGGERED
                     log('🚨🚨🚨 [Duress] PANIC PASSWORD DETECTED! 🚨🚨🚨');
                     log('   Showing decoy message, wiping stored keys...');
-                    
+
                     // Wipe stored keys from localStorage
                     const wipedKeys = [];
                     ['meow_fs_keypair', 'meow_pq_keypair', 'meow_duress'].forEach(k => {
@@ -4591,7 +4593,7 @@
                     if (wipedKeys.length > 0) {
                         log(`   🗑️ Wiped ${wipedKeys.length} stored keys: ${wipedKeys.join(', ')}`);
                     }
-                    
+
                     // Show decoy message (looks like a successful decrypt to the attacker)
                     const decoyMessage = decoder.decode(decoyBytes);
                     resultEl.className = 'result-box';
@@ -4603,7 +4605,7 @@
                         <div style="color: #888; font-size: 0.8em; margin-top: 10px;">Decryption successful.</div>
                     `;
                     resultSection.classList.remove('hidden');
-                    
+
                     // Brief delay, then show what really happened (for demo purposes)
                     setTimeout(() => {
                         resultEl.innerHTML += `
@@ -4618,27 +4620,27 @@
                             </div>
                         `;
                     }, 1500);
-                    
+
                     return;
                 }
-                
+
                 // Not the duress password — try real decryption
                 log('   Not the panic password — attempting real decryption...');
                 showProgress('Deriving decryption key...');
-                
+
                 const keyResult = await crypto.deriveKey(encoder.encode(password), salt, duressMemKib, duressIter);
                 if (!keyResult.success) throw new Error(keyResult.error);
-                
+
                 const decResult = await crypto.decrypt(ciphertext, keyResult.data, nonce, null);
                 hideProgress();
-                
+
                 if (!decResult || !decResult.success) {
                     throw new Error('Decryption failed — wrong password');
                 }
-                
+
                 const message = decoder.decode(decResult.data);
                 log('   ✅ Decryption successful!');
-                
+
                 resultEl.className = 'result-box';
                 resultEl.style.background = '#0a1a0a';
                 resultEl.style.borderColor = '#00ff88';
@@ -4648,7 +4650,7 @@
                     <div style="color: #00ff88; font-size: 0.85em; margin-top: 10px;">✅ Decrypted with the real password</div>
                 `;
                 resultSection.classList.remove('hidden');
-                
+
             } catch (err) {
                 hideProgress();
                 log(`   ❌ ${err.message}`);
@@ -4663,7 +4665,7 @@
                 resultSection.classList.remove('hidden');
             }
         };
-        
+
         window.downloadDuressQR = function() {
             const canvas = document.querySelector('#duressQrcode canvas');
             if (!canvas) { alert('Generate a QR code first'); return; }
@@ -4672,14 +4674,14 @@
             link.href = canvas.toDataURL();
             link.click();
         };
-        
+
         window.copyDuressPayload = function() {
             const payload = window.currentDuressPayload || document.getElementById('duressEncryptedPayload').value;
             if (payload) {
                 navigator.clipboard.writeText(payload).then(() => log('📋 Duress payload copied'));
             }
         };
-        
+
         window.setDuressPassword = async function() {
             // Legacy: still supports setting a global duress password for other modes
             const password = document.getElementById('duressPassword').value;
@@ -4699,16 +4701,16 @@
             }));
             log('🚨 [Duress] Panic password saved to localStorage');
         };
-        
+
         window.testDuressPassword = function() {
             // Legacy test function kept for compatibility
         };
-        
+
         // Check for duress on any decrypt operation
         async function checkDuress(password) {
             const saved = localStorage.getItem('meow_duress');
             if (!saved) return null;
-            
+
             const data = JSON.parse(saved);
             // Use SHA-256 via SubtleCrypto (matches setDuressPassword v2)
             const encoder = new TextEncoder();
@@ -4716,14 +4718,14 @@
             const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const testHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            
+
             if (testHash === data.hash) {
                 // PANIC! Wipe everything
                 log('🚨🚨🚨 DURESS MODE TRIGGERED 🚨🚨🚨');
                 localStorage.removeItem('meow_fs_keypair');
                 localStorage.removeItem('meow_duress');
                 // Could wipe more here
-                
+
                 return data.decoy;
             }
             return null;
@@ -4734,23 +4736,23 @@
         // ============================================================
         window.schrodingerEncrypt = async function() {
             if (!wasm) return;
-            
+
             const secretA = document.getElementById('secretA').value;
             const secretB = document.getElementById('secretB').value;
             const passwordA = document.getElementById('passwordA').value;
             const passwordB = document.getElementById('passwordB').value;
-            
+
             if (!secretA || !secretB) { alert('Please enter both secrets'); return; }
             if (!passwordA || !passwordB) { alert('Please enter both passwords'); return; }
             if (passwordA === passwordB) { alert('Passwords must be different!'); return; }
-            
+
             log(`\n🐱 Schrödinger Encryption starting...`);
             log(`   Reality A: ${secretA.length} chars`);
             log(`   Reality B: ${secretB.length} chars`);
-            
+
             try {
                 const schrodingerSecParams = getSecurityParams();
-                
+
                 // Encrypt Reality A
                 const saltAResult = await crypto.generateSalt();
                 const nonceAResult = await crypto.generateNonce();
@@ -4760,7 +4762,7 @@
                 const cipherAResult = await crypto.encrypt(encoder.encode(secretA), keyAResult.data, nonceA, null);
                 const cipherA = cipherAResult.data;
                 log(`   Reality A encrypted: ${cipherA.length} bytes`);
-                
+
                 // Encrypt Reality B
                 const saltBResult = await crypto.generateSalt();
                 const nonceBResult = await crypto.generateNonce();
@@ -4770,15 +4772,15 @@
                 const cipherBResult = await crypto.encrypt(encoder.encode(secretB), keyBResult.data, nonceB, null);
                 const cipherB = cipherBResult.data;
                 log(`   Reality B encrypted: ${cipherB.length} bytes`);
-                
+
                 // Interleave: even bytes from A, odd bytes from B
                 // Format: version(1) + memKib(4) + iter(1) + lenA(4) + lenB(4) + saltA(16) + nonceA(12) + saltB(16) + nonceB(12) + interleaved
                 const interleaved = interleaveBytes(cipherA, cipherB);
                 log(`   Interleaved: ${interleaved.length} bytes (quantum superposition created)`);
-                
+
                 const packed = new Uint8Array(1 + 4 + 1 + 4 + 4 + 16 + 12 + 16 + 12 + interleaved.length);
                 const view = new DataView(packed.buffer);
-                
+
                 packed[0] = 0xFF; // Schrödinger version 2 (with Argon2 params)
                 view.setUint32(1, schrodingerSecParams.memoryKib, true);
                 packed[5] = schrodingerSecParams.iterations;
@@ -4789,19 +4791,19 @@
                 packed.set(saltB, 42);
                 packed.set(nonceB, 58);
                 packed.set(interleaved, 70);
-                
+
                 const payload = 'QUANTUM:' + bytesToBase64(packed);
                 log(`   Quantum payload: ${payload.length} chars`);
-                
+
                 // Generate QR code
                 document.getElementById('schrodingerQrcode').innerHTML = '';
-                
+
                 if (!QRCode) await loadQRCode();
                 if (QRCode && typeof QRCode.toCanvas === 'function') {
                     try {
                         await QRCode.toCanvas(
-                            document.getElementById('schrodingerQrcode').appendChild(document.createElement('canvas')), 
-                            payload, 
+                            document.getElementById('schrodingerQrcode').appendChild(document.createElement('canvas')),
+                            payload,
                             { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } }
                         );
                         log('✅ Quantum QR code generated!');
@@ -4812,73 +4814,73 @@
                 } else {
                     await generateQRFallback('schrodingerQrcode', payload);
                 }
-                
+
                 // Show QR section
                 document.getElementById('schrodingerQrSection').classList.remove('hidden');
                 document.getElementById('schrodingerPayload').value = payload;
                 window.currentSchrodingerPayload = payload;
-                
+
                 log('⚛️ Both realities now occupy the same QR code!');
                 log('   Enter either password to collapse to that reality.');
-                
+
             } catch (err) {
                 log(`❌ Schrödinger error: ${err.message}`);
                 alert('Encryption failed: ' + err.message);
             }
         };
-        
+
         // Interleave two byte arrays
         function interleaveBytes(a, b) {
             const result = new Uint8Array(a.length + b.length);
             let ai = 0, bi = 0, ri = 0;
-            
+
             while (ai < a.length || bi < b.length) {
                 if (ai < a.length) result[ri++] = a[ai++];
                 if (bi < b.length) result[ri++] = b[bi++];
             }
             return result;
         }
-        
+
         // De-interleave bytes given the original lengths
         function deinterleaveBytes(interleaved, lenA, lenB) {
             const a = new Uint8Array(lenA);
             const b = new Uint8Array(lenB);
             let ai = 0, bi = 0, ri = 0;
-            
+
             while (ri < interleaved.length) {
                 if (ai < lenA) a[ai++] = interleaved[ri++];
                 if (bi < lenB && ri < interleaved.length) b[bi++] = interleaved[ri++];
             }
             return { a, b };
         }
-        
+
         // Collapse reality: Try decrypting with given password
         window.collapseReality = async function() {
             if (!wasm) return;
-            
+
             const payload = document.getElementById('schrodingerPayload').value.trim();
             const password = document.getElementById('collapsePassword').value;
-            
+
             if (!payload) { alert('Please enter or generate a quantum payload'); return; }
             if (!password) { alert('Please enter a password to collapse the superposition'); return; }
-            
+
             log(`\n⚛️ Collapsing quantum superposition...`);
-            
+
             try {
                 if (!payload.startsWith('QUANTUM:')) {
                     throw new Error('Invalid quantum payload (must start with QUANTUM:)');
                 }
-                
+
                 const packed = base64ToBytes(payload.substring(8));
                 const view = new DataView(packed.buffer);
-                
+
                 if (packed[0] !== 0xFE && packed[0] !== 0xFF) {
                     throw new Error('Invalid quantum version marker');
                 }
-                
+
                 let qMemKib = null, qIter = null;
                 let headerOffset = 1;
-                
+
                 if (packed[0] === 0xFF) {
                     // v2: has Argon2 params
                     qMemKib = view.getUint32(1, true);
@@ -4886,7 +4888,7 @@
                     headerOffset = 6;
                     log(`   Argon2id params: ${qMemKib} KiB, ${qIter} iter`);
                 }
-                
+
                 const lenA = view.getUint32(headerOffset, true);
                 const lenB = view.getUint32(headerOffset + 4, true);
                 const saltA = packed.slice(headerOffset + 8, headerOffset + 24);
@@ -4894,13 +4896,13 @@
                 const saltB = packed.slice(headerOffset + 36, headerOffset + 52);
                 const nonceB = packed.slice(headerOffset + 52, headerOffset + 64);
                 const interleaved = packed.slice(headerOffset + 64);
-                
+
                 log(`   Reality A ciphertext: ${lenA} bytes`);
                 log(`   Reality B ciphertext: ${lenB} bytes`);
-                
+
                 // De-interleave
                 const { a: cipherA, b: cipherB } = deinterleaveBytes(interleaved, lenA, lenB);
-                
+
                 // Try decrypting as Reality A
                 log('   Attempting to collapse to Reality A...');
                 let resultA = null;
@@ -4911,14 +4913,14 @@
                     log('   Reality A decryption threw: ' + e.message);
                     resultA = { success: false };
                 }
-                
+
                 if (resultA && resultA.success) {
                     const plaintext = decoder.decode(resultA.data);
                     log(`✅ Reality A observed: "${plaintext.substring(0, 40)}..."`);
                     showSchrodingerResult(true, 'A', plaintext);
                     return;
                 }
-                
+
                 // Try decrypting as Reality B
                 log('   Reality A authentication failed, trying Reality B...');
                 let resultB = null;
@@ -4929,33 +4931,33 @@
                     log('   Reality B decryption threw: ' + e.message);
                     resultB = { success: false };
                 }
-                
+
                 if (resultB && resultB.success) {
                     const plaintext = decoder.decode(resultB.data);
                     log(`✅ Reality B observed: "${plaintext.substring(0, 40)}..."`);
                     showSchrodingerResult(true, 'B', plaintext);
                     return;
                 }
-                
+
                 // Neither worked
                 log('❌ Password does not match either reality');
                 showSchrodingerResult(false, null, 'Observation failed! Password does not match either reality.');
-                
+
             } catch (err) {
                 log(`❌ Collapse error: ${err.message}`);
                 showSchrodingerResult(false, null, err.message);
             }
         };
-        
+
         // Show Schrödinger result
         function showSchrodingerResult(success, reality, message) {
             const section = document.getElementById('schrodingerResultSection');
             const box = document.getElementById('schrodingerResultBox');
             const title = document.getElementById('schrodingerResultTitle');
             const msg = document.getElementById('schrodingerResultMessage');
-            
+
             section.classList.remove('hidden');
-            
+
             if (success) {
                 const color = reality === 'A' ? '#00ff88' : '#ff8800';
                 const emoji = reality === 'A' ? '🟢' : '🟠';
@@ -4971,18 +4973,18 @@
                 title.style.color = '#f44336';
                 msg.textContent = message;
             }
-            
+
             section.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
-        
+
         // Scan QR for Schrödinger mode
         window.scanDuressQR = async function(input) {
             const statusEl = document.getElementById('duressScanStatus');
-            
+
             if (!input.files || !input.files[0]) return;
-            
+
             statusEl.innerHTML = '<span style="color: #ff6464;">⏳ Scanning duress QR code...</span>';
-            
+
             try {
                 const file = input.files[0];
                 const reader = new FileReader();
@@ -4991,16 +4993,16 @@
                     reader.onerror = reject;
                     reader.readAsDataURL(file);
                 });
-                
+
                 const img = new Image();
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
                     img.onerror = reject;
                     img.src = imageData;
                 });
-                
+
                 let qrData = null;
-                
+
                 // Strategy 1: Use native BarcodeDetector (Chrome/Edge — most reliable)
                 if ('BarcodeDetector' in window) {
                     try {
@@ -5014,18 +5016,18 @@
                         log(`📸 [Duress] BarcodeDetector failed: ${e.message}`);
                     }
                 }
-                
+
                 // Strategy 2: jsQR with multiple approaches
                 if (!qrData) {
                     if (!jsQR) await loadJsQR();
                     if (jsQR) {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                        
+
                         function tryScan(imgDat) {
                             return jsQR(imgDat.data, imgDat.width, imgDat.height, { inversionAttempts: 'attemptBoth' });
                         }
-                        
+
                         function binarize(imgDat, threshold) {
                             const d = imgDat.data;
                             for (let i = 0; i < d.length; i += 4) {
@@ -5035,7 +5037,7 @@
                             }
                             return imgDat;
                         }
-                        
+
                         // Try raw at multiple scales
                         const scales = [1, 0.75, 0.5, 1.5, 2, 3];
                         for (const scale of scales) {
@@ -5051,7 +5053,7 @@
                                 break;
                             }
                         }
-                        
+
                         // Try binarization
                         if (!qrData) {
                             for (const thresh of [80, 120, 140, 160, 200]) {
@@ -5066,7 +5068,7 @@
                                 }
                             }
                         }
-                        
+
                         // Try center crops
                         if (!qrData) {
                             for (const cropFrac of [0.8, 0.6, 0.4]) {
@@ -5094,7 +5096,7 @@
                                 }
                             }
                         }
-                        
+
                         // Contrast normalization
                         if (!qrData) {
                             canvas.width = img.width;
@@ -5122,7 +5124,7 @@
                         }
                     }
                 }
-                
+
                 if (qrData && qrData.startsWith('DURESS:')) {
                     document.getElementById('duressEncryptedPayload').value = qrData;
                     statusEl.innerHTML = '<span style="color: #00ff88;">✅ Duress QR scanned! Enter password to decrypt.</span>';
@@ -5140,17 +5142,17 @@
                 statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
                 log(`❌ [Duress] QR scan error: ${err.message}`);
             }
-            
+
             input.value = '';
         };
-        
+
         window.scanSchrodingerQR = async function(input) {
             const statusEl = document.getElementById('schrodingerScanStatus');
-            
+
             if (!input.files || !input.files[0]) return;
-            
+
             statusEl.innerHTML = '<span style="color: #8a2be2;">⏳ Scanning quantum QR code...</span>';
-            
+
             try {
                 const file = input.files[0];
                 const reader = new FileReader();
@@ -5159,16 +5161,16 @@
                     reader.onerror = reject;
                     reader.readAsDataURL(file);
                 });
-                
+
                 const img = new Image();
                 await new Promise((resolve, reject) => {
                     img.onload = resolve;
                     img.onerror = reject;
                     img.src = imageData;
                 });
-                
+
                 let qrData = null;
-                
+
                 // Strategy 1: Native BarcodeDetector
                 if ('BarcodeDetector' in window) {
                     try {
@@ -5182,18 +5184,18 @@
                         log(`📸 [Schrödinger] BarcodeDetector failed: ${e.message}`);
                     }
                 }
-                
+
                 // Strategy 2: jsQR fallback
                 if (!qrData) {
                     if (!jsQR) await loadJsQR();
                     if (jsQR) {
                         const canvas = document.createElement('canvas');
                         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-                        
+
                         function tryScan(imgDat) {
                             return jsQR(imgDat.data, imgDat.width, imgDat.height, { inversionAttempts: 'attemptBoth' });
                         }
-                        
+
                         const scales = [1, 0.75, 0.5, 1.5, 2, 3];
                         for (const scale of scales) {
                             const w = Math.round(img.width * scale);
@@ -5208,7 +5210,7 @@
                                 break;
                             }
                         }
-                        
+
                         if (!qrData) {
                             for (const thresh of [80, 120, 140, 160, 200]) {
                                 canvas.width = img.width;
@@ -5231,7 +5233,7 @@
                         }
                     }
                 }
-                
+
                 if (qrData && qrData.startsWith('QUANTUM:')) {
                     document.getElementById('schrodingerPayload').value = qrData;
                     statusEl.innerHTML = '<span style="color: #00ff88;">✅ Quantum QR scanned! Enter password to collapse.</span>';
@@ -5245,18 +5247,18 @@
             } catch (err) {
                 statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
             }
-            
+
             input.value = '';
         };
-        
+
         // Download Schrödinger QR
         window.downloadSchrodingerQR = function() {
             const canvas = document.querySelector('#schrodingerQrcode canvas');
             const img = document.querySelector('#schrodingerQrcode img');
-            
+
             const link = document.createElement('a');
             link.download = 'schrodinger-quantum.png';
-            
+
             if (canvas) {
                 link.href = canvas.toDataURL('image/png');
             } else if (img) {
@@ -5265,11 +5267,11 @@
                 alert('Generate quantum QR first');
                 return;
             }
-            
+
             link.click();
             log('💾 Quantum QR downloaded');
         };
-        
+
         // Copy Schrödinger payload
         window.copySchrodingerPayload = function() {
             if (!window.currentSchrodingerPayload) { alert('Generate quantum QR first'); return; }
@@ -5277,7 +5279,7 @@
             log('📋 Quantum payload copied');
             alert('Quantum payload copied!');
         };
-        
+
         // ============================================
         // Service Worker for caching (faster loads)
         // ============================================
@@ -5293,12 +5295,12 @@
                     });
             }
         }
-        
+
         // Initialize
         document.getElementById('log').textContent = '';
         registerServiceWorker();
         initWasm();
-        
+
         // Load Forward Secrecy key pair if saved
         setTimeout(() => {
             loadFsKeyPair();

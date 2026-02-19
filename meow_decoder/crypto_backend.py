@@ -97,6 +97,13 @@ class RustCryptoBackend:
         parallelism: int = 4,
         output_len: int = 32,
     ) -> bytes:
+        """PRODUCTION-FORBIDDEN: Returns raw key bytes.
+
+        This method exists only for legacy test tooling and non-production
+        diagnostics.  Production code MUST use
+        ``HandleBackend.derive_key_argon2id()`` which returns an opaque
+        handle and never exposes key bytes to Python.
+        """
         return self._rs.derive_key_argon2id(  # type: ignore[no-any-return]
             password, salt, memory_kib, iterations, parallelism, output_len
         )
@@ -355,6 +362,40 @@ class HandleBackend:
             password, salt, memory_kib, iterations, parallelism
         )
 
+    def derive_key_argon2id_with_keyfile(
+        self,
+        password: bytes,
+        keyfile: bytes,
+        keyfile_domain_sep: bytes,
+        salt: bytes,
+        memory_kib: int = 524288,
+        iterations: int = 20,
+        parallelism: int = 4,
+    ) -> int:
+        """Derive key via HKDF(password||keyfile) → Argon2id. Returns handle.
+
+        No intermediate secret bytes cross the FFI boundary. The HKDF
+        combination and Argon2id derivation are performed entirely in Rust.
+        """
+        return self._rs.handle_derive_key_argon2id_with_keyfile(
+            password, keyfile, keyfile_domain_sep, salt,
+            memory_kib, iterations, parallelism,
+        )
+
+    def derive_key_yubikey(
+        self,
+        password: bytes,
+        salt: bytes,
+        slot: str = "9d",
+        pin: Optional[str] = None,
+    ) -> int:
+        """Derive key via YubiKey and store as handle. Key never enters Python.
+
+        Returns opaque handle ID. Raises RuntimeError if YubiKey feature
+        is not enabled in the Rust backend.
+        """
+        return self._rs.handle_yubikey_derive_key(password, salt, slot, pin)
+
     def derive_key_hkdf(
         self, ikm_handle: int, salt: bytes, info: bytes, output_len: int = 32
     ) -> int:
@@ -513,6 +554,61 @@ class HandleBackend:
         Used for double ratchet root key derivation."""
         return self._rs.handle_hkdf_two_handles(ikm_handle, salt_handle, info, output_len)
 
+    # ── PQXDH Hybrid (all secrets stay in Rust) ──
+
+    def pqxdh_encapsulate(
+        self,
+        receiver_classical_pub: bytes,
+        pq_shared_secret: Optional[bytes],
+        extract_salt: bytes,
+        info_prefix: bytes,
+        transcript_domain: bytes,
+        receiver_pq_pub: Optional[bytes] = None,
+        pq_ciphertext: Optional[bytes] = None,
+    ) -> tuple:
+        """PQXDH hybrid encapsulation — full key agreement inside Rust.
+
+        Returns (shared_secret_handle, ephemeral_public_bytes).
+        No secret bytes cross the FFI boundary.
+        """
+        return self._rs.handle_pqxdh_encapsulate(
+            receiver_classical_pub,
+            pq_shared_secret,
+            extract_salt,
+            info_prefix,
+            transcript_domain,
+            receiver_pq_pub,
+            pq_ciphertext,
+        )
+
+    def pqxdh_decapsulate(
+        self,
+        ephemeral_classical_pub: bytes,
+        receiver_private_handle: int,
+        pq_shared_secret: Optional[bytes],
+        receiver_classical_pub: bytes,
+        extract_salt: bytes,
+        info_prefix: bytes,
+        transcript_domain: bytes,
+        receiver_pq_pub: Optional[bytes] = None,
+        pq_ciphertext: Optional[bytes] = None,
+    ) -> int:
+        """PQXDH hybrid decapsulation — full key agreement inside Rust.
+
+        Returns shared_secret_handle. No secret bytes cross FFI.
+        """
+        return self._rs.handle_pqxdh_decapsulate(
+            ephemeral_classical_pub,
+            receiver_private_handle,
+            pq_shared_secret,
+            receiver_classical_pub,
+            extract_salt,
+            info_prefix,
+            transcript_domain,
+            receiver_pq_pub,
+            pq_ciphertext,
+        )
+
     # ── Handle lifecycle ──
 
     def drop(self, handle_id: int) -> None:
@@ -520,8 +616,12 @@ class HandleBackend:
         self._rs.handle_drop(handle_id)
 
     def export_key(self, handle_id: int) -> bytes:
-        """Export raw key bytes from handle. DANGEROUS: only for encrypted-at-rest
-        serialization. Caller MUST immediately encrypt or zero returned bytes."""
+        """PRODUCTION-FORBIDDEN: Export raw key bytes from handle.
+
+        This method is ONLY for test tooling and encrypted-at-rest
+        serialization.  Production code MUST NOT call this — use
+        handle-based AEAD/HMAC instead.
+        """
         return self._rs.handle_export_key(handle_id)
 
     def exists(self, handle_id: int) -> bool:

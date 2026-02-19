@@ -16,7 +16,7 @@ import pytest
 WORKSPACE = pathlib.Path(__file__).parent.parent
 PRODUCTION_ROOT = WORKSPACE / "meow_decoder"
 
-EXCLUDED_DIRS = {"_testonly", "experimental", "__pycache__"}
+EXCLUDED_DIRS = {"_testonly", "_archive", "experimental", "__pycache__"}
 
 
 def _get_production_files():

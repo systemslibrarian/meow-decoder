@@ -1,6 +1,16 @@
 # Codecov configuration for Meow Decoder
 # Monitors Rust crypto coverage (crypto_core + rust_crypto)
 # Python coverage is local-only (pytest-cov / .coveragerc)
+#
+# Coverage targets (per-file baselines from tarpaulin):
+#   rust_crypto/src/handles.rs  93.5%  (534/571)
+#   rust_crypto/src/pure.rs     98.4%  (121/123)
+#   crypto_core/src/pure_crypto.rs   98.4%  (185/188)
+#   crypto_core/src/aead_wrapper.rs  95.8%  (68/71)
+#   crypto_core/src/nonce.rs         98.2%  (55/56)
+#   crypto_core/src/types.rs         96.6%  (28/29)
+#   crypto_core/src/verus_proofs.rs  100%   (10/10)
+#   crypto_core/src/verus_kdf_proofs.rs 97.9% (47/48)
 
 codecov:
   require_ci_to_pass: yes
@@ -10,18 +20,39 @@ codecov:
 coverage:
   status:
     project:
+      # Overall: both crates combined
       default:
-        target: auto
+        target: 93%
         threshold: 2%
         if_ci_failed: error
-        # Rust crypto source files only
         paths:
           - "crypto_core/src/"
           - "rust_crypto/src/"
+
+      # Per-crate status checks
+      crypto_core:
+        target: 95%
+        threshold: 2%
+        if_ci_failed: error
+        flags:
+          - rust
+        paths:
+          - "crypto_core/src/"
+
+      rust_crypto:
+        target: 93%
+        threshold: 2%
+        if_ci_failed: error
+        flags:
+          - rust
+        paths:
+          - "rust_crypto/src/handles.rs"
+          - "rust_crypto/src/pure.rs"
+
     patch:
       default:
-        target: auto
-        threshold: 2%
+        target: 90%
+        threshold: 5%
         paths:
           - "crypto_core/src/"
           - "rust_crypto/src/"
@@ -37,6 +68,46 @@ flags:
       - rust_crypto/src/
     carryforward: true
 
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 2%
+
+  individual_components:
+    - component_id: crypto_core_primitives
+      name: "crypto_core: Pure Crypto Primitives"
+      paths:
+        - crypto_core/src/pure_crypto.rs
+        - crypto_core/src/aead_wrapper.rs
+        - crypto_core/src/nonce.rs
+        - crypto_core/src/types.rs
+      flag_regexes:
+        - rust
+
+    - component_id: crypto_core_verification
+      name: "crypto_core: Verus Proofs"
+      paths:
+        - crypto_core/src/verus_proofs.rs
+        - crypto_core/src/verus_kdf_proofs.rs
+      flag_regexes:
+        - rust
+
+    - component_id: rust_crypto_handles
+      name: "rust_crypto: Opaque Handle Registry"
+      paths:
+        - rust_crypto/src/handles.rs
+      flag_regexes:
+        - rust
+
+    - component_id: rust_crypto_pure
+      name: "rust_crypto: Pure Crypto Functions"
+      paths:
+        - rust_crypto/src/pure.rs
+      flag_regexes:
+        - rust
+
 # Ignore everything except Rust crypto source
 ignore:
   # Python
@@ -51,14 +122,21 @@ ignore:
   - "fuzz/"
   - "web_demo/"
   - "htmlcov/"
-  # Rust non-source
+  # Rust non-source (test files, benchmarks, build artifacts)
   - "crypto_core/benches/"
   - "crypto_core/tests/"
   - "crypto_core/htmlcov/"
+  - "crypto_core/pkg/"
   - "rust_crypto/tests/"
   - "rust_crypto/benches/"
   - "rust_crypto/fuzz/"
   - "target/"
+  # Non-testable Rust source (hardware-dependent / WASM / PyO3 FFI)
+  - "rust_crypto/src/lib.rs"        # PyO3 bindings (requires Python interpreter)
+  - "crypto_core/src/wasm.rs"       # WASM bindings (requires wasm32 target)
+  - "crypto_core/src/hsm.rs"        # Hardware Security Module (requires PKCS#11)
+  - "crypto_core/src/tpm.rs"        # TPM 2.0 (requires tpm2-tss)
+  - "crypto_core/src/yubikey_piv.rs" # YubiKey PIV (requires hardware)
   # Misc
   - "*.md"
   - "*.py"
@@ -67,8 +145,9 @@ ignore:
   - ".github/"
 
 comment:
-  layout: "reach,diff,flags,tree,footer"
+  layout: "reach,diff,flags,components,tree,footer"
   behavior: default
   require_changes: false
   require_base: no
   require_head: yes
+  show_carryforward_flags: true

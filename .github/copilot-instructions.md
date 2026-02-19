@@ -278,11 +278,11 @@ ARGON2_PARALLELISM = 4     # 4 threads
 
 ## Key Dependencies
 
-- `cryptography>=41.0.0`: AES-GCM, X25519, HKDF
-- `argon2-cffi>=23.1.0`: Argon2id KDF
+- `cryptography>=43.0.1`: AES-GCM, X25519, HKDF (test fixtures only; production uses Rust backend)
+- `argon2-cffi>=23.1.0`: Argon2id KDF (fallback; production uses Rust backend)
+- `meow_crypto_rs`: Rust crypto backend (PyO3) — mandatory for production
 - `qrcode[pil]>=7.4.2` + `pyzbar>=0.1.9`: QR encode/decode
 - `opencv-python>=4.8.0`: Webcam capture, image processing
-- `liboqs-python>=0.9.0`: Post-quantum crypto (ML-KEM-1024)
 
 ## Examples Worth Reading
 

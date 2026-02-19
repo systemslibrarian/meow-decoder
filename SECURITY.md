@@ -209,10 +209,10 @@ The WASM browser demo provides **identical cryptographic primitives** to the CLI
 
 | Component | CLI | WASM | Parity |
 |-----------|-----|------|--------|
-| AES-256-GCM | `cryptography` | `aes-gcm` (Rust) | ✅ Identical |
-| Argon2id | `argon2-cffi` | `argon2` (Rust) | ✅ Configurable |
-| X25519 | `cryptography` | `x25519-dalek` | ✅ Identical |
-| ML-KEM-1024 | `liboqs-python` | `ml-kem` (Rust) | ✅ Identical |
+| AES-256-GCM | `meow_crypto_rs` (Rust) | `aes-gcm` (Rust) | ✅ Identical |
+| Argon2id | `meow_crypto_rs` (Rust) | `argon2` (Rust) | ✅ Configurable |
+| X25519 | `meow_crypto_rs` (Rust) | `x25519-dalek` | ✅ Identical |
+| ML-KEM-768/1024 | `meow_crypto_rs` (Rust) | `ml-kem` (Rust) | ✅ Identical |
 | RNG | OS urandom | `getrandom` (wasm_js) | ✅ Web Crypto API |
 
 ### **Security Levels**

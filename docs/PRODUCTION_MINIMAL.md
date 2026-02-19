@@ -10,14 +10,14 @@
 | Field                | Value                                      |
 |----------------------|--------------------------------------------|
 | `crypto_profile`     | `"PROD_MIN"`                               |
-| Manifest version     | MEOW2 (password-only) or MEOW3 (FS) or MEOW5 (PQ hybrid default) |
+| Manifest version     | MEOW2 (password-only) or MEOW3 (forward secrecy with X25519) |
 | Cipher               | AES-256-GCM                                |
 | KDF                  | Argon2id (512 MiB / 20 iterations / 4 threads) |
 | HMAC                 | HMAC-SHA256 with domain-separated key      |
 | Backend              | Rust (`crypto_core`) — **required**        |
 | Frame MACs           | ON (HMAC-SHA256 per frame)                 |
 | Per-frame ratchet    | ON when `enable_ratchet=True` (optional)   |
-| Post-quantum         | OFF by default; opt-in via `--pq` flag     |
+| Post-quantum         | OFF (use `--pq` for experimental MEOW5/MEOW4 PQ hybrid) |
 | Hardware keys        | OPTIONAL (HSM/TPM/YubiKey), not default    |
 | Steganography        | NOT part of PROD_MIN                       |
 | Schrödinger mode     | NOT part of PROD_MIN                       |
@@ -35,13 +35,15 @@
 
 | Profile                      | Description                     | Requires flag          |
 |------------------------------|---------------------------------|------------------------|
-| `hybrid_pq_experimental`     | ML-KEM-768/1024 + X25519       | `--pq` (encode), `--allow-experimental` (decode) |
+| `hybrid_pq_experimental`     | ML-KEM-768/1024 + X25519       | `--pq` or `--pq-paranoid` flag required |
 
-Experimental profiles are explicitly labeled and gated behind user intent.
-They are NOT accepted by default on decode.
+PQ hybrid mode is **opt-in** via explicit `--pq` CLI flag. The encoder writes MEOW2/MEOW3 (PROD_MIN) by default.
+
+The `hybrid_pq_experimental` label reflects that PQ crypto integration has NOT been
+externally audited — it does not mean PQ is unavailable or broken.
 
 **Important:** PQ mode uses algorithms that are standardized (FIPS 203) but the
-integration in this project has NOT been externally audited. Use at your own risk.
+integration in this project has NOT been independently audited. Use at your own risk.
 
 ## Decoder Compatibility
 

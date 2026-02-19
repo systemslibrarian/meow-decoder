@@ -1,5 +1,6 @@
-"""Tests for the production progress module."""
+"""Tests for progress bar modules."""
 
+import pytest
 from meow_decoder.progress import ProgressBar
 
 
@@ -36,3 +37,23 @@ class TestProgressBar:
         pb = ProgressBar(total=0, disable=True)
         result = list(pb([]))
         assert result == []
+
+
+class TestAsciiQR:
+    def test_ascii_qr_import(self):
+        try:
+            from meow_decoder import ascii_qr
+
+            assert ascii_qr is not None
+        except ImportError:
+            pytest.skip("ascii_qr module not available")
+
+
+class TestNinjaCatUltra:
+    def test_ninja_cat_import(self):
+        try:
+            from meow_decoder import ninja_cat_ultra
+
+            assert ninja_cat_ultra is not None
+        except ImportError:
+            pytest.skip("ninja_cat_ultra module not available")
