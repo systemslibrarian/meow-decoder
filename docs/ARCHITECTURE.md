@@ -178,7 +178,7 @@ OUTPUT FILE (secret.pdf)
 │  │                                                 │            │
 │  │  • Forward Secrecy (MEOW3)                     │            │
 │  │  • Post-Quantum (MEOW4)                        │            │
-│  │  • Steganography (Ninja Cat)                   │            │
+│  │  • Steganography (Ninja Cat + Phase 1)             │            │
 │  │  • Streaming Crypto (Prowling)                 │            │
 │  │  • Resume Support                              │            │
 │  └─────────────────────────────────────────────────┘            │
@@ -215,7 +215,7 @@ OUTPUT FILE (secret.pdf)
 
 Layer 7: Air-Gap (optical transfer, no network)
            ↑
-Layer 6: Steganography (optional, hides presence)
+Layer 6: Steganography (optional, hides presence — APNG for lossless stego)
            ↑
 Layer 5: Per-Frame Ratchet (MSR v1.2: header encryption, key commitment, forward secrecy)
            ↑

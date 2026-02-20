@@ -29,6 +29,9 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Frame 0 = manifest (collar tag), Frame 1+ = fountain droplets
    - QR codes at 600×600 pixels, 10 FPS default
    - Optional steganography modes: photographic cat camouflage, logo-eyes carrier
+   - **Cat Mode stego uses APNG** (not GIF) — GIF palette quantization destroys LSB data
+   - `decode_gif.py` has automatic stego LSB extraction fallback (tries depths 2, 1, 3)
+   - Tracks original GIF frame indices (`qr_frame_indices`) for correct frame MAC verification
    - **Web Demo**: Multi-frame QR with real-time fountain decoding in webcam scanner
 
 4. **Forward Secrecy** ([forward_secrecy.py](../meow_decoder/forward_secrecy.py), [x25519_forward_secrecy.py](../meow_decoder/x25519_forward_secrecy.py))

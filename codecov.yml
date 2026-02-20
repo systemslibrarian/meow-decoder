@@ -4,13 +4,13 @@
 #
 # Coverage targets (per-file baselines from tarpaulin):
 #   rust_crypto/src/handles.rs  93.5%  (534/571)
-#   rust_crypto/src/pure.rs     98.4%  (121/123)
+#   rust_crypto/src/pure.rs     98.7%  (151/153)
 #   crypto_core/src/pure_crypto.rs   98.4%  (185/188)
 #   crypto_core/src/aead_wrapper.rs  95.8%  (68/71)
 #   crypto_core/src/nonce.rs         98.2%  (55/56)
 #   crypto_core/src/types.rs         96.6%  (28/29)
 #   crypto_core/src/verus_proofs.rs  100%   (10/10)
-#   crypto_core/src/verus_kdf_proofs.rs 97.9% (47/48)
+#   crypto_core/src/verus_kdf_proofs.rs 97.9%  (47/48)
 
 codecov:
   require_ci_to_pass: yes

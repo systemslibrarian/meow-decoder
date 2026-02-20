@@ -171,6 +171,9 @@ def decode_gif(
     # For now, just read QR codes raw
     qr_reader = QRCodeReader(preprocessing=config.preprocessing)
     qr_data_list = []
+    # Track the original GIF frame index for each QR data entry.
+    # Critical for frame MAC verification when stego extraction skips frames.
+    qr_frame_indices = []
 
     progress = ProgressBar(
         len(frames), desc="Scanning QR Codes", unit="frames", disable=not verbose
@@ -180,7 +183,9 @@ def decode_gif(
         qr_data = qr_reader.read_image(frame)
 
         if qr_data:
-            qr_data_list.extend(qr_data)
+            for qd in qr_data:
+                qr_data_list.append(qd)
+                qr_frame_indices.append(i)
         elif verbose:
             # Only print warning if we're not using tqdm, or use tqdm write if available
             # But ProgressBar doesn't expose write yet.
@@ -190,6 +195,32 @@ def decode_gif(
 
     if verbose:
         print(f"  Total QR codes read: {len(qr_data_list)}")
+
+    if not qr_data_list:
+        # --- Stego fallback: try LSB extraction at multiple depths ---
+        if verbose:
+            print("  ⚠️  No QR codes found directly; trying stego LSB extraction...")
+        try:
+            from .stego_advanced import decode_with_stego
+
+            for lsb_bits in (2, 1, 3):
+                extracted_frames = decode_with_stego(frames, lsb_bits=lsb_bits)
+                for frame_idx, extracted in enumerate(extracted_frames):
+                    qr_data = qr_reader.read_image(extracted)
+                    if qr_data:
+                        for qd in qr_data:
+                            qr_data_list.append(qd)
+                            qr_frame_indices.append(frame_idx)
+                if qr_data_list:
+                    if verbose:
+                        print(
+                            f"  ✅ Stego extraction succeeded (LSB depth={lsb_bits}): "
+                            f"{len(qr_data_list)} QR codes recovered"
+                        )
+                    break
+        except Exception as e:
+            if verbose:
+                print(f"  ⚠️  Stego extraction failed: {e}")
 
     if not qr_data_list:
         raise ValueError("No QR codes found in GIF")
@@ -541,19 +572,24 @@ def decode_gif(
 
     for idx, qr_data in enumerate(progress(qr_data_list[1:])):  # Skip manifest
         try:
+            # Use tracked GIF frame index for MAC verification.
+            # When stego extraction skips unreadable frames, sequential idx+1
+            # doesn't match the original GIF frame index, causing MAC failures.
+            actual_frame_idx = qr_frame_indices[idx + 1] if qr_frame_indices else idx + 1
+
             # Verify frame MAC if enabled
             if has_frame_macs:
                 frame_valid, droplet_bytes = frame_mac.unpack_frame_with_mac(
-                    qr_data, frame_master_key_handle, idx + 1, manifest.salt
+                    qr_data, frame_master_key_handle, actual_frame_idx, manifest.salt
                 )
 
                 if not frame_valid:  # pragma: no cover
                     droplets_rejected += 1
                     mac_stats.record_invalid()
                     if tamper_report is not None:
-                        tamper_report.record(idx + 1, False, "MAC mismatch")
+                        tamper_report.record(actual_frame_idx, False, "MAC mismatch")
                     if verbose and droplets_rejected <= 5:
-                        print(f"  ⚠️  Frame {idx + 1}: MAC invalid, skipping (frame injection?)")
+                        print(f"  ⚠️  Frame {actual_frame_idx}: MAC invalid, skipping (frame injection?)")
                     continue
 
                 mac_stats.record_valid()

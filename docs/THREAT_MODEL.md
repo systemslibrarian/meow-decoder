@@ -442,9 +442,57 @@ attack surface, and security boundaries for these modes.
 3. **For maximum stealth**, combine stego carrier with Schrödinger mode and operational security (no tool binaries on device, ephemeral boot media).
 4. **Assume stego is broken** if the adversary knows Meow Decoder exists and can obtain sample outputs.
 
+### Multi-Layer Steganography (`--multilayer-stego`) — Adversarial Review (2026-02-20)
+
+The multi-layer steganography system underwent a comprehensive adversarial security review. This section documents the updated threat posture after 8 bug fixes and 464 tests.
+
+#### Channels and Detection Resistance
+
+| Channel | Technique | Detection Resistance | Adversarial Review Status |
+|---------|-----------|---------------------|---------------------------|
+| **Primary (LSB+STC)** | Keyed pseudorandom LSB walk with Syndrome-Trellis Codes | ⚠️ Moderate — passes RS/chi-square/SPA at moderate rates; ML classifiers may detect at high rates | ✅ STC algorithm rewritten, roundtrip verified |
+| **Timing** | GIF inter-frame delay modulation | ⚠️ Low-Moderate — timing jitter may be detectable via statistical analysis | ✅ Tested |
+| **Palette** | GIF palette entry permutation | ⚠️ Low-Moderate — permutation entropy detectable if palette is small | ✅ Encode/decode rewritten, roundtrip verified |
+
+#### Bugs Fixed in Review
+
+| Bug | Severity | Threat Before Fix |
+|-----|----------|-------------------|
+| AES-GCM zero-nonce reuse | 🔴 CRITICAL | Complete cipher break — XOR of all stego plaintexts revealed |
+| Encryption fail-open | 🔴 CRITICAL | Plaintext embedded without encryption if Rust backend absent |
+| Python↔Rust seed mismatch | 🔴 CRITICAL | Cross-backend decode failure — data loss |
+| STC algorithm broken | 🔴 CRITICAL | Encoded payloads unrecoverable — data loss |
+| Palette encode NO-OP | 🟠 HIGH | Palette channel carried zero information |
+| Palette decode identity | 🟠 HIGH | Palette channel undecodable |
+| Payload > capacity warn-only | 🟠 HIGH | Silent data truncation |
+| Fisher-Yates modulo bias | 🟡 MEDIUM | Biased pseudorandom walk — detectable statistical anomaly |
+
+#### Updated Security Boundaries
+
+| Property | Before Review | After Review |
+|----------|--------------|-------------|
+| **Cryptographic confidentiality** | ❌ Broken (nonce reuse) | ✅ Guaranteed (fresh nonces) |
+| **Fail-closed encryption** | ❌ Fail-open | ✅ Fail-closed (`RuntimeError`) |
+| **STC payload integrity** | ❌ Broken (algorithm bug) | ✅ Verified (GF(2) Gaussian elimination) |
+| **Cross-backend consistency** | ❌ Broken (seed mismatch) | ✅ Verified (HKDF parity) |
+| **Capacity enforcement** | ❌ Warn-only | ✅ Fail-closed (`ValueError`) |
+| **Resist casual observation** | ✅ Yes | ✅ Yes |
+| **Resist statistical steganalysis** | ⚠️ Moderate | ⚠️ Moderate (STC helps, not proven) |
+| **Resist ML steganalysis** | ❌ Not designed for | ❌ Not designed for |
+
+#### Steganalysis Resistance Claims (Honest Assessment)
+
+- **RS Analysis / Chi-Square**: STC embedding minimizes detectable artifacts at moderate embedding rates (<0.4 bpp). At high rates, detection remains possible.
+- **SPA (Sample Pairs Analysis)**: Keyed pseudorandom walk distributes changes; STC reduces distortion. Passes at moderate rates.
+- **ML Classifiers (SRNet, YeNet)**: NOT designed to resist. Custom-trained classifiers on Meow Decoder output will likely detect embedding. This is a non-goal.
+- **Timing Analysis**: GIF delay modulation is a weak channel; statistical tests on frame timing distributions may reveal anomalies.
+- **Palette Analysis**: Small palettes have low permutation entropy; large palettes offer better cover.
+
+For detailed comparison against other tools, see `docs/STEGO_STRENGTH_EVALUATION.md`.
+
 ---
 
-## �🎯 **REALISTIC THREAT MODEL SCOPE**
+## 🎯 **REALISTIC THREAT MODEL SCOPE**
 
 ### **Who This Tool IS Designed For:**
 

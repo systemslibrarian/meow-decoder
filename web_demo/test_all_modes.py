@@ -139,7 +139,7 @@ def test_cat_mode(run_number: int, verbose: bool = False) -> TestResult:
         input_file = tmpdir / "test.txt"
         input_file.write_text(test_content)
 
-        output_gif = tmpdir / "cat_output.gif"
+        output_gif = tmpdir / "cat_output.png"  # APNG for lossless stego
         recovered_file = tmpdir / "recovered.txt"
         password = f"cat_test_{run_number}!"  # 8+ chars
 
@@ -160,7 +160,7 @@ def test_cat_mode(run_number: int, verbose: bool = False) -> TestResult:
             # Encode with Cat Mode (stego_level=2)
             encode_start = time.time()
             config = EncodingConfig()
-            config.redundancy = 1.5
+            config.redundancy = 2.5  # Higher redundancy for lossy stego channel
             stats = encode_file(
                 input_path=input_file,
                 output_path=output_gif,
@@ -240,7 +240,24 @@ def test_duress_mode(run_number: int, verbose: bool = False) -> TestResult:
         duress_password = f"duress_pass_{run_number}"
 
         try:
-            # Encode with duress mode
+            # Duress mode requires a distinct manifest format to avoid size
+            # collisions.  Use X25519 forward secrecy (MEOW3 + duress = 180
+            # bytes), which is unambiguous.
+            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+            from cryptography.hazmat.primitives import serialization
+
+            private_key = X25519PrivateKey.generate()
+            receiver_public_key = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            receiver_private_key = private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+
+            # Encode with duress mode + forward secrecy
             encode_start = time.time()
             config = EncodingConfig()
             config.redundancy = 1.5
@@ -250,18 +267,20 @@ def test_duress_mode(run_number: int, verbose: bool = False) -> TestResult:
                 password=real_password,
                 duress_password=duress_password,
                 config=config,
+                receiver_public_key=receiver_public_key,
                 verbose=verbose,
             )
             encode_time = time.time() - encode_start
             file_size = output_gif.stat().st_size
 
-            # Decode with real password (should succeed)
+            # Decode with real password + private key (should succeed)
             decode_start = time.time()
             decode_config = DecodingConfig()
             decode_gif(
                 input_path=output_gif,
                 output_path=recovered_file,
                 password=real_password,
+                receiver_private_key=receiver_private_key,
                 config=decode_config,
                 verbose=verbose,
             )

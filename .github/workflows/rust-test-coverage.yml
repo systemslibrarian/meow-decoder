@@ -44,14 +44,21 @@ jobs:
       - name: Install cargo-tarpaulin
         run: cargo install cargo-tarpaulin
 
-      # Note: rust_crypto now has crate-type = ["cdylib", "lib"]
-      # The "lib" target allows tarpaulin to instrument and track coverage.
-      # Tests call through meow_crypto_rs::pure to exercise rust_crypto/src/pure.rs
+      # ── Coverage: crypto_core ──────────────────────────────────────────────
+      # FIX: Three issues previously caused Codecov to report 0% coverage:
+      #  1. cdylib crate-type prevents tarpaulin ptrace instrumentation
+      #  2. Missing --lib --tests flags (defaults to building cdylib target)
+      #  3. lcov.info paths were "src/..." not "crypto_core/src/..." so
+      #     Codecov couldn't match them to the repo file tree
 
       - name: Run tests with coverage (crypto_core)
         id: tarpaulin
         run: |
+          # Temporarily remove cdylib — tarpaulin cannot instrument shared libraries
+          sed -i 's/crate-type = \["lib", "cdylib"\]/crate-type = ["lib"]/' Cargo.toml
+
           cargo tarpaulin \
+            --lib --tests \
             --features "pure-crypto,pq-crypto" \
             --out Lcov \
             --out Json \
@@ -63,15 +70,25 @@ jobs:
             --exclude-files "src/yubikey_piv.rs" \
             -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
 
+          # Restore Cargo.toml so the cdylib removal doesn't leak
+          git checkout Cargo.toml
+
+          # Fix source paths: tarpaulin records "src/..." but Codecov needs "crypto_core/src/..."
+          sed -i 's|^SF:src/|SF:crypto_core/src/|' lcov.info
+
           # Extract coverage percentage from output
           COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "Rust coverage: $COVERAGE%"
         working-directory: ./crypto_core
 
+      # ── Coverage: rust_crypto ────────────────────────────────────────────
       - name: Run tests with coverage (rust_crypto)
         id: tarpaulin_rust_crypto
         run: |
+          # Temporarily remove cdylib — tarpaulin cannot instrument shared libraries
+          sed -i 's/crate-type = \["cdylib", "lib"\]/crate-type = ["lib"]/' Cargo.toml
+
           cargo tarpaulin \
             --lib --tests \
             --features "pq" \
@@ -81,6 +98,12 @@ jobs:
             --timeout 300 \
             --exclude-files "src/lib.rs" \
             -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
+
+          # Restore Cargo.toml
+          git checkout Cargo.toml
+
+          # Fix source paths for Codecov ("src/..." → "rust_crypto/src/...")
+          sed -i 's|^SF:src/|SF:rust_crypto/src/|' lcov.info
 
           COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT

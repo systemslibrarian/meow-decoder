@@ -189,6 +189,7 @@ start secret.gif     # Windows
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner app with JSON protocol integration |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
+| 🎨 **Multi-Layer Stego** | Three-channel steganography (STC + timing + palette) with coercion resistance ([evaluation](docs/STEGO_STRENGTH_EVALUATION.md)) |
 
 ---
 

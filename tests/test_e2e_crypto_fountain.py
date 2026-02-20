@@ -508,15 +508,15 @@ class TestPQHybridRoundtrip:
 
 
 class TestParameterDrift:
-    """FIX-GPT-2: All PQ modules must use ML-KEM-1024."""
+    """Verify PQ defaults match architecture: ML-KEM-768 (MEOW5, Signal PQXDH parity)."""
 
-    def test_pq_hybrid_uses_kyber1024(self):
-        """Production PQ module uses Kyber1024 when liboqs is available."""
+    def test_pq_hybrid_uses_kyber768(self):
+        """Default PQ algorithm is Kyber768 (ML-KEM-768) per MEOW5 spec."""
         from meow_decoder.pq_hybrid import PQ_ALGORITHM, LIBOQS_AVAILABLE
 
         if not LIBOQS_AVAILABLE:
             pytest.skip("liboqs not available")
-        assert PQ_ALGORITHM == "Kyber1024"
+        assert PQ_ALGORITHM == "Kyber768"
 
     def test_pq_crypto_real_defaults_to_kyber1024(self):
         """FIX-D1 v2: pq_crypto_real is hard-disabled (removed or RuntimeError on import)."""

@@ -13,6 +13,9 @@ numpy>=1.24.0               # Numerical operations
 argon2-cffi>=23.1.0         # Argon2id key derivation
 pynacl>=1.6.2               # Ed25519/X25519 conversion (spec v1.2+)
 
+# Multi-layer steganography (optional, for timing/palette channels)
+imageio>=2.34.0             # Animated GIF read/write with palette/timing preservation
+
 # Platform-specific notes:
 # - pyzbar requires zbar library:
 #   - Ubuntu/Debian: sudo apt-get install libzbar0

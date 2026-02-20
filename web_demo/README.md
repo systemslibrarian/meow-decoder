@@ -173,20 +173,29 @@ Cat Mode is the **flagship feature** of this demo. When enabled:
 
 1. **Encoder** uses bundled cat carrier images (`assets/demo_logo_eyes.gif`)
 2. **QR codes** are embedded steganographically in photographic cat images
-3. **Decoder** automatically detects and extracts QR codes from cat camouflage
-4. **UI** displays Cat Mode badge (😻) on encoded files
+3. **Output uses APNG** (lossless animated PNG) — GIF palette quantization destroys LSB stego data
+4. **Decoder** automatically detects and extracts QR codes from cat camouflage via LSB extraction fallback
+5. **UI** displays Cat Mode badge (😻) on encoded files
 
 ### How Cat Mode Works
 
 - **Steganography Level**: Defaults to level 2 (balanced visibility/capacity)
 - **Carrier Images**: Bundled cat photos from `assets/` directory
+- **Output Format**: APNG (`.png`) — lossless pixel preservation for stego fidelity
+- **Redundancy**: 2.5× fountain code redundancy (compensates for any stego channel noise)
 - **Plausible Deniability**: QR codes look like cat photos at casual inspection
-- **Scanning**: Standard QR decoder works normally (no special hardware needed)
+- **Scanning**: Decoder auto-detects stego mode and extracts LSBs before QR scanning
+
+### Technical Details
+
+- **Why APNG, not GIF?** GIF uses 256-color palette quantization which corrupts LSB-embedded data. APNG is lossless, preserving all embedded pixel values through save/load cycles.
+- **Stego Extraction Fallback**: `decode_gif.py` first tries direct QR scanning. If no QR codes are found (stego frames look like photos), it automatically tries LSB extraction at depths 2, 1, and 3.
+- **Frame MAC Tracking**: Original GIF/APNG frame indices are preserved through extraction so per-frame MAC verification uses the correct index.
 
 ### Limitations
 
 - Cat Mode is **cosmetic camouflage** (not forensic-proof steganography)
-- QR codes remain detectable under close inspection or with QR scanning tools
+- Output is APNG format (`.png`), not GIF — some viewers may not animate APNG files
 - Best used for aesthetic purposes and casual plausible deniability
 
 ## Security Notes

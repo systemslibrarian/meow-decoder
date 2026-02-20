@@ -10,6 +10,78 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Multi-Layer Steganography Phase 1 — Temporal, Adversarial & Cat Mode Fixes (2026-02-20) 🐱
+
+**Three new Phase 1 stego channels, automatic stego decode fallback, and Cat Mode pipeline fix.** 49 new Phase 1 tests, 20/20 web demo integration tests passing across all 4 modes.
+
+#### Phase 1 Steganography Channels
+| # | Class | Purpose |
+|---|-------|---------|
+| 1 | `TemporalChannelEncoder` | Cross-frame pixel-delta parity encoding (center-pixel channel-0 delta) |
+| 2 | `AdversarialPerturbationLayer` | Histogram shifts, JPEG artifact simulation, noise injection for steganalysis resistance |
+| 3 | `ProceduralCatGenerator` | Generates unique carrier cat images (ears, eyes, whiskers, fur patterns) without bundled assets |
+
+#### Cat Mode Pipeline Fixes
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | 🔴 CRITICAL | GIF palette quantization (256 colors) destroys LSB-embedded stego data | Cat mode now outputs APNG (lossless) instead of GIF |
+| 2 | 🔴 CRITICAL | `decode_gif.py` had no stego LSB extraction fallback — stego-encoded frames looked like photos, QR scanner found nothing | Added automatic stego LSB extraction at depths 2, 1, 3 when no QR codes found directly |
+| 3 | 🟠 HIGH | Frame MAC verification used sequential position instead of original GIF frame index — stego extraction skipping frames caused index mismatch | `decode_gif.py` now tracks `qr_frame_indices` for correct per-frame MAC verification |
+
+#### Web Demo Integration Tests
+| Mode | Result | Notes |
+|------|--------|-------|
+| Normal (GIF) | 5/5 ✅ | Standard QR encode/decode |
+| Cat Mode (APNG stego) | 5/5 ✅ | Lossless APNG, 2.5× redundancy, stego LSB extraction |
+| Cat Server API | 5/5 ✅ | Binary encrypt/decrypt roundtrip |
+| Duress Mode (X25519 FS) | 5/5 ✅ | Forward secrecy keypair for distinct manifest format |
+
+#### Test Suites
+- **49 Phase 1 tests** (`tests/test_stego_phase1.py`) — TemporalChannelEncoder (14), AdversarialPerturbationLayer (12), ProceduralCatGenerator (9), Phase1Integration (8), DistributePayloadTemporal (3), StegoVersionExports (3)
+- **20 web demo integration tests** (`web_demo/test_all_modes.py`) — 4 modes × 5 runs
+
+---
+
+### Security — Multi-Layer Steganography Adversarial Review (2026-02-20) 🔬
+
+**Comprehensive adversarial security review of the multi-layer steganography system.** 8 bug fixes (3 critical, 3 high, 1 medium), 97+ new tests, static analysis clean, strength evaluation published.
+
+#### Critical Bug Fixes
+| # | Severity | Bug | Fix |
+|---|----------|-----|-----|
+| 1 | 🔴 CRITICAL | AES-GCM nonce reuse — hardcoded zero-nonce in stego encryption | `os.urandom(12)` per encryption, prepended to ciphertext |
+| 2 | 🔴 CRITICAL | Encryption fail-open — `logger.warning()` when no crypto backend | `raise RuntimeError` (fail-closed) |
+| 3 | 🔴 CRITICAL | Python↔Rust seed derivation mismatch — HKDF outputs diverged | Proper HKDF-SHA256 (Extract with zero salt, Expand with info+0x01) |
+| 4 | 🔴 CRITICAL | STC encode/decode broken — off-by-one and wrong algorithm | Complete GF(2) Gaussian elimination rewrite with cost-aware pivot selection |
+| 5 | 🟠 HIGH | Palette `encode_frame` NO-OP — pixel remap was `pass` | Proper index remap dictionary |
+| 6 | 🟠 HIGH | Palette `decode_frame` identity permutation — couldn't decode permuted palettes | Accepts `original_palette`, deduces observed permutation |
+| 7 | 🟠 HIGH | Payload > capacity warning only — `logger.warning` instead of error | `raise ValueError` (fail-closed) |
+| 8 | 🟡 MEDIUM | Python Fisher-Yates modulo bias | Rejection sampling matching Rust implementation |
+
+#### Test Suites Created
+- **80 adversarial tests** (`tests/test_stego_adversarial.py`) — 19 test classes covering nonces, fail-closed, cross-backend, STC, palette, tamper, capacity, coercion, steganalysis, frame shapes, fuzz payloads, timing, bit conversion, E2E, Lehmer, key isolation, adversarial unpack, multi-bit LSB, validation
+- **17 Hypothesis property-based fuzz tests** (`tests/test_stego_fuzz.py`) — ~1500+ total inputs across prepare/unpack roundtrip, primary channel embed/extract, seed derivation, STC, timing, palette, bit conversion, adversarial unpack, cross-backend consistency
+
+#### Static Analysis
+- Cargo clippy: 0 warnings
+- Bandit: no issues
+- flake8: 0 errors
+- mypy: 10 pre-existing type warnings (not security-relevant)
+
+#### Test Count After Review
+| Backend | Tests | Status |
+|---------|-------|--------|
+| Rust | 321 | ✅ All passing |
+| Python (original + adversarial) | 126 | ✅ All passing |
+| Hypothesis fuzz | 17 (~1500+ inputs) | ✅ All passing |
+| **Grand total** | **464** | ✅ |
+
+#### Strength Evaluation
+- Published `docs/STEGO_STRENGTH_EVALUATION.md` — comprehensive comparison vs OpenStego, Steghide, OpenPuff
+- Meow Decoder multi-layer stego rated strongest across detection resistance, key security, and coercion resistance
+
+---
+
 ### Security — M1-M9 Opaque Handle Migration Complete (2026-02-18) 🔑
 
 **Python never holds raw secret key bytes anywhere in the production path.** All 9 modules that previously held key material as Python `bytes` objects have been migrated to the Rust opaque handle registry.

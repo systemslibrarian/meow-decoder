@@ -90,6 +90,18 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 	- 19 FFI boundary fuzz tests simulating Python→Rust calls with attacker-controlled inputs
 	- `panic = "abort"` in release profile; ASan/UBSan/Miri CI jobs
 	- CI workflow: `rust-security-suite.yml`
+- [x] **Multi-Layer Steganography Adversarial Review**: Comprehensive security audit of 3-channel stego system
+	- 8 bugs fixed: 3 critical (nonce reuse, fail-open, seed mismatch, STC broken), 3 high (palette NO-OPs, capacity warn-only), 1 medium (Fisher-Yates bias)
+	- 80 adversarial tests (`tests/test_stego_adversarial.py`) + 17 Hypothesis fuzz tests (`tests/test_stego_fuzz.py`)
+	- Static analysis clean: clippy, Bandit, flake8
+	- 464 total tests passing (321 Rust + 126 Python + 17 fuzz)
+	- Strength evaluation published: `docs/STEGO_STRENGTH_EVALUATION.md`
+- [x] **Multi-Layer Steganography Phase 1**: Temporal, adversarial, and cat mode pipeline upgrades
+	- 3 new channels: TemporalChannelEncoder (cross-frame delta parity), AdversarialPerturbationLayer (steganalysis hardening), ProceduralCatGenerator (unique carrier generation)
+	- Cat Mode fix: APNG output (lossless) replaces GIF (lossy palette quantization destroyed LSB stego data)
+	- `decode_gif.py`: Automatic stego LSB extraction fallback + frame index tracking for MAC verification
+	- 49 Phase 1 tests + 20 web demo integration tests (4 modes × 5 runs)
+	- Duress mode test: X25519 forward secrecy keypair for distinct manifest format
 
 ---
 ### Formal Methods

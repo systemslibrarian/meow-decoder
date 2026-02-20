@@ -25,6 +25,9 @@ pub mod pure;
 // Opaque handle registry (all secrets Rust-owned)
 pub mod handles;
 
+// Steganography primitives (STC, seed derivation, timing/palette channels)
+pub mod stego;
+
 // =============================================================================
 // Python Bindings (only compiled with "python" feature)
 // =============================================================================
@@ -1129,6 +1132,7 @@ fn handle_count() -> usize {
 #[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (receiver_classical_pub, pq_shared_secret, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]
+#[allow(clippy::too_many_arguments)]
 fn handle_pqxdh_encapsulate<'py>(
     py: Python<'py>,
     receiver_classical_pub: &[u8],
@@ -1157,6 +1161,7 @@ fn handle_pqxdh_encapsulate<'py>(
 #[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (ephemeral_classical_pub, receiver_private_handle, pq_shared_secret, receiver_classical_pub, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]
+#[allow(clippy::too_many_arguments)]
 fn handle_pqxdh_decapsulate(
     ephemeral_classical_pub: &[u8],
     receiver_private_handle: u64,
@@ -1180,6 +1185,280 @@ fn handle_pqxdh_decapsulate(
         pq_ciphertext,
     )
     .map_err(handle_err_to_py)
+}
+
+// =============================================================================
+// Steganography Primitives (PyO3 wrappers)
+// =============================================================================
+
+#[cfg(feature = "python")]
+/// Derive a 32-byte seed for a specific frame and channel.
+///
+/// Uses HKDF-SHA256 with domain separation per channel:
+///   - channel_id 1: primary (LSB keyed walk)
+///   - channel_id 2: secondary (timing)
+///   - channel_id 3: tertiary (palette permutation)
+///
+/// Args:
+///     master_key: Master key bytes (≥16 bytes)
+///     frame_idx: Frame index (u32)
+///     channel_id: Channel identifier (1=primary, 2=secondary, 3=tertiary)
+///
+/// Returns:
+///     32-byte derived seed
+#[pyfunction]
+fn stego_derive_frame_seed<'py>(
+    py: Python<'py>,
+    master_key: &[u8],
+    frame_idx: u32,
+    channel_id: u8,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let seed = stego::derive_frame_seed(master_key, frame_idx, channel_id)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
+#[cfg(feature = "python")]
+/// Derive a walk seed for pseudorandom pixel permutation.
+#[pyfunction]
+fn stego_derive_walk_seed<'py>(
+    py: Python<'py>,
+    master_key: &[u8],
+    frame_idx: u32,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let seed = stego::derive_walk_seed(master_key, frame_idx)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
+#[cfg(feature = "python")]
+/// Generate a pseudorandom pixel walk order (Fisher-Yates keyed permutation).
+///
+/// Args:
+///     walk_seed: 32-byte walk seed
+///     num_pixels: Number of pixels to permute
+///
+/// Returns:
+///     List of pixel indices defining embedding order
+#[pyfunction]
+fn stego_generate_pixel_walk(walk_seed: &[u8], num_pixels: u32) -> PyResult<Vec<u32>> {
+    if walk_seed.len() != 32 {
+        return Err(PyValueError::new_err(format!(
+            "Walk seed must be 32 bytes, got {}",
+            walk_seed.len()
+        )));
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(walk_seed);
+    Ok(stego::generate_pixel_walk(&seed, num_pixels as usize))
+}
+
+#[cfg(feature = "python")]
+/// STC encode: embed payload bits into cover bits minimizing distortion.
+///
+/// Args:
+///     seed: 32-byte seed for STC matrix generation
+///     cover_bits: Cover element bits (list of 0/1), length n
+///     payload_bits: Payload bits to embed (list of 0/1), length m < n
+///     costs: Cost of flipping each cover bit (list of floats, length n)
+///
+/// Returns:
+///     Stego bits (list of 0/1, length n)
+#[pyfunction]
+fn stego_stc_encode<'py>(
+    py: Python<'py>,
+    seed: &[u8],
+    cover_bits: Vec<u8>,
+    payload_bits: Vec<u8>,
+    costs: Vec<f64>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err(format!(
+            "Seed must be 32 bytes, got {}",
+            seed.len()
+        )));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    let stego = stego::stc_encode(&s, &cover_bits, &payload_bits, &costs)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &stego))
+}
+
+#[cfg(feature = "python")]
+/// STC decode: extract payload bits from stego bits.
+///
+/// Args:
+///     seed: Same 32-byte seed used during encoding
+///     stego_bits: Stego bit stream (bytes of 0/1), length n
+///     payload_len: Expected payload length in bits
+///
+/// Returns:
+///     Extracted payload bits (bytes of 0/1, length payload_len)
+#[pyfunction]
+fn stego_stc_decode<'py>(
+    py: Python<'py>,
+    seed: &[u8],
+    stego_bits: &[u8],
+    payload_len: usize,
+) -> PyResult<Bound<'py, PyBytes>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err(format!(
+            "Seed must be 32 bytes, got {}",
+            seed.len()
+        )));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    let payload = stego::stc_decode(&s, stego_bits, payload_len)
+        .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &payload))
+}
+
+#[cfg(feature = "python")]
+/// Compute adaptive costs for STC embedding.
+///
+/// Returns texture-aware costs that penalize changes in smooth regions
+/// and reduce cost in textured areas.
+///
+/// Args:
+///     adaptation_seed: 32-byte seed
+///     cover_bits: Cover bit stream (bytes of 0/1)
+///     pixel_values: Raw pixel intensity values for texture analysis
+///
+/// Returns:
+///     Cost array (list of floats, same length as cover_bits)
+#[pyfunction]
+fn stego_compute_adaptive_costs(
+    adaptation_seed: &[u8],
+    cover_bits: &[u8],
+    pixel_values: &[u8],
+) -> PyResult<Vec<f64>> {
+    if adaptation_seed.len() != 32 {
+        return Err(PyValueError::new_err(format!(
+            "Seed must be 32 bytes, got {}",
+            adaptation_seed.len()
+        )));
+    }
+    let mut seed = [0u8; 32];
+    seed.copy_from_slice(adaptation_seed);
+    let mut costs = vec![1.0f64; cover_bits.len()];
+    stego::compute_adaptive_costs(&seed, cover_bits, pixel_values, &mut costs);
+    Ok(costs)
+}
+
+#[cfg(feature = "python")]
+/// Encode bits into GIF frame delay values (timing channel).
+///
+/// Args:
+///     seed: 32-byte seed
+///     base_delay: Base delay in centiseconds (e.g., 10)
+///     payload_bits: Bits to encode (list of 0/1)
+///     bits_per_frame: Bits per frame (1-4, default 2)
+///
+/// Returns:
+///     List of frame delays in centiseconds
+#[pyfunction]
+fn stego_timing_encode(
+    seed: &[u8],
+    base_delay: u16,
+    payload_bits: Vec<u8>,
+    bits_per_frame: u8,
+) -> PyResult<Vec<u16>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err("Seed must be 32 bytes"));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    stego::timing_encode(&s, base_delay, &payload_bits, bits_per_frame)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[cfg(feature = "python")]
+/// Decode bits from GIF frame delay values (timing channel).
+///
+/// Args:
+///     seed: Same 32-byte seed
+///     base_delay: Same base delay
+///     delays: Frame delays in centiseconds
+///     bits_per_frame: Same bits_per_frame
+///
+/// Returns:
+///     Decoded payload bits (list of 0/1)
+#[pyfunction]
+fn stego_timing_decode(
+    seed: &[u8],
+    base_delay: u16,
+    delays: Vec<u16>,
+    bits_per_frame: u8,
+) -> PyResult<Vec<u8>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err("Seed must be 32 bytes"));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    stego::timing_decode(&s, base_delay, &delays, bits_per_frame)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[cfg(feature = "python")]
+/// Encode bits into palette ordering via permutation.
+///
+/// Args:
+///     seed: 32-byte seed
+///     permutable_indices: Palette indices that can be reordered
+///     payload_bits: Bits to encode
+///
+/// Returns:
+///     New ordering of the permutable indices
+#[pyfunction]
+fn stego_palette_encode(
+    seed: &[u8],
+    permutable_indices: Vec<u8>,
+    payload_bits: Vec<u8>,
+) -> PyResult<Vec<u8>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err("Seed must be 32 bytes"));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    stego::palette_encode(&s, &permutable_indices, &payload_bits)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[cfg(feature = "python")]
+/// Decode bits from palette permutation order.
+///
+/// Args:
+///     seed: Same 32-byte seed
+///     permutable_indices: Original set of permutable indices
+///     observed_order: Observed order in stego palette
+///
+/// Returns:
+///     Decoded payload bits
+#[pyfunction]
+fn stego_palette_decode(
+    seed: &[u8],
+    permutable_indices: Vec<u8>,
+    observed_order: Vec<u8>,
+) -> PyResult<Vec<u8>> {
+    if seed.len() != 32 {
+        return Err(PyValueError::new_err("Seed must be 32 bytes"));
+    }
+    let mut s = [0u8; 32];
+    s.copy_from_slice(seed);
+    stego::palette_decode(&s, &permutable_indices, &observed_order)
+        .map_err(|e| PyValueError::new_err(e.to_string()))
+}
+
+#[cfg(feature = "python")]
+/// Count bit changes between two bit arrays (embedding efficiency metric).
+#[pyfunction]
+fn stego_count_changes(cover_bits: &[u8], stego_bits: &[u8]) -> PyResult<usize> {
+    if cover_bits.len() != stego_bits.len() {
+        return Err(PyValueError::new_err("Arrays must be same length"));
+    }
+    Ok(stego::count_changes(cover_bits, stego_bits))
 }
 
 #[cfg(feature = "python")]
@@ -1272,6 +1551,19 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_pqxdh_decapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_exists, m)?)?;
     m.add_function(wrap_pyfunction!(handle_count, m)?)?;
+
+    // Steganography primitives
+    m.add_function(wrap_pyfunction!(stego_derive_frame_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_derive_walk_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_generate_pixel_walk, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_stc_encode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_stc_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_compute_adaptive_costs, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_timing_encode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_timing_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_palette_encode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_palette_decode, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_count_changes, m)?)?;
 
     Ok(())
 }

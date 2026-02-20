@@ -74,6 +74,14 @@ class EncodingConfig:
     stealth_level: int = 2  # Stealth level (1-4)
     enable_animation: bool = False  # Animated carriers
     enable_low_memory: bool = False  # Low-memory streaming mode
+
+    # Multi-layer steganography (advanced, steganalysis-resistant)
+    enable_multilayer_stego: bool = False  # Enable multi-layer stego system
+    stego_primary: bool = True  # Primary: keyed LSB walk + STC
+    stego_secondary: bool = True  # Secondary: GIF timing channel
+    stego_tertiary: bool = True  # Tertiary: palette permutation
+    stego_use_stc: bool = True  # Use Syndrome-Trellis Codes (Rust)
+    stego_use_adaptive_cost: bool = True  # Texture-aware STC cost
     enable_pq: bool = True  # ✅ Post-quantum crypto (ML-KEM + X25519 hybrid) - DEFAULT ON
     pq_paranoid: bool = False  # False=ML-KEM-768 (default), True=ML-KEM-1024 (paranoid)
 

@@ -186,10 +186,27 @@ We thank the following security researchers — our **elite Catnip Hunters** �
    - **Mitigation:** Physical security, controlled environment
 
 6. **Steganography Limitations**
-   - LSB embedding detectable by chi-square analysis, RS analysis, etc.
+   - **Legacy (Levels 0-4):** LSB embedding detectable by chi-square analysis, RS analysis, etc.
    - Localized embedding (`--stego-green`) may make detection EASIER
-   - **Mitigation:** Use stego for cosmetic camouflage only, rely on AES-256-GCM for security
+   - **Mitigation:** Use legacy stego for cosmetic camouflage only, rely on AES-256-GCM for security
    - See: "Localized Embedding" section below
+
+   **Multi-Layer Steganography (`--multilayer-stego`, v2.0):**
+   - Three independent channels: keyed LSB walk + STC, GIF timing, palette permutation
+   - Per-frame, per-channel seed derivation (HKDF-SHA256 domain separation)
+   - Syndrome-Trellis Codes minimize embedding changes (~50% vs naive LSB)
+   - Adaptive texture-aware cost function penalizes smooth regions
+   - Targets PSNR >55 dB, passes RS/chi-square/SPA at moderate embedding rates
+   - Coercion resistance: decoy key → shallow primary only; real key → all 3 channels
+   - **Limitation:** Not formally proven undetectable; assume well-resourced adversary with custom ML classifiers may detect. Timing/palette channels are GIF-format-specific.
+   - **New dep:** `pip install imageio[ffmpeg]` required for timing/palette channels
+
+   **Adversarial Security Review (2026-02-20):**
+   - 8 bugs fixed: AES-GCM nonce reuse (zero-nonce→`os.urandom(12)`), encryption fail-open→fail-closed, Python↔Rust seed derivation mismatch, STC algorithm rewrite (GF(2) Gaussian elimination), palette encode/decode NO-OPs, payload capacity fail-open, Fisher-Yates modulo bias
+   - 80 adversarial tests (`tests/test_stego_adversarial.py`) + 17 Hypothesis fuzz tests (`tests/test_stego_fuzz.py`)
+   - Static analysis clean: clippy 0 warnings, Bandit clean, flake8 0 errors
+   - 464 total tests passing (321 Rust + 126 Python + 17 fuzz)
+   - Strength evaluation: `docs/STEGO_STRENGTH_EVALUATION.md` — rated strongest vs OpenStego, Steghide, OpenPuff
 
 7. **Memory Forensics**
    - Key zeroing helps but not perfect

@@ -121,17 +121,41 @@ def test_hybrid_decapsulate_fails_if_pq_ciphertext_without_pq_key():
 
 
 @requires_rust_pq
-def test_hybrid_decapsulate_pq_kem_error():
+def test_hybrid_decapsulate_pq_kem_implicit_rejection():
+    """ML-KEM uses implicit rejection (FIPS 203 FO transform).
+
+    A tampered ciphertext of the correct length does NOT raise an error;
+    instead it decapsulates to a pseudorandom shared secret that differs
+    from the legitimate one.  Protocol-level authentication (AES-GCM)
+    catches this mismatch — this is the correct security behaviour.
+    """
+    import meow_decoder.pq_hybrid as pq
+
+    receiver = pq.HybridKeyPair(use_pq=True)
+    classical_pub, pq_pub = receiver.export_public_keys()
+    legit_ss, eph_pub, pq_ct, _ = pq.hybrid_encapsulate(classical_pub, pq_pub)
+
+    # Corrupt the PQ ciphertext (correct length → implicit rejection)
+    corrupted_ct = bytes(len(pq_ct))
+    tampered_ss = pq.hybrid_decapsulate(eph_pub, corrupted_ct, receiver)
+
+    # Shared secret MUST differ — proves tampering is detectable
+    assert tampered_ss != legit_ss, "Corrupted PQ ciphertext must yield different shared secret"
+
+
+@requires_rust_pq
+def test_hybrid_decapsulate_pq_wrong_length():
+    """Wrong-length PQ ciphertext must raise RuntimeError."""
     import meow_decoder.pq_hybrid as pq
 
     receiver = pq.HybridKeyPair(use_pq=True)
     classical_pub, pq_pub = receiver.export_public_keys()
     _, eph_pub, pq_ct, _ = pq.hybrid_encapsulate(classical_pub, pq_pub)
 
-    # Corrupt the PQ ciphertext
-    corrupted_ct = bytes(len(pq_ct))
-    with pytest.raises(RuntimeError, match="decapsulation failed"):
-        pq.hybrid_decapsulate(eph_pub, corrupted_ct, receiver)
+    # Wrong length ciphertext triggers hard error
+    wrong_length_ct = b"\x00" * 42
+    with pytest.raises(RuntimeError, match="decapsulation failed|InvalidMlKem"):
+        pq.hybrid_decapsulate(eph_pub, wrong_length_ct, receiver)
 
 
 @requires_rust_pq

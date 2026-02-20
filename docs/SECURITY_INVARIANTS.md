@@ -325,6 +325,141 @@ backend == "rust"
 
 ---
 
+### INV-016: Steganography Nonce Uniqueness
+
+```
+∀ stego encryptions e1, e2:
+    nonce(e1) ≠ nonce(e2)
+```
+
+**Description:** Each multi-layer steganography encryption MUST use a fresh 96-bit random nonce. Nonce reuse with AES-GCM completely breaks confidentiality (XOR of plaintexts revealed).
+
+**Implementation:**
+- `os.urandom(12)` generated per encryption call
+- Nonce prepended to ciphertext for transmission
+- Previously: hardcoded zero-nonce (FIXED 2026-02-20)
+
+**Verification:**
+- `tests/test_stego_adversarial.py::TestNonceUniqueness`
+- `tests/test_stego_fuzz.py` (Hypothesis roundtrip tests)
+
+**Failure Impact:** Complete cipher break — XOR of plaintexts revealed.
+
+---
+
+### INV-017: Steganography Fail-Closed Encryption
+
+```
+∀ stego operations:
+    IF crypto_backend_unavailable THEN
+        RAISE RuntimeError (never silently skip encryption)
+```
+
+**Description:** Multi-layer steganography MUST raise an exception if the cryptographic backend is unavailable. Previously logged a warning and continued with unencrypted data.
+
+**Implementation:**
+- `raise RuntimeError` when no crypto backend available
+- Previously: `logger.warning()` (fail-open, FIXED 2026-02-20)
+
+**Verification:**
+- `tests/test_stego_adversarial.py::TestFailClosedEncryption`
+
+**Failure Impact:** Plaintext embedded without encryption — total confidentiality loss.
+
+---
+
+### INV-018: STC Encode-Decode Correctness
+
+```
+∀ message M, cover C, shared_key K:
+    stc_decode(stc_encode(M, C, K), K) == M
+```
+
+**Description:** Syndrome-Trellis Codes MUST correctly roundtrip: encoding a message into a cover signal and decoding it back MUST recover the original message exactly.
+
+**Implementation:**
+- GF(2) Gaussian elimination with cost-aware pivot selection
+- Previously: off-by-one error and incorrect algorithm (FIXED 2026-02-20)
+
+**Verification:**
+- `tests/test_stego_adversarial.py::TestSTCCorrectness`
+- `tests/test_stego_fuzz.py::test_stc_roundtrip` (Hypothesis)
+
+**Failure Impact:** Data corruption — embedded payload unrecoverable.
+
+---
+
+### INV-019: Payload Capacity Bounds Enforcement
+
+```
+∀ payload P, capacity C:
+    IF len(P) > C THEN
+        RAISE ValueError (never silently truncate or warn-only)
+```
+
+**Description:** When the payload exceeds the steganographic capacity of the cover image, the system MUST reject the operation with an exception. Silent truncation or warning-only causes data loss.
+
+**Implementation:**
+- `raise ValueError` when payload exceeds capacity
+- Previously: `logger.warning()` (FIXED 2026-02-20)
+
+**Verification:**
+- `tests/test_stego_adversarial.py::TestCapacityEnforcement`
+
+**Failure Impact:** Silent data truncation — receiver gets corrupted/incomplete payload.
+
+---
+
+### INV-020: Stego LSB Lossless Roundtrip (APNG)
+
+```
+∀ payload P, cover frames F[]:
+    IF format == APNG (lossless) THEN
+        LSB_extract(LSB_embed(F[], P)) == P
+    IF format == GIF (palette-quantized) THEN
+        LSB_extract(LSB_embed(F[], P)) ≠ P  (NOT guaranteed)
+```
+
+**Description:** Steganographic LSB embedding MUST use a lossless image format (APNG) to preserve pixel values. GIF uses 256-color palette quantization which corrupts LSB-embedded data beyond recovery. Cat mode MUST output APNG (.png), never GIF (.gif).
+
+**Implementation:**
+- Cat mode encoder outputs APNG via `apng.APNG` (lossless animated PNG)
+- GIF path reserved for non-stego (QR-only) output
+- Stego extraction fallback in `decode_gif.py` tries LSB depths 2, 1, 3
+
+**Verification:**
+- `web_demo/test_cat_mode.py` — APNG cat mode encode→decode roundtrip
+- `web_demo/test_all_modes.py` — Cat APNG × 5 runs (100% pass rate)
+- `tests/test_stego_phase1.py::TestTemporalChannel::test_embed_extract_roundtrip_*`
+
+**Failure Impact:** Complete data loss — QR frames unrecoverable from GIF-quantized stego images.
+
+---
+
+### INV-021: Frame MAC Index Correctness Under Stego Extraction
+
+```
+∀ stego-encoded animation A with N total frames:
+    LET extracted[] = stego_extract(A)  // may skip frames
+    LET qr_frame_indices[] = original frame positions of extracted QR codes
+    ∀ i in extracted[]:
+        verify_frame_mac(extracted[i], key, salt, qr_frame_indices[i]) == True
+```
+
+**Description:** When decoding stego-encoded animations, not all frames yield readable QR codes. Frame MAC verification MUST use the original frame index (position in the animation), not the sequential index in the extracted list. Using sequential indices causes MAC failures for frames after the first skipped frame.
+
+**Implementation:**
+- `decode_gif.py` tracks `qr_frame_indices[]` during both normal QR scan and stego extraction
+- Frame MAC verification uses `actual_frame_idx = qr_frame_indices[idx + 1]` instead of `idx + 1`
+
+**Verification:**
+- `web_demo/test_all_modes.py` — Cat mode with MAC verification (100% MAC success rate)
+- `web_demo/test_cat_mode.py` — Single roundtrip with MAC check
+
+**Failure Impact:** False MAC rejection — valid frames rejected when stego extraction skips frames, causing decode failure despite correct data.
+
+---
+
 ## Invariant Test Matrix
 
 | Invariant | Property Tests | Unit Tests | Fuzzing | Status |
@@ -344,6 +479,12 @@ backend == "rust"
 | INV-013 | - | ✅ | - | PARTIAL* |
 | INV-014 | - | ✅ | - | PARTIAL* |
 | INV-015 | - | ✅ | - | VERIFIED |
+| INV-016 | ✅ | ✅ | - | VERIFIED |
+| INV-017 | - | ✅ | - | VERIFIED |
+| INV-018 | ✅ | ✅ | - | VERIFIED |
+| INV-019 | - | ✅ | - | VERIFIED |
+| INV-020 | - | ✅ | - | VERIFIED |
+| INV-021 | - | ✅ | - | VERIFIED |
 
 *PARTIAL indicates implementation is best-effort due to Python limitations.
 

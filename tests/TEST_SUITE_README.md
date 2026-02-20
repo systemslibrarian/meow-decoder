@@ -4,7 +4,7 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 57 active test files (52 archived to `tests/_archive/`), 1492 active Python tests + 465 Rust tests.
+**Current stats (February 2026):** 59 active test files (52 archived to `tests/_archive/`), 1541+ active Python tests + 465 Rust tests.
 **Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
 **Surface area minimization (2026-02-18):** 45 non-production source modules archived to `meow_decoder/_archive/`; 52 test files covering only archived modules moved to `tests/_archive/`. See `docs/SURFACE_AREA_MINIMIZATION.md` for full report.
 **Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
@@ -86,6 +86,7 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_rust_crypto_backend.py` | 12 | Rust backend integration |
 | `test_hardware_integration.py` | 70 | Hardware security module integration |
 | `test_stego_advanced.py` | 16 | Advanced steganography modes |
+| `test_stego_phase1.py` | 49 | Phase 1 stego: temporal channel, adversarial perturbation, procedural cat generator, integration |
 | `test_deadmans_switch_cli.py` | 5 | Dead man's switch CLI |
 | `test_logo_eyes.py` | 3 | Logo eyes encoder, LogoConfig |
 | `test_mobile_bridge.py` | 22 | Mobile bridge CLI handler, protocol data classes, BLE/USB |
@@ -95,6 +96,8 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_encode_DEBUG.py` | 2 | **DEPRECATED** — import smoke for deprecated `encode_DEBUG` (safe to delete) |
 | `test_setup.py` | 1 | Package setup.py/pyproject.toml validation |
 | `test_cat_js_runner.py` | — | JavaScript cat mode test runner |
+| `web_demo/test_all_modes.py` | 20 | Web demo integration: normal, cat APNG, cat server API, duress FS × 5 runs |
+| `web_demo/test_cat_mode.py` | 1 | Cat mode APNG encode→decode roundtrip |
 
 > **Archived from TIER 4:** `test_catnip_fountain.py`, `test_hardware_keys.py`, `test_meow_encode.py`, `test_decoy_generator.py`, `test_merkle_tree.py`, `test_ninja_cat_ultra.py`, `test_prowling_mode.py`, `test_resume_secured.py`, `test_profiling_improved.py`, `test_progress_modules.py`, `test_ascii_qr.py`, `test_bidirectional.py`, `test_clowder.py`, `test_dashboard_gui.py`, `test_debug_modules.py`, `test_logo_and_gui.py`, `test_webcam_modules.py`, `test_clowder_decode.py`, `test_clowder_encode.py`, `test_clowder_modules.py`, `test_decode_webcam_with_resume.py`, `test_gui.py`, `test_gui_logo_example.py`, `test_gui_modules.py`, `test_hardware.py`, `test_hardware_modules.py`, `test_meow_dashboard_demo.py`, `test_meow_gui_enhanced.py`, `test_progress_bar.py`, `test_webcam_enhanced.py` — moved to `tests/_archive/`
 
@@ -344,7 +347,7 @@ fail_under = 35  # Incrementally increase to 80%+
 | **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
 | **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
-**Status:** Test suite consolidated (Phase 0 + Phase 1 complete) and minimized (surface area reduction). 57 active test files, 1492 active Python tests. 52 test files archived to `tests/_archive/`. All `*_comprehensive.py` files merged into 1-to-1 counterparts.
+**Status:** Test suite consolidated (Phase 0 + Phase 1 complete) and minimized (surface area reduction). 59 active test files, 1541+ active Python tests. 52 test files archived to `tests/_archive/`. All `*_comprehensive.py` files merged into 1-to-1 counterparts. Phase 1 stego tests (49) and web demo integration tests (21) added.
 
 ## Running Tests
 
@@ -393,8 +396,8 @@ cargo test --test proptest_crypto             # 23 property tests
 
 **Last Updated:** 2026-02-18
 **Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Surface Area Minimization
-**Total Active Tests:** 1,492 tests (Python) + 465 tests (Rust) = **1,957 total active tests**
-**Active Test Files:** 57 Python test files + 9 Rust test files
+**Total Active Tests:** 1,541+ tests (Python) + 465 tests (Rust) = **2,006+ total active tests**
+**Active Test Files:** 59 Python test files + 9 Rust test files
 **Archived Test Files:** 52 Python test files in `tests/_archive/` (covering non-production modules)
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
@@ -447,6 +450,8 @@ Located in: `tests/golden/*.webm`
 - ✅ CRC32 packet validation
 - ✅ Session locking (anti-injection)
 - ✅ Green threshold calibration
+
+**Cat Mode Stego Note:** Cat mode steganography uses **APNG** (not GIF) because GIF's 256-color palette quantization destroys LSB-embedded data. The decode pipeline includes automatic stego LSB extraction fallback (tries depths 2, 1, 3) and frame MAC index tracking for correct per-frame verification when stego extraction skips frames.
 
 ### Error Injection Test Videos (21 videos total)
 

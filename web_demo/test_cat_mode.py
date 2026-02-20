@@ -27,8 +27,10 @@ def test_cat_mode():
         input_file = tmpdir / "test.txt"
         input_file.write_text("Hello, Cat Mode! 😻")
 
-        # Test output GIF
-        output_gif = tmpdir / "test_cat.gif"
+        # Test output — use PNG (APNG) for stego cat mode.
+        # GIF palette quantization (256 colors) destroys LSB-embedded data.
+        # APNG is lossless, preserving stego pixel values through save/load.
+        output_gif = tmpdir / "test_cat.png"
 
         # Test recovered file
         recovered_file = tmpdir / "recovered.txt"
@@ -42,9 +44,9 @@ def test_cat_mode():
 
         print(f"✅ Cat carrier found: {cat_carrier}")
 
-        # Configure encoding
+        # Configure encoding - stego needs higher redundancy due to lossy channel
         config = EncodingConfig()
-        config.redundancy = 1.5
+        config.redundancy = 2.5
 
         # Encode with Cat Mode
         print("\n📝 Encoding with Cat Mode...")

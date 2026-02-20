@@ -321,6 +321,7 @@ pub fn handle_derive_hkdf(
 ///   3. Store key as opaque handle
 ///
 /// All intermediate buffers are zeroized.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_derive_key_argon2id_with_keyfile(
     password: &[u8],
     keyfile: &[u8],
@@ -1183,6 +1184,7 @@ pub fn handle_aes_ctr_crypt(
 /// All intermediate secrets (classical_shared, combined_ikm, PRK) are
 /// zeroized before returning.  Only the ephemeral public key (non-secret)
 /// crosses back to Python.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_pqxdh_encapsulate(
     receiver_classical_pub: &[u8],
     pq_shared_secret: Option<&[u8]>,
@@ -1254,6 +1256,7 @@ pub fn handle_pqxdh_encapsulate(
 ///
 /// Same derivation as encapsulate but uses the receiver's private key handle
 /// for the ECDH step.  No secret bytes cross the FFI boundary.
+#[allow(clippy::too_many_arguments)]
 pub fn handle_pqxdh_decapsulate(
     ephemeral_classical_pub: &[u8],
     receiver_private_handle: HandleId,
