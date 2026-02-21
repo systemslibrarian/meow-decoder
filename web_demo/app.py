@@ -3,6 +3,13 @@
 Simple Flask web interface for encoding and decoding files with Cat Mode support
 """
 
+import json
+import base64
+from meow_decoder.crypto_backend import get_handle_backend
+from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
+from meow_decoder.config import EncodingConfig, DecodingConfig
+from meow_decoder.decode_gif import decode_gif
+from meow_decoder.encode import encode_file
 import os
 import sys
 import uuid
@@ -17,17 +24,10 @@ from flask import Flask, render_template, request, redirect, url_for, send_file,
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from meow_decoder.encode import encode_file
-from meow_decoder.decode_gif import decode_gif
-from meow_decoder.config import EncodingConfig, DecodingConfig
-from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
-from meow_decoder.crypto_backend import get_handle_backend
-import base64
-import json
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For flash messages
-app.config["MAX_CONTENT_LENGTH"] = 50 * 1024 * 1024  # 50 MB limit (for video uploads)
+app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB limit (iPhone HD video + uncompressed test videos)
 
 # Directories
 INSTANCE_DIR = Path(__file__).parent / "instance"
@@ -334,6 +334,9 @@ def cat_mode_decode_video():
             )
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             # If ffmpeg fails, try OpenCV directly as fallback
+            # WARNING: OpenCV WebM/VP9 support is unreliable and drops frames!
+            print(f"⚠️  ffmpeg conversion failed ({type(e).__name__}), falling back to OpenCV direct read")
+            print("   Install ffmpeg for reliable Cat Mode video decoding: sudo apt-get install -y ffmpeg")
             avi_path = tmp_path
 
         try:
@@ -1036,7 +1039,7 @@ def decode_cat_binary():
             return redirect(url_for("cat_mode_page"))
 
         # Convert binary to bytes (direct - each 8 bits = 1 byte)
-        byte_chunks = [binary[i : i + 8] for i in range(0, len(binary), 8)]
+        byte_chunks = [binary[i: i + 8] for i in range(0, len(binary), 8)]
         raw_bytes = bytes(int(byte, 2) for byte in byte_chunks if len(byte) == 8)
 
         try:
@@ -1384,12 +1387,20 @@ def format_size(size_bytes):
 
 
 if __name__ == "__main__":
+    import subprocess as _sp
     print("🐱 Meow Decoder Web Demo Starting...")
     print(f"   Instance directory: {INSTANCE_DIR.absolute()}")
-    print(f"   Max file size: 8 MB")
+    print(f"   Max file size: 8 MB (encode), 200 MB (video upload)")
     print(f"   Cat Mode: 😻 Enabled!")
     print(
         f"   Test Mode: {'✅ ON (fast Argon2id)' if os.environ.get('MEOW_TEST_MODE') else '🔒 OFF (production Argon2id)'}"
     )
+    # Check ffmpeg availability (required for Cat Mode video decode)
+    try:
+        _sp.run(["ffmpeg", "-version"], capture_output=True, timeout=5, check=True)
+        print("   ffmpeg:    ✅ Available (Cat Mode video decode ready)")
+    except (FileNotFoundError, _sp.CalledProcessError, _sp.TimeoutExpired):
+        print("   ffmpeg:    ⚠️  NOT FOUND — Cat Mode video upload/decode will be unreliable!")
+        print("              Install with: sudo apt-get install -y ffmpeg")
     print()
     app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=False)
