@@ -3,9 +3,11 @@
 **Date:** 2026-02-21 | **Scope:** Steganographic air-gap exfiltration capability
 
 **Tools compared:**
-- **Meow-Decoder** — [github.com/systemslibrarian/meow-decoder](https://github.com/systemslibrarian/meow-decoder) (commit `defb515`, Feb 21 2026)
+- **Meow-Decoder** — [github.com/systemslibrarian/meow-decoder](https://github.com/systemslibrarian/meow-decoder) (commit `43b4b06`, Feb 21 2026)¹
 - **StegX** — [github.com/Delta-Sec/StegX](https://github.com/Delta-Sec/StegX) (v1.2.0, ~Oct 2025)
 - **Signal** — Signal messaging app (as of Feb 2026)
+
+¹ Updated to commit `43b4b06` (Feb 21 2026) — no stego-layer changes since Phase 0+1 merge (`20d2e0e`, Feb 20). Commits since then: documentation audit fixes, comparison report, gitignore cleanup.
 
 ---
 
@@ -64,6 +66,8 @@
 |------|---------------------------------------------|---------------------|------------|
 | **Chi-square (raw)** | 312–1537 (carrier-dependent); 0.000 detection probability | ~13K ("low anomaly") | N/A |
 | **Chi-square (vs Steghide)** | 100–400× lower anomaly than Steghide | ~9× lower than Steghide (13K vs 119K) | N/A |
+
+> **Chi² normalization note:** Chi² values are image-size and payload-rate dependent. Meow's lower raw numbers (312 vs 13K) are indicative of STC's fewer pixel flips but require same-resolution, same-payload comparison for strict fairness. Always compare chi²/df (degrees of freedom ≈ unique PoV pairs) when images differ in size.
 | **RS analysis** | 0.006–0.048 (threshold <0.3); 6× below detection | Not reported | N/A |
 | **SPA** | 0.000–0.015 (threshold <0.15); 10× below detection | Not reported | N/A |
 | **Shannon entropy** | Natural range (7.5–7.7 bits/byte) | Not reported | N/A |
@@ -98,7 +102,7 @@
 |----------|-------------------|-----------|------------|
 | **AEAD** | AES-256-GCM (128-bit tag) + HMAC-SHA256 (256-bit) | AES-256-GCM | AES-256-CBC + HMAC-SHA256 |
 | **KDF** | Argon2id (512 MiB, 20 iter, 4 threads) | PBKDF2 (iterations unknown) | HKDF |
-| **Forward secrecy** | X25519 ephemeral (MEOW3) + Signal-inspired symmetric ratchet (MSR v1.2) | None | Double Ratchet (X3DH + Signal Protocol) |
+| **Forward secrecy** | X25519 ephemeral (MEOW3) + MSR v1.2 ratchet (per-frame within single file — offline-appropriate model) | None | Double Ratchet (X3DH + Signal Protocol — continuous over network sessions) |
 | **Post-quantum** | ML-KEM-768 (default) / ML-KEM-1024 (paranoid) hybrid PQXDH | None | PQXDH (ML-KEM-768, since ~2023) |
 | **Nonce management** | 96-bit random + LRU reuse guard (10K entries) | Random nonce (details unclear) | Per-message chain key |
 | **AAD binding** | orig_len, comp_len, salt, sha256, magic, ephemeral_pub, pq_ciphertext | Not documented | Ratchet state |
@@ -176,7 +180,7 @@ This is the decisive category for the stated threat model: *display innocuous lo
 | Hide data in a plausible animated display | **Meow** | Only tool with animated carrier + cat cover story |
 | Survive shaky phone video capture | **Meow** | Fountain codes + QR frames; 33% loss tolerance |
 | Resist casual steganalysis | **Meow** | STC + keyed walk + 6 channels + adaptive costs; chi² 312 vs StegX's 13K |
-| Survive coercion/interrogation | **Meow** | Schrödinger dual-secret + duress key; Signal/StegX have nothing |
+| Survive coercion/interrogation | **Meow** | Schrödinger dual-secret + duress wipe — strongest file-based deniability; Signal/StegX have nothing |
 | Strongest crypto envelope | **Meow ≈ Signal** | Both have AEAD + forward secrecy + PQ; Signal more battle-tested |
 | Work across an air gap | **Meow** | Purpose-built; Signal needs internet; StegX has no transport |
 | Simplest to use | **StegX** | One command, no animation complexity |
@@ -192,7 +196,7 @@ This is the decisive category for the stated threat model: *display innocuous lo
 
 ### Gaps and caveats
 
-- **No published zsteg runs for Meow.** Architectural analysis strongly predicts PASS (keyed walk defeats sequential scan), but this remains unverified. StegX has measured results.
+- **No published zsteg runs for Meow.** Architectural analysis strongly predicts PASS (keyed walk defeats sequential scan), but measured runs are pending. Recommend adding zsteg + StegSeek runs to next audit session for credibility parity with StegX. StegX has measured results.
 - **No external audit for Meow.** The internal 4-session audit found and fixed 11 bugs and produced 43 verified artifacts, which is thorough — but it's not a substitute for independent review. Signal's multiple third-party audits set the standard here.
 - **No ML steganalysis testing for either Meow or StegX.** Against a state-level adversary with custom-trained CNNs, both tools' stego layers should be considered cosmetic. In both cases, the cryptographic layer (AES-256-GCM) is the actual security boundary.
 - **Chi-square comparison is approximate.** Meow's 312 vs StegX's 13K were measured on different images at different resolutions with different payload sizes. A controlled head-to-head on identical carriers would be needed for a definitive comparison.
@@ -200,7 +204,11 @@ This is the decisive category for the stated threat model: *display innocuous lo
 
 ### Bottom line
 
-> In the **air-gap optical exfiltration** scenario, Meow-Decoder provides the strongest combination of steganographic sophistication, transport resilience, cryptographic strength, and coercion resistance of any available tool. Its weaknesses (no external audit, no ML resistance proof, no published zsteg runs) are real but do not change the fundamental architectural superiority for this specific use case. StegX is a solid simpler alternative for static-image scenarios without air-gap requirements. Signal is irrelevant to this threat model.
+> In the **air-gap optical exfiltration** scenario (display innocuous looping cat APNG → record short video with phone → sneakernet decode), Meow-Decoder provides the strongest end-to-end capability of any available tool. It uniquely combines animated carriers (plausible cover), fountain coding (loss tolerance), STC-based minimal-distortion embedding, multi-channel defense-in-depth, strong authenticated encryption with Argon2id + PQ hybrid, and cryptographic deniability via Schrödinger + duress wipe.
+>
+> StegX is a capable static-image stego tool with published evasion benchmarks but cannot support animation, lossy capture, or coercion resistance. Signal is entirely inapplicable (requires network, no stego).
+>
+> Remaining gaps: Meow lacks external audit and published zsteg/StegSeek runs (predicted PASS); chi-square comparison needs normalized testing. Against ML steganalysis, both Meow and StegX are cosmetic — security rests on AES-256-GCM confidentiality.
 
 ---
 

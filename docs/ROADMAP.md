@@ -63,7 +63,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **Mobile Bridge Protocol**: JSON-over-WebSocket phone→CLI bridge (`mobile/bridge/protocol.py`) (MT-8)
 - [x] **Self-Test CLI**: `meow-encode --self-test` verifies backend, roundtrip, fountain (ST-6)
 - [x] **Duplicate Quarantine**: Deprecated paths moved to `meow_decoder/experimental/` (ST-1)
-- [x] **CLI Hardware Flags**: `--hsm-slot`, `--tpm-derive`, `--hardware-auto` wired (ST-8)
+- [x] **CLI Hardware Flags**: `--hsm-slot`, `--tpm-seal`, `--hardware-auto` wired (ST-8)
 
 ---
 
@@ -75,7 +75,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **YubiKey Support**: FIDO2/PIV for key derivation factor
 	- Fully integrated with CLI (`--yubikey`, `--yubikey-slot`, `--yubikey-pin`)
 - [x] **TPM 2.0 Binding**: Seal keys to platform state
-	- Fully integrated with CLI (`--tpm-derive`, `--tpm-unseal`)
+	- Fully integrated with CLI (`--tpm-seal`, `--tpm-unseal`)
 
 ### Rust Expansion
 - [x] **Rust Crypto Backend Complete**: Full migration of secret-handling crypto from Python → Rust
@@ -102,6 +102,23 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 	- `decode_gif.py`: Automatic stego LSB extraction fallback + frame index tracking for MAC verification
 	- 49 Phase 1 tests + 20 web demo integration tests (4 modes × 5 runs)
 	- Duress mode test: X25519 forward secrecy keypair for distinct manifest format
+- [x] **Stego 4-Session Audit Complete**: Internal audit of 6-channel multi-layer stego system
+	- 43/43 artifacts PASS (RS <0.05, Chi²=0.000, SPA <0.02, PSNR 36–50 dB)
+	- 11 bugs found and fixed across 4 audit sessions (4 critical, 4 high, 3 medium)
+	- STC Viterbi trellis: 100% reliable, ~50× faster than Gaussian elimination
+	- Published: `docs/STEGO_AUDIT_REPORT.md`, updated `docs/STEGO_STRENGTH_EVALUATION.md`
+	- Evasion testing: binwalk PASS, exiftool PASS, chi² PASS, zsteg predicted PASS
+	- 252 stego-specific unit tests PASS
+
+### Documentation & Quality (Feb 21, 2026)
+- [x] **README Accuracy Audit**: Fixed CLI flags, test count (400→1800+), stego levels, 7 dead doc links
+- [x] **QUICKSTART Accuracy Audit**: Fixed broken demo (password, content, forward secrecy flags, dead links)
+- [x] **Web Demo README Audit**: Fixed GitHub URLs, file size limits, line refs, project structure (5→10 templates)
+- [x] **demo.gif Regenerated**: Replaced legacy-format demo.gif with current MEOW2 format (John 3:16, working roundtrip)
+- [x] **Self-Test Bugs Fixed**: `meow-encode --self-test` now 4/4 PASS (fixed `get_backend_name`, fountain `original_length`)
+- [x] **Entry Point Added**: `meow-schrodinger-encode` CLI command registered in `pyproject.toml`
+- [x] **Comparison Report**: Head-to-head Meow vs StegX vs Signal analysis (`docs/MEOW_VS_STEGX_VS_SIGNAL.md`)
+- [x] **1800+ Tests Passing**: Full test suite green (1819 passed, 22 skipped, 0 failed)
 
 ---
 ### Formal Methods
@@ -128,7 +145,9 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 | 4 | Rust crypto backend (52 PyO3 bindings) | ✅ Complete |
 | 5 | Hardware keys (HSM/YubiKey/TPM) | ✅ Complete |
 | 6 | Opaque handle migration (M1–M9) | ✅ Complete |
-| 7 | Third-party audit | 🔮 Planned |
+| 7 | Multi-layer stego audit (4 sessions, 43 artifacts) | ✅ Complete |
+| 8 | Documentation accuracy audit & comparison report | ✅ Complete |
+| 9 | Third-party audit | 🔮 Planned |
 
 ---
 
@@ -136,4 +155,4 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: February 18, 2026*
+*Last Updated: February 21, 2026*
