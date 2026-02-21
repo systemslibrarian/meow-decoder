@@ -52,9 +52,9 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 ### Documentation
 - [x] **Security Invariants Doc**: Formal listing of all security invariants (`docs/SECURITY_INVARIANTS.md`)
 - [x] **Attack Surface Analysis**: Updated threat model with mitigations
-- [x] **Secure Usage Checklist**: OPSEC guidance (`docs/SECURE_USAGE_CHECKLIST.md`) (MT-6)
-- [x] **Argon2id Benchmarks**: KDF tuning & hardware timings (`docs/ARGON2ID_BENCHMARKS.md`) (ST-7)
-- [x] **OpenSSF Improvement Plan**: 5-phase scorecard improvement (`OpenSSFImprovements.md`)
+- [x] **Secure Usage Checklist**: OPSEC guidance (see `docs/USAGE.md` and `docs/THREAT_MODEL.md`) (MT-6)
+- [x] **Argon2id Benchmarks**: KDF tuning & hardware timings (see `docs/THREAT_MODEL.md` brute-force section) (ST-7)
+- [x] **OpenSSF Improvement Plan**: 5-phase scorecard improvement (completed, guidance integrated into CI)
 - [x] **Supply Chain Security**: Hash-pinned deps, Sigstore signed releases, SLSA provenance
 
 ### New Features
@@ -79,7 +79,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ### Rust Expansion
 - [x] **Rust Crypto Backend Complete**: Full migration of secret-handling crypto from Python → Rust
-    - All 52 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM, + opaque handle registry
+    - All 73 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM, + opaque handle registry
 	- Constant-time via `subtle` crate, secure zeroing via `zeroize` crate
 	- CI enforces `RUST_BACKEND_REQUIRED=1` — no Python fallback
 	- 397 tests passing (383 protocol + 14 enforcement)
@@ -107,7 +107,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 	- 11 bugs found and fixed across 4 audit sessions (4 critical, 4 high, 3 medium)
 	- STC Viterbi trellis: 100% reliable, ~50× faster than Gaussian elimination
 	- Published: `docs/STEGO_AUDIT_REPORT.md`, updated `docs/STEGO_STRENGTH_EVALUATION.md`
-	- Evasion testing: binwalk PASS, exiftool PASS, chi² PASS, zsteg predicted PASS
+	- Evasion testing: binwalk PASS, exiftool PASS, chi² PASS, zsteg measured PASS
 	- 252 stego-specific unit tests PASS
 
 ### Documentation & Quality (Feb 21, 2026)
@@ -142,7 +142,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 | 1 | Basic encryption (AES-GCM, Argon2id) | ✅ Complete |
 | 2 | Forward secrecy (X25519, ratcheting) | ✅ Complete |
 | 3 | Post-quantum hybrid (ML-KEM-768/1024 PQXDH) | ✅ Complete |
-| 4 | Rust crypto backend (52 PyO3 bindings) | ✅ Complete |
+| 4 | Rust crypto backend (73 PyO3 bindings) | ✅ Complete |
 | 5 | Hardware keys (HSM/YubiKey/TPM) | ✅ Complete |
 | 6 | Opaque handle migration (M1–M9) | ✅ Complete |
 | 7 | Multi-layer stego audit (4 sessions, 43 artifacts) | ✅ Complete |

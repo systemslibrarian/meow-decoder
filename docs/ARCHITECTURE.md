@@ -177,7 +177,7 @@ OUTPUT FILE (secret.pdf)
 │  │           SECURITY ENHANCEMENTS                 │            │
 │  │                                                 │            │
 │  │  • Forward Secrecy (MEOW3)                     │            │
-│  │  • Post-Quantum (MEOW4)                        │            │
+│  │  • Post-Quantum (MEOW5/MEOW4)                  │            │
 │  │  • Steganography (Ninja Cat + Phase 1)             │            │
 │  │  • Streaming Crypto (Prowling)                 │            │
 │  │  • Resume Support                              │            │
@@ -304,7 +304,7 @@ The Rust crypto core (`crypto_core/src/`) is a deliberately small, tightly-scope
 
 This is not increasing cryptographic strength. It is increasing **implementation security**, **operational robustness**, **secret hygiene**, **side-channel discipline**, and **architectural integrity**. That is a meaningful upgrade.
 
-### **Backend Functions (52 PyO3 bindings)**
+### **Backend Functions (73 PyO3 bindings)**
 
 ```
 ┌───────────────────────────────────────────────────────────────────┐
@@ -687,7 +687,7 @@ Decrypt with password → Original file!
 - Decoding: O(n × k) belief propagation, runs in real-time
 - Memory: O(k × block_size) - stores only decoded blocks
 
-See [docs/FOUNTAIN_CODES_INTEGRATION.md](FOUNTAIN_CODES_INTEGRATION.md) for full technical details.
+See the [MEOW5/MEOW4 PQXDH section](#meow5-default--meow4-paranoid-pqxdh-post-quantum-hybrid) and the fountain coding implementation in `meow_decoder/fountain.py` for full technical details.
 
 ---
 

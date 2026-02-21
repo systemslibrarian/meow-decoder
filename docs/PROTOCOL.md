@@ -77,15 +77,17 @@ HMAC (32)
 
 **Optional fields in order:**
 - EPHEMERAL_PUBLIC_KEY (32, FS)
-- PQ_CIPHERTEXT (1568, PQ hybrid)
+- PQ_CIPHERTEXT (1088, PQ hybrid ML-KEM-768 / 1568, PQ hybrid ML-KEM-1024)
 - DURESS_TAG (32, duress)
 
 **Valid lengths:**
 - 115  (base)
 - 147  (base + FS)
 - 179  (base + FS + duress)
-- 1715 (base + FS + PQ)
-- 1747 (base + FS + PQ + duress)
+- 1235 (base + FS + PQ ML-KEM-768 / MEOW5)
+- 1267 (base + FS + PQ ML-KEM-768 + duress)
+- 1715 (base + FS + PQ ML-KEM-1024 / MEOW4)
+- 1747 (base + FS + PQ ML-KEM-1024 + duress)
 
 ### Duress tag
 ```

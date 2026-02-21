@@ -253,8 +253,8 @@ attack). This is documented as an explicit non-goal in the threat model.
 
 | Script | Purpose |
 |--------|---------|
-| `_audit_stego_full.py` | Session 3 audit runner (18 artifacts) |
-| `_audit_phase1_3_complete.py` | Session 4 comprehensive runner (25 artifacts + 18 adversarial) |
+| `_audit_stego_full.py` | Session 3 audit runner (18 artifacts) — *removed after audit* |
+| `_audit_phase1_3_complete.py` | Session 4 comprehensive runner (25 artifacts + 18 adversarial) — *removed after audit* |
 | `scripts/steganalysis_chi_square.py` | Westfeld chi-square LSB analysis |
 | `scripts/steganalysis_test_runner.sh` | External tool comparison (zsteg, StegSeek, binwalk, exiftool) |
 | `scripts/generate_stego_samples.py` | Sample generation for external testing |

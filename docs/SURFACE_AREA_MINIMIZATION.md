@@ -146,15 +146,15 @@ raise ImportError(
 | `test_archive_not_in_package_config` | `_archive` is excluded in pyproject.toml |
 | `test_archive_init_raises_importerror` | `import meow_decoder._archive` raises `ImportError` |
 
-## Test Results
+## Test Results (at time of archiving, Feb 2026)
 
-**Python (`pytest -q`):** 1492 passed, 21 skipped, 29 failed. All 29 failures are **pre-existing** (Rust backend `meow_crypto_rs` missing attributes + 1 flaky timing test). Zero new failures from archiving.
+**Python (`pytest -q`):** 1492 passed, 21 skipped, 29 failed. All 29 failures were **pre-existing** (Rust backend `meow_crypto_rs` missing attributes + 1 flaky timing test). Zero new failures from archiving. *(Current suite: 1841+ Python tests, 352+ Rust tests — counts have grown since this snapshot.)*
 
 **Post-correction verification:** `test_progress.py` (6 tests) + `test_x25519_forward_secrecy.py` (42 tests) = 48 tests, all passing.
 
 All 27 production modules (excluding `__init__`) now have a dedicated test file in `tests/`.
 
-**Rust (`cargo test -q`):** 465 passed, 0 failed, 1 ignored. All green.
+**Rust (`cargo test -q`):** 465 passed, 0 failed, 1 ignored. All green. *(At time of archiving; current count: 352+ after test reorganization.)*
 
 ## Restoring an Archived Module
 

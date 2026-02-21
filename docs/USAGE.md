@@ -107,7 +107,7 @@ make meow-build
 - ✅ No "perfect scan" required—just point and wait
 - ✅ Visual feedback shows decode progress in real-time
 
-See [docs/FOUNTAIN_CODES_INTEGRATION.md](FOUNTAIN_CODES_INTEGRATION.md) for technical details.
+See the fountain coding section in [ARCHITECTURE.md](ARCHITECTURE.md) for technical details.
 
 ### Security Level
 
@@ -468,4 +468,3 @@ Docker already installs it.
 - See:
   - `SECURITY.md`
   - `docs/THREAT_MODEL.md`
-  - `docs/RELEASE_INTEGRITY.md`

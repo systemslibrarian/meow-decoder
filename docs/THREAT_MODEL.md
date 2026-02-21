@@ -249,7 +249,7 @@ This section enumerates **concrete attack surfaces** and the **current mitigatio
 
 **Notes:**
 - This analysis is aligned with [docs/protocol.md](protocol.md).
-- Formal methods are summarized in [docs/formal_methods_report.md](formal_methods_report.md).
+- Formal methods are summarized in the formal/ directory (Tamarin, ProVerif, Lean 4, TLA+ models).
 
 ---
 
@@ -289,9 +289,9 @@ This section maps **security claims** to **formal verification artifacts**.
 
 ### 📋 Audit Checklist Reference
 
-For a complete pre-audit checklist, see: [SELF_AUDIT_TEMPLATE.md](SELF_AUDIT_TEMPLATE.md)
+For a complete pre-audit checklist, see: [SECURITY_INVARIANTS.md](SECURITY_INVARIANTS.md)
 
-For operational security best practices, see: [SECURE_USAGE_CHECKLIST.md](SECURE_USAGE_CHECKLIST.md)
+For operational security best practices, see: [USAGE.md](USAGE.md)
 
 ---
 
@@ -301,11 +301,11 @@ For operational security best practices, see: [SECURE_USAGE_CHECKLIST.md](SECURE
 
 | Side-Channel | Attack | Mitigation | Location | Effectiveness |
 |--------------|--------|-----------|----------|---------------|
-| **Timing** | Password timing oracle | `secrets.compare_digest` | `crypto.py:L111` | ✅ Strong |
-| **Timing** | HMAC verification timing | `secrets.compare_digest` | `crypto.py:L672` | ✅ Strong |
+| **Timing** | Password timing oracle | `secrets.compare_digest` | `crypto.py:L373` | ✅ Strong |
+| **Timing** | HMAC verification timing | `secrets.compare_digest` | `crypto.py:L1273` | ✅ Strong |
 | **Timing** | Duress detection timing | Timing equalization (1-5ms) | `constant_time.py:L125` | ⚠️ Statistical |
 | **Timing** | Frame MAC verification | Constant-time compare | `frame_mac.py:L89` | ✅ Strong |
-| **Memory** | Key residue in RAM | `SecureBytes` + `zeroize` | `crypto_enhanced.py:L65` | ⚠️ Best-effort |
+| **Memory** | Key residue in RAM | `SecureBuffer` + `zeroize` | `constant_time.py:L226` | ⚠️ Best-effort |
 | **Memory** | Password residue | `secure_zero_memory()` | `constant_time.py:L55` | ⚠️ Python limits |
 | **Cache** | AES T-table attacks | Bitsliced AES (Rust crate) | `crypto_core/src/lib.rs` | ✅ Strong |
 | **Power/EM** | Key extraction | NOT IMPLEMENTED | — | ❌ Out of scope |
@@ -693,8 +693,8 @@ meow-encode --paranoid -i secret.pdf -o secret.gif -p "password"
 | Swap prevention | mlock when available | Linux only reliably |
 
 **What's Implemented:**
-- `constant_time.py`: SecureBuffer with mlock
-- `crypto_enhanced.py`: SecureBytes with zeroing
+- `constant_time.py`: SecureBuffer with mlock and zeroing
+- Rust backend: `zeroize` crate for automatic secret key cleanup
 - Automatic cleanup on context exit
 
 **Limitations:**
@@ -907,7 +907,7 @@ For Meow Decoder to provide its stated security, these must be true:
 ## 🔮 **FUTURE ROADMAP FOR STRONGER SECURITY**
 
 ### Completed (Post v1.0):
-- [x] Rust crypto backend for true constant-time (52 PyO3 bindings, `subtle` + `zeroize` crates)
+- [x] Rust crypto backend for true constant-time (73 PyO3 bindings, `subtle` + `zeroize` crates)
 - [x] Hardware security module (HSM/PKCS#11) support — CLI-wired via `--hsm-slot`
 - [x] YubiKey PIV/FIDO2 support — CLI-wired via `--yubikey`
 - [x] TPM 2.0 binding — CLI-wired via `--tpm-derive`
@@ -948,6 +948,6 @@ For Meow Decoder to provide its stated security, these must be true:
 
 ---
 
-**Document Version:** 1.1.0
-**Last Updated:** 2026-02-18
+**Document Version:** 1.2.0
+**Last Updated:** 2026-02-22
 **Security Contact:** Open a GitHub issue with [SECURITY] tag
