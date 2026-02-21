@@ -72,13 +72,27 @@ Invariants are verified through:
 **Description:** Nonce reuse with the same key completely breaks AES-GCM security. Each encryption MUST use a unique (salt, nonce) pair.
 
 **Implementation:**
-- 96-bit random nonce from `secrets.token_bytes(12)`
-- 128-bit random salt for key derivation
-- Combined (salt, nonce) is effectively 224 bits of randomness
-- LRU nonce cache (10K entries, `OrderedDict`) to detect accidental reuse
-- HSM/precomputed_key mode: HKDF-derived synthetic IV (`HMAC-SHA256(key, "meow_synthetic_iv_v1" || sha256(plaintext) || salt)[:12]`)
+- **Deterministic synthetic IV via HKDF-SHA-256** (primary mechanism):
+  ```
+  nonce = HKDF-SHA-256(
+      IKM  = transfer_root_key,
+      salt = frame_counter (u64 BE) || SHA-256(manifest),
+      info = b"aes-gcm-nonce-v1",
+      len  = 12
+  )
+  ```
+- Collision resistance: requires HKDF-SHA-256 collision (computationally infeasible).
+- Crash-safe: no persistent counter state needed across restarts.
+- Multi-process safe: manifest hash unique per transfer session.
+- Schrödinger isolation: `additional_context` byte distinguishes sub-streams.
+- Per-process reuse guard: `NonceGenerator` tracks used `frame_counter` values
+  and raises `RuntimeError` on duplicate (defense-in-depth).
+- Legacy fallback: 96-bit random nonce + 128-bit salt (224 bits combined)
+  retained for backward compatibility (non-ratchet, non-SIV paths).
 
 **Verification:**
+- `tests/security/test_nonce_uniqueness.py` (23 tests: sequential, crash/restart,
+  multi-thread, Schrödinger isolation, edge cases)
 - `tests/test_property_based.py::TestNonceUniqueness::test_nonces_never_repeat`
 - `tests/test_security.py::test_nonce_uniqueness`
 
@@ -485,6 +499,96 @@ backend == "rust"
 | INV-019 | - | ✅ | - | VERIFIED |
 | INV-020 | - | ✅ | - | VERIFIED |
 | INV-021 | - | ✅ | - | VERIFIED |
+
+---
+
+### INV-022: Ratchet Forward Secrecy (No Backward Key Derivation)
+
+```
+∀ chain positions i < j:
+    Given chain_key[j], it is computationally infeasible to derive chain_key[i]
+    (HKDF-SHA256 is one-way)
+```
+
+**Description:** Compromising the ratchet state at frame N reveals nothing about frames 0..N-1. Each chain_key is zeroized immediately after deriving its successor. There is no API, state transition, or code path that allows recovering a previous chain key.
+
+**Implementation:**
+- `ratchet_step()` derives `chain_key[i+1]` then drops `chain_key[i]` handle
+- Skip cache stores only `message_key` handles (not chain keys)
+- Rust `zeroize` crate guarantees handle memory is wiped on drop
+
+**Verification:**
+- `tests/security/test_ratchet_forward_secrecy.py::TestForwardSecrecy`
+- `tests/test_ratchet.py::TestRatchetForwardSecrecy`
+
+**Failure Impact:** Loss of forward secrecy — past messages exposed on chain compromise.
+
+---
+
+### INV-023: Ratchet Fail-Closed on AAD/Sequence Mismatch
+
+```
+∀ ratchet-encrypted frames F:
+    IF aad_mismatch(F) OR sequence_invalid(F) THEN
+        abort_entire_decode()  // no partial plaintext
+```
+
+**Description:** Any AAD mismatch, sequence number violation, or key commitment failure during ratchet decryption MUST abort the entire decode operation. No partial plaintext is ever emitted.
+
+**Verification:**
+- `tests/security/test_ratchet_forward_secrecy.py::TestRatchetFailClosed`
+- `tests/test_ratchet.py::TestRatchetReplay`
+
+**Failure Impact:** Partial plaintext leak under active attack.
+
+---
+
+### INV-024: No Ratchet Rollback
+
+```
+∀ ratchet states S at position P:
+    ¬∃ operation that produces state S' at position P' < P
+```
+
+**Description:** The ratchet state machine has no backward transition. Once a chain key is consumed, it cannot be re-derived. The consumed-set prevents re-processing the same frame index.
+
+**Verification:**
+- `tests/security/test_ratchet_forward_secrecy.py::TestNoRollback`
+
+**Failure Impact:** Replay attacks, forward secrecy violation.
+
+---
+
+### INV-025: Schrödinger Mode Deniability Limitations (Honest Disclosure)
+
+```
+⚠️ Schrödinger mode provides LIMITED deniability:
+    - Casual inspection: two valid decryptions exist (plausible deniability)
+    - Nation-state forensic analysis: statistical distinguishability
+      MAY be detectable via timing, file size patterns, entropy analysis,
+      or comparison of multiple files from the same user
+    - This is NOT perfect cryptographic deniability against unlimited
+      compute and multiple samples
+```
+
+**Description:** Schrödinger mode is designed so that both sub-streams (real + decoy/dummy) are always present and each password reveals only its own stream. However, advanced forensic analysis MAY detect dual encoding. Users in high-risk environments should not rely on deniability alone.
+
+**What IS guaranteed:**
+- Each password independently decrypts only its sub-stream
+- Both sub-streams always present (even in "single secret" mode)
+- Independent Argon2id, ratchet, fountain, and GCM keys per stream
+- No cross-commitments between streams
+
+**What is NOT guaranteed:**
+- Perfect indistinguishability under forensic comparison of multiple files
+- Resistance to timing side-channels during encode/decode
+- Deniability if attacker has access to swap/memory forensics
+- Deniability if attacker compares file sizes across users
+
+**Verification:**
+- `tests/security/test_deniability.py` (statistical distinguishability tests)
+
+**Failure Impact:** False sense of security for users in rogue states.
 
 *PARTIAL indicates implementation is best-effort due to Python limitations.
 

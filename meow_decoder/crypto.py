@@ -5,6 +5,7 @@ Provides AES-256-GCM encryption with Argon2id key derivation using Pluggable Bac
 This is the base version. For enhanced security features, see crypto_enhanced.py
 """
 
+from .argon2_presets import get_active_parameters as _get_argon2_preset
 import os
 import struct
 import logging as _logging
@@ -41,21 +42,19 @@ def _legacy_guard(fn_name: str) -> None:
 MAGIC = b"MEOW3"  # Version 3 with Argon2id + HMAC + Forward Secrecy
 
 # Argon2id parameters
-# Production: ULTRA-HARDENED (512 MiB, 20 iterations = ~5-10 seconds)
-# Test mode: Fast parameters (32 MiB, 1 iteration = ~0.1 seconds)
-# Set MEOW_TEST_MODE=1 environment variable for fast testing
+# Resolved via preset system — see meow_decoder/argon2_presets.py for details.
+# Presets: paranoid (512 MiB / 20), balanced (256 MiB / 8), activist-fast (194 MiB / 4), test (32 MiB / 1).
+# Override: MEOW_KDF_PRESET=activist-fast or MEOW_TEST_MODE=1 for test preset.
+#
+# ⚠️ Even strong parameters do not protect against a state actor who
+# obtains the real password via coercion.
 _TEST_MODE = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
 
-if _TEST_MODE:
-    # Fast parameters for CI/testing (still secure enough for functional tests)
-    ARGON2_MEMORY = 32768  # 32 MiB (fast)
-    ARGON2_ITERATIONS = 1  # 1 pass (fast)
-    ARGON2_PARALLELISM = 1  # 1 thread
-else:  # pragma: no cover
-    # Production: Ultra-hardened for maximum brute-force resistance
-    ARGON2_MEMORY = 524288  # 512 MiB (8x OWASP recommendation)
-    ARGON2_ITERATIONS = 20  # 20 passes (makes offline attacks impractical)
-    ARGON2_PARALLELISM = 4  # 4 threads
+
+_active_preset = _get_argon2_preset()
+ARGON2_MEMORY = _active_preset.memory_kib
+ARGON2_ITERATIONS = _active_preset.iterations
+ARGON2_PARALLELISM = _active_preset.parallelism
 
 # HMAC domain separation
 MANIFEST_HMAC_KEY_PREFIX = b"meow_manifest_auth_v2"

@@ -307,7 +307,19 @@ meow-schrodinger-encode \
 | `InnocentPassword` | Innocent decoy content |
 | Wrong password | Decryption fails normally |
 
-**Key property:** Neither secret can prove the other exists. An attacker with one password cannot detect that a second secret is hidden.
+> **⚠️ Honest Security Assessment:**
+>
+> Schrödinger mode attempts to encode two independent secrets into one output
+> file. Revealing one password shows a plausible complete payload (decoy or
+> real). Cryptographic deniability is **limited**: while the two encodings are
+> designed to look superficially similar, advanced statistical analysis, timing
+> differences, or comparison of multiple files from the same user may allow a
+> nation-state forensic team to detect the presence of dual encoding or link
+> transfers. This is plausible deniability under casual inspection, **not**
+> perfect cryptographic deniability against unlimited compute and multiple
+> samples. Duress/panic password triggers decoy reveal + key wipe, but
+> memory/swap/forensic recovery may still expose keys if not done perfectly.
+> **Do not rely on this feature alone against a determined state adversary.**
 
 **See also:** [THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full plausible deniability security analysis.
 
@@ -340,13 +352,13 @@ meow-decode-gif -i secret.gif -o output.pdf -p "GiveThisToAttacker"  # Decoy + w
 
 | Feature | Schrödinger Mode | Duress Mode |
 |---------|------------------|-------------|
-| **Purpose** | Cryptographic deniability | Emergency key destruction |
+| **Purpose** | Limited plausible deniability | Emergency key destruction |
 | **Two secrets?** | ✅ Yes, both recoverable | ❌ Real secret destroyed |
 | **Attacker sees** | Valid decoy content | Valid decoy content |
 | **Keys after** | Both intact | Wiped from memory |
-| **Best for** | Legal/border crossings | Physical coercion |
+| **Best for** | Casual inspection cover | Physical coercion |
 
-**⚠️ Warning:** Neither feature protects against determined adversaries with forensic capabilities or physical torture. These are last-resort tools for specific threat models.
+**⚠️ Warning:** Neither feature protects against determined adversaries with forensic capabilities or physical torture. These are last-resort tools for specific threat models. A nation-state adversary with access to multiple outputs, memory forensics, or the ability to compel disclosure via torture can defeat both mechanisms. Combine with operational security (Tails OS, ephemeral boot media, dead-man switches) for layered defense.
 
 ---
 

@@ -26,14 +26,50 @@ This document defines the **byte‑level formats**, state transitions, and **fai
 
 ### KDF (Argon2id)
 - Salt: 16 bytes random.
-- Memory: 524,288 KiB.
-- Iterations: 20.
-- Parallelism: 4.
+- Default preset: **paranoid** (512 MiB / 20 iterations / 4 threads).
+- Available presets (selectable via `MEOW_KDF_PRESET` env or `--preset` CLI):
+
+| Preset | Memory | Iterations | Parallelism | Approx. Time |
+|--------|--------|------------|-------------|---------------|
+| `paranoid` (default) | 512 MiB | 20 | 4 | ~10-40s |
+| `balanced` | 256 MiB | 8 | 4 | ~4-15s |
+| `activist-fast` | 194 MiB | 4 | 4 | ~2-8s |
+| `test` | 32 MiB | 1 | 1 | ~0.1s |
+
+> ⚠️ Even strong Argon2id parameters do not protect against a state actor
+> who obtains the real password via coercion.
+
+See `meow_decoder/argon2_presets.py` for implementation.
 
 ### AEAD
 - Cipher: AES‑256‑GCM.
 - Key: 32 bytes derived (Argon2id or X25519+HKDF).
-- Nonce: 12 bytes random per encryption.
+- Nonce: 12 bytes deterministic via HKDF (see §2.1).
+
+### §2.1 Nonce Generation (Synthetic IV)
+
+Nonces are derived deterministically to prevent catastrophic reuse:
+
+```
+nonce = HKDF-SHA-256(
+    IKM  = transfer_root_key,
+    salt = frame_counter (u64 BE) || SHA-256(transfer_manifest),
+    info = b"aes-gcm-nonce-v1",
+    len  = 12
+)
+```
+
+**Properties:**
+- Deterministic: same inputs → same nonce (SIV property).
+- Collision-resistant: requires HKDF-SHA-256 collision.
+- Crash-safe: no persistent state; frame_counter from transfer context.
+- Multi-process safe: manifest hash is unique per transfer session.
+- Schrödinger isolation: `additional_context` byte distinguishes sub-streams.
+
+**Reuse guard:** `NonceGenerator` tracks used counters per session.
+Duplicate `frame_counter` raises `RuntimeError` (fail-closed).
+
+See `meow_decoder/nonce.py` and `tests/security/test_nonce_uniqueness.py`.
 
 ### Frame MAC
 - HMAC‑SHA256 truncated to 8 bytes.
@@ -160,8 +196,43 @@ FRAME = MAC(8) || FRAME_DATA
 - **AEAD failure:** hard fail, no plaintext output.
 - **SHA‑256 mismatch:** hard fail.
 - **Truncated droplet:** reject droplet.
+- **Ratchet AAD mismatch:** hard fail, abort entire decode (no partial plaintext leak).
+- **Ratchet sequence number invalid:** hard fail.
+- **Ratchet key commitment tag invalid:** hard fail.
 
 All failures must be **safe and boring**: no partial plaintext and no detailed oracle messages.
+
+---
+
+## 9.1 Ratchet Hard Invariants (MSR v1.2)
+
+The per-frame symmetric ratchet enforces the following invariants.
+Violation of any invariant is a security bug and MUST abort decoding.
+
+1. **No chain key reuse after ratchet forward.**
+   `chain_key[i]` is zeroized immediately after deriving `chain_key[i+1]`
+   and `message_key[i]`. There is no API to retrieve a previous chain key.
+
+2. **Fail-closed on AAD / sequence mismatch.**
+   If AAD verification fails or the frame index does not match the
+   expected ratchet position (after skip-cache lookup), the entire
+   decode MUST abort. No partial plaintext is emitted.
+
+3. **No rollback to previous chain state.**
+   The decoder maintains a consumed-set of frame indices. Re-processing
+   an already-consumed index raises `ValueError`. The ratchet state
+   machine has no backward transition.
+
+4. **Key commitment prevents invisible salamanders.**
+   Each frame includes an HMAC-SHA256 commitment tag (16 bytes).
+   The decoder verifies the commitment BEFORE trusting decrypted output.
+
+5. **Skip cache bounded (DoS protection).**
+   At most `MAX_SKIP_KEYS = 2000` cached message keys. Exceeding this
+   bound raises `ValueError` (attacker cannot force unbounded memory).
+
+See `meow_decoder/ratchet.py` and `tests/test_ratchet.py` for implementation.
+See `tests/security/test_ratchet_forward_secrecy.py` for property-based tests.
 
 ---
 

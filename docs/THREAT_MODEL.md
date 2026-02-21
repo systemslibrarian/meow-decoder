@@ -438,8 +438,8 @@ attack surface, and security boundaries for these modes.
 ### Recommendations
 
 1. **Do not rely on steganography for security.** It provides cosmetic cover only.
-2. **For plausible deniability**, use Schrödinger mode (dual-secret quantum superposition), which provides cryptographic deniability independent of visual carrier.
-3. **For maximum stealth**, combine stego carrier with Schrödinger mode and operational security (no tool binaries on device, ephemeral boot media).
+2. **For limited plausible deniability**, use Schrödinger mode (dual-secret encoding), which provides deniability under casual inspection but NOT against nation-state forensic analysis or comparison of multiple samples.
+3. **For maximum stealth**, combine stego carrier with Schrödinger mode and operational security (no tool binaries on device, ephemeral boot media). Even this combination is not proof against determined forensic analysis.
 4. **Assume stego is broken** if the adversary knows Meow Decoder exists and can obtain sample outputs.
 
 ### Multi-Layer Steganography (`--multilayer-stego`) — Adversarial Review (2026-02-20)
@@ -512,7 +512,7 @@ For detailed comparison against other tools, see `docs/STEGO_STRENGTH_EVALUATION
 | User Profile | Protection Level | Notes |
 |--------------|------------------|-------|
 | 👤 Personal privacy | ✅ EXCELLENT | Strong encryption, easy to use |
-| 📰 Journalist (sources) | ✅ STRONG | Forward secrecy, plausible deniability |
+| 📰 Journalist (sources) | ✅ STRONG | Forward secrecy, limited plausible deniability (casual inspection only) |
 | 🏢 Business confidential | ✅ GOOD | Professional-grade crypto |
 | 🌍 Activist (non-state threat) | ⚠️ MODERATE | Use with operational security |
 | 🏛️ Government classified | ❌ INSUFFICIENT | Use certified tools |
@@ -575,13 +575,41 @@ These protections are based on well-understood cryptographic primitives with no 
 | Integrity | Merkle tree verification | Per-chunk validation |
 | **Status** | ✅ **EXCELLENT** | Decode from any sufficient subset |
 
-### ✅ **Coercion Resistance (Schrödinger Mode)**
-| Aspect | Implementation | Strength |
-|--------|---------------|----------|
-| Dual secrets | Quantum superposition encoding | Two valid decryptions |
-| Statistical hiding | XOR with quantum noise | Indistinguishable realities |
-| Forensic resistance | Entropy/chi-square tested | No detectable markers |
-| **Status** | ✅ **UNIQUE** | Cannot prove second secret exists |
+### ⚠️ **Coercion Resistance (Schrödinger Mode) — Honest Assessment**
+
+Schrödinger mode attempts to encode two independent secrets into one output
+file. Revealing one password shows a plausible complete payload (decoy or
+real). Cryptographic deniability is **limited**: while the two encodings are
+designed to look superficially similar, advanced statistical analysis, timing
+differences, or comparison of multiple files from the same user may allow a
+nation-state forensic team to detect the presence of dual encoding or link
+transfers. This is plausible deniability under casual inspection, **not**
+perfect cryptographic deniability against unlimited compute and multiple
+samples. Duress/panic password triggers decoy reveal + key wipe, but
+memory/swap/forensic recovery may still expose keys if not done perfectly.
+**Do not rely on this feature alone against a determined state adversary.**
+
+| Aspect | Implementation | Honest Strength |
+|--------|---------------|-----------------|
+| Dual secrets | Independent AES-256-GCM per stream | Two valid decryptions ✅ |
+| Statistical hiding | Both streams always present (dummy if single-secret) | Casual inspection only ⚠️ |
+| Forensic resistance | Entropy/chi-square tested | NOT forensic-proof ❌ |
+| Timing isolation | Best-effort equalized paths | Timing side-channels possible ❌ |
+| Multi-file linkability | Same tool signatures | Linkable across samples ❌ |
+| **Status** | ⚠️ **LIMITED** | Casual deniability, NOT nation-state proof |
+
+**What works:**
+- Each password independently decrypts only its sub-stream
+- Both sub-streams always present (even in single-secret mode, a random dummy fills the other)
+- Independent Argon2id, GCM keys, and fountain seeds per stream
+- No cross-commitments between streams
+
+**What does NOT work against a determined state adversary:**
+- Comparison of multiple files from the same user reveals patterns
+- File size, frame count, and timing may leak dual-encoding presence
+- Memory/swap forensics may recover both key sets
+- Forensic tools specifically targeting Meow Decoder output format
+- Physical torture / legal compulsion to reveal both passwords
 
 ### ✅ **Forward Secrecy**
 | Aspect | Implementation | Strength |
@@ -766,13 +794,13 @@ These threats cannot be mitigated by software alone:
 
 ### ❌ **Legal Compulsion**
 - **Why:** Legal systems can compel disclosure
-- **Mitigation:** Schrödinger mode for plausible deniability
-- **Note:** Jurisdiction-dependent, not foolproof
+- **Mitigation:** Schrödinger mode provides limited casual deniability
+- **Note:** Jurisdiction-dependent, NOT foolproof. A competent forensic team can detect dual encoding through statistical analysis or comparison of multiple files.
 
 ### ❌ **Rubber-Hose Cryptanalysis (Torture)**
 - **Why:** Physical coercion defeats all crypto
-- **Mitigation:** Schrödinger decoy password
-- **Note:** Provides cover story, not full protection
+- **Mitigation:** Schrödinger decoy password provides a cover story
+- **Note:** Provides cover story only, NOT full protection. Do not rely on this feature alone against a determined state adversary with forensic capabilities.
 
 ---
 
