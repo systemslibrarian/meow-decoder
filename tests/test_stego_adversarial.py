@@ -53,6 +53,7 @@ from meow_decoder.stego_multilayer import (
     _bits_to_bytes,
     _bytes_to_bits,
     _factorial_bits,
+    _stc_payload_capacity,
     derive_frame_seed,
     derive_stego_keys_for_reality,
     derive_walk_seed,
@@ -73,6 +74,7 @@ os.environ["MEOW_TEST_MODE"] = "1"
 def master_key():
     return b"\x42" * 32
 
+
 @pytest.fixture
 def config():
     return MultiLayerConfig(
@@ -90,10 +92,12 @@ def config():
         encrypt=True,
     )
 
+
 @pytest.fixture
 def sample_frame():
     rng = np.random.RandomState(42)
     return rng.randint(0, 256, (48, 64, 3), dtype=np.uint8)
+
 
 @pytest.fixture
 def carrier_gif(tmp_path):
@@ -315,10 +319,16 @@ class TestSTCRoundtrip:
         rng = np.random.RandomState(42)
         frame = rng.randint(0, 256, (32, 32, 3), dtype=np.uint8)
 
-        # When Rust STC is available, embed and extract
+        # When Rust STC is available, embed and extract.
+        # STC pads payload to a fixed capacity derived from frame dimensions
+        # so encoder/decoder agree on the matrix dimensions.
+        h, w, c = frame.shape
+        n_cover = h * w * c * config.lsb_bits
+        stc_capacity = _stc_payload_capacity(n_cover)
+
         payload_bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1]
         stego = encoder.embed_frame(frame, 0, payload_bits)
-        extracted = encoder.extract_frame(stego, 0, len(payload_bits))
+        extracted = encoder.extract_frame(stego, 0, stc_capacity)
         assert extracted[:len(payload_bits)] == payload_bits
 
 
@@ -792,11 +802,13 @@ class TestE2ERoundtrip:
         payload = b"Wrong key test"
 
         encoder = MultiLayerStegoEncoder(config, master_key)
-        encoder.encode(payload, carrier_gif, output)
+        meta = encoder.encode(payload, carrier_gif, output)
 
+        # Encoder auto-switches to APNG when primary channel is enabled
+        actual_output = Path(meta["output_path"])
         wrong_key = b"\xFF" * 32
         decoder = MultiLayerStegoDecoder(config, wrong_key)
-        result = decoder.decode(output)
+        result = decoder.decode(actual_output)
         assert not result.mac_valid
 
     def test_stc_frame_level_roundtrip(self, master_key):
@@ -812,13 +824,16 @@ class TestE2ERoundtrip:
                                    compress=config.compress, encrypt=config.encrypt)
         payload_bits = _bytes_to_bits(prepared)
 
-        # Use a large frame for sufficient STC capacity (need n >= 2*m)
+        # Use a large frame for sufficient STC capacity (need n >= 4*m at rate 1/4)
         rng = np.random.RandomState(42)
         frame = rng.randint(0, 256, (128, 128, 3), dtype=np.uint8)
+        h, w, c = frame.shape
+        n_cover = h * w * c * config.lsb_bits
+        stc_cap = _stc_payload_capacity(n_cover)
 
         encoder = PrimaryChannelEncoder(master_key, config)
         stego = encoder.embed_frame(frame, 0, payload_bits)
-        extracted = encoder.extract_frame(stego, 0, len(payload_bits))
+        extracted = encoder.extract_frame(stego, 0, stc_cap)
         extracted_bytes = _bits_to_bytes(extracted[:len(payload_bits)])
 
         assert extracted_bytes == prepared, "STC frame-level payload mismatch"

@@ -207,6 +207,7 @@ We thank the following security researchers — our **elite Catnip Hunters** �
    - Static analysis clean: clippy 0 warnings, Bandit clean, flake8 0 errors
    - 464 total tests passing (321 Rust + 126 Python + 17 fuzz)
    - Strength evaluation: `docs/STEGO_STRENGTH_EVALUATION.md` — rated strongest vs OpenStego, Steghide, OpenPuff
+   - **Full audit (2026-02-20):** 43/43 artifacts PASS, 252 unit tests, 11 total bugs fixed (Sessions 1-4). See `docs/STEGO_AUDIT_REPORT.md`.
 
 7. **Memory Forensics**
    - Key zeroing helps but not perfect

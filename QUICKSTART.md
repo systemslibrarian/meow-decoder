@@ -1,7 +1,7 @@
 # 🚀 5-Minute Quickstart — Your First Meow! 🐱
 
-**Goal:** See Meow Decoder work in 5 minutes — the cat is ready to pounce!  
-**What you'll do:** Encode → Capture → Decode  
+**Goal:** See Meow Decoder work in 5 minutes — the cat is ready to pounce!
+**What you'll do:** Encode → Capture → Decode
 **Equipment needed:** Computer + phone camera (the cat cam 📹)
 
 ---
@@ -28,7 +28,7 @@ The web demo includes **8 encryption modes**:
 - 📹 **Webcam** — Live QR scanner with **fountain code decoder** (tolerates 33% frame loss!)
 - 🚨 **Duress** — Panic password that wipes keys
 
-**NEW: Frame Loss Tolerance** 🎯  
+**NEW: Frame Loss Tolerance** 🎯
 Multi-frame QR codes (large payloads) now use JavaScript fountain codes! Scan with your phone camera and the decoder automatically collects droplets, showing real-time progress: "Collected 8/10 droplets, 73% decoded". No need to scan perfectly—works even if you miss 1 in 3 frames.
 
 **Security Note:** Select **"Paranoid" security level** (512 MiB, 20 iter) to match CLI security for life-critical data.
@@ -63,9 +63,9 @@ Don't want to record a video right now? We included a sample GIF for you!
 1. **Locate the demo file**: `assets/demo.gif` included in this repo.
 2. **Decode it immediately**:
    ```bash
-   meow-decode-gif -i assets/demo.gif -o recovered_demo.txt -p "demo123"
+   meow-decode-gif -i assets/demo.gif -o recovered_demo.txt -p "JesusIsTheSonOfGod"
    ```
-3. **Success!** You should see "The cat is out of the bag!" in `recovered_demo.txt`.
+3. **Success!** You should see John 3:16 (KJV) in `recovered_demo.txt`.
 
 ### Step 1: Create a Test File (10 seconds)
 
@@ -84,22 +84,10 @@ cat secret.txt
 
 ```bash
 # Encrypt and encode to animated GIF
-meow-encode -i secret.txt -o secret.gif -p "demo123"
+meow-encode -i secret.txt -o secret.gif -p "YourStrongPassword123"
 ```
 
-**You should see:**
-```
-🐱 Encoding secret.txt...
-✅ Encrypted (AES-256-GCM)
-✅ Fountain coded (12 droplets needed)
-✅ Generated 18 QR frames (1.5x redundancy = 33% frame loss tolerance)
-✅ Saved to secret.gif
-
-File size: 4.2 KB
-Password: demo123 (remember this!)
-```
-
-**Now open the GIF:**
+**Open the GIF when complete:**
 ```bash
 # Mac
 open secret.gif
@@ -196,24 +184,7 @@ Now for the fun part - use your phone as a camera!
 
 ```bash
 # Decode from the video you captured
-meow-decode-gif -i captured.mp4 -o recovered.txt -p "demo123"
-```
-
-**You should see:**
-```
-🐱 Decoding captured.mp4...
-📱 Extracting frames from video...
-   Found 180 frames (10 seconds @ 18 fps)
-🔍 Scanning for QR codes...
-   Found 15 QR frames
-✅ Decoded fountain codes (15/12 droplets = 125% redundancy)
-🔓 Decrypting with password...
-✅ Authenticated and verified
-✅ Saved to recovered.txt
-
-Original hash: a3f5e2d8...
-Recovered hash: a3f5e2d8...
-✅ Integrity verified!
+meow-decode-gif -i captured.mp4 -o recovered.txt -p "YourStrongPassword123"
 ```
 
 **Verify it worked:**
@@ -341,13 +312,14 @@ meow-encode -i file.txt -o file.gif -p "pass" --redundancy 2.0
 
 ```bash
 # Generate receiver keypair (one-time setup)
-python -c "from meow_decoder.x25519_forward_secrecy import X25519KeyPair; kp = X25519KeyPair.generate(); print(f'Public: {kp.public_key_b64()}'); kp.save_to_file('receiver.key')"
+meow-encode --generate-keys
+# Outputs public key + saves private key
 
 # Sender encrypts with receiver's public key
-meow-encode -i file.txt -o file.gif -p "pass" --forward-secrecy --receiver-key "PUBLIC_KEY_HERE"
+meow-encode -i file.txt -o file.gif -p "pass" --forward-secrecy --receiver-pubkey "PUBLIC_KEY_HERE"
 
 # Receiver decrypts with their private key
-meow-decode-gif -i captured.mp4 -o file.txt -p "pass" --receiver-key-file receiver.key
+meow-decode-gif -i captured.mp4 -o file.txt -p "pass" --receiver-privkey receiver_private.key
 ```
 
 ### Tip 4: Hide in Your Cat Photos 🐱
@@ -417,8 +389,7 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 ### Learn More
 - Read [ARCHITECTURE.md](docs/ARCHITECTURE.md) for technical details
 - Read [SECURITY.md](SECURITY.md) for threat model
-- Read [SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) for operational security best practices
-- Read [SCHRODINGER.md](docs/SCHRODINGER.md) for plausible deniability
+- Read [THREAT_MODEL.md](docs/THREAT_MODEL.md) for detailed adversary analysis
 
 ### Use Cases
 - **Air-gapped transfer:** Move files between isolated networks
@@ -434,26 +405,26 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 - **Self-test:** Run `meow-encode --self-test` to verify backend, roundtrip, and fountain codec
 - **Tamper report:** Use `meow-decode-gif --tamper-report` for a frame-by-frame MAC verification timeline
 - **Mobile bridge:** Phone-to-CLI scanning via `--mobile-bridge` flag ([architecture](mobile/ARCHITECTURE.md))
-- **Hardware keys:** YubiKey, HSM, TPM support via `--yubikey`, `--hsm-slot`, `--tpm-derive`
+- **Hardware keys:** YubiKey, HSM, TPM support via `--yubikey`, `--hsm-slot`, `--tpm-seal`
 
 ---
 
 ## ❓ FAQ
 
-**Q: How large can files be?**  
+**Q: How large can files be?**
 A: Practical limit ~50 MB (QR codes become unwieldy above this). For larger files, split into chunks.
 
-**Q: Is the phone recording secure?**  
+**Q: Is the phone recording secure?**
 A: Yes! The recording is encrypted garbage without the password. Safe to transfer via email/cloud.
 
-**Q: Do I need internet?**  
+**Q: Do I need internet?**
 A: No! Everything works offline. Perfect for air-gapped environments.
 
-**Q: What if I lose some frames?**  
+**Q: What if I lose some frames?**
 A: Fountain codes are redundant - you don't need ALL frames. Default 1.5x redundancy means you can lose 33% of frames.
 
-**Q: Can I use this in production?**  
-A: Core features (Tier 1) are production-ready. See [STABILITY_TIERS.md](docs/STABILITY_TIERS.md) for feature classification.
+**Q: Can I use this in production?**
+A: Core features are production-ready. See the [README](README.md) for feature details and maturity.
 
 ---
 
@@ -472,7 +443,6 @@ You now know how to:
 **Need help?** Open an issue or check the docs:
 - [README.md](README.md) - Full documentation
 - [SECURITY.md](SECURITY.md) - Security model
-- [STABILITY_TIERS.md](docs/STABILITY_TIERS.md) - Feature maturity
 
 ---
 

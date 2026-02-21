@@ -685,10 +685,11 @@ def _run_self_test() -> int:  # pragma: no cover
 
     # --- Test 1: Rust backend detection ---
     try:
-        from .crypto_backend import get_backend_name
+        from .crypto_backend import CryptoBackend
 
-        backend = get_backend_name()
-        print(f"  [✅] Crypto backend: {backend}")
+        cb = CryptoBackend()
+        info = cb.get_info()
+        print(f"  [✅] Crypto backend: {info.name} (v{info.version})")
         passed += 1
     except Exception as e:
         print(f"  [❌] Crypto backend detection failed: {e}")
@@ -745,7 +746,7 @@ def _run_self_test() -> int:  # pragma: no cover
         block_size = 256
         k_blocks = len(data) // block_size
         enc = FountainEncoder(data, k_blocks, block_size)
-        dec = FountainDecoder(k_blocks, block_size)
+        dec = FountainDecoder(k_blocks, block_size, original_length=len(data))
         for _ in range(int(k_blocks * 2)):
             droplet = enc.droplet()
             dec.add_droplet(droplet)

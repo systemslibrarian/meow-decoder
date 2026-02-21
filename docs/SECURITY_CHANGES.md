@@ -47,7 +47,7 @@ A comprehensive adversarial security review of the multi-layer steganography sys
 **File:** `rust_crypto/src/stego.rs` (`stc_encode()`)
 **Impact:** STC encoding produced incorrect stego output. Decoded payload did not match embedded payload.
 **Root Cause:** Off-by-one errors in matrix construction and incorrect Gaussian elimination.
-**Fix:** Complete rewrite using GF(2) Gaussian elimination with cost-aware pivot selection, shared `compute_syndrome_internal()`, and full verification step.
+**Fix:** Complete rewrite using GF(2) Gaussian elimination with cost-aware pivot selection, shared `compute_syndrome_internal()`, and full verification step. Subsequently replaced with Viterbi trellis algorithm (rate 1/4, ~50× faster, 100% reliable) in Session 3 audit.
 **Verification:** `tests/test_stego_adversarial.py::TestSTCRoundtrip` (5 tests), `tests/test_stego_fuzz.py::TestFuzzSTC` (100 Hypothesis inputs), 5 Rust unit tests
 
 #### SC-005: Palette `encode_frame` NO-OP

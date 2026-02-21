@@ -54,6 +54,21 @@
 proof of correctness. They are NOT CI-enforced. Do not claim "formally
 verified" without qualification.
 
+## Steganography Claims
+
+- **NOT steganographically secure** against forensic analysis or ML classifiers.
+  Stego provides cosmetic cover against casual observation only.
+- Multi-layer stego system has been internally audited (4 sessions, 43 artifacts,
+  252 unit tests, 11 bugs fixed). See `docs/STEGO_AUDIT_REPORT.md`.
+- Verified steganalysis resistance: RS < 0.05, Chi² = 0.000, SPA < 0.02 across
+  all tested configurations. These metrics indicate resistance to basic statistical
+  detectors only — ML classifiers are explicitly out-of-scope.
+- STC (Syndrome-Trellis Codes) implemented via Rust Viterbi trellis. Rate 1/4,
+  100% reliable across all tested seeds. Not externally audited.
+- **Known-carrier attacks** are a fundamental limitation (not fixable). If the
+  adversary has the original carrier image, stego is trivially detectable.
+- APNG output format required — GIF palette quantization destroys LSB stego data.
+
 ## Disclosure
 
 If you find a security vulnerability, please report it via the process

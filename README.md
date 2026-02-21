@@ -185,11 +185,11 @@ start secret.gif     # Windows
 | 🔮 **Post-Quantum** | ML-KEM-768 (default, Signal PQXDH) / ML-KEM-1024 (paranoid) + ML-DSA-65 hybrid |
 | 📊 **Fountain Codes** | Tolerates 33% frame loss in multi-frame QR (Python + JavaScript) |
 | 🔐 **Duress Mode** | Panic password triggers secure wipe |
-| 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--use-hardware-key`) |
+| 🖥️ **Hardware Keys** | HSM/PKCS#11, YubiKey PIV/FIDO2, TPM 2.0 PCR binding (`--yubikey`, `--hsm-slot`, `--tpm-seal`) |
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner app with JSON protocol integration |
-| 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/README.md#-wasm--browser-examples)) |
-| 🎨 **Multi-Layer Stego** | Three-channel steganography (STC + timing + palette) with coercion resistance ([evaluation](docs/STEGO_STRENGTH_EVALUATION.md)) |
+| 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/)) |
+| 🎨 **Multi-Layer Stego** | Six-channel steganography (LSB+STC, timing, palette, disposal, comment, temporal) with coercion resistance ([audit](docs/STEGO_AUDIT_REPORT.md), [evaluation](docs/STEGO_STRENGTH_EVALUATION.md)) |
 
 ---
 
@@ -254,7 +254,7 @@ The WASM demo includes **8 encryption modes**:
 | 🚨 **Duress** | Panic password wipe | Destroys localStorage keys |
 | 😺 **Cat Mode** | Blinking cat eyes encoding | Fun camouflage |
 
-See [examples/README.md](examples/README.md) for full setup instructions.
+See the [examples/](examples/) directory for full setup instructions.
 
 ```bash
 # Quick cat-themed encoding with bundled carrier
@@ -309,7 +309,7 @@ meow-schrodinger-encode \
 
 **Key property:** Neither secret can prove the other exists. An attacker with one password cannot detect that a second secret is hidden.
 
-**Full docs:** [SCHRODINGER.md](docs/SCHRODINGER.md)
+**See also:** [THREAT_MODEL.md](docs/THREAT_MODEL.md) for the full plausible deniability security analysis.
 
 ### Duress Mode (Panic Password)
 
@@ -538,7 +538,7 @@ For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
 | Tamper Timeline | Frame-by-frame MAC report | ✅ |
-| Security Tests | 400+ tests, CI-enforced (3-gate) | ✅ |
+| Security Tests | 1800+ tests, CI-enforced (3-gate) | ✅ |
 
 **Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
@@ -613,7 +613,7 @@ The encoder/decoder uses the Rust backend by default once installed.
 
 ## 🔌 Hardware Security Module Integration
 
-> **Current status:** Primitives are fully implemented in the Rust crypto core. Full CLI integration (`--use-hardware-key` etc.) is in final testing and will be available in the next release.
+> **Current status:** Primitives are fully implemented in the Rust crypto core. CLI flags (`--yubikey`, `--hsm-slot`, `--tpm-seal`) are available; full end-to-end integration is in final testing.
 
 Meow Decoder supports hardware-backed key storage for high-security environments.
 
@@ -621,24 +621,24 @@ Meow Decoder supports hardware-backed key storage for high-security environments
 
 | Device | CLI Flag | Description |
 |--------|----------|-------------|
-| **HSM/PKCS#11** | `--hsm-slot=<slot>` | Enterprise HSMs (Thales, Utimaco, SoftHSM) |
-| **YubiKey** | `--yubikey-piv-slot=<9a\|9c\|9d\|9e>` | PIV slots for key storage |
-| **TPM 2.0** | `--tpm-pcr=<0-23>` | Platform-bound keys with PCR sealing |
+| **HSM/PKCS#11** | `--hsm-slot <slot>` | Enterprise HSMs (Thales, Utimaco, SoftHSM) |
+| **YubiKey** | `--yubikey --yubikey-slot <9a\|9c\|9d\|9e>` | PIV slots for key storage |
+| **TPM 2.0** | `--tpm-seal <0-23>` | Platform-bound keys with PCR sealing |
 
 ### Example Usage
 
 ```bash
 # Encode with YubiKey (PIV slot 9a = authentication)
-meow-encode -i secret.pdf -o secret.gif --use-hardware-key --yubikey-piv-slot=9a
+meow-encode -i secret.pdf -o secret.gif --yubikey --yubikey-slot 9a
 
 # Encode with HSM (slot 0)
-meow-encode -i secret.pdf -o secret.gif --use-hardware-key --hsm-slot=0
+meow-encode -i secret.pdf -o secret.gif --hsm-slot 0
 
 # Encode with TPM (bind to PCR 7 = Secure Boot state)
-meow-encode -i secret.pdf -o secret.gif --use-hardware-key --tpm-pcr=7
+meow-encode -i secret.pdf -o secret.gif --tpm-seal 7
 
 # Decode requires the same hardware present
-meow-decode-gif -i secret.gif -o recovered.pdf --use-hardware-key --yubikey-piv-slot=9a
+meow-decode-gif -i secret.gif -o recovered.pdf --yubikey --yubikey-slot 9a
 ```
 
 ### How It Works
@@ -689,10 +689,9 @@ const key = await hwManager.deriveKey(password, salt, argon2DeriveFunc);
 
 **Implementation Files:**
 - [`examples/webauthn-hardware.js`](examples/webauthn-hardware.js) — Core WebAuthn integration
-- [`docs/WEBAUTHN_INTEGRATION_PLAN.md`](docs/WEBAUTHN_INTEGRATION_PLAN.md) — Full technical specification
 - [`tests/test_webauthn_integration.html`](tests/test_webauthn_integration.html) — Browser-based unit tests
 
-See [WEBAUTHN_INTEGRATION_PLAN.md](docs/WEBAUTHN_INTEGRATION_PLAN.md) for complete implementation details and security analysis.
+See the [examples/](examples/) directory for full setup instructions.
 
 ---
 
@@ -783,7 +782,7 @@ Run the crypto core directly in your browser — no server-side processing, full
 | Schrödinger Mode | ✅ | ✅ | Dual-secret deniability |
 | Fountain Codes | ✅ | ✅ | Full support (Python + JavaScript, 33% frame loss tolerance) |
 | GIF Animation | ✅ | ✅ | Multi-frame QR with fountain codes (loss-tolerant) |
-| Steganography | ✅ Level 1-5 | ⚠️ Level 1-2 | Browser canvas limitations |
+| Steganography | ✅ Level 0-4 | ⚠️ Level 1-2 | Browser canvas limitations |
 | Hardware Keys | ✅ | 🔬 Prototype | WebAuthn/FIDO2 implementation available ([webauthn-hardware.js](examples/webauthn-hardware.js)) |
 | Webcam Decode | ✅ | ✅ | Real-time camera scanner |
 | Duress Mode | ✅ | ✅ | Panic password wipe |
@@ -862,7 +861,7 @@ This repo includes a `.devcontainer/devcontainer.json` for GitHub Codespaces and
 
 > **Why a server?** Browsers block WASM loading from `file://` URLs. The HTTP server provides proper MIME types for `.wasm` files.
 
-See [examples/README.md](examples/README.md#-wasm--browser-examples) for full details.
+See the [examples/](examples/) directory for full details.
 
 ---
 
@@ -979,7 +978,6 @@ cd /workspaces/meow-decoder/formal/tamarin
 More details and expected results:
 - [formal/README.md](formal/README.md)
 - [formal/proverif/README.md](formal/proverif/README.md)
-- [docs/formal_methods_report.md](docs/formal_methods_report.md)
 
 **Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
 
@@ -1006,7 +1004,6 @@ More details and expected results:
 
 This release has undergone internal security review (not a third-party audit). Claims are tied to:
 - [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) (authoritative scope)
-- [docs/SECURE_USAGE_CHECKLIST.md](docs/SECURE_USAGE_CHECKLIST.md) (operational security checklist)
 - [docs/PROTOCOL.md](docs/PROTOCOL.md) (byte-level spec)
 - [SECURITY.md](SECURITY.md) (formal methods + limitations)
 
@@ -1023,18 +1020,17 @@ If your threat model includes compromised endpoints or hardware side-channels, t
 | [QUICKSTART.md](QUICKSTART.md) | 5-minute phone capture demo |
 | [Usage Guide](docs/USAGE.md) | Detailed usage instructions |
 | [Threat Model](docs/THREAT_MODEL.md) | Security analysis & limitations |
-| [Secure Usage Checklist](docs/SECURE_USAGE_CHECKLIST.md) | OPSEC & operational hardening |
 | [Architecture](docs/ARCHITECTURE.md) | Technical deep-dive |
-| [Schrödinger Mode](docs/SCHRODINGER.md) | Plausible deniability |
-| [Argon2id Benchmarks](docs/ARGON2ID_BENCHMARKS.md) | KDF parameter tuning & hardware timings |
 | [Protocol Spec](docs/PROTOCOL.md) | Byte-level protocol specification |
 | [Security Roadmap](docs/ROADMAP.md) | Future security enhancements |
-| [Side-Channel Hardening](docs/SIDE_CHANNEL_HARDENING.md) | Timing & side-channel mitigations |
 | [Security Invariants](docs/SECURITY_INVARIANTS.md) | Formal invariant specification |
 | [Spec v1.2 Reference](docs/SPEC_REFERENCE.md) | Protocol reference implementation |
 | [Test Suite](tests/TEST_SUITE_README.md) | Test inventory, coverage & run instructions |
 | [Mobile Bridge](mobile/ARCHITECTURE.md) | React Native QR bridge architecture |
 | [Security Changes](docs/SECURITY_CHANGES.md) | Security hardening changelog |
+| [Stego Audit Report](docs/STEGO_AUDIT_REPORT.md) | Steganography audit results (43/43 PASS) |
+| [Stego Strength Evaluation](docs/STEGO_STRENGTH_EVALUATION.md) | Comparative steganalysis vs OpenStego, Steghide, StegX |
+| [Security Claims](docs/SECURITY_CLAIMS.md) | Canonical truth file for security claims |
 | [SECURITY.md](SECURITY.md) | Vulnerability reporting & supply chain security |
 
 ---

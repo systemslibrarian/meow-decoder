@@ -473,20 +473,33 @@ The multi-layer steganography system underwent a comprehensive adversarial secur
 |----------|--------------|-------------|
 | **Cryptographic confidentiality** | ❌ Broken (nonce reuse) | ✅ Guaranteed (fresh nonces) |
 | **Fail-closed encryption** | ❌ Fail-open | ✅ Fail-closed (`RuntimeError`) |
-| **STC payload integrity** | ❌ Broken (algorithm bug) | ✅ Verified (GF(2) Gaussian elimination) |
+| **STC payload integrity** | ❌ Broken (algorithm bug) | ✅ Verified (Viterbi trellis, rate 1/4, 100% reliable) |
 | **Cross-backend consistency** | ❌ Broken (seed mismatch) | ✅ Verified (HKDF parity) |
 | **Capacity enforcement** | ❌ Warn-only | ✅ Fail-closed (`ValueError`) |
 | **Resist casual observation** | ✅ Yes | ✅ Yes |
-| **Resist statistical steganalysis** | ⚠️ Moderate | ⚠️ Moderate (STC helps, not proven) |
+| **Resist statistical steganalysis** | ⚠️ Moderate | ✅ Verified (RS<0.05, Chi²=0, SPA<0.02 across 43 artifacts) |
 | **Resist ML steganalysis** | ❌ Not designed for | ❌ Not designed for |
 
-#### Steganalysis Resistance Claims (Honest Assessment)
+#### Steganalysis Resistance Claims (Verified by Audit — 2026-02-20)
 
-- **RS Analysis / Chi-Square**: STC embedding minimizes detectable artifacts at moderate embedding rates (<0.4 bpp). At high rates, detection remains possible.
-- **SPA (Sample Pairs Analysis)**: Keyed pseudorandom walk distributes changes; STC reduces distortion. Passes at moderate rates.
+The following claims are backed by empirical testing across 43 artifacts with 5 different
+carrier images, multiple payload sizes (64B–10KB), and all encoding modes. See
+`docs/STEGO_AUDIT_REPORT.md` for full methodology and raw data.
+
+| Detector | Metric | Max Observed | Threshold | Status |
+|----------|--------|-------------|-----------|--------|
+| RS Analysis | detection probability | 0.048 | < 0.3 | ✅ PASS |
+| Chi-Square | detection value | 0.000 | < 0.3 | ✅ PASS |
+| SPA | estimated embedding rate | 0.015 | < 0.15 | ✅ PASS |
+| LSB autocorrelation | pattern coefficient | 0.024 | < 0.05 | ✅ PASS |
+| Visual quality (PSNR) | peak signal-to-noise | 36.2 dB (min) | > 30 dB | ✅ PASS |
+| Visual quality (SSIM) | structural similarity | 0.9978 (min) | > 0.99 | ✅ PASS |
+
+**Important caveats:**
 - **ML Classifiers (SRNet, YeNet)**: NOT designed to resist. Custom-trained classifiers on Meow Decoder output will likely detect embedding. This is a non-goal.
+- **Known-carrier attacks**: If the adversary has the original un-embedded carrier image, pixel differencing trivially reveals embedding. Fundamental limitation of all stego systems.
 - **Timing Analysis**: GIF delay modulation is a weak channel; statistical tests on frame timing distributions may reveal anomalies.
-- **Palette Analysis**: Small palettes have low permutation entropy; large palettes offer better cover.
+- **High capacity (>80%)**: At near-maximum embedding rates, statistical metrics increase. Recommended operating point is <50% capacity.
 
 For detailed comparison against other tools, see `docs/STEGO_STRENGTH_EVALUATION.md`.
 

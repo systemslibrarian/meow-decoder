@@ -378,8 +378,8 @@ backend == "rust"
 **Description:** Syndrome-Trellis Codes MUST correctly roundtrip: encoding a message into a cover signal and decoding it back MUST recover the original message exactly.
 
 **Implementation:**
-- GF(2) Gaussian elimination with cost-aware pivot selection
-- Previously: off-by-one error and incorrect algorithm (FIXED 2026-02-20)
+- Viterbi trellis algorithm with checkpoint-based backtracking (Rust), rate 1/4
+- Previously: GF(2) Gaussian elimination (FIXED 2026-02-20), then replaced with Viterbi (Session 3)
 
 **Verification:**
 - `tests/test_stego_adversarial.py::TestSTCCorrectness`

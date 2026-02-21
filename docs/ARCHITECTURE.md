@@ -1084,6 +1084,31 @@ wasm-pack build crypto_core --target web --release --features wasm-pq
 
 ---
 
-**Last Updated:** 2026-02-17
+## 🔬 **Multi-Layer Steganography Audit Results**
+
+The multi-layer stego system (`stego_multilayer.py`) underwent a comprehensive 4-session audit
+(see `docs/STEGO_AUDIT_REPORT.md` for full details).
+
+| Metric | Result | Threshold |
+|--------|--------|-----------|
+| Artifacts tested | 43/43 PASS | — |
+| Unit tests | 252/252 PASS | — |
+| RS detection (max) | 0.048 | < 0.3 |
+| Chi² detection (max) | 0.000 | < 0.3 |
+| SPA rate (max) | 0.015 | < 0.15 |
+| PSNR (min) | 36.2 dB | > 30 dB |
+| SSIM (min) | 0.9978 | > 0.99 |
+| Bugs found & fixed | 11 | — |
+| STC algorithm | Viterbi trellis (Rust), rate 1/4, ~1s encode | — |
+
+**Key changes from audit:**
+- Output format switched to APNG (lossless) — GIF palette quantization destroys LSB data
+- STC algorithm replaced: Gaussian elimination → Viterbi trellis (50× faster, 100% reliable)
+- Round-trip decode fixed (sequential frame fill strategy)
+- SPA reimplemented (Dumitrescu-Wu-Wang method)
+
+---
+
+**Last Updated:** 2026-02-20
 **Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
 **Status:** Production

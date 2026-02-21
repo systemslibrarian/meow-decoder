@@ -374,11 +374,14 @@ fn compute_syndrome_internal(columns: &[u16], bits: &[u8], n: usize, m: usize) -
 /// Finds stego bits s.t. H*stego = payload (mod 2) with minimum Σcost[i]
 /// for each flipped bit, where H is the STC matrix derived from seed.
 ///
-/// Algorithm: GF(2) Gaussian elimination on the residual system
-/// 1. Compute residual = payload XOR H*cover
-/// 2. Build equation system: H*delta = residual
-/// 3. Gaussian elimination with cost-aware pivot selection
-/// 4. Back-substitute to find minimum-cost bit flips
+/// Algorithm: Viterbi trellis (Filler, Judas, Fridrich 2011)
+/// Exploits the banded structure of H for O(n × 2^h) complexity
+/// instead of O(m²) Gaussian elimination.
+///
+/// Uses checkpoint-based backtracking for memory efficiency:
+/// - Forward pass saves dp snapshots every CHUNK columns
+/// - Backward pass reprocesses each chunk to reconstruct decisions
+/// - Memory: O((n/CHUNK + CHUNK) × 2^h) ≈ a few MB
 ///
 /// # Arguments
 /// * `seed` - Seed for generating the STC matrix H
@@ -421,117 +424,167 @@ pub fn stc_encode(
     }
 
     let h = STC_CONSTRAINT_HEIGHT;
+    let num_states: usize = 1 << h;
+    let state_mask: usize = num_states - 1;
 
     // Generate STC submatrix
     let columns = generate_stc_matrix(seed, n, m);
 
-    // For each column j, compute which equations it affects
-    let mut col_affects: Vec<Vec<usize>> = vec![vec![]; n];
+    // --- Viterbi forward pass with checkpoints ---
+    // Adaptive chunk size for memory efficiency
+    let chunk_size: usize = if n <= 100_000 {
+        256
+    } else if n <= 1_000_000 {
+        1024
+    } else {
+        4096
+    };
+    let num_chunks = (n + chunk_size - 1) / chunk_size;
+
+    // Save dp at the START of each chunk (including position 0)
+    let mut checkpoints: Vec<Vec<f64>> = Vec::with_capacity(num_chunks + 1);
+
+    let mut dp = vec![f64::INFINITY; num_states];
+    dp[0] = 0.0; // Initial state: zero partial syndrome
+    checkpoints.push(dp.clone());
+
     for j in 0..n {
-        let col = columns[j];
+        let col_mask = columns[j] as usize;
         let eq_start = j * m / n;
-        for bp in 0..h {
-            if col & (1 << bp) != 0 {
-                let eq_idx = eq_start + bp;
-                if eq_idx < m {
-                    col_affects[j].push(eq_idx);
+        let eq_start_next = (j + 1) * m / n;
+        let committed = eq_start_next - eq_start; // always 0 or 1 since m < n
+
+        let mut dp_next = vec![f64::INFINITY; num_states];
+
+        for state in 0..num_states {
+            if dp[state].is_infinite() {
+                continue;
+            }
+
+            for flip in 0u8..2 {
+                let bit_val = (cover_bits[j] ^ flip) & 1;
+                let updated = if bit_val == 1 {
+                    state ^ col_mask
+                } else {
+                    state
+                };
+
+                // Check committed equations (0 or 1)
+                let (ok, next_state) = if committed == 1 {
+                    let eq_idx = eq_start;
+                    if eq_idx < m && (updated & 1) != (payload_bits[eq_idx] as usize & 1) {
+                        (false, 0)
+                    } else {
+                        (true, (updated >> 1) & state_mask)
+                    }
+                } else {
+                    (true, updated & state_mask)
+                };
+
+                if ok {
+                    let cost = dp[state] + if flip == 1 { costs[j] } else { 0.0 };
+                    if cost < dp_next[next_state] {
+                        dp_next[next_state] = cost;
+                    }
                 }
             }
         }
-    }
 
-    // Step 1: Compute cover syndrome
-    let cover_syn = compute_syndrome_internal(&columns, cover_bits, n, m);
+        dp = dp_next;
 
-    // Step 2: Compute residual
-    let residual: Vec<u8> = (0..m).map(|i| payload_bits[i] ^ cover_syn[i]).collect();
-
-    // Step 3: If already matches, return cover unchanged
-    if residual.iter().all(|&b| b == 0) {
-        return Ok(cover_bits.to_vec());
-    }
-
-    // Step 4: GF(2) Gaussian elimination
-    // Build equation-centric form: for each equation, the set of columns
-    let mut eq_cols: Vec<Vec<usize>> = vec![vec![]; m];
-    for (j, affects) in col_affects.iter().enumerate() {
-        for &eq in affects {
-            eq_cols[eq].push(j);
+        // Save checkpoint at end of each chunk
+        if (j + 1) % chunk_size == 0 {
+            checkpoints.push(dp.clone());
         }
     }
-    // Sort each equation's columns for efficient symmetric difference
-    for row in eq_cols.iter_mut() {
-        row.sort_unstable();
-    }
-    let mut eq_rhs = residual;
-
-    let mut pivot_col: Vec<Option<usize>> = vec![None; m];
-    let mut used_as_pivot = vec![false; n];
-
-    for i in 0..m {
-        if eq_cols[i].is_empty() {
-            // No columns affect this equation
-            if eq_rhs[i] == 1 {
-                // Inconsistent — can't fix this equation
-                return Err(StegoError::StcEncodingFailed(format!(
-                    "Equation {} has no covering columns and residual=1",
-                    i
-                )));
-            }
-            continue;
-        }
-
-        // Find cheapest unused column in this equation as pivot
-        let mut best: Option<(usize, f64)> = None;
-        for &j in &eq_cols[i] {
-            if !used_as_pivot[j] && best.as_ref().is_none_or(|(_, c)| costs[j] < *c) {
-                best = Some((j, costs[j]));
-            }
-        }
-
-        let pivot = match best {
-            Some((j, _)) => j,
-            None => {
-                // All columns used — this equation is linearly dependent
-                if eq_rhs[i] == 1 {
-                    return Err(StegoError::StcEncodingFailed(format!(
-                        "Equation {} is linearly dependent with residual=1 (rank deficient)",
-                        i
-                    )));
-                }
-                continue;
-            }
-        };
-
-        pivot_col[i] = Some(pivot);
-        used_as_pivot[pivot] = true;
-
-        // Eliminate pivot from all OTHER equations
-        let snapshot_cols = eq_cols[i].clone();
-        let snapshot_rhs = eq_rhs[i];
-
-        for k in 0..m {
-            if k == i {
-                continue;
-            }
-            // Check if equation k contains the pivot column
-            if eq_cols[k].binary_search(&pivot).is_ok() {
-                // XOR equation i into equation k (symmetric difference of column sets)
-                let new_cols = symmetric_diff_sorted(&eq_cols[k], &snapshot_cols);
-                eq_cols[k] = new_cols;
-                eq_rhs[k] ^= snapshot_rhs;
-            }
-        }
+    // Save final dp if chunk didn't end exactly at n
+    if n % chunk_size != 0 {
+        checkpoints.push(dp.clone());
     }
 
-    // Read solution: flip pivot columns where rhs == 1
+    // Find optimal end state
+    // After processing all n columns, all m equations should be committed.
+    // The final state should be 0 (no residual syndrome).
+    if dp[0].is_infinite() {
+        return Err(StegoError::StcEncodingFailed(
+            "No valid encoding path found in trellis (try lower embedding rate)".into(),
+        ));
+    }
+
+    // --- Backward pass: reconstruct flip decisions ---
     let mut stego = cover_bits.to_vec();
-    for i in 0..m {
-        if let Some(j) = pivot_col[i] {
-            if eq_rhs[i] == 1 {
-                stego[j] ^= 1;
+    let mut target_state: usize = 0;
+
+    for chunk_idx in (0..num_chunks).rev() {
+        let chunk_start = chunk_idx * chunk_size;
+        let chunk_end = std::cmp::min(chunk_start + chunk_size, n);
+        let chunk_len = chunk_end - chunk_start;
+
+        // Recompute forward pass for this chunk from checkpoint
+        let mut local_dp = checkpoints[chunk_idx].clone();
+
+        // Backtracking info: (prev_state, flip) per (position_in_chunk, state)
+        // Memory: chunk_len × num_states × 3 bytes ≈ 768 KB for chunk=256, states=1024
+        let mut trace_prev: Vec<Vec<u16>> = vec![vec![0u16; num_states]; chunk_len];
+        let mut trace_flip: Vec<Vec<bool>> = vec![vec![false; num_states]; chunk_len];
+
+        for (idx, j) in (chunk_start..chunk_end).enumerate() {
+            let col_mask = columns[j] as usize;
+            let eq_start = j * m / n;
+            let eq_start_next = (j + 1) * m / n;
+            let committed = eq_start_next - eq_start;
+
+            let mut dp_next = vec![f64::INFINITY; num_states];
+
+            for state in 0..num_states {
+                if local_dp[state].is_infinite() {
+                    continue;
+                }
+
+                for flip in 0u8..2 {
+                    let bit_val = (cover_bits[j] ^ flip) & 1;
+                    let updated = if bit_val == 1 {
+                        state ^ col_mask
+                    } else {
+                        state
+                    };
+
+                    let (ok, next_state) = if committed == 1 {
+                        let eq_idx = eq_start;
+                        if eq_idx < m && (updated & 1) != (payload_bits[eq_idx] as usize & 1) {
+                            (false, 0)
+                        } else {
+                            (true, (updated >> 1) & state_mask)
+                        }
+                    } else {
+                        (true, updated & state_mask)
+                    };
+
+                    if ok {
+                        let cost = local_dp[state] + if flip == 1 { costs[j] } else { 0.0 };
+                        if cost < dp_next[next_state] {
+                            dp_next[next_state] = cost;
+                            trace_prev[idx][next_state] = state as u16;
+                            trace_flip[idx][next_state] = flip == 1;
+                        }
+                    }
+                }
             }
+
+            local_dp = dp_next;
         }
+
+        // Backtrack through this chunk
+        let mut state = target_state;
+        for idx in (0..chunk_len).rev() {
+            let flip = trace_flip[idx][state];
+            let prev = trace_prev[idx][state] as usize;
+            if flip {
+                stego[chunk_start + idx] ^= 1;
+            }
+            state = prev;
+        }
+        target_state = state;
     }
 
     // Verify correctness
@@ -546,32 +599,6 @@ pub fn stc_encode(
     }
 
     Ok(stego)
-}
-
-/// Symmetric difference of two sorted Vec<usize>, returning a new sorted vec.
-fn symmetric_diff_sorted(a: &[usize], b: &[usize]) -> Vec<usize> {
-    let mut result = Vec::with_capacity(a.len() + b.len());
-    let (mut i, mut j) = (0, 0);
-    while i < a.len() && j < b.len() {
-        match a[i].cmp(&b[j]) {
-            std::cmp::Ordering::Less => {
-                result.push(a[i]);
-                i += 1;
-            }
-            std::cmp::Ordering::Greater => {
-                result.push(b[j]);
-                j += 1;
-            }
-            std::cmp::Ordering::Equal => {
-                // Present in both → cancels out (XOR)
-                i += 1;
-                j += 1;
-            }
-        }
-    }
-    result.extend_from_slice(&a[i..]);
-    result.extend_from_slice(&b[j..]);
-    result
 }
 
 /// STC decode: extract payload bits from stego bits.

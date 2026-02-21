@@ -68,7 +68,7 @@ The Codespace will automatically forward port 5000, and you'll get a notificatio
 1. Sign up for a free account at [PythonAnywhere](https://www.pythonanywhere.com)
 2. Open a Bash console and clone the repository:
    ```bash
-   git clone https://github.com/meow-decoder/meow-decoder.git
+   git clone https://github.com/systemslibrarian/meow-decoder.git
    cd meow-decoder
    ```
 
@@ -138,9 +138,9 @@ chmod 755 instance
 
 ### File Size Limit
 
-Default: **8 MB** (set in `app.py` line 21)
+Default: **50 MB** upload limit (set in `app.py` line 30), with an **8 MB** limit for encoding operations (enforced at `app.py` line 130).
 
-To change:
+To change the upload limit:
 ```python
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 ```
@@ -149,7 +149,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16 MB
 
 Default: `txt, pdf, png, jpg, jpeg, gif, bin, zip, doc, docx`
 
-Edit in `app.py` line 31:
+Edit in `app.py` line 43:
 ```python
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'bin', 'zip'}
 ```
@@ -287,13 +287,22 @@ web_demo/
 ├── app.py                      # Main Flask application
 ├── requirements.txt            # Python dependencies
 ├── wsgi.py                     # PythonAnywhere WSGI file
+├── start.sh                    # Startup script
 ├── README.md                   # This file
+├── test_all_modes.py           # Full test suite (20 tests)
+├── test_cat_mode.py            # Cat mode tests
+├── static/                     # Static assets (WASM, JS, CSS)
 ├── templates/
 │   ├── base.html              # Base template with navigation
-│   ├── encode.html            # Encoding page
+│   ├── cat_mode.html          # Cat mode page
 │   ├── decode.html            # Decoding page
+│   ├── decode_result.html     # Decoding result page
+│   ├── demo.html              # Demo page
+│   ├── encode.html            # Encoding page
+│   ├── modes.html             # Mode selection page
 │   ├── result.html            # Encoding result page
-│   └── decode_result.html     # Decoding result page
+│   ├── schrodinger.html       # Schrödinger mode page
+│   └── webcam.html            # Webcam scanner page
 └── instance/                   # Runtime data (gitignored)
     ├── uploads/               # Uploaded files (temp)
     └── outputs/               # Generated GIFs (temp)
@@ -359,10 +368,9 @@ Meow Decoder is open source (see main project LICENSE file).
 
 ## Links
 
-- **Main Repository**: https://github.com/meow-decoder/meow-decoder
-- **Documentation**: https://github.com/meow-decoder/meow-decoder/blob/main/docs/
-- **Quick Start Guide**: https://github.com/meow-decoder/meow-decoder/blob/main/QUICKSTART.md
-- **Security Audit**: https://github.com/meow-decoder/meow-decoder/blob/main/docs/SECURITY_AUDIT.md
+- **Main Repository**: https://github.com/systemslibrarian/meow-decoder
+- **Documentation**: https://github.com/systemslibrarian/meow-decoder/blob/main/docs/
+- **Quick Start Guide**: https://github.com/systemslibrarian/meow-decoder/blob/main/QUICKSTART.md
 
 ## Support
 

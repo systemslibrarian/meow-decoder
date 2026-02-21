@@ -10,6 +10,41 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Steganography Audit Complete — 43/43 Artifacts PASS (2026-02-20) 🔬
+
+**Comprehensive 4-session stego audit: 43 artifacts, 252 unit tests, 18 adversarial tests, 11 bugs fixed.** See `docs/STEGO_AUDIT_REPORT.md` for full results.
+
+#### Audit Results
+| Metric | Result |
+|--------|--------|
+| Artifacts (Phase 1-3) | 43/43 PASS |
+| Unit tests | 252/252 PASS |
+| Adversarial tests | 14 PASS, 4 WARN (known-carrier — expected) |
+| RS detection (max) | 0.048 (threshold < 0.3) |
+| Chi² detection (max) | 0.000 (threshold < 0.3) |
+| SPA rate (max) | 0.015 (threshold < 0.15) |
+| PSNR (min) | 36.2 dB (threshold > 30 dB) |
+| SSIM (min) | 0.9978 (threshold > 0.99) |
+
+#### Critical Bugs Fixed in Audit
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | 🔴 CRITICAL | GIF palette quantization destroys LSB stego | Auto-switch to APNG (lossless) |
+| 2 | 🔴 CRITICAL | Round-trip decode mismatch (frame boundary misalignment) | Sequential frame fill strategy |
+| 3 | 🔴 CRITICAL | STC encoder/decoder matrix mismatch | Pad payload to `_stc_payload_capacity()` |
+| 4 | 🔴 CRITICAL | STC Gaussian elimination O(m²), 72.5s, hangs | Replaced with Viterbi trellis (~1.4s, 50× faster) |
+| 5 | 🟠 HIGH | STC rate 1/3 unreliable (~45% failure) | Changed to rate 1/4 (100% reliable) |
+
+#### Documentation Added
+- `docs/STEGO_AUDIT_REPORT.md` — Full audit methodology, per-artifact results, bug catalog
+- Updated `docs/THREAT_MODEL.md` — Verified steganalysis resistance claims with empirical data
+- Updated `docs/SECURITY_CLAIMS.md` — Added steganography claims section
+- Updated `docs/ARCHITECTURE.md` — Added audit results summary
+- `scripts/steganalysis_chi_square.py` — Westfeld chi-square analysis tool
+- `scripts/steganalysis_test_runner.sh` — External tool comparison (zsteg, StegSeek, binwalk, exiftool)
+
+---
+
 ### Multi-Layer Steganography Phase 1 — Temporal, Adversarial & Cat Mode Fixes (2026-02-20) 🐱
 
 **Three new Phase 1 stego channels, automatic stego decode fallback, and Cat Mode pipeline fix.** 49 new Phase 1 tests, 20/20 web demo integration tests passing across all 4 modes.

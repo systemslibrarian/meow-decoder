@@ -659,7 +659,9 @@ class TestEndToEnd:
         encoder = MultiLayerStegoEncoder(config, master_key)
         meta = encoder.encode(payload, carrier_path, output_path)
 
-        assert output_path.exists()
+        # Encoder auto-switches to APNG when primary channel is enabled
+        actual_output = Path(meta["output_path"])
+        assert actual_output.exists(), f"Output not found at {actual_output}"
         assert "primary" in meta["channels_used"]
 
     def test_timing_channel_e2e(self, master_key, config, tmp_path):
