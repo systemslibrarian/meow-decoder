@@ -786,8 +786,8 @@ def require_memory_guard(
     without memory protection is unacceptable.
 
     Critical protections (must ALL succeed):
-        - mlockall (Unix) or lock_memory_privilege (Windows)
-        - Core dump disabling
+        - mlockall (Unix) or SE_LOCK_MEMORY_PRIVILEGE + core dump disabling (Windows)
+        - Core dump disabling (all platforms)
         - ptrace prevention (Linux only)
 
     Args:
@@ -810,8 +810,11 @@ def require_memory_guard(
     failures = []
 
     if _system == "Windows":
-        # On Windows, VirtualLock is per-buffer (no mlockall equivalent)
-        # Core dump suppression is the critical protection
+        # On Windows, SE_LOCK_MEMORY_PRIVILEGE is required for VirtualLock
+        # to succeed on large buffers.  Core dump suppression is also critical.
+        # Both must succeed for the memory guard to be considered active.
+        if not status.get("lock_memory_privilege", False):
+            failures.append("lock_memory_privilege (SE_LOCK_MEMORY_PRIVILEGE \u2014 required for VirtualLock)")
         if not status.get("no_coredump", False):
             failures.append("core dump disabling")
     else:

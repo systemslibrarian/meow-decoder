@@ -41,7 +41,7 @@ from .schrodinger_encode import SchrodingerManifest
 
 def schrodinger_decode_data(
     superposition: bytes,
-    manifest: SchrodingerManifest,
+    manifest: "SchrodingerManifest",
     password: str,
 ) -> Optional[bytes]:
     """
@@ -58,16 +58,20 @@ def schrodinger_decode_data(
         The decrypted data if the password is correct for either reality,
         otherwise None.
 
-    Security:
-        - TIMING-SAFE: Both Argon2id derivations run ALWAYS to prevent timing oracle
-        - TIMING-SAFE: Both HMAC verifications run ALWAYS to prevent reality detection
-        - Uses constant_time_compare for auth tag checks
-        - Random delay added to mask any residual timing differences
+    Timing properties:
+        EQUALIZED: Both Argon2id derivations always run.
+        EQUALIZED: Both HMAC verifications always run.
+        EQUALIZED: Both metadata decryption attempts always run.
+        NOT-EQUALIZED: File decryption runs only for the matched reality.
+          Rationale: file sizes differ and we cannot dupe the decrypt cost
+          without knowing the plaintext size in advance.  The Argon2id
+          gating means an attacker must first break the KDF before
+          exploiting any residual timing from the file-decrypt branch.
+        Jitter: a small random delay is added after KDF to mask CPU noise.
     """
     hb = get_handle_backend()
 
-    # SECURITY (TIMING-01): Derive BOTH keys upfront to prevent timing oracle.
-    # Argon2id is the dominant cost — must always run for both salts.
+    # EQUALIZED-01: Derive BOTH keys upfront — Argon2id is the dominant cost.
     master_meta_key_a = hb.derive_key_argon2id(
         password.encode("utf-8"), manifest.salt_a,
         memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
@@ -102,7 +106,7 @@ def schrodinger_decode_data(
     hb.drop(hmac_key_a)
     hb.drop(hmac_key_b)
 
-    # SECURITY (TIMING-02): Check BOTH HMACs to avoid early-exit timing leak.
+    # EQUALIZED-02: Check BOTH HMACs in constant time — no early exit.
     is_reality_a = _get_backend().constant_time_compare(
         expected_hmac_a, manifest.reality_a_hmac
     )
@@ -110,122 +114,100 @@ def schrodinger_decode_data(
         expected_hmac_b, manifest.reality_b_hmac
     )
 
-    # Random delay to mask any residual timing differences (1-10ms)
-    time.sleep(secrets.randbelow(10) / 1000.0)
+    # EQUALIZED-03: Always derive BOTH enc keys, regardless of HMAC result.
+    # This prevents timing oracles on the key-derivation path.
+    enc_key_a = hb.derive_key_hkdf(
+        master_meta_key_a,
+        manifest.salt_a,
+        b"schrodinger_enc_key_v1",
+        32,
+    )
+    enc_key_b = hb.derive_key_hkdf(
+        master_meta_key_b,
+        manifest.salt_b,
+        b"schrodinger_enc_key_v1",
+        32,
+    )
 
-    # Now branch based on which reality matched (if any)
-    if is_reality_a:
-        try:
-            # Derive encryption key for Reality A (handle-based)
-            enc_key_a = hb.derive_key_hkdf(
-                master_meta_key_a,
-                manifest.salt_a,
-                b"schrodinger_enc_key_v1",
-                32,
-            )
-
-            # Decrypt metadata (handle-based AES-GCM)
-            metadata_a_plain = hb.aes_gcm_decrypt(
-                enc_key_a, manifest.nonce_a, manifest.metadata_a, None
-            )
-            hb.drop(enc_key_a)
-
-            # Unpack metadata:
-            # orig_len(8) + comp_len(8) + cipher_len(8) + salt_enc(16) +
-            # nonce_enc(12) + sha256(32) + pad(4) = 88 bytes
-            orig_len, comp_len, cipher_len = struct.unpack(
-                ">QQQ", metadata_a_plain[:24]
-            )
-            salt_enc = metadata_a_plain[24:40]
-            nonce_enc = metadata_a_plain[40:52]
-            sha256 = metadata_a_plain[52:84]
-
-            # Collapse superposition to get ciphertext A (even blocks)
-            ciphertext_a = collapse_to_reality(superposition, 0)
-            ciphertext_a = ciphertext_a[:cipher_len]
-
-            # Decrypt the actual file data via handle-based API
-            plaintext = decrypt_to_raw_handle(
-                cipher=ciphertext_a,
-                password=password,
-                salt=salt_enc,
-                nonce=nonce_enc,
-                orig_len=orig_len,
-                comp_len=comp_len,
-                sha256=sha256,
-            )
-
-            # Drop master key handles before returning
-            for h in (master_meta_key_a, master_meta_key_b):
-                try:
-                    hb.drop(h)
-                except Exception:
-                    pass
-
-            return plaintext
-        except Exception:
-            # Decryption failed despite HMAC match — data corrupted
-            pass
-
-    if is_reality_b:
-        try:
-            # Derive encryption key for Reality B (handle-based)
-            enc_key_b = hb.derive_key_hkdf(
-                master_meta_key_b,
-                manifest.salt_b,
-                b"schrodinger_enc_key_v1",
-                32,
-            )
-
-            # Decrypt metadata (handle-based AES-GCM)
-            metadata_b_plain = hb.aes_gcm_decrypt(
-                enc_key_b, manifest.nonce_b, manifest.metadata_b, None
-            )
-            hb.drop(enc_key_b)
-
-            # Unpack metadata
-            orig_len, comp_len, cipher_len = struct.unpack(
-                ">QQQ", metadata_b_plain[:24]
-            )
-            salt_enc = metadata_b_plain[24:40]
-            nonce_enc = metadata_b_plain[40:52]
-            sha256 = metadata_b_plain[52:84]
-
-            # Collapse superposition to get ciphertext B (odd blocks)
-            ciphertext_b = collapse_to_reality(superposition, 1)
-            ciphertext_b = ciphertext_b[:cipher_len]
-
-            # Decrypt the actual file data via handle-based API
-            plaintext = decrypt_to_raw_handle(
-                cipher=ciphertext_b,
-                password=password,
-                salt=salt_enc,
-                nonce=nonce_enc,
-                orig_len=orig_len,
-                comp_len=comp_len,
-                sha256=sha256,
-            )
-
-            # Drop master key handles before returning
-            for h in (master_meta_key_a, master_meta_key_b):
-                try:
-                    hb.drop(h)
-                except Exception:
-                    pass
-
-            return plaintext
-        except Exception:
-            # Decryption failed despite HMAC match — data corrupted
-            pass
-
-    # Drop master key handles (zeroize in Rust)
+    # Drop master key handles (no longer needed)
     for h in (master_meta_key_a, master_meta_key_b):
         try:
             hb.drop(h)
         except Exception:
             pass
 
-    # Neither password worked
+    # EQUALIZED-04: Always attempt BOTH metadata decrypts, even if HMAC failed.
+    # If HMAC mismatch, AES-GCM will fail (tag mismatch) and we get None.
+    # This ensures both branches take approximately equal time.
+    metadata_a_plain: Optional[bytes] = None
+    metadata_b_plain: Optional[bytes] = None
+    try:
+        metadata_a_plain = hb.aes_gcm_decrypt(
+            enc_key_a, manifest.nonce_a, manifest.metadata_a, None
+        )
+    except Exception:
+        pass  # Expected when HMAC failed — the try is part of timing equalization
+
+    try:
+        metadata_b_plain = hb.aes_gcm_decrypt(
+            enc_key_b, manifest.nonce_b, manifest.metadata_b, None
+        )
+    except Exception:
+        pass  # Expected when HMAC failed
+
+    # Drop enc key handles
+    for h in (enc_key_a, enc_key_b):
+        try:
+            hb.drop(h)
+        except Exception:
+            pass
+
+    # Small jitter to mask CPU noise in the equalized operations above.
+    # Note: this does NOT equalize the file-decrypt phase below.
+    time.sleep(secrets.randbelow(10) / 1000.0)
+
+    # ── Select and use the matched reality ──────────────────────────────────
+    # Security gate: file decryption only runs when Argon2id-derived HMAC
+    # verified.  The NOT-EQUALIZED note in the docstring applies to this
+    # section; the phases above are fully equalized.
+
+    def _unpack_metadata(plain: bytes) -> tuple:
+        """Extract (orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256)"""
+        orig_len, comp_len, cipher_len = struct.unpack(">QQQ", plain[:24])
+        salt_enc = plain[24:40]
+        nonce_enc = plain[40:52]
+        sha256 = plain[52:84]
+        return orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256
+
+    if is_reality_a and metadata_a_plain is not None:
+        try:
+            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = \
+                _unpack_metadata(metadata_a_plain)
+            ciphertext_a = collapse_to_reality(superposition, 0)[:cipher_len]
+            plaintext = decrypt_to_raw_handle(
+                cipher=ciphertext_a, password=password,
+                salt=salt_enc, nonce=nonce_enc,
+                orig_len=orig_len, comp_len=comp_len, sha256=sha256,
+            )
+            return plaintext
+        except Exception:
+            pass  # Data corrupted despite HMAC match
+
+    if is_reality_b and metadata_b_plain is not None:
+        try:
+            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = \
+                _unpack_metadata(metadata_b_plain)
+            ciphertext_b = collapse_to_reality(superposition, 1)[:cipher_len]
+            plaintext = decrypt_to_raw_handle(
+                cipher=ciphertext_b, password=password,
+                salt=salt_enc, nonce=nonce_enc,
+                orig_len=orig_len, comp_len=comp_len, sha256=sha256,
+            )
+            return plaintext
+        except Exception:
+            pass  # Data corrupted despite HMAC match
+
+    # Neither reality matched — wrong password or corrupted data
     return None
 
 
@@ -254,7 +236,8 @@ def schrodinger_decode_file(
     from .gif_handler import GIFDecoder
     from .qr_code import QRCodeReader
     from .fountain import FountainDecoder, unpack_droplet
-    from .frame_mac import unpack_frame_with_mac
+    from .frame_mac import unpack_frame_with_mac, verify_frame_mac, MAC_SIZE
+    from .schrodinger_encode import _FRAME_MAC_SEED_INFO
 
     if verbose:
         print("🐱⚛️  Schrödinger's Yarn Ball - Quantum Decoder v6.0.0")
@@ -283,20 +266,64 @@ def schrodinger_decode_file(
     if not qr_data_list:
         raise ValueError("No QR codes found in GIF")
 
-    # Parse manifest (frame 0)
+    # ── Parse manifest (frame 0) with proper MAC bootstrap ──────────────
+    # Security (Bug 1): encoder prepends an 8-byte frame MAC to EVERY frame.
+    # We MUST verify that MAC rather than blindly stripping it by length.
+    #
+    # Bootstrap approach for frame 0:
+    #   1. Strip first MAC_SIZE bytes (fixed-format, not length-heuristic).
+    #   2. Parse manifest payload -> get frame_mac_seed.
+    #   3. Derive frame MAC master from seed (seed is public, not secret).
+    #   4. RE-VERIFY frame 0's MAC against the stripped bytes.
+    #      Any tampering with the payload (incl. the seed) breaks the MAC.
+    #   5. For v0x07 legacy (seed == all-zeros): skip frame MAC check.
     if verbose:
-        print("\n⚛️  Parsing quantum manifest...")
+        print("\n⛛️  Parsing quantum manifest...")
 
-    manifest_raw = qr_data_list[0]
+    frame0_raw = qr_data_list[0]
+    if len(frame0_raw) < MAC_SIZE + 382:
+        raise ValueError(
+            f"Frame 0 too short: {len(frame0_raw)} bytes "
+            f"(need ≥ {MAC_SIZE + 382} for MAC + manifest)"
+        )
 
-    # Strip frame MAC if present (first 8 bytes)
-    if len(manifest_raw) > 400:
-        manifest_raw = manifest_raw[8:]
+    # Step 1: tentative split into MAC prefix + manifest payload
+    frame0_mac_bytes = frame0_raw[:MAC_SIZE]
+    manifest_payload = frame0_raw[MAC_SIZE:]
 
+    # Step 2: parse manifest to get frame_mac_seed
     try:
-        manifest = SchrodingerManifest.unpack(manifest_raw)
+        manifest = SchrodingerManifest.unpack(manifest_payload)
     except Exception as e:
         raise ValueError(f"Failed to parse manifest: {e}")
+
+    # Step 3+4: derive frame MAC key and re-verify frame 0
+    backend = _get_backend()
+    _zero_seed = b"\x00" * 16
+    if manifest.frame_mac_seed != _zero_seed:
+        # v0x08 (current): derive key from public seed and verify MAC
+        frame_mac_master = backend.sha256(
+            manifest.frame_mac_seed + _FRAME_MAC_SEED_INFO
+        )
+        frame0_valid = verify_frame_mac(
+            manifest_payload,
+            frame0_mac_bytes,
+            frame_mac_master,
+            0,
+            manifest.frame_mac_seed,
+        )
+        if not frame0_valid:
+            raise ValueError(
+                "Frame 0 (manifest) MAC verification failed — "
+                "manifest may be corrupted or injected"
+            )
+        if verbose:
+            print("   ✅ Manifest frame MAC verified")
+    else:
+        # v0x07 legacy: no seed present, skip frame MAC verification
+        frame_mac_master = None
+        if verbose:
+            print("   ⚠️  Legacy manifest (v0x07): frame MAC verification skipped")
 
     if verbose:
         print(f"   Version: 0x{manifest.version:02x} (Schrödinger v6.0.0)")
@@ -304,15 +331,30 @@ def schrodinger_decode_file(
         print(f"   Block size: {manifest.block_size}")
         print(f"   Superposition length: {manifest.superposition_len}")
 
-    # Extract and reassemble droplets
+    # ── Extract and verify droplet frames ───────────────────────────────────
+    # Security (Bug 1): Use unpack_frame_with_mac for EVERY droplet frame.
+    # Invalid frames (wrong MAC) are rejected before reaching fountain decoder.
+    # This prevents DoS via injected/corrupted frames.
     droplets = []
+    mac_failures = 0
 
     for i, frame_data in enumerate(qr_data_list[1:], 1):
-        # Skip frame MAC (first 8 bytes) if present
-        if len(frame_data) > manifest.block_size + 20:
-            droplet_data = frame_data[8:]
+        if frame_mac_master is not None:
+            # v0x08: proper MAC verification
+            valid, droplet_data = unpack_frame_with_mac(
+                frame_data, frame_mac_master, i, manifest.frame_mac_seed
+            )
+            if not valid:
+                mac_failures += 1
+                if verbose:
+                    print(f"   ⚠️  Frame {i} MAC failed — skipping (injected/corrupted?)")
+                continue
         else:
-            droplet_data = frame_data
+            # v0x07 legacy: strip fixed MAC_SIZE bytes if present
+            if len(frame_data) >= MAC_SIZE:
+                droplet_data = frame_data[MAC_SIZE:]
+            else:
+                droplet_data = frame_data
 
         try:
             droplet = unpack_droplet(droplet_data, manifest.block_size)
@@ -321,6 +363,9 @@ def schrodinger_decode_file(
             if verbose:
                 print(f"   ⚠️  Frame {i} unpack failed: {e}")
             continue
+
+    if mac_failures > 0 and verbose:
+        print(f"   ⚠️  {mac_failures} frame(s) rejected by MAC (injection/corruption)")
 
     if verbose:
         print(f"\n🌊 Fountain decoding {len(droplets)} droplets...")
@@ -389,6 +434,7 @@ Examples:
     parser.add_argument("-o", "--output", required=True, help="Output file")
     parser.add_argument("-p", "--password", help="Password (prompted if omitted)")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+    parser.add_argument("--debug", action="store_true", help="Show full traceback on error")
 
     args = parser.parse_args()
 
@@ -412,9 +458,10 @@ Examples:
             cat_msg = cat_translate_error(e)
             print(f"\n{cat_msg}", file=sys.stderr)
         except ImportError:
-            print(f"\n❌ Decoding failed: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
+            print(f"\n\u274c Decoding failed: invalid input or internal error", file=sys.stderr)
+        if args.debug:
+            import traceback
+            traceback.print_exc()
         return 1
 
 

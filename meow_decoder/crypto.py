@@ -296,18 +296,20 @@ def _register_nonce_use(key: bytes, nonce: bytes, *, synthetic_iv_mode: bool = F
 
     When synthetic_iv_mode is True (HSM/precomputed_key path), the nonce
     is derived deterministically via HKDF from key + plaintext hash + salt.
-    Same (key, plaintext, salt) → same nonce → deterministic encryption
-    (SIV property).  The per-process cache is redundant in this mode
-    because nonce uniqueness is guaranteed by construction — identical
-    nonce implies identical plaintext under the same key, which is safe
-    for AES-GCM.  We still register for defense-in-depth but skip the
-    reuse error (deterministic replay of same input is intentional).
+    Same (key, plaintext, salt) → same nonce → same ciphertext.  This is
+    standard AES-GCM (NOT AES-GCM-SIV); safety requires that either the
+    key changes per session OR (key, plaintext) pairs are unique.  The
+    per-process cache detects accidental reuse within a session.  We skip
+    the reuse error for synthetic IVs because identical (key, plaintext)
+    → identical nonce by design — identical input producing identical output
+    is not a vulnerability here.
     """
     digest = get_default_backend().sha256(key + nonce)
     if digest in _nonce_reuse_cache:
         if synthetic_iv_mode:
-            # Same nonce is expected for same plaintext under same key (SIV property).
-            # This is deterministic encryption — safe for GCM.
+            # Same nonce is expected for same (key, plaintext) — standard
+            # AES-GCM with a deterministic HKDF nonce.  Identical output
+            # for identical input is intentional in HSM mode.
             return
         raise RuntimeError("Nonce reuse detected for encryption key")
     _nonce_reuse_cache[digest] = True
@@ -316,41 +318,65 @@ def _register_nonce_use(key: bytes, nonce: bytes, *, synthetic_iv_mode: bool = F
         _nonce_reuse_cache.popitem(last=False)
 
 
-def compute_duress_hash(password: str, salt: bytes) -> bytes:
+def compute_duress_hash_legacy(password: str, salt: bytes) -> bytes:
     """
-    Compute a fast duress password hash.
+    LEGACY ONLY: Fast SHA-256 duress hash.  Do NOT use for new manifests.
 
-    NOTE: This is a fast hash used as a key for duress tag verification
-    and for legacy compatibility checks. It is NOT used for encryption.
+    Kept for backward compatibility with manifests encoded before Argon2id
+    duress derivation was introduced.  Decode paths that need to check
+    legacy duress tags should call this directly.
 
-    Args:
-        password: Duress password
-        salt: Salt from manifest (16 bytes)
-
-    Returns:
-        32-byte SHA-256 hash
+    Security note: fast, brute-forceable — superseded by
+    compute_duress_tag() which now uses Argon2id.
     """
     return get_default_backend().sha256(DURESS_HASH_PREFIX + salt + password.encode("utf-8"))
 
 
+# Backward-compat alias — removed in a future version
+compute_duress_hash = compute_duress_hash_legacy
+
+
 def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> bytes:
     """
-    Compute duress authentication tag (fast, tamper-evident).
+    Compute duress authentication tag using Argon2id KDF.
 
-    This tag allows the decoder to safely trigger duress behavior
-    without performing expensive Argon2id derivations while still
-    preventing manifest tampering from forcing duress.
+    The key is derived with the same Argon2id parameters as the main
+    encryption key, preventing brute-force of the duress password against
+    a captured manifest.  A separate HKDF context string (``meow_duress_tag_v2``)
+    ensures domain separation from the encryption key.
+
+    Key material NEVER enters Python — all derivation occurs inside Rust
+    handles.  The final HMAC output bytes are the only secret exposed.
 
     Args:
-        password: Duress password
-        salt: Salt from manifest (16 bytes)
+        password:      Duress password
+        salt:          Salt from manifest (16 bytes, same as encryption salt)
         manifest_core: Canonical manifest core (no HMAC, no duress tag)
 
     Returns:
         32-byte HMAC-SHA256 tag
     """
-    duress_key = compute_duress_hash(password, salt)
-    return get_default_backend().hmac_sha256(duress_key, manifest_core)
+    hb = get_handle_backend()
+    # Derive master handle via Argon2id — same cost as encryption key derivation
+    # so that offline brute-force of duress password requires the same work.
+    master_handle = hb.derive_key_argon2id(
+        password.encode("utf-8"),
+        salt,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
+        parallelism=ARGON2_PARALLELISM,
+    )
+    try:
+        # Domain-separate duress key from encryption key via HKDF info string
+        duress_handle = hb.derive_key_hkdf(
+            master_handle, salt, b"meow_duress_tag_v2", 32
+        )
+        try:
+            return hb.hmac_sha256(duress_handle, manifest_core)
+        finally:
+            hb.drop(duress_handle)
+    finally:
+        hb.drop(master_handle)
 
 
 def check_duress_password(
@@ -731,7 +757,8 @@ def encrypt_file_bytes(
         # compressed-plaintext hash via HKDF.  This guarantees:
         #   - Different plaintexts → different nonces (no collision possible)
         #   - Same plaintext under same key → same nonce → same ciphertext
-        #     (deterministic encryption; acceptable for file-transfer use case)
+        #     (standard AES-GCM with deterministic HKDF nonce, NOT AES-GCM-SIV;
+        #      safe when the key is session-bound or plaintext is unique)
         #   - No persistent state required across restarts
         #
         # For non-HSM modes (password-only, FS, PQ hybrid), the key changes

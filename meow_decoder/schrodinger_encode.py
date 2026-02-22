@@ -47,28 +47,56 @@ from .quantum_mixer import entangle_realities
 from .decoy_generator import generate_convincing_decoy
 
 
+# Current manifest version.  Bump when the binary layout changes.
+#   0x07 = legacy (no frame_mac_seed, reserved=32 zeros)
+#   0x08 = current (first 16 bytes of old-reserved repurposed as frame_mac_seed;
+#                   remaining 16 bytes stay as reserved)
+_MANIFEST_VERSION = 0x08
+
+# Domain info used to derive the frame-MAC master key from the manifest seed.
+# The seed itself is NOT secret (stored plaintext in the manifest), so derivation
+# may run in Python.  Its only purpose is per-GIF key uniqueness for DoS-filter
+# frame MACs; content authentication is provided by the Argon2id HMAC layer.
+_FRAME_MAC_SEED_INFO = b"meow_schrodinger_frame_mac_seed_v2"
+
+
 @dataclass
 class SchrodingerManifest:
     """
-    Manifest for Schrödinger mode v6.0.0.
+    Manifest for Schrödinger mode v6.0.0  (binary version 0x08).
 
-    Format (382 bytes):
-        - magic: b"MEOW" (4 bytes)
-        - version: 0x07 (1 byte)
-        - flags: 1 byte (reserved)
-        - salt_a: 16 bytes
-        - salt_b: 16 bytes
-        - nonce_a: 12 bytes
-        - nonce_b: 12 bytes
-        - reality_a_hmac: 32 bytes (verifies password A)
-        - reality_b_hmac: 32 bytes (verifies password B)
-        - metadata_a: 104 bytes (encrypted)
-        - metadata_b: 104 bytes (encrypted)
-        - block_count: 4 bytes
-        - block_size: 4 bytes
+    Layout (382 bytes total, unchanged from v0x07):
+        - magic:          b"MEOW" (4 bytes)
+        - version:        0x08   (1 byte)
+        - flags:          1 byte (reserved)
+        - salt_a:         16 bytes
+        - salt_b:         16 bytes
+        - nonce_a:        12 bytes
+        - nonce_b:        12 bytes
+        - reality_a_hmac: 32 bytes  (Argon2id-based; verifies password A)
+        - reality_b_hmac: 32 bytes  (Argon2id-based; verifies password B)
+        - metadata_a:     104 bytes (AES-GCM encrypted per reality)
+        - metadata_b:     104 bytes
+        - block_count:    4 bytes
+        - block_size:     4 bytes
         - superposition_len: 8 bytes
-        - reserved: 32 bytes
+        - frame_mac_seed: 16 bytes  ← NEW in v0x08 (was first 16B of reserved)
+        - reserved:       16 bytes  (remaining reserved bytes)
     Total: 382 bytes
+
+    frame_mac_seed design
+    ---------------------
+    The seed is stored UNENCRYPTED.  It is NOT a secret — it provides only
+    per-GIF key uniqueness for the DoS-filter frame MACs.  Content authentication
+    is always provided by the Argon2id HMAC layer (reality_a/b_hmac + AES-GCM).
+
+    Both reality-A and reality-B users derive the identical frame MAC master key:
+
+        frame_mac_master = SHA-256(frame_mac_seed || _FRAME_MAC_SEED_INFO)
+
+    This means EITHER password holder can verify frame MACs without learning
+    anything about the other reality's password.  Frame MAC verification is a
+    pure DoS filter; it does not authenticate content.
     """
 
     # Required fields
@@ -85,13 +113,20 @@ class SchrodingerManifest:
     superposition_len: int
     # Fields with defaults
     magic: bytes = b"MEOW"
-    version: int = 0x07
+    version: int = _MANIFEST_VERSION  # 0x08
     flags: int = 0x00
-    reserved: bytes = b"\x00" * 32
+    # Security: public per-GIF nonce for frame-MAC key derivation (NOT secret).
+    # See class docstring for full rationale.
+    frame_mac_seed: bytes = b"\x00" * 16
+    reserved: bytes = b"\x00" * 16  # 16 remaining reserved bytes (was 32)
 
     def pack_core_for_auth(self) -> bytes:
         """Pack all manifest fields that must be authenticated by HMAC.
-        Excludes the HMACs themselves (they are what we're computing)."""
+
+        Excludes the HMACs themselves (they are what we're computing).
+        Includes frame_mac_seed so the seed is bound by Argon2id HMAC —
+        an attacker cannot substitute the seed without invalidating the HMAC.
+        """
         core = self.magic
         core += struct.pack("BB", self.version, self.flags)
         core += self.salt_a
@@ -101,11 +136,12 @@ class SchrodingerManifest:
         core += self.metadata_a
         core += self.metadata_b
         core += struct.pack(">IIQ", self.block_count, self.block_size, self.superposition_len)
+        core += self.frame_mac_seed  # bound in HMAC — seed cannot be swapped
         core += self.reserved
         return core
 
     def pack(self) -> bytes:
-        """Pack manifest to bytes."""
+        """Pack manifest to bytes (382-byte wire format)."""
         data = self.magic
         data += struct.pack("BB", self.version, self.flags)
         data += self.salt_a
@@ -117,43 +153,49 @@ class SchrodingerManifest:
         data += self.metadata_a
         data += self.metadata_b
         data += struct.pack(">IIQ", self.block_count, self.block_size, self.superposition_len)
-        data += self.reserved
+        data += self.frame_mac_seed   # 16 bytes (was first 16B of reserved)
+        data += self.reserved         # 16 bytes (remaining reserved)
         return data
 
     @classmethod
     def unpack(cls, data: bytes) -> "SchrodingerManifest":
-        """Unpack manifest from bytes."""
+        """Unpack manifest from bytes.
+
+        Supports both v0x07 (legacy, no frame_mac_seed) and
+        v0x08 (current, has frame_mac_seed in first 16B of old-reserved).
+        """
         if len(data) < 382:
             raise ValueError(f"Manifest too short: {len(data)} bytes (need 382)")
         if data[:4] != b"MEOW":
             raise ValueError("Invalid manifest magic")
 
         version, flags = struct.unpack("BB", data[4:6])
-        if version != 0x07:
+        if version not in (0x07, 0x08):
             raise ValueError(f"Not a Schrödinger manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset: offset + 16]
-        offset += 16
-        salt_b = data[offset: offset + 16]
-        offset += 16
-        nonce_a = data[offset: offset + 12]
-        offset += 12
-        nonce_b = data[offset: offset + 12]
-        offset += 12
-        reality_a_hmac = data[offset: offset + 32]
-        offset += 32
-        reality_b_hmac = data[offset: offset + 32]
-        offset += 32
-        metadata_a = data[offset: offset + 104]
-        offset += 104
-        metadata_b = data[offset: offset + 104]
-        offset += 104
+        salt_a = data[offset: offset + 16]; offset += 16
+        salt_b = data[offset: offset + 16]; offset += 16
+        nonce_a = data[offset: offset + 12]; offset += 12
+        nonce_b = data[offset: offset + 12]; offset += 12
+        reality_a_hmac = data[offset: offset + 32]; offset += 32
+        reality_b_hmac = data[offset: offset + 32]; offset += 32
+        metadata_a = data[offset: offset + 104]; offset += 104
+        metadata_b = data[offset: offset + 104]; offset += 104
         block_count, block_size, superposition_len = struct.unpack(
             ">IIQ", data[offset: offset + 16]
         )
         offset += 16
-        reserved = data[offset: offset + 32]
+
+        if version == 0x08:
+            # v0x08: first 16 bytes of old-reserved = frame_mac_seed
+            frame_mac_seed = data[offset: offset + 16]; offset += 16
+            reserved = data[offset: offset + 16]  # remaining 16 reserved bytes
+        else:
+            # v0x07 legacy: no explicit seed; use all-zeros placeholder
+            # Frame MAC verification is unavailable for legacy GIFs.
+            frame_mac_seed = b"\x00" * 16
+            reserved = data[offset: offset + 32]
 
         return cls(
             magic=data[:4],
@@ -170,6 +212,7 @@ class SchrodingerManifest:
             block_count=block_count,
             block_size=block_size,
             superposition_len=superposition_len,
+            frame_mac_seed=frame_mac_seed,
             reserved=reserved,
         )
 
@@ -198,11 +241,17 @@ def schrodinger_encode_data(
     """
     hb = get_handle_backend()
 
-    # Generate salts and nonces for metadata encryption
+    # Generate salts, nonces, and frame MAC seed
     salt_a = secrets.token_bytes(16)
     salt_b = secrets.token_bytes(16)
     nonce_a = secrets.token_bytes(12)
     nonce_b = secrets.token_bytes(12)
+    # Security: frame_mac_seed is a PUBLIC per-GIF nonce.  It is NOT a secret
+    # and will be stored plaintext in the manifest.  Its sole purpose is to
+    # make the frame-MAC master key unique per GIF so that frame MACs from one
+    # session cannot be replayed into another.  Authentication is provided
+    # by the Argon2id HMAC layer (reality_a/b_hmac), not by this seed.
+    frame_mac_seed = secrets.token_bytes(16)
 
     # ── Encrypt both realities via handle-based API ──
     # Key NEVER enters Python memory.
@@ -283,6 +332,7 @@ def schrodinger_encode_data(
         block_count=len(blocks),
         block_size=block_size,
         superposition_len=len(superposition),
+        frame_mac_seed=frame_mac_seed,
     )
     manifest_core = temp_manifest.pack_core_for_auth()
 
@@ -308,6 +358,7 @@ def schrodinger_encode_data(
         block_count=len(blocks),
         block_size=block_size,
         superposition_len=len(superposition),
+        frame_mac_seed=frame_mac_seed,
     )
 
     interleaved_ciphertext = b"".join(blocks)
@@ -397,22 +448,37 @@ def schrodinger_encode_file(
     fountain = FountainEncoder(mixed, k_blocks, config.block_size)
     droplets = fountain.generate_droplets(num_droplets)
 
-    # Pack with frame MACs — derive master key via handle
-    hb = get_handle_backend()
+    # ── Pack frames with frame MACs ──
+    # Security: the frame-MAC master key is derived SOLELY from the public
+    # frame_mac_seed stored in the manifest, NOT from either password.
+    #
+    # Rationale (fixes Bug 2 / Bug 6):
+    #   - Old design used SHA-256(real_password) — tied MACs to one reality,
+    #     allowing decoy users to be identified, and leaking secret bytes Python.
+    #   - New design: seed is a random public nonce generated at encode time and
+    #     stored plaintext in the manifest.  Anyone who can read the manifest
+    #     (i.e. anyone who has the QR GIF) can verify frame MACs.
+    #   - Frame MACs are DoS filters only; content authentication is provided
+    #     by the Argon2id HMAC fields (reality_a_hmac / reality_b_hmac).
+    #   - No secret material ever enters Python memory for this path.
     backend = get_default_backend()
-    _pw_hash = backend.sha256(real_password.encode())
-    master_key = hb.import_key(_pw_hash)
+    # frame_mac_seed is NOT secret — safe to have in Python bytes.
+    frame_mac_master = backend.sha256(manifest.frame_mac_seed + _FRAME_MAC_SEED_INFO)
+    # Import into handle purely to feed the existing handle-based pack_frame_with_mac API.
+    # This is not a secret; the handle just avoids re-imports per frame.
+    hb = get_handle_backend()
+    master_key = hb.import_key(frame_mac_master)
+    del frame_mac_master  # not secret but let's be tidy
 
     manifest_bytes = manifest.pack()
-    manifest_with_mac = pack_frame_with_mac(manifest_bytes, master_key, 0, manifest.salt_a)
+    manifest_with_mac = pack_frame_with_mac(manifest_bytes, master_key, 0, manifest.frame_mac_seed)
 
     qr_data_list = [manifest_with_mac]
     for i, droplet in enumerate(droplets, 1):
         droplet_bytes = pack_droplet(droplet)
-        droplet_with_mac = pack_frame_with_mac(droplet_bytes, master_key, i, manifest.salt_a)
+        droplet_with_mac = pack_frame_with_mac(droplet_bytes, master_key, i, manifest.frame_mac_seed)
         qr_data_list.append(droplet_with_mac)
 
-    # Drop the master_key handle
     hb.drop(master_key)
 
     if verbose:
@@ -462,6 +528,11 @@ def main():
     parser.add_argument("--block-size", type=int, default=256)
     parser.add_argument("--redundancy", type=float, default=1.5)
     parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print full traceback on error (avoid in coercion scenarios)",
+    )
 
     args = parser.parse_args()
 
@@ -486,9 +557,12 @@ def main():
             print(f"   {stats['qr_frames']} frames | {stats['blocks']} blocks")
         return 0
     except Exception as e:
-        print(f"\n❌ Encoding failed: {e}", file=sys.stderr)
-        import traceback
-        traceback.print_exc()
+        # Security (Bug 7): never print full tracebacks by default.
+        # Tracebacks expose file paths and internals; use --debug for diagnostics.
+        print(f"\n\u274c Encoding failed: invalid input or internal error", file=sys.stderr)
+        if args.debug:
+            import traceback
+            traceback.print_exc()
         return 1
 
 
