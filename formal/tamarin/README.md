@@ -15,7 +15,14 @@ This directory contains a **minimal** Tamarin model to reason about observationa
 | `meow_encode_equiv.spthy` | Minimal observational equivalence model (MEOW3) |
 | `MeowDuressEquiv.spthy` | Duress mode observational equivalence (MEOW3) |
 | `MeowDuressEquivPQ.spthy` | PQ hybrid OE model (MEOW4/MEOW5 ML-KEM-768/1024) |
+| `secure_alloc_guard_pages.spthy` | Symbolic guard-page model (overflow/underflow at abstract level) |
 | `run.sh` | Runs tamarin-prover on the model |
+
+> **Note:** The symbolic guard-page model (`secure_alloc_guard_pages.spthy`) reasons
+> about overflow/underflow at the abstract trace level.  The same properties are now
+> also **machine-checked at the implementation level** by real `verus!{}` proofs in
+> `crypto_core/src/verus_guarded_buffer.rs` (GB-001 through GB-008), providing a
+> concrete complement to the symbolic Tamarin claims.
 
 ## Run
 

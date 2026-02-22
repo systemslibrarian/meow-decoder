@@ -155,7 +155,7 @@ The project includes two Rust crypto packages with **261 total tests**:
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `crypto_core/src/*.rs` (unit tests) | 89 | Inline unit tests for AEAD, nonce, types, verus proofs |
+| `crypto_core/src/*.rs` (unit tests) | 97 | Inline unit tests for AEAD, nonce, types, verus proofs; includes 8 GB-series runtime checks in `verus_guarded_buffer.rs` |
 | `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
 | `crypto_core/tests/coverage_tests.rs` | 47 | Comprehensive coverage tests for edge cases |
 | `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests || `crypto_core/tests/golden_vectors.rs` | 22 | Frozen golden vectors: HKDF, HMAC, AES-GCM, SHA-256, Argon2id, AES-CTR, X25519, ratchet chain, frame MAC |
@@ -185,6 +185,7 @@ cargo install cargo-tarpaulin
 | crypto_core | `src/types.rs` | 28/29 | **96.6%** |
 | crypto_core | `src/verus_kdf_proofs.rs` | 52/53 | **98.1%** |
 | crypto_core | `src/verus_proofs.rs` | 10/10 | **100%** ✓ |
+| crypto_core | `src/verus_guarded_buffer.rs` | 8/8 | **100%** ✓ (8 GB-series runtime tests) |
 | **crypto_core** | **Total (excl. hardware stubs)** | **331/338** | **97.9%** ✓ |
 
 **rust_crypto Coverage Note:** The `meow_crypto_rs` package uses PyO3 for Python bindings. Standard Rust coverage tools (cargo-tarpaulin, llvm-cov) cannot link the test binaries without Python symbols, preventing automated coverage measurement. However:
@@ -661,6 +662,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 **What They Test:**
 - ✅ Verus formal verification proofs
+- ✅ GuardedBuffer (`SecureBox`) bounds safety — 8 GB-series proofs in `verus_guarded_buffer.rs` (GB-001 through GB-008: layout, overflow, underflow, size, alignment, zeroize-on-drop)
 - ✅ Nonce management invariants
 - ✅ AEAD wrapper correctness
 - ✅ Type safety guarantees

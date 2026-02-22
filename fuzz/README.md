@@ -112,6 +112,22 @@ The fuzzing infrastructure validates:
 5. **Length extension immunity** - Extended data handled gracefully
 6. **Cross-module consistency** - Same data produces consistent behavior
 
+### Formal Complement: GuardedBuffer / `SecureBox`
+
+The `fuzz_memory_guard.py` harness stress-tests `memory_guard.py`'s Python wrapper.
+The underlying `SecureBox` allocator in **`crypto_core/src/secure_alloc.rs`** is
+also covered by **real `verus!{}` proofs** in `crypto_core/src/verus_guarded_buffer.rs`:
+
+| Property | Fuzz coverage | Verus proof |
+|----------|---------------|-------------|
+| Guard-page layout invariant | `fuzz_memory_guard.py` | GB-001 `lemma_guard_layout_established` |
+| Overflow → upper guard fault | extreme-size corpus | GB-002 `lemma_overflow_hits_upper_guard` |
+| Underflow → lower guard fault | edge-case allocations | GB-003 `lemma_underflow_hits_lower_guard` |
+| Zeroize-on-drop | double-free harness | GB-007 `lemma_zeroize_erases_data` |
+
+The Verus proofs provide **machine-checked mathematical guarantees** that complement
+the probabilistic coverage from fuzzing.
+
 ## Findings
 
 - **2026-01-28**: Comprehensive test suite added (85 tests, 821 lines)

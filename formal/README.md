@@ -162,6 +162,19 @@ The Verus proofs verify these **implementation-level invariants**:
 | `key_zeroization_invariant` | Key zeroed on drop |
 | `no_nonce_reuse` | All encryptions use unique nonces |
 
+**GuardedBuffer / `SecureBox` bounds proofs** (`verus_guarded_buffer.rs`):
+
+| Property ID | Property | Lemma |
+|-------------|----------|-------|
+| GB-001 | Guard-page layout: `data_ptr == mmap_base + page_size` | `lemma_guard_layout_established` |
+| GB-002 | Overflow prevention: index ≥ data_size hits upper PROT_NONE guard | `lemma_overflow_hits_upper_guard` |
+| GB-003 | Underflow prevention: `data_ptr - k` hits lower PROT_NONE guard | `lemma_underflow_hits_lower_guard` |
+| GB-004 | Data size correctness: `data_size() == size_of::<T>()` | `lemma_data_size_correctness` |
+| GB-005 | Total size ≥ data_size + 2 × page_size | `lemma_total_size_at_least_data_plus_two_guards` |
+| GB-006 | `data_region_size % page_size == 0` (mprotect alignment) | `lemma_data_region_page_aligned` |
+| GB-007 | Zeroize-on-drop: bytes set to 0 before `munmap` | `lemma_zeroize_erases_data` |
+| GB-008 | Valid access strictly within data region (not in either guard) | `theorem_guarded_buffer_safety` |
+
 ## Architecture
 
 ```
@@ -225,8 +238,9 @@ The formal verification covers the following threat model:
 | Auth bypass | ✅ | ✅ | ✅ |
 | Duress mode abuse | ✅ | ✅ | - |
 | Key extraction | - | ✅ | ✅ |
-| Forward secrecy break | - | ✅ | - |
-
+| Forward secrecy break | - | ✅ | - || **Guard page overflow** | ✅ (Tamarin symbolic) | - | ✅ (GB-002, real `verus!{}`) |
+| **Guard page underflow** | ✅ (Tamarin symbolic) | - | ✅ (GB-003, real `verus!{}`) |
+| **Buffer layout violation** | - | - | ✅ (GB-001, GB-005, GB-006) |
 ## Files
 
 ```
@@ -242,7 +256,10 @@ formal/
 └── ../crypto_core/
     ├── Cargo.toml              # Rust crate configuration
     ├── src/lib.rs              # Crate entry point
-    ├── src/aead_wrapper.rs     # Verus-verified AEAD wrapper
+    ├── src/aead_wrapper.rs     # AEAD wrapper (Verus annotations)
+    ├── src/verus_guarded_buffer.rs  # ← NEW: real verus!{} bounds proofs (GB-001–GB-008)
+    ├── src/verus_proofs.rs     # AEAD/nonce invariants (doc-comment annotations)
+    ├── src/verus_kdf_proofs.rs # KDF invariants (doc-comment annotations)
     └── README.md               # Verus documentation
 ```
 
@@ -292,11 +309,21 @@ cargo build --release
 ### Verus (Expected Output)
 
 ```
-verification results:: verified: 8 errors: 0
+verification results:: verified: 16 errors: 0
   nonce_uniqueness_invariant ... verified
   auth_then_output_invariant ... verified
   key_zeroization_invariant ... verified
   no_nonce_reuse ... verified
+  lemma_guard_layout_established ... verified
+  lemma_overflow_hits_upper_guard ... verified
+  lemma_underflow_hits_lower_guard ... verified
+  lemma_data_size_correctness ... verified
+  lemma_total_size_at_least_data_plus_two_guards ... verified
+  lemma_data_region_page_aligned ... verified
+  lemma_zeroize_erases_data ... verified
+  lemma_valid_access_in_data_region ... verified
+  theorem_guarded_buffer_safety ... verified
+  (+ 3 spec fn definitions)
 ```
 
 ## Continuous Integration
