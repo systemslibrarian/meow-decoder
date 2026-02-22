@@ -88,10 +88,6 @@ def fuzz_collapse_to_reality(data: bytes):
     try:
         result = collapse_to_reality(data[1:], reality_index)
         if reality_index in (0, 1):
-            # Valid index: result should be half the length (rounded)
-            expected_len = len(data[1:]) // 2 + (
-                len(data[1:]) % 2 if reality_index == 0 else 0
-            )
             assert isinstance(result, bytes)
     except (ValueError, IndexError, TypeError):
         pass  # Expected for invalid indices or empty input

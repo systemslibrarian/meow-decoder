@@ -7,7 +7,6 @@ and Merkle tree integrity with adversarial inputs.
 
 import os
 import sys
-import struct
 
 os.environ["MEOW_TEST_MODE"] = "1"
 

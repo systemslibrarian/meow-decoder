@@ -17,7 +17,7 @@ import os
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 try:
-    import atheris
+    import atheris  # type: ignore[import-unresolved]
 except ImportError:  # pragma: no cover
     atheris = None
 

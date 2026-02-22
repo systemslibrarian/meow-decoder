@@ -152,7 +152,7 @@ def fuzz_verify_corrupt_signature(data: bytes):
     fake_sig = ManifestSignature(ed25519_sig=ed_sig[:64], mldsa65_sig=mldsa_sig)
 
     try:
-        result = verify_manifest_signature(
+        verify_manifest_signature(
             keypair.export_public_key(),
             manifest_bytes,
             fake_sig,

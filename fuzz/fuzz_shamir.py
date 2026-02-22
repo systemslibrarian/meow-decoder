@@ -224,7 +224,7 @@ def fuzz_insufficient_shares(data: bytes):
         # (produce wrong data or raise)
         if threshold > 1:
             try:
-                wrong_result = shamir_combine([shares[0]], threshold)
+                shamir_combine([shares[0]], threshold)
                 # If it returns, it must NOT equal the secret
                 # (information-theoretic security of Shamir's scheme)
                 # Note: with only 1 share and threshold=3, result is garbage
@@ -270,7 +270,7 @@ def fuzz_corrupted_shares(data: bytes):
             mixed_shares = list(shares[:threshold])
             mixed_shares[0] = corrupted_share
 
-            result = shamir_combine(mixed_shares, threshold)
+            shamir_combine(mixed_shares, threshold)
             # Result should differ from original secret (corrupted)
             # (not always guaranteed to differ for every byte, but likely)
 
