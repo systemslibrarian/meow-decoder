@@ -5,9 +5,10 @@ Comprehensive Web Demo Test Suite
 Tests all encoding modes with 5 runs each:
 1. Normal Mode - Standard QR encoding
 2. Cat Mode - Steganographic encoding with cat carrier
-3. Duress Mode - Panic password that reveals decoy data
-
-Also tests Cat Mode server-side encryption/decryption API.
+3. Cat Mode Server API - Binary encrypt/decrypt for eye-blink transmission
+4. Duress Mode - Panic password that reveals decoy data
+5. Forward Secrecy Mode - X25519 ephemeral key exchange (MEOW3)
+6. Schrödinger Mode - Dual-secret quantum plausible deniability
 
 Usage:
     python web_demo/test_all_modes.py
@@ -427,6 +428,227 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
         )
 
 
+def test_forward_secrecy_mode(run_number: int, verbose: bool = False) -> TestResult:
+    """
+    Test Forward Secrecy (MEOW3) encoding/decoding.
+
+    Uses X25519 ephemeral key exchange for per-session forward secrecy.
+    Even if the password is later compromised, past sessions remain secure.
+    """
+    start_time = time.time()
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        # Create test file with unique content
+        test_content = f"Forward Secrecy Test #{run_number} - 🔐 {secrets.token_hex(16)}"
+        input_file = tmpdir / "test.txt"
+        input_file.write_text(test_content)
+
+        output_gif = tmpdir / "fs_output.gif"
+        recovered_file = tmpdir / "recovered.txt"
+        password = f"fs_test_{run_number}!"  # 8+ chars
+
+        try:
+            from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+            from cryptography.hazmat.primitives import serialization
+
+            # Generate X25519 receiver keypair
+            private_key = X25519PrivateKey.generate()
+            receiver_public_key = private_key.public_key().public_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PublicFormat.Raw,
+            )
+            receiver_private_key = private_key.private_bytes(
+                encoding=serialization.Encoding.Raw,
+                format=serialization.PrivateFormat.Raw,
+                encryption_algorithm=serialization.NoEncryption(),
+            )
+
+            # Encode with forward secrecy (MEOW3)
+            encode_start = time.time()
+            stats = encode_file(
+                input_path=input_file,
+                output_path=output_gif,
+                password=password,
+                config=EncodingConfig(),
+                forward_secrecy=True,
+                receiver_public_key=receiver_public_key,
+            )
+            encode_time = time.time() - encode_start
+            file_size = output_gif.stat().st_size
+
+            # Decode with receiver private key
+            decode_start = time.time()
+            result = decode_gif(
+                input_path=output_gif,
+                output_path=recovered_file,
+                password=password,
+                receiver_private_key=receiver_private_key,
+                config=DecodingConfig(),
+            )
+            decode_time = time.time() - decode_start
+
+            # Verify content
+            recovered = recovered_file.read_text()
+            if recovered == test_content:
+                return TestResult(
+                    mode="forward_secrecy",
+                    run_number=run_number,
+                    success=True,
+                    encode_time=encode_time,
+                    decode_time=decode_time,
+                    file_size=file_size,
+                )
+            else:
+                return TestResult(
+                    mode="forward_secrecy",
+                    run_number=run_number,
+                    success=False,
+                    encode_time=encode_time,
+                    decode_time=decode_time,
+                    file_size=file_size,
+                    error=f"Content mismatch",
+                )
+
+        except Exception as e:
+            import traceback
+
+            return TestResult(
+                mode="forward_secrecy",
+                run_number=run_number,
+                success=False,
+                encode_time=time.time() - start_time,
+                decode_time=0,
+                file_size=0,
+                error=f"{str(e)}\n{traceback.format_exc()}",
+            )
+
+
+def test_schrodinger_mode(run_number: int, verbose: bool = False) -> TestResult:
+    """
+    Test Schrödinger Mode dual-secret encoding/decoding.
+
+    Encodes two separate secrets into one superposition where the correct
+    password determines which reality is revealed. Neither secret can be
+    proven to exist without the correct password (quantum plausible deniability).
+    """
+    start_time = time.time()
+
+    try:
+        from meow_decoder.schrodinger_encode import schrodinger_encode_data
+        from meow_decoder.schrodinger_decode import schrodinger_decode_data
+
+        # Create two separate secrets
+        real_secret = f"REAL SECRET #{run_number} - 🐱 {secrets.token_hex(32)}"
+        decoy_secret = f"DECOY #{run_number} - innocent cat photos {secrets.token_hex(32)}"
+
+        real_bytes = real_secret.encode("utf-8")
+        decoy_bytes = decoy_secret.encode("utf-8")
+
+        real_password = f"real_schrodinger_{run_number}!"
+        decoy_password = f"decoy_schrodinger_{run_number}!"
+
+        # Encode: interleave two encrypted realities
+        encode_start = time.time()
+        superposition, manifest = schrodinger_encode_data(
+            real_data=real_bytes,
+            decoy_data=decoy_bytes,
+            real_password=real_password,
+            decoy_password=decoy_password,
+            block_size=256,
+        )
+        encode_time = time.time() - encode_start
+
+        # Decode with real password → should get real secret
+        decode_start = time.time()
+        recovered_real = schrodinger_decode_data(superposition, manifest, real_password)
+        decode_time_real = time.time() - decode_start
+
+        if recovered_real is None:
+            return TestResult(
+                mode="schrodinger",
+                run_number=run_number,
+                success=False,
+                encode_time=encode_time,
+                decode_time=decode_time_real,
+                file_size=len(superposition),
+                error="Real password returned None",
+            )
+
+        if recovered_real != real_bytes:
+            return TestResult(
+                mode="schrodinger",
+                run_number=run_number,
+                success=False,
+                encode_time=encode_time,
+                decode_time=decode_time_real,
+                file_size=len(superposition),
+                error="Real password returned wrong data",
+            )
+
+        # Decode with decoy password → should get decoy secret
+        recovered_decoy = schrodinger_decode_data(superposition, manifest, decoy_password)
+        if recovered_decoy is None:
+            return TestResult(
+                mode="schrodinger",
+                run_number=run_number,
+                success=False,
+                encode_time=encode_time,
+                decode_time=decode_time_real,
+                file_size=len(superposition),
+                error="Decoy password returned None",
+            )
+
+        if recovered_decoy != decoy_bytes:
+            return TestResult(
+                mode="schrodinger",
+                run_number=run_number,
+                success=False,
+                encode_time=encode_time,
+                decode_time=decode_time_real,
+                file_size=len(superposition),
+                error="Decoy password returned wrong data",
+            )
+
+        # Verify wrong password returns None (no oracle)
+        wrong_result = schrodinger_decode_data(superposition, manifest, "wrong_password!")
+        if wrong_result is not None:
+            return TestResult(
+                mode="schrodinger",
+                run_number=run_number,
+                success=False,
+                encode_time=encode_time,
+                decode_time=decode_time_real,
+                file_size=len(superposition),
+                error="Wrong password did not return None",
+            )
+
+        decode_time = time.time() - decode_start
+
+        return TestResult(
+            mode="schrodinger",
+            run_number=run_number,
+            success=True,
+            encode_time=encode_time,
+            decode_time=decode_time,
+            file_size=len(superposition),
+        )
+
+    except Exception as e:
+        import traceback
+
+        return TestResult(
+            mode="schrodinger",
+            run_number=run_number,
+            success=False,
+            encode_time=time.time() - start_time,
+            decode_time=0,
+            file_size=0,
+            error=f"{str(e)}\n{traceback.format_exc()}",
+        )
+
+
 def print_result(result: TestResult, verbose: bool = False):
     """Print a single test result."""
     status = "✅ PASS" if result.success else "❌ FAIL"
@@ -510,6 +732,26 @@ def main():
         print_result(result, verbose)
     all_results.extend(duress_results)
     print_summary(duress_results, "Duress Mode")
+
+    # Test 5: Forward Secrecy Mode (MEOW3)
+    print("\n🔐 Testing Forward Secrecy Mode (X25519)...")
+    fs_results = []
+    for i in range(1, num_runs + 1):
+        result = test_forward_secrecy_mode(i, verbose)
+        fs_results.append(result)
+        print_result(result, verbose)
+    all_results.extend(fs_results)
+    print_summary(fs_results, "Forward Secrecy Mode")
+
+    # Test 6: Schrödinger Mode (dual-secret)
+    print("\n⚛️  Testing Schrödinger Mode (dual-secret)...")
+    schrodinger_results = []
+    for i in range(1, num_runs + 1):
+        result = test_schrodinger_mode(i, verbose)
+        schrodinger_results.append(result)
+        print_result(result, verbose)
+    all_results.extend(schrodinger_results)
+    print_summary(schrodinger_results, "Schrödinger Mode")
 
     # Final Summary
     print("\n" + "=" * 70)

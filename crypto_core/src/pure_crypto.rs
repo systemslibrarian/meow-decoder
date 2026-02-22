@@ -648,7 +648,6 @@ pub mod pq {
         };
         // External kem crate: Generate, Encapsulate, Decapsulate traits
         use kem::{Decapsulate, Encapsulate, Generate};
-        #[allow(unused_imports)]
         use ml_dsa::{MlDsa65, SigningKey, VerifyingKey};
 
         pub const BACKEND_NAME: &str = "RustCrypto ml-kem/ml-dsa (pure Rust)";
@@ -712,6 +711,72 @@ pub mod pq {
                 .try_into()
                 .map_err(|_| CryptoError::DecryptionFailed)?;
             Ok(shared_arr)
+        }
+
+        // ── ML-DSA-65 signing (FIPS 204) ──────────────────────────────────
+
+        /// Generate ML-DSA-65 signing keypair.
+        /// Returns (seed_bytes_32, verifying_key_bytes).
+        /// The seed is the 32-byte secret that reconstructs the signing key.
+        pub fn mldsa65_keygen() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+            use ml_dsa::signature::Keypair;
+
+            // Generate a random 32-byte seed using the system RNG
+            let mut seed_bytes = [0u8; 32];
+            getrandom::getrandom(&mut seed_bytes).map_err(|_| {
+                CryptoError::KeyDerivationFailed("System RNG failed".into())
+            })?;
+            let seed = ml_dsa::Seed::try_from(&seed_bytes[..]).map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid seed".into())
+            })?;
+
+            // Derive signing key from seed (deterministic)
+            let sk = SigningKey::<MlDsa65>::from_seed(&seed);
+            let vk = sk.verifying_key();
+            let vk_encoded = vk.encode();
+            Ok((seed_bytes.to_vec(), vk_encoded.to_vec()))
+        }
+
+        /// Sign a message with ML-DSA-65.
+        /// `secret_key` must be a 32-byte seed.
+        /// Returns the encoded signature bytes.
+        pub fn mldsa65_sign(secret_key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
+            use ml_dsa::signature::Signer;
+            use ml_dsa::Seed;
+
+            if secret_key.len() != 32 {
+                return Err(CryptoError::KeyDerivationFailed(
+                    format!("Invalid ML-DSA-65 seed length: expected 32, got {}", secret_key.len()),
+                ));
+            }
+
+            let seed = Seed::try_from(secret_key).map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid seed".into())
+            })?;
+            let sk = SigningKey::<MlDsa65>::from_seed(&seed);
+            let sig = sk.sign(message);
+            Ok(sig.encode().to_vec())
+        }
+
+        /// Verify a ML-DSA-65 signature.
+        /// `public_key` is the encoded verifying key, `signature` is the encoded signature.
+        pub fn mldsa65_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, CryptoError> {
+            use ml_dsa::signature::Verifier;
+            use ml_dsa::{EncodedVerifyingKey, Signature as MlDsaSignature};
+
+            let vk_encoded: EncodedVerifyingKey<MlDsa65> =
+                public_key.try_into().map_err(|_| {
+                    CryptoError::KeyDerivationFailed(
+                        format!("Invalid ML-DSA-65 public key length: got {}", public_key.len()),
+                    )
+                })?;
+            let vk = VerifyingKey::<MlDsa65>::decode(&vk_encoded);
+
+            let sig = MlDsaSignature::<MlDsa65>::try_from(signature).map_err(|_| {
+                CryptoError::KeyDerivationFailed("Invalid ML-DSA-65 signature".into())
+            })?;
+
+            Ok(vk.verify(message, &sig).is_ok())
         }
     }
 
@@ -861,6 +926,32 @@ pub mod pq {
             MLKEM_PUBLIC_KEY_SIZE,
             MLKEM_CIPHERTEXT_SIZE
         )
+    }
+
+    // ========================================================================
+    // ML-DSA-65 Signing API (FIPS 204)
+    // ========================================================================
+
+    /// ML-DSA-65 public key size (1952 bytes)
+    pub const MLDSA65_PUBLIC_KEY_SIZE: usize = 1952;
+    /// ML-DSA-65 signature size (3309 bytes)
+    pub const MLDSA65_SIGNATURE_SIZE: usize = 3309;
+
+    /// Generate ML-DSA-65 keypair.
+    /// Returns (secret_key_bytes, public_key_bytes).
+    pub fn mldsa65_keygen() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
+        backend::mldsa65_keygen()
+    }
+
+    /// Sign a message with ML-DSA-65.
+    /// Returns the detached signature bytes.
+    pub fn mldsa65_sign(secret_key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
+        backend::mldsa65_sign(secret_key, message)
+    }
+
+    /// Verify a ML-DSA-65 signature.
+    pub fn mldsa65_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, CryptoError> {
+        backend::mldsa65_verify(public_key, message, signature)
     }
 }
 

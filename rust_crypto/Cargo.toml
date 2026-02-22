@@ -59,6 +59,7 @@ proptest = "1.4"
 default = []
 python = ["pyo3"]                                            # Enable Python bindings (required for maturin build)
 pq = ["pqcrypto-mlkem", "pqcrypto-traits"]                   # Enable post-quantum crypto
+pq-signing = ["crypto_core/pq-crypto"]                       # Enable ML-DSA-65 signing via crypto_core
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
 python-tests = ["python"]                                    # Enable tests that require Python bindings
 

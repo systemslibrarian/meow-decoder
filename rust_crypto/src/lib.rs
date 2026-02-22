@@ -589,6 +589,43 @@ fn mlkem768_decapsulate<'py>(
 }
 
 // =============================================================================
+// ML-DSA-65 Signing (FIPS 204) — via crypto_core pq-crypto backend
+// =============================================================================
+
+#[cfg(all(feature = "python", feature = "pq-signing"))]
+#[pyfunction]
+fn mldsa65_keygen<'py>(
+    py: Python<'py>,
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    let (sk, pk) = crypto_core::pure_crypto::pq::mldsa65_keygen()
+        .map_err(|e| PyValueError::new_err(format!("ML-DSA-65 keygen failed: {:?}", e)))?;
+    Ok((PyBytes::new(py, &sk), PyBytes::new(py, &pk)))
+}
+
+#[cfg(all(feature = "python", feature = "pq-signing"))]
+#[pyfunction]
+fn mldsa65_sign<'py>(
+    py: Python<'py>,
+    secret_key: &[u8],
+    message: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    let sig = crypto_core::pure_crypto::pq::mldsa65_sign(secret_key, message)
+        .map_err(|e| PyValueError::new_err(format!("ML-DSA-65 sign failed: {:?}", e)))?;
+    Ok(PyBytes::new(py, &sig))
+}
+
+#[cfg(all(feature = "python", feature = "pq-signing"))]
+#[pyfunction]
+fn mldsa65_verify(
+    public_key: &[u8],
+    message: &[u8],
+    signature: &[u8],
+) -> PyResult<bool> {
+    crypto_core::pure_crypto::pq::mldsa65_verify(public_key, message, signature)
+        .map_err(|e| PyValueError::new_err(format!("ML-DSA-65 verify failed: {:?}", e)))
+}
+
+// =============================================================================
 // YubiKey (optional)
 // =============================================================================
 
@@ -1503,6 +1540,14 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
         m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
         m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+    }
+
+    // ML-DSA-65 signing (optional - requires pq-signing feature)
+    #[cfg(feature = "pq-signing")]
+    {
+        m.add_function(wrap_pyfunction!(mldsa65_keygen, m)?)?;
+        m.add_function(wrap_pyfunction!(mldsa65_sign, m)?)?;
+        m.add_function(wrap_pyfunction!(mldsa65_verify, m)?)?;
     }
 
     // YubiKey (optional)
