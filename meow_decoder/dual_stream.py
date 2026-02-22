@@ -82,7 +82,7 @@ class DualStreamManifest:
     Wire format (406 bytes):
         magic:          b"MEOW"   (4)
         version:        0x08      (1) — dual-stream always-on
-        flags:          1 byte    (bit 0: stream_b_is_real)
+        flags:          1 byte    (ALWAYS 0x00 — never encodes stream type)
         salt_a:         16 bytes
         salt_b:         16 bytes
         nonce_a:        12 bytes
@@ -192,8 +192,16 @@ class DualStreamManifest:
 
     @property
     def stream_b_is_real(self) -> bool:
-        """True if stream B contains a real user-supplied payload."""
-        return bool(self.flags & 0x01)
+        """Deprecated: Always returns False.
+
+        SECURITY (AUDIT-P0): This property previously leaked whether stream B
+        contained a real payload via the plaintext flags byte. The flags field
+        is now ALWAYS 0x00 regardless of mode. A decoder should be blind to
+        stream type — it simply tries to decrypt and either succeeds or fails.
+
+        Retained for backward compatibility but always returns False.
+        """
+        return False  # NEVER reveal stream type
 
 
 def dual_stream_encode(
@@ -235,7 +243,6 @@ def dual_stream_encode(
         comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = \
             encrypt_file_bytes_handle(decoy_data, decoy_password, use_length_padding=True)
         hb.drop(key_handle_b)
-        flags = 0x01  # stream_b_is_real
     else:
         # Generate random ciphertext of similar size for stream B.
         # This is a REAL encryption of random data under a random password,
@@ -247,7 +254,11 @@ def dual_stream_encode(
         hb.drop(key_handle_b)
         # Decoy password is intentionally unknown (random, never stored)
         decoy_password = dummy_password
-        flags = 0x00  # stream_b_is_dummy
+
+    # SECURITY (AUDIT-P0): flags is ALWAYS 0x00 regardless of single/dual mode.
+    # The old code set flags=0x01 for dual-secret, creating a plaintext
+    # distinguisher that completely defeated Schrödinger deniability.
+    flags = 0x00
 
     # ── Interleave the two ciphertexts ──
     superposition = entangle_realities(cipher_a, cipher_b)
@@ -358,8 +369,9 @@ def dual_stream_try_decode_stream(
 ) -> Optional[Tuple[bytes, int]]:
     """Attempt to authenticate and decode one stream from a dual-stream manifest.
 
-    Tries password against both stream A and stream B HMAC. If one matches,
-    decrypts the corresponding metadata and returns the stream's ciphertext.
+    SECURITY (AUDIT-P0): ALWAYS derives both Argon2id keys regardless of which
+    HMAC matches first. This prevents a timing oracle that leaks which stream
+    the password belongs to (~5s for stream A match vs ~10s for stream B).
 
     Args:
         manifest: The dual-stream manifest.
@@ -373,68 +385,81 @@ def dual_stream_try_decode_stream(
     from .quantum_mixer import collapse_to_reality
 
     hb = get_handle_backend()
+    handles_to_drop: list = []
 
-    manifest_core = manifest.pack_core_for_auth()
+    try:
+        manifest_core = manifest.pack_core_for_auth()
+        password_bytes = password.encode("utf-8")
 
-    # Try stream A
-    master_a = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
-        parallelism=ARGON2_PARALLELISM,
-    )
-    hmac_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_HMAC_A_INFO, 32)
-    computed_hmac_a = hb.hmac_sha256(hmac_key_a, manifest_core)
+        # ALWAYS derive BOTH Argon2id keys (no early return after stream A)
+        # This ensures constant-time behavior: 2 Argon2id derivations always.
+        master_a = hb.derive_key_argon2id(
+            password_bytes, manifest.salt_a,
+            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            parallelism=ARGON2_PARALLELISM,
+        )
+        handles_to_drop.append(master_a)
 
-    import secrets as _secrets
-    if _secrets.compare_digest(computed_hmac_a, manifest.hmac_a):
-        # Password matches stream A
+        master_b = hb.derive_key_argon2id(
+            password_bytes, manifest.salt_b,
+            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            parallelism=ARGON2_PARALLELISM,
+        )
+        handles_to_drop.append(master_b)
+
+        # Derive HMAC keys for both streams
+        hmac_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_HMAC_A_INFO, 32)
+        handles_to_drop.append(hmac_key_a)
+        hmac_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_HMAC_B_INFO, 32)
+        handles_to_drop.append(hmac_key_b)
+
+        # Compute BOTH HMACs before checking either
+        computed_hmac_a = hb.hmac_sha256(hmac_key_a, manifest_core)
+        computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
+
+        import secrets as _secrets
+        matched_a = _secrets.compare_digest(computed_hmac_a, manifest.hmac_a)
+        matched_b = _secrets.compare_digest(computed_hmac_b, manifest.hmac_b)
+
+        # Derive encryption keys for both (constant-time: always derive both)
         enc_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_ENC_A_INFO, 32)
-        try:
-            metadata_plain = hb.aes_gcm_decrypt(enc_key_a, manifest.nonce_a, manifest.metadata_a, None)
-        finally:
-            hb.drop(enc_key_a)
-            hb.drop(hmac_key_a)
-            hb.drop(master_a)
-
-        # Extract stream A ciphertext from interleaved (even positions)
-        cipher_a = collapse_to_reality(interleaved, 0)
-        return cipher_a, 0
-
-    hb.drop(hmac_key_a)
-    hb.drop(master_a)
-
-    # Try stream B
-    master_b = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
-        parallelism=ARGON2_PARALLELISM,
-    )
-    hmac_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_HMAC_B_INFO, 32)
-    computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
-
-    if _secrets.compare_digest(computed_hmac_b, manifest.hmac_b):
-        # Password matches stream B
+        handles_to_drop.append(enc_key_a)
         enc_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_ENC_B_INFO, 32)
-        try:
-            metadata_plain = hb.aes_gcm_decrypt(enc_key_b, manifest.nonce_b, manifest.metadata_b, None)
-        finally:
-            hb.drop(enc_key_b)
-            hb.drop(hmac_key_b)
-            hb.drop(master_b)
+        handles_to_drop.append(enc_key_b)
 
-        cipher_b = collapse_to_reality(interleaved, 1)
-        return cipher_b, 1
+        # Attempt decryption of whichever stream matched
+        if matched_a:
+            try:
+                _ = hb.aes_gcm_decrypt(enc_key_a, manifest.nonce_a, manifest.metadata_a, None)
+            except Exception:
+                return None
+            cipher_a = collapse_to_reality(interleaved, 0)
+            return cipher_a, 0
 
-    hb.drop(hmac_key_b)
-    hb.drop(master_b)
-    return None
+        if matched_b:
+            try:
+                _ = hb.aes_gcm_decrypt(enc_key_b, manifest.nonce_b, manifest.metadata_b, None)
+            except Exception:
+                return None
+            cipher_b = collapse_to_reality(interleaved, 1)
+            return cipher_b, 1
+
+        return None
+
+    finally:
+        # Zeroize ALL handles (both streams, always)
+        for h in handles_to_drop:
+            try:
+                hb.drop(h)
+            except Exception:
+                pass
 
 
 def secure_decode_and_zeroize(
     manifest: DualStreamManifest,
     password: str,
     interleaved: bytes,
-    duress: bool = False,
+    duress: bool = True,
 ) -> Optional[Tuple[bytes, int]]:
     """Decode a stream and securely zeroize ALL key material afterward.
 
@@ -442,14 +467,14 @@ def secure_decode_and_zeroize(
     Guarantees that both stream key sets are zeroized regardless of
     success, failure, or exceptions.
 
-    If duress=True, performs dummy decode timing to avoid timing
-    side-channels that reveal which password was correct.
+    SECURITY (AUDIT-P0): ``duress`` defaults to True — ALWAYS derives both
+    Argon2id keys to prevent timing oracle that leaks which stream matched.
 
     Args:
         manifest: The dual-stream manifest.
         password: Password to try.
         interleaved: The interleaved ciphertext.
-        duress: If True, simulate decode of both streams for timing parity.
+        duress: If True (default), always derive both stream keys for timing parity.
 
     Returns:
         (ciphertext, stream_index) if password matches, else None.
@@ -465,49 +490,54 @@ def secure_decode_and_zeroize(
         manifest_core = manifest.pack_core_for_auth()
         result = None
 
-        # ── Try Stream A ──
+        # ── ALWAYS derive BOTH Argon2id keys (AUDIT-P0: no timing oracle) ──
         master_a = hb.derive_key_argon2id(
             bytes(password_buf), manifest.salt_a,
             memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
             parallelism=ARGON2_PARALLELISM,
         )
         handles_to_drop.append(master_a)
+
+        master_b = hb.derive_key_argon2id(
+            bytes(password_buf), manifest.salt_b,
+            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            parallelism=ARGON2_PARALLELISM,
+        )
+        handles_to_drop.append(master_b)
+
+        # Derive HMAC keys for both streams
         hmac_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_HMAC_A_INFO, 32)
         handles_to_drop.append(hmac_key_a)
+        hmac_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_HMAC_B_INFO, 32)
+        handles_to_drop.append(hmac_key_b)
+
+        # Compute BOTH HMACs
         computed_hmac_a = hb.hmac_sha256(hmac_key_a, manifest_core)
+        computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
 
         import secrets as _secrets
         matched_a = _secrets.compare_digest(computed_hmac_a, manifest.hmac_a)
+        matched_b = _secrets.compare_digest(computed_hmac_b, manifest.hmac_b)
+
+        # Derive encryption keys for both (constant-time: always derive both)
+        enc_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_ENC_A_INFO, 32)
+        handles_to_drop.append(enc_key_a)
+        enc_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_ENC_B_INFO, 32)
+        handles_to_drop.append(enc_key_b)
 
         if matched_a:
-            enc_key_a = hb.derive_key_hkdf(master_a, manifest.salt_a, DUAL_STREAM_ENC_A_INFO, 32)
-            handles_to_drop.append(enc_key_a)
             try:
                 _ = hb.aes_gcm_decrypt(enc_key_a, manifest.nonce_a, manifest.metadata_a, None)
                 result = (collapse_to_reality(interleaved, 0), 0)
             except Exception:
                 pass
 
-        # ── Try Stream B (always, for timing parity if duress mode) ──
-        if not matched_a or duress:
-            master_b = hb.derive_key_argon2id(
-                bytes(password_buf), manifest.salt_b,
-                memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
-                parallelism=ARGON2_PARALLELISM,
-            )
-            handles_to_drop.append(master_b)
-            hmac_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_HMAC_B_INFO, 32)
-            handles_to_drop.append(hmac_key_b)
-            computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
-
-            if not matched_a and _secrets.compare_digest(computed_hmac_b, manifest.hmac_b):
-                enc_key_b = hb.derive_key_hkdf(master_b, manifest.salt_b, DUAL_STREAM_ENC_B_INFO, 32)
-                handles_to_drop.append(enc_key_b)
-                try:
-                    _ = hb.aes_gcm_decrypt(enc_key_b, manifest.nonce_b, manifest.metadata_b, None)
-                    result = (collapse_to_reality(interleaved, 1), 1)
-                except Exception:
-                    pass
+        if result is None and matched_b:
+            try:
+                _ = hb.aes_gcm_decrypt(enc_key_b, manifest.nonce_b, manifest.metadata_b, None)
+                result = (collapse_to_reality(interleaved, 1), 1)
+            except Exception:
+                pass
 
         return result
 

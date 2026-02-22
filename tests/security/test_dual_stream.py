@@ -83,7 +83,8 @@ class TestDualStreamBasic:
             block_size=128,
         )
 
-        assert manifest.stream_b_is_real
+        # AUDIT-P0: stream_b_is_real always returns False (never reveal stream type)
+        assert not manifest.stream_b_is_real
         assert manifest.block_count > 0
 
     def test_single_secret_decode_correct_password(self):
@@ -165,7 +166,7 @@ class TestDualStreamManifest:
             block_size=256,
             superposition_len=99999,
             target_frames=100,
-            flags=0x01,
+            flags=0x00,  # AUDIT-P0: flags must always be 0x00
         )
         packed = m.pack()
         assert len(packed) == 382
@@ -183,7 +184,8 @@ class TestDualStreamManifest:
         assert m2.block_size == 256
         assert m2.superposition_len == 99999
         assert m2.target_frames == 100
-        assert m2.stream_b_is_real is True
+        # AUDIT-P0: stream_b_is_real always returns False (never reveal stream type)
+        assert m2.stream_b_is_real is False
 
     def test_manifest_too_short(self):
         """Reject manifests shorter than 382 bytes."""

@@ -101,6 +101,7 @@ extern crate alloc;
 
 pub mod aead_wrapper;
 pub mod nonce;
+pub mod secure_alloc;
 pub mod types;
 pub mod verus_kdf_proofs;
 pub mod verus_proofs;

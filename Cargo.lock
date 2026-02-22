@@ -530,6 +530,7 @@ dependencies = [
  "hmac",
  "js-sys",
  "kem",
+ "libc",
  "ml-dsa",
  "ml-kem",
  "oqs",

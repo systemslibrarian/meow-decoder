@@ -171,6 +171,11 @@ def enable_high_security_mode(silent: bool = True) -> None:
     os.environ["MEOW_NO_DEBUG"] = "1"
     os.environ["MEOW_NO_LOGS"] = "1"
 
+    # AUDIT-P1: Prevent .pyc bytecode files leaking source structure to disk
+    os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
+    import sys
+    sys.dont_write_bytecode = True
+
     _HIGH_SECURITY_MODE_ACTIVE = True
 
     if not silent:

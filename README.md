@@ -403,6 +403,14 @@ While inspired by these projects, Meow Decoder adds critical security features:
 - 🛡️ **Threat Modeled** — Explicit adversarial analysis ([THREAT_MODEL.md](docs/THREAT_MODEL.md))
 - ⚛️ **Plausible Deniability** — Schrödinger mode with dual-secret encoding
 - 🔑 **Forward Secrecy** — X25519 ephemeral keys protect past messages
+- 🧠 **Memory Hardening** — mlockall, RLIMIT_CORE=0, PR_SET_DUMPABLE, MADV_DONTDUMP
+- 🧹 **Forensic Countermeasures** — Thumbnail/clipboard/history cleanup, tmpfs enforcement, secure delete
+- ⏱️ **Timing Equalization** — Constant wall-clock decode, forced dual-path, CSPRNG jitter
+- 📐 **Size Normalization** — Power-of-4 padding classes prevent file size fingerprinting
+- 💀 **Timed Expiry** — Self-destructing content with configurable TTL
+- 🔒 **Fixed QR Version** — Prevents payload size leakage via QR structure
+- 🎲 **Inter-File Decorrelation** — Randomized encoding parameters prevent profiling
+- 🌐 **Air-Gap Verification** — Network/WiFi/Bluetooth/DNS detection checks
 
 ---
 

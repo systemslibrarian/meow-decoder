@@ -35,7 +35,7 @@ class QRCodeGenerator:
     QR code generator with configurable parameters.
     """
 
-    def __init__(self, error_correction: str = "H", box_size: int = 14, border: int = 4):
+    def __init__(self, error_correction: str = "H", box_size: int = 14, border: int = 4, version: int = 25):
         """
         Initialize QR code generator.
 
@@ -43,6 +43,9 @@ class QRCodeGenerator:
             error_correction: Error correction level (L/M/Q/H) - default "H" for GIF
             box_size: Size of each box in pixels - default 14 for GIF readability
             border: Border size in boxes
+            version: Fixed QR version (1-40). Default 25 supports ~1853 alphanumeric
+                chars at H correction, sufficient for all frame sizes. Using a fixed
+                version prevents payload size from leaking via QR structure differences.
 
         Note:
             Defaults are optimized for QR codes embedded in GIF animations.
@@ -61,6 +64,7 @@ class QRCodeGenerator:
         )
         self.box_size = box_size
         self.border = border
+        self.version = version
 
     def generate(self, data: bytes) -> Image.Image:
         """
@@ -84,7 +88,7 @@ class QRCodeGenerator:
         ascii_data = base64.b85encode(data).decode("ascii")
 
         qr = qrcode.QRCode(
-            version=None,  # Auto-detect
+            version=self.version,  # Fixed version — prevents size leakage
             error_correction=self.error_correction,
             box_size=self.box_size,
             border=self.border,

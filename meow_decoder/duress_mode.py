@@ -71,13 +71,16 @@ class DuressHandler:
         """
         Securely zero sensitive data in memory.
 
+        Uses ctypes.memset to avoid Python-level optimization that
+        might elide the zeroing (AUDIT-P2).
+
         Args:
             data: Mutable bytearray to zero
         """
         if not isinstance(data, bytearray):
             return
-        for i in range(len(data)):
-            data[i] = 0
+        import ctypes
+        ctypes.memset((ctypes.c_char * len(data)).from_buffer(data), 0, len(data))
 
     def set_passwords(self, duress_password: str, real_password: str, salt: bytes):
         """
@@ -474,7 +477,8 @@ def add_duress_args(parser) -> None:
     duress_group.add_argument(
         "--duress-password",
         type=str,
-        help="Duress password that triggers emergency response on decode",
+        help="[DEPRECATED: visible in ps/argv/history — use --duress-password-prompt] "
+        "Duress password that triggers emergency response on decode",
     )
     duress_group.add_argument(
         "--duress-password-prompt",

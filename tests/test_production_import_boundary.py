@@ -26,6 +26,7 @@ ENTRYPOINTS = [
 # If a new module is added to production, add it here explicitly.
 PRODUCTION_ALLOWLIST = frozenset({
     "meow_decoder",
+    "meow_decoder.argon2_presets",
     "meow_decoder.cat_errors",
     "meow_decoder.cat_utils",
     "meow_decoder.config",

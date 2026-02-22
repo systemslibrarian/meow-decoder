@@ -63,6 +63,7 @@ class EncodingConfig:
     qr_error_correction: str = "H"  # QR error correction (L/M/Q/H) - H for GIF
     qr_box_size: int = 14  # QR box size in pixels - 14 for GIF readability
     qr_border: int = 4  # QR border size
+    qr_version: int = 25  # Fixed QR version (prevents payload size leakage)
     fps: int = 2  # GIF frames per second (slow for readability)
 
     # Security options (🐱 NINE LIVES MODE - NOW DEFAULT!)

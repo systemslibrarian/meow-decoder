@@ -388,6 +388,7 @@ def encode_file(
         error_correction=config.qr_error_correction,
         box_size=config.qr_box_size,
         border=config.qr_border,
+        version=config.qr_version,
     )
 
     qr_frames = []
