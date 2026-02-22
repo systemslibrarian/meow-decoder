@@ -989,7 +989,7 @@ proverif meow_encode.pv
 cd /workspaces/meow-decoder/formal/tla
 java -jar tla2tools.jar -config MeowEncode.cfg MeowEncode.tla
 
-# Verus (Rust proofs)
+# Verus (Rust proofs — guard-page memory safety only)
 cd /workspaces/meow-decoder/crypto_core
 verus src/lib.rs
 
@@ -1003,6 +1003,15 @@ More details and expected results:
 - [formal/proverif/README.md](formal/proverif/README.md)
 
 **Scope:** These methods verify protocol and wrapper invariants, not AES‑GCM itself or side‑channel resistance. Tamarin is optional but required for a full local `make verify`; CI skips it unless installed.
+
+> **Verus proof status (honest assessment):**
+>
+> | Proof set | File | Status |
+> |-----------|------|--------|
+> | Guard-page memory safety (GB-001 – GB-008) | `verus_guarded_buffer.rs` | ✅ **Real Verus proofs** — bounds, overflow/underflow, zeroize-on-drop |
+> | AEAD properties (AEAD-001 – AEAD-004) | `verus_proofs.rs` | ⚠️ **Proof stubs only** — structured as doc-comment specifications, not machine-checked Verus proofs. Properties are enforced by Rust's type system (`UniqueNonce`, `AuthenticatedPlaintext`), runtime tests, and the `zeroize` crate — not by Verus. |
+>
+> We do **not** claim formally verified AEAD. The AEAD wrapper's correctness rests on the `aes-gcm` crate's proven security, Rust's ownership system, and comprehensive testing.
 
 ### 🎯 Adversary Model
 

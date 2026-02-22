@@ -1,7 +1,7 @@
 # 🔐 Meow-Encoder Crypto Core
 
 A comprehensive cryptographic library for Meow-Encode providing:
-- **Formally verified** AEAD wrappers using [Verus](https://github.com/verus-lang/verus)
+- **AEAD wrappers** with enforced safety properties (type system + tests; Verus proofs are specification stubs, not yet machine-checked)
 - **Hardware security** via HSM/PKCS#11, YubiKey PIV/FIDO2, and TPM 2.0
 - **Pure Rust crypto** stack with X25519, Argon2id, HKDF, and post-quantum ML-KEM
 - **WASM bindings** for browser-based encoding/decoding
@@ -318,16 +318,18 @@ const decoded = decode_data(encoded, "password");
 
 ---
 
-## Verified Properties
+## Safety Properties
 
 ### AEAD Wrapper (`aead_wrapper.rs`)
 
-The AEAD wrapper enforces three critical security invariants:
+The AEAD wrapper enforces four critical security invariants via type system and tests.
 
-| Property | Description | Verification Method |
-|----------|-------------|---------------------|
-| **AEAD-001: Nonce Uniqueness** | Each nonce is used exactly once per key | Type-state + ghost tracking |
-| **AEAD-002: Auth-Then-Output** | Plaintext only accessible after authentication | Existential type proof |
+> **Note:** AEAD-001–AEAD-004 are specification stubs in `verus_proofs.rs`, not yet machine-checked by Verus. The properties below are enforced by Rust's type system and the test suite.
+
+| Property | Description | Enforcement Method |
+|----------|-------------|--------------------|
+| **AEAD-001: Nonce Uniqueness** | Each nonce is used exactly once per key | Type-state pattern |
+| **AEAD-002: Auth-Then-Output** | Plaintext only accessible after authentication | API design |
 | **AEAD-003: Key Zeroization** | Keys are zeroed when wrapper is dropped | Drop trait + Zeroize |
 | **AEAD-004: No Counter Wrap** | Nonce counter panics before overflow | Bounds check |
 
@@ -695,7 +697,7 @@ wasm-pack test --headless --firefox --features wasm
 
 | Component | Status | Auditor | Date |
 |-----------|--------|---------|------|
-| AEAD Wrapper | ✅ Formally Verified (Verus) | Internal | 2026-01 |
+| AEAD Wrapper | ⚠️ Type-system enforced (Verus proofs are stubs) | Internal | 2026-01 |
 | Pure Crypto | ⏳ Pending Audit | - | - |
 | HSM Integration | ⏳ Pending Audit | - | - |
 | YubiKey Integration | ⏳ Pending Audit | - | - |
@@ -734,7 +736,7 @@ wasm-pack test --headless --firefox --features wasm
 │  └─────────────────────┘     └─────────────────────┘                           │
 │                                                                                 │
 │  ┌─────────────────────────────────────────────────────────────────────────────┐│
-│  │                          Core (Verus-Verified)                              ││
+│  │                    Core (type-system enforced, Verus stubs)                 ││
 │  │                                                                             ││
 │  │  ┌─────────────────────────────────────────────────────────────────────────┐││
 │  │  │                          AeadWrapper                                    │││

@@ -30,6 +30,10 @@ The fuzzing infrastructure includes **1362 lines of comprehensive tests** (`test
 | `fuzz_crypto.py` | 95.29% |
 | `fuzz_manifest.py` | 98.11% |
 | `fuzz_fountain.py` | 98.48% |
+| `fuzz_windows_guard.py` | NEW (8 fuzz functions) |
+| `fuzz_mouse_gesture.py` | NEW (10 fuzz functions) |
+| `fuzz_tamper_detection.py` | NEW (10 fuzz functions) |
+| `fuzz_adversarial_stego.py` | NEW (10 fuzz functions, differential) |
 | `seed_corpus.py` | 100% |
 | `afl_fuzz_manifest.py` | 100% |
 
@@ -79,6 +83,38 @@ Tests droplet unpacking and fountain decoding logic.
 python3 fuzz/fuzz_fountain.py -runs=100000
 ```
 
+### 4. Fuzz Guard Page Memory Safety
+
+Tests `GuardedBuffer` write/read bounds, double-free, use-after-free, concurrent alloc/free, and guard page activation.
+
+```bash
+python3 fuzz/fuzz_windows_guard.py -runs=100000
+```
+
+### 5. Fuzz Mouse Gesture Auth
+
+Tests `MouseGesturePassword` quantization determinism, BLAKE2b derivation with person tag, grid size variation, perturbation stability, and collision resistance.
+
+```bash
+python3 fuzz/fuzz_mouse_gesture.py -runs=100000
+```
+
+### 6. Fuzz Tamper Detection
+
+Tests `TamperState` serialization roundtrip, HMAC checkpoint integrity, silent poison determinism/uniqueness, and `TamperDetector` with fake modules.
+
+```bash
+python3 fuzz/fuzz_tamper_detection.py -runs=100000
+```
+
+### 7. Fuzz Adversarial Stego Rotation (Differential)
+
+Differential fuzzing of adversarial carrier noise generators. Verifies sensor/texture/DCT/combined produce distinct noise for the same seed, checks rotation schedule coverage, histogram equalization, and noise profile extremes.
+
+```bash
+python3 fuzz/fuzz_adversarial_stego.py -runs=100000
+```
+
 ## Corpus Generation
 
 The `seed_corpus.py` script generates valid seed inputs to help the fuzzer start from a good state.
@@ -111,6 +147,10 @@ The fuzzing infrastructure validates:
 4. **Bit-flip resilience** - Random mutations don't cause undefined behavior
 5. **Length extension immunity** - Extended data handled gracefully
 6. **Cross-module consistency** - Same data produces consistent behavior
+7. **Guard page memory isolation** - OOB write/read traps, double-free safety, use-after-free detection
+8. **Gesture auth quantization stability** - Deterministic quantization, BLAKE2b domain separation, grid cell stability
+9. **Tamper checkpoint HMAC integrity** - Corrupt/truncated state rejected, silent poison determinism
+10. **Stego rotation differential** - All 4 algorithms produce distinct noise, schedule coverage, carrier noise in valid range
 
 ### Formal Complement: GuardedBuffer / `SecureBox`
 
@@ -130,6 +170,7 @@ the probabilistic coverage from fuzzing.
 
 ## Findings
 
+- **2026-02-22**: Added 4 new fuzz targets: guard page memory safety (8 functions), mouse gesture auth (10 functions), tamper detection (10 functions), adversarial stego differential (10 functions). Added integration tests (`tests/test_fuzz_coverage_integration.py`, 38 tests). Added Tamarin Schrödinger deniability model (`formal/tamarin/MeowSchrodingerDeniability.spthy`, 10 lemmas). Updated `SECURITY_INVARIANTS.md` with INV-033 through INV-037.
 - **2026-01-28**: Comprehensive test suite added (85 tests, 821 lines)
 - **2026-01-25**: AFL++ integration and seed corpus generation
 - *Add new findings here.*

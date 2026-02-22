@@ -86,6 +86,34 @@ jobs:
             python fuzz/fuzz_crypto.py fuzz/corpus/manifest || true
         continue-on-error: true
 
+      - name: Fuzz guard page memory safety
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_windows_guard.py || true
+        continue-on-error: true
+
+      - name: Fuzz mouse gesture auth
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_mouse_gesture.py || true
+        continue-on-error: true
+
+      - name: Fuzz tamper detection
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_tamper_detection.py || true
+        continue-on-error: true
+
+      - name: Fuzz adversarial stego rotation
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_adversarial_stego.py || true
+        continue-on-error: true
+
       - name: Check for crashes
         run: |
           if [ -n "$(ls -A fuzz/crashes 2>/dev/null)" ]; then

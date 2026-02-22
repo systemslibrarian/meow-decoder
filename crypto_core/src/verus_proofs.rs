@@ -1,16 +1,26 @@
-//! Verus Formal Verification Proofs for crypto_core
+//! Verus Proof Specifications for crypto_core (STUBS — NOT YET VERIFIED)
 //!
-//! This module contains formal Verus specifications and proofs for the
-//! security properties of the AEAD wrapper.
+//! This module contains formal Verus *specifications* (doc-comment annotations)
+//! for the security properties of the AEAD wrapper. These are structured for
+//! future Verus verification but are **not** machine-checked proofs today.
 //!
-//! ## Verified Properties
+//! ## Specified Properties (enforced by type system + tests)
 //!
 //! 1. **Nonce Uniqueness (AEAD-001)**: Each encryption uses a unique nonce
 //! 2. **Auth-Gated Plaintext (AEAD-002)**: Only authenticated data is returned
 //! 3. **Key Zeroization (AEAD-003)**: Keys are zeroed on drop
 //! 4. **No Bypass (AEAD-004)**: All encryption paths consume a UniqueNonce
 //!
-//! ## How to Verify
+//! ## Actual Verification Status
+//!
+//! These properties are enforced at runtime by Rust's ownership model
+//! (`UniqueNonce` is consumed, `AuthenticatedPlaintext` has a private
+//! constructor), the `zeroize` crate (volatile writes), and comprehensive
+//! unit/integration tests. They are NOT yet verified by Verus.
+//!
+//! For **real** Verus proofs, see `verus_guarded_buffer.rs` (GB-001–GB-008).
+//!
+//! ## How to Verify (future)
 //!
 //! ```bash
 //! # Install Verus: https://github.com/verus-lang/verus

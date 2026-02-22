@@ -4,7 +4,7 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 59 active test files (52 archived to `tests/_archive/`), 1541+ active Python tests + 465 Rust tests.
+**Current stats (February 2026):** 59 active test files (52 archived to `tests/_archive/`), 1579+ active Python tests + 465 Rust tests.
 **Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
 **Surface area minimization (2026-02-18):** 45 non-production source modules archived to `meow_decoder/_archive/`; 52 test files covering only archived modules moved to `tests/_archive/`. See `docs/SURFACE_AREA_MINIMIZATION.md` for full report.
 **Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
@@ -82,6 +82,7 @@ This document summarizes the security-focused test suite created for Meow Decode
 | `test_tamper_report.py` | 19 | TamperReport rendering, JSON export |
 | `test_bridge_protocol.py` | 21 | Mobile bridge wire protocol |
 | `test_fuzz_targets.py` | 122 | Comprehensive fuzz harness testing |
+| `test_fuzz_coverage_integration.py` | 38 | Guard page, gesture auth, tamper detection, stego rotation, Schrödinger structure |
 | `test_property_based.py` | 20 | Hypothesis property-based tests |
 | `test_rust_crypto_backend.py` | 12 | Rust backend integration |
 | `test_hardware_integration.py` | 70 | Hardware security module integration |
@@ -831,7 +832,11 @@ cd crypto_core && cargo tarpaulin --out Html
 7. ✅ **AFL++ integration** (`test_fuzz_targets.py`) - 3 tests
 8. ✅ **Corpus generation** (`test_fuzz_targets.py`) - 12 tests
 9. ✅ **Integration & error handling** (`test_fuzz_targets.py`) - 17 tests
-10. ✅ **Adversarial property tests — Rust** (`property_tests.rs`) - 14 tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, domain separation
+10. ✅ **Guard page memory safety fuzz** (`fuzz_windows_guard.py`) - 8 functions
+11. ✅ **Mouse gesture auth fuzz** (`fuzz_mouse_gesture.py`) - 10 functions
+12. ✅ **Tamper detection fuzz** (`fuzz_tamper_detection.py`) - 10 functions
+13. ✅ **Guard page, gesture auth, tamper, stego, Schrödinger** (`test_fuzz_coverage_integration.py`) - 38 tests: memory safety, quantization, BLAKE2b, HMAC checkpoint, noise rotation
+14. ✅ **Adversarial property tests — Rust** (`property_tests.rs`) - 14 tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, domain separation
 11. ✅ **FFI boundary fuzz — Rust** (`ffi_fuzz.rs`) - 19 tests: random/small/large/truncated/reordered bytes, corrupted PQ ciphertext, wrong salt/version, concurrent calls, round-trip correctness
 12. ✅ **cargo-fuzz targets** (libFuzzer): `fuzz_decrypt_frame`, `fuzz_header_parse`, `fuzz_hybrid_decapsulate`, `fuzz_ratchet_step`, `fuzz_full_decode_pipeline` — run in CI via `rust-security-suite.yml`
 

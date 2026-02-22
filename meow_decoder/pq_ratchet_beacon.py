@@ -31,8 +31,6 @@ Cross-platform: Windows, Linux, macOS
 
 from __future__ import annotations
 
-import hashlib
-import hmac
 import os
 import secrets
 import struct
@@ -289,6 +287,11 @@ class PQRatchetBeacon:
         """
         Mix PQ shared secret into message key via HKDF.
 
+        All secret material (message_key, shared_secret) is imported into
+        Rust handles immediately. The HKDF computation happens entirely
+        in the Rust backend — secrets never flow through Python's hmac
+        module, preventing GC/swap exposure.
+
         Args:
             message_key: Current message key (32 bytes).
             shared_secret: ML-KEM shared secret (32 bytes).
@@ -296,15 +299,69 @@ class PQRatchetBeacon:
 
         Returns:
             Enhanced message key (32 bytes).
+
+        Raises:
+            RuntimeError: If the Rust crypto backend is unavailable.
         """
-        # PRK = HMAC(salt, message_key || shared_secret)
-        combined = message_key + shared_secret
-        prk = hmac.new(salt or b"\x00" * 32, combined, hashlib.sha256).digest()
+        from meow_decoder.crypto_backend import get_handle_backend
 
-        # Expand with domain separation
-        okm = hmac.new(prk, BEACON_MIX_DOMAIN + b"\x01", hashlib.sha256).digest()
+        hb = get_handle_backend()
+        effective_salt = salt or b"\x00" * 32
 
-        return okm
+        # Import message_key into a Rust handle — key bytes leave Python
+        # immediately and are protected by guard pages + zeroize-on-drop.
+        mk_handle = hb.import_key(message_key)
+        try:
+            # HKDF mixing entirely in Rust:
+            #   IKM  = message_key (handle) || shared_secret (extra_ikm)
+            #   salt = effective_salt
+            #   info = BEACON_MIX_DOMAIN
+            # The shared_secret bytes cross the FFI boundary but are
+            # never processed by Python's hmac/hashlib.
+            enhanced_handle = hb.mix_hkdf(
+                mk_handle, shared_secret, effective_salt, BEACON_MIX_DOMAIN, 32
+            )
+            try:
+                # Derive the final enhanced key bytes via a second HKDF
+                # pass to maintain domain separation parity with the
+                # original two-step Extract-then-Expand construction.
+                result = hb.derive_key_hkdf_bytes(
+                    enhanced_handle, effective_salt, BEACON_DERIVE_DOMAIN, 32
+                )
+                return result
+            finally:
+                hb.drop(enhanced_handle)
+        finally:
+            hb.drop(mk_handle)
+
+    def _mix_beacon_handle(
+        self,
+        message_key_handle: int,
+        shared_secret: bytes,
+        salt: bytes,
+    ) -> int:
+        """
+        Handle-based variant — both input and output stay in Rust.
+
+        Use this when the caller already has a handle (e.g. from the
+        symmetric ratchet).  Returns a new handle; caller MUST drop
+        the old message_key_handle.
+
+        Args:
+            message_key_handle: Rust handle for the current message key.
+            shared_secret: ML-KEM shared secret (32 bytes).
+            salt: Optional additional salt.
+
+        Returns:
+            Handle to enhanced message key (stays in Rust).
+        """
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        effective_salt = salt or b"\x00" * 32
+        return hb.mix_hkdf(
+            message_key_handle, shared_secret, effective_salt, BEACON_MIX_DOMAIN, 32
+        )
 
 
 @dataclass

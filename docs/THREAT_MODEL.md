@@ -190,7 +190,7 @@ exiftool -all= innocent_cats.gif
 
 | Requirement for NSA Resistance | Meow Decoder Status |
 |--------------------------------|---------------------|
-| Formal verification (mathematical proof of correctness) | ⭕ Planned (Verus/Coq) |
+| Formal verification (mathematical proof of correctness) | ⚠️ Partial — guard-page memory safety proven (Verus GB-001–GB-008); AEAD properties enforced by type system + tests, not yet Verus-proven |
 | Independent security audit by cryptographers | ⭕ Seeking funding |
 | Certified constant-time implementation (no timing leaks) | ✅ Rust backend (subtle crate) |
 | Side-channel resistance (power, EM, cache) | ⚠️ Random delays |
@@ -263,11 +263,20 @@ This section maps **security claims** to **formal verification artifacts**.
 |----------|--------------|----------|----------|
 | **Auth-then-Output** | TLA+ (TLC) | `formal/tla/meow_protocol.tla` | ✅ Verified (bounded) |
 | **Replay Rejection** | TLA+ (TLC) + ProVerif | `formal/tla/` + `formal/proverif/` | ✅ Verified (symbolic) |
-| **Nonce Uniqueness** | Verus | `crypto_core/src/verus_verified.rs` | ✅ Verified (precondition) |
-| **Key Zeroization** | Verus + Runtime | `crypto_core/src/lib.rs` + `zeroize` crate | ✅ Verified |
+| **Guard-page memory safety** | Verus | `crypto_core/src/verus_guarded_buffer.rs` (GB-001–GB-008) | ✅ **Verified (real Verus proofs)** |
+| **Nonce Uniqueness** | Type system + runtime tests | `UniqueNonce` (linear type) + `NonceManager` | ✅ Enforced (not Verus-proven) |
+| **Auth-Gated Plaintext** | Type system | `AuthenticatedPlaintext` (private constructor) | ✅ Enforced (not Verus-proven) |
+| **Key Zeroization** | `zeroize` crate + runtime | `ZeroizeOnDrop` (volatile writes) | ✅ Enforced (not Verus-proven) |
+| **No-Bypass (nonce consumption)** | Rust ownership | `UniqueNonce` consumed by `encrypt()` | ✅ Enforced (not Verus-proven) |
 | **Frame MAC Integrity** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
 | **Duress Behavior** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
 | **HW Key Isolation** | TLA+ | `formal/tla/meow_protocol.tla` (HWKeyNeverExposed) | ✅ Verified |
+
+> **⚠️ Honest caveat:** The AEAD properties (AEAD-001 through AEAD-004) in `verus_proofs.rs`
+> are **proof stubs** (doc-comment specifications structured for future Verus verification).
+> They are **not** machine-checked Verus proofs. Only the guard-page proofs (GB-001–GB-008
+> in `verus_guarded_buffer.rs`) have been verified by Verus. AEAD correctness relies on
+> the `aes-gcm` crate’s proven security, Rust’s type system, and comprehensive testing.
 
 ### 🌊 Channel Security
 

@@ -1,7 +1,7 @@
 # 🔒 Security Invariants - Meow Decoder
 
-**Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
-**Last Updated:** 2026-02-17
+**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
+**Last Updated:** 2025-07-24
 **Classification:** Security-Critical Documentation
 
 ---
@@ -15,6 +15,17 @@ Invariants are verified through:
 2. **Unit tests** - Specific edge cases
 3. **Fuzzing** (AFL++) - Crash detection
 4. **Code review** - Manual verification
+5. **Formal proofs** (where available) - Machine-checked mathematical proofs
+
+### Formal Verification Status
+
+| Property set | Tool | Status |
+|---|---|---|
+| Guard-page memory safety (GB-001 – GB-008) | Verus | ✅ **Machine-checked proofs** in `verus_guarded_buffer.rs` |
+| Protocol state machine (auth-then-output, replay, duress) | TLA+ (TLC) | ✅ Verified (bounded model checking) |
+| Dolev-Yao secrecy & authentication | ProVerif | ✅ Verified (symbolic) |
+| Schrödinger deniability game | Tamarin | ✅ Verified (observational equivalence) |
+| AEAD properties (nonce uniqueness, auth-gated plaintext, key zeroization, no-bypass) | Rust type system + runtime tests | ⚠️ **Not Verus-proven** — enforced by `UniqueNonce`, `AuthenticatedPlaintext`, `zeroize` crate, and comprehensive test suite. The `verus_proofs.rs` file contains proof *stubs* (doc-comment specifications), not machine-checked proofs. |
 
 ---
 
@@ -739,6 +750,138 @@ IF manifest signature is absent AND signing is explicitly disabled
 
 ---
 
+### INV-033: Guard Page Memory Isolation
+
+**Status:** ✅ ENFORCED
+**Category:** Memory Safety
+**Implemented In:** `meow_decoder/memory_guard.py`
+
+```
+∀ GuardedBuffer(size):
+    write(data, offset) with offset + len(data) > size → RAISES ValueError
+    read(length, offset) with offset + length > size → RAISES ValueError
+    close() → zero(buffer) ∧ munmap(pages)
+    close(); close() → NO CRASH (idempotent)
+    close(); write(data) → RAISES RuntimeError
+```
+
+**Description:** `GuardedBuffer` allocates memory with PROT_NONE guard pages above and below the data region. Any out-of-bounds access traps to a signal/exception. Double-free and use-after-free are handled safely. Buffer contents are zeroed on close to prevent forensic recovery.
+
+**Verification:**
+- `tests/test_fuzz_coverage_integration.py::TestGuardedBuffer` (9 tests)
+- `fuzz/fuzz_windows_guard.py` (8 fuzz functions)
+
+**Failure Impact:** Sensitive key material leaked via buffer overread; use-after-free produces undefined behavior.
+
+---
+
+### INV-034: Mouse Gesture Quantization Stability
+
+**Status:** ✅ ENFORCED
+**Category:** Authentication
+**Implemented In:** `meow_decoder/secure_keyboard.py::MouseGesturePassword`
+
+```
+∀ points, grid_size:
+    quantize(points) is deterministic
+    ∀ p₁, p₂ in same grid cell: collect(p₁) == collect(p₂)
+    ∀ p₁, p₂ in different cells: collect(p₁) ≠ collect(p₂) (collision-resistant)
+    BLAKE2b(quantized, person=b"meow_gesture_v1", digest_size=32)
+```
+
+**Description:** Mouse gesture authentication quantizes continuous (x,y) coordinates to a discrete grid (default 16×16). Points within the same cell produce identical keys. The BLAKE2b person tag `b"meow_gesture_v1"` provides domain separation, preventing cross-protocol key reuse. Output is a 32-byte (64 hex char) key.
+
+**Verification:**
+- `tests/test_fuzz_coverage_integration.py::TestMouseGesturePassword` (8 tests)
+- `fuzz/fuzz_mouse_gesture.py` (10 fuzz functions)
+
+**Failure Impact:** Gesture key instability causes authentication failures; missing domain separation enables cross-protocol attacks.
+
+---
+
+### INV-035: Tamper Detection Checkpoint Integrity
+
+**Status:** ✅ ENFORCED
+**Category:** Integrity
+**Implemented In:** `meow_decoder/tamper_detection.py`
+
+```
+∀ TamperState s:
+    from_bytes(to_bytes(s)).baseline_hashes == s.baseline_hashes
+    from_bytes(corrupt(to_bytes(s))) == None  (HMAC reject)
+    from_bytes(truncate(to_bytes(s))) == None  (HMAC reject)
+    ∀ seed: silent_poison_bytes(n, seed) == silent_poison_bytes(n, seed)
+    ∀ seed₁ ≠ seed₂: silent_poison_bytes(n, seed₁) ≠ silent_poison_bytes(n, seed₂)
+```
+
+**Description:** TamperState serialization includes an HMAC-SHA256 authentication tag computed from the state key. Deserialization verifies the HMAC before returning the state; any corruption or truncation causes rejection (returns None). `silent_poison_bytes` provides deterministic-per-seed random bytes for poisoning tampered outputs without revealing the tamper detection mechanism.
+
+**Verification:**
+- `tests/test_fuzz_coverage_integration.py::TestTamperState` (4 tests)
+- `tests/test_fuzz_coverage_integration.py::TestSilentPoison` (3 tests)
+- `tests/test_fuzz_coverage_integration.py::TestTamperDetector` (2 tests)
+- `fuzz/fuzz_tamper_detection.py` (10 fuzz functions)
+
+**Failure Impact:** Attacker modifies checkpoint to disable tamper detection; poisoned output leaks real data.
+
+---
+
+### INV-036: Adversarial Stego Rotation Differential
+
+**Status:** ✅ ENFORCED
+**Category:** Steganography
+**Implemented In:** `meow_decoder/adversarial_carrier.py`, `meow_decoder/stego_advanced.py`
+
+```
+∀ seed, width, height:
+    sensor(seed) ≠ texture(seed) ≠ dct(seed) ≠ combined(seed)
+    ∀ algo: algo(seed₁) == algo(seed₁) (deterministic)
+    ∀ algo, seed₁ ≠ seed₂: algo(seed₁) ≠ algo(seed₂) (non-degenerate)
+    rotation_schedule = ["sensor", "texture", "dct", "combined"]
+    ∀ i: frame_algo = schedule[i % 4]
+    carrier_noise ∈ [-128, 127] ∧ integer
+```
+
+**Description:** The adversarial steganography rotation schedule cycles through four noise algorithms (sensor, texture, DCT, combined) to defeat steganalysis detectors. Each algorithm must produce distinct statistical fingerprints for the same seed. The schedule is deterministic and covers all four algorithms within every 4 frames. Carrier noise is integer-valued within signed byte range.
+
+**Verification:**
+- `tests/test_fuzz_coverage_integration.py::TestAdversarialNoiseGenerator` (9 tests)
+- `fuzz/fuzz_adversarial_stego.py` (10 fuzz functions, differential)
+
+**Failure Impact:** Steganalysis detector trains on single noise pattern; rotation bypass enables carrier detection.
+
+---
+
+### INV-037: Schrödinger Deniability Game
+
+**Status:** ✅ FORMALLY VERIFIED (Tamarin)
+**Category:** Deniability
+**Implemented In:** `meow_decoder/quantum_mixer.py`, `meow_decoder/schrodinger_encode.py`
+**Formal Model:** `formal/tamarin/MeowSchrodingerDeniability.spthy`
+
+```
+∀ pass_A, pass_B, payload_A, payload_B:
+    QuantumNoise = XOR(KDF(pass_A), KDF(pass_B))
+    Stream_A = Enc(pass_A, payload_A ⊕ QuantumNoise)
+    Stream_B = Enc(pass_B, payload_B ⊕ QuantumNoise)
+    Deniability: Observe(Stream_A) reveals nothing about payload_B (and vice versa)
+    Coercion Safety: revealing pass_A reveals only payload_A
+    KDF Commitment: commit(KDF(pass)) is binding
+    No Cross-Leak: decode(pass_A) never outputs payload_B
+```
+
+**Description:** Schrödinger mode encodes two independent secrets into a single GIF using quantum plausible deniability. The XOR of password-derived KDF outputs creates a noise layer that is computationally indistinguishable from random without both passwords. A coerced user revealing one password cannot be proven to possess the second secret. Formalized as observational equivalence in Tamarin with 10 lemmas including deniability, integrity, no-cross-leak, coercion safety, and KDF commitment binding.
+
+**Verification:**
+- `formal/tamarin/MeowSchrodingerDeniability.spthy` (10 lemmas)
+- `formal/tamarin/MeowSchrodingerOE.spthy` (6 lemmas, observational equivalence)
+- `tests/test_fuzz_coverage_integration.py::TestSchrodingerStructure` (3 tests)
+- `fuzz/fuzz_schrodinger.py` (existing fuzz target)
+
+**Failure Impact:** Adversary distinguishes which secret was accessed; deniability claim is false.
+
+---
+
 ## Adding New Invariants
 
 When adding a new security-critical feature:
@@ -760,6 +903,9 @@ pytest tests/test_property_based.py -v --hypothesis-show-statistics
 # Run invariant tests only
 pytest tests/test_invariants.py -v
 
+# Run fuzz coverage integration tests (INV-033 through INV-037)
+pytest tests/test_fuzz_coverage_integration.py -v
+
 # Run full security test suite
 pytest tests/test_security.py tests/test_invariants.py tests/test_property_based.py -v
 
@@ -767,8 +913,12 @@ pytest tests/test_security.py tests/test_invariants.py tests/test_property_based
 pytest --cov=meow_decoder.crypto --cov=meow_decoder.crypto_backend \
     --cov-report=html --cov-fail-under=90
 
-# Run fuzzing
+# Run fuzzing (new targets)
 python -m atheris fuzz/fuzz_manifest.py
+python fuzz/fuzz_windows_guard.py       # Guard page memory safety
+python fuzz/fuzz_mouse_gesture.py       # Gesture auth quantization
+python fuzz/fuzz_tamper_detection.py    # Tamper detection + poisoning
+python fuzz/fuzz_adversarial_stego.py   # Stego rotation differential
 ```
 
 ---

@@ -1,24 +1,24 @@
-//! # Formally Verified AEAD Wrapper for Meow-Encode
+//! # AEAD Wrapper for Meow-Encode
 //!
-//! This module provides a Verus-verified wrapper around AES-256-GCM
+//! This module provides a type-enforced wrapper around AES-256-GCM
 //! that enforces critical cryptographic invariants at the type level:
 //!
 //! 1. **Nonce Uniqueness**: Each nonce is used exactly once per key
 //! 2. **Auth-Then-Output**: Plaintext is only accessible after authentication
 //! 3. **Key Zeroization**: Keys are securely zeroed on drop
 //!
-//! ## Verus Verification
+//! ## Verification Status
 //!
-//! This code is designed to be verified with Verus (https://github.com/verus-lang/verus).
-//! The `requires`, `ensures`, and `invariant` clauses are formal specifications
-//! that Verus proves hold for all possible inputs.
+//! The AEAD properties (AEAD-001 through AEAD-004) are enforced by Rust's
+//! type system (`UniqueNonce`, `AuthenticatedPlaintext`), the `zeroize` crate,
+//! and comprehensive runtime tests. They are **not** yet machine-checked by
+//! Verus. The `requires`/`ensures` clauses below are specification annotations
+//! structured for future Verus verification.
 //!
-//! To verify:
-//! ```bash
-//! verus aead_wrapper.rs
-//! ```
+//! Guard-page memory safety (GB-001–GB-008) in `verus_guarded_buffer.rs`
+//! IS verified by real Verus proofs.
 //!
-//! ## Safety Properties Proven
+//! ## Safety Properties Enforced (type system + tests, not Verus-proven)
 //!
 //! - **AEAD-001**: `encrypt` never reuses a nonce for the same key
 //! - **AEAD-002**: `decrypt` returns plaintext only if authentication succeeds

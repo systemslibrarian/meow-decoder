@@ -51,7 +51,7 @@ We use multiple formal methods with **conservative claims**:
 |---|---|---|
 | **TLA+ (TLC)** | 23 state‑machine safety invariants across 3 models (auth‑then‑output, replay rejection, duress separation, PQ downgrade prevention, streaming EtM) | Abstract crypto; bounded model checking (finite state space) |
 | **ProVerif** | Symbolic secrecy, authentication, duress safety, PQ hybrid confidentiality, classical‑fallback secrecy under Dolev‑Yao attacker (17 queries) | Perfect cryptography; symbolic model; session ID binding is structural, not cryptographic |
-| **Tamarin (diff mode)** | Observational equivalence for MEOW3 duress and MEOW4 PQ hybrid duress; KEM ct integrity; failure uniformity; downgrade blocking (11+ lemmas per model). 2 negative tests prove harness catches violations. | Abstract crypto; Dolev‑Yao attacker; KEM modeled symbolically |
+| **Tamarin (diff mode)** | Observational equivalence for MEOW3 duress and MEOW4 PQ hybrid duress; KEM ct integrity; failure uniformity; downgrade blocking (11+ lemmas per model). 2 negative tests prove harness catches violations. **Schrödinger deniability game** (`MeowSchrodingerDeniability.spthy`): 10 lemmas covering payload deniability, integrity, no-cross-leak, coercion safety, KDF commitment binding, and full-corruption negative test. | Abstract crypto; Dolev‑Yao attacker; KEM modeled symbolically |
 | **Verus** | Rust crypto wrapper invariants: nonce uniqueness, auth‑then‑output, key zeroization, domain separation (10 properties) | AES‑GCM primitive security; correct OS RNG |
 | **Lean 4** | Fountain code XOR algebra, erasure tolerance bounds (11 theorems). 2 axioms quarantined with justifications. | Axioms: LT decode completeness (Luby FOCS 2002), belief propagation progress |
 

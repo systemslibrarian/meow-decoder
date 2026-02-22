@@ -343,6 +343,15 @@ A MEOW5/MEOW4 session **MUST NOT** silently fall back to MEOW3.
 | Failure uniformity | Tamarin | `MeowDuressEquivPQ.spthy` (`PQ_Failure_Uniform_Observable`) | CI‑gated |
 | No KEM binding → OE fails | Tamarin negative | `NEGATIVE_NoKEMBinding.spthy` | CI‑gated |
 | Leaked failure reason → uniformity fails | Tamarin negative | `NEGATIVE_LeaksFailureReason.spthy` | CI‑gated |
+| Guard‑page memory safety (GB‑001–GB‑008) | Verus | `verus_guarded_buffer.rs` | **Verified** |
+
+> **Note on Verus AEAD proofs:** The file `verus_proofs.rs` contains
+> proof *specifications* for AEAD‑001 through AEAD‑004 (nonce uniqueness,
+> auth‑gated plaintext, key zeroization, no‑bypass). These are **not**
+> machine‑checked Verus proofs — they are doc‑comment annotations
+> structured for future verification. The properties are currently
+> enforced by Rust's type system (`UniqueNonce`, `AuthenticatedPlaintext`),
+> the `zeroize` crate, and comprehensive runtime tests.
 
 ---
 

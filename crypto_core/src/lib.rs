@@ -39,12 +39,15 @@
 //! - [`pure_crypto`]: Complete crypto stack (`pure-crypto` feature)
 //! - [`wasm`]: WASM bindings (`wasm` feature)
 //!
-//! ## Security Properties (Verus-Verified)
+//! ## Security Properties (type-system enforced; Verus proofs are stubs)
 //!
 //! 1. **AEAD-001**: Nonce uniqueness - counter-based generation prevents reuse
 //! 2. **AEAD-002**: Auth-gated plaintext - decryption returns `AuthenticatedPlaintext`
 //! 3. **AEAD-003**: Key zeroization - keys are zeroed on drop via `zeroize` crate
 //! 4. **AEAD-004**: No bypass - all encryption paths consume a `UniqueNonce`
+//!
+//! > Note: AEAD-001–AEAD-004 are specification stubs in `verus_proofs.rs`,
+//! > not yet machine-checked by Verus. Enforced by Rust's type system and tests.
 //!
 //! ## Hardware Security Properties
 //!
