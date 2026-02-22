@@ -394,5 +394,209 @@ def test_metadata_obfuscation_uses_secure_prng():
     assert "hmac" in source.lower(), "metadata_obfuscation should use HMAC for deterministic shuffle"
 
 
+# ── GuardedBuffer Tests ──────────────────────────────────────────────────────
+
+def test_guarded_buffer_basic_read_write():
+    """Verify GuardedBuffer allocates, writes, reads, and closes correctly."""
+    from meow_decoder.memory_guard import GuardedBuffer
+
+    with GuardedBuffer(256) as buf:
+        secret = b"AES-256-GCM key material here!!"
+        buf.write(secret)
+        recovered = buf.read(len(secret))
+        assert recovered == secret, "GuardedBuffer read/write mismatch"
+        assert repr(buf).startswith("<GuardedBuffer")
+
+    # After exit, buffer should be closed
+    with pytest.raises(RuntimeError, match="closed"):
+        buf.write(b"x")
+
+
+def test_guarded_buffer_bounds_checking():
+    """Verify GuardedBuffer rejects out-of-bounds writes."""
+    from meow_decoder.memory_guard import GuardedBuffer
+
+    with GuardedBuffer(32) as buf:
+        # Write exactly at boundary should succeed
+        buf.write(b"\xff" * 32)
+        # Write past boundary must fail
+        with pytest.raises(ValueError, match="exceeds buffer size"):
+            buf.write(b"\xff" * 33)
+        # Read past boundary must fail
+        with pytest.raises(ValueError, match="exceeds buffer size"):
+            buf.read(33)
+
+
+def test_guarded_buffer_zeroization():
+    """Verify GuardedBuffer zeroes data on close."""
+    from meow_decoder.memory_guard import GuardedBuffer
+
+    buf = GuardedBuffer(64)
+    buf.write(b"sensitive" * 7)
+    # Read before close works
+    assert buf.read(9) == b"sensitive"
+    buf.close()
+    # After close, operations should fail
+    with pytest.raises(RuntimeError, match="closed"):
+        buf.read(1)
+
+
+def test_guarded_buffer_invalid_size():
+    """Verify GuardedBuffer rejects invalid sizes."""
+    from meow_decoder.memory_guard import GuardedBuffer
+
+    with pytest.raises(ValueError, match="must be > 0"):
+        GuardedBuffer(0)
+    with pytest.raises(ValueError, match="must be > 0"):
+        GuardedBuffer(-1)
+
+
+# ── PQ Beacon Ratchet Integration Tests ──────────────────────────────────────
+
+def _has_mlkem():
+    """Check if ML-KEM-1024 is available."""
+    try:
+        from meow_decoder.pq_ratchet_beacon import _mlkem1024_keygen
+        _mlkem1024_keygen()
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _has_mlkem(), reason="ML-KEM-1024 not available")
+def test_pq_beacon_ratchet_encoder_decoder_roundtrip():
+    """Verify PQ beacon is auto-integrated into ratchet encrypt/decrypt cycle.
+
+    This tests the full pipeline:
+    1. Encoder encrypts frames with PQ beacon at rekey intervals
+    2. Decoder decrypts frames, extracting and mixing PQ beacon
+    3. Data roundtrips correctly end-to-end
+    """
+    from meow_decoder.ratchet import EncoderRatchet, DecoderRatchet
+    from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+
+    root_key = secrets.token_bytes(32)
+    salt = secrets.token_bytes(16)
+    k_blocks = 5
+    block_size = 100
+    total_frames = 10
+    rekey_interval = 3  # Rekey at frame 3, 6, 9
+
+    # Generate PQ keypair for receiver
+    pq_keypair = generate_beacon_keypair()
+
+    encoder = EncoderRatchet(
+        root_key=root_key,
+        salt=salt,
+        k_blocks=k_blocks,
+        block_size=block_size,
+        total_frames=total_frames,
+        rekey_interval=rekey_interval,
+        receiver_pq_public_key=pq_keypair.public_key,
+    )
+    decoder = DecoderRatchet(
+        root_key=root_key,
+        salt=salt,
+        k_blocks=k_blocks,
+        block_size=block_size,
+        total_frames=total_frames,
+        rekey_interval=rekey_interval,
+        receiver_pq_keypair=pq_keypair,
+    )
+
+    # Encrypt and decrypt all frames
+    for i in range(total_frames):
+        plaintext = f"Frame {i} data for PQ test".encode()
+        encrypted = encoder.encrypt_next(plaintext)
+        decrypted = decoder.decrypt(encrypted)
+        assert decrypted == plaintext, f"PQ beacon roundtrip failed at frame {i}"
+
+    encoder.finalize()
+    decoder.finalize()
+
+
+@pytest.mark.skipif(not _has_mlkem(), reason="ML-KEM-1024 not available")
+def test_pq_beacon_frames_are_larger_at_rekey():
+    """Verify frames at rekey intervals include PQ beacon overhead."""
+    from meow_decoder.ratchet import EncoderRatchet
+    from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair, PQBeaconFrame
+
+    root_key = secrets.token_bytes(32)
+    salt = secrets.token_bytes(16)
+    pq_keypair = generate_beacon_keypair()
+
+    encoder = EncoderRatchet(
+        root_key=root_key,
+        salt=salt,
+        k_blocks=5,
+        block_size=100,
+        total_frames=6,
+        rekey_interval=3,
+        receiver_pq_public_key=pq_keypair.public_key,
+    )
+
+    sizes = []
+    for i in range(6):
+        data = b"X" * 50
+        enc = encoder.encrypt_next(data)
+        sizes.append(len(enc))
+
+    encoder.finalize()
+
+    # Frame 3 is a rekey frame — should be larger by at least PQBeaconFrame.total_size()
+    pq_overhead = PQBeaconFrame.total_size()
+    assert sizes[3] > sizes[0] + pq_overhead - 100, (
+        f"Rekey frame (size={sizes[3]}) should be significantly larger than "
+        f"normal frame (size={sizes[0]}) by PQ beacon overhead ({pq_overhead})"
+    )
+
+
+@pytest.mark.skipif(not _has_mlkem(), reason="ML-KEM-1024 not available")
+def test_pq_beacon_wrong_keypair_fails():
+    """Verify decryption fails when decoder has wrong PQ keypair."""
+    from meow_decoder.ratchet import EncoderRatchet, DecoderRatchet
+    from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+
+    root_key = secrets.token_bytes(32)
+    salt = secrets.token_bytes(16)
+
+    pq_keypair_encoder = generate_beacon_keypair()
+    pq_keypair_wrong = generate_beacon_keypair()  # Different keypair!
+
+    encoder = EncoderRatchet(
+        root_key=root_key,
+        salt=salt,
+        k_blocks=5,
+        block_size=100,
+        total_frames=6,
+        rekey_interval=3,
+        receiver_pq_public_key=pq_keypair_encoder.public_key,
+    )
+    decoder = DecoderRatchet(
+        root_key=root_key,
+        salt=salt,
+        k_blocks=5,
+        block_size=100,
+        total_frames=6,
+        rekey_interval=3,
+        receiver_pq_keypair=pq_keypair_wrong,
+    )
+
+    # Non-rekey frames should work (no PQ beacon involved)
+    for i in range(3):
+        plaintext = f"Frame {i}".encode()
+        encrypted = encoder.encrypt_next(plaintext)
+        decrypted = decoder.decrypt(encrypted)
+        assert decrypted == plaintext
+
+    # Frame 3 is a rekey frame — wrong PQ key should cause commitment failure
+    enc_rekey = encoder.encrypt_next(b"rekey frame data")
+    with pytest.raises(ValueError, match="commitment|decapsul|decrypt"):
+        decoder.decrypt(enc_rekey)
+
+    encoder.finalize()
+    decoder.finalize()
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

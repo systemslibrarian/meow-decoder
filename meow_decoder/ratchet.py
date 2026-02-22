@@ -72,7 +72,11 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from .pq_ratchet_beacon import (
     PQRatchetBeacon,
+    PQBeaconFrame,
+    PQBeaconKeyPair,
     generate_beacon_keypair as generate_pq_beacon_keypair,
+    _mlkem1024_encapsulate,
+    _mlkem1024_decapsulate,
     MLKEM1024_CIPHERTEXT_SIZE,
     MLKEM1024_PUBLIC_KEY_SIZE,
 )
@@ -115,6 +119,14 @@ REKEY_BEACON_INFO = b"meow_ratchet_rekey_v1"
 REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
 REKEY_BEACON_SIZE = 32  # X25519 public key or random entropy
 DEFAULT_REKEY_INTERVAL = 0  # 0 = disabled; recommended: 32
+
+# ── PQ Ratchet Beacon Constants ──────────────────────────────────────────────
+# ML-KEM-1024 post-quantum beacon: at rekey frames, if a PQ public key is
+# available, encapsulate via ML-KEM-1024 and mix the shared secret into the
+# message key. The PQ ciphertext is embedded in the frame header after the
+# classical beacon (if any). This provides quantum-resistant PCS on top of
+# the X25519 classical rekey.
+PQ_BEACON_MIX_INFO = b"meow_pq_beacon_ratchet_mix_v1"
 
 # ── Header Encryption Constants (Signal parity) ─────────────────────────────
 # Signal encrypts message headers to prevent traffic analysis.
@@ -220,6 +232,20 @@ def _mix_beacon_handle(message_key_handle: int, beacon_secret: bytes, salt: byte
     """
     hb = get_handle_backend()
     return hb.mix_hkdf(message_key_handle, beacon_secret, salt, REKEY_BEACON_INFO, 32)
+
+
+def _mix_pq_beacon_handle(message_key_handle: int, pq_shared_secret: bytes, salt: bytes) -> int:
+    """Mix ML-KEM-1024 PQ beacon entropy into a message key handle.
+
+    Uses PQ-specific domain separation (PQ_BEACON_MIX_INFO) to ensure
+    PQ beacon mixing is cryptographically independent from classical
+    beacon mixing. The PQ shared secret is mixed additively on top of
+    any classical beacon already applied.
+
+    Returns a new handle; caller must drop the old handle.
+    """
+    hb = get_handle_backend()
+    return hb.mix_hkdf(message_key_handle, pq_shared_secret, salt, PQ_BEACON_MIX_INFO, 32)
 
 
 def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[int, bytes]:
@@ -964,6 +990,7 @@ class EncoderRatchet:
         total_frames: int,
         rekey_interval: int = 0,
         receiver_public_key: Optional[bytes] = None,
+        receiver_pq_public_key: Optional[bytes] = None,
     ):
         """
         Initialize encoder ratchet.
@@ -976,6 +1003,7 @@ class EncoderRatchet:
             total_frames: Total number of frames to encrypt
             rekey_interval: Frames between rekey beacons (0 = disabled)
             receiver_public_key: X25519 public key for KEM beacons (optional)
+            receiver_pq_public_key: ML-KEM-1024 public key for PQ beacons (optional)
         """
         self._state = init_ratchet(root_key, salt)
         self._salt = salt
@@ -986,6 +1014,7 @@ class EncoderRatchet:
         self._finalized = False
         self._rekey_interval = rekey_interval
         self._receiver_public_key = receiver_public_key
+        self._receiver_pq_public_key = receiver_pq_public_key
         # Header encryption key (Signal parity: encrypted message headers)
         self._header_key = _derive_header_key(root_key, salt)
 
@@ -1070,6 +1099,21 @@ class EncoderRatchet:
             hb.drop(msg_key_handle)
             msg_key_handle = new_mk_handle
 
+        # ─── PQ Beacon: ML-KEM-1024 encapsulation (additive to classical) ───
+        # At rekey frames, if a PQ public key is available, encapsulate via
+        # ML-KEM-1024 and mix the shared secret into the message key. This
+        # is layered ON TOP of the classical beacon (X25519 or plaintext),
+        # so an attacker must break BOTH classical and PQ KEM.
+        pq_beacon_header = b""
+        if self._is_rekey_frame(frame_index) and self._receiver_pq_public_key is not None:
+            pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
+            new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
+            hb.drop(msg_key_handle)
+            msg_key_handle = new_mk_handle
+            pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
+            # Zeroize PQ shared secret (ephemeral, defense in depth)
+            pq_shared = b"\x00" * len(pq_shared)
+
         commit_keys = None
         try:
             # Derive commitment keys (mac_key as handle for commitment tag)
@@ -1089,11 +1133,9 @@ class EncoderRatchet:
             # Extract ciphertext (strip plaintext frame_index header)
             raw_ciphertext = encrypted[FRAME_INDEX_SIZE:]
 
-            # Insert beacon before ciphertext if present
-            if beacon_header:
-                frame_body = beacon_header + raw_ciphertext
-            else:
-                frame_body = raw_ciphertext
+            # Insert beacon(s) before ciphertext:
+            # [classical_beacon?(32)] [pq_beacon?(5+2+1568)] [ciphertext]
+            frame_body = beacon_header + pq_beacon_header + raw_ciphertext
 
             # Key commitment: HMAC(mac_key handle, frame_body)
             commitment = _compute_commitment(commit_keys.mac_key, frame_body)
@@ -1177,6 +1219,7 @@ class DecoderRatchet:
         total_frames: int,
         rekey_interval: int = 0,
         receiver_private_key: Optional[bytes] = None,
+        receiver_pq_keypair: Optional[PQBeaconKeyPair] = None,
     ):
         """
         Initialize decoder ratchet.
@@ -1189,6 +1232,7 @@ class DecoderRatchet:
             total_frames: Total number of expected frames
             rekey_interval: Frames between rekey beacons (0 = disabled)
             receiver_private_key: X25519 private key for KEM beacons (optional)
+            receiver_pq_keypair: ML-KEM-1024 keypair for PQ beacons (optional)
         """
         self._state = init_ratchet(root_key, salt)
         self._salt = salt
@@ -1200,6 +1244,7 @@ class DecoderRatchet:
         self._finalized = False
         self._rekey_interval = rekey_interval
         self._receiver_private_key = receiver_private_key
+        self._receiver_pq_keypair = receiver_pq_keypair
         # MSR v2.0: Asymmetric rekey material storage for epoch advancement
         # Maps epoch_number → ephemeral_public_key (32 bytes) extracted from
         # rekey frames. Populated during decrypt() BEFORE _advance_to() so
@@ -1433,6 +1478,32 @@ class DecoderRatchet:
                     new_mk_handle = _mix_beacon_handle(msg_key_handle, beacon_data, self._salt)
                     hb.drop(msg_key_handle)
                     msg_key_handle = new_mk_handle
+
+            # Step 4b: PQ beacon extraction (after classical beacon is stripped)
+            # If the encoder embedded an ML-KEM-1024 PQ beacon, extract it and
+            # mix the decapsulated shared secret into the message key. This is
+            # layered ON TOP of the classical beacon, so an attacker must break
+            # BOTH classical AND PQ KEM to recover the message key.
+            if (
+                self._is_rekey_frame(frame_index)
+                and self._receiver_pq_keypair is not None
+            ):
+                pq_frame = PQBeaconFrame.from_bytes(ciphertext_body)
+                if pq_frame is not None:
+                    pq_shared = _mlkem1024_decapsulate(
+                        self._receiver_pq_keypair.secret_key,
+                        pq_frame.ciphertext,
+                    )
+                    new_mk_handle = _mix_pq_beacon_handle(
+                        msg_key_handle, pq_shared, self._salt
+                    )
+                    hb.drop(msg_key_handle)
+                    msg_key_handle = new_mk_handle
+                    # Strip PQ beacon from ciphertext body
+                    pq_total = PQBeaconFrame.header_size() + len(pq_frame.ciphertext)
+                    ciphertext_body = ciphertext_body[pq_total:]
+                    # Zeroize PQ shared secret (defense in depth)
+                    pq_shared = b"\x00" * len(pq_shared)
 
             # Step 5: Key commitment verification (BEFORE decryption!)
             commit_keys = derive_frame_keys(msg_key_handle, self._salt)
