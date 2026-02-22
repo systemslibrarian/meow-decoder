@@ -120,32 +120,77 @@ We take security seriously — the cat guards its secrets with nine lives. If yo
 
 > 🐱 *"Find a bug, earn your catnip! The best security researchers get the finest treats."*
 
+**IMPORTANT:** This software is designed to protect human rights activists, journalists, and dissidents in authoritarian regimes. Finding and reporting vulnerabilities can literally save lives. We take every report seriously.
+
 We recognize security researchers who responsibly disclose vulnerabilities:
 
-| Severity | Recognition |
-|----------|-------------|
-| 🙀 Critical (RCE, key extraction) | 🏆 Hall of Fame + Apex Predator title |
-| 😾 High (auth bypass, side-channel) | 🏆 Hall of Fame + SWAG |
-| 😼 Medium (DoS, info leak) | 🏆 Hall of Fame |
-| 🐱 Low (minor issues) | 🏆 Hall of Fame |
+| Severity | Impact | Recognition |
+|----------|--------|-------------|
+| 🙀 Critical | RCE, key extraction, duress mode bypass, plausible deniability break | 🏆 Hall of Fame + Apex Predator title + CVE credit |
+| 😾 High | Auth bypass, side-channel key recovery, memory scrape, timing oracle | 🏆 Hall of Fame + SWAG + CVE credit |
+| 😼 Medium | DoS, info leak, stego detection improvement, test bypass | 🏆 Hall of Fame |
+| 🐱 Low | Documentation gaps, minor issues, defense-in-depth improvements | 🏆 Hall of Fame |
 
 **Rewards:**
 - 🏅 **Catnip Bounty Hall of Fame** recognition
 - 🐱 Meow Decoder SWAG (stickers, when available)
 - 📜 Letter of paws — err, thanks / recommendation
 - 🤝 First-name credit in release notes
+- 📋 CVE credit for Critical/High findings (if applicable)
 
-**Scope:**
-- ✅ In scope: Core crypto (`crypto.py`, `crypto_core/`), authentication, key management
-- ✅ In scope: Protocol parsing, manifest handling, frame verification
-- ⚠️ Partial: Steganography (known to be cosmetic only)
-- ❌ Out of scope: Social engineering, phishing, physical attacks
+### Extended Scope (2026 Update)
+
+**Tier 1 — Core Crypto (Highest Priority):**
+- ✅ crypto.py, crypto_enhanced.py, crypto_core/ (Rust backend)
+- ✅ Key derivation (Argon2id params, HKDF usage)
+- ✅ Memory protection (secure_alloc.rs, memory_guard.py)
+- ✅ Constant-time operations (constant_time.py, subtle crate)
+- ✅ Forward secrecy (ratchet.py, master_ratchet.py)
+- ✅ Post-quantum hybrid (pq_hybrid.py)
+
+**Tier 2 — Privacy & Deniability:**
+- ✅ Schrödinger mode (schrodinger_encode.py, quantum_mixer.py)
+- ✅ Duress mode (duress wipe, decoy handling)
+- ✅ Forensic cleanup (forensic_cleanup.py)
+- ✅ Secure temporary files (secure_temp.py)
+- ✅ Tamper detection (tamper_detection.py)
+
+**Tier 3 — Defense in Depth:**
+- ✅ Environment safety (env_safety.py)
+- ✅ Air gap verification (air_gap.py)
+- ✅ Size normalization (size_normalizer.py)
+- ✅ Timing equalization (timing_equalizer.py)
+- ✅ Secure input (secure_keyboard.py, secure_input.py)
+- ✅ Shamir splitting (shamir_split.py)
+- ✅ Adversarial carrier noise (adversarial_carrier.py)
+
+**Tier 4 — Protocol & Data Handling:**
+- ✅ Protocol parsing, manifest handling, frame verification
+- ✅ Fountain codes (erasure tolerance, not crypto)
+- ⚠️ Steganography (known limitations documented)
+- ✅ Content expiry (expiry.py)
+
+**Out of Scope:**
+- ❌ Social engineering, phishing
+- ❌ Physical attacks (chip decapping, TEMPEST)
+- ❌ Attacks requiring compromised OS kernel
+- ❌ Third-party dependencies (report upstream)
+
+### Critical Impact Examples (What Keeps Us Up at Night)
+
+1. **Duress/Real Distinguisher:** Any method to distinguish duress mode from real mode without both passwords (statistical, timing, file size, metadata)
+2. **Memory Recovery:** Key material recoverable from RAM/swap/hibernation after secure wipe
+3. **Schrödinger Break:** Proving existence of second secret without Password B
+4. **Side-Channel Oracle:** Timing/power attacks that leak key bits
+5. **Tamper Detection Bypass:** Silent modification of crypto code without detection
+6. **Cross-File Correlation:** Statistical link between multiple GIFs from same source
 
 **Rules:**
 - No testing on systems you don't own (respect other cats' territory)
 - No exploitation of users' data (that's a bad kitty move)
 - Responsible disclosure (90 days — patience of a cat stalking prey)
 - One report per issue (one hairball at a time)
+- Include PoC code or detailed reproduction steps
 
 ---
 
