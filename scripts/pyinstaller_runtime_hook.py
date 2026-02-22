@@ -26,7 +26,7 @@ def _activate_security_on_startup():
     try:
         from meow_decoder.memory_guard import activate_memory_guard
 
-        status = activate_memory_guard(warn_on_failure=False)
+        activate_memory_guard(warn_on_failure=False)
         # Silent — don't reveal protection status to potential attacker
     except ImportError:
         pass
@@ -61,9 +61,10 @@ def _activate_security_on_startup():
         from meow_decoder.tamper_detection import get_tamper_detector
 
         detector = get_tamper_detector()
-        if detector.is_tampered:
+        if detector.is_tampered():
             # Tampered binary — silent poison mode activated internally
-            pass
+            os.environ["MEOW_TAMPERED"] = "1"
+            sys.exit(1)
     except ImportError:
         pass
     except Exception:

@@ -497,8 +497,28 @@ def encode_with_stego(
     stego_frames = []
     qualities = []
 
+    # Stego algorithm rotation schedule for paranoid mode
+    rotation_schedule = ["sensor", "texture", "dct", "combined"]
+
+    # Generate a session seed for deterministic noise
+    import secrets
+    import hashlib
+    session_seed = secrets.token_bytes(32)
+
     for i, qr_frame in enumerate(qr_frames):
         carrier = carriers[i] if carriers and i < len(carriers) else None
+
+        # Apply adversarial carrier generation and stego rotation in paranoid mode
+        if stealth_level == StealthLevel.PARANOID:
+            try:
+                from meow_decoder.adversarial_carrier import adversarial_embed
+                algo = rotation_schedule[i % len(rotation_schedule)]
+                # Seed is deterministic per frame to allow reproducible tests if needed,
+                # but unique per session
+                frame_seed = hashlib.sha256(session_seed + i.to_bytes(4, "little")).digest()
+                carrier = adversarial_embed(qr_frame, carrier, algo=algo, seed=frame_seed)
+            except ImportError:
+                pass
 
         stego_frame, quality = encoder.embed_frame(qr_frame, carrier, i)
         stego_frames.append(stego_frame)

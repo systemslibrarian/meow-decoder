@@ -70,7 +70,12 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
-from .crypto_backend import get_default_backend, get_handle_backend
+from .pq_ratchet_beacon import (
+    PQRatchetBeacon,
+    generate_beacon_keypair as generate_pq_beacon_keypair,
+    MLKEM1024_CIPHERTEXT_SIZE,
+    MLKEM1024_PUBLIC_KEY_SIZE,
+)
 
 # ── Domain Separation Constants ──────────────────────────────────────────────
 # Each HKDF derivation uses a unique info string to ensure cryptographic

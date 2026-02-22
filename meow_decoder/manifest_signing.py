@@ -66,6 +66,10 @@ MANIFEST_VERIFY_DOMAIN = b"meow_manifest_verify_v1"
 _RUST_SIGNING_AVAILABLE = False
 _RUST_ED25519_AVAILABLE = False
 _RUST_MLDSA_AVAILABLE = False
+_ALLOW_INSECURE_STUBS = (
+    os.environ.get("MEOW_TEST_MODE") == "1"
+    or os.environ.get("MEOW_ALLOW_INSECURE_STUBS") == "1"
+)
 
 try:
     import meow_crypto_rs as _rs
@@ -92,6 +96,14 @@ try:
     _MLDSA_PURE_AVAILABLE = True
 except ImportError:
     _MLDSA_PURE_AVAILABLE = False
+
+# Check for oqs backend
+_OQS_SIG_AVAILABLE = False
+try:
+    import oqs  # type: ignore[import-not-found]
+    _OQS_SIG_AVAILABLE = "Dilithium3" in oqs.get_enabled_sig_mechanisms()
+except ImportError:
+    pass
 
 
 @dataclass
@@ -238,14 +250,16 @@ def _mldsa65_generate() -> Tuple[bytes, bytes]:
         pk, sk = mldsa.keygen()
         return sk, pk
 
-    # Fallback: Generate deterministic "stub" keys for development
-    # WARNING: Not secure for production, requires proper ML-DSA implementation
-    seed = secrets.token_bytes(32)
-    # Make first 32 bytes of sk and pk match for stub sign/verify consistency
-    shared_prefix = hashlib.sha256(b"mldsa65_shared_stub" + seed).digest()
-    sk = shared_prefix + (hashlib.sha256(b"mldsa65_sk_stub" + seed).digest() * 124)[:MLDSA65_SK_SIZE - 32]
-    pk = shared_prefix + (hashlib.sha256(b"mldsa65_pk_stub" + seed).digest() * 60)[:MLDSA65_PK_SIZE - 32]
-    return sk[:MLDSA65_SK_SIZE], pk[:MLDSA65_PK_SIZE]
+    if _OQS_SIG_AVAILABLE:
+        with oqs.Signature("Dilithium3") as sig:
+            pk = sig.generate_keypair()
+            sk = sig.export_secret_key()
+        return sk, pk
+
+    raise RuntimeError(
+        "No secure ML-DSA-65 implementation available (Rust, ml-dsa, or OQS). "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def _mldsa65_sign(sk: bytes, message: bytes) -> bytes:
@@ -258,10 +272,14 @@ def _mldsa65_sign(sk: bytes, message: bytes) -> bytes:
         mldsa = ML_DSA_65()
         return mldsa.sign(sk, message)
 
-    # Fallback: Generate deterministic "stub" signature
-    # WARNING: Not secure for production
-    h = hashlib.sha256(MANIFEST_SIGN_DOMAIN + sk[:32] + message).digest()
-    return h * 103  # ~3293 bytes (stub only!)
+    if _OQS_SIG_AVAILABLE:
+        with oqs.Signature("Dilithium3") as sig:
+            return sig.sign(message, sk)
+
+    raise RuntimeError(
+        "No secure ML-DSA-65 implementation available. "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def _mldsa65_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
@@ -281,12 +299,17 @@ def _mldsa65_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
         except Exception:
             return False
 
-    # Fallback: Stub verification (development only)
-    # WARNING: Not secure for production
-    expected = hashlib.sha256(
-        MANIFEST_SIGN_DOMAIN + pk[:32] + message
-    ).digest() * 103
-    return secrets.compare_digest(signature, expected[:len(signature)])
+    if _OQS_SIG_AVAILABLE:
+        try:
+            with oqs.Signature("Dilithium3") as sig:
+                return sig.verify(message, signature, pk)
+        except Exception:
+            return False
+
+    raise RuntimeError(
+        "No secure ML-DSA-65 implementation available. "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def generate_signing_keypair() -> SigningKeyPair:

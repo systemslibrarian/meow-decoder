@@ -89,6 +89,51 @@ def _build_manifest_bytes(
     return pack_manifest(manifest)
 
 
+def _build_manifest_signature_chunk(public_key: bytes, signature: bytes) -> bytes:
+    blob = (
+        decode_mod.MANIFEST_SIG_BLOB_MAGIC
+        + bytes([decode_mod.MANIFEST_SIG_VERSION])
+        + len(public_key).to_bytes(2, "big")
+        + len(signature).to_bytes(2, "big")
+        + public_key
+        + signature
+    )
+    return (
+        decode_mod.MANIFEST_SIG_CHUNK_MAGIC
+        + bytes([decode_mod.MANIFEST_SIG_VERSION, 1, 0])
+        + blob
+    )
+
+
+def _patch_decode_success_pipeline(monkeypatch, sequence, plaintext: bytes):
+    monkeypatch.setattr(
+        decode_mod,
+        "GIFDecoder",
+        lambda: _DummyGIFDecoder(
+            frames=[Image.new("RGB", (64, 64)) for _ in range(len(sequence))]
+        ),
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "QRCodeReader",
+        lambda preprocessing=None: _SequenceQRCodeReader(sequence),
+    )
+    monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
+    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "get_handle_backend",
+        lambda: type("HB", (), {"drop": lambda self, h: None})(),
+    )
+    monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
+    monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
+
+
 def test_decode_gif_no_frames(tmp_path, monkeypatch):
     monkeypatch.setattr(decode_mod, "GIFDecoder", lambda: _DummyGIFDecoder(frames=[]))
 
@@ -160,6 +205,102 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
 
     assert out_path.read_bytes() == plaintext
     assert stats["output_size"] == len(plaintext)
+
+
+def test_decode_gif_unsigned_manifest_warns_but_succeeds(tmp_path, monkeypatch, capsys):
+    plaintext = b"plaintext"
+    manifest_bytes = _build_manifest_bytes(plaintext)
+    droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
+    droplet_bytes = pack_droplet(droplet)
+
+    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, droplet_bytes], plaintext)
+
+    out_path = tmp_path / "unsigned_out.bin"
+    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+
+    captured = capsys.readouterr()
+    assert "Unsigned manifest" in captured.err
+    assert "vulnerable to forgery" in captured.err
+    assert out_path.read_bytes() == plaintext
+    assert stats["output_size"] == len(plaintext)
+
+
+def test_decode_gif_signed_manifest_verifies(tmp_path, monkeypatch):
+    plaintext = b"plaintext"
+    manifest_bytes = _build_manifest_bytes(plaintext)
+    sig_chunk = _build_manifest_signature_chunk(b"PUB", b"SIG")
+    droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
+    droplet_bytes = pack_droplet(droplet)
+
+    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext)
+
+    import meow_decoder.manifest_signing as ms
+
+    called = {"ok": False}
+
+    class _FakeManifestSignature:
+        @staticmethod
+        def from_bytes(data: bytes):
+            return data
+
+    def _fake_verify(public_key, manifest, signature, context):
+        called["ok"] = True
+        assert public_key == b"PUB"
+        assert manifest == manifest_bytes
+        assert signature == b"SIG"
+        assert context == b"manifest-v1"
+
+    monkeypatch.setattr(ms, "ManifestSignature", _FakeManifestSignature)
+    monkeypatch.setattr(ms, "verify_manifest_signature", _fake_verify)
+
+    out_path = tmp_path / "signed_out.bin"
+    decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+    assert called["ok"] is True
+
+
+def test_decode_gif_tampered_signature_rejected(tmp_path, monkeypatch):
+    plaintext = b"plaintext"
+    manifest_bytes = _build_manifest_bytes(plaintext)
+    sig_chunk = _build_manifest_signature_chunk(b"PUB", b"BADSIG")
+    droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
+    droplet_bytes = pack_droplet(droplet)
+
+    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext)
+
+    import meow_decoder.manifest_signing as ms
+
+    class _FakeManifestSignature:
+        @staticmethod
+        def from_bytes(data: bytes):
+            return data
+
+    monkeypatch.setattr(ms, "ManifestSignature", _FakeManifestSignature)
+    monkeypatch.setattr(
+        ms,
+        "verify_manifest_signature",
+        lambda *a, **k: (_ for _ in ()).throw(ValueError("invalid signature")),
+    )
+
+    with pytest.raises(ValueError, match="invalid signature"):
+        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "bad_out.bin", password="password123", verbose=False)
+
+
+def test_decode_gif_legacy_unsigned_warns_and_succeeds(tmp_path, monkeypatch, capsys):
+    plaintext = b"legacy"
+    manifest_bytes = _build_manifest_bytes(plaintext)
+
+    droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
+    droplet_bytes = pack_droplet(droplet)
+
+    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, droplet_bytes], plaintext)
+
+    out_path = tmp_path / "legacy_out.bin"
+    decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+
+    captured = capsys.readouterr()
+    assert "Unsigned manifest" in captured.err
+    assert "legacy/compatibility stream" in captured.err
+    assert out_path.read_bytes() == plaintext
 
 
 def test_decode_gif_hmac_failure(tmp_path, monkeypatch):

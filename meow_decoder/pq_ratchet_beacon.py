@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 import struct
 from dataclasses import dataclass
@@ -58,6 +59,10 @@ BEACON_DERIVE_DOMAIN = b"meow_pq_beacon_derive_v1"
 
 # Check for Rust backend
 _RUST_MLKEM_AVAILABLE = False
+_ALLOW_INSECURE_STUBS = (
+    os.environ.get("MEOW_TEST_MODE") == "1"
+    or os.environ.get("MEOW_ALLOW_INSECURE_STUBS") == "1"
+)
 try:
     import meow_crypto_rs as _rs
     _RUST_MLKEM_AVAILABLE = hasattr(_rs, "mlkem1024_keygen")
@@ -75,7 +80,7 @@ except ImportError:
 # Check for oqs backend
 _OQS_AVAILABLE = False
 try:
-    import oqs
+    import oqs  # type: ignore[import-not-found]
     _OQS_AVAILABLE = "Kyber1024" in oqs.get_enabled_kem_mechanisms()
 except ImportError:
     pass
@@ -109,13 +114,10 @@ def _mlkem1024_keygen() -> Tuple[bytes, bytes]:
             sk = kem.export_secret_key()
         return sk, pk
 
-    # Fallback: stub keys for development (NOT SECURE)
-    # Make sk[:32] == pk[:32] so encapsulate(pk) and decapsulate(sk) use same prefix
-    seed = secrets.token_bytes(32)
-    shared_prefix = hashlib.sha256(b"mlkem1024_shared_stub" + seed).digest()
-    sk = shared_prefix + (hashlib.sha256(b"mlkem1024_sk_stub" + seed).digest() * 98)[:MLKEM1024_SECRET_KEY_SIZE - 32]
-    pk = shared_prefix + (hashlib.sha256(b"mlkem1024_pk_stub" + seed).digest() * 48)[:MLKEM1024_PUBLIC_KEY_SIZE - 32]
-    return sk[:MLKEM1024_SECRET_KEY_SIZE], pk[:MLKEM1024_PUBLIC_KEY_SIZE]
+    raise RuntimeError(
+        "No secure ML-KEM-1024 implementation available (Rust, ml-kem, or OQS). "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def _mlkem1024_encapsulate(pk: bytes) -> Tuple[bytes, bytes]:
@@ -133,6 +135,11 @@ def _mlkem1024_encapsulate(pk: bytes) -> Tuple[bytes, bytes]:
         with oqs.KeyEncapsulation("Kyber1024") as kem:
             ct, ss = kem.encap_secret(pk)
         return ct, ss
+
+    if not _ALLOW_INSECURE_STUBS:
+        raise RuntimeError(
+            "No ML-KEM-1024 implementation available. Refusing insecure stub outside test mode."
+        )
 
     # Fallback: stub encapsulation (NOT SECURE)
     # Use random nonce, derive ss deterministically from pk + nonce
@@ -159,6 +166,11 @@ def _mlkem1024_decapsulate(sk: bytes, ct: bytes) -> bytes:
             # Need to set secret key manually
             kem._secret_key = sk
             return kem.decap_secret(ct)
+
+    if not _ALLOW_INSECURE_STUBS:
+        raise RuntimeError(
+            "No ML-KEM-1024 implementation available. Refusing insecure stub outside test mode."
+        )
 
     # Fallback: stub decapsulation (NOT SECURE)
     # Extract nonce from ciphertext, derive ss using same formula as encapsulate

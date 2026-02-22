@@ -9,11 +9,11 @@
 </p>
 
 <p align="center">
-  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and optional dual-secret plausible deniability.</em>
+  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and experimental deniability features.</em>
 </p>
 
 <p align="center">
-  <strong>Why choose this?</strong> Unlike basic QR exfil tools, Meow Decoder adds strong authenticated encryption, forward secrecy, post-quantum resistance, plausible deniability, and coercion resistance — all while keeping the phone as a passive optical relay.
+  <strong>Why choose this?</strong> Unlike basic QR exfil tools, Meow Decoder adds strong authenticated encryption, forward secrecy, and post-quantum options. It includes experimental deniability and duress features that may reduce risk under casual inspection, but may be detectable under advanced forensic analysis. Not suitable for nation-state adversaries without additional operational security measures.
 </p>
 
 <p align="center">
@@ -189,7 +189,7 @@ start secret.gif     # Windows
 | 📊 **Tamper Report** | Frame-by-frame MAC timeline with cluster detection |
 | 📱 **Mobile Bridge** | React Native QR scanner app with JSON protocol integration |
 | 🌐 **WASM Target** | Browser crypto demo available (`make build-wasm`, see [examples/](examples/)) |
-| 🎨 **Multi-Layer Stego** | Six-channel steganography (LSB+STC, timing, palette, disposal, comment, temporal) with coercion resistance ([audit](docs/STEGO_AUDIT_REPORT.md), [evaluation](docs/STEGO_STRENGTH_EVALUATION.md)) |
+| 🎨 **Multi-Layer Stego** | Six-channel steganography (LSB+STC, timing, palette, disposal, comment, temporal) for camouflage; not guaranteed against state-grade steganalysis ([audit](docs/STEGO_AUDIT_REPORT.md), [evaluation](docs/STEGO_STRENGTH_EVALUATION.md)) |
 
 ---
 
@@ -536,6 +536,9 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 - **Error Correction:** Luby Transform fountain codes
 
 For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
+
+⚠️ **Manifest signing policy:** Signing is **strongly recommended** and enabled by default when supported, but not strictly enforced for compatibility paths.
+Unsigned manifests are vulnerable to manifest forgery attacks. **Always enable signing for production/high-risk use.**
 
 ---
 

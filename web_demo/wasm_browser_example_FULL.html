@@ -597,6 +597,7 @@
 
             <label for="fsPassword">🔑 Additional Password (optional):</label>
             <input type="password" id="fsPassword" placeholder="Optional extra password protection">
+            <div style="margin-top: 4px;"><input type="checkbox" onchange="togglePassword('fsPassword', this.checked)" style="width:auto"> <span style="color:#888;font-size:0.85em">Show password</span></div>
 
             <button id="fsEncryptBtn" onclick="fsEncrypt()">🔐 Encrypt with Forward Secrecy</button>
         </div>
@@ -638,6 +639,7 @@
 
             <label for="fsDecryptPassword">Password (if used):</label>
             <input type="password" id="fsDecryptPassword" placeholder="Enter password if one was used">
+            <div style="margin-top: 4px;"><input type="checkbox" onchange="togglePassword('fsDecryptPassword', this.checked)" style="width:auto"> <span style="color:#888;font-size:0.85em">Show password</span></div>
 
             <button id="fsDecryptBtn" onclick="fsDecrypt()">🔓 Decrypt</button>
 
@@ -699,6 +701,7 @@
 
             <label for="pqPassword">Additional Password (optional):</label>
             <input type="password" id="pqPassword" placeholder="Extra password layer (can be empty)">
+            <div style="margin-top: 4px;"><input type="checkbox" onchange="togglePassword('pqPassword', this.checked)" style="width:auto"> <span style="color:#888;font-size:0.85em">Show password</span></div>
 
             <button id="pqEncryptBtn" onclick="pqEncrypt()">🔮 Encrypt with Post-Quantum</button>
 
@@ -735,6 +738,7 @@
 
             <label for="pqDecryptPassword">Password (if used):</label>
             <input type="password" id="pqDecryptPassword" placeholder="Enter password if one was used">
+            <div style="margin-top: 4px;"><input type="checkbox" onchange="togglePassword('pqDecryptPassword', this.checked)" style="width:auto"> <span style="color:#888;font-size:0.85em">Show password</span></div>
 
             <button id="pqDecryptBtn" onclick="pqDecrypt()">🔓 Decrypt</button>
 
@@ -783,6 +787,7 @@
 
                 <label for="webcamDecryptPassword">🔑 Password:</label>
                 <input type="password" id="webcamDecryptPassword" placeholder="Enter password to decrypt">
+                <div style="margin-top: 4px;"><input type="checkbox" onchange="togglePassword('webcamDecryptPassword', this.checked)" style="width:auto"> <span style="color:#888;font-size:0.85em">Show password</span></div>
 
                 <button onclick="webcamDecrypt()">🔓 Decrypt Scanned QR</button>
             </div>

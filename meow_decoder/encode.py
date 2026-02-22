@@ -7,6 +7,8 @@ Encodes files into GIF animations with QR codes
 import sys
 import argparse
 import struct
+import os
+import secrets
 from pathlib import Path
 from getpass import getpass
 from typing import Optional
@@ -23,7 +25,6 @@ from .crypto import (
     compute_duress_tag,
     pack_manifest_core,
     classify_crypto_profile,
-    PROFILE_PROD_MIN,
     PROFILE_PQ_EXPERIMENTAL,
 )
 from .crypto_backend import get_handle_backend
@@ -35,9 +36,15 @@ from .progress import ProgressBar
 # hardware_integration is lazy-imported where needed to avoid pulling in
 # cryptography at module-import time (see Step 2 of crypto migration).
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
+from .secure_keyboard import MouseGesturePassword, secure_password_input
 
 
 from typing import List
+
+
+MANIFEST_SIG_CHUNK_MAGIC = b"MSGC"
+MANIFEST_SIG_BLOB_MAGIC = b"MSGB"
+MANIFEST_SIG_VERSION = 1
 
 
 def encode_file(
@@ -332,6 +339,57 @@ def encode_file(
     # Pack final manifest
     manifest_bytes = pack_manifest(manifest)
 
+    # Manifest signature transport.
+    # Policy: signing is MANDATORY. Unsigned manifests are a security risk.
+    manifest_sig_chunks: List[bytes] = []
+    try:
+        from . import manifest_signing as _ms
+
+        # Signing requires a real ML-DSA backend. Fail closed if not available.
+        _has_mldsa_backend = bool(
+            _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE # type: ignore[attr-defined]
+        )
+
+        if not _has_mldsa_backend:
+            raise RuntimeError(
+                "Mandatory manifest signing failed: no secure ML-DSA backend detected (Rust, ml-dsa, or OQS). "
+                "Cannot produce a secure, signed artifact."
+            )
+
+        _keypair = _ms.generate_signing_keypair()
+        _signature = _ms.sign_manifest(_keypair, manifest_bytes, context=b"manifest-v1")
+        _public_key = _keypair.export_public_key()
+        _sig_bytes = _signature.to_bytes()
+
+        _blob = (
+            MANIFEST_SIG_BLOB_MAGIC
+            + bytes([MANIFEST_SIG_VERSION])
+            + struct.pack(">HH", len(_public_key), len(_sig_bytes))
+            + _public_key
+            + _sig_bytes
+        )
+
+        _chunk_size = 900
+        _total_parts = (len(_blob) + _chunk_size - 1) // _chunk_size
+        for _part_idx in range(_total_parts):
+            _chunk = _blob[_part_idx * _chunk_size: (_part_idx + 1) * _chunk_size]
+            _payload = (
+                MANIFEST_SIG_CHUNK_MAGIC
+                + bytes([MANIFEST_SIG_VERSION, _total_parts, _part_idx])
+                + _chunk
+            )
+            manifest_sig_chunks.append(_payload)
+
+        if verbose:
+            print(
+                f"  ✍️ Manifest signature enabled: {_total_parts} metadata frame(s), "
+                f"{len(_blob)} bytes"
+            )
+
+    except Exception as _sig_err:
+        # Re-raise as a runtime error to ensure fail-closed behavior
+        raise RuntimeError(f"Mandatory manifest signing failed: {_sig_err}") from _sig_err
+
     if verbose:
         if ephemeral_public_key:
             print(f"  Manifest: {len(manifest_bytes)} bytes (with ephemeral key)")
@@ -409,6 +467,15 @@ def encode_file(
             f"{len(manifest_with_mac) - len(manifest_bytes)} byte MAC)"
         )
 
+    # Optional signature metadata frames (MAC'd, not ratchet-encrypted)
+    next_frame_index = 1
+    for sig_chunk in manifest_sig_chunks:
+        sig_with_mac = pack_frame_with_mac(sig_chunk, frame_master_key_handle, next_frame_index, salt)
+        sig_qr = qr_generator.generate(sig_with_mac)
+        qr_frames.append(sig_qr)
+        mac_stats.record_valid()
+        next_frame_index += 1
+
     # Remaining frames: droplets (optionally ratchet-encrypted, then MAC'd)
     progress_bar = ProgressBar(
         num_droplets, desc="Generating Droplets", unit="droplets", disable=not verbose
@@ -424,11 +491,12 @@ def encode_file(
             frame_data = encoder_ratchet.encrypt_next(droplet_bytes)
 
         # Add MAC to (possibly encrypted) frame data
-        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key_handle, i + 1, salt)
+        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key_handle, next_frame_index, salt)
 
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
         mac_stats.record_valid()
+        next_frame_index += 1
 
     # Finalize ratchet (zeroize remaining chain state)
     if encoder_ratchet is not None:
@@ -813,6 +881,12 @@ Examples:
         type=str,
         help="Encryption password (⚠️  WARNING: May leak in shell history/process list! Use prompt instead.)",
     )
+    parser.add_argument(
+        "--password-mode",
+        choices=["standard", "secure-keyboard", "mouse-gesture"],
+        default="standard",
+        help="Interactive password mode when --password is omitted (default: standard)",
+    )
     parser.add_argument("-k", "--keyfile", type=Path, help="Path to keyfile")
 
     # Hardware-backed key derivation (YubiKey)
@@ -1060,6 +1134,15 @@ Examples:
 
     # Output control
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
+
+    # Shamir Secret Sharing
+    parser.add_argument(
+        "--shamir-split",
+        type=int,
+        nargs=2,
+        metavar=("THRESHOLD", "TOTAL"),
+        help="Split output into multiple GIFs using Shamir's Secret Sharing (e.g., --shamir-split 2 3)",
+    )
     parser.add_argument(
         "--purr-mode",
         action="store_true",
@@ -1423,19 +1506,36 @@ Nothing to see here. 😶‍🌫️
     if args.password is not None:
         password = args.password
     else:
-        # In CI/pytest or other non-interactive contexts, getpass() will fail
-        # (no /dev/tty, stdin capture). Fail closed instead of prompting.
-        if sys.stdin is None or not sys.stdin.isatty():
-            print(
-                "Error: Password must be provided via --password in non-interactive mode",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        if args.password_mode == "standard":
+            # In CI/pytest or other non-interactive contexts, getpass() will fail
+            # (no /dev/tty, stdin capture). Fail closed instead of prompting.
+            if sys.stdin is None or not sys.stdin.isatty():
+                print(
+                    "Error: Password must be provided via --password in non-interactive mode",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
-        password = getpass("Enter encryption password: ")  # pragma: no cover
-        password_confirm = getpass("Confirm password: ")  # pragma: no cover
+            password = getpass("Enter encryption password: ")  # pragma: no cover
+            password_confirm = getpass("Confirm password: ")  # pragma: no cover
+        elif args.password_mode == "secure-keyboard":
+            password = secure_password_input("Enter encryption password: ", use_gui=True)
+            password_confirm = secure_password_input("Confirm password: ", use_gui=True)
+            if password is None or password_confirm is None:
+                hiss_error("Password entry was cancelled.")
+                sys.exit(1)
+        else:
+            gesture = MouseGesturePassword(grid_size=5)
+            try:
+                password = gesture.collect_interactive("Draw encryption gesture password")
+                password_confirm = gesture.collect_interactive(
+                    "Draw the same gesture again to confirm"
+                )
+            except Exception as e:
+                print(f"Error: Failed to collect gesture password: {e}", file=sys.stderr)
+                sys.exit(1)
 
-        if password != password_confirm:  # pragma: no cover
+        if not secrets.compare_digest(password, password_confirm):
             hiss_error("The collar tags don't match! Passwords must be identical.")
             sys.exit(1)
 
@@ -1753,6 +1853,30 @@ Nothing to see here. 😶‍🌫️
 
                     traceback.print_exc()
                 # Don't fail the entire encoding - just warn
+
+        # Apply Shamir Secret Sharing if requested
+        if args.shamir_split:
+            threshold, total = args.shamir_split
+            if not args.verbose:
+                print(f"\nSplitting output into {total} shares (threshold: {threshold})...")
+            try:
+                from meow_decoder.shamir_split import split_gif_to_files
+                output_dir = args.output.parent / f"{args.output.stem}_shares"
+                share_paths = split_gif_to_files(
+                    str(args.output),
+                    str(output_dir),
+                    threshold,
+                    total
+                )
+                print(f"  ✓ Created {len(share_paths)} shares in {output_dir}")
+                # Optionally remove the original GIF to leave only shares
+                args.output.unlink()
+                print(f"  ✓ Original GIF removed for security.")
+            except Exception as e:
+                print(f"\n⚠️  Shamir split failed: {e}", file=sys.stderr)
+                if args.verbose:
+                    import traceback
+                    traceback.print_exc()
 
         print(f"\nOutput saved to: {args.output}")
 

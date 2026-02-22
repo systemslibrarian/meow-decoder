@@ -153,8 +153,8 @@ meow-encode --stego-level 4 -i secret.pdf -o cat_photos.gif -p "password"
 |--------|-----------|--------------|
 | **GIF size on wire** | Compress/archive after encoding | ⚠️ Moderate (still ~10 MB typical) |
 | **Frame timing** | Constant rate (10 FPS default) | ✅ Good (no timing patterns) |
-| **Carrier detection** | Steganography mode | ✅ Excellent (looks like cat photos) |
-| **Frequency analysis** | Entropy-tested mixers | ✅ Excellent (uniform distribution) |
+| **Carrier detection** | Steganography mode | ⚠️ Limited; advanced steganalysis may detect manipulation, especially across repeated samples |
+| **Frequency analysis** | Entropy-tested mixers | ⚠️ Experimental; unproven against adaptive adversaries and should be treated as experimental |
 
 ### **Bottom Line**
 
@@ -694,6 +694,12 @@ These threats have mitigations but cannot be fully eliminated due to fundamental
 - All PQ crypto routes through the Rust backend (`meow_crypto_rs`) in production
 - Security: Safe if EITHER classical OR quantum crypto holds
 - Dilithium3 signatures for quantum-resistant manifest authentication (FIPS 204)
+
+**Manifest Signature Policy (Important):**
+- Manifest signing is strongly recommended and enabled by default when backend support is available.
+- Decoder compatibility mode accepts unsigned manifests with a warning.
+- **Unsigned manifests are vulnerable to manifest forgery attacks. Always enable signing for production/high-risk use.**
+- If a signature is present but invalid, decode fails closed.
 
 **How to Enable PQ Mode:**
 ```bash

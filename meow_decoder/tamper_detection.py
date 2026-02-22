@@ -478,8 +478,8 @@ def protect_function(func: Callable) -> Callable:
     """
     Decorator to protect a function with tamper detection.
 
-    If tampering is detected, the function returns poison bytes
-    instead of real output.
+    If tampering is detected, this decorator will raise a RuntimeError
+    BEFORE the decorated function is executed, preventing any side effects.
 
     Usage:
         @protect_function
@@ -488,21 +488,21 @@ def protect_function(func: Callable) -> Callable:
     """
     from functools import wraps
 
+    detector = get_tamper_detector()
+    # Eagerly check for tampering when the module is loaded and decorated
+    if detector.is_tampered():
+        raise RuntimeError(
+            "Tampering detected during initial module load. "
+            "Execution of protected functions is blocked."
+        )
+
     @wraps(func)
     def wrapper(*args, **kwargs):
-        detector = get_tamper_detector()
-
+        # Re-check at runtime in case of dynamic tampering
         if detector.is_tampered():
-            # Try to determine expected output length
-            # This is heuristic - adjust based on function
-            result = func(*args, **kwargs)
-            if isinstance(result, bytes):
-                return detector.poison_output(len(result))
-            elif isinstance(result, tuple) and len(result) > 0 and isinstance(result[0], bytes):
-                poisoned = detector.poison_output(len(result[0]))
-                return (poisoned,) + result[1:]
-            return result
+            raise RuntimeError("Tampering detected before function execution.")
 
+        # If we passed the check, execute the real function
         return func(*args, **kwargs)
 
     return wrapper

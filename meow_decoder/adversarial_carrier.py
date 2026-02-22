@@ -605,3 +605,57 @@ def pairs_test(data: bytes) -> float:
 
     # Return imbalance ratio
     return abs(even_count - odd_count) / total
+
+def adversarial_embed(
+    frame: "Image.Image",
+    carrier: Optional["Image.Image"],
+    algo: str = "sensor",
+    seed: Optional[bytes] = None,
+) -> "Image.Image":
+    """
+    Apply adversarial noise to a carrier image to defeat steganalysis.
+    
+    Args:
+        frame: The QR frame (used for sizing if carrier is None)
+        carrier: The carrier image to modify
+        algo: Noise algorithm ('sensor', 'texture', 'dct', 'combined')
+        seed: Random seed for deterministic noise
+        
+    Returns:
+        Modified carrier image
+    """
+    from PIL import Image
+    import numpy as np
+    
+    if carrier is None:
+        # Create a blank carrier if none provided
+        carrier = Image.new("RGB", frame.size, (128, 128, 128))
+        
+    width, height = carrier.size
+    
+    # Generate noise based on algorithm
+    if algo == "sensor":
+        noise = generate_sensor_noise(width, height, seed)
+    elif algo == "texture":
+        noise = generate_texture_noise(width, height, seed)
+    elif algo == "dct":
+        # Start with sensor noise, then apply DCT matching
+        base_noise = generate_sensor_noise(width, height, seed)
+        noise = apply_dct_matching(base_noise, seed=seed)
+    elif algo == "combined":
+        gen = AdversarialNoiseGenerator(seed)
+        noise = gen.generate_combined_noise(width, height)
+    else:
+        noise = generate_sensor_noise(width, height, seed)
+        
+    # Apply noise to carrier
+    carrier_arr = np.array(carrier).astype(np.float32)
+    
+    # Add noise to all channels
+    noise_arr = np.array(noise)
+    for c in range(3):
+        carrier_arr[:, :, c] += noise_arr
+        
+    # Clip and convert back
+    carrier_arr = np.clip(carrier_arr, 0, 255).astype(np.uint8)
+    return Image.fromarray(carrier_arr)

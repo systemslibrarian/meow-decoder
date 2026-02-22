@@ -16,13 +16,17 @@
         <input type="file" id="file" name="file" required accept=".gif">
         <small>Must be an animated GIF created by Meow Decoder</small>
     </div>
-    
+
     <div class="form-group">
         <label for="password">🔑 Password</label>
         <input type="password" id="password" name="password" placeholder="Enter decryption password">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showPassword" onchange="togglePassword('password', this)">
+            <label for="showPassword">Show password</label>
+        </div>
         <small>Enter the password used during encoding. Leave blank if file was not encrypted.</small>
     </div>
-    
+
     <div class="form-group">
         <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
             <input type="checkbox" id="try_duress" name="try_duress" onchange="toggleDuress()" style="width: auto;">
@@ -30,13 +34,17 @@
         </label>
         <small>Check this if you want to use a duress password instead of the main password</small>
     </div>
-    
+
     <div class="form-group" id="duress-password-group" style="display: none;">
         <label for="duress_password">🔑 Duress Password</label>
         <input type="password" id="duress_password" name="duress_password" placeholder="Enter duress password">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duress_password', this)">
+            <label for="showDuressPassword">Show password</label>
+        </div>
         <small>This will attempt to decode with the duress password to reveal decoy content.</small>
     </div>
-    
+
     <button type="submit" class="btn">🔓 Decode GIF</button>
 </form>
 
@@ -50,7 +58,7 @@
         <li><strong>Decompression:</strong> zstd decompression to recover original file</li>
         <li><strong>Verification:</strong> HMAC authentication and integrity checks</li>
     </ul>
-    
+
     <div style="margin-top: 20px; padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 6px;">
         <strong>🔒 Security Note:</strong> If decoding fails, you'll get a uniform error message that doesn't reveal
         whether the password was incorrect, the file was corrupted, or if duress mode was involved. This is intentional
@@ -62,7 +70,7 @@
 function toggleDuress() {
     const checkbox = document.getElementById('try_duress');
     const duressGroup = document.getElementById('duress-password-group');
-    
+
     if (checkbox.checked) {
         duressGroup.style.display = 'block';
     } else {

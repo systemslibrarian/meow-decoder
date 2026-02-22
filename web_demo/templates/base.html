@@ -10,7 +10,7 @@
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -18,7 +18,7 @@
             padding: 20px;
             color: #333;
         }
-        
+
         .container {
             max-width: 800px;
             margin: 0 auto;
@@ -27,14 +27,14 @@
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
             overflow: hidden;
         }
-        
+
         .header {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 25px 30px;
             text-align: center;
         }
-        
+
         .header img.logo {
             max-height: 200px;
             width: auto;
@@ -42,18 +42,18 @@
             margin: 0 auto 8px auto;
             filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
         }
-        
+
         .header h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
         }
-        
+
         .header p {
             font-size: 1.1em;
             opacity: 0.9;
             margin: 0;
         }
-        
+
         .warning-banner {
             background: #fff3cd;
             border-left: 4px solid #ffc107;
@@ -63,13 +63,13 @@
             color: #856404;
             font-size: 0.95em;
         }
-        
+
         .warning-banner strong {
             display: block;
             margin-bottom: 5px;
             font-size: 1.05em;
         }
-        
+
         .nav {
             display: flex;
             justify-content: center;
@@ -79,7 +79,7 @@
             background: #f8f9fa;
             border-bottom: 1px solid #dee2e6;
         }
-        
+
         .nav a {
             padding: 10px 20px;
             background: white;
@@ -92,63 +92,63 @@
             white-space: nowrap;
             font-size: 0.95em;
         }
-        
+
         .nav a:hover {
             background: #667eea;
             color: white;
             transform: translateY(-2px);
             box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
         }
-        
+
         .nav a.active {
             background: #667eea;
             color: white;
         }
-        
+
         .content {
             padding: 40px;
         }
-        
+
         .flash-messages {
             margin-bottom: 20px;
         }
-        
+
         .flash {
             padding: 15px 20px;
             border-radius: 8px;
             margin-bottom: 10px;
             font-size: 0.95em;
         }
-        
+
         .flash.error {
             background: #f8d7da;
             border: 1px solid #f5c6cb;
             color: #721c24;
         }
-        
+
         .flash.success {
             background: #d4edda;
             border: 1px solid #c3e6cb;
             color: #155724;
         }
-        
+
         .flash.warning {
             background: #fff3cd;
             border: 1px solid #ffeeba;
             color: #856404;
         }
-        
+
         .form-group {
             margin-bottom: 25px;
         }
-        
+
         .form-group label {
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
             color: #495057;
         }
-        
+
         .form-group input[type="file"],
         .form-group input[type="password"],
         .form-group input[type="text"],
@@ -161,20 +161,20 @@
             font-size: 1em;
             transition: border-color 0.3s;
         }
-        
+
         .form-group input:focus,
         .form-group select:focus {
             outline: none;
             border-color: #667eea;
         }
-        
+
         .form-group small {
             display: block;
             margin-top: 5px;
             color: #6c757d;
             font-size: 0.9em;
         }
-        
+
         .btn {
             padding: 15px 40px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -188,16 +188,16 @@
             width: 100%;
             margin-top: 10px;
         }
-        
+
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
         }
-        
+
         .btn:active {
             transform: translateY(0);
         }
-        
+
         .footer {
             text-align: center;
             padding: 20px;
@@ -206,16 +206,16 @@
             font-size: 0.9em;
             border-top: 1px solid #dee2e6;
         }
-        
+
         .footer a {
             color: #667eea;
             text-decoration: none;
         }
-        
+
         .footer a:hover {
             text-decoration: underline;
         }
-        
+
         .mode-badge {
             display: inline-block;
             padding: 5px 15px;
@@ -224,27 +224,27 @@
             font-weight: 600;
             margin-top: 10px;
         }
-        
+
         .mode-cat {
             background: #ffeaa7;
             color: #d63031;
         }
-        
+
         .mode-duress {
             background: #fab1a0;
             color: #d63031;
         }
-        
+
         .mode-normal {
             background: #dfe6e9;
             color: #2d3436;
         }
-        
+
         .mode-schrodinger {
             background: #a29bfe;
             color: #6c5ce7;
         }
-        
+
         .cat-highlight {
             background: #fff9e6;
             border: 3px dashed #ffd700;
@@ -253,17 +253,35 @@
             margin: 20px 0;
             text-align: center;
         }
-        
+
         .cat-highlight h3 {
             color: #ff6b6b;
             font-size: 1.5em;
             margin-bottom: 10px;
         }
-        
+
         .range-display {
             font-weight: 600;
             color: #667eea;
             font-size: 1.1em;
+        }
+
+        .show-password-toggle {
+            margin-top: 5px;
+        }
+
+        .show-password-toggle input[type="checkbox"] {
+            width: auto;
+            display: inline;
+            margin-right: 5px;
+        }
+
+        .show-password-toggle label {
+            display: inline;
+            color: #888;
+            font-size: 0.9em;
+            font-weight: normal;
+            cursor: pointer;
         }
     </style>
     {% block extra_css %}{% endblock %}
@@ -274,13 +292,13 @@
             <img src="{{ url_for('static', filename='MeowDecoderDemo.png') }}" alt="Meow Decoder" class="logo">
             <p>Quantum plausible deniability meets cat camouflage</p>
         </div>
-        
+
         <div class="warning-banner">
             <strong>⚠️ Demo Environment Only</strong>
             This is a demonstration instance. Do not upload sensitive files.
             Files are automatically deleted after 30 minutes.
         </div>
-        
+
         <div class="nav">
             <a href="{{ url_for('encode_page') }}" {% if request.endpoint == 'encode_page' %}class="active"{% endif %}>🔒 Encode</a>
             <a href="{{ url_for('modes_page') }}" {% if request.endpoint == 'modes_page' %}class="active"{% endif %}>🎯 All Modes</a>
@@ -289,7 +307,7 @@
             <a href="{{ url_for('decode_page') }}" {% if request.endpoint == 'decode_page' %}class="active"{% endif %}>🔓 Decode</a>
             <a href="{{ url_for('webcam_page') }}" {% if request.endpoint == 'webcam_page' %}class="active"{% endif %}>📷 Webcam</a>
         </div>
-        
+
         <div class="content">
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
@@ -300,10 +318,10 @@
                     </div>
                 {% endif %}
             {% endwith %}
-            
+
             {% block content %}{% endblock %}
         </div>
-        
+
         <div class="footer">
             <p>
                 Meow Decoder &copy; 2024 |
@@ -315,7 +333,12 @@
             </p>
         </div>
     </div>
-    
+
+    <script>
+    function togglePassword(inputId, checkbox) {
+        document.getElementById(inputId).type = checkbox.checked ? 'text' : 'password';
+    }
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

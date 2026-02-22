@@ -47,6 +47,7 @@ __all__ = [
     "MemoryGuardWarning",
     "virtual_lock_buffer",
     "virtual_unlock_buffer",
+    "require_locked_buffer",
 ]
 
 
@@ -308,6 +309,19 @@ def virtual_unlock_buffer(buf: bytearray) -> bool:
         return False
 
 
+def require_locked_buffer(buf: bytearray) -> None:
+    """
+    Fail-closed helper for high-risk paths.
+
+    Raises RuntimeError if the buffer cannot be locked in RAM.
+    """
+    if not virtual_lock_buffer(buf):
+        raise RuntimeError(
+            "Memory locking failed (VirtualLock/mlock). "
+            "Refusing to continue sensitive operation."
+        )
+
+
 def activate_memory_guard(
     warn_on_failure: bool = True,
     raise_mlock: bool = True,
@@ -446,6 +460,7 @@ def deactivate_memory_guard() -> Dict[str, bool]:
 
     # Re-enable core dumps (for testing)
     try:
+        import resource
         resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
         status["coredump_restored"] = True
     except (ValueError, resource.error, OSError):

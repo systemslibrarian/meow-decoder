@@ -19,13 +19,17 @@
         <input type="file" id="file" name="file" required accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.bin,.zip,.doc,.docx">
         <small>Allowed: txt, pdf, png, jpg, jpeg, gif, bin, zip, doc, docx (max 8 MB)</small>
     </div>
-    
+
     <div class="form-group">
         <label for="password">🔑 Password</label>
         <input type="password" id="password" name="password" placeholder="Enter encryption password" required>
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showPassword" onchange="togglePassword('password', this)">
+            <label for="showPassword">Show password</label>
+        </div>
         <small>Required. Uses Argon2id + AES-256-GCM encryption.</small>
     </div>
-    
+
     <div class="form-group">
         <label for="mode">🎨 Encoding Mode</label>
         <select id="mode" name="mode" required onchange="updateModeUI()">
@@ -36,19 +40,23 @@
         </select>
         <small id="mode-description">Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage.</small>
     </div>
-    
+
     <div class="form-group" id="duress-password-group" style="display: none;">
         <label for="duress_password">🔑 Duress Password</label>
         <input type="password" id="duress_password" name="duress_password" placeholder="Decoy password (reveals fake content)">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showDuressPassword" onchange="togglePassword('duress_password', this)">
+            <label for="showDuressPassword">Show password</label>
+        </div>
         <small>In duress mode, the duress password reveals decoy content while the main password reveals real content.</small>
     </div>
-    
+
     <div class="form-group">
         <label for="redundancy">📊 Fountain Code Redundancy: <span class="range-display" id="redundancy-display">1.5×</span></label>
         <input type="range" id="redundancy" name="redundancy" min="1.2" max="2.0" step="0.1" value="1.5" oninput="updateRedundancy()">
         <small>Higher redundancy = more frame loss tolerance. 1.5× tolerates 33% frame loss, 2.0× tolerates 50% loss.</small>
     </div>
-    
+
     <button type="submit" class="btn">🐱 Encode to Animated GIF</button>
 </form>
 
@@ -69,7 +77,7 @@ function updateModeUI() {
     const mode = document.getElementById('mode').value;
     const duressGroup = document.getElementById('duress-password-group');
     const description = document.getElementById('mode-description');
-    
+
     if (mode === 'cat') {
         duressGroup.style.display = 'none';
         description.textContent = '😻 Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage and plausible deniability.';

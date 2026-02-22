@@ -529,6 +529,56 @@ class TestSecureKeyboard:
         mask = kb._generate_decoy_mask(5)
         assert len(mask) >= 5  # May have extra decoys
 
+    def test_mouse_gesture_password_deterministic(self):
+        """Mouse gesture password derivation should be deterministic for same points."""
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+
+        points = [(0.0, 0.0), (10.0, 10.0), (20.0, 5.0), (30.0, 15.0)]
+        mg = MouseGesturePassword(grid_size=5)
+
+        p1 = mg.collect(points)
+        p2 = mg.collect(points)
+
+        assert p1 == p2
+        assert len(p1) == 64  # blake2b(32) as hex
+
+    def test_mouse_gesture_password_rejects_short(self):
+        """Mouse gesture password should reject too-short gestures."""
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+
+        mg = MouseGesturePassword(grid_size=5)
+        with pytest.raises(ValueError):
+            mg.collect([(1.0, 1.0)])
+
+    def test_mouse_gesture_interactive_cli_collects(self, monkeypatch):
+        """Interactive gesture collection should work in CLI fallback mode."""
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+
+        monkeypatch.delenv("DISPLAY", raising=False)
+        monkeypatch.setenv("MEOW_FORCE_CLI_GESTURE", "1")
+        monkeypatch.setattr(
+            "builtins.input",
+            lambda _prompt: "0,0 10,10 20,5 30,15",
+        )
+
+        mg = MouseGesturePassword(grid_size=5)
+        derived = mg.collect_interactive("Draw")
+
+        assert isinstance(derived, str)
+        assert len(derived) == 64
+
+    def test_mouse_gesture_interactive_cli_rejects_bad_format(self, monkeypatch):
+        """Interactive gesture collection should reject malformed CLI input."""
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+
+        monkeypatch.delenv("DISPLAY", raising=False)
+        monkeypatch.setenv("MEOW_FORCE_CLI_GESTURE", "1")
+        monkeypatch.setattr("builtins.input", lambda _prompt: "bad_point")
+
+        mg = MouseGesturePassword(grid_size=5)
+        with pytest.raises(ValueError):
+            mg.collect_interactive("Draw")
+
 
 # ============================================================================
 # Adversarial Carrier Tests
@@ -831,10 +881,10 @@ class TestManifestSigning:
         )
 
         keypair = generate_signing_keypair()
-        
+
         # Export public key
         public_key = keypair.export_public_key()
-        
+
         # Should be concatenation of Ed25519 + ML-DSA-65 public keys
         assert len(public_key) == ED25519_PK_SIZE + MLDSA65_PK_SIZE
         assert public_key[:ED25519_PK_SIZE] == keypair.ed25519_pk
@@ -888,11 +938,11 @@ class TestPQRatchetBeacon:
         )
 
         keypair = generate_beacon_keypair()
-        
+
         # Sender side - has receiver's public key
         sender_beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
         message_key = os.urandom(32)
-        
+
         # Encapsulate
         ciphertext, enhanced_key_sender = sender_beacon.encapsulate(message_key)
 

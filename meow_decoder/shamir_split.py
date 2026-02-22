@@ -117,19 +117,21 @@ class ShamirShare:
     total_shares: int       # Total number of shares created
     data: bytes             # The share data (y coordinates for each byte)
     share_checksum: bytes   # SHA-256 of data for integrity verification
+    set_id: bytes = b"\x00" * 16 # 16-byte random ID binding the share set together
 
     def to_bytes(self) -> bytes:
         """Serialize share to bytes for storage/transmission."""
         # Format: magic(4) | version(1) | share_id(1) | threshold(1) | total(1) |
-        #         data_len(4) | data | checksum(32)
+        #         data_len(4) | set_id(16) | data | checksum(32)
         header = struct.pack(
-            ">4sBBBBI",
+            ">4sBBBBI16s",
             b"MSHR",           # Magic: Meow SHamiR
-            1,                 # Version
+            2,                 # Version 2 (adds set_id)
             self.share_id,
             self.threshold,
             self.total_shares,
             len(self.data),
+            self.set_id,
         )
         return header + self.data + self.share_checksum
 
@@ -139,20 +141,30 @@ class ShamirShare:
         if len(raw) < 44:  # Minimum: header(12) + checksum(32)
             raise ValueError("Share data too short")
 
-        magic, version, share_id, threshold, total, data_len = struct.unpack(
-            ">4sBBBBI", raw[:12]
-        )
+        magic, version = struct.unpack(">4sB", raw[:5])
 
         if magic != b"MSHR":
             raise ValueError(f"Invalid share magic: {magic}")
-        if version != 1:
+
+        if version == 1:
+            # Legacy v1 format
+            share_id, threshold, total, data_len = struct.unpack(">BBBI", raw[5:12])
+            set_id = b"\x00" * 16
+            header_len = 12
+        elif version == 2:
+            # v2 format with set_id
+            if len(raw) < 60: # header(28) + checksum(32)
+                raise ValueError("Share data too short for v2")
+            share_id, threshold, total, data_len, set_id = struct.unpack(">BBBI16s", raw[5:28])
+            header_len = 28
+        else:
             raise ValueError(f"Unsupported share version: {version}")
 
-        if len(raw) < 12 + data_len + 32:
+        if len(raw) < header_len + data_len + 32:
             raise ValueError("Share data truncated")
 
-        data = raw[12:12 + data_len]
-        checksum = raw[12 + data_len:12 + data_len + 32]
+        data = raw[header_len:header_len + data_len]
+        checksum = raw[header_len + data_len:header_len + data_len + 32]
 
         # Verify checksum
         import hashlib
@@ -167,6 +179,7 @@ class ShamirShare:
             total_shares=total,
             data=data,
             share_checksum=checksum,
+            set_id=set_id,
         )
 
 
@@ -211,6 +224,12 @@ def shamir_split(
     # For deterministic testing (NOT for production!)
     rng_offset = 0
 
+    # Generate a unique set ID to bind these shares together
+    if randomness:
+        set_id = hashlib.sha256(randomness + b"set_id").digest()[:16]
+    else:
+        set_id = secrets.token_bytes(16)
+
     for byte_idx, secret_byte in enumerate(secret):
         # Generate random polynomial coefficients
         # coeffs[0] = secret_byte (the secret for this position)
@@ -248,6 +267,7 @@ def shamir_split(
             total_shares=num_shares,
             data=data_bytes,
             share_checksum=checksum,
+            set_id=set_id,
         ))
 
     return result
@@ -281,6 +301,8 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
 
     # Verify all shares have consistent parameters
     data_len = len(shares[0].data)
+    set_id = shares[0].set_id
+
     for share in shares:
         if share.threshold != threshold:
             raise ValueError(
@@ -289,6 +311,10 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
         if len(share.data) != data_len:
             raise ValueError(
                 f"Inconsistent data length: {len(share.data)} vs {data_len}"
+            )
+        if share.set_id != set_id and set_id != b"\x00" * 16 and share.set_id != b"\x00" * 16:
+            raise ValueError(
+                f"Inconsistent share set ID: shares belong to different splits"
             )
 
     # Use only the first `threshold` shares (all that's needed)
@@ -386,3 +412,47 @@ if sys.platform == "win32":
     import os
     msvcrt.setmode(0, os.O_BINARY)  # stdin
     msvcrt.setmode(1, os.O_BINARY)  # stdout
+
+def main():
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(description="Meow Decoder - Shamir Secret Sharing")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # Split command
+    split_parser = subparsers.add_parser("split", help="Split a file into shares")
+    split_parser.add_argument("-i", "--input", required=True, help="Input file to split")
+    split_parser.add_argument("-o", "--output-dir", required=True, help="Output directory for shares")
+    split_parser.add_argument("-t", "--threshold", type=int, required=True, help="Minimum shares needed to reconstruct")
+    split_parser.add_argument("-n", "--num-shares", type=int, required=True, help="Total number of shares to create")
+
+    # Combine command
+    combine_parser = subparsers.add_parser("combine", help="Combine shares into a file")
+    combine_parser.add_argument("-i", "--inputs", nargs="+", required=True, help="Input share files")
+    combine_parser.add_argument("-o", "--output", required=True, help="Output file")
+
+    args = parser.parse_args()
+
+    if args.command == "split":
+        try:
+            paths = split_gif_to_files(args.input, args.output_dir, args.threshold, args.num_shares)
+            print(f"Successfully created {len(paths)} shares in {args.output_dir}")
+        except Exception as e:
+            print(f"Error splitting file: {e}", file=sys.stderr)
+            sys.exit(1)
+
+    elif args.command == "combine":
+        try:
+            success = combine_files_to_gif(args.inputs, args.output)
+            if success:
+                print(f"Successfully reconstructed file to {args.output}")
+            else:
+                print("Failed to reconstruct file", file=sys.stderr)
+                sys.exit(1)
+        except Exception as e:
+            print(f"Error combining shares: {e}", file=sys.stderr)
+            sys.exit(1)
+
+if __name__ == "__main__":
+    main()

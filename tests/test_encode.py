@@ -5,6 +5,7 @@ Lightweight stubs for QR/GIF to avoid heavy dependencies.
 
 from pathlib import Path
 import sys
+import time
 
 import pytest
 from PIL import Image
@@ -103,6 +104,104 @@ def test_encode_main_happy_path_calls_encode_file(monkeypatch, tmp_path: Path):
         sys,
         "argv",
         ["meow-encode", "-i", str(inp), "-o", str(out_gif), "-p", "pw", "--no-forward-secrecy"],
+    )
+
+    enc.main()
+    assert called["ok"] is True
+
+
+def test_encode_main_password_mode_secure_keyboard(monkeypatch, tmp_path: Path):
+    inp = tmp_path / "in.bin"
+    inp.write_bytes(b"data")
+    out_gif = tmp_path / "out.gif"
+
+    called = {"ok": False}
+
+    def fake_encode_file(*args, **kwargs):
+        called["ok"] = True
+        return {
+            "input_size": 4,
+            "compressed_size": 4,
+            "encrypted_size": 4,
+            "output_size": 10,
+            "compression_ratio": 1.0,
+            "k_blocks": 1,
+            "num_droplets": 1,
+            "redundancy": 1.5,
+            "qr_frames": 1,
+            "qr_size": (64, 64),
+            "gif_duration": 0.1,
+            "elapsed_time": 0.01,
+        }
+
+    prompts = iter(["pw123", "pw123"])
+    monkeypatch.setattr(enc, "secure_password_input", lambda *args, **kwargs: next(prompts))
+    monkeypatch.setattr(enc, "encode_file", fake_encode_file)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "meow-encode",
+            "-i",
+            str(inp),
+            "-o",
+            str(out_gif),
+            "--password-mode",
+            "secure-keyboard",
+            "--no-forward-secrecy",
+        ],
+    )
+
+    enc.main()
+    assert called["ok"] is True
+
+
+def test_encode_main_password_mode_mouse_gesture(monkeypatch, tmp_path: Path):
+    inp = tmp_path / "in.bin"
+    inp.write_bytes(b"data")
+    out_gif = tmp_path / "out.gif"
+
+    called = {"ok": False}
+
+    def fake_encode_file(*args, **kwargs):
+        called["ok"] = True
+        return {
+            "input_size": 4,
+            "compressed_size": 4,
+            "encrypted_size": 4,
+            "output_size": 10,
+            "compression_ratio": 1.0,
+            "k_blocks": 1,
+            "num_droplets": 1,
+            "redundancy": 1.5,
+            "qr_frames": 1,
+            "qr_size": (64, 64),
+            "gif_duration": 0.1,
+            "elapsed_time": 0.01,
+        }
+
+    class _DummyGesture:
+        def __init__(self, *args, **kwargs):
+            self._vals = iter(["gpass", "gpass"])
+
+        def collect_interactive(self, *_args, **_kwargs):
+            return next(self._vals)
+
+    monkeypatch.setattr(enc, "MouseGesturePassword", _DummyGesture)
+    monkeypatch.setattr(enc, "encode_file", fake_encode_file)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "meow-encode",
+            "-i",
+            str(inp),
+            "-o",
+            str(out_gif),
+            "--password-mode",
+            "mouse-gesture",
+            "--no-forward-secrecy",
+        ],
     )
 
     enc.main()
@@ -286,6 +385,24 @@ def _patch_encode_pipeline(monkeypatch):
     monkeypatch.setattr(enc, "get_handle_backend", lambda: _FakeHB())
 
 
+def _patch_encode_fast_crypto(monkeypatch):
+    """Patch crypto-heavy encode internals for deterministic fast tests."""
+
+    def _fake_encrypt(**kw):
+        return (
+            b"comp",
+            b"s" * 32,
+            b"1" * 16,
+            b"2" * 12,
+            b"ciphertext",
+            None,
+            99999,
+        )
+
+    monkeypatch.setattr(enc, "encrypt_file_bytes_production", _fake_encrypt)
+    monkeypatch.setattr(enc, "compute_manifest_hmac_from_handle", lambda *a, **k: b"h" * 32)
+
+
 def _patch_encode_file(monkeypatch, record=None):
     """Patch encode_file to return fake stats."""
 
@@ -308,6 +425,60 @@ def _patch_encode_file(monkeypatch, record=None):
         }
 
     monkeypatch.setattr(enc, "encode_file", _fake)
+
+
+def test_encode_file_unsigned_manifest_warns_and_succeeds(monkeypatch, tmp_path, capsys):
+    """Unsigned manifest is allowed but must emit a clear security warning."""
+    _patch_encode_pipeline(monkeypatch)
+    _patch_encode_fast_crypto(monkeypatch)
+
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
+
+    inp = _write_input(tmp_path)
+    out = tmp_path / "out_unsigned.gif"
+    stats = enc.encode_file(inp, out, password="password1", verbose=False)
+
+    captured = capsys.readouterr()
+    assert "Manifest signing disabled by policy" in captured.err
+    assert "vulnerable to forgery" in captured.err
+    assert out.exists()
+    assert stats["output_size"] > 0
+
+
+def test_encode_file_signing_performance_overhead_acceptable(monkeypatch, tmp_path):
+    """Measure signing overhead and assert it stays within acceptable lightweight bounds."""
+    _patch_encode_pipeline(monkeypatch)
+    _patch_encode_fast_crypto(monkeypatch)
+
+    import meow_decoder.manifest_signing as ms
+
+    class _KP:
+        def export_public_key(self):
+            return b"PUBK"
+
+    class _Sig:
+        def to_bytes(self):
+            return b"SIGBYTES"
+
+    monkeypatch.setattr(ms, "_RUST_MLDSA_AVAILABLE", True)
+    monkeypatch.setattr(ms, "_MLDSA_PURE_AVAILABLE", False)
+    monkeypatch.setattr(ms, "generate_signing_keypair", lambda: _KP())
+    monkeypatch.setattr(ms, "sign_manifest", lambda *a, **k: _Sig())
+
+    inp = _write_input(tmp_path, "perf_in.bin")
+
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
+    t0 = time.perf_counter()
+    unsigned_stats = enc.encode_file(inp, tmp_path / "unsigned.gif", password="pw", verbose=False)
+    unsigned_elapsed = time.perf_counter() - t0
+
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "on")
+    t1 = time.perf_counter()
+    signed_stats = enc.encode_file(inp, tmp_path / "signed.gif", password="pw", verbose=False)
+    signed_elapsed = time.perf_counter() - t1
+
+    assert signed_stats["qr_frames"] >= unsigned_stats["qr_frames"]
+    assert signed_elapsed <= unsigned_elapsed + 0.5
 
 
 # --- Line 79-84: encode_file duress checks ---

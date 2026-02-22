@@ -132,19 +132,21 @@ if pq_ciphertext:
 
 ---
 
-### INV-005: Rust Backend Required
+### INV-005: Rust Backend Required (Core Crypto Path)
 
 ```
 backend == "rust"
 ```
 
-**Description:** The Rust backend is mandatory; Python fallback is disabled. This preserves constant-time guarantees; memory zeroing is guaranteed in Rust (via `zeroize` crate), best-effort in Python.
+**Description:** Core encryption path requires Rust backend for constant-time guarantees and memory zeroing. Auxiliary modules (PQ signing, ML-KEM beacons) must fail closed when secure backends (Rust, OQS, or certified pure-Python implementations) are unavailable. Insecure fallback stubs are permanently disabled in production.
 
 **Verification:**
 - `tests/test_crypto_backend.py::TestBackendAvailability::test_rust_backend_available`
+- `tests/test_security_hardening.py::test_insecure_mldsa_stubs_disabled`
+- `tests/test_security_hardening.py::test_insecure_mlkem_stubs_disabled`
 - `tests/conftest.py` enforces Rust backend availability
 
-**Failure Impact:** Loss of constant-time guarantees and guaranteed Rust-side memory zeroing (security regression).
+**Failure Impact:** Loss of constant-time guarantees and guaranteed Rust-side memory zeroing, or accidental insecure fallback behavior in production (security regression).
 
 ---
 
@@ -205,6 +207,31 @@ backend == "rust"
 - `tests/test_property_based.py::TestManifestInvariants::test_manifest_roundtrip`
 
 **Failure Impact:** Data corruption, decryption parameter loss.
+
+---
+
+### INV-008A: Manifest Signature Compatibility Policy
+
+```
+IF manifest signature is present:
+    decoder MUST verify it and reject on failure
+
+IF manifest signature is absent:
+    decoder MAY continue for compatibility,
+    but MUST emit a prominent unsigned-manifest warning
+```
+
+**Description:** Signature verification is strict when signature metadata is present (fail-closed on tampering). For backward compatibility (legacy or transport-limited streams), unsigned manifests are accepted with explicit operator warning.
+
+**Critical Warning:** Unsigned manifests are vulnerable to manifest forgery attacks and are not appropriate for high-threat production use.
+
+**Verification:**
+- `tests/test_decode_gif.py::test_decode_gif_unsigned_manifest_warns_but_succeeds`
+- `tests/test_decode_gif.py::test_decode_gif_signed_manifest_verifies`
+- `tests/test_decode_gif.py::test_decode_gif_tampered_signature_rejected`
+- `tests/test_decode_gif.py::test_decode_gif_legacy_unsigned_warns_and_succeeds`
+
+**Failure Impact:** Silent acceptance of forged metadata or unsafe operator assumptions in coercive/adversarial environments.
 
 ---
 

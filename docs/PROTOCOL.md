@@ -143,6 +143,16 @@ HMAC = HMAC‑SHA256(HMAC_KEY, MANIFEST_CORE_WITH_OPTIONALS)
 
 `MANIFEST_CORE_WITH_OPTIONALS` includes EPHEMERAL_PUBLIC_KEY, PQ_CIPHERTEXT, and DURESS_TAG when present.
 
+### 5.1 Manifest Signature Status (Conservative)
+
+- Hybrid manifest-signing primitives (Ed25519 + ML-DSA-65) exist in code as a module-level capability.
+- The current v1.0 wire format does **not** yet define a mandatory in-band signature field that all decoders verify.
+- Therefore, protocol-level authenticity currently relies on manifest HMAC binding to the encryption key context.
+- Any future mandatory signature integration MUST define:
+  1. wire-format fields for signature + verification public key/commitment,
+  2. strict decode-time verification-before-trust behavior,
+  3. backward-compatibility and downgrade-failure rules.
+
 ---
 
 ## 6. Frame Format (QR payload)

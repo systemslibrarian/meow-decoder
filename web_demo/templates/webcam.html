@@ -9,7 +9,7 @@
         margin: 0 auto;
         text-align: center;
     }
-    
+
     #webcamVideo {
         width: 100%;
         max-width: 500px;
@@ -18,11 +18,11 @@
         display: none;
         margin: 20px auto;
     }
-    
+
     #webcamCanvas {
         display: none;
     }
-    
+
     .webcam-placeholder {
         width: 100%;
         max-width: 500px;
@@ -37,32 +37,32 @@
         color: #667eea;
         font-size: 1.2em;
     }
-    
+
     .scan-status {
         padding: 15px;
         border-radius: 8px;
         margin: 20px 0;
         font-weight: 600;
     }
-    
+
     .scan-status.scanning {
         background: #fff3cd;
         color: #856404;
         border-left: 4px solid #ffc107;
     }
-    
+
     .scan-status.success {
         background: #d4edda;
         color: #155724;
         border-left: 4px solid #28a745;
     }
-    
+
     .scan-status.error {
         background: #f8d7da;
         color: #721c24;
         border-left: 4px solid #f5c6cb;
     }
-    
+
     .progress-bar {
         width: 100%;
         height: 30px;
@@ -71,7 +71,7 @@
         overflow: hidden;
         margin: 15px 0;
     }
-    
+
     .progress-fill {
         height: 100%;
         background: linear-gradient(90deg, #667eea, #764ba2);
@@ -83,7 +83,7 @@
         font-weight: 600;
         font-size: 0.9em;
     }
-    
+
     .fountain-stats {
         background: #f8f9fa;
         padding: 15px;
@@ -91,27 +91,27 @@
         margin: 15px 0;
         text-align: left;
     }
-    
+
     .fountain-stats h4 {
         margin: 0 0 10px 0;
         color: #333;
     }
-    
+
     .fountain-stats .stat {
         display: flex;
         justify-content: space-between;
         padding: 5px 0;
         border-bottom: 1px solid #dee2e6;
     }
-    
+
     .fountain-stats .stat:last-child {
         border-bottom: none;
     }
-    
+
     .fountain-stats .stat-label {
         color: #6c757d;
     }
-    
+
     .fountain-stats .stat-value {
         font-weight: 600;
         color: #667eea;
@@ -131,18 +131,18 @@
     <div id="webcamPlaceholder" class="webcam-placeholder">
         📷 Click "Start Camera" to begin scanning
     </div>
-    
+
     <video id="webcamVideo" autoplay playsinline muted></video>
     <canvas id="webcamCanvas"></canvas>
-    
+
     <div style="margin: 20px 0; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
         <button id="startBtn" class="btn" onclick="startWebcam()">📷 Start Camera</button>
         <button id="stopBtn" class="btn secondary" onclick="stopWebcam()" style="display: none;">⏹️ Stop Camera</button>
         <button id="flipBtn" class="btn secondary" onclick="flipCamera()" style="display: none;">🔄 Flip Camera</button>
     </div>
-    
+
     <div id="scanStatus" class="scan-status" style="display: none;"></div>
-    
+
     <div id="fountainProgress" style="display: none;">
         <div class="fountain-stats">
             <h4>📊 Fountain Decoding Progress</h4>
@@ -159,22 +159,26 @@
                 <span class="stat-value" id="progressPercent">0%</span>
             </div>
         </div>
-        
+
         <div class="progress-bar">
             <div class="progress-fill" id="progressFill" style="width: 0%;">0%</div>
         </div>
     </div>
-    
+
     <div id="decryptForm" style="display: none; margin-top: 30px;">
         <div class="form-group">
             <label for="scannedPassword">🔑 Password</label>
             <input type="password" id="scannedPassword" placeholder="Enter decryption password">
+            <div class="show-password-toggle">
+                <input type="checkbox" id="showScannedPassword" onchange="togglePassword('scannedPassword', this)">
+                <label for="showScannedPassword">Show password</label>
+            </div>
             <small>Enter the password used during encoding</small>
         </div>
-        
+
         <button class="btn" onclick="decryptScanned()">🔓 Decrypt Collected Frames</button>
     </div>
-    
+
     <div id="decryptResult" style="display: none; margin-top: 30px;"></div>
 </div>
 
@@ -228,11 +232,11 @@ function updateStatus(message, type = 'scanning') {
 
 function updateProgress() {
     if (!fountainParams || !fountainDecoder) return;
-    
+
     const needed = Math.ceil(fountainParams.kBlocks * 1.5);
     const collected = collectedFrames;
     const percent = Math.min(100, Math.round((collected / needed) * 100));
-    
+
     document.getElementById('framesNeeded').textContent = needed;
     document.getElementById('framesCollected').textContent = collected;
     document.getElementById('progressPercent').textContent = percent + '%';
@@ -245,27 +249,27 @@ async function startWebcam() {
         const stream = await navigator.mediaDevices.getUserMedia({
             video: { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
         });
-        
+
         video = document.getElementById('webcamVideo');
         canvas = document.getElementById('webcamCanvas');
         ctx = canvas.getContext('2d');
-        
+
         video.srcObject = stream;
         video.play();
-        
+
         // Show/hide elements
         document.getElementById('webcamPlaceholder').style.display = 'none';
         video.style.display = 'block';
         document.getElementById('startBtn').style.display = 'none';
         document.getElementById('stopBtn').style.display = 'inline-block';
         document.getElementById('flipBtn').style.display = 'inline-block';
-        
+
         scanning = true;
         const cameraLabel = facingMode === 'environment' ? 'Back' : 'Front';
         updateStatus(`📷 ${cameraLabel} camera active - Point at animated GIF`, 'scanning');
-        
+
         requestAnimationFrame(scanFrame);
-        
+
     } catch (error) {
         updateStatus('❌ Camera access denied: ' + error.message, 'error');
     }
@@ -273,57 +277,57 @@ async function startWebcam() {
 
 async function flipCamera() {
     facingMode = facingMode === 'environment' ? 'user' : 'environment';
-    
+
     // Stop current stream
     if (video && video.srcObject) {
         video.srcObject.getTracks().forEach(track => track.stop());
     }
     scanning = false;
     if (animationFrame) cancelAnimationFrame(animationFrame);
-    
+
     // Restart with new facing mode
     await startWebcam();
 }
 
 function stopWebcam() {
     scanning = false;
-    
+
     if (video && video.srcObject) {
         video.srcObject.getTracks().forEach(track => track.stop());
         video.srcObject = null;
     }
-    
+
     if (animationFrame) {
         cancelAnimationFrame(animationFrame);
     }
-    
+
     video.style.display = 'none';
     document.getElementById('webcamPlaceholder').style.display = 'flex';
     document.getElementById('startBtn').style.display = 'inline-block';
     document.getElementById('stopBtn').style.display = 'none';
     document.getElementById('flipBtn').style.display = 'none';
-    
+
     updateStatus('Camera stopped', 'error');
 }
 
 function scanFrame() {
     if (!scanning) return;
-    
+
     if (video.readyState === video.HAVE_ENOUGH_DATA) {
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        
+
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         const code = jsQR(imageData.data, imageData.width, imageData.height, {
             inversionAttempts: 'dontInvert'
         });
-        
+
         if (code) {
             processQRCode(code.data);
         }
     }
-    
+
     animationFrame = requestAnimationFrame(scanFrame);
 }
 
@@ -349,12 +353,12 @@ function processFountainFrame(frameData) {
         // Parse FOUNTAIN:<k>:<block_size>:<length>:<droplet_b64>
         const parts = frameData.split(':');
         if (parts.length < 5) return;
-        
+
         const kBlocks = parseInt(parts[1]);
         const blockSize = parseInt(parts[2]);
         const originalLength = parseInt(parts[3]);
         const dropletB64 = parts.slice(4).join(':');
-        
+
         // Initialize decoder on first frame
         if (!fountainDecoder) {
             fountainParams = { kBlocks, blockSize, originalLength };
@@ -362,27 +366,27 @@ function processFountainFrame(frameData) {
             document.getElementById('fountainProgress').style.display = 'block';
             updateStatus('📡 Collecting fountain frames...', 'scanning');
         }
-        
+
         // Decode droplet
         const dropletBytes = base64ToBytes(dropletB64);
         const droplet = Droplet.unpack(dropletBytes, blockSize);
-        
+
         // Add to decoder
         fountainDecoder.addDroplet(droplet);
         collectedFrames++;
-        
+
         updateProgress();
-        
+
         // Check if complete
         if (fountainDecoder.isComplete()) {
             const reconstructed = fountainDecoder.getData();
             scannedData = reconstructed;
-            
+
             stopWebcam();
             updateStatus('✅ All frames collected! Ready to decrypt.', 'success');
             document.getElementById('decryptForm').style.display = 'block';
         }
-        
+
     } catch (error) {
         console.error('Fountain frame processing error:', error);
     }
@@ -407,21 +411,21 @@ function bytesToBase64(bytes) {
 
 async function decryptScanned() {
     const password = document.getElementById('scannedPassword').value;
-    
+
     if (!password) {
         alert('Please enter a password');
         return;
     }
-    
+
     if (!scannedData || scannedData.length === 0) {
         alert('No scanned data available');
         return;
     }
-    
+
     // Send to server for decryption
     const form = document.getElementById('serverDecryptForm');
     document.getElementById('serverPassword').value = password;
-    
+
     if (Array.isArray(scannedData)) {
         // Fountain-coded data (raw bytes)
         document.getElementById('collectedPayload').value = bytesToBase64(scannedData);
@@ -429,7 +433,7 @@ async function decryptScanned() {
         // Single QR frame (string)
         document.getElementById('collectedPayload').value = scannedData[0];
     }
-    
+
     form.submit();
 }
 
@@ -439,7 +443,7 @@ window.addEventListener('load', () => {
         updateStatus('❌ Webcam not supported in this browser', 'error');
         document.getElementById('startBtn').disabled = true;
     }
-    
+
     if (typeof jsQR === 'undefined') {
         updateStatus('❌ QR scanner library failed to load', 'error');
         document.getElementById('startBtn').disabled = true;

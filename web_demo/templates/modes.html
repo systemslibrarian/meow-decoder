@@ -12,7 +12,7 @@
         border-bottom: 2px solid #e0e0e0;
         padding-bottom: 10px;
     }
-    
+
     .mode-tab {
         padding: 12px 20px;
         background: #f8f9fa;
@@ -23,27 +23,27 @@
         font-weight: 600;
         color: #495057;
     }
-    
+
     .mode-tab:hover {
         background: #e9ecef;
         transform: translateY(-2px);
     }
-    
+
     .mode-tab.active {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white;
         border-color: #667eea;
     }
-    
+
     .mode-content {
         display: none;
         padding: 30px 0;
     }
-    
+
     .mode-content.active {
         display: block;
     }
-    
+
     .mode-header {
         background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), rgba(118, 75, 162, 0.1));
         padding: 20px;
@@ -51,19 +51,19 @@
         margin-bottom: 25px;
         border-left: 4px solid #667eea;
     }
-    
+
     .mode-header h3 {
         margin: 0 0 10px 0;
         color: #333;
         font-size: 1.5em;
     }
-    
+
     .mode-header p {
         margin: 0;
         color: #666;
         line-height: 1.6;
     }
-    
+
     .qr-display {
         background: white;
         padding: 20px;
@@ -77,23 +77,23 @@
         justify-content: center;
         border: 2px dashed #dee2e6;
     }
-    
+
     .qr-display.has-qr {
         border: 2px solid #667eea;
     }
-    
+
     .qr-display img, .qr-display canvas {
         max-width: 100%;
         height: auto;
     }
-    
+
     .action-buttons {
         display: flex;
         gap: 10px;
         flex-wrap: wrap;
         margin: 20px 0;
     }
-    
+
     .info-box {
         background: #e7f3ff;
         border-left: 4px solid #2196f3;
@@ -101,42 +101,42 @@
         border-radius: 6px;
         margin: 15px 0;
     }
-    
+
     .info-box.warning {
         background: #fff3cd;
         border-left-color: #ffc107;
     }
-    
+
     .info-box.danger {
         background: #f8d7da;
         border-left-color: #f5c6cb;
     }
-    
+
     .info-box.success {
         background: #d4edda;
         border-left-color: #28a745;
     }
-    
+
     .feature-grid {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 15px;
         margin: 20px 0;
     }
-    
+
     .feature-card {
         background: #f8f9fa;
         padding: 15px;
         border-radius: 8px;
         border-left: 3px solid #667eea;
     }
-    
+
     .feature-card h4 {
         margin: 0 0 8px 0;
         color: #333;
         font-size: 1.1em;
     }
-    
+
     .feature-card p {
         margin: 0;
         color: #666;
@@ -168,28 +168,32 @@
         <h3>🔐 Standard Encryption</h3>
         <p>Basic AES-256-GCM encryption with Argon2id key derivation. Encrypt a message and generate a scannable QR code.</p>
     </div>
-    
+
     <div class="info-box">
         <strong>Features:</strong> AES-256-GCM encryption, HMAC authentication, Argon2id KDF (512 MiB memory, 20 iterations)
     </div>
-    
+
     <div class="form-group">
         <label for="standardMessage">🔒 Message to Encrypt:</label>
         <textarea id="standardMessage" rows="4" placeholder="Enter your secret message...">Hello from Meow Decoder! 😻</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="standardPassword">🔑 Password:</label>
         <input type="password" id="standardPassword" placeholder="At least 8 characters" value="test1234">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showStandardPassword" onchange="togglePassword('standardPassword', this)">
+            <label for="showStandardPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" onclick="encryptStandard()">🔐 Encrypt & Generate QR</button>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">📁 Upload File Instead</a>
     </div>
-    
+
     <div id="standardQR" class="qr-display"></div>
-    
+
     <div class="info-box warning">
         <strong>Note:</strong> Browser-based encryption is for quick demos. For files or production use, use the <a href="{{ url_for('encode_page') }}">Encode page</a> for server-side encryption.
     </div>
@@ -201,28 +205,32 @@
         <h3>🔑 Forward Secrecy Encryption</h3>
         <p>X25519 ephemeral key exchange. Future password compromise won't decrypt past messages.</p>
     </div>
-    
+
     <div class="info-box">
         <strong>Features:</strong> X25519 ECDH, ephemeral keys per encryption, forward secure, Signal-style ratcheting
     </div>
-    
+
     <div class="form-group">
         <label for="fsMessage">🔒 Message:</label>
         <textarea id="fsMessage" rows="4" placeholder="Enter message...">Secret with forward secrecy!</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="fsPassword">🔑 Password:</label>
         <input type="password" id="fsPassword" placeholder="At least 8 characters" value="test1234">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showFsPassword" onchange="togglePassword('fsPassword', this)">
+            <label for="showFsPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" onclick="encryptForwardSecrecy()">🔑 Encrypt with Forward Secrecy</button>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">📁 Full Version (Files)</a>
     </div>
-    
+
     <div id="fsQR" class="qr-display"></div>
-    
+
     <div class="feature-grid">
         <div class="feature-card">
             <h4>🔄 Key Rotation</h4>
@@ -245,36 +253,44 @@
         <h3>🚨 Duress Mode (Plausible Deniability)</h3>
         <p>Two passwords: real password reveals secret, panic password reveals decoy. Attacker can't prove which is real.</p>
     </div>
-    
+
     <div class="info-box danger">
         <strong>⚠️ Duress Mode:</strong> Use when under coercion. Panic password triggers decoy content and can wipe stored keys.
     </div>
-    
+
     <div class="form-group">
         <label for="duressSecret">🔒 Real Secret:</label>
         <textarea id="duressSecret" rows="3" placeholder="Real message...">Top secret project plans</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="duressDecoy">📝 Decoy Message:</label>
         <textarea id="duressDecoy" rows="2" placeholder="Innocent message...">Just my shopping list</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="duressRealPass">🔑 Real Password:</label>
         <input type="password" id="duressRealPass" placeholder="Real password" value="realpass12">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showDuressRealPass" onchange="togglePassword('duressRealPass', this)">
+            <label for="showDuressRealPass">Show password</label>
+        </div>
     </div>
-    
+
     <div class="form-group">
         <label for="duressPanicPass">🚨 Panic Password:</label>
         <input type="password" id="duressPanicPass" placeholder="Panic password" value="panicpass12">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showDuressPanicPass" onchange="togglePassword('duressPanicPass', this)">
+            <label for="showDuressPanicPass">Show password</label>
+        </div>
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" onclick="encryptDuress()" style="background: linear-gradient(135deg, #ff6464, #ff3232);">🚨 Encrypt with Duress</button>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">📁 File-Based Duress</a>
     </div>
-    
+
     <div id="duressQR" class="qr-display"></div>
 </div>
 
@@ -284,29 +300,33 @@
         <h3>😻 Cat Mode (Flagship Feature)</h3>
         <p>Photographic cat carrier images for plausible deniability. QR codes hidden in adorable cat photos!</p>
     </div>
-    
+
     <div class="info-box warning" style="background: #fff9e6; border-left-color: #ffd700;">
         <strong>😻 Cat Mode:</strong> Cosmetic camouflage only. QR codes embedded in cat photos for aesthetic steganography.
     </div>
-    
+
     <div class="form-group">
         <label for="catMessage">🔒 Message:</label>
         <textarea id="catMessage" rows="4" placeholder="Message to hide in cat photos...">Hidden in cat photos! 🐾</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="catPassword">🔑 Password:</label>
         <input type="password" id="catPassword" placeholder="At least 8 characters" value="meow1234">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showCatPassword" onchange="togglePassword('catPassword', this)">
+            <label for="showCatPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" onclick="encryptCatMode()">😻 Generate Demo QR</button>
         <a href="{{ url_for('cat_mode_page') }}" class="btn" style="background: linear-gradient(135deg, #00ff88, #00ccff);">🐱 Interactive Cat Mode (Blinking Eyes!)</a>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">📁 Server-Side Files</a>
     </div>
-    
+
     <div id="catQR" class="qr-display"></div>
-    
+
     <div style="text-align: center; margin: 20px 0; font-size: 3em;">
         <span class="blink">😻</span>
     </div>
@@ -318,35 +338,43 @@
         <h3>⚛️ Schrödinger Mode (Quantum Superposition)</h3>
         <p>Two completely separate secrets in one payload. Neither can be proven to exist without the correct password.</p>
     </div>
-    
+
     <div class="info-box">
         <strong>Quantum Plausible Deniability:</strong> XOR-based quantum mixer creates statistical indistinguishability between secrets.
     </div>
-    
+
     <div class="form-group">
         <label for="schroSecret1">🔒 Secret A:</label>
         <textarea id="schroSecret1" rows="3" placeholder="First secret...">Secret file version A</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="schroSecret2">🔒 Secret B:</label>
         <textarea id="schroSecret2" rows="3" placeholder="Second secret...">Secret file version B</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="schroPass1">🔑 Password A:</label>
         <input type="password" id="schroPass1" placeholder="Password for Secret A" value="passwordA1">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showSchroPass1" onchange="togglePassword('schroPass1', this)">
+            <label for="showSchroPass1">Show password</label>
+        </div>
     </div>
-    
+
     <div class="form-group">
         <label for="schroPass2">🔑 Password B:</label>
         <input type="password" id="schroPass2" placeholder="Password for Secret B" value="passwordB2">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showSchroPass2" onchange="togglePassword('schroPass2', this)">
+            <label for="showSchroPass2">Show password</label>
+        </div>
     </div>
-    
+
     <div class="info-box success" style="background: #d4edda; border-left-color: #28a745;">
         <strong>✅ Full Schrödinger Mode Available!</strong> Quantum dual-secret encoding is now available on the server.
     </div>
-    
+
     <div class="action-buttons">
         <a href="{{ url_for('schrodinger_page') }}" class="btn" style="background: linear-gradient(135deg, #764ba2, #667eea);">⚛️ Use Full Schrödinger Mode</a>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">🔒 Standard Encode</a>
@@ -359,30 +387,34 @@
         <h3>🔮 Post-Quantum Encryption</h3>
         <p>ML-KEM-1024 + X25519 hybrid encryption. Resistant to quantum computer attacks.</p>
     </div>
-    
+
     <div class="info-box">
         <strong>Features:</strong> NIST ML-KEM-1024 (formerly Kyber), X25519 classical security, quantum-resistant
     </div>
-    
+
     <div class="form-group">
         <label for="pqMessage">🔒 Message:</label>
         <textarea id="pqMessage" rows="4" placeholder="Quantum-safe message...">Future-proof secret!</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="pqPassword">🔑 Password:</label>
         <input type="password" id="pqPassword" placeholder="At least 8 characters" value="quantum123">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showPqPassword" onchange="togglePassword('pqPassword', this)">
+            <label for="showPqPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="info-box warning">
         <strong>Browser Limitation:</strong> Post-quantum crypto requires WASM library. Use <a href="{{ url_for('encode_page') }}">server-side encoding</a> or CLI.
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" disabled>🔮 Post-Quantum (CLI Only)</button>
         <a href="{{ url_for('encode_page') }}" class="btn">🔐 Use Full Version</a>
     </div>
-    
+
     <div class="feature-grid">
         <div class="feature-card">
             <h4>🔬 NIST Standard</h4>
@@ -405,31 +437,35 @@
         <h3>🖼️ Steganography Mode</h3>
         <p>Hide encrypted data inside innocent-looking images using LSB embedding.</p>
     </div>
-    
+
     <div class="info-box">
         <strong>LSB Steganography:</strong> Hides data in least significant bits of image pixels. Invisible to casual inspection.
     </div>
-    
+
     <div class="form-group">
         <label for="stegoMessage">🔒 Secret Message:</label>
         <textarea id="stegoMessage" rows="3" placeholder="Message to hide...">Hidden in pixels!</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="stegoPassword">🔑 Password:</label>
         <input type="password" id="stegoPassword" placeholder="At least 8 characters" value="stego123">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showStegoPassword" onchange="togglePassword('stegoPassword', this)">
+            <label for="showStegoPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="form-group">
         <label for="stegoCover">📷 Cover Image:</label>
         <input type="file" id="stegoCover" accept="image/png,image/jpeg">
         <small>Upload a PNG or JPEG image to hide data inside</small>
     </div>
-    
+
     <div class="info-box warning">
         <strong>Browser Limitation:</strong> LSB steganography requires canvas manipulation. Use Cat Mode for photographic carriers.
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" disabled>🖼️ Stego (Under Development)</button>
         <a href="{{ url_for('encode_page') }}" class="btn">😻 Try Cat Mode Instead</a>
@@ -442,33 +478,37 @@
         <h3>🎬 Multi-Frame Animated QR</h3>
         <p>Large files split across multiple QR frames with fountain coding for loss tolerance.</p>
     </div>
-    
+
     <div class="info-box success">
         <strong>Fountain Codes:</strong> Splitdata into multiple frames. Tolerates 33% frame loss with 1.5× redundancy.
     </div>
-    
+
     <div class="form-group">
         <label for="animMessage">🔒 Message:</label>
         <textarea id="animMessage" rows="4" placeholder="Enter larger message...">This will be split across multiple QR frames for better scanning!</textarea>
     </div>
-    
+
     <div class="form-group">
         <label for="animPassword">🔑 Password:</label>
         <input type="password" id="animPassword" placeholder="At least 8 characters" value="anim1234">
+        <div class="show-password-toggle">
+            <input type="checkbox" id="showAnimPassword" onchange="togglePassword('animPassword', this)">
+            <label for="showAnimPassword">Show password</label>
+        </div>
     </div>
-    
+
     <div class="form-group">
         <label for="animRedundancy">📊 Redundancy Factor:</label>
         <input type="range" id="animRedundancy" min="1.2" max="2.0" step="0.1" value="1.5" oninput="updateRedundancyDisplay()">
         <span id="redundancyDisplay" class="stat-value">1.5×</span>
         <small>Higher = more loss tolerance (1.5× = 33% loss, 2.0× = 50% loss)</small>
     </div>
-    
+
     <div class="action-buttons">
         <button class="btn" onclick="encryptAnimated()">🎬 Generate Multi-Frame QR</button>
         <a href="{{ url_for('encode_page') }}" class="btn secondary">📁 Upload File</a>
     </div>
-    
+
     <div id="animQR" class="qr-display"></div>
 </div>
 
@@ -487,14 +527,14 @@ function switchMode(mode) {
     document.querySelectorAll('.mode-tab').forEach(el => {
         el.classList.remove('active');
     });
-    
+
     // Show selected mode
     const modeId = mode + 'Mode';
     const modeEl = document.getElementById(modeId);
     if (modeEl) {
         modeEl.classList.add('active');
     }
-    
+
     // Activate tab
     document.querySelectorAll('.mode-tab').forEach(el => {
         if (el.getAttribute('onclick').includes(mode)) {
@@ -506,34 +546,34 @@ function switchMode(mode) {
 function encryptStandard() {
     const message = document.getElementById('standardMessage').value;
     const password = document.getElementById('standardPassword').value;
-    
+
     if (!message || !password) {
         alert('Please enter both message and password');
         return;
     }
-    
+
     if (password.length < 8) {
         alert('Password must be at least 8 characters');
         return;
     }
-    
+
     // Simple base64 encoding for demo (NOT secure, just for visualization)
     const payload = 'MEOW:' + btoa(unescape(encodeURIComponent(message)));
-    
+
     generateQRCode('standardQR', payload);
-    
+
     alert('⚠️ This is a demo QR only. For real encryption, use the Encode page with server-side encryption.');
 }
 
 function encryptForwardSecrecy() {
     const message = document.getElementById('fsMessage').value;
     const password = document.getElementById('fsPassword').value;
-    
+
     if (!message || !password || password.length < 8) {
         alert('Please enter both message and password (8+ characters)');
         return;
     }
-    
+
     const payload = 'FS:' + btoa(unescape(encodeURIComponent(message)));
     generateQRCode('fsQR', payload);
     alert('⚠️ Demo only. Real forward secrecy requires server-side X25519 key generation.');
@@ -544,22 +584,22 @@ function encryptDuress() {
     const decoy = document.getElementById('duressDecoy').value;
     const realPass = document.getElementById('duressRealPass').value;
     const panicPass = document.getElementById('duressPanicPass').value;
-    
+
     if (!secret || !decoy || !realPass || !panicPass) {
         alert('Please fill all fields');
         return;
     }
-    
+
     if (realPass === panicPass) {
         alert('Real and panic passwords must be different!');
         return;
     }
-    
+
     if (realPass.length < 8 || panicPass.length < 8) {
         alert('Both passwords must be at least 8 characters');
         return;
     }
-    
+
     const payload = 'DURESS:' + btoa(unescape(encodeURIComponent(secret)));
     generateQRCode('duressQR', payload);
     alert('⚠️ Demo only. Real duress mode requires HMAC authentication. Use Encode page.');
@@ -568,12 +608,12 @@ function encryptDuress() {
 function encryptCatMode() {
     const message = document.getElementById('catMessage').value;
     const password = document.getElementById('catPassword').value;
-    
+
     if (!message || !password || password.length < 8) {
         alert('Please enter both message and password (8+ characters)');
         return;
     }
-    
+
     const payload = 'CAT:' + btoa(unescape(encodeURIComponent(message)));
     generateQRCode('catQR', payload);
     alert('😻 Demo QR generated! For real Cat Mode with carrier images, use the Encode page.');
@@ -583,16 +623,16 @@ function encryptAnimated() {
     const message = document.getElementById('animMessage').value;
     const password = document.getElementById('animPassword').value;
     const redundancy = parseFloat(document.getElementById('animRedundancy').value);
-    
+
     if (!message || !password || password.length < 8) {
         alert('Please enter both message and password (8+ characters)');
         return;
     }
-    
+
     // For demo, just show it would generate multiple frames
     const payload = 'FOUNTAIN:' + btoa(unescape(encodeURIComponent(message)));
     generateQRCode('animQR', payload);
-    
+
     const estimatedFrames = Math.ceil(message.length / 100);
     alert(`🎬 Would generate ~${estimatedFrames} frames with ${redundancy}× redundancy. Use Encode page for real multi-frame encoding.`);
 }
@@ -601,7 +641,7 @@ function generateQRCode(containerId, payload) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
     container.classList.add('has-qr');
-    
+
     try {
         new QRCode(container, {
             text: payload,
@@ -611,13 +651,13 @@ function generateQRCode(containerId, payload) {
             colorLight: "#ffffff",
             correctLevel: QRCode.CorrectLevel.H
         });
-        
+
         const note = document.createElement('p');
         note.style.marginTop = '15px';
         note.style.color = '#666';
         note.textContent = '📱 Scan this QR code with the Webcam Scanner or your phone';
         container.appendChild(note);
-        
+
     } catch (error) {
         container.innerHTML = '<p style="color: #f44336;">Error generating QR code</p>';
         console.error('QR error:', error);

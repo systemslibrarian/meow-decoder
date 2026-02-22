@@ -6,6 +6,8 @@ Decodes files from GIF animations
 
 import sys
 import argparse
+import struct
+import os
 from pathlib import Path
 from getpass import getpass
 from typing import Optional
@@ -23,7 +25,6 @@ from .crypto import (
     check_duress_password,
     pack_manifest_core,
     validate_decode_profile,
-    PROFILE_PROD_MIN,
     PROFILE_PQ_EXPERIMENTAL,
     PROFILE_LEGACY,
 )
@@ -36,7 +37,13 @@ from .progress import ProgressBar
 # hardware_integration is lazy-imported where needed to avoid pulling in
 # cryptography at module-import time (see Step 2 of crypto migration).
 from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_error
+from .secure_keyboard import MouseGesturePassword, secure_password_input
 from .tamper_report import TamperReport
+
+
+MANIFEST_SIG_CHUNK_MAGIC = b"MSGC"
+MANIFEST_SIG_BLOB_MAGIC = b"MSGB"
+MANIFEST_SIG_VERSION = 1
 
 
 def decode_gif(
@@ -563,8 +570,15 @@ def decode_gif(
         original_length=manifest.cipher_len,  # Store length in decoder
     )
 
+    _signing_mode = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
+    _disabled_modes = {"0", "false", "no", "off", "disabled"}
+    _signing_enabled = _signing_mode not in _disabled_modes
+
     droplets_processed = 0
     droplets_rejected = 0
+    sig_chunks = {}
+    sig_total_parts = None
+    sig_parts_seen = 0
 
     progress = ProgressBar(
         len(qr_data_list) - 1, desc="Processing Droplets", unit="droplets", disable=not verbose
@@ -598,6 +612,24 @@ def decode_gif(
             else:
                 droplet_bytes = qr_data
 
+            # Optional manifest-signature metadata chunk (MAC-protected, not ratchet-encrypted)
+            if len(droplet_bytes) >= 7 and droplet_bytes[:4] == MANIFEST_SIG_CHUNK_MAGIC:
+                _ver = droplet_bytes[4]
+                _total = droplet_bytes[5]
+                _idx = droplet_bytes[6]
+                if _ver != MANIFEST_SIG_VERSION or _total == 0 or _idx >= _total:
+                    raise ValueError("Invalid manifest signature chunk header")
+                if sig_total_parts is None:
+                    sig_total_parts = _total
+                elif sig_total_parts != _total:
+                    raise ValueError("Inconsistent manifest signature chunk total")
+                if _idx not in sig_chunks:
+                    sig_chunks[_idx] = droplet_bytes[7:]
+                    sig_parts_seen += 1
+                if verbose:
+                    print(f"  ✍️ Manifest signature chunk {_idx + 1}/{_total} received")
+                continue
+
             # Ratchet-decrypt the frame if ratchet mode is active
             if decoder_ratchet is not None:
                 try:
@@ -622,6 +654,48 @@ def decode_gif(
             if verbose:
                 print(f"  Warning: Failed to process droplet: {e}")
             continue
+
+    # Verify manifest signature if signature chunks were present.
+    if sig_total_parts is not None:
+        if sig_parts_seen != sig_total_parts:
+            raise ValueError(
+                "Manifest signature chunks incomplete — possible tampering/corruption"
+            )
+
+        sig_blob = b"".join(sig_chunks[i] for i in range(sig_total_parts))
+        if len(sig_blob) < 9 or sig_blob[:4] != MANIFEST_SIG_BLOB_MAGIC or sig_blob[4] != MANIFEST_SIG_VERSION:
+            raise ValueError("Invalid manifest signature blob format")
+
+        pk_len, sig_len = struct.unpack(">HH", sig_blob[5:9])
+        if len(sig_blob) < 9 + pk_len + sig_len:
+            raise ValueError("Truncated manifest signature blob")
+
+        public_key = sig_blob[9:9 + pk_len]
+        signature_bytes = sig_blob[9 + pk_len:9 + pk_len + sig_len]
+
+        from .manifest_signing import ManifestSignature, verify_manifest_signature
+
+        signature = ManifestSignature.from_bytes(signature_bytes)
+        verify_manifest_signature(public_key, manifest_bytes, signature, context=b"manifest-v1")
+        if verbose:
+            print("  ✓ Manifest signature verified")
+    else:
+        _mode_hint = getattr(manifest, "mode_byte", 0)
+        _legacy_hint = " (legacy/compatibility stream)" if (_has_ratchet or _mode_hint < 0x05) else ""
+        if not _signing_enabled:
+            print(
+                "⚠️  Unsigned manifest accepted (signing disabled by policy) — vulnerable to forgery. "
+                "Re-encode with signing enabled for production/high-risk use."
+                f"{_legacy_hint}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                "⚠️  Unsigned manifest — vulnerable to forgery. "
+                "Re-encode with signing enabled."
+                f"{_legacy_hint}",
+                file=sys.stderr,
+            )
 
     # Finalize ratchet (bury keys in litter)
     if decoder_ratchet is not None:
@@ -805,6 +879,12 @@ Examples:
     # Optional arguments
     parser.add_argument(
         "-p", "--password", type=str, help="Decryption password (prompted if not provided)"
+    )
+    parser.add_argument(
+        "--password-mode",
+        choices=["standard", "secure-keyboard", "mouse-gesture"],
+        default="standard",
+        help="Interactive password mode when --password is omitted (default: standard)",
     )
     parser.add_argument("-k", "--keyfile", type=Path, help="Path to keyfile")
     parser.add_argument(
@@ -1070,7 +1150,20 @@ Examples:
     if args.password is not None:
         password = args.password
     else:
-        password = getpass("Enter decryption password: ")
+        if args.password_mode == "standard":
+            password = getpass("Enter decryption password: ")
+        elif args.password_mode == "secure-keyboard":
+            password = secure_password_input("Enter decryption password: ", use_gui=True)
+            if password is None:
+                hiss_error("Password entry was cancelled.")
+                sys.exit(1)
+        else:
+            gesture = MouseGesturePassword(grid_size=5)
+            try:
+                password = gesture.collect_interactive("Draw decryption gesture password")
+            except Exception as e:
+                print(f"Error: Failed to collect gesture password: {e}", file=sys.stderr)
+                sys.exit(1)
 
     if not password:
         hiss_error(fur_ball_error("wrong_password", suggestion=False))
