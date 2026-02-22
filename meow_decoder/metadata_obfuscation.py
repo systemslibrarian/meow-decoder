@@ -179,9 +179,15 @@ def randomize_frame_order(
     # Create index list
     indices = list(range(len(frames)))
 
-    # Deterministic shuffle using seed
-    rng = random.Random(int.from_bytes(seed, "big"))
-    rng.shuffle(indices)
+    # Deterministic Fisher-Yates shuffle using HMAC-based PRNG
+    # (cryptographically secure, unlike random.Random which uses Mersenne Twister)
+    import hashlib
+    import hmac
+    for i in range(len(indices) - 1, 0, -1):
+        # Derive a deterministic index from seed + position using HMAC-SHA256
+        h = hmac.new(seed, i.to_bytes(4, "big"), hashlib.sha256).digest()
+        j = int.from_bytes(h[:4], "big") % (i + 1)
+        indices[i], indices[j] = indices[j], indices[i]
 
     # Reorder frames
     shuffled = [frames[i] for i in indices]

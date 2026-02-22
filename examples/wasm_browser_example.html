@@ -707,6 +707,7 @@
                     <li><strong style="color:#00c864;">🔑 Forward Secrecy</strong> — Encrypts with ephemeral keys, shows an <code>FS:</code> QR code</li>
                     <li><strong style="color:#8a2be2;">🐱 Schrödinger</strong> — Dual-secret encryption, shows a <code>QUANTUM:</code> QR code</li>
                     <li><strong style="color:#d4a0ff;">🔮 Post-Quantum</strong> — ML-KEM hybrid encryption with its own QR output</li>
+                    <li><strong style="color:#ff6464;">🚨 Duress</strong> — Duress-tagged encryption, shows a <code>DURESS:</code> QR code</li>
                 </ul>
                 <p style="margin: 8px 0 0 0; color: #888; font-size: 0.88em;">Encrypt something in one of those tabs first, then point your camera at the resulting QR code to scan and decrypt it here.</p>
             </div>
@@ -975,7 +976,7 @@
     <div class="step schrodinger-box">
         <span class="step-number" style="background: #8a2be2;">1</span>
         <h2>🐱 Schrödinger's Encryption</h2>
-        <p class="step-desc">Encode <strong>two different secrets</strong> with <strong>two different passwords</strong>. Each password reveals a different message — with no way to prove the other exists!</p>
+        <p class="step-desc">Quantum plausible deniability: encode <strong>two completely separate secrets</strong> with <strong>two different passwords</strong> into a single QR code. Each password reveals only its reality — the other secret is cryptographically indistinguishable from random noise. Neither can be proven to exist without the correct password. Uses AES-256-GCM with Argon2id key derivation.</p>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
             <div style="background: rgba(0,255,136,0.1); border: 1px solid #00ff88; border-radius: 8px; padding: 15px;">
@@ -1012,7 +1013,7 @@
     <div id="schrodingerQrSection" class="step schrodinger-box hidden">
         <span class="step-number" style="background: #8a2be2;">2</span>
         <h2>🐱 Quantum QR Code</h2>
-        <p class="step-desc">This single QR contains BOTH secrets in superposition. Neither can be proven to exist without its password.</p>
+        <p class="step-desc">This single QR code contains both secrets in superposition, interleaved and independently encrypted. Without the correct password, neither reality can be distinguished from random data.</p>
 
         <div class="qr-container">
             <div id="schrodingerQrcode" style="border: 4px solid #8a2be2; border-radius: 12px; display: inline-block; padding: 6px; background: white;"></div>
@@ -1068,7 +1069,7 @@
         <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
             <span class="step-number" style="background: #00ccff;">1</span>
             <h2>🖼️ LSB Steganography</h2>
-            <p class="step-desc">Hide your encrypted secret <strong>invisibly</strong> in the pixels of any image using LSB (Least Significant Bit) encoding. The output looks <em>identical</em> to the original!</p>
+            <p class="step-desc">Hide your AES-256-GCM encrypted secret <strong>invisibly</strong> in the pixels of any image using Least Significant Bit encoding. The output image is visually identical to the original — only someone with the password can extract the hidden message. <em>Use PNG format; JPEG compression destroys LSB data.</em></p>
 
             <label for="stegoCover">Choose Cover Image (PNG recommended):</label>
             <input type="file" id="stegoCover" accept="image/png,image/jpeg" style="margin-bottom: 10px;">
@@ -1091,7 +1092,7 @@
         <div id="stegoOutputSection" class="step hidden" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
             <span class="step-number" style="background: #00ccff;">2</span>
             <h2>🖼️ Stego Image (Invisible!)</h2>
-            <p class="step-desc">This image looks identical to the original but contains your encrypted secret hidden in the pixel LSBs.</p>
+            <p class="step-desc">This image is visually identical to the original but contains your AES-256-GCM encrypted secret hidden in the pixel LSBs. Save as PNG to preserve the hidden data.</p>
             <div id="stegoImageContainer" style="text-align: center;"></div>
             <div style="text-align: center;">
                 <button class="secondary copy-btn" onclick="downloadStegoImage()">💾 Save Stego Image (PNG)</button>
@@ -1190,7 +1191,12 @@
                             if (type === 'error' || !success) {
                                 pending.reject(new Error(error || 'Worker operation failed'));
                             } else {
-                                pending.resolve({ success: true, data: data });
+                                // Pass through all fields from worker (data, secretKey, publicKey, sizes, etc.)
+                                const result = { success: true };
+                                for (const [k, v] of Object.entries(e.data)) {
+                                    if (k !== 'type' && k !== 'id' && k !== 'success') result[k] = v;
+                                }
+                                pending.resolve(result);
                             }
                         }
                     };
@@ -2789,6 +2795,25 @@
             log('💾 QR image downloaded');
         };
 
+        // Generic copy to clipboard helper
+        window.copyToClipboard = function(text, label) {
+            if (!text) { alert('Nothing to copy'); return; }
+            navigator.clipboard.writeText(text).then(() => {
+                log(`📋 ${label || 'Text'} copied to clipboard`);
+                alert(`${label || 'Text'} copied!`);
+            }).catch(() => {
+                // Fallback for non-HTTPS contexts
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                log(`📋 ${label || 'Text'} copied to clipboard (fallback)`);
+                alert(`${label || 'Text'} copied!`);
+            });
+        };
+
         // Copy payload
         window.copyPayload = function() {
             if (!window.currentPayload) { alert('Generate QR code first'); return; }
@@ -3695,20 +3720,20 @@
 
         // Check if PQ is available on WASM load
         async function checkPqAvailability() {
-            if (!cryptoWorker) return;
+            if (!workerReady || !cryptoWorker) return;
 
-            return new Promise((resolve) => {
-                const id = nextWorkerId++;
-                workerCallbacks.set(id, (result) => {
-                    const available = result.data === true;
-                    if (!available) {
-                        document.getElementById('pqNotAvailable').style.display = 'block';
-                        document.getElementById('pqKeySection').style.display = 'none';
-                    }
-                    resolve(available);
-                });
-                cryptoWorker.postMessage({ type: 'pq_available', id, payload: {} });
-            });
+            try {
+                const result = await workerCall('pq_available', {});
+                const available = result.data === true;
+                if (!available) {
+                    document.getElementById('pqNotAvailable').style.display = 'block';
+                    document.getElementById('pqKeySection').style.display = 'none';
+                }
+                return available;
+            } catch (e) {
+                log('⚠️ [PQ] Availability check failed: ' + e.message);
+                return false;
+            }
         }
 
         // Generate Post-Quantum key pair (X25519 + ML-KEM)
@@ -3721,26 +3746,12 @@
                 log('🔮 [PQ] Generating X25519 key pair...');
 
                 // Generate X25519 keys via worker
-                const x25519Result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
-                    cryptoWorker.postMessage({ type: 'x25519_generate_keypair', id, payload: {} });
-                });
+                const x25519Result = await workerCall('x25519_generate_keypair', {});
 
                 log('🔮 [PQ] Generating ML-KEM-1024 key pair...');
 
                 // Generate ML-KEM keys via worker
-                const mlkemResult = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
-                    cryptoWorker.postMessage({ type: 'mlkem_generate_keypair', id, payload: {} });
-                });
+                const mlkemResult = await workerCall('mlkem_generate_keypair', {});
 
                 // Store key pair
                 pqKeyPair = {
@@ -3889,22 +3900,11 @@
 
                 // Encrypt via worker
                 const plaintext = new TextEncoder().encode(message);
-                const result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
-                    cryptoWorker.postMessage({
-                        type: 'encrypt_hybrid_pq',
-                        id,
-                        payload: {
-                            plaintext: plaintext,
-                            x25519_public: x25519Public,
-                            mlkem_public: mlkemPublic,
-                            password: password
-                        }
-                    });
+                const result = await workerCall('encrypt_hybrid_pq', {
+                    plaintext: plaintext,
+                    x25519_public: x25519Public,
+                    mlkem_public: mlkemPublic,
+                    password: password
                 });
 
                 // Format output with HYBRID-PQ: prefix (X25519 + ML-KEM hybrid)
@@ -4018,22 +4018,11 @@
                 const encrypted = Uint8Array.from(atob(payload), c => c.charCodeAt(0));
 
                 // Decrypt via worker
-                const result = await new Promise((resolve, reject) => {
-                    const id = nextWorkerId++;
-                    workerCallbacks.set(id, (result) => {
-                        if (result.success) resolve(result);
-                        else reject(new Error(result.error));
-                    });
-                    cryptoWorker.postMessage({
-                        type: 'decrypt_hybrid_pq',
-                        id,
-                        payload: {
-                            encrypted: encrypted,
-                            x25519_secret: pqKeyPair.x25519Secret,
-                            mlkem_secret: pqKeyPair.mlkemSecret,
-                            password: password
-                        }
-                    });
+                const result = await workerCall('decrypt_hybrid_pq', {
+                    encrypted: encrypted,
+                    x25519_secret: pqKeyPair.x25519Secret,
+                    mlkem_secret: pqKeyPair.mlkemSecret,
+                    password: password
                 });
 
                 const plaintext = new TextDecoder().decode(result.data);
@@ -4211,7 +4200,7 @@
                         }
                     }
                     // Handle single-frame QR codes
-                    else if (code && (code.data.startsWith('MEOW:') || code.data.startsWith('QUANTUM:') || code.data.startsWith('FS:') || code.data.startsWith('HYBRID-PQ:'))) {
+                    else if (code && (code.data.startsWith('MEOW:') || code.data.startsWith('QUANTUM:') || code.data.startsWith('FS:') || code.data.startsWith('HYBRID-PQ:') || code.data.startsWith('DURESS:'))) {
                         // Found a valid payload!
                         document.getElementById('webcamPayload').value = code.data;
                         document.getElementById('webcamScanResult').style.display = 'block';
@@ -4277,6 +4266,10 @@
                     );
                     if (!result.success) throw new Error(result.error || 'Decryption failed');
                     plaintext = decoder.decode(result.data);
+
+                } else if (payload.startsWith('DURESS:')) {
+                    // Duress-tagged message — decrypt with real password
+                    throw new Error('Use Duress mode to decrypt DURESS: payloads (handles panic password detection)');
                 }
 
                 resultBox.className = 'result-box';
@@ -4695,7 +4688,7 @@
             // Use SHA-256 via SubtleCrypto (not reversible like the old btoa approach)
             const encoder = new TextEncoder();
             const data = encoder.encode(password + 'meow-duress-salt-v2');
-            const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
             localStorage.setItem('meow_duress', JSON.stringify({
@@ -4720,7 +4713,7 @@
             // Use SHA-256 via SubtleCrypto (matches setDuressPassword v2)
             const encoder = new TextEncoder();
             const hashData = encoder.encode(password + 'meow-duress-salt-v2');
-            const hashBuffer = await crypto.subtle.digest('SHA-256', hashData);
+            const hashBuffer = await window.crypto.subtle.digest('SHA-256', hashData);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const testHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 

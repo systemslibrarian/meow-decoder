@@ -690,11 +690,15 @@ def decode_gif(
                 file=sys.stderr,
             )
         else:
-            print(
-                "⚠️  Unsigned manifest — vulnerable to forgery. "
-                "Re-encode with signing enabled."
-                f"{_legacy_hint}",
-                file=sys.stderr,
+            # FIX: Fail-closed — reject unsigned manifests when signing is enabled.
+            # Previously this was warn-only, allowing an attacker to strip signatures
+            # and have the decoder silently accept tampered content.
+            raise ValueError(
+                "Unsigned manifest rejected (signing is mandatory). "
+                "This GIF has no cryptographic signature — possible tampering or "
+                "legacy encoder. Set MEOW_MANIFEST_SIGNING=off to accept unsigned "
+                "manifests at your own risk."
+                f"{_legacy_hint}"
             )
 
     # Finalize ratchet (bury keys in litter)

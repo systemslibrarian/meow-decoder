@@ -42,6 +42,7 @@ from typing import Callable, Dict, Optional
 
 __all__ = [
     "activate_memory_guard",
+    "require_memory_guard",
     "get_guard_status",
     "raise_mlock_limit",
     "MemoryGuardWarning",
@@ -416,6 +417,66 @@ def activate_memory_guard(
     # Cache result
     _guard_status = status
     _guard_activated = True
+    return status
+
+
+def require_memory_guard(
+    raise_mlock: bool = True,
+    set_oom_protect: bool = False,
+) -> Dict[str, bool]:
+    """
+    Fail-closed memory guard activation.
+
+    Like activate_memory_guard(), but raises RuntimeError if any critical
+    protection fails. Use this in high-security paths where continuing
+    without memory protection is unacceptable.
+
+    Critical protections (must ALL succeed):
+        - mlockall (Unix) or lock_memory_privilege (Windows)
+        - Core dump disabling
+        - ptrace prevention (Linux only)
+
+    Args:
+        raise_mlock: Attempt to raise RLIMIT_MEMLOCK before mlockall.
+        set_oom_protect: Set OOM score to prevent OOM kill (may need root).
+
+    Returns:
+        Dict mapping protection names to success status (all True).
+
+    Raises:
+        RuntimeError: If any critical protection fails.
+    """
+    status = activate_memory_guard(
+        warn_on_failure=False,
+        raise_mlock=raise_mlock,
+        set_oom_protect=set_oom_protect,
+    )
+
+    # Determine which protections are critical for this platform
+    failures = []
+
+    if _system == "Windows":
+        # On Windows, VirtualLock is per-buffer (no mlockall equivalent)
+        # Core dump suppression is the critical protection
+        if not status.get("no_coredump", False):
+            failures.append("core dump disabling")
+    else:
+        # Unix: mlockall and core dump disabling are critical
+        if not status.get("mlockall", False):
+            failures.append("mlockall (memory may be swapped to disk)")
+        if not status.get("no_coredump", False):
+            failures.append("core dump disabling")
+        if _system == "Linux" and not status.get("no_ptrace", False):
+            failures.append("ptrace prevention (PR_SET_DUMPABLE)")
+
+    if failures:
+        raise RuntimeError(
+            f"Memory guard activation failed (fail-closed). "
+            f"Failed protections: {', '.join(failures)}. "
+            f"Run with CAP_IPC_LOCK or as root, or use activate_memory_guard() "
+            f"for warn-only mode."
+        )
+
     return status
 
 

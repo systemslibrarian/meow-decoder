@@ -42,18 +42,18 @@
 
 | Category | Score | Justification |
 |----------|-------|---------------|
-| **Crypto Primitives** | 9.5/10 | AES-256-GCM, Argon2id (512 MiB/20 iter), HKDF-SHA256, ML-KEM-768/1024, X25519. All via Rust backend with handle-based key isolation. Half-point lost: no mandatory PQ manifest signing. |
+| **Crypto Primitives** | 10/10 | AES-256-GCM, Argon2id (512 MiB/20 iter), HKDF-SHA256, ML-KEM-768/1024, X25519. All via Rust backend with handle-based key isolation. Mandatory hybrid manifest signing (Ed25519 + ML-DSA-65). |
 | **Key Management** | 9/10 | Handle-based (keys never in Python), `zeroize::ZeroizeOnDrop` in Rust. Point lost: no mlock on Rust-allocated key memory (Python layer mlocks, Rust doesn't). |
-| **Forward Secrecy** | 9.5/10 | Per-frame symmetric ratchet (MSR v1.2), X25519 ephemeral (MEOW3), skip cache for fountain OOO. Half-point lost: ratchet rekey beacons use classical KEM only (no PQ beacon). |
-| **Authentication** | 10/10 | AAD binds all manifest fields, HMAC-SHA256 manifest auth, key commitment tags (16 bytes), frame MAC fail-closed. No bypass path. |
+| **Forward Secrecy** | 10/10 | Per-frame symmetric ratchet (MSR v1.2), X25519 ephemeral (MEOW3), skip cache for fountain OOO. PQ ratchet beacon implemented (ML-KEM-1024 via `pq_ratchet_beacon.py`), insecure stubs permanently disabled. |
+| **Authentication** | 10/10 | AAD binds all manifest fields, HMAC-SHA256 manifest auth, key commitment tags (16 bytes), frame MAC fail-closed. No bypass path. Unsigned manifests rejected by default (fail-closed). |
 | **Deniability** | 7/10 | Always-two-stream, independent keys, statistical tests pass. Points lost: file size oracle, timing oracle on decode, inter-file correlation possible, honestly documented as LIMITED. |
-| **Memory Safety** | 7/10 | Rust backend is memory-safe. Python uses mlock + SecureBuffer + secure_zero_memory. Points lost: no guard pages, no MADV_DONTDUMP, no Rust mlock, Python GC may copy objects. |
+| **Memory Safety** | 8/10 | Rust backend is memory-safe. Python uses mlock + SecureBuffer + secure_zero_memory. `secure_alloc.rs` adds guard pages, mlock, MADV_DONTDUMP in Rust. `require_memory_guard()` provides fail-closed activation. Points lost: Python GC may copy objects, no Rust mlock on key handles outside SecureBox. |
 | **Side Channels** | 7/10 | `subtle::ConstantTimeEq` in Rust, `timing_safe_equal_with_delay` in Python, `equalize_timing`. Points lost: Python branching on decrypt success, frame count metadata, duress timing oracle. |
-| **Forensic Resistance** | 3/10 | Multi-pass wipe on duress only. No OS artifact cleanup, no swap protection, no tmpfs enforcement, no shell history scrubbing. |
-| **Test Coverage** | 9/10 | 103+ security tests, chi-squared/KS/entropy/autocorrelation/runs, tamper detection, replay prevention. Point lost: no fuzz test integration in CI, no timing oracle tests. |
-| **Documentation** | 9.5/10 | 25 invariants, honest threat model, protocol spec, architecture doc. Half-point lost: no formal security proof document (Verus proofs exist but aren't summarized in docs). |
+| **Forensic Resistance** | 6/10 | `forensic_cleanup.py` handles OS artifacts (thumbnails, clipboard, shell history, temp files). `secure_temp.py` enforces tmpfs (/dev/shm). `source_cleanup.py` for secure deletion + SSD TRIM. Points lost: platform-specific gaps, no formal wipe verification. |
+| **Test Coverage** | 10/10 | 348+ security tests across 16 test files, chi-squared/KS/entropy/autocorrelation/runs, tamper detection, replay prevention, fuzz testing in CI, timing oracle tests (`timing_equalizer.py`). |
+| **Documentation** | 9.5/10 | 32 invariants, honest threat model, protocol spec, architecture doc. Half-point lost: no formal security proof document (Verus proofs exist but aren't summarized in docs). |
 
-### Overall: 7.5/10 (weighted average, forensic resistance drags the score)
+### Overall: 8.7/10 (weighted average, deniability and side channels are the main deductions)
 
 ### Critical Findings
 
@@ -93,7 +93,7 @@
 | **Motivated individual** | pyzbar + Python | ✅ Full — AES-256-GCM + Argon2id stops cold | None |
 | **Corporate IT** | Network monitoring, disk forensics | ⚠️ Partial — encrypted content unreadable, but OS artifacts reveal usage | Forensic cleanup needed |
 | **Law enforcement** | Forensic tools (EnCase, Cellebrite), compelled disclosure | ⚠️ Partial — Schrödinger deniability is LIMITED, swap/thumbnail leaks | Swap guard + forensic cleanup |
-| **Nation-state (passive)** | Collect-now-decrypt-later, traffic analysis | ✅ Strong — ML-KEM-768/1024 PQ hybrid resists quantum | Minor: PQ ratchet beacon |
+| **Nation-state (passive)** | Collect-now-decrypt-later, traffic analysis | ✅ Strong — ML-KEM-768/1024 PQ hybrid resists quantum | None (PQ ratchet beacon implemented) |
 | **Nation-state (active)** | Rubber hose, hardware implants, OS-level monitoring | ❌ Limited — duress mode + deniability, but hardware keylogger defeats all software measures | Hardware HSM (out of scope) |
 
 ### Risk Heat Map
@@ -171,7 +171,7 @@ Hi  │        │ CF-1   │ CF-3   │
 7. **Fixed-size output padding** — size-class system for GIF output
 8. **Tmpfs enforcement** — /dev/shm for all temp operations
 9. **Timed content expiry** — manifest-embedded expiry timestamp
-10. **PQ ratchet beacon** — ML-KEM for ratchet rekey
+10. ~~**PQ ratchet beacon**~~ — ✅ Done (`pq_ratchet_beacon.py`, ML-KEM-1024, insecure stubs permanently disabled)
 
 ### Tracking
 

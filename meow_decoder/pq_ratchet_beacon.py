@@ -82,7 +82,7 @@ _OQS_AVAILABLE = False
 try:
     import oqs  # type: ignore[import-not-found]
     _OQS_AVAILABLE = "Kyber1024" in oqs.get_enabled_kem_mechanisms()
-except ImportError:
+except (ImportError, AttributeError):
     pass
 
 
@@ -136,19 +136,10 @@ def _mlkem1024_encapsulate(pk: bytes) -> Tuple[bytes, bytes]:
             ct, ss = kem.encap_secret(pk)
         return ct, ss
 
-    if not _ALLOW_INSECURE_STUBS:
-        raise RuntimeError(
-            "No ML-KEM-1024 implementation available. Refusing insecure stub outside test mode."
-        )
-
-    # Fallback: stub encapsulation (NOT SECURE)
-    # Use random nonce, derive ss deterministically from pk + nonce
-    nonce = secrets.token_bytes(32)
-    ss = hashlib.sha256(b"mlkem1024_ss_stub" + pk[:32] + nonce).digest()
-    # Embed nonce in ciphertext for decapsulation
-    ct_body = hashlib.sha256(b"mlkem1024_ct_stub" + nonce).digest() * 48
-    ct = nonce + ct_body[:MLKEM1024_CIPHERTEXT_SIZE - 32]
-    return ct[:MLKEM1024_CIPHERTEXT_SIZE], ss
+    raise RuntimeError(
+        "No secure ML-KEM-1024 implementation available (Rust, ml-kem, or OQS). "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def _mlkem1024_decapsulate(sk: bytes, ct: bytes) -> bytes:
@@ -167,16 +158,10 @@ def _mlkem1024_decapsulate(sk: bytes, ct: bytes) -> bytes:
             kem._secret_key = sk
             return kem.decap_secret(ct)
 
-    if not _ALLOW_INSECURE_STUBS:
-        raise RuntimeError(
-            "No ML-KEM-1024 implementation available. Refusing insecure stub outside test mode."
-        )
-
-    # Fallback: stub decapsulation (NOT SECURE)
-    # Extract nonce from ciphertext, derive ss using same formula as encapsulate
-    # pk[:32] == sk[:32] for stub keys (set in keygen)
-    nonce = ct[:32]
-    return hashlib.sha256(b"mlkem1024_ss_stub" + sk[:32] + nonce).digest()
+    raise RuntimeError(
+        "No secure ML-KEM-1024 implementation available (Rust, ml-kem, or OQS). "
+        "Insecure stubs are permanently disabled."
+    )
 
 
 def generate_beacon_keypair() -> PQBeaconKeyPair:

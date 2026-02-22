@@ -325,6 +325,23 @@ ZEROIZE(ephemeral_private, raw_shared)
 - Uses X25519 ephemeral key exchange per beacon (fresh keypair each time)
 - Requires receiver to have X25519 keypair (standard in MEOW3/4)
 
+**Mode C: PQ KEM Beacon (MEOW5 with ML-KEM-1024)**
+
+```
+(pk_receiver, sk_receiver) = ML-KEM-1024.KeyGen()     // Receiver generates ahead of time
+(ct, shared_secret)        = ML-KEM-1024.Encaps(pk_receiver)
+beacon_secret              = HKDF(shared_secret, "", "meow_pq_beacon_mix_v1", 32)
+beacon_data                = ct                         // 1568 bytes in frame header
+ZEROIZE(shared_secret)
+```
+
+- **Post-quantum PCS**: Resists harvest-now-decrypt-later even for ratchet beacons
+- Uses ML-KEM-1024 (NIST FIPS 203, Level 5 security) via `pq_ratchet_beacon.py`
+- **Fail-closed**: Insecure stubs permanently disabled — `RuntimeError` raised if no real ML-KEM backend (Rust, ml-kem, or OQS) is available
+- Larger beacon overhead: 1568 bytes per beacon frame (vs 32 bytes for Mode B)
+- Requires receiver to have ML-KEM-1024 keypair
+- **Note**: PQ beacons are implemented but not auto-integrated into the default ratchet path. Use `PQRatchetBeacon` class directly when PQ post-compromise security is needed.
+
 ### 7.4 Beacon Frame Layout
 
 ```

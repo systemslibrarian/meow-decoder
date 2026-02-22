@@ -312,9 +312,13 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
             raise ValueError(
                 f"Inconsistent data length: {len(share.data)} vs {data_len}"
             )
-        if share.set_id != set_id and set_id != b"\x00" * 16 and share.set_id != b"\x00" * 16:
+        if share.set_id != set_id:
+            # Reject mismatched set IDs unconditionally — including all-zero
+            # (legacy v1) shares. Mixing unauthenticated v1 shares with v2
+            # shares would bypass set_id authentication entirely.
             raise ValueError(
-                f"Inconsistent share set ID: shares belong to different splits"
+                f"Inconsistent share set ID: shares belong to different splits. "
+                f"All shares must originate from the same split operation."
             )
 
     # Use only the first `threshold` shares (all that's needed)

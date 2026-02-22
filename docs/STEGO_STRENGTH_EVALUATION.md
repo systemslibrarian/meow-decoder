@@ -1,7 +1,7 @@
 # Multi-Layer Steganography System — Strength Evaluation
 
-**Version:** 1.0.1
-**Date:** 2026-02-21
+**Version:** 1.0.0
+**Date:** 2026-02-22
 **Scope:** Comparative analysis of Meow Decoder's multi-layer steganography vs OpenStego, Steghide, OpenPuff, and StegX
 **Classification:** Internal review — no external audit
 

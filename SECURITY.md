@@ -1,8 +1,8 @@
 # 🛡️ Security Policy — The Cat's Claw Defense Manual
 
 **Project:** Meow Decoder
-**Version:** 1.0
-**Last Updated:** 2026-02-14
+**Version:** 1.0.0
+**Last Updated:** 2026-02-22
 
 > *"A cat always lands on its feet — and always verifies its HMAC."*
 

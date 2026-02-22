@@ -537,8 +537,8 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 
 For full details: [Architecture Documentation](docs/ARCHITECTURE.md)
 
-⚠️ **Manifest signing policy:** Signing is **strongly recommended** and enabled by default when supported, but not strictly enforced for compatibility paths.
-Unsigned manifests are vulnerable to manifest forgery attacks. **Always enable signing for production/high-risk use.**
+⚠️ **Manifest signing policy:** Signing is **mandatory** by default. Unsigned manifests are **rejected** (fail-closed).
+To accept legacy unsigned manifests, set `MEOW_MANIFEST_SIGNING=off` at your own risk. **Always use signing for production/high-risk use.**
 
 ---
 

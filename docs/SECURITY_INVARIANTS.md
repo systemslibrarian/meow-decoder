@@ -216,20 +216,23 @@ backend == "rust"
 IF manifest signature is present:
     decoder MUST verify it and reject on failure
 
-IF manifest signature is absent:
-    decoder MAY continue for compatibility,
-    but MUST emit a prominent unsigned-manifest warning
+IF manifest signature is absent AND signing is enabled (default):
+    decoder MUST reject with ValueError (fail-closed)
+
+IF manifest signature is absent AND signing is explicitly disabled
+    (MEOW_MANIFEST_SIGNING=off):
+    decoder MAY continue, but MUST emit a prominent
+    unsigned-manifest warning to stderr
 ```
 
-**Description:** Signature verification is strict when signature metadata is present (fail-closed on tampering). For backward compatibility (legacy or transport-limited streams), unsigned manifests are accepted with explicit operator warning.
+**Description:** Signature verification is mandatory by default (fail-closed). Unsigned manifests are rejected unless the operator explicitly disables signing via `MEOW_MANIFEST_SIGNING=off` for legacy compatibility. When signing is disabled, unsigned manifests are accepted with an explicit stderr warning.
 
-**Critical Warning:** Unsigned manifests are vulnerable to manifest forgery attacks and are not appropriate for high-threat production use.
+**Critical Warning:** Disabling signing (`MEOW_MANIFEST_SIGNING=off`) removes manifest forgery protection. Only use for legacy/transport-limited streams where re-encoding is not possible.
 
 **Verification:**
-- `tests/test_decode_gif.py::test_decode_gif_unsigned_manifest_warns_but_succeeds`
+- `tests/test_security_hardening.py::test_decoder_rejects_unsigned_manifest_when_signing_enabled`
 - `tests/test_decode_gif.py::test_decode_gif_signed_manifest_verifies`
 - `tests/test_decode_gif.py::test_decode_gif_tampered_signature_rejected`
-- `tests/test_decode_gif.py::test_decode_gif_legacy_unsigned_warns_and_succeeds`
 
 **Failure Impact:** Silent acceptance of forged metadata or unsafe operator assumptions in coercive/adversarial environments.
 

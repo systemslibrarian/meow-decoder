@@ -417,8 +417,8 @@ def cat_tqdm(iterable=None, desc=None, total=None, **kwargs):
 
 ASCII_CATS = {
     "basic": r"""
- /_/\  
-( o.o ) 
+ /_/\
+( o.o )
  > ^ <   Meow Decoder v4.0 - Quantum Nine Lives Edition
 """,
     "ninja": r"""
@@ -430,8 +430,8 @@ ASCII_CATS = {
     |     |
 """,
     "fluffy": r"""
-    /\_/\  
-   ( o.o )  
+    /\_/\
+   ( o.o )
   > ^   ^ <
    /|   |\   FLUFFY MODE: Maximum Comfort, Maximum Security
   (_|   |_)
@@ -453,7 +453,7 @@ VOID CAT: All evidence consumed.
     "quantum": r"""
     |\___/|
     ) • • (     |ψ⟩ = α|😺⟩ + β|😼⟩
-   =\  Y  /=    
+   =\  Y  /=
     )-^-(       Quantum Nine Lives ACTIVATED
    /     \      (Schrödinger approved ✓)
 """,
@@ -817,9 +817,9 @@ def meow_about() -> str:
         # Try to get version from package
         import meow_decoder
 
-        version = getattr(meow_decoder, "__version__", "5.9.0")
+        version = getattr(meow_decoder, "__version__", "1.0.0")
     except Exception:
-        version = "5.9.0"
+        version = "1.0.0"
 
     # Detect backend
     try:
@@ -856,7 +856,7 @@ def meow_about() -> str:
 
     # Build the about string
     about_text = f"""
-    
+
         　　　　　／＞　　フ
         　　　　| 　_　 _ l
         　　　／` ミ＿xノ
@@ -866,7 +866,7 @@ def meow_about() -> str:
         　　／￣|　　|　|　|　＼
         　　| (￣ヽ＿_ヽ_)__)
         　　＼二つ
-    
+
 ╔═══════════════════════════════════════════════════════╗
 ║          🐱 MEOW DECODER - ABOUT                      ║
 ╚═══════════════════════════════════════════════════════╝

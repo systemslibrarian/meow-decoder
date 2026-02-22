@@ -33,8 +33,8 @@ This section is the **authoritative threat model** for the v1.0 internally-revie
 - Records all GIF/QR traffic for future quantum decryption.
 - Stores encrypted payloads indefinitely (decades).
 - Assumes fault-tolerant quantum computer in 10-30 years.
-- **Mitigation:** ML-KEM-768 + X25519 PQXDH hybrid (default), ML-KEM-1024 + X25519 available as --paranoid mode.
-- **Status:** ✅ PROTECTED if `--pq` or default config used.
+- **Mitigation:** ML-KEM-768 + X25519 PQXDH hybrid (requires `--pq` flag), ML-KEM-1024 + X25519 available as --paranoid mode.
+- **Status:** ✅ PROTECTED **only** when `--pq` flag is explicitly used. Default config (MEOW3) uses X25519 only (classical, vulnerable to quantum harvest).
 
 **🔬 Side-Channel Adversary (Cache/Timing)**
 - Measures CPU cache timing during crypto operations.
@@ -196,7 +196,7 @@ exiftool -all= innocent_cats.gif
 | Side-channel resistance (power, EM, cache) | ⚠️ Random delays |
 | Hardware security module integration | ✅ TPM/YubiKey support |
 | Secure element / TEE support | ⭕ Planned |
-| Post-quantum crypto (production-ready) | ✅ ML-KEM-768 (default) / ML-KEM-1024 (paranoid) + Dilithium3 |
+| Post-quantum crypto (production-ready) | ✅ ML-KEM-768 (`--pq` flag) / ML-KEM-1024 (`--paranoid`) + Dilithium3 — **not default; requires explicit opt-in** |
 | Zero-knowledge proofs for deniability | ⚠️ Schrödinger mode |
 
 **However:** The *cryptographic primitives* we use (AES-256-GCM, Argon2id, X25519, ML-KEM-768/1024, Dilithium3) are state-of-the-art. Rust backend provides constant-time operations.
@@ -820,7 +820,7 @@ Already enabled out of the box:
 - ✅ Frame MAC authentication
 - ✅ Metadata padding
 - ✅ Rust crypto backend (constant-time via `subtle`, zeroing via `zeroize`)
-- ✅ Post-quantum crypto (ML-KEM-768 default / ML-KEM-1024 paranoid when liboqs installed)
+- ✅ Post-quantum crypto (ML-KEM-768 via `--pq` / ML-KEM-1024 via `--paranoid` — requires explicit flag, not default)
 
 ### Level 2: Enhanced Security
 For even higher security (if you have the hardware):
@@ -949,7 +949,7 @@ For Meow Decoder to provide its stated security, these must be true:
 - [x] YubiKey PIV/FIDO2 support — CLI-wired via `--yubikey`
 - [x] TPM 2.0 binding — CLI-wired via `--tpm-derive`
 - [x] WebAuthn browser prototype (`examples/webauthn-hardware.js`)
-- [x] Post-quantum ML-KEM-768 (default) / ML-KEM-1024 (paranoid) via Rust backend
+- [x] Post-quantum ML-KEM-768 (via `--pq`) / ML-KEM-1024 (via `--paranoid`) via Rust backend
 - [x] Opaque handle migration (M1–M9): Python never holds raw secret key bytes
 - [x] cargo-fuzz + property test suite for Rust crypto
 

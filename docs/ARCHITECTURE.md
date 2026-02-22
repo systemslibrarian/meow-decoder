@@ -1,7 +1,7 @@
 # 🏗️ Meow Decoder - Architecture Documentation
 
-**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
-**Date:** 2026-02-17
+**Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
+**Date:** 2026-02-22
 **Status:** Production
 
 ---
@@ -1123,6 +1123,6 @@ The multi-layer stego system (`stego_multilayer.py`) underwent a comprehensive 4
 
 ---
 
-**Last Updated:** 2026-02-20
-**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
+**Last Updated:** 2026-02-22
+**Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
 **Status:** Production

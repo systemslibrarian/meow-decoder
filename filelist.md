@@ -332,12 +332,15 @@ meow-shamir combine -i share_*_1of3.meow share_*_2of3.meow -o recovered.gif
 **Key Features:**
 - Windows: VirtualLock + VirtualProtect
 - Unix: mlock + mprotect
-- Fail-closed helper: `require_locked_buffer()`
+- Fail-closed per-buffer: `require_locked_buffer()`
+- Fail-closed process-wide: `require_memory_guard()`
+- Warn-only process-wide: `activate_memory_guard()`
 - Secure memory wiping
 
 **Tests:**
 - `tests/test_memory_guard.py`
 - `tests/test_security_hardening.py::test_memory_lock_helper_fail_closed`
+- `tests/test_security_hardening.py::test_require_memory_guard_exists_and_fail_closed`
 
 ---
 

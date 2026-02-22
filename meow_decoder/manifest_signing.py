@@ -102,7 +102,7 @@ _OQS_SIG_AVAILABLE = False
 try:
     import oqs  # type: ignore[import-not-found]
     _OQS_SIG_AVAILABLE = "Dilithium3" in oqs.get_enabled_sig_mechanisms()
-except ImportError:
+except (ImportError, AttributeError):
     pass
 
 

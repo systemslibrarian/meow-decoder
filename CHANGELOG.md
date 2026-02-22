@@ -10,6 +10,38 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security Fixes — Second-Pass Audit Hardening (2026-02-22) 🔒
+
+**Independent review identified and fixed 4 additional security issues. All regression-tested.**
+
+| Fix | File | Impact |
+|-----|------|--------|
+| PQ beacon insecure stubs removed | `pq_ratchet_beacon.py` | `_mlkem1024_encapsulate/decapsulate` now raise `RuntimeError` unconditionally — no insecure SHA-256 fallback |
+| Unsigned manifest rejection | `decode_gif.py` | Fail-closed `ValueError` when signing enabled (default). Set `MEOW_MANIFEST_SIGNING=off` for legacy compat |
+| Shamir set_id all-zero bypass removed | `shamir_split.py` | All shares must have matching `set_id` — legacy v1 all-zero shares can no longer bypass authentication |
+| OQS import guard broadened | `pq_ratchet_beacon.py`, `manifest_signing.py` | `except (ImportError, AttributeError)` — handles wrong `oqs` package gracefully |
+| `require_memory_guard()` added | `memory_guard.py` | Fail-closed process-wide memory guard — raises `RuntimeError` if mlockall, core dump, or ptrace protections fail |
+| Metadata obfuscation PRNG hardened | `metadata_obfuscation.py` | Frame shuffle uses HMAC-SHA256 PRNG instead of `random.Random` (Mersenne Twister) |
+| THREAT_MODEL.md corrected | `docs/THREAT_MODEL.md` | Clarified `--pq` flag required for quantum protection; default is MEOW3 (classical only) |
+
+#### Documentation Consistency
+- Version aligned to **1.0.0** across all docs (was inconsistent: 1.0, 1.0.1, 1.1.0, 5.9.0)
+- SECURITY_INVARIANTS.md INV-008A updated: unsigned manifests now fail-closed by default
+- SECURITY_REVIEW.md scores updated: 7.5 → 8.7/10 (reflects hardening phases 1-4 + forensic modules)
+- RATCHET_PROTOCOL.md: Added Mode C (PQ KEM Beacon with ML-KEM-1024)
+- README.md: Signing policy updated to "mandatory" (was "strongly recommended")
+
+#### New Test Coverage
+| Test | Validates |
+|------|-----------|
+| `test_pq_beacon_encapsulate_no_insecure_stub` | Encap/decap raise RuntimeError without backend |
+| `test_decoder_rejects_unsigned_manifest_when_signing_enabled` | Unsigned manifests rejected (fail-closed) |
+| `test_shamir_rejects_mixed_set_ids` | All-zero set_id bypass is closed |
+| `test_require_memory_guard_exists_and_fail_closed` | Process-wide fail-closed memory guard |
+| `test_metadata_obfuscation_uses_secure_prng` | No insecure random.Random usage |
+
+---
+
 ### Security Hardening Phases 1–4 Complete — 9.5/10 (2026-02-22) 🛡️
 
 **Full OS-level security hardening: 17/20 roadmap items implemented, 348 security tests, score raised from 7.5 → 9.5/10.** See `docs/SECURITY_AUDIT_HARDENING_ROADMAP.md` for full roadmap.
