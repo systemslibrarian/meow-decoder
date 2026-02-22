@@ -736,7 +736,7 @@ meow-encode --help | grep shamir
 
 - **Python Modules:** ~60 files in `meow_decoder/`
 - **Rust Crates:** 1 workspace with `crypto_core/`
-- **Tests:** ~30 test files in `tests/`
+- **Tests:** ~83 test files in `tests/`
 - **Examples:** ~10 demo files in `examples/`
 - **Documentation:** ~15 docs in `docs/`
 - **Build Files:** Makefile, Dockerfile, pyproject.toml, Cargo.toml, etc.

@@ -118,7 +118,7 @@ MAX_SKIP_KEYS = 2000
 REKEY_BEACON_INFO = b"meow_ratchet_rekey_v1"
 REKEY_BEACON_KEM_INFO = b"meow_ratchet_kem_v1"
 REKEY_BEACON_SIZE = 32  # X25519 public key or random entropy
-DEFAULT_REKEY_INTERVAL = 0  # 0 = disabled; recommended: 32
+DEFAULT_REKEY_INTERVAL = 32  # frames between asymmetric rekey beacons
 
 # ── PQ Ratchet Beacon Constants ──────────────────────────────────────────────
 # ML-KEM-1024 post-quantum beacon: at rekey frames, if a PQ public key is
@@ -248,45 +248,9 @@ def _mix_pq_beacon_handle(message_key_handle: int, pq_shared_secret: bytes, salt
     return hb.mix_hkdf(message_key_handle, pq_shared_secret, salt, PQ_BEACON_MIX_INFO, 32)
 
 
-def _generate_kem_beacon(receiver_public_key: bytes) -> Tuple[int, bytes]:
-    """Generate X25519 KEM rekey beacon.
-
-    Returns:
-        (shared_secret_handle, ephemeral_public_bytes) — shared_secret
-        is an opaque Rust handle (never materialized in Python);
-        ephemeral_public is embedded in the frame.
-    """
-    hb = get_handle_backend()
-    eph_handle, ephemeral_public_bytes = hb.x25519_generate_keypair()
-    shared_handle = hb.x25519_exchange(eph_handle, receiver_public_key)
-    # Domain-separated KDF — returns handle, secret stays in Rust
-    shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
-    hb.drop(eph_handle)
-    hb.drop(shared_handle)
-    return shared_secret_handle, ephemeral_public_bytes
-
-
-def _recover_kem_beacon(ephemeral_public_bytes: bytes, receiver_private_key: Union[bytes, int]) -> int:
-    """Recover shared secret from X25519 KEM rekey beacon.
-
-    Args:
-        ephemeral_public_bytes: 32-byte ephemeral public key from frame header
-        receiver_private_key: Receiver's X25519 private key (bytes or handle)
-
-    Returns:
-        Handle to 32-byte shared secret (opaque, never in Python)
-    """
-    hb = get_handle_backend()
-    priv_handle, cleanup = _ensure_handle(receiver_private_key)
-    try:
-        shared_handle = hb.x25519_exchange(priv_handle, ephemeral_public_bytes)
-        # Domain-separated KDF — returns handle, secret stays in Rust
-        shared_secret_handle = hb.derive_key_hkdf(shared_handle, b"", REKEY_BEACON_KEM_INFO, 32)
-        hb.drop(shared_handle)
-        return shared_secret_handle
-    finally:
-        if cleanup:
-            hb.drop(priv_handle)
+# NOTE: Legacy _generate_kem_beacon / _recover_kem_beacon removed.
+# Superseded by _generate_asym_rekey / _recover_asym_rekey (MSR v2.0)
+# which perform full root-key rotation via ECDH, providing actual PCS.
 
 
 # ── Asymmetric Entropy Reinjection (MSR v2.0) ───────────────────────────────

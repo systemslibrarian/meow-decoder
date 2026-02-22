@@ -195,7 +195,7 @@ All tasks tracked in [SECURITY_AUDIT_HARDENING_ROADMAP.md](SECURITY_AUDIT_HARDEN
 | `meow_decoder/quantum_mixer.py` | 75 | Stream interleaving primitives |
 | `meow_decoder/decoy_generator.py` | 198 | Fake content generation |
 | `crypto_core/src/pure_crypto.rs` | 1256 | Rust crypto implementation |
-| `crypto_core/src/verus_proofs.rs` | ~400 | Formal verification proofs |
+| `crypto_core/src/verus_proofs.rs` | ~400 | Formal verification proof stubs (not yet machine-checked) |
 | `docs/THREAT_MODEL.md` | 982 | Threat model with honest limitations |
 | `docs/SECURITY_INVARIANTS.md` | 641 | 25 security invariants |
 | `docs/PROTOCOL.md` | 345 | Wire protocol specification |

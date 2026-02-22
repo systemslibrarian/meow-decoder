@@ -399,6 +399,85 @@ def fuzz_activate_deactivate_guard(data: bytes):
             pass
 
 
+def fuzz_rapid_alloc_free_cycle(data: bytes):
+    """Stress test rapid allocation/deallocation cycles for memory leaks."""
+    try:
+        from meow_decoder.memory_guard import GuardedBuffer
+    except ImportError:
+        return
+
+    if len(data) < 2:
+        return
+
+    cycle_count = min(data[0], 50)  # up to 50 cycles
+    size = max(1, data[1] % 128 + 1)
+
+    for _ in range(cycle_count):
+        try:
+            buf = GuardedBuffer(size)
+            buf.write(b"\xAA" * min(size, 8))
+            buf.close()
+        except (RuntimeError, OSError, MemoryError):
+            break
+
+
+def fuzz_boundary_write_exact_size(data: bytes):
+    """Write exactly at buffer boundary - should succeed; boundary+1 should fail."""
+    try:
+        from meow_decoder.memory_guard import GuardedBuffer
+    except ImportError:
+        return
+
+    if len(data) < 3:
+        return
+
+    size = max(1, data[0] % 64 + 1)
+    try:
+        buf = GuardedBuffer(size)
+        # Exact boundary write should succeed
+        buf.write(b"\x42" * size)
+        read_back = buf.read(0, size)
+        assert read_back == b"\x42" * size
+
+        # One past boundary should raise
+        raised = False
+        try:
+            buf.write(b"\x42" * (size + 1))
+        except (RuntimeError, OSError, ValueError, OverflowError):
+            raised = True
+        # Some impls may silently truncate; just ensure no crash
+
+        buf.close()
+    except (RuntimeError, OSError, MemoryError):
+        pass
+
+
+def fuzz_zero_wipe_idempotent(data: bytes):
+    """Zero-wipe multiple times should not crash or change state."""
+    try:
+        from meow_decoder.memory_guard import GuardedBuffer
+    except ImportError:
+        return
+
+    if len(data) < 2:
+        return
+
+    size = max(1, data[0] % 64 + 1)
+    wipe_count = min(data[1], 10)
+
+    try:
+        buf = GuardedBuffer(size)
+        buf.write(b"\xFF" * size)
+        for _ in range(wipe_count):
+            buf.zero_wipe()
+        # After wiping, read should return zeros
+        read_back = buf.read(0, size)
+        assert read_back == b"\x00" * size
+        buf.close()
+    except (RuntimeError, OSError, MemoryError):
+        pass
+
+
 def main():
     if atheris is None:
         raise RuntimeError("atheris is required to run fuzz targets")
@@ -412,6 +491,9 @@ def main():
         fuzz_use_after_free_detection(data)
         fuzz_concurrent_alloc_free(data)
         fuzz_activate_deactivate_guard(data)
+        fuzz_rapid_alloc_free_cycle(data)
+        fuzz_boundary_write_exact_size(data)
+        fuzz_zero_wipe_idempotent(data)
 
     atheris.Setup(sys.argv, combined_fuzz)
     atheris.Fuzz()

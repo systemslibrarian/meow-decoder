@@ -453,7 +453,7 @@ attack surface, and security boundaries for these modes.
 
 ### Multi-Layer Steganography (`--multilayer-stego`) — Adversarial Review (2026-02-20)
 
-The multi-layer steganography system underwent a comprehensive adversarial security review. This section documents the updated threat posture after 8 bug fixes and 464 tests.
+The multi-layer steganography system underwent a comprehensive adversarial security review. This section documents the updated threat posture after 8 bug fixes and 268 stego tests.
 
 #### Channels and Detection Resistance
 

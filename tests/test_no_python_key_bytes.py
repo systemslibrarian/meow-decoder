@@ -668,24 +668,24 @@ class TestRatchetNoSharedSecretBytes:
             "(both IKM and salt as handles)"
         )
 
-    def test_generate_kem_beacon_returns_handle(self):
-        """_generate_kem_beacon must return (int_handle, bytes), not (bytes, bytes)."""
+    def test_generate_asym_rekey_returns_handle(self):
+        """_generate_asym_rekey must use handles, not bytes."""
         source = (PRODUCTION_ROOT / "ratchet.py").read_text(encoding="utf-8")
-        func_source = _extract_function_source(source, "_generate_kem_beacon")
-        assert func_source, "_generate_kem_beacon not found in ratchet.py"
+        func_source = _extract_function_source(source, "_generate_asym_rekey")
+        assert func_source, "_generate_asym_rekey not found in ratchet.py"
 
         assert "derive_key_hkdf_bytes" not in func_source, (
-            "_generate_kem_beacon must NOT call derive_key_hkdf_bytes"
+            "_generate_asym_rekey must NOT call derive_key_hkdf_bytes"
         )
 
-    def test_recover_kem_beacon_returns_handle(self):
-        """_recover_kem_beacon must return handle, not bytes."""
+    def test_recover_asym_rekey_returns_handle(self):
+        """_recover_asym_rekey must use handles, not bytes."""
         source = (PRODUCTION_ROOT / "ratchet.py").read_text(encoding="utf-8")
-        func_source = _extract_function_source(source, "_recover_kem_beacon")
-        assert func_source, "_recover_kem_beacon not found in ratchet.py"
+        func_source = _extract_function_source(source, "_recover_asym_rekey")
+        assert func_source, "_recover_asym_rekey not found in ratchet.py"
 
         assert "derive_key_hkdf_bytes" not in func_source, (
-            "_recover_kem_beacon must NOT call derive_key_hkdf_bytes"
+            "_recover_asym_rekey must NOT call derive_key_hkdf_bytes"
         )
 
 

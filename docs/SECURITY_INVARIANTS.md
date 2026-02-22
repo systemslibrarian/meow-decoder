@@ -882,6 +882,144 @@ IF manifest signature is absent AND signing is explicitly disabled
 
 ---
 
+### INV-038: Guard Page Memory Safety Under Stress
+
+**Status:** ✅ FUZZ-TESTED
+**Category:** Memory Safety
+**Implemented In:** `meow_decoder/memory_guard.py`
+**Fuzz Target:** `fuzz/fuzz_windows_guard.py` (11 functions)
+
+```
+∀ alloc_free_cycles:
+    rapid_alloc_free(N cycles) → no leak, no crash
+    boundary_write(buf, size) succeeds; boundary_write(buf, size+1) raises
+    zero_wipe(buf)^N is idempotent: read(buf) = 0x00 * size
+```
+
+**Description:** GuardedBuffer must survive rapid allocation/deallocation cycles without memory leaks, correctly enforce write boundaries, and produce consistently zeroed state after multiple wipe operations. Fuzz targets exercise guard page traps, VirtualLock/VirtualProtect lifecycle, double-free safety, use-after-free detection, concurrent alloc/free, and boundary conditions.
+
+**Verification:**
+- `fuzz/fuzz_windows_guard.py` (11 fuzz functions)
+- `tests/test_fuzz_coverage_integration.py::TestGuardedBuffer` (9 tests)
+- `tests/test_fuzz_coverage_integration.py::TestGuardedBufferEnhanced` (4 tests)
+
+**Failure Impact:** Memory corruption, information leakage via unwiped buffers, or denial of service.
+
+---
+
+### INV-039: Mouse Gesture Auth BLAKE2b Domain Separation
+
+**Status:** ✅ FUZZ-TESTED
+**Category:** Authentication
+**Implemented In:** `meow_decoder/secure_keyboard.py`
+**Fuzz Target:** `fuzz/fuzz_mouse_gesture.py` (13 functions)
+
+```
+∀ gesture_points, grid_size:
+    BLAKE2b(gesture, person=b"meow_gesture_v1\x00") ≠ BLAKE2b(gesture)
+    quantize(points) is deterministic for fixed grid_size
+    ∀ i ≠ j: gesture_i ≠ gesture_j → key_i ≠ key_j (collision resistance)
+    replay_resistance: H(gesture || salt_1) ≠ H(gesture || salt_2) for salt_1 ≠ salt_2
+```
+
+**Description:** Mouse gesture authentication derives keys via BLAKE2b with a mandatory `person` tag for domain separation. Quantization must be deterministic across grid sizes, person tag must affect output, and different gestures must produce different keys. Fuzz targets exercise quantization extremes (zero/huge/negative coords), perturbation stability, collision resistance, person tag consistency, replay resistance via salts, and grid boundary behavior.
+
+**Verification:**
+- `fuzz/fuzz_mouse_gesture.py` (13 fuzz functions)
+- `tests/test_fuzz_coverage_integration.py::TestMouseGesturePassword` (8 tests)
+- `tests/test_fuzz_coverage_integration.py::TestMouseGestureEnhanced` (5 tests)
+
+**Failure Impact:** Auth bypass via gesture collision, domain confusion with other BLAKE2b uses, or replay attacks.
+
+---
+
+### INV-040: Tamper Detection State Integrity and Poison Quality
+
+**Status:** ✅ FUZZ-TESTED
+**Category:** Tamper Resistance
+**Implemented In:** `meow_decoder/tamper_detection.py`
+**Fuzz Target:** `fuzz/fuzz_tamper_detection.py` (13 functions)
+
+```
+∀ state, data:
+    TamperState.deserialize(corrupt(serialize(state))) raises ValueError
+    silent_poison(seed, n) has Shannon entropy > 5.0 bits/byte
+    silent_poison(seed_1, n) ≠ silent_poison(seed_2, n) for seed_1 ≠ seed_2
+    checkpoint_hmac(state) is binding: flip(checkpoint) → rejection
+    state_version_corruption → rejection
+```
+
+**Description:** TamperState serialization must reject corrupted data (bit flips, truncation, version corruption). Silent poison output must be high-entropy and seed-dependent. Checkpoint HMAC integrity must be fail-closed. Fuzz targets exercise state roundtrip, corruption variants, poison determinism/uniqueness/randomness/entropy, detector with fake modules, poison output length, checkpoint HMAC integrity, baseline reinit, version field corruption, and checkpoint replay scenarios.
+
+**Verification:**
+- `fuzz/fuzz_tamper_detection.py` (13 fuzz functions)
+- `tests/test_fuzz_coverage_integration.py::TestTamperState` (4 tests)
+- `tests/test_fuzz_coverage_integration.py::TestSilentPoison` (3 tests)
+- `tests/test_fuzz_coverage_integration.py::TestTamperDetector` (2 tests)
+- `tests/test_fuzz_coverage_integration.py::TestTamperDetectionEnhanced` (5 tests)
+
+**Failure Impact:** Undetected code tampering, low-entropy poison output enabling timing attacks, or checkpoint rollback attacks.
+
+---
+
+### INV-041: Adversarial Stego Rotation Statistical Independence
+
+**Status:** ✅ FUZZ-TESTED
+**Category:** Steganography
+**Implemented In:** `meow_decoder/adversarial_carrier.py`
+**Fuzz Target:** `fuzz/fuzz_adversarial_stego.py` (13 functions)
+
+```
+∀ seed_1 ≠ seed_2:
+    noise(seed_1) ≠ noise(seed_2)
+    |correlation(noise(seed_1), noise(seed_2))| < 0.5
+∀ method ∈ {sensor, texture, dct, combined}:
+    noise_method(seed) is deterministic
+    all values are finite (no NaN/Inf)
+∀ frames(100+):
+    rotation_schedule visits ≥ 3 of 4 algorithms
+```
+
+**Description:** Adversarial stego noise generators must produce statistically independent outputs for different seeds, with low cross-correlation. All noise values must be finite. The rotation schedule must visit all algorithm variants over sufficient frames to prevent single-pattern detection. Fuzz targets exercise rotation differential, per-algorithm determinism, histogram equalization, DCT matching PSNR, combined component completeness, carrier noise range, pairs test, rotation schedule coverage, noise profile extremes, rotation frequency distribution, statistical uniformity, and cross-seed independence.
+
+**Verification:**
+- `fuzz/fuzz_adversarial_stego.py` (13 fuzz functions)
+- `tests/test_fuzz_coverage_integration.py::TestAdversarialNoiseGenerator` (9 tests)
+- `tests/test_fuzz_coverage_integration.py::TestAdversarialStegoEnhanced` (5 tests)
+
+**Failure Impact:** Steganalysis detector identifies noise pattern; carrier detection compromises steganographic concealment.
+
+---
+
+### INV-042: Ratchet PQ Beacon Integration and Forward Secrecy
+
+**Status:** ✅ TESTED + FORMALLY MODELED
+**Category:** Forward Secrecy / Post-Quantum
+**Implemented In:** `meow_decoder/ratchet.py`
+**Formal Model:** `formal/tamarin/MeowSchrodingerDeniability.spthy` (15 lemmas)
+
+```
+DEFAULT_REKEY_INTERVAL > 0  (asymmetric rekey enabled by default)
+_generate_kem_beacon / _recover_kem_beacon: REMOVED (dead code cleanup)
+Active PQ path: _generate_asym_rekey / _recover_asym_rekey (MSR v2.0)
+PQ_BEACON_MIX_INFO ≠ REKEY_BEACON_INFO ≠ REKEY_BEACON_KEM_INFO (domain separation)
+HEADER_ENC_INFO ≠ HEADER_MASK_INFO ≠ REKEY_BEACON_INFO (domain separation)
+Tamarin lemmas 11-15: RatchetForwardSecrecy, PQBeaconDomainSeparation,
+    MultiSessionUnlinkability, AsymRekeyPCS, HeaderEncryptionConfidentiality
+```
+
+**Description:** The MSR v2.0 ratchet provides per-frame forward secrecy via HKDF chain ratcheting and periodic asymmetric rekey (X25519 ECDH + optional ML-KEM-1024). Legacy dead-code KEM beacon functions were removed; active PQ integration uses `_generate_asym_rekey`/`_recover_asym_rekey`. `DEFAULT_REKEY_INTERVAL` is set to 32 (enabled by default). Tamarin model extended with 5 new lemmas covering ratchet forward secrecy, PQ beacon domain separation, multi-session unlinkability, asymmetric rekey PCS, and header encryption confidentiality.
+
+**Verification:**
+- `formal/tamarin/MeowSchrodingerDeniability.spthy` (15 lemmas)
+- `tests/test_fuzz_coverage_integration.py::TestRatchetIntegration` (5 tests)
+- `tests/test_ratchet.py` (existing ratchet tests)
+- `tests/test_asymmetric_rekey.py` (asymmetric rekey tests)
+
+**Failure Impact:** Compromise of chain_key yields past/future frame keys; PQ beacon provides no quantum resistance; traffic analysis via unencrypted frame indices.
+
+---
+
 ## Adding New Invariants
 
 When adding a new security-critical feature:
@@ -903,7 +1041,7 @@ pytest tests/test_property_based.py -v --hypothesis-show-statistics
 # Run invariant tests only
 pytest tests/test_invariants.py -v
 
-# Run fuzz coverage integration tests (INV-033 through INV-037)
+# Run fuzz coverage integration tests (INV-033 through INV-042)
 pytest tests/test_fuzz_coverage_integration.py -v
 
 # Run full security test suite

@@ -250,7 +250,7 @@ We thank the following security researchers — our **elite Catnip Hunters** �
    - 8 bugs fixed: AES-GCM nonce reuse (zero-nonce→`os.urandom(12)`), encryption fail-open→fail-closed, Python↔Rust seed derivation mismatch, STC algorithm rewrite (GF(2) Gaussian elimination), palette encode/decode NO-OPs, payload capacity fail-open, Fisher-Yates modulo bias
    - 80 adversarial tests (`tests/test_stego_adversarial.py`) + 17 Hypothesis fuzz tests (`tests/test_stego_fuzz.py`)
    - Static analysis clean: clippy 0 warnings, Bandit clean, flake8 0 errors
-   - 464 total tests passing (321 Rust + 126 Python + 17 fuzz)
+   - 3,056+ total tests passing (2,380 Python + 676 Rust)
    - Strength evaluation: `docs/STEGO_STRENGTH_EVALUATION.md` — rated strongest vs OpenStego, Steghide, OpenPuff
    - **Full audit (2026-02-20):** 43/43 artifacts PASS, 252 unit tests, 11 total bugs fixed (Sessions 1-4). See `docs/STEGO_AUDIT_REPORT.md`.
 

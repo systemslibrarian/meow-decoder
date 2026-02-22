@@ -310,6 +310,87 @@ else
 fi
 
 # ===========================================================================
+# 5b. StegExpose (Java statistical steganalysis suite)
+# ===========================================================================
+section "5b. StegExpose — multi-detector fusion (RS + chi² + sample pairs + primary sets)"
+echo "  StegExpose combines 4 detectors into a fusion score."
+echo "  Pass criteria: fusion score < 0.5 (below detection threshold)"
+echo ""
+
+STEGEXPOSE_JAR="${STEGEXPOSE_JAR:-stegexpose.jar}"
+if command -v java &>/dev/null && [[ -f "$STEGEXPOSE_JAR" ]]; then
+    SE_OUT=$(java -jar "$STEGEXPOSE_JAR" "$STEGO_DIR" 2>&1 || true)
+    echo "$SE_OUT" | head -20 | sed 's/^/  /'
+    echo ""
+
+    # Parse fusion score (StegExpose reports per-file: filename,score,...)
+    FUSION_SCORES=$(echo "$SE_OUT" | awk -F',' 'NF>1 && $2+0==$2 {print $2}')
+    if [[ -n "$FUSION_SCORES" ]]; then
+        MEAN_FUSION=$(echo "$FUSION_SCORES" | awk '{s+=$1; n++} END {if(n>0) printf "%.4f", s/n; else print "N/A"}')
+        echo "  Mean fusion score: $MEAN_FUSION"
+        if (( $(echo "$MEAN_FUSION < 0.3" | bc -l) )); then
+            result_pass "StegExpose: Mean fusion $MEAN_FUSION — well below detection threshold"
+        elif (( $(echo "$MEAN_FUSION < 0.5" | bc -l) )); then
+            result_warn "StegExpose: Mean fusion $MEAN_FUSION — marginal (threshold 0.5)"
+        else
+            result_fail "StegExpose: Mean fusion $MEAN_FUSION — DETECTED (above 0.5)"
+        fi
+    else
+        result_warn "StegExpose: Could not parse fusion scores from output"
+    fi
+else
+    if ! command -v java &>/dev/null; then
+        result_skip "Java not found — install JRE to run StegExpose"
+    else
+        result_skip "StegExpose JAR not found at $STEGEXPOSE_JAR (set STEGEXPOSE_JAR env var)"
+    fi
+fi
+
+# ===========================================================================
+# 5c. Aletheia (Python ML-based steganalysis)
+# ===========================================================================
+section "5c. Aletheia — ML-based steganalysis (SRM features + ensemble classifier)"
+echo "  Aletheia uses rich steganalysis models for LSB detection."
+echo "  Pass criteria: classification probability < 0.5 (below detection)"
+echo ""
+
+if command -v aletheia &>/dev/null; then
+    # Aletheia auto-detects stego method; we try LSB-based classifiers
+    ALETHEIA_OUT=""
+    for img_file in "$STEGO_DIR"/*.png "$STEGO_DIR"/*.bmp; do
+        [[ -f "$img_file" ]] || continue
+        RESULT=$(aletheia detect "$img_file" 2>&1 || true)
+        ALETHEIA_OUT="${ALETHEIA_OUT}${RESULT}\n"
+    done
+
+    if [[ -n "$ALETHEIA_OUT" ]]; then
+        echo -e "$ALETHEIA_OUT" | head -30 | sed 's/^/  /'
+        echo ""
+
+        # Check for detection verdicts
+        DETECTED_COUNT=$(echo -e "$ALETHEIA_OUT" | grep -ci "stego\|detected\|positive" || true)
+        CLEAN_COUNT=$(echo -e "$ALETHEIA_OUT" | grep -ci "clean\|cover\|negative" || true)
+        TOTAL_FILES=$(echo -e "$ALETHEIA_OUT" | grep -c "." || true)
+
+        echo "  Detected: $DETECTED_COUNT / Clean: $CLEAN_COUNT / Total: $TOTAL_FILES"
+        if [[ "$DETECTED_COUNT" -eq 0 ]]; then
+            result_pass "Aletheia: No stego detected — all files classified as clean"
+        elif [[ "$DETECTED_COUNT" -le 1 ]] && [[ "$TOTAL_FILES" -ge 3 ]]; then
+            result_warn "Aletheia: $DETECTED_COUNT/$TOTAL_FILES flagged — marginal"
+        else
+            result_fail "Aletheia: $DETECTED_COUNT/$TOTAL_FILES files flagged as stego"
+        fi
+    else
+        result_warn "Aletheia: No output produced (no compatible image files in $STEGO_DIR?)"
+    fi
+elif python3 -c "import aletheialib" 2>/dev/null; then
+    # Aletheia installed as Python library but not on PATH
+    result_warn "Aletheia library found but CLI not on PATH — run 'pip install aletheia'"
+else
+    result_skip "Aletheia not found — install with: pip install aletheia"
+fi
+
+# ===========================================================================
 # 6. Meow Decoder built-in validation (RS + Chi² + SPA + Entropy)
 # ===========================================================================
 section "6. Meow Decoder built-in steganalysis (validate_stego)"

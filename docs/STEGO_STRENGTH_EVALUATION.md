@@ -295,7 +295,7 @@ An adversary who obtains a shallow/decoy key cannot derive secondary or tertiary
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| Rust crypto tests (all modules) | 321+ | AES-GCM, HKDF, X25519, Argon2id, STC, timing, palette, signatures |
+| Rust crypto tests (all modules) | 676+ | AES-GCM, HKDF, X25519, Argon2id, STC, timing, palette, signatures |
 | Python adversarial tests | 126+ | Tamper detection, frame injection, replay, brute-force, side-channel |
 | Fuzz targets | 17+ | Manifest, crypto, fountain, stego |
 | Ratchet tests (MSR v1.2) | 142 unit + 23 E2E | Per-frame forward secrecy, out-of-order, rekey beacons |
@@ -328,7 +328,7 @@ An adversary who obtains a shallow/decoy key cannot derive secondary or tertiary
 > **43/43 artifacts PASS** across 5 carrier images (cat1-cat5), 200×150 APNG.
 > RS max=0.048 (threshold <0.3), Chi²=0.000 (threshold <0.3), SPA max=0.015 (threshold <0.15).
 > STC rate 1/4 reliable at ~1.0–1.1s encode (Viterbi trellis, Rust).
-> 252/252 unit tests PASS. 11 bugs found and fixed across 4 audit sessions.
+> 268/268 stego unit tests PASS. 11 bugs found and fixed across 4 audit sessions.
 > Full details: `docs/STEGO_AUDIT_REPORT.md`
 
 ### What Is NOT Tested

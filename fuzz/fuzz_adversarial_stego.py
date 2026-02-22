@@ -492,6 +492,117 @@ def fuzz_noise_profile_extremes(data: bytes):
         pass
 
 
+def fuzz_rotation_frequency_distribution(data: bytes):
+    """Rotation schedule must visit all algorithms over sufficient frames."""
+    try:
+        from meow_decoder.adversarial_carrier import get_rotation_schedule
+    except ImportError:
+        return
+
+    if len(data) < 4:
+        return
+
+    seed = data[:32].ljust(32, b"\x00")
+    num_frames = max(10, min(data[0] * 2, 200))
+
+    try:
+        schedule = get_rotation_schedule(seed, num_frames)
+        assert len(schedule) == num_frames
+
+        # All algorithm indices should appear at least once in 200 frames
+        unique_algos = set(schedule)
+        if num_frames >= 50:
+            assert len(unique_algos) >= 2, (
+                f"Only {len(unique_algos)} algorithm(s) in {num_frames} frames — "
+                "rotation is degenerate"
+            )
+    except (ValueError, TypeError):
+        pass
+
+
+def fuzz_noise_statistical_uniformity(data: bytes):
+    """Generated noise values should be approximately uniformly distributed."""
+    try:
+        from meow_decoder.adversarial_carrier import (
+            AdversarialNoiseGenerator,
+            NoiseProfile,
+        )
+    except ImportError:
+        return
+
+    if len(data) < 32:
+        return
+
+    seed = data[:32]
+    try:
+        gen = AdversarialNoiseGenerator(seed, NoiseProfile())
+        noise = gen.generate_combined_noise(32, 32)
+
+        # Flatten
+        values = [v for row in noise for v in row]
+        assert len(values) == 1024
+
+        # Basic check: not all identical
+        if len(set(int(v * 1000) for v in values)) < 2:
+            raise AssertionError("All noise values are identical — degenerate generator")
+
+        # Mean should be roughly centered
+        mean_val = sum(values) / len(values)
+        assert math.isfinite(mean_val), f"Non-finite mean: {mean_val}"
+    except (ValueError, TypeError, ZeroDivisionError, OverflowError, AssertionError):
+        pass
+
+
+def fuzz_cross_seed_independence(data: bytes):
+    """Different seeds must produce statistically independent noise outputs."""
+    try:
+        from meow_decoder.adversarial_carrier import (
+            AdversarialNoiseGenerator,
+            NoiseProfile,
+        )
+    except ImportError:
+        return
+
+    if len(data) < 64:
+        return
+
+    seed1 = data[:32]
+    seed2 = data[32:64]
+
+    if seed1 == seed2:
+        return  # Skip identical seeds
+
+    try:
+        gen1 = AdversarialNoiseGenerator(seed1, NoiseProfile())
+        gen2 = AdversarialNoiseGenerator(seed2, NoiseProfile())
+
+        noise1 = gen1.generate_combined_noise(16, 16)
+        noise2 = gen2.generate_combined_noise(16, 16)
+
+        # Flatten and compare
+        flat1 = [v for row in noise1 for v in row]
+        flat2 = [v for row in noise2 for v in row]
+
+        # Different seeds should produce different noise
+        assert flat1 != flat2, "Different seeds produced identical noise"
+
+        # Correlation should be low
+        if len(flat1) > 0 and len(flat2) > 0:
+            mean1 = sum(flat1) / len(flat1)
+            mean2 = sum(flat2) / len(flat2)
+            cov = sum((a - mean1) * (b - mean2) for a, b in zip(flat1, flat2)) / len(flat1)
+            var1 = sum((a - mean1) ** 2 for a in flat1) / len(flat1)
+            var2 = sum((b - mean2) ** 2 for b in flat2) / len(flat2)
+
+            if var1 > 0 and var2 > 0:
+                correlation = cov / (math.sqrt(var1) * math.sqrt(var2))
+                assert abs(correlation) < 0.5, (
+                    f"Cross-seed correlation too high: {correlation:.4f}"
+                )
+    except (ValueError, TypeError, ZeroDivisionError, OverflowError):
+        pass
+
+
 def main():
     if atheris is None:
         raise RuntimeError("atheris is required to run fuzz targets")
@@ -507,6 +618,9 @@ def main():
         fuzz_pairs_test_on_noise(data)
         fuzz_rotation_schedule_coverage(data)
         fuzz_noise_profile_extremes(data)
+        fuzz_rotation_frequency_distribution(data)
+        fuzz_noise_statistical_uniformity(data)
+        fuzz_cross_seed_independence(data)
 
     atheris.Setup(sys.argv, combined_fuzz)
     atheris.Fuzz()

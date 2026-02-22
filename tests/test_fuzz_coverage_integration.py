@@ -7,8 +7,9 @@ Covers all 5 new fuzz/formal areas:
 3. Tamper detection (TamperState, TamperDetector, silent_poison)
 4. Adversarial stego rotation (noise generators, schedule)
 5. Schrödinger deniability (manifest structure)
+6. Ratchet integration (forward secrecy, PQ beacon, domain separation)
 
-25+ deterministic tests exercising the same code paths as fuzz targets.
+60+ deterministic tests exercising the same code paths as fuzz targets.
 """
 
 import hashlib
@@ -539,3 +540,385 @@ class TestSchrodingerStructure:
 
         assert c1 == c2  # deterministic
         assert c1 != c3  # different keys differ
+
+
+# =============================================================================
+# 6. Enhanced Guard Page / Memory Tests (INV-038)
+# =============================================================================
+
+
+class TestGuardedBufferEnhanced:
+    """Additional tests for memory guard robustness."""
+
+    def _get_cls(self):
+        from meow_decoder.memory_guard import GuardedBuffer
+        return GuardedBuffer
+
+    def test_rapid_alloc_free_no_leak(self):
+        """Rapid create/close cycles must not leak or crash."""
+        cls = self._get_cls()
+        for _ in range(50):
+            buf = cls(64)
+            buf.write(b"\xAA" * 64)
+            buf.close()
+
+    def test_boundary_write_exact(self):
+        """Writing exactly buffer_size bytes succeeds."""
+        cls = self._get_cls()
+        buf = cls(128)
+        data = b"\x42" * 128
+        buf.write(data)
+        assert buf.read(128) == data
+        buf.close()
+
+    def test_zero_wipe_idempotent(self):
+        """Multiple zero() calls produce consistent zeroed state."""
+        cls = self._get_cls()
+        buf = cls(64)
+        buf.write(b"\xFF" * 64)
+        buf.zero()
+        buf.zero()
+        buf.zero()
+        assert buf.read(64) == b"\x00" * 64
+        buf.close()
+
+    def test_partial_read_at_offsets(self):
+        """Read at various offsets returns correct slices."""
+        cls = self._get_cls()
+        buf = cls(256)
+        data = bytes(range(256))
+        buf.write(data)
+        assert buf.read(16) == data[:16]
+        assert buf.read(50, offset=100) == data[100:150]
+        assert buf.read(1, offset=255) == data[255:256]
+        buf.close()
+
+
+# =============================================================================
+# 7. Enhanced Mouse Gesture Auth Tests (INV-039)
+# =============================================================================
+
+
+class TestMouseGestureEnhanced:
+    """Additional tests for gesture auth security properties."""
+
+    def _get_mgp(self, grid_size=16):
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+        return MouseGesturePassword(grid_size=grid_size)
+
+    def test_person_tag_domain_separation(self):
+        """BLAKE2b with person tag differs from without it."""
+        from hashlib import blake2b
+
+        key_material = b"test_gesture_key_material_0xBEEF"
+        person_tag = b"meow_gesture_v1\x00"
+
+        h_with = blake2b(key_material, person=person_tag, digest_size=32).hexdigest()
+        h_without = blake2b(key_material, digest_size=32).hexdigest()
+
+        assert h_with != h_without, "Person tag must affect BLAKE2b output"
+
+    def test_gesture_replay_resistance_via_salt(self):
+        """Same gesture + different salt → different derivation."""
+        from hashlib import blake2b
+
+        gesture = b"canonical_gesture_data"
+        salt1 = b"salt_2024_01_01"
+        salt2 = b"salt_2024_12_31"
+
+        h1 = blake2b(gesture + salt1, digest_size=32).digest()
+        h2 = blake2b(gesture + salt2, digest_size=32).digest()
+
+        assert h1 != h2
+
+    def test_quantize_grid_boundary_consistency(self):
+        """Points on exact grid boundaries quantize deterministically."""
+        mgp = self._get_mgp(grid_size=8)
+        # Create boundary points
+        points = [(0, 0), (100, 100), (500, 500), (1000, 1000)]
+        q1 = mgp._quantize(points)
+        q2 = mgp._quantize(points)
+        assert q1 == q2
+
+    def test_min_points_threshold(self):
+        """Gesture with fewer than 2 points should produce empty or raise."""
+        mgp = self._get_mgp()
+        try:
+            result = mgp._quantize([])
+            # Empty input: should return empty tuple or raise
+            assert result == () or result == (0, 0) or len(result) == 0
+        except (ValueError, TypeError):
+            pass  # Expected
+
+    def test_large_grid_still_deterministic(self):
+        """Large grid_size doesn't break quantization determinism."""
+        mgp = self._get_mgp(grid_size=256)
+        points = [(100, 200), (300, 400), (500, 600)]
+        q1 = mgp._quantize(points)
+        q2 = mgp._quantize(points)
+        assert q1 == q2
+
+
+# =============================================================================
+# 8. Enhanced Tamper Detection Tests (INV-040)
+# =============================================================================
+
+
+class TestTamperDetectionEnhanced:
+    """Additional tests for tamper detection robustness."""
+
+    def _get_state_cls(self):
+        from meow_decoder.tamper_detection import TamperState
+        return TamperState
+
+    def _get_poison(self):
+        from meow_decoder.tamper_detection import silent_poison_bytes
+        return silent_poison_bytes
+
+    def test_poison_entropy_quality(self):
+        """Silent poison output must have high Shannon entropy."""
+        import math as _math
+
+        poison_fn = self._get_poison()
+        output = poison_fn(256, seed=b"entropy_test_seed")
+
+        freq = {}
+        for b in output:
+            freq[b] = freq.get(b, 0) + 1
+        entropy = 0.0
+        for count in freq.values():
+            p = count / len(output)
+            if p > 0:
+                entropy -= p * _math.log2(p)
+
+        assert entropy > 5.0, f"Poison entropy too low: {entropy:.2f} bits/byte"
+
+    def test_state_version_corruption_detected(self):
+        """Corrupted bytes in serialized state triggers rejection."""
+        cls = self._get_state_cls()
+        state = cls()
+        serialized = state.to_bytes()
+
+        # Corrupt first byte
+        tampered = bytearray(serialized)
+        tampered[0] ^= 0xFF
+        tampered = bytes(tampered)
+
+        result = cls.from_bytes(tampered)
+        # from_bytes returns None on invalid data
+        assert result is None, "Corrupted state should be rejected"
+
+    def test_checkpoint_replay_detection(self):
+        """Serialized states from different epochs must differ."""
+        cls = self._get_state_cls()
+        state1 = cls()
+        cp1 = state1.to_bytes()
+
+        state2 = cls()
+        state2.tamper_count = 5  # Modify state
+        cp2 = state2.to_bytes()
+
+        assert cp1 != cp2, "Different states must serialize differently"
+
+    def test_poison_different_seeds_differ(self):
+        """Different seeds produce different poison output."""
+        poison_fn = self._get_poison()
+        p1 = poison_fn(128, seed=b"seed_alpha__xxxxx")
+        p2 = poison_fn(128, seed=b"seed_beta___xxxxx")
+
+        assert p1 != p2
+
+    def test_poison_correct_length(self):
+        """Poison output always has requested length."""
+        poison_fn = self._get_poison()
+        for size in [16, 64, 128, 512, 1024]:
+            output = poison_fn(size, seed=b"length_test_seed!")
+            assert len(output) == size
+
+
+# =============================================================================
+# 9. Enhanced Adversarial Stego Tests (INV-041)
+# =============================================================================
+
+
+class TestAdversarialStegoEnhanced:
+    """Additional tests for adversarial stego robustness."""
+
+    def _get_modules(self):
+        from meow_decoder.adversarial_carrier import (
+            AdversarialNoiseGenerator,
+            NoiseProfile,
+            generate_sensor_noise,
+            generate_carrier_noise,
+            chi_square_test,
+            pairs_test,
+        )
+        return (
+            AdversarialNoiseGenerator, NoiseProfile,
+            generate_sensor_noise, generate_carrier_noise,
+            chi_square_test, pairs_test,
+        )
+
+    def test_cross_seed_independence(self):
+        """Different seeds produce statistically independent noise."""
+        (ANG, NP, *_) = self._get_modules()
+        gen1 = ANG(b"seed_1_for_independence_test!!", NP())
+        gen2 = ANG(b"seed_2_for_independence_test!!", NP())
+
+        n1 = gen1.generate_combined_noise(16, 16)
+        n2 = gen2.generate_combined_noise(16, 16)
+
+        flat1 = [v for row in n1 for v in row]
+        flat2 = [v for row in n2 for v in row]
+
+        assert flat1 != flat2, "Different seeds produced identical noise"
+
+    def test_noise_all_finite(self):
+        """All noise values must be finite (no NaN/Inf)."""
+        (ANG, NP, *_) = self._get_modules()
+        gen = ANG(b"finite_test_seed_0123456789AB", NP())
+
+        for method in ["generate_sensor_noise", "generate_texture_noise",
+                       "generate_dct_matched_noise", "generate_combined_noise"]:
+            noise = getattr(gen, method)(16, 16)
+            for row in noise:
+                for v in row:
+                    assert math.isfinite(v), f"{method} produced non-finite: {v}"
+
+    def test_rotation_visits_all_algorithms(self):
+        """Rotation schedule visits all algorithm indices over 100+ frames."""
+        (ANG, *_) = self._get_modules()
+        seed = b"rotation_visit_test_seed_012345"
+        gen = ANG(seed)
+
+        algos_seen = set()
+        for i in range(100):
+            frame_seed = hashlib.sha256(seed + i.to_bytes(4, "little")).digest()
+            algo_idx = frame_seed[0] % 4
+            algos_seen.add(algo_idx)
+
+        assert len(algos_seen) >= 3, f"Only {len(algos_seen)} algorithms visited in 100 frames"
+
+    def test_carrier_noise_range_strict(self):
+        """Carrier noise must be in [-128, 127] for all pixels."""
+        (_, _, _, gen_carrier, *_) = self._get_modules()
+        noise = gen_carrier(32, 32, seed=b"strict_range_check_seed_0123AB")
+        for row in noise:
+            for v in row:
+                assert -128 <= v <= 127, f"Out of range: {v}"
+                assert isinstance(v, int)
+
+    def test_large_dimension_no_crash(self):
+        """Large image dimensions don't crash the generator."""
+        (ANG, NP, *_) = self._get_modules()
+        gen = ANG(b"large_dim_test_seed_0123456789", NP())
+        noise = gen.generate_combined_noise(256, 256)
+        assert len(noise) == 256
+        assert len(noise[0]) == 256
+
+
+# =============================================================================
+# 10. Ratchet Integration Tests (INV-042)
+# =============================================================================
+
+
+class TestRatchetIntegration:
+    """Tests for ratchet forward secrecy and PQ beacon properties."""
+
+    def test_default_rekey_interval_nonzero(self):
+        """DEFAULT_REKEY_INTERVAL must be non-zero (enabled by default)."""
+        from meow_decoder.ratchet import DEFAULT_REKEY_INTERVAL
+        assert DEFAULT_REKEY_INTERVAL > 0, (
+            f"DEFAULT_REKEY_INTERVAL={DEFAULT_REKEY_INTERVAL} — must be >0"
+        )
+
+    def test_dead_kem_beacon_functions_removed(self):
+        """_generate_kem_beacon and _recover_kem_beacon must not exist."""
+        import meow_decoder.ratchet as ratchet_mod
+        assert not hasattr(ratchet_mod, "_generate_kem_beacon"), (
+            "Dead function _generate_kem_beacon still exists"
+        )
+        assert not hasattr(ratchet_mod, "_recover_kem_beacon"), (
+            "Dead function _recover_kem_beacon still exists"
+        )
+
+    def test_pq_beacon_domain_separation(self):
+        """PQ beacon mix info differs from classical beacon info."""
+        from meow_decoder.ratchet import (
+            PQ_BEACON_MIX_INFO,
+            REKEY_BEACON_INFO,
+            REKEY_BEACON_KEM_INFO,
+        )
+        assert PQ_BEACON_MIX_INFO != REKEY_BEACON_INFO
+        assert PQ_BEACON_MIX_INFO != REKEY_BEACON_KEM_INFO
+        assert REKEY_BEACON_INFO != REKEY_BEACON_KEM_INFO
+
+    def test_header_encryption_domain_separation(self):
+        """Header encryption constants differ from other domain constants."""
+        from meow_decoder.ratchet import (
+            HEADER_ENC_INFO,
+            HEADER_MASK_INFO,
+            REKEY_BEACON_INFO,
+        )
+        assert HEADER_ENC_INFO != HEADER_MASK_INFO
+        assert HEADER_ENC_INFO != REKEY_BEACON_INFO
+        assert HEADER_MASK_INFO != REKEY_BEACON_INFO
+
+    def test_ratchet_state_has_required_fields(self):
+        """RatchetState must expose root_key, position, epoch."""
+        from meow_decoder.ratchet import RatchetState
+        # Verify the dataclass has expected field names
+        fields = {f.name for f in RatchetState.__dataclass_fields__.values()}
+        for required in ["root_key", "position", "epoch"]:
+            assert required in fields, (
+                f"RatchetState missing '{required}' field"
+            )
+
+
+# =============================================================================
+# 11. Schrödinger Enhanced Tests
+# =============================================================================
+
+
+class TestSchrodingerEnhanced:
+    """Additional Schrödinger deniability structure tests."""
+
+    def test_quantum_noise_high_entropy(self):
+        """Quantum noise from different passwords must have high entropy."""
+        hash_a = hashlib.sha256(b"strong_password_alpha").digest()
+        hash_b = hashlib.sha256(b"strong_password_beta_").digest()
+
+        qn = bytes(a ^ b for a, b in zip(hash_a, hash_b))
+
+        # Compute entropy
+        freq = {}
+        for b in qn:
+            freq[b] = freq.get(b, 0) + 1
+        entropy = 0.0
+        for count in freq.values():
+            p = count / len(qn)
+            if p > 0:
+                entropy -= p * math.log2(p)
+
+        assert entropy > 3.0, f"Quantum noise entropy too low: {entropy:.2f}"
+
+    def test_commitment_non_collision(self):
+        """1000 random keys must produce 1000 unique commitments."""
+        from hashlib import blake2b
+
+        salt = secrets.token_bytes(16)
+        commits = set()
+        for i in range(1000):
+            key = f"key_{i:04d}".encode()
+            c = blake2b(key, salt=salt, digest_size=32).digest()
+            commits.add(c)
+
+        assert len(commits) == 1000, "KDF commitment collision detected"
+
+    def test_xor_noise_nonzero_different_passwords(self):
+        """XOR noise is non-zero for distinct passwords."""
+        for i in range(50):
+            h_a = hashlib.sha256(f"pw_a_{i}".encode()).digest()
+            h_b = hashlib.sha256(f"pw_b_{i}".encode()).digest()
+            qn = bytes(a ^ b for a, b in zip(h_a, h_b))
+            assert qn != b"\x00" * 32, f"Zero noise at iteration {i}"

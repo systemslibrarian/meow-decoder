@@ -82,7 +82,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
     - All 73 PyO3 bindings implemented: Argon2id, HKDF, AES-GCM, AES-CTR, HMAC, SHA-256, X25519, ML-KEM, + opaque handle registry
 	- Constant-time via `subtle` crate, secure zeroing via `zeroize` crate
 	- CI enforces `RUST_BACKEND_REQUIRED=1` — no Python fallback
-	- 397 tests passing (383 protocol + 14 enforcement)
+	- 2,380+ Python tests + 676 Rust tests passing across 83+ test files
 	- See `todo-crypto.md` for full migration details
 - [x] **cargo-fuzz + Property Test Suite**: Full adversarial fuzzing infrastructure for Rust crypto backend
 	- 5 libFuzzer targets: `fuzz_decrypt_frame`, `fuzz_header_parse`, `fuzz_hybrid_decapsulate`, `fuzz_ratchet_step`, `fuzz_full_decode_pipeline`

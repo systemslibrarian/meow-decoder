@@ -74,7 +74,7 @@ All identified gaps in **OS-level hardening**, **forensic countermeasures**, **b
 | SecureBuffer | mlock/munlock lifecycle, zero on `__del__` | `meow_decoder/constant_time.py` |
 | Security test suite | 103+ tests across 5 files | `tests/security/` |
 | Honest threat model | Schrödinger limitations documented | `docs/THREAT_MODEL.md`, INV-025 |
-| Verus formal proofs | ZeroizeOnDrop, forward secrecy lemmas | `crypto_core/src/verus_proofs.rs` |
+| Verus formal proofs | Guard-page memory safety (GB-001–GB-008); AEAD proofs are stubs | `crypto_core/src/verus_guarded_buffer.rs`, `verus_proofs.rs` |
 
 ### PARTIAL Invariants (Known Limitations)
 
@@ -809,7 +809,7 @@ class DeadMansSwitch:
 - ✅ ML-KEM-1024 + X25519 paranoid mode (MEOW4, NIST Level 5)
 - ✅ PQXDH-style two-step HKDF with full transcript binding
 - ✅ PQ ciphertext bound in both AAD and HMAC
-- ✅ Formal Verus proofs for key exchange security properties
+- ⚠️ Verus proof stubs for AEAD properties (not yet machine-checked); guard-page proofs (GB-001–GB-008) are real
 - ✅ **ML-DSA-65 + Ed25519 hybrid manifest signing** (`manifest_signing.py`, ~400 lines) — SIGNING_MANDATORY = True
 - ✅ **ML-KEM-1024 PQ ratchet beacon** (`pq_ratchet_beacon.py`, ~380 lines) — integrated with MSR v1.2
 - ✅ Hybrid PQ+classical signature for manifest authentication (Phase 6)
@@ -1101,7 +1101,7 @@ crypto_core/src/
 ├── secure_alloc.rs          # ✅ DONE (450+ lines): SecureBox with guard pages + mlock + DONTDUMP + zeroize + Windows support
 ├── pure_crypto.rs           # ✅ EXISTING: AES-GCM, X25519, HKDF, handle-based keys
 
-tests/security/ (17 test files, 420+ tests)
+tests/security/ (16 test files, 348 tests)
 ├── test_memory_guard.py     # ✅ DONE (165 lines)
 ├── test_dontdump.py         # ✅ DONE (80 lines)
 ├── test_forensic_cleanup.py # ✅ DONE (211 lines)
@@ -1142,7 +1142,7 @@ tests/security/ (17 test files, 420+ tests)
 | `test_decorrelation.py` | CSPRNG ranges, chi-squared uniformity, crypto params untouched | 187 lines | ✅ DONE |
 | `test_phase5_modules.py` | Shamir SSS, tamper detection, env safety, master ratchet, secure keyboard, adversarial carrier | ~690 lines | ✅ DONE |
 
-### Total Security Tests: 398 (across 17 test files)
+### Total Security Tests: 348 (across 16 test files)
 
 ### Existing Tests Extended
 
@@ -1193,10 +1193,10 @@ tests/security/ (17 test files, 420+ tests)
 **Strengths:**
 - Crypto primitives are production-grade (Rust backend, handle-based, zeroize, subtle)
 - Schrödinger mode is honestly documented with limitations
-- **398 security tests** across 17 test files (up from 103+)
+- **348 security tests** across 16 test files (up from 103+)
 - Post-quantum hybrid (ML-KEM + X25519) at Signal PQXDH parity
 - Per-frame forward secrecy with symmetric ratchet
-- Formal Verus proofs for critical invariants
+- Verus proofs for guard-page memory safety (GB-001–GB-008); AEAD proof stubs not yet machine-checked
 - **Rust SecureBox** with guard pages, mlock, MADV_DONTDUMP, zeroize-on-drop
 - **Full forensic countermeasure suite** (thumbnails, clipboard, history, recent files, temp files)
 - **Memory guard** (mlockall, RLIMIT_CORE=0, PR_SET_DUMPABLE=0)

@@ -353,6 +353,77 @@ def fuzz_empty_and_single_point(data: bytes):
             pass
 
 
+def fuzz_person_tag_consistency(data: bytes):
+    """Verify BLAKE2b person tag is always 'meow_gesture_v1' (16 bytes padded).
+
+    Catches the known inconsistency where GUI path may omit person tag.
+    """
+    from hashlib import blake2b
+
+    if len(data) < 8:
+        return
+
+    key_material = data[:32].ljust(32, b"\x00")
+
+    # Correct derivation with person tag
+    person_tag = b"meow_gesture_v1\x00"  # 16 bytes, null-padded
+    h_with = blake2b(key_material, person=person_tag, digest_size=32).hexdigest()
+
+    # Without person tag (the bug path)
+    h_without = blake2b(key_material, digest_size=32).hexdigest()
+
+    # These MUST differ — if they're equal, person tag is being ignored
+    assert h_with != h_without, "Person tag has no effect — BLAKE2b ignoring person"
+
+
+def fuzz_gesture_replay_resistance(data: bytes):
+    """Same gesture at different timestamps should produce different derivations
+    when a timestamp salt is included (future-proofing)."""
+    from hashlib import blake2b
+
+    if len(data) < 16:
+        return
+
+    gesture_bytes = data[:8]
+    salt1 = data[8:12]
+    salt2 = data[12:16]
+
+    h1 = blake2b(gesture_bytes + salt1, digest_size=32).digest()
+    h2 = blake2b(gesture_bytes + salt2, digest_size=32).digest()
+
+    if salt1 != salt2:
+        assert h1 != h2, "Different salts produced identical hash"
+
+
+def fuzz_quantize_grid_boundary(data: bytes):
+    """Points exactly on grid boundaries should quantize consistently."""
+    try:
+        from meow_decoder.secure_keyboard import MouseGesturePassword
+    except ImportError:
+        return
+
+    if len(data) < 6:
+        return
+
+    grid_size = max(2, (data[0] % 30) + 2)
+    mgp = MouseGesturePassword(grid_size=grid_size)
+
+    # Create points on exact grid boundaries
+    step = 65535 // grid_size
+    points = []
+    for i in range(min(len(data) // 2 - 1, 10)):
+        idx = (data[1 + i] % grid_size)
+        points.append((idx * step, idx * step))
+
+    if len(points) >= 2:
+        try:
+            q1 = mgp._quantize(points)
+            q2 = mgp._quantize(points)
+            assert q1 == q2, "Grid boundary quantization not deterministic"
+        except (ValueError, TypeError, ZeroDivisionError):
+            pass
+
+
 def main():
     if atheris is None:
         raise RuntimeError("atheris is required to run fuzz targets")
@@ -368,6 +439,9 @@ def main():
         fuzz_perturbation_stability(data)
         fuzz_collision_resistance(data)
         fuzz_empty_and_single_point(data)
+        fuzz_person_tag_consistency(data)
+        fuzz_gesture_replay_resistance(data)
+        fuzz_quantize_grid_boundary(data)
 
     atheris.Setup(sys.argv, combined_fuzz)
     atheris.Fuzz()

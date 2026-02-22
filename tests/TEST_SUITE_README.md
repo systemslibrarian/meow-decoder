@@ -127,9 +127,9 @@ See `docs/SURFACE_AREA_MINIMIZATION.md` for the complete list and restoration in
 
 ### Rust Crypto Backend Tests
 
-The project includes two Rust crypto packages with **261 total tests**:
+The project includes two Rust crypto packages with **676 total tests**:
 
-#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 206 tests
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 306 tests
 
 | File | Tests | Purpose |
 |------|-------|-------|
@@ -152,7 +152,7 @@ The project includes two Rust crypto packages with **261 total tests**:
 | `fuzz_ratchet_step` | Replay, Nonce reuse, PCS violation |
 | `fuzz_full_decode_pipeline` | Partial decrypt leak, Truncation oracle, Replay |
 
-#### crypto_core - Formally Verified Primitives - 110 tests
+#### crypto_core - Formally Verified Primitives - 370 tests
 
 | File | Tests | Purpose |
 |------|-------|---------|
@@ -349,7 +349,7 @@ fail_under = 35  # Incrementally increase to 80%+
 | **Rust** | crypto_core (aead, nonce, types, verus proofs) | 95%+ | **97.9% ✓** |
 | **Rust** | rust_crypto (PyO3 bindings) | 90%+ | Tests only (PyO3 blocks tarpaulin) |
 
-**Status:** Test suite consolidated (Phase 0 + Phase 1 complete) and minimized (surface area reduction). 59 active test files, 1541+ active Python tests. 52 test files archived to `tests/_archive/`. All `*_comprehensive.py` files merged into 1-to-1 counterparts. Phase 1 stego tests (49) and web demo integration tests (21) added.
+**Status:** Test suite consolidated (Phase 0 + Phase 1 complete) and minimized (surface area reduction). 83 active test files, 2,380+ active Python tests. 52 test files archived to `tests/_archive/`. All `*_comprehensive.py` files merged into 1-to-1 counterparts. Phase 1 stego tests (49) and web demo integration tests (21) added.
 
 ## Running Tests
 
@@ -398,8 +398,8 @@ cargo test --test proptest_crypto             # 23 property tests
 
 **Last Updated:** 2026-02-18
 **Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Surface Area Minimization
-**Total Active Tests:** 1,541+ tests (Python) + 465 tests (Rust) = **2,006+ total active tests**
-**Active Test Files:** 59 Python test files + 9 Rust test files
+**Total Active Tests:** 2,380+ tests (Python) + 676 tests (Rust) = **3,056+ total active tests**
+**Active Test Files:** 83 Python test files + 9 Rust test files
 **Archived Test Files:** 52 Python test files in `tests/_archive/` (covering non-production modules)
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
@@ -624,9 +624,9 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 ## 🦀 Rust Test Suite
 
-**Total:** 465 tests across 2 packages
+**Total:** 676 tests across 2 packages
 
-### Package 1: rust_crypto (PyO3 Bindings) - 206 tests
+### Package 1: rust_crypto (PyO3 Bindings) - 306 tests
 
 | Module | Tests | Purpose |
 |--------|-------|---------|-----|
@@ -652,7 +652,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 - ✅ Hybrid combiner integrity (proptest)
 - ✅ FFI boundary: panic-free on all attacker-controlled inputs
 
-### Package 2: crypto_core (Formally Verified) - 110 tests
+### Package 2: crypto_core (Formally Verified) - 370 tests
 
 | Module | Tests | Coverage | Purpose |
 |--------|-------|----------|---------|
