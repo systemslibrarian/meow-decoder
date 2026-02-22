@@ -4,11 +4,15 @@ Comprehensive Web Demo Test Suite
 
 Tests all encoding modes with 5 runs each:
 1. Normal Mode - Standard QR encoding
-2. Cat Mode - Steganographic encoding with cat carrier
+2. Cat Mode - Steganographic encoding with cat carrier (stego_level=2)
 3. Cat Mode Server API - Binary encrypt/decrypt for eye-blink transmission
 4. Duress Mode - Panic password that reveals decoy data
 5. Forward Secrecy Mode - X25519 ephemeral key exchange (MEOW3)
 6. Schrödinger Mode - Dual-secret quantum plausible deniability
+
+Experimental modes (not tested - encode-only, no decoder integration yet):
+- Logo Eyes Mode (logo_eyes=True) - QR in cat eye regions
+- Cat Eyes Blink Mode (cat_eyes_blink=True) - Green pixel blinking
 
 Usage:
     python web_demo/test_all_modes.py
