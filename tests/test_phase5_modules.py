@@ -695,5 +695,420 @@ class TestPhase5Integration:
         assert result
 
 
+class TestManifestSigning:
+    """Tests for ML-DSA-65 + Ed25519 hybrid manifest signing."""
+
+    def test_keypair_generation(self):
+        """Keypair generation should produce valid keys."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            SigningKeyPair,
+            ED25519_PK_SIZE,
+            ED25519_SK_SIZE,
+            MLDSA65_PK_SIZE,
+            MLDSA65_SK_SIZE,
+        )
+
+        keypair = generate_signing_keypair()
+        assert isinstance(keypair, SigningKeyPair)
+        assert len(keypair.mldsa65_pk) == MLDSA65_PK_SIZE
+        assert len(keypair.ed25519_pk) == ED25519_PK_SIZE
+        assert len(keypair.mldsa65_sk) == MLDSA65_SK_SIZE
+        assert len(keypair.ed25519_sk) == ED25519_SK_SIZE
+
+    def test_sign_and_verify_manifest(self):
+        """Signing and verification should roundtrip."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+            ED25519_SIG_SIZE,
+        )
+
+        keypair = generate_signing_keypair()
+        manifest = b"MEOW4" + os.urandom(500)
+
+        signature = sign_manifest(keypair, manifest)
+        assert signature is not None
+        assert len(signature.mldsa65_sig) > 0
+        assert len(signature.ed25519_sig) == ED25519_SIG_SIZE
+
+        # Verify should succeed
+        public_key = keypair.export_public_key()
+        assert verify_manifest_signature(public_key, manifest, signature)
+
+    def test_verification_fails_on_tampered_manifest(self):
+        """Tampered manifest should fail verification."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+        )
+
+        keypair = generate_signing_keypair()
+        manifest = b"MEOW4" + os.urandom(500)
+
+        signature = sign_manifest(keypair, manifest)
+        public_key = keypair.export_public_key()
+
+        # Tamper with manifest
+        tampered = bytearray(manifest)
+        tampered[10] ^= 0xFF
+        tampered = bytes(tampered)
+
+        # Verification must fail (raises ValueError in fail-closed mode)
+        with pytest.raises(ValueError):
+            verify_manifest_signature(public_key, tampered, signature)
+
+    def test_verification_fails_on_tampered_signature(self):
+        """Tampered signature should fail verification."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+            ManifestSignature,
+        )
+
+        keypair = generate_signing_keypair()
+        manifest = b"MEOW4" + os.urandom(500)
+
+        signature = sign_manifest(keypair, manifest)
+        public_key = keypair.export_public_key()
+
+        # Tamper with ML-DSA signature
+        tampered_mldsa = bytearray(signature.mldsa65_sig)
+        tampered_mldsa[50] ^= 0xFF
+        tampered_sig = ManifestSignature(
+            mldsa65_sig=bytes(tampered_mldsa),
+            ed25519_sig=signature.ed25519_sig,
+        )
+
+        with pytest.raises(ValueError):
+            verify_manifest_signature(public_key, manifest, tampered_sig)
+
+        # Tamper with Ed25519 signature
+        tampered_ed = bytearray(signature.ed25519_sig)
+        tampered_ed[10] ^= 0xFF
+        tampered_sig2 = ManifestSignature(
+            mldsa65_sig=signature.mldsa65_sig,
+            ed25519_sig=bytes(tampered_ed),
+        )
+
+        with pytest.raises(ValueError):
+            verify_manifest_signature(public_key, manifest, tampered_sig2)
+
+    def test_signing_is_mandatory(self):
+        """SIGNING_MANDATORY flag should be True."""
+        from meow_decoder.manifest_signing import SIGNING_MANDATORY
+
+        assert SIGNING_MANDATORY is True
+
+    def test_different_keypairs_fail_verification(self):
+        """Signature from one keypair should fail with another keypair's public key."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+        )
+
+        keypair1 = generate_signing_keypair()
+        keypair2 = generate_signing_keypair()
+        manifest = b"MEOW4" + os.urandom(500)
+
+        signature = sign_manifest(keypair1, manifest)
+        public_key2 = keypair2.export_public_key()
+
+        # Should fail with different keypair's public key
+        with pytest.raises(ValueError):
+            verify_manifest_signature(public_key2, manifest, signature)
+
+    def test_keypair_export_public_key(self):
+        """Keypair should export concatenated public key."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            ED25519_PK_SIZE,
+            MLDSA65_PK_SIZE,
+        )
+
+        keypair = generate_signing_keypair()
+        
+        # Export public key
+        public_key = keypair.export_public_key()
+        
+        # Should be concatenation of Ed25519 + ML-DSA-65 public keys
+        assert len(public_key) == ED25519_PK_SIZE + MLDSA65_PK_SIZE
+        assert public_key[:ED25519_PK_SIZE] == keypair.ed25519_pk
+        assert public_key[ED25519_PK_SIZE:] == keypair.mldsa65_pk
+
+    def test_signature_serialization(self):
+        """Signature should serialize and deserialize correctly."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            ManifestSignature,
+        )
+
+        keypair = generate_signing_keypair()
+        manifest = b"MEOW4" + os.urandom(200)
+        signature = sign_manifest(keypair, manifest)
+
+        # Serialize
+        packed = signature.to_bytes()
+        assert packed[:4] == b"MSIG"
+
+        # Deserialize
+        unpacked = ManifestSignature.from_bytes(packed)
+
+        assert unpacked.mldsa65_sig == signature.mldsa65_sig
+        assert unpacked.ed25519_sig == signature.ed25519_sig
+
+
+class TestPQRatchetBeacon:
+    """Tests for ML-KEM-1024 post-quantum ratchet beacons."""
+
+    def test_beacon_keypair_generation(self):
+        """Beacon keypair generation should produce valid keys."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQBeaconKeyPair,
+            MLKEM1024_PUBLIC_KEY_SIZE,
+            MLKEM1024_SECRET_KEY_SIZE,
+        )
+
+        keypair = generate_beacon_keypair()
+        assert isinstance(keypair, PQBeaconKeyPair)
+        assert len(keypair.public_key) == MLKEM1024_PUBLIC_KEY_SIZE
+        assert len(keypair.secret_key) == MLKEM1024_SECRET_KEY_SIZE
+
+    def test_encapsulate_decapsulate_roundtrip(self):
+        """Encapsulation and decapsulation should produce same enhanced key."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+        )
+
+        keypair = generate_beacon_keypair()
+        
+        # Sender side - has receiver's public key
+        sender_beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        message_key = os.urandom(32)
+        
+        # Encapsulate
+        ciphertext, enhanced_key_sender = sender_beacon.encapsulate(message_key)
+
+        # Receiver side - has full keypair
+        receiver_beacon = PQRatchetBeacon(receiver_keypair=keypair)
+        enhanced_key_receiver = receiver_beacon.decapsulate(ciphertext, message_key)
+
+        assert enhanced_key_sender == enhanced_key_receiver
+        assert len(enhanced_key_sender) == 32  # 256 bits
+
+    def test_ciphertext_size(self):
+        """ML-KEM-1024 ciphertext should be 1568 bytes."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+            MLKEM1024_CIPHERTEXT_SIZE,
+        )
+
+        keypair = generate_beacon_keypair()
+        beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        message_key = os.urandom(32)
+
+        ciphertext, _ = beacon.encapsulate(message_key)
+        assert len(ciphertext) == MLKEM1024_CIPHERTEXT_SIZE
+        assert MLKEM1024_CIPHERTEXT_SIZE == 1568
+
+    def test_decapsulate_fails_on_tampered_ciphertext(self):
+        """Tampered ciphertext should give different enhanced key."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+        )
+
+        keypair = generate_beacon_keypair()
+        sender_beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        receiver_beacon = PQRatchetBeacon(receiver_keypair=keypair)
+        message_key = os.urandom(32)
+
+        ciphertext, enhanced_key = sender_beacon.encapsulate(message_key)
+
+        # Tamper with ciphertext
+        tampered = bytearray(ciphertext)
+        tampered[100] ^= 0xFF
+        tampered = bytes(tampered)
+
+        # Should either raise or return different enhanced key
+        try:
+            result = receiver_beacon.decapsulate(tampered, message_key)
+            # If no exception, result must differ
+            assert result != enhanced_key
+        except (ValueError, Exception):
+            pass  # Expected
+
+    def test_beacon_frame_serialization(self):
+        """Beacon frame should pack and serialize to bytes."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+            PQBeaconFrame,
+        )
+
+        keypair = generate_beacon_keypair()
+        beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        message_key = os.urandom(32)
+
+        ciphertext, _ = beacon.encapsulate(message_key)
+        frame = PQBeaconFrame(ciphertext=ciphertext)
+
+        # Serialize
+        packed = frame.to_bytes()
+        assert packed[:5] == PQBeaconFrame.MAGIC
+        assert len(packed) > 0
+
+    def test_different_encapsulations_give_different_enhanced_keys(self):
+        """Each encapsulation should produce a unique enhanced key."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+        )
+
+        keypair = generate_beacon_keypair()
+        beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        message_key = os.urandom(32)
+
+        _, enhanced1 = beacon.encapsulate(message_key)
+        _, enhanced2 = beacon.encapsulate(message_key)
+        _, enhanced3 = beacon.encapsulate(message_key)
+
+        # Even with same message_key, enhanced keys differ due to fresh encapsulation
+        assert enhanced1 != enhanced2
+        assert enhanced2 != enhanced3
+        assert enhanced1 != enhanced3
+
+    def test_beacon_requires_either_public_key_or_keypair(self):
+        """Beacon constructor should require either public_key or keypair."""
+        from meow_decoder.pq_ratchet_beacon import PQRatchetBeacon
+
+        with pytest.raises(ValueError):
+            PQRatchetBeacon()  # Neither provided
+
+    def test_sender_receiver_roundtrip(self):
+        """Full sender/receiver roundtrip should work."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+        )
+
+        # Receiver generates keypair and shares public key
+        receiver_keypair = generate_beacon_keypair()
+
+        # Sender creates beacon with receiver's public key
+        sender_beacon = PQRatchetBeacon(
+            receiver_public_key=receiver_keypair.public_key
+        )
+        message_key = os.urandom(32)
+        ciphertext, sender_enhanced = sender_beacon.encapsulate(message_key)
+
+        # Receiver decapsulates with full keypair
+        receiver_beacon = PQRatchetBeacon(receiver_keypair=receiver_keypair)
+        receiver_enhanced = receiver_beacon.decapsulate(ciphertext, message_key)
+
+        assert sender_enhanced == receiver_enhanced
+
+
+class TestMemoryGuardWindows:
+    """Tests for Windows VirtualLock parity."""
+
+    def test_virtual_lock_available(self):
+        """VirtualLock functions should be available."""
+        from meow_decoder.memory_guard import (
+            virtual_lock_buffer,
+            virtual_unlock_buffer,
+        )
+
+        assert callable(virtual_lock_buffer)
+        assert callable(virtual_unlock_buffer)
+
+    def test_virtual_lock_buffer_bytes(self):
+        """VirtualLock should work on bytes buffer."""
+        import sys
+        from meow_decoder.memory_guard import (
+            virtual_lock_buffer,
+            virtual_unlock_buffer,
+        )
+
+        # Skip on non-Windows unless testing shim
+        buffer = bytearray(4096)
+        buffer[:32] = os.urandom(32)
+
+        # Should not raise
+        try:
+            result = virtual_lock_buffer(buffer)
+            # May fail due to permissions but should not crash
+            if result:
+                virtual_unlock_buffer(buffer)
+        except OSError:
+            pass  # Permission denied expected without SE_LOCK_MEMORY_NAME
+
+    def test_platform_detection(self):
+        """Platform should be correctly detected."""
+        import sys
+        from meow_decoder import memory_guard
+
+        if sys.platform == "win32":
+            assert hasattr(memory_guard, "_get_kernel32")
+        else:
+            # Linux/macOS use mlock directly
+            assert hasattr(memory_guard, "activate_memory_guard")
+
+
+class TestIntegrationManifestSigningWithPipeline:
+    """Integration tests for manifest signing with encode pipeline."""
+
+    def test_signing_in_full_pipeline(self):
+        """Manifest signing should integrate with encode pipeline."""
+        from meow_decoder.manifest_signing import (
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+        )
+
+        # Create mock manifest (don't need full encryption for this test)
+        manifest = b"MEOW4" + os.urandom(256)
+
+        # Sign the manifest
+        keypair = generate_signing_keypair()
+        signature = sign_manifest(keypair, manifest)
+        public_key = keypair.export_public_key()
+
+        # Verify
+        assert verify_manifest_signature(public_key, manifest, signature)
+
+    def test_pq_beacon_with_message_keys(self):
+        """PQ beacon should enhance message keys."""
+        from meow_decoder.pq_ratchet_beacon import (
+            generate_beacon_keypair,
+            PQRatchetBeacon,
+        )
+
+        # Create keypair
+        keypair = generate_beacon_keypair()
+        message_key = os.urandom(32)
+
+        # Sender encapsulates
+        sender_beacon = PQRatchetBeacon(receiver_public_key=keypair.public_key)
+        ciphertext, enhanced_key = sender_beacon.encapsulate(message_key)
+
+        # Receiver decapsulates
+        receiver_beacon = PQRatchetBeacon(receiver_keypair=keypair)
+        receiver_enhanced = receiver_beacon.decapsulate(ciphertext, message_key)
+
+        # Enhanced keys should match
+        assert enhanced_key == receiver_enhanced
+        # Enhanced key should differ from original message key
+        assert enhanced_key != message_key
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

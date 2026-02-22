@@ -24,17 +24,17 @@
 //!
 //! # Security Properties
 //!
-//! - **No swap**: `mlock` prevents the OS from swapping key pages to disk
-//! - **Guard pages**: `PROT_NONE` pages before and after detect buffer overflows/underflows
-//! - **No core dump**: `MADV_DONTDUMP` excludes key memory from crash dumps
+//! - **No swap**: `mlock`/`VirtualLock` prevents the OS from swapping key pages to disk
+//! - **Guard pages**: `PROT_NONE`/`PAGE_NOACCESS` pages before and after detect buffer overflows
+//! - **No core dump**: `MADV_DONTDUMP` (Linux) excludes key memory from crash dumps
 //! - **Zeroize on drop**: Volatile writes ensure compiler doesn't optimize away zeroing
-//! - **Region cleanup**: Full `munmap` releases all pages including guards
+//! - **Region cleanup**: Full `munmap`/`VirtualFree` releases all pages including guards
 //!
 //! # Platform Support
 //!
-//! - **Linux**: Full support (mmap, mlock, mprotect, madvise)
+//! - **Linux**: Full support (mmap, mlock, mprotect, madvise MADV_DONTDUMP)
 //! - **macOS**: Partial (no MADV_DONTDUMP, but mlock + guard pages work)
-//! - **Windows**: Not supported (use VirtualAlloc + VirtualLock separately)
+//! - **Windows**: Full support (VirtualAlloc, VirtualLock, VirtualProtect, guard pages)
 //! - **WASM**: Not supported (no virtual memory)
 
 use std::ops::{Deref, DerefMut};
@@ -203,22 +203,96 @@ impl<T: Zeroize> SecureBox<T> {
     pub fn total_size(&self) -> usize {
         self.mmap_size
     }
-}
 
-impl<T: Zeroize> Deref for SecureBox<T> {
-    type Target = T;
+    /// Windows implementation: VirtualAlloc + VirtualLock + VirtualProtect
+    ///
+    /// Layout: [PAGE_NOACCESS guard] [PAGE_READWRITE data] [PAGE_NOACCESS guard]
+    #[cfg(windows)]
+    pub fn new(value: T) -> Result<Self, SecureAllocError> {
+        use std::ptr;
+        use winapi::um::memoryapi::{VirtualAlloc, VirtualFree, VirtualLock, VirtualProtect, VirtualUnlock};
+        use winapi::um::sysinfoapi::{GetSystemInfo, SYSTEM_INFO};
+        use winapi::um::winnt::{MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_NOACCESS, PAGE_READWRITE};
 
-    fn deref(&self) -> &T {
-        unsafe { self.data.as_ref() }
+        let data_size = std::mem::size_of::<T>();
+        if data_size == 0 {
+            return Err(SecureAllocError::ZeroSize);
+        }
+
+        // Get system page size
+        let page_size = unsafe {
+            let mut si: SYSTEM_INFO = std::mem::zeroed();
+            GetSystemInfo(&mut si);
+            si.dwPageSize as usize
+        };
+
+        // Round data up to page boundary
+        let data_pages = (data_size + page_size - 1) / page_size;
+        let data_region_size = data_pages * page_size;
+        // Total: guard_before + data + guard_after
+        let total_size = data_region_size + 2 * page_size;
+
+        // Step 1: VirtualAlloc entire region as PAGE_NOACCESS
+        let base = unsafe {
+            VirtualAlloc(
+                ptr::null_mut(),
+                total_size,
+                MEM_RESERVE | MEM_COMMIT,
+                PAGE_NOACCESS,
+            )
+        };
+        if base.is_null() {
+            return Err(SecureAllocError::MmapFailed(
+                std::io::Error::last_os_error().raw_os_error().unwrap_or(-1),
+            ));
+        }
+
+        // Step 2: VirtualProtect the data pages to PAGE_READWRITE
+        let data_ptr = unsafe { (base as *mut u8).add(page_size) };
+        let mut old_protect: u32 = 0;
+        let ret = unsafe {
+            VirtualProtect(
+                data_ptr as *mut _,
+                data_region_size,
+                PAGE_READWRITE,
+                &mut old_protect,
+            )
+        };
+        if ret == 0 {
+            unsafe {
+                VirtualFree(base, 0, MEM_RELEASE);
+            }
+            return Err(SecureAllocError::MprotectFailed(
+                std::io::Error::last_os_error().raw_os_error().unwrap_or(-1),
+            ));
+        }
+
+        // Step 3: VirtualLock the data pages (best-effort - requires SE_LOCK_MEMORY_PRIVILEGE)
+        let mlocked = unsafe { VirtualLock(data_ptr as *mut _, data_region_size) != 0 };
+        if !mlocked {
+            #[cfg(debug_assertions)]
+            eprintln!(
+                "[WARN] VirtualLock failed for SecureBox ({} bytes) — key memory may be swapped",
+                data_size
+            );
+        }
+
+        // Step 4: Write the value into the secured region
+        unsafe {
+            std::ptr::write(data_ptr as *mut T, value);
+        }
+
+        Ok(SecureBox {
+            data: unsafe { NonNull::new_unchecked(data_ptr as *mut T) },
+            mmap_base: base as *mut u8,
+            mmap_size: total_size,
+            page_size,
+            mlocked,
+        })
     }
 }
 
-impl<T: Zeroize> DerefMut for SecureBox<T> {
-    fn deref_mut(&mut self) -> &mut T {
-        unsafe { self.data.as_mut() }
-    }
-}
-
+#[cfg(unix)]
 impl<T: Zeroize> Drop for SecureBox<T> {
     fn drop(&mut self) {
         // Step 1: Zeroize the data (volatile writes)
@@ -239,6 +313,47 @@ impl<T: Zeroize> Drop for SecureBox<T> {
         unsafe {
             libc::munmap(self.mmap_base as *mut libc::c_void, self.mmap_size);
         }
+    }
+}
+
+#[cfg(windows)]
+impl<T: Zeroize> Drop for SecureBox<T> {
+    fn drop(&mut self) {
+        use winapi::um::memoryapi::{VirtualFree, VirtualUnlock};
+        use winapi::um::winnt::MEM_RELEASE;
+
+        // Step 1: Zeroize the data (volatile writes)
+        unsafe {
+            self.data.as_mut().zeroize();
+        }
+
+        // Step 2: VirtualUnlock if we locked it
+        if self.mlocked {
+            let data_ptr = unsafe { self.mmap_base.add(self.page_size) };
+            let data_region_size = self.mmap_size - 2 * self.page_size;
+            unsafe {
+                VirtualUnlock(data_ptr as *mut _, data_region_size);
+            }
+        }
+
+        // Step 3: VirtualFree the entire region
+        unsafe {
+            VirtualFree(self.mmap_base as *mut _, 0, MEM_RELEASE);
+        }
+    }
+}
+
+impl<T: Zeroize> Deref for SecureBox<T> {
+    type Target = T;
+
+    fn deref(&self) -> &T {
+        unsafe { self.data.as_ref() }
+    }
+}
+
+impl<T: Zeroize> DerefMut for SecureBox<T> {
+    fn deref_mut(&mut self) -> &mut T {
+        unsafe { self.data.as_mut() }
     }
 }
 

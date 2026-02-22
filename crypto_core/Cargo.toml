@@ -161,6 +161,10 @@ getrandom_04 = { package = "getrandom", version = "0.4", features = [
     "wasm_js",
 ] }
 
+# Windows-specific dependencies for SecureBox (VirtualAlloc, VirtualLock)
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "errhandlingapi"] }
+
 [dev-dependencies]
 # Benchmarking
 criterion = { version = "0.5", features = ["html_reports"] }
