@@ -1,0 +1,49 @@
+[workspace]
+
+[package]
+name = "crypto_core-fuzz"
+version = "0.0.1"
+authors = ["Automatically generated"]
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+zeroize = { version = "1.8", features = ["derive"] }
+
+[dependencies.crypto_core]
+path = ".."
+features = ["pure-crypto"]
+
+# Preserve debug assertions in fuzz builds for security checks
+[profile.release]
+debug-assertions = true
+overflow-checks = true
+opt-level = 3
+
+[[bin]]
+name = "fuzz_aead"
+path = "fuzz_targets/fuzz_aead.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_nonce"
+path = "fuzz_targets/fuzz_nonce.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_secure_alloc"
+path = "fuzz_targets/fuzz_secure_alloc.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_pure_crypto"
+path = "fuzz_targets/fuzz_pure_crypto.rs"
+test = false
+doc = false

@@ -413,7 +413,7 @@ class TestShamirInvariants:
         try:
             from meow_decoder.shamir_split import shamir_split, shamir_combine
 
-            shares = shamir_split(secret, n_shares=n_shares, threshold=threshold)
+            shares = shamir_split(secret, num_shares=n_shares, threshold=threshold)
             assert len(shares) == n_shares
 
             # Use exactly threshold shares
@@ -438,7 +438,7 @@ class TestShamirInvariants:
         try:
             from meow_decoder.shamir_split import shamir_split, shamir_combine
 
-            shares = shamir_split(secret, n_shares=n_shares, threshold=threshold)
+            shares = shamir_split(secret, num_shares=n_shares, threshold=threshold)
 
             # Use fewer than threshold
             insufficient = shares[:threshold - 1]
@@ -458,11 +458,11 @@ class TestShamirInvariants:
         try:
             from meow_decoder.shamir_split import shamir_split, ShamirShare
 
-            shares = shamir_split(secret, n_shares=3, threshold=2)
+            shares = shamir_split(secret, num_shares=3, threshold=2)
             for share in shares:
                 serialized = share.to_bytes()
                 recovered = ShamirShare.from_bytes(serialized)
-                assert recovered.index == share.index
+                assert recovered.share_id == share.share_id
                 assert recovered.data == share.data
         except (ImportError, RuntimeError, ValueError):
             pytest.skip("Shamir not available")
