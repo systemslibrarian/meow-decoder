@@ -732,6 +732,20 @@ SECURITY MODULES (optional):
 ├──▶ ninja_cat_ultra.py (steganography)
 ├──▶ prowling_mode.py (low-memory)
 └──▶ resume_secured.py (resume support)
+
+OS-LEVEL HARDENING (Phases 1–4, 2026-02-22):
+├──▶ memory_guard.py (mlockall, RLIMIT_CORE=0, PR_SET_DUMPABLE, MADV_DONTDUMP)
+├──▶ constant_time.py (secure_zero_memory, SecureBuffer, mlock lifecycle)
+├──▶ forensic_cleanup.py (thumbnails, clipboard, shell history, temp files)
+├──▶ secure_temp.py (tmpfs enforcement, /dev/shm preferred)
+├──▶ timing_equalizer.py (constant wall-clock decode, CSPRNG jitter)
+├──▶ size_normalizer.py (fixed-size output padding, size classes)
+├──▶ expiry.py (timed self-destruct, manifest expiry field)
+├──▶ source_cleanup.py (secure source deletion, TRIM hints)
+├──▶ decorrelation.py (inter-file parameter randomization)
+├──▶ secure_input.py (keystroke timing normalization)
+├──▶ air_gap.py (network/WiFi/Bluetooth/DNS air-gap checks)
+└──▶ crypto_core/src/secure_alloc.rs (Rust SecureBox: guard pages + mlock + DONTDUMP)
 ```
 
 ---

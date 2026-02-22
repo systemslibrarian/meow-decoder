@@ -579,18 +579,133 @@ backend == "rust"
 - Independent Argon2id, ratchet, fountain, and GCM keys per stream
 - No cross-commitments between streams
 
-**What is NOT guaranteed:**
-- Perfect indistinguishability under forensic comparison of multiple files
-- Resistance to timing side-channels during encode/decode
-- Deniability if attacker has access to swap/memory forensics
-- Deniability if attacker compares file sizes across users
+**What is NOT guaranteed (with mitigations noted):**
+- Perfect indistinguishability under forensic comparison of multiple files *(mitigated by INV-030 fixed-size padding + INV-031 fixed QR + `decorrelation.py` — best-effort)*
+- ~~Resistance to timing side-channels during encode/decode~~ → *Mitigated by INV-029 `timing_equalizer.py` — best-effort, Python GC is non-constant-time*
+- ~~Deniability if attacker has access to swap/memory forensics~~ → *Mitigated by INV-026 `memory_guard.py` (mlockall + MADV_DONTDUMP) — best-effort*
+- ~~Deniability if attacker compares file sizes across users~~ → *Mitigated by INV-030 `size_normalizer.py` (fixed size classes)*
+
+> **Note (2026-02-22):** The above mitigations significantly raise the bar but are best-effort. Python's GC, interpreter scheduling, and OS-level page cache remain outside software control.
 
 **Verification:**
 - `tests/security/test_deniability.py` (statistical distinguishability tests)
+- `tests/security/test_timing_equalizer.py`, `test_size_normalizer.py`, `test_memory_guard.py`
 
 **Failure Impact:** False sense of security for users in rogue states.
 
 *PARTIAL indicates implementation is best-effort due to Python limitations.
+
+---
+
+### INV-026: Memory Guard Active
+
+**Status:** ✅ ENFORCED
+**Category:** Memory Hardening
+**Implemented In:** `meow_decoder/memory_guard.py` (274 lines)
+
+**Description:** At process start, `activate_memory_guard()` enforces:
+1. `mlockall(MCL_CURRENT | MCL_FUTURE)` — prevent all pages from swap
+2. `RLIMIT_CORE = 0` — prevent core dump generation
+3. `PR_SET_DUMPABLE = 0` — prevent ptrace attachment
+4. `MADV_DONTDUMP` on sensitive memory regions
+
+**What IS guaranteed:**
+- Best-effort prevention of key material in swap and core dumps (Linux/macOS)
+- Process is non-dumpable and non-ptraceable
+
+**What is NOT guaranteed:**
+- Protection on Windows (deferred)
+- Protection against root-level memory access or cold boot attacks
+
+**Verification:** `tests/security/test_memory_guard.py`, `tests/security/test_dontdump.py`
+**Failure Impact:** Key material in swap/core dumps recoverable by forensic examiner.
+
+---
+
+### INV-027: No Persistent Temp Files
+
+**Status:** ✅ ENFORCED
+**Category:** Forensic Countermeasures
+**Implemented In:** `meow_decoder/secure_temp.py` (265 lines)
+
+**Description:** All temporary file operations use tmpfs-backed storage (`/dev/shm` preferred). Falls back to `/tmp` with a `SecurityWarning` if no tmpfs is available.
+
+**Verification:** `tests/security/test_secure_temp.py`
+**Failure Impact:** Temp files persisted to disk, recoverable by forensic examiner.
+
+---
+
+### INV-028: Forensic Cleanup on Exit
+
+**Status:** ✅ ENFORCED (best-effort)
+**Category:** Forensic Countermeasures
+**Implemented In:** `meow_decoder/forensic_cleanup.py` (387 lines)
+
+**Description:** On graceful exit, `ForensicCleaner.clean_all()` removes:
+- File manager thumbnails (GNOME, KDE, macOS QuickLook, Windows)
+- Recent file lists (`recently-used.xbel`)
+- Clipboard contents (xclip/pbcopy)
+- Shell history entries containing meow-related commands
+- Temp files matching `meow_*`
+
+**Limitation:** Best-effort and OS-dependent. Cannot clean kernel page cache or filesystem journal from userspace.
+
+**Verification:** `tests/security/test_forensic_cleanup.py`
+**Failure Impact:** OS artifacts reveal file operation history to forensic examiner.
+
+---
+
+### INV-029: Constant-Time Decode
+
+**Status:** ✅ ENFORCED (best-effort)
+**Category:** Timing Side-Channels
+**Implemented In:** `meow_decoder/timing_equalizer.py` (281 lines)
+
+**Description:** `TimingEqualizer` wraps decode operations to produce constant wall-clock time regardless of success/failure. Uses CSPRNG jitter (±5%) to prevent statistical averaging.
+
+**Limitation:** Python GC and interpreter scheduling are inherently non-constant-time. Rust-side crypto uses `subtle` crate for true constant-time.
+
+**Verification:** `tests/security/test_timing_equalizer.py`
+**Failure Impact:** Timing oracle reveals password validity.
+
+---
+
+### INV-030: Fixed Output Size
+
+**Status:** ✅ ENFORCED
+**Category:** Indistinguishability
+**Implemented In:** `meow_decoder/size_normalizer.py` (288 lines)
+
+**Description:** GIF output is padded to fixed size classes (4KB, 16KB, 64KB, 256KB, 1MB, 4MB, 16MB, 64MB) to prevent file size fingerprinting.
+
+**Verification:** `tests/security/test_size_normalizer.py`
+**Failure Impact:** File size reveals payload size, enabling profiling.
+
+---
+
+### INV-031: Fixed QR Version
+
+**Status:** ✅ ENFORCED
+**Category:** Indistinguishability
+**Implemented In:** `meow_decoder/qr_code.py`, `meow_decoder/config.py`
+
+**Description:** QR version is fixed at v25 regardless of payload size. Prevents QR structure from leaking payload size metadata.
+
+**Verification:** Config-level enforcement; QR version not auto-selected.
+**Failure Impact:** QR version metadata reveals payload size class.
+
+---
+
+### INV-032: Content Expiry
+
+**Status:** ✅ ENFORCED
+**Category:** Anti-Forensics
+**Implemented In:** `meow_decoder/expiry.py` (332 lines)
+
+**Description:** Encoded content can include an expiry timestamp. On decode, expiry is checked BEFORE decryption. Expired content triggers self-destruct (multi-pass overwrite + unlink) rather than silent decryption.
+
+**Verification:** `tests/security/test_expiry.py`
+**Failure Impact:** Expired secrets remain accessible indefinitely.
 
 ---
 
