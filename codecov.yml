@@ -137,6 +137,7 @@ ignore:
   - "crypto_core/src/hsm.rs"        # Hardware Security Module (requires PKCS#11)
   - "crypto_core/src/tpm.rs"        # TPM 2.0 (requires tpm2-tss)
   - "crypto_core/src/yubikey_piv.rs" # YubiKey PIV (requires hardware)
+  - "crypto_core/src/secure_alloc.rs" # Platform-dependent (50% is #[cfg(windows)] untestable on Linux + OS error paths)
   # Misc
   - "*.md"
   - "*.py"
