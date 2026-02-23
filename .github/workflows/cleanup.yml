@@ -24,6 +24,7 @@ run-name: Cleanup workflow runs (keep last ${{ inputs.keep_minimum_runs || 5 }},
 jobs:
   cleanup:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       actions: write # Required for deletion
 

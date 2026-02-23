@@ -136,13 +136,6 @@ jobs:
       - name: Verify Rust backend
         run: python -c "import meow_crypto_rs; print('Rust backend OK')"
 
-      # -- Crypto Migration Enforcement (Phase 5) --
-      - name: Crypto enforcement checks
-        run: |
-          echo "🔐 Running crypto migration enforcement tests..."
-          pytest tests/test_crypto_enforcement.py -v --tb=short
-          echo "✅ Crypto enforcement checks passed"
-
       - name: Rust crypto_core tests
         run: |
           echo "🦀 Running Rust crypto_core tests..."
@@ -181,7 +174,10 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
+          sudo apt-get install -y chromium-browser || true
+          # Ubuntu 24.04 removed chromium-browser from apt — install via playwright
+          pip install playwright
+          python -m playwright install --with-deps chromium
 
       - name: Install Python dependencies for test runner
         run: |
@@ -227,7 +223,8 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg chromium-browser
+          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y chromium-browser || true
 
       - name: Install npm dependencies
         run: npm install

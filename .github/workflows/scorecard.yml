@@ -21,6 +21,7 @@ jobs:
   analysis:
     name: Scorecard analysis
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       # Required for SARIF upload to GitHub Security tab
       security-events: write

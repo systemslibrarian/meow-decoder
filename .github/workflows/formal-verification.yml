@@ -60,6 +60,7 @@ jobs:
       contents: read
       pull-requests: write # Required for PR comment on failure
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -255,6 +256,7 @@ jobs:
   tlaplus:
     name: TLA+ Model Checking
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -363,6 +365,7 @@ jobs:
   lean:
     name: Lean 4 Proofs + Sorry Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -425,6 +428,7 @@ jobs:
   tamarin:
     name: Tamarin OE (Docker — MEOW3 + MEOW4 PQ)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -498,6 +502,7 @@ jobs:
   verus:
     name: Verus Implementation Proofs (Docker)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
       - name: Checkout repository
@@ -540,6 +545,7 @@ jobs:
     name: Verification Summary
     needs: [proverif, tlaplus, lean, tamarin, verus]
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     if: always()
 
     steps:
