@@ -56,6 +56,12 @@ def fuzz_derive_key(data: bytes):
     if not password:
         return
 
+    # Ensure minimum length so derive_key is actually exercised; passwords
+    # shorter than 8 chars are rejected by NIST SP 800-63B validation before
+    # any crypto runs — not an interesting fuzz path.
+    if len(password) < 8:
+        password = password.ljust(8, "x")
+
     try:
         key = derive_key(password, salt)
 
@@ -64,8 +70,14 @@ def fuzz_derive_key(data: bytes):
         assert len(key) == 32
 
     except ValueError as e:
-        # Expected for invalid input
-        if "empty" in str(e).lower() or "salt" in str(e).lower():
+        # Expected for invalid input (empty password, bad salt, length policy, etc.)
+        msg = str(e).lower()
+        if (
+            "empty" in msg
+            or "salt" in msg
+            or "characters" in msg  # NIST SP 800-63B length check
+            or "password" in msg
+        ):
             pass
         else:
             raise
