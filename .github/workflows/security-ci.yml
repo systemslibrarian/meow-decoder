@@ -178,23 +178,14 @@ jobs:
       # RUSTSEC-2026-0009: time 0.3.46 (transitive from x509-parser)
       # Tracking: create issue + re-evaluate when x509-parser updates time.
       # Review: 2026-05-01
-      - name: Rust dependency audit (cargo-audit) - crypto_core
+      - name: Rust dependency audit (cargo-audit)
         run: |
-          cd crypto_core
+          # Cargo.lock lives at workspace root; run audit from there so it
+          # covers both crypto_core and rust_crypto workspace members.
           cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 || {
             echo "⚠️ cargo-audit found vulnerabilities not in exception list."
             exit 1
           }
-          cd ..
-
-      - name: Rust dependency audit (cargo-audit) - rust_crypto
-        run: |
-          cd rust_crypto
-          cargo audit --ignore RUSTSEC-2023-0071 --ignore RUSTSEC-2024-0436 --ignore RUSTSEC-2026-0009 || {
-            echo "⚠️ Found vulnerabilities in rust_crypto."
-            exit 1
-          }
-          cd ..
 
   # ===========================================================================
   # SBOM Generation
