@@ -850,7 +850,7 @@ def deactivate_memory_guard() -> Dict[str, bool]:
     Returns:
         Dict mapping protection names to deactivation success.
     """
-    global _guard_status, _guard_activated
+    global _guard_activated
 
     libc = _get_libc()
     status: Dict[str, bool] = {}

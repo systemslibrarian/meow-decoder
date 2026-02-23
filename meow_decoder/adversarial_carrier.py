@@ -31,7 +31,10 @@ import math
 import secrets
 import struct
 from dataclasses import dataclass
-from typing import Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
+
+if TYPE_CHECKING:
+    from PIL import Image
 
 __all__ = [
     "AdversarialNoiseGenerator",

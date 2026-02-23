@@ -680,8 +680,6 @@ class MouseGesturePassword:
         digest = hashlib.blake2b(quantized_bytes, digest_size=32).hexdigest()
         return digest
 
-        return bytes(path)
-
     def collect(self, points: List[Tuple[float, float]], *, output_hex: bool = True) -> str:
         """
         Derive a password from a sequence of gesture points.
