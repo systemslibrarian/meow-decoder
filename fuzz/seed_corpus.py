@@ -41,6 +41,40 @@ def generate_manifest_samples(output_dir: Path, count: int = 20):
         with open(output_dir / f"manifest_{i:03d}.bin", "wb") as f:
             f.write(packed)
 
+    # MEOW4 manifests have 1568-byte PQ ciphertext (ML-KEM-1024)
+    meow4_manifest = Manifest(
+        salt=secrets.token_bytes(16),
+        nonce=secrets.token_bytes(12),
+        orig_len=1000,
+        comp_len=800,
+        cipher_len=816,
+        sha256=secrets.token_bytes(32),
+        block_size=512,
+        k_blocks=5,
+        hmac=secrets.token_bytes(32),
+        ephemeral_public_key=secrets.token_bytes(32),
+        pq_ciphertext=secrets.token_bytes(1568),  # ML-KEM-1024 = MEOW4
+    )
+    with open(output_dir / "meow4_pq1568.bin", "wb") as f:
+        f.write(pack_manifest(meow4_manifest))
+
+    # MEOW5 manifests have 1088-byte PQ ciphertext (ML-KEM-768)
+    meow5_manifest = Manifest(
+        salt=secrets.token_bytes(16),
+        nonce=secrets.token_bytes(12),
+        orig_len=1000,
+        comp_len=800,
+        cipher_len=816,
+        sha256=secrets.token_bytes(32),
+        block_size=512,
+        k_blocks=5,
+        hmac=secrets.token_bytes(32),
+        ephemeral_public_key=secrets.token_bytes(32),
+        pq_ciphertext=secrets.token_bytes(1088),  # ML-KEM-768 = MEOW5
+    )
+    with open(output_dir / "meow5_pq1088.bin", "wb") as f:
+        f.write(pack_manifest(meow5_manifest))
+
     # Also add some edge cases
     edge_cases = [
         b"MEOW3" + b"\x00" * 110,  # Minimal valid-ish
@@ -56,7 +90,7 @@ def generate_manifest_samples(output_dir: Path, count: int = 20):
         with open(output_dir / f"edge_case_{i:03d}.bin", "wb") as f:
             f.write(case)
 
-    print(f"✅ Generated {count + len(edge_cases)} manifest samples in {output_dir}")
+    print(f"✅ Generated {count + 2 + len(edge_cases)} manifest samples in {output_dir}")
 
 
 def generate_fountain_samples(output_dir: Path, count: int = 20):

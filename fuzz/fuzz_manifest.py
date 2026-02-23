@@ -57,17 +57,25 @@ def fuzz_unpack_manifest(data: bytes):
             if manifest.ephemeral_public_key:
                 assert len(manifest.ephemeral_public_key) == 32
             if manifest.pq_ciphertext:
-                assert len(manifest.pq_ciphertext) == 1088
+                # MEOW5 (ML-KEM-768) = 1088 bytes; MEOW4 (ML-KEM-1024) = 1568 bytes
+                assert len(manifest.pq_ciphertext) in (1088, 1568), (
+                    f"Unexpected PQ ciphertext length: {len(manifest.pq_ciphertext)}"
+                )
 
     except ValueError:
         # Expected for invalid input
         pass
+    except AssertionError:
+        # Our own assertions fired — re-raise so atheris records it as a crash
+        raise
     except Exception as e:
         # Unexpected exceptions are bugs
         if "too short" in str(e).lower():
             pass  # Expected
         elif "invalid" in str(e).lower():
             pass  # Expected
+        elif "wrong size" in str(e).lower():
+            pass  # Expected (PQ ciphertext size validation)
         else:
             raise
 
