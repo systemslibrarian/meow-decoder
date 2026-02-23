@@ -56,60 +56,69 @@ jobs:
         id: tarpaulin
         run: |
           # Temporarily remove cdylib — tarpaulin cannot instrument shared libraries
-          sed -i 's/crate-type = \["lib", "cdylib"\]/crate-type = ["lib"]/' Cargo.toml
+          sed -i 's/crate-type = \["lib", "cdylib"\]/crate-type = ["lib"]/' crypto_core/Cargo.toml
 
+          # Run from workspace root; tarpaulin discovers the workspace Cargo.toml
+          # and produces workspace-relative paths (crypto_core/src/...) in lcov.info
           cargo tarpaulin \
+            -p crypto_core \
             --lib --tests \
             --features "pure-crypto,pq-crypto" \
             --out Lcov \
             --out Json \
-            --output-dir . \
+            --output-dir ./crypto_core \
             --timeout 300 \
             --exclude-files "src/wasm.rs" \
             --exclude-files "src/hsm.rs" \
             --exclude-files "src/tpm.rs" \
             --exclude-files "src/yubikey_piv.rs" \
-            -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
+            -- --test-threads=1 2>&1 | tee crypto_core/tarpaulin-output.txt
 
           # Restore Cargo.toml so the cdylib removal doesn't leak
-          git checkout Cargo.toml
+          git checkout crypto_core/Cargo.toml
 
-          # Fix source paths: tarpaulin records "src/..." but Codecov needs "crypto_core/src/..."
-          sed -i 's|^SF:src/|SF:crypto_core/src/|' lcov.info
+          # Fix source paths: strip absolute workspace prefix so codecov sees
+          # repo-relative paths like "crypto_core/src/..."
+          sed -i "s|^SF:$(pwd)/||" crypto_core/lcov.info || true
+          # Also fix bare "src/" → "crypto_core/src/" if present
+          sed -i 's|^SF:src/|SF:crypto_core/src/|' crypto_core/lcov.info || true
 
           # Extract coverage percentage from output
-          COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
+          COVERAGE=$(grep -oP '\d+\.\d+% coverage' crypto_core/tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "Rust coverage: $COVERAGE%"
-        working-directory: ./crypto_core
 
       # ── Coverage: rust_crypto ────────────────────────────────────────────
       - name: Run tests with coverage (rust_crypto)
         id: tarpaulin_rust_crypto
         run: |
           # Temporarily remove cdylib — tarpaulin cannot instrument shared libraries
-          sed -i 's/crate-type = \["cdylib", "lib"\]/crate-type = ["lib"]/' Cargo.toml
+          sed -i 's/crate-type = \["cdylib", "lib"\]/crate-type = ["lib"]/' rust_crypto/Cargo.toml
 
+          # Run from workspace root; tarpaulin produces workspace-relative paths
           cargo tarpaulin \
+            -p meow_crypto_rs \
             --lib --tests \
             --features "pq,pq-signing" \
             --out Lcov \
             --out Json \
-            --output-dir . \
+            --output-dir ./rust_crypto \
             --timeout 300 \
             --exclude-files "src/lib.rs" \
-            -- --test-threads=1 2>&1 | tee tarpaulin-output.txt
+            -- --test-threads=1 2>&1 | tee rust_crypto/tarpaulin-output.txt
 
           # Restore Cargo.toml
-          git checkout Cargo.toml
+          git checkout rust_crypto/Cargo.toml
 
-          # Fix source paths for Codecov ("src/..." → "rust_crypto/src/...")
-          sed -i 's|^SF:src/|SF:rust_crypto/src/|' lcov.info
+          # Fix source paths: strip absolute workspace prefix so codecov sees
+          # repo-relative paths like "rust_crypto/src/..."
+          sed -i "s|^SF:$(pwd)/||" rust_crypto/lcov.info || true
+          # Also fix bare "src/" → "rust_crypto/src/" if present
+          sed -i 's|^SF:src/|SF:rust_crypto/src/|' rust_crypto/lcov.info || true
 
-          COVERAGE=$(grep -oP '\d+\.\d+% coverage' tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
+          COVERAGE=$(grep -oP '\d+\.\d+% coverage' rust_crypto/tarpaulin-output.txt | head -1 | grep -oP '\d+\.\d+')
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "rust_crypto coverage: $COVERAGE%"
-        working-directory: ./rust_crypto
 
       - name: Generate coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
