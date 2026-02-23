@@ -989,7 +989,7 @@ For Meow Decoder to provide its stated security, these must be true:
 - [ ] FIPS 140-3 module validation (if demand exists)
 - [ ] Side-channel resistant hardware integration (Faraday, power analysis countermeasures)
 - [ ] Rust SecureBox<T> with mlock + mprotect guard pages + MADV_DONTDUMP for key allocations
-- [ ] PQ ratchet beacon (ML-KEM-based periodic rekey for post-quantum forward secrecy)
+- [x] PQ ratchet beacon: PQXDH-style hybrid root rekey (X25519 + ML-KEM-1024 combined into root key at each rekey frame, per `_fold_pq_into_root` in `ratchet.py`) — post-quantum post-compromise security
 - [ ] Randomized interleave pattern in Schrödinger mode (HKDF-derived permutation)
 
 ### Community Contributions Welcome:

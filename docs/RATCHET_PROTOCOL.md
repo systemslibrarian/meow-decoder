@@ -340,7 +340,7 @@ ZEROIZE(shared_secret)
 - **Fail-closed**: Insecure stubs permanently disabled — `RuntimeError` raised if no real ML-KEM backend (Rust, ml-kem, or OQS) is available
 - Larger beacon overhead: 1568 bytes per beacon frame (vs 32 bytes for Mode B)
 - Requires receiver to have ML-KEM-1024 keypair
-- **Note**: PQ beacons are implemented but not auto-integrated into the default ratchet path. Use `PQRatchetBeacon` class directly when PQ post-compromise security is needed.
+- **Auto-integrated**: When `receiver_pq_public_key` is supplied to `EncoderRatchet`, ML-KEM-1024 is automatically encapsulated at every rekey boundary and the PQ shared secret is folded into the root key via `_fold_pq_into_root()` (PQXDH-style combiner, §7A.7). No separate `PQRatchetBeacon` invocation is required.
 
 ### 7.4 Beacon Frame Layout
 
@@ -412,6 +412,8 @@ Beacons are fully compatible with out-of-order frame reception:
 ### 7A.1 Overview
 
 MSR v2.0 upgrades rekey beacons from message-key mixing (§7) to **asymmetric root key rotation**, achieving post-compromise security goals inspired by Signal's DH ratchet (not Signal; no equivalence claim). Instead of mixing beacon entropy into individual message keys, the receiver's long-term X25519 public key is used to perform ECDH at each rekey boundary, rotating the root key and deriving an entirely new chain.
+
+When the receiver also supplies an ML-KEM-1024 public key, PQ-hybrid root rekey (§7A.7) is automatically applied: the encoder encapsulates an ML-KEM-1024 shared secret alongside the X25519 ephemeral key, and both are combined into the root key via a PQXDH-style two-level HKDF combiner. Breaking root-key security then requires breaking **both** X25519 ECDH and ML-KEM-1024.
 
 ### 7A.2 State Machine
 
@@ -514,6 +516,38 @@ ZEROIZE(old_root_key, old_chain_key)
 message_key, chain_key = ratchet_step(new_chain, salt)
 plaintext = AES_GCM_decrypt(message_key, ciphertext)
 ```
+
+### 7A.7 PQ-Hybrid Root Rekey (PQXDH-Style)
+
+When both `receiver_public_key` (X25519) and `receiver_pq_public_key` (ML-KEM-1024) are available, each asymmetric rekey performs a two-level combiner:
+
+```
+# After X25519 root rotation (produces post_x25519_root):
+pq_shared = ML-KEM-1024.Decap(pq_ciphertext, receiver_pq_private_key)  # 32B
+new_root  = HKDF(IKM=pq_shared, salt=post_x25519_root,
+                 info="meow_pq_hybrid_rekey_root_v1" || BE32(epoch), length=32)
+```
+
+The ML-KEM-1024 ciphertext (1568 bytes) is appended to the rekey frame header after the 32-byte X25519 ephemeral public key:
+
+```
+Rekey frame header (PQ-hybrid mode):
+  [4 bytes]    encrypted frame index
+  [16 bytes]   key commitment tag
+  [32 bytes]   X25519 ephemeral public key
+  [1575 bytes] PQ beacon frame (MAGIC(5) + len(2) + ML-KEM-1024 ciphertext(1568))
+  [variable]   AES-GCM ciphertext + tag
+```
+
+**Security property**: root-key forward secrecy requires an adversary to compromise both X25519 ECDH *and* ML-KEM-1024 KEM simultaneously. Either breakthrough alone is insufficient.
+
+**Fallback**: If only `receiver_public_key` is available (no PQ key), the classical X25519 root rotation (§7A.4/7A.5) is performed alone. If only `receiver_pq_public_key` is available, the PQ shared secret is mixed additively into the message key (§7 path) rather than the root key.
+
+| Keys available | Root rotation | Message-key injection |
+|----------------|--------------|----------------------|
+| X25519 only | X25519 ECDH | — |
+| ML-KEM-1024 only | — | PQ additive mix |
+| X25519 + ML-KEM-1024 | PQXDH hybrid combiner | — |
 
 ### 7A.6 Out-of-Order Handling
 

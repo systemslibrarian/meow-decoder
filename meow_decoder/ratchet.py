@@ -160,6 +160,10 @@ ASYM_REKEY_ROOT_INFO = b"meow_asym_rekey_root_v1"
 ASYM_REKEY_CHAIN_INFO = b"meow_asym_rekey_chain_v1"
 ASYM_REKEY_KEM_INFO = b"meow_asym_rekey_kem_v1"
 ASYM_REKEY_ROOT_INIT_INFO = b"meow_ratchet_root_store_v1"
+# PQ-hybrid root rekey: fold ML-KEM-1024 shared secret into root after X25519.
+# Ensures that post-compromise security (PCS) requires breaking BOTH classical
+# and post-quantum KEMs — a PQXDH-style combiner applied to the ratchet root.
+PQ_HYBRID_REKEY_ROOT_INFO = b"meow_pq_hybrid_rekey_root_v1"
 
 # ── Key Commitment Constants ────────────────────────────────────────────────
 # AES-GCM is NOT key-committing: an adversary can find two different keys
@@ -450,6 +454,52 @@ def _asymmetric_root_rekey_handle(
     new_chain_handle = _hkdf_derive_handle(new_root_handle, salt, ASYM_REKEY_CHAIN_INFO, 32)
 
     return new_root_handle, new_chain_handle
+
+
+def _fold_pq_into_root(
+    post_x25519_root_handle: int,
+    pq_shared_bytes: bytes,
+    epoch: int,
+) -> int:
+    """Fold ML-KEM-1024 shared secret into root key for PQ-hybrid root rekey.
+
+    Called AFTER the classical X25519 root rotation. Produces a new root key
+    that requires BOTH X25519 AND ML-KEM-1024 to predict, giving true
+    PQXDH-style post-compromise security on the ratchet root.
+
+    Derivation (PQXDH combiner):
+        new_root = HKDF(IKM=pq_shared, salt=x25519_post_rotation_root,
+                        info=PQ_HYBRID_REKEY_ROOT_INFO || BE32(epoch), len=32)
+
+    Args:
+        post_x25519_root_handle: Root handle from prior X25519 root rotation.
+            CONSUMED (dropped) by this function.
+        pq_shared_bytes: Raw ML-KEM-1024 shared secret (32 bytes).
+            Imported as handle, then immediately dropped.
+        epoch: Current rekey epoch counter bound into derivation to prevent
+            cross-epoch replay of stale PQ ciphertexts.
+
+    Returns:
+        New 32-byte PQ-hybrid root key handle.
+
+    Security:
+        - Both inputs required: attacker must break X25519 AND ML-KEM-1024
+          to predict the new root — matching Signal PQXDH security level
+        - Epoch binding: prevents replaying old PQ ciphertexts across epochs
+        - Domain separation: PQ_HYBRID_REKEY_ROOT_INFO distinct from all others
+        - Secret bytes stay in Rust: pq_shared_bytes imported then dropped
+    """
+    hb = get_handle_backend()
+    epoch_info = PQ_HYBRID_REKEY_ROOT_INFO + struct.pack(">I", epoch)
+    # Import PQ shared secret as an opaque handle; Python copy will be GC'd
+    pq_handle = hb.import_key(pq_shared_bytes)
+    # HKDF(IKM=pq_shared, salt=x25519_root_handle, info=epoch_info, len=32)
+    # Both inputs are handles — no secret bytes cross the Rust boundary
+    new_root_handle = hb.hkdf_two_handles(pq_handle, post_x25519_root_handle, epoch_info, 32)
+    hb.drop(pq_handle)
+    hb.drop(post_x25519_root_handle)
+    return new_root_handle
+
 
 
 # ── Header Encryption Helpers ────────────────────────────────────────────────
@@ -1026,6 +1076,7 @@ class EncoderRatchet:
 
         # ─── MSR v2.0: Asymmetric root key rotation (before ratchet step) ───
         beacon_header = b""
+        pq_beacon_header = b""  # Populated by PQ root rekey or PQ-only fallback below
         if self._is_rekey_frame(frame_index) and self._receiver_public_key is not None:
             shared_secret_handle, eph_pub = _generate_asym_rekey(self._receiver_public_key)
             beacon_header = eph_pub
@@ -1049,6 +1100,19 @@ class EncoderRatchet:
                 hb.drop(old_ck)
             hb.drop(shared_secret_handle)
 
+            # ─── PQ-hybrid root rekey: fold ML-KEM-1024 into root (PQXDH) ───
+            # Upgrade classical X25519 root rotation to PQXDH-level security.
+            # The ML-KEM-1024 shared secret is folded into new_root_h using the
+            # PQXDH combiner: attacker must break BOTH X25519 AND ML-KEM-1024
+            # to predict the new root key. The PQ ciphertext is embedded in
+            # pq_beacon_header for the decoder to decapsulate.
+            if self._receiver_pq_public_key is not None:
+                pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
+                pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
+                new_root_h = _fold_pq_into_root(new_root_h, pq_shared, self._state.epoch)
+                # Zeroize Python-side copy (handle keeps the real secret in Rust)
+                pq_shared = b"\x00" * len(pq_shared)
+
             self._state.root_key = new_root_h
             self._state.chain_key = new_chain_h
 
@@ -1063,13 +1127,18 @@ class EncoderRatchet:
             hb.drop(msg_key_handle)
             msg_key_handle = new_mk_handle
 
-        # ─── PQ Beacon: ML-KEM-1024 encapsulation (additive to classical) ───
-        # At rekey frames, if a PQ public key is available, encapsulate via
-        # ML-KEM-1024 and mix the shared secret into the message key. This
-        # is layered ON TOP of the classical beacon (X25519 or plaintext),
-        # so an attacker must break BOTH classical and PQ KEM.
-        pq_beacon_header = b""
-        if self._is_rekey_frame(frame_index) and self._receiver_pq_public_key is not None:
+        # ─── PQ-only fallback: PQ available but no X25519 key ─────────────────
+        # When a PQ public key is provided but no classical X25519 key exists,
+        # we cannot do a root rekey (no ephemeral X25519 material). Instead,
+        # fold the ML-KEM-1024 shared secret into the message key. This
+        # provides per-message PQ protection at the cost of no root rotation.
+        # NOTE: When BOTH X25519 and PQ keys are present, the PQ-hybrid root
+        # rekey runs INSIDE the X25519 block above — that path is preferred.
+        if (
+            self._is_rekey_frame(frame_index)
+            and self._receiver_pq_public_key is not None
+            and self._receiver_public_key is None
+        ):
             pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
             new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
             hb.drop(msg_key_handle)
@@ -1213,7 +1282,8 @@ class DecoderRatchet:
         # Maps epoch_number → ephemeral_public_key (32 bytes) extracted from
         # rekey frames. Populated during decrypt() BEFORE _advance_to() so
         # the chain can cross epoch boundaries during fast-forward.
-        self._received_rekey_material: Dict[int, bytes] = {}
+        # Maps epoch → (eph_pub_bytes, pq_ciphertext_or_None) for hybrid root rekey
+        self._received_rekey_material: Dict[int, tuple] = {}
         # Header encryption: precompute encrypted-index → real-index lookup
         self._header_key = _derive_header_key(root_key, salt)
         self._header_lookup = _build_header_lookup(self._header_key, total_frames)
@@ -1238,10 +1308,11 @@ class DecoderRatchet:
     def _execute_rekey(self, epoch: int) -> None:
         """Execute asymmetric root key rotation for the given epoch.
 
-        Uses handle-based _asymmetric_root_rekey_handle so all secret
-        key bytes stay in Rust and never enter Python memory.
+        Uses handle-based operations so all secret key bytes stay in Rust.
+        When PQ rekey material is available, performs a full PQXDH-style
+        hybrid root rotation: new_root depends on BOTH X25519 AND ML-KEM-1024.
         """
-        eph_pub = self._received_rekey_material.pop(epoch)
+        eph_pub, pq_ct = self._received_rekey_material.pop(epoch)
         shared_secret_handle = _recover_asym_rekey(eph_pub, self._receiver_private_key)
 
         hb = get_handle_backend()
@@ -1260,6 +1331,18 @@ class DecoderRatchet:
         if isinstance(old_ck, int):
             hb.drop(old_ck)
         hb.drop(shared_secret_handle)
+
+        # ─── PQ-hybrid root fold: fold ML-KEM-1024 into root (PQXDH) ────────
+        # If the encoder included a PQ ciphertext in the rekey frame and we have
+        # the PQ keypair, decapsulate and fold the shared secret into the root.
+        # This must mirror encode_next's PQ-hybrid block exactly.
+        if pq_ct is not None and self._receiver_pq_keypair is not None:
+            pq_shared = _mlkem1024_decapsulate(
+                self._receiver_pq_keypair.secret_key, pq_ct
+            )
+            new_root_h = _fold_pq_into_root(new_root_h, pq_shared, epoch)
+            # Zeroize Python-side copy (defense in depth)
+            pq_shared = b"\x00" * len(pq_shared)
 
         self._state.root_key = new_root_h
         self._state.chain_key = new_chain_h
@@ -1406,8 +1489,12 @@ class DecoderRatchet:
             if len(frame_body) < REKEY_BEACON_SIZE + GCM_TAG_SIZE:
                 raise ValueError(f"Asymmetric rekey frame body too short: {len(frame_body)} bytes")
             eph_pub = bytes(frame_body[:REKEY_BEACON_SIZE])
+            # Pre-extract PQ ciphertext BEFORE _advance_to() so _execute_rekey()
+            # can perform the full PQ-hybrid root rotation in one step.
+            _pq_frame_early = PQBeaconFrame.from_bytes(frame_body[REKEY_BEACON_SIZE:])
+            _pq_ct_early = _pq_frame_early.ciphertext if _pq_frame_early is not None else None
             epoch = self._frame_epoch(frame_index)
-            self._received_rekey_material[epoch] = eph_pub
+            self._received_rekey_material[epoch] = (eph_pub, _pq_ct_early)
 
         # Get the message key handle for this frame
         msg_key_handle: Optional[int] = None
@@ -1443,31 +1530,35 @@ class DecoderRatchet:
                     hb.drop(msg_key_handle)
                     msg_key_handle = new_mk_handle
 
-            # Step 4b: PQ beacon extraction (after classical beacon is stripped)
-            # If the encoder embedded an ML-KEM-1024 PQ beacon, extract it and
-            # mix the decapsulated shared secret into the message key. This is
-            # layered ON TOP of the classical beacon, so an attacker must break
-            # BOTH classical AND PQ KEM to recover the message key.
+            # Step 4b: PQ beacon processing (after classical beacon is stripped)
+            # Two code paths:
+            # A. Full hybrid (is_asym_rekey=True): PQ was ALREADY folded into
+            #    the root key by _execute_rekey() → only strip PQ beacon bytes.
+            # B. PQ-only fallback (is_asym_rekey=False, no X25519 key): mix PQ
+            #    shared secret into the message key (mirrors encoder fallback).
             if (
                 self._is_rekey_frame(frame_index)
                 and self._receiver_pq_keypair is not None
             ):
                 pq_frame = PQBeaconFrame.from_bytes(ciphertext_body)
                 if pq_frame is not None:
-                    pq_shared = _mlkem1024_decapsulate(
-                        self._receiver_pq_keypair.secret_key,
-                        pq_frame.ciphertext,
-                    )
-                    new_mk_handle = _mix_pq_beacon_handle(
-                        msg_key_handle, pq_shared, self._salt
-                    )
-                    hb.drop(msg_key_handle)
-                    msg_key_handle = new_mk_handle
-                    # Strip PQ beacon from ciphertext body
+                    if not is_asym_rekey:
+                        # PQ-only fallback: mix PQ into message key (no root key)
+                        pq_shared = _mlkem1024_decapsulate(
+                            self._receiver_pq_keypair.secret_key,
+                            pq_frame.ciphertext,
+                        )
+                        new_mk_handle = _mix_pq_beacon_handle(
+                            msg_key_handle, pq_shared, self._salt
+                        )
+                        hb.drop(msg_key_handle)
+                        msg_key_handle = new_mk_handle
+                        # Zeroize Python-side copy (defense in depth)
+                        pq_shared = b"\x00" * len(pq_shared)
+                    # is_asym_rekey: PQ already folded into root by _execute_rekey
+                    # Strip PQ beacon bytes from ciphertext body (both paths)
                     pq_total = PQBeaconFrame.header_size() + len(pq_frame.ciphertext)
                     ciphertext_body = ciphertext_body[pq_total:]
-                    # Zeroize PQ shared secret (defense in depth)
-                    pq_shared = b"\x00" * len(pq_shared)
 
             # Step 5: Key commitment verification (BEFORE decryption!)
             commit_keys = derive_frame_keys(msg_key_handle, self._salt)

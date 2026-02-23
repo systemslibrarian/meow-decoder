@@ -1895,6 +1895,155 @@ class TestRekeyBeacons:
         encoder.finalize()
         decoder.finalize()
 
+    @pytest.mark.skipif(
+        not (
+            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+        ),
+        reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
+    )
+    def test_pq_hybrid_root_rekey_roundtrip(self, root_key, salt):
+        """PQ-hybrid root rekey: X25519 + ML-KEM-1024 combined root rotation roundtrip."""
+        import meow_crypto_rs
+        from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+
+        # Generate classical X25519 keypair
+        receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
+        # Generate ML-KEM-1024 keypair
+        pq_keypair = generate_beacon_keypair()
+
+        total = 12
+        rekey = 4  # Hybrid beacons at frames 4, 8
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
+            receiver_pq_public_key=pq_keypair.public_key,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=receiver_private_bytes,
+            receiver_pq_keypair=pq_keypair,
+        )
+
+        for i in range(total):
+            data = f"pq_hybrid_frame_{i}".encode()
+            enc = encoder.encrypt_next(data)
+            dec = decoder.decrypt(enc)
+            assert dec == data, f"PQ-hybrid beacon frame {i} failed roundtrip"
+
+        encoder.finalize()
+        decoder.finalize()
+
+    @pytest.mark.skipif(
+        not (
+            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+        ),
+        reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
+    )
+    def test_pq_hybrid_wrong_pq_key_fails_after_rekey(self, root_key, salt):
+        """PQ-hybrid: wrong ML-KEM key → decryption fails after first rekey frame."""
+        import meow_crypto_rs
+        from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+
+        receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
+        correct_pq_keypair = generate_beacon_keypair()
+        wrong_pq_keypair = generate_beacon_keypair()  # Different keypair
+
+        total = 6
+        rekey = 2  # Hybrid beacon at frames 2, 4
+
+        encoder = EncoderRatchet(
+            root_key, salt, k_blocks=3, block_size=800, total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
+            receiver_pq_public_key=correct_pq_keypair.public_key,
+        )
+        decoder_wrong = DecoderRatchet(
+            root_key, salt, k_blocks=3, block_size=800, total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=receiver_private_bytes,
+            receiver_pq_keypair=wrong_pq_keypair,  # Wrong PQ key
+        )
+
+        enc0 = encoder.encrypt_next(b"frame0")
+        dec0 = decoder_wrong.decrypt(enc0)
+        assert dec0 == b"frame0"  # Frame 0 is pre-rekey, should work
+
+        enc1 = encoder.encrypt_next(b"frame1")
+        dec1 = decoder_wrong.decrypt(enc1)
+        assert dec1 == b"frame1"  # Frame 1 is pre-rekey, should work
+
+        enc2 = encoder.encrypt_next(b"frame2")
+        # Frame 2 is first PQ-hybrid rekey; wrong PQ key → root differs → GCM failure
+        with pytest.raises(Exception):
+            decoder_wrong.decrypt(enc2)
+
+        encoder.finalize()
+        decoder_wrong.finalize()
+
+    @pytest.mark.skipif(
+        not (
+            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
+            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+        ),
+        reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
+    )
+    def test_pq_hybrid_out_of_order_roundtrip(self, root_key, salt):
+        """PQ-hybrid root rekey survives out-of-order delivery with fountain codes."""
+        import random
+        import meow_crypto_rs
+        from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+
+        receiver_private_bytes, receiver_public_bytes = meow_crypto_rs.x25519_generate_keypair()
+        pq_keypair = generate_beacon_keypair()
+
+        total = 16
+        rekey = 4  # Hybrid beacons at 4, 8, 12
+
+        data = [f"ooo_hybrid_{i}".encode() for i in range(total)]
+
+        encoder = EncoderRatchet(
+            root_key, salt, k_blocks=4, block_size=800, total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_public_bytes,
+            receiver_pq_public_key=pq_keypair.public_key,
+        )
+        encrypted = [encoder.encrypt_next(d) for d in data]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(
+            root_key, salt, k_blocks=4, block_size=800, total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=receiver_private_bytes,
+            receiver_pq_keypair=pq_keypair,
+        )
+
+        indices = list(range(total))
+        random.shuffle(indices)
+        results = {}
+        for i in indices:
+            results[i] = decoder.decrypt(encrypted[i])
+        decoder.finalize()
+
+        for i in range(total):
+            assert results[i] == data[i], f"OOO PQ-hybrid frame {i} mismatch"
+
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Tasteful Meow Aliases
