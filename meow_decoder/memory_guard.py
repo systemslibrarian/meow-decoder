@@ -594,9 +594,14 @@ class GuardedBuffer:
         return ctypes.string_at(self._data_ptr + offset, length)
 
     def zero(self) -> None:
-        """Zero the entire data region (secure wipe)."""
-        if not self._closed:
-            ctypes.memset(self._data_ptr, 0, self._data_region_size)
+        """Zero the entire data region (secure wipe).
+
+        Raises:
+            RuntimeError: If buffer is closed.
+        """
+        if self._closed:
+            raise RuntimeError("GuardedBuffer is closed")
+        ctypes.memset(self._data_ptr, 0, self._data_region_size)
 
     def close(self) -> None:
         """

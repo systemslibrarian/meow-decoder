@@ -436,7 +436,7 @@ def fuzz_boundary_write_exact_size(data: bytes):
         buf = GuardedBuffer(size)
         # Exact boundary write should succeed
         buf.write(b"\x42" * size)
-        read_back = buf.read(0, size)
+        read_back = buf.read(size, 0)
         assert read_back == b"\x42" * size
 
         # One past boundary should raise
@@ -469,10 +469,11 @@ def fuzz_zero_wipe_idempotent(data: bytes):
         buf = GuardedBuffer(size)
         buf.write(b"\xFF" * size)
         for _ in range(wipe_count):
-            buf.zero_wipe()
-        # After wiping, read should return zeros
-        read_back = buf.read(0, size)
-        assert read_back == b"\x00" * size
+            buf.zero()
+        # After wiping, read should return zeros (only valid if at least one wipe occurred)
+        if wipe_count > 0:
+            read_back = buf.read(size, 0)
+            assert read_back == b"\x00" * size
         buf.close()
     except (RuntimeError, OSError, MemoryError):
         pass
