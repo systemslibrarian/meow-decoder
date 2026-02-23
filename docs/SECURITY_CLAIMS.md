@@ -1,7 +1,7 @@
 # Security Claims — Canonical Truth File
 
 **Version:** 1.0.0
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-25
 **Status:** This document is the authoritative source of truth for security claims.
 
 ---
@@ -16,7 +16,7 @@
 - Offers experimental ML-KEM-768/1024 post-quantum hybrid encryption.
   - **PQ mode is experimental. Not externally audited.**
 - Implemented primarily in Rust for crypto primitives (AES-GCM, HKDF, X25519, Argon2id).
-- Tested with 2100+ automated tests enforced in CI (1841 Python + 352 Rust).
+- Tested with 3200+ automated tests enforced in CI (2411 Python + 816 Rust).
 
 ## What This Project Is NOT
 

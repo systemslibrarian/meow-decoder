@@ -2,7 +2,7 @@
 
 **Project:** Meow Decoder
 **Version:** 1.0.0
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-25
 
 > *"A cat always lands on its feet — and always verifies its HMAC."*
 

@@ -10,6 +10,43 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security & Correctness Fixes — Comprehensive Bug Audit (2026-02-25) 🔒
+
+**16 security and correctness fixes across Rust and Python, identified by automated code audit.**
+
+#### Rust Fixes (5)
+
+| Fix | File | Severity | Detail |
+|-----|------|----------|--------|
+| Nonce counter CAS loop | `crypto_core/src/aead_wrapper.rs` | CRITICAL | Replaced `fetch_add` with compare-and-swap loop to prevent u64 overflow wrap-around causing nonce reuse |
+| Nonce generator CAS loop | `crypto_core/src/nonce.rs` | CRITICAL | Same CAS loop fix for `NonceGenerator::next()` counter |
+| X25519 all-zero shared secret rejection | `rust_crypto/src/pure.rs` | CRITICAL | `x25519_exchange()` now rejects all-zero shared secrets (small-subgroup attack) |
+| `OsRng` for `secure_random()` | `rust_crypto/src/lib.rs`, `pure.rs` | HIGH | Replaced `rand::thread_rng()` with `OsRng` for cryptographic randomness |
+| HKDF output length enforcement | `rust_crypto/src/handles.rs` | HIGH | All 6 HKDF handle functions enforce `output_len == 32`; ML-KEM-1024 `keygen/encapsulate/decapsulate` PyO3 exports added |
+
+#### Python Fixes (11)
+
+| Fix | File | Severity | Detail |
+|-----|------|----------|--------|
+| ML-KEM-1024 paranoid dispatch | `pq_hybrid.py` | CRITICAL | All 7 `mlkem768_*` call sites now correctly dispatch to `mlkem1024_*` when `paranoid=True` |
+| Deferred ratchet init | `decode_gif.py` | HIGH | Ratchet `total_frames` now correctly excludes signature metadata frames from AAD binding |
+| Fountain thread safety | `fountain.py` | HIGH | `sample_degree()` accepts `rng` param; `droplet()` uses local `random.Random(seed)` instead of global state |
+| Stego LSB preservation | `stego_advanced.py` | HIGH | `_apply_obfuscation()` saves/restores LSBs around noise+blur operations |
+| Config lazy `ensure_dirs()` | `config.py` | MEDIUM | `PathConfig.__post_init__` no longer auto-creates directories; explicit `ensure_dirs()` required |
+| Config `save()` callable filter | `config.py` | MEDIUM | `save()` filters out non-serializable callables before JSON dump |
+| Schrödinger password validation | `schrodinger_encode.py` | MEDIUM | Rejects identical real/decoy passwords (`ValueError`) |
+| Manifest signing OQS API | `manifest_signing.py` | MEDIUM | Fixed `oqs.Signature("Dilithium3")` → `oqs.Signature("Dilithium3", secret_key=sk)` with `sig.sign(message)` |
+| Quantum mixer O(1) slice | `quantum_mixer.py` | LOW | Replaced O(n) generator with O(1) `superposition[0::2]` slice |
+| Encode unreachable code removal | `encode.py` | LOW | Removed dead `if verbose: print(...)` after `raise RuntimeError` |
+| Encode cat_eyes_blink reuse | `encode.py` | LOW | Saved droplet payloads during generation; cat_eyes_blink reuses them instead of regenerating |
+
+#### Test Updates
+- 10+ tests in `test_decode_gif.py` aligned with fail-closed unsigned manifest rejection
+- `test_config.py` updated for lazy `ensure_dirs()` API
+- All 2411 Python tests collected, 816 Rust tests passing (3227+ total)
+
+---
+
 ### Security Fixes — Grok Evaluation Response, all gaps closed (2026-02-24) 🔒
 
 **Grok independent evaluation reviewed commit `bf8df065` and identified 5 gaps. All resolved.**

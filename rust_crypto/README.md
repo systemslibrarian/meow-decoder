@@ -17,6 +17,9 @@ with Python bindings via PyO3.
 
 - **Constant-time operations** via `subtle` crate
 - **Automatic memory zeroing** via `zeroize` crate
+- **X25519 all-zero shared secret rejection** (small-subgroup attack prevention)
+- **HKDF output length enforcement** (all handle functions enforce `output_len == 32`)
+- **Cryptographic RNG** via `OsRng` (not `thread_rng`) for `secure_random()`
 - **No unsafe code** where possible
 - **Audited crypto libraries**
 
@@ -96,7 +99,7 @@ The Rust backend provides significant speedups over the pure Python implementati
 
 ## Testing
 
-The crate includes comprehensive test coverage with **206 tests** across five test suites:
+The crate includes comprehensive test coverage with **816 tests** across all test suites:
 
 ```bash
 # Run all tests

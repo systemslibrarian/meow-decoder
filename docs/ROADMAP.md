@@ -120,6 +120,11 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **Comparison Report**: Head-to-head Meow vs StegX vs Signal analysis (`docs/MEOW_VS_STEGX_VS_SIGNAL.md`)
 - [x] **1800+ Tests Passing**: Full test suite green (1819 passed, 22 skipped, 0 failed)
 
+### Comprehensive Bug Audit (Feb 25, 2026)
+- [x] **16 Security/Correctness Fixes**: Rust nonce CAS loops, X25519 zero-check, HKDF length enforcement, ML-KEM-1024 paranoid dispatch, fountain thread safety, stego LSB preservation, deferred ratchet init, config safety, Schrödinger password validation
+- [x] **Rust Hardening**: `OsRng` for `secure_random()`, ML-KEM-1024 PyO3 exports
+- [x] **3200+ Tests Passing**: 2411 Python + 816 Rust tests across 83+ test files
+
 ---
 ### Formal Methods
 - [ ] **Formal Verification**: CI-gated Verus/Coq proofs for crypto primitives
@@ -147,7 +152,8 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 | 6 | Opaque handle migration (M1–M9) | ✅ Complete |
 | 7 | Multi-layer stego audit (4 sessions, 43 artifacts) | ✅ Complete |
 | 8 | Documentation accuracy audit & comparison report | ✅ Complete |
-| 9 | Third-party audit | 🔮 Planned |
+| 9 | Comprehensive bug audit (16 fixes, Rust + Python) | ✅ Complete |
+| 10 | Third-party audit | 🔮 Planned |
 
 ---
 
@@ -155,4 +161,4 @@ For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible 
 
 ---
 
-*Last Updated: February 21, 2026*
+*Last Updated: February 25, 2026*

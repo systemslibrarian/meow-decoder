@@ -295,7 +295,7 @@ An adversary who obtains a shallow/decoy key cannot derive secondary or tertiary
 
 | Category | Count | Notes |
 |----------|-------|-------|
-| Rust crypto tests (all modules) | 676+ | AES-GCM, HKDF, X25519, Argon2id, STC, timing, palette, signatures |
+| Rust crypto tests (all modules) | 816+ | AES-GCM, HKDF, X25519, Argon2id, STC, timing, palette, signatures |
 | Python adversarial tests | 126+ | Tamper detection, frame injection, replay, brute-force, side-channel |
 | Fuzz targets | 17+ | Manifest, crypto, fountain, stego |
 | Ratchet tests (MSR v1.2) | 142 unit + 23 E2E | Per-frame forward secrecy, out-of-order, rekey beacons |

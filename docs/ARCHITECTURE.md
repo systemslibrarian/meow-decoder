@@ -451,7 +451,7 @@ The following invariants are load-bearing. Violating any one of them constitutes
 | **HMAC-then-use for manifests** | Manifest HMAC must be verified before any field is trusted; skipping this enables oracle attacks | Adversarial tests (`tests/test_adversarial.py`) |
 | **Fail-closed MAC verification** | `ValueError` on invalid MAC; silent MAC bypass is a critical vulnerability | Unit tests assert `ValueError` is raised, never caught |
 | **Argon2id production parameters** | 512 MiB memory, 20 iterations, 4 threads — lowering them weakens brute-force resistance | Config tests; `MEOW_TEST_MODE` flag for CI only |
-| **Nonce uniqueness** | LRU cache (10K cap) + HKDF-derived synthetic IV prevents catastrophic nonce reuse | Nonce reuse guard tests |
+| **Nonce uniqueness** | LRU cache (10K cap) + HKDF-derived synthetic IV + Rust CAS loop (prevents u64 counter wrap) | Nonce reuse guard tests |
 | **Fountain code frame format** | `FOUNTAIN:<k>:<block_size>:<length>:<droplet_b64>` — changing this breaks Python ↔ JavaScript interop | Interop tests across both implementations |
 | **Rust primitive function names** | `aes_gcm_encrypt`, `derive_key_hkdf`, `x25519_exchange`, etc. — renaming them breaks every Layer 3 module | Layer 2 API contract; compilation and import tests |
 
@@ -1123,6 +1123,6 @@ The multi-layer stego system (`stego_multilayer.py`) underwent a comprehensive 4
 
 ---
 
-**Last Updated:** 2026-02-22
+**Last Updated:** 2026-02-25
 **Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
 **Status:** Production

@@ -50,7 +50,7 @@
 | **Memory Safety** | 8/10 | Rust backend is memory-safe. Python uses mlock + SecureBuffer + secure_zero_memory. `secure_alloc.rs` adds guard pages, mlock, MADV_DONTDUMP in Rust. `require_memory_guard()` provides fail-closed activation. Points lost: Python GC may copy objects, no Rust mlock on key handles outside SecureBox. |
 | **Side Channels** | 7/10 | `subtle::ConstantTimeEq` in Rust, `timing_safe_equal_with_delay` in Python, `equalize_timing`. Points lost: Python branching on decrypt success, frame count metadata, duress timing oracle. |
 | **Forensic Resistance** | 6/10 | `forensic_cleanup.py` handles OS artifacts (thumbnails, clipboard, shell history, temp files). `secure_temp.py` enforces tmpfs (/dev/shm). `source_cleanup.py` for secure deletion + SSD TRIM. Points lost: platform-specific gaps, no formal wipe verification. |
-| **Test Coverage** | 10/10 | 348+ security tests across 16 test files, chi-squared/KS/entropy/autocorrelation/runs, tamper detection, replay prevention, fuzz testing in CI, timing oracle tests (`timing_equalizer.py`). |
+| **Test Coverage** | 10/10 | 420+ security tests across 16+ test files, chi-squared/KS/entropy/autocorrelation/runs, tamper detection, replay prevention, fuzz testing in CI, timing oracle tests (`timing_equalizer.py`). 3200+ total tests (2411 Python + 816 Rust). |
 | **Documentation** | 9.5/10 | 32 invariants, honest threat model, protocol spec, architecture doc. Half-point lost: no formal security proof document (Verus proofs exist but aren't summarized in docs). |
 
 ### Overall: 8.7/10 (weighted average, deniability and side channels are the main deductions)

@@ -460,7 +460,7 @@ verification results:: verified: 8 errors: 0
 **Claim:** `∀ e1, e2 ∈ Encryptions: e1 ≠ e2 ⟹ nonce(e1) ≠ nonce(e2)`
 
 **Proof:**
-1. `NonceManager.counter` is strictly monotonic (atomic fetch_add)
+1. `NonceManager.counter` is strictly monotonic (atomic compare-and-swap loop, panics on u64 overflow)
 2. Each `allocate_nonce()` increments counter exactly once
 3. Nonce = `[counter_bytes || random_prefix]`
 4. Different counter values ⟹ different nonces ∎

@@ -262,7 +262,8 @@ See `tests/security/test_ratchet_forward_secrecy.py` for property-based tests.
 
 The encode pipeline is fully wired end-to-end:
 `encode.py` calls `hybrid_encapsulate(paranoid=False)` for MEOW5 or
-`hybrid_encapsulate(paranoid=True)` for MEOW4. The decoder
+`hybrid_encapsulate(paranoid=True)` for MEOW4. When `paranoid=True`,
+all KEM operations dispatch to `mlkem1024_*` (not `mlkem768_*`). The decoder
 (`decode_gif.py`) calls `hybrid_decapsulate()` when
 `manifest.pq_ciphertext` is present.
 

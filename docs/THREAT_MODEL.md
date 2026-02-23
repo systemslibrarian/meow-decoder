@@ -1,9 +1,9 @@
 # 🛡️ THREAT MODEL - Meow Decoder v1.0
 
-**Date:** 2026-01-28
+**Date:** 2026-02-25
 **Version:** 1.0.0 (INTERNAL REVIEW — no external audit)
 **Classification:** Internal review v1.0 (claims bounded by tests/specs)
-**Last Security Review:** 2026-01-28
+**Last Security Review:** 2026-02-25
 
 ---
 
@@ -224,7 +224,7 @@ This section enumerates **concrete attack surfaces** and the **current mitigatio
 ### 2) Cryptographic Usage
 | Surface | Risk | Mitigation | Status |
 |---|---|---|---|
-| Nonce reuse | GCM catastrophic failure | Fresh random nonce + per‑process reuse guard ([meow_decoder/crypto.py](meow_decoder/crypto.py#L80)) | ✅ Implemented |
+| Nonce reuse | GCM catastrophic failure | Fresh random nonce + per‑process reuse guard + Rust CAS loop counter (prevents u64 wrap) ([meow_decoder/crypto.py](meow_decoder/crypto.py#L80)) | ✅ Implemented |
 | Metadata tampering | Length/hash substitution | AES‑GCM AAD binds fields; manifest HMAC ([meow_decoder/crypto.py](meow_decoder/crypto.py#L287), [meow_decoder/crypto.py](meow_decoder/crypto.py#L619)) | ✅ Implemented |
 | Frame injection | DoS or decode confusion | Per‑frame MAC (8 bytes) ([meow_decoder/frame_mac.py](meow_decoder/frame_mac.py#L131)) | ✅ Implemented |
 | Key reuse across domains | Cross‑protocol attacks | HKDF domain separation + HMAC prefixes ([meow_decoder/crypto.py](meow_decoder/crypto.py#L619)) | ✅ Implemented |
@@ -627,6 +627,7 @@ memory/swap/forensic recovery may still expose keys if not done perfectly.
 | Aspect | Implementation | Strength |
 |--------|---------------|----------|
 | Key agreement | X25519 ephemeral keys | Per-encryption fresh keys |
+| Zero-check | All-zero shared secret rejected (small-subgroup safety) | Rust constant-time check |
 | Key destruction | Keys never stored | Destroyed after use |
 | Compromise resistance | Past messages protected | Future leak can't decrypt past |
 | **Status** | ✅ **STRONG** | True forward secrecy |

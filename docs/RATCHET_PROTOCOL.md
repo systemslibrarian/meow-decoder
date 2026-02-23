@@ -263,7 +263,14 @@ ratchet.finalize()
 
 ```python
 # Decoder (decode_gif.py)
+# NOTE: Ratchet initialization is DEFERRED until signature metadata frames
+# are counted, so total_frames correctly excludes non-droplet frames.
 encryption_key = derive_key(password, salt)
+
+# Count signature metadata frames (if manifest signing is enabled)
+sig_parts_seen = count_signature_frames(frames)
+total_droplet_frames = len(frames) - 1 - sig_parts_seen
+
 ratchet = DecoderRatchet(
     root_key=encryption_key,
     salt=salt,
@@ -272,7 +279,7 @@ ratchet = DecoderRatchet(
     total_frames=total_droplet_frames,
 )
 
-# Skip frame 0 (manifest, already parsed)
+# Skip frame 0 (manifest, already parsed) and signature metadata frames
 for encrypted_droplet in droplet_frames:
     raw = ratchet.decrypt(encrypted_droplet)
     fountain_decoder.add_droplet(raw)

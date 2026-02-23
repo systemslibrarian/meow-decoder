@@ -98,6 +98,8 @@ Invariants are verified through:
 - Schrödinger isolation: `additional_context` byte distinguishes sub-streams.
 - Per-process reuse guard: `NonceGenerator` tracks used `frame_counter` values
   and raises `RuntimeError` on duplicate (defense-in-depth).
+- Rust nonce counter uses **compare-and-swap (CAS) loop** instead of `fetch_add`
+  to prevent u64 overflow wrap-around causing nonce reuse (`aead_wrapper.rs`, `nonce.rs`).
 - Legacy fallback: 96-bit random nonce + 128-bit salt (224 bits combined)
   retained for backward compatibility (non-ratchet, non-SIV paths).
 
@@ -280,6 +282,22 @@ IF manifest signature is absent AND signing is explicitly disabled
 - `tests/test_property_based.py::TestX25519Invariants::test_x25519_shared_secret_commutative`
 
 **Failure Impact:** Forward secrecy broken, key mismatch.
+
+### INV-010A: X25519 All-Zero Shared Secret Rejection
+
+```
+∀ private key sk, public key pk:
+    IF ECDH(sk, pk) == [0x00; 32] THEN RAISE Error
+```
+
+**Description:** X25519 exchange must reject all-zero shared secrets, which indicate small-subgroup attack.
+The Rust backend (`x25519_exchange()` in `pure.rs`) performs constant-time all-zero check and returns `Err`.
+
+**Verification:**
+- `rust_crypto/tests/comprehensive_tests.rs` (X25519 zero-check tests)
+- `rust_crypto/tests/additional_security_tests.rs`
+
+**Failure Impact:** Key agreement with attacker-controlled public key yields known shared secret.
 
 ---
 
@@ -1017,6 +1035,46 @@ Tamarin lemmas 11-15: RatchetForwardSecrecy, PQBeaconDomainSeparation,
 - `tests/test_asymmetric_rekey.py` (asymmetric rekey tests)
 
 **Failure Impact:** Compromise of chain_key yields past/future frame keys; PQ beacon provides no quantum resistance; traffic analysis via unencrypted frame indices.
+
+### INV-043: Fountain Code Thread Safety
+
+**Status:** ✅ TESTED
+**Category:** Correctness / Thread Safety
+**Implemented In:** `meow_decoder/fountain.py`
+
+```
+∀ concurrent calls to FountainEncoder.droplet(seed):
+    output(seed) is deterministic AND independent of global PRNG state
+```
+
+**Description:** `FountainEncoder.droplet()` now uses a local `random.Random(seed)` instance
+instead of the global `random` module, ensuring thread safety and reproducible output
+regardless of concurrent access. `sample_degree()` accepts an optional `rng` parameter.
+
+**Verification:**
+- `tests/test_fountain.py` (deterministic droplet generation tests)
+- `tests/test_e2e_crypto_fountain.py` (end-to-end pipeline)
+
+**Failure Impact:** Non-deterministic fountain encoding; intermittent decode failures under concurrent use.
+
+### INV-044: HKDF Output Length Enforcement
+
+**Status:** ✅ TESTED
+**Category:** Cryptographic Safety
+**Implemented In:** `rust_crypto/src/handles.rs`
+
+```
+∀ HKDF handle calls: output_len == 32 OR RAISE Error
+```
+
+**Description:** All 6 HKDF handle functions in the Rust backend enforce `output_len == 32`.
+This prevents callers from accidentally requesting non-standard key lengths that could
+weaken security or cause protocol mismatches.
+
+**Verification:**
+- `rust_crypto/tests/comprehensive_tests.rs` (HKDF output length tests)
+
+**Failure Impact:** Callers could request shorter keys, weakening cipher security.
 
 ---
 

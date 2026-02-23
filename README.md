@@ -561,7 +561,7 @@ To accept legacy unsigned manifests, set `MEOW_MANIFEST_SIGNING=off` at your own
 | Error Recovery | Fountain codes (33% loss OK) | ✅ |
 | Constant-Time Ops | Rust crypto backend | ✅ |
 | Tamper Timeline | Frame-by-frame MAC report | ✅ |
-| Security Tests | 1800+ tests, CI-enforced (3-gate) | ✅ |
+| Security Tests | 2400+ Python + 800+ Rust tests, CI-enforced (3-gate) | ✅ |
 
 **Full threat model:** [THREAT_MODEL.md](docs/THREAT_MODEL.md)
 
