@@ -952,7 +952,7 @@ class EncoderRatchet:
         k_blocks: int,
         block_size: int,
         total_frames: int,
-        rekey_interval: int = 0,
+        rekey_interval: int = DEFAULT_REKEY_INTERVAL,
         receiver_public_key: Optional[bytes] = None,
         receiver_pq_public_key: Optional[bytes] = None,
     ):
@@ -965,7 +965,7 @@ class EncoderRatchet:
             k_blocks: Number of fountain source blocks
             block_size: Fountain block size in bytes
             total_frames: Total number of frames to encrypt
-            rekey_interval: Frames between rekey beacons (0 = disabled)
+            rekey_interval: Frames between rekey beacons (default: DEFAULT_REKEY_INTERVAL)
             receiver_public_key: X25519 public key for KEM beacons (optional)
             receiver_pq_public_key: ML-KEM-1024 public key for PQ beacons (optional)
         """
@@ -1181,7 +1181,7 @@ class DecoderRatchet:
         k_blocks: int,
         block_size: int,
         total_frames: int,
-        rekey_interval: int = 0,
+        rekey_interval: int = DEFAULT_REKEY_INTERVAL,
         receiver_private_key: Optional[bytes] = None,
         receiver_pq_keypair: Optional[PQBeaconKeyPair] = None,
     ):
@@ -1194,7 +1194,7 @@ class DecoderRatchet:
             k_blocks: Number of fountain source blocks
             block_size: Fountain block size in bytes
             total_frames: Total number of expected frames
-            rekey_interval: Frames between rekey beacons (0 = disabled)
+            rekey_interval: Frames between rekey beacons (default: DEFAULT_REKEY_INTERVAL)
             receiver_private_key: X25519 private key for KEM beacons (optional)
             receiver_pq_keypair: ML-KEM-1024 keypair for PQ beacons (optional)
         """

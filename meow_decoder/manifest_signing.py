@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import hashlib
 import hmac
-import os
 import secrets
 import struct
 from dataclasses import dataclass
@@ -66,11 +65,6 @@ MANIFEST_VERIFY_DOMAIN = b"meow_manifest_verify_v1"
 _RUST_SIGNING_AVAILABLE = False
 _RUST_ED25519_AVAILABLE = False
 _RUST_MLDSA_AVAILABLE = False
-_ALLOW_INSECURE_STUBS = (
-    os.environ.get("MEOW_TEST_MODE") == "1"
-    or os.environ.get("MEOW_ALLOW_INSECURE_STUBS") == "1"
-)
-
 try:
     import meow_crypto_rs as _rs
     _RUST_ED25519_AVAILABLE = hasattr(_rs, "ed25519_sign")

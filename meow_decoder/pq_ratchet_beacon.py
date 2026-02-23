@@ -31,7 +31,6 @@ Cross-platform: Windows, Linux, macOS
 
 from __future__ import annotations
 
-import os
 import secrets
 import struct
 from dataclasses import dataclass
@@ -57,10 +56,6 @@ BEACON_DERIVE_DOMAIN = b"meow_pq_beacon_derive_v1"
 
 # Check for Rust backend
 _RUST_MLKEM_AVAILABLE = False
-_ALLOW_INSECURE_STUBS = (
-    os.environ.get("MEOW_TEST_MODE") == "1"
-    or os.environ.get("MEOW_ALLOW_INSECURE_STUBS") == "1"
-)
 try:
     import meow_crypto_rs as _rs
     _RUST_MLKEM_AVAILABLE = hasattr(_rs, "mlkem1024_keygen")

@@ -22,6 +22,10 @@ from dataclasses import dataclass
 _RUST_AVAILABLE = False
 _rust_backend = None
 
+# Production guard: export_key() is forbidden outside test mode.
+_PRODUCTION_MODE = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+_TEST_MODE = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
+
 try:
     import meow_crypto_rs as _rust_backend  # pragma: no cover (module-level import)
 
@@ -622,6 +626,12 @@ class HandleBackend:
         serialization.  Production code MUST NOT call this — use
         handle-based AEAD/HMAC instead.
         """
+        if _PRODUCTION_MODE and not _TEST_MODE:
+            raise RuntimeError(
+                "export_key() is PRODUCTION-FORBIDDEN. "
+                "Use handle-based AEAD/HMAC operations instead. "
+                "Set MEOW_TEST_MODE=1 or MEOW_PRODUCTION_MODE=0 to use in tests."
+            )
         return self._rs.handle_export_key(handle_id)
 
     def exists(self, handle_id: int) -> bool:

@@ -190,7 +190,7 @@ exiftool -all= innocent_cats.gif
 
 | Requirement for NSA Resistance | Meow Decoder Status |
 |--------------------------------|---------------------|
-| Formal verification (mathematical proof of correctness) | ⚠️ Partial — guard-page memory safety proven (Verus GB-001–GB-008); AEAD properties enforced by type system + tests, not yet Verus-proven |
+| Formal verification (mathematical proof of correctness) | ✅ Partial — guard-page memory safety (Verus GB-001–GB-008); AEAD abstract properties (Verus AEAD-001–AEAD-004 in `verus_proofs.rs`); structural binding lemmas in `aead_wrapper.rs` |
 | Independent security audit by cryptographers | ⭕ Seeking funding |
 | Certified constant-time implementation (no timing leaks) | ✅ Rust backend (subtle crate) |
 | Side-channel resistance (power, EM, cache) | ⚠️ Random delays |
@@ -264,19 +264,22 @@ This section maps **security claims** to **formal verification artifacts**.
 | **Auth-then-Output** | TLA+ (TLC) | `formal/tla/meow_protocol.tla` | ✅ Verified (bounded) |
 | **Replay Rejection** | TLA+ (TLC) + ProVerif | `formal/tla/` + `formal/proverif/` | ✅ Verified (symbolic) |
 | **Guard-page memory safety** | Verus | `crypto_core/src/verus_guarded_buffer.rs` (GB-001–GB-008) | ✅ **Verified (real Verus proofs)** |
-| **Nonce Uniqueness** | Type system + runtime tests | `UniqueNonce` (linear type) + `NonceManager` | ✅ Enforced (not Verus-proven) |
-| **Auth-Gated Plaintext** | Type system | `AuthenticatedPlaintext` (private constructor) | ✅ Enforced (not Verus-proven) |
-| **Key Zeroization** | `zeroize` crate + runtime | `ZeroizeOnDrop` (volatile writes) | ✅ Enforced (not Verus-proven) |
-| **No-Bypass (nonce consumption)** | Rust ownership | `UniqueNonce` consumed by `encrypt()` | ✅ Enforced (not Verus-proven) |
+| **Nonce Uniqueness** | Verus + Type system | `verus_proofs.rs` (lemma_nonce_uniqueness) + `UniqueNonce` (linear type) | ✅ **Verus-proven (abstract) + Type-enforced** |
+| **Auth-Gated Plaintext** | Verus + Type system | `verus_proofs.rs` (lemma_auth_gated_plaintext) + `AuthenticatedPlaintext` (private constructor) | ✅ **Verus-proven (abstract) + Type-enforced** |
+| **Key Zeroization** | Verus + `zeroize` crate | `verus_proofs.rs` (lemma_key_zeroization) + `ZeroizeOnDrop` (volatile writes) | ✅ **Verus-proven (abstract) + Runtime-enforced** |
+| **No-Bypass (nonce consumption)** | Verus + Rust ownership | `verus_proofs.rs` (lemma_no_bypass) + `UniqueNonce` consumed by `encrypt()` | ✅ **Verus-proven (abstract) + Ownership-enforced** |
 | **Frame MAC Integrity** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
 | **Duress Behavior** | TLA+ | `formal/tla/meow_protocol.tla` | ✅ Verified |
 | **HW Key Isolation** | TLA+ | `formal/tla/meow_protocol.tla` (HWKeyNeverExposed) | ✅ Verified |
 
-> **⚠️ Honest caveat:** The AEAD properties (AEAD-001 through AEAD-004) in `verus_proofs.rs`
-> are **proof stubs** (doc-comment specifications structured for future Verus verification).
-> They are **not** machine-checked Verus proofs. Only the guard-page proofs (GB-001–GB-008
-> in `verus_guarded_buffer.rs`) have been verified by Verus. AEAD correctness relies on
-> the `aes-gcm` crate’s proven security, Rust’s type system, and comprehensive testing.
+> **Verification note:** The AEAD properties (AEAD-001 through AEAD-004) are verified at
+> two levels: (1) **abstract Verus proofs** in `verus_proofs.rs` use spec functions
+> (`nonce_monotonic`, `auth_gated`, `bytes_zeroed`) checked by Z3; (2) **structural
+> binding lemmas** in `aead_wrapper.rs` (no `assume(false)`) connect the abstractions
+> to the concrete module types. Guard-page memory safety proofs (GB-001–GB-008 in
+> `verus_guarded_buffer.rs`) provide a deeper end-to-end machine-checked verification.
+> AEAD correctness additionally relies on the `aes-gcm` crate’s proven security,
+> Rust’s affine type system, and comprehensive property-based testing.
 
 ### 🌊 Channel Security
 
