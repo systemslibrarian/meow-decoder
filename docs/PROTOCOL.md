@@ -143,15 +143,13 @@ HMAC = HMAC‑SHA256(HMAC_KEY, MANIFEST_CORE_WITH_OPTIONALS)
 
 `MANIFEST_CORE_WITH_OPTIONALS` includes EPHEMERAL_PUBLIC_KEY, PQ_CIPHERTEXT, and DURESS_TAG when present.
 
-### 5.1 Manifest Signature Status (Conservative)
+### 5.1 Manifest Signature Status
 
-- Hybrid manifest-signing primitives (Ed25519 + ML-DSA-65) exist in code as a module-level capability.
-- The current v1.0 wire format does **not** yet define a mandatory in-band signature field that all decoders verify.
-- Therefore, protocol-level authenticity currently relies on manifest HMAC binding to the encryption key context.
-- Any future mandatory signature integration MUST define:
-  1. wire-format fields for signature + verification public key/commitment,
-  2. strict decode-time verification-before-trust behavior,
-  3. backward-compatibility and downgrade-failure rules.
+- Hybrid manifest-signing is **mandatory by default** (`SIGNING_MANDATORY = True` in `manifest_signing.py`).
+- Both Ed25519 (classical) and ML-DSA-65 (FIPS 204 post-quantum) signatures are required; failure of either raises `ValueError`.
+- Decoder rejects unsigned manifests with a fail-closed `ValueError` unless `MEOW_MANIFEST_SIGNING=off` is explicitly set (legacy compatibility only).
+- Signature bytes are carried out-of-band relative to the encrypted payload and verified before any manifest field is trusted (verification-before-trust).
+- Downgrade to unsigned is **not** permitted in high-security mode; `MEOW_MANIFEST_SIGNING=off` disables this protection and must only be used for reading legacy pre-signing transfers.
 
 ---
 

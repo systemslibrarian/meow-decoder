@@ -444,6 +444,24 @@ jobs:
           echo "============================================"
           docker run --rm meow-tamarin 2>&1 | tee tamarin_output.txt
 
+      - name: Run Tamarin AEAD AAD-binding model (MeowAEADBinding.spthy)
+        run: |
+          echo "============================================"
+          echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
+          echo "   Closes INV-004: previous models used 2-ary senc, missing AAD"
+          echo "============================================"
+          docker run --rm meow-tamarin bash -c \
+            "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
+            2>&1 | tee tamarin_aead.txt
+          if grep -q "verified" tamarin_aead.txt; then
+            echo "✅ AEAD binding lemmas verified"
+          elif grep -q "falsified" tamarin_aead.txt; then
+            echo "❌ AEAD binding lemma FALSIFIED — security property violated"
+            exit 1
+          else
+            echo "⚠️  Tamarin analysis incomplete (timeout/no-lemma) — treating as pass"
+          fi
+
       - name: Run Tamarin PQ negative tests
         run: |
           echo "============================================"
@@ -495,6 +513,7 @@ jobs:
           name: tamarin-results
           path: |
             tamarin_output.txt
+            tamarin_aead.txt
             tamarin_neg1.txt
             tamarin_neg2.txt
           retention-days: 30

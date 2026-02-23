@@ -501,7 +501,6 @@ def _fold_pq_into_root(
     return new_root_handle
 
 
-
 # ── Header Encryption Helpers ────────────────────────────────────────────────
 
 

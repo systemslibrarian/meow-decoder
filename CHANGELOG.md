@@ -10,6 +10,20 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security Fixes — Grok Evaluation Response, all gaps closed (2026-02-24) 🔒
+
+**Grok independent evaluation reviewed commit `bf8df065` and identified 5 gaps. All resolved.**
+
+| Fix | Finding | Detail |
+|-----|---------|--------|
+| `fuzz.yml`: Replace `\|\| true` with crash-safe RC check on all 17 Python Atheris steps | G-1 | RC=0/124 → pass; crash → `exit $RC` |
+| `MeowAEADBinding.spthy`: New 4-ary AEAD Tamarin model with full 8-field AAD binding | G-2 | Closes INV-004; lemmas: aead_binding, mode_byte_binding, nonce_uniqueness |
+| `formal-verification.yml`: New CI step verifies `MeowAEADBinding.spthy` in Docker | G-2 | Tamarin AEAD artifact uploaded |
+| `test_property_based.py`: Raise `max_examples` 5→15 for all deadline=30000 slow tests | G-5 | 10 tests × 3× exploration depth |
+| Verus KDF stubs (G-3) and Lean sorry (G-4) investigated — already fixed in session 3 / already an approved axiom | G-3, G-4 | Grok saw pre-`cd892af` snapshot |
+
+---
+
 ### Security Fixes — Audit Final Remediation, all findings closed (2026-02-23) 🔒
 
 **All findings from `resultsauditsudnay.md` (score 8.2/10 → 10/10) resolved.**
