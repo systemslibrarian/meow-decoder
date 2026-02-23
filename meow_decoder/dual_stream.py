@@ -64,7 +64,6 @@ from .crypto import (
 )
 from .quantum_mixer import entangle_realities
 
-
 # Domain separation for dual-stream metadata
 DUAL_STREAM_ENC_A_INFO = b"meow_dual_enc_a_v1"
 DUAL_STREAM_ENC_B_INFO = b"meow_dual_enc_b_v1"
@@ -101,6 +100,7 @@ class DualStreamManifest:
 
     NOTE: Always 382 bytes regardless of single/dual mode.
     """
+
     salt_a: bytes
     salt_b: bytes
     nonce_a: bytes
@@ -125,8 +125,9 @@ class DualStreamManifest:
         core += self.salt_a + self.salt_b
         core += self.nonce_a + self.nonce_b
         core += self.metadata_a + self.metadata_b
-        core += struct.pack(">IIQI", self.block_count, self.block_size,
-                            self.superposition_len, self.target_frames)
+        core += struct.pack(
+            ">IIQI", self.block_count, self.block_size, self.superposition_len, self.target_frames
+        )
         core += self.reserved
         return core
 
@@ -138,8 +139,9 @@ class DualStreamManifest:
         data += self.nonce_a + self.nonce_b
         data += self.hmac_a + self.hmac_b
         data += self.metadata_a + self.metadata_b
-        data += struct.pack(">IIQI", self.block_count, self.block_size,
-                            self.superposition_len, self.target_frames)
+        data += struct.pack(
+            ">IIQI", self.block_count, self.block_size, self.superposition_len, self.target_frames
+        )
         data += self.reserved
         return data
 
@@ -156,37 +158,44 @@ class DualStreamManifest:
             raise ValueError(f"Not a dual-stream manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset:offset + 16]
+        salt_a = data[offset : offset + 16]
         offset += 16
-        salt_b = data[offset:offset + 16]
+        salt_b = data[offset : offset + 16]
         offset += 16
-        nonce_a = data[offset:offset + 12]
+        nonce_a = data[offset : offset + 12]
         offset += 12
-        nonce_b = data[offset:offset + 12]
+        nonce_b = data[offset : offset + 12]
         offset += 12
-        hmac_a = data[offset:offset + 32]
+        hmac_a = data[offset : offset + 32]
         offset += 32
-        hmac_b = data[offset:offset + 32]
+        hmac_b = data[offset : offset + 32]
         offset += 32
-        metadata_a = data[offset:offset + 104]
+        metadata_a = data[offset : offset + 104]
         offset += 104
-        metadata_b = data[offset:offset + 104]
+        metadata_b = data[offset : offset + 104]
         offset += 104
         block_count, block_size, superposition_len, target_frames = struct.unpack(
-            ">IIQI", data[offset:offset + 20]
+            ">IIQI", data[offset : offset + 20]
         )
         offset += 20
-        reserved = data[offset:offset + 28]
+        reserved = data[offset : offset + 28]
 
         return cls(
-            salt_a=salt_a, salt_b=salt_b,
-            nonce_a=nonce_a, nonce_b=nonce_b,
-            hmac_a=hmac_a, hmac_b=hmac_b,
-            metadata_a=metadata_a, metadata_b=metadata_b,
-            block_count=block_count, block_size=block_size,
+            salt_a=salt_a,
+            salt_b=salt_b,
+            nonce_a=nonce_a,
+            nonce_b=nonce_b,
+            hmac_a=hmac_a,
+            hmac_b=hmac_b,
+            metadata_a=metadata_a,
+            metadata_b=metadata_b,
+            block_count=block_count,
+            block_size=block_size,
             superposition_len=superposition_len,
             target_frames=target_frames,
-            magic=data[:4], version=version, flags=flags,
+            magic=data[:4],
+            version=version,
+            flags=flags,
             reserved=reserved,
         )
 
@@ -231,8 +240,9 @@ def dual_stream_encode(
     hb = get_handle_backend()
 
     # ── Stream A: Real payload ──
-    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, key_handle_a = \
-        encrypt_file_bytes_handle(real_data, real_password, use_length_padding=True)
+    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, key_handle_a = encrypt_file_bytes_handle(
+        real_data, real_password, use_length_padding=True
+    )
     hb.drop(key_handle_a)
 
     # ── Stream B: Decoy or random dummy ──
@@ -240,8 +250,9 @@ def dual_stream_encode(
 
     if is_dual:
         # User-provided decoy
-        comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = \
-            encrypt_file_bytes_handle(decoy_data, decoy_password, use_length_padding=True)
+        comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = encrypt_file_bytes_handle(
+            decoy_data, decoy_password, use_length_padding=True
+        )
         hb.drop(key_handle_b)
     else:
         # Generate random ciphertext of similar size for stream B.
@@ -249,8 +260,9 @@ def dual_stream_encode(
         # not just random bytes — so the structure is identical to a real stream.
         dummy_password = secrets.token_hex(32)
         dummy_data = secrets.token_bytes(len(real_data))
-        comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = \
-            encrypt_file_bytes_handle(dummy_data, dummy_password, use_length_padding=True)
+        comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = encrypt_file_bytes_handle(
+            dummy_data, dummy_password, use_length_padding=True
+        )
         hb.drop(key_handle_b)
         # Decoy password is intentionally unknown (random, never stored)
         decoy_password = dummy_password
@@ -275,7 +287,7 @@ def dual_stream_encode(
     # Split into blocks
     blocks = []
     for i in range(0, len(superposition), block_size):
-        block = superposition[i:i + block_size]
+        block = superposition[i : i + block_size]
         if len(block) < block_size:
             block = block + secrets.token_bytes(block_size - len(block))
         blocks.append(block)
@@ -287,13 +299,17 @@ def dual_stream_encode(
     nonce_b = secrets.token_bytes(12)
 
     master_a = hb.derive_key_argon2id(
-        real_password.encode("utf-8"), salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        real_password.encode("utf-8"),
+        salt_a,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
     master_b = hb.derive_key_argon2id(
-        decoy_password.encode("utf-8"), salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        decoy_password.encode("utf-8"),
+        salt_b,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
 
@@ -305,33 +321,49 @@ def dual_stream_encode(
     # ── Pack and encrypt metadata (88 bytes → 104 bytes with GCM tag) ──
     metadata_a_plain = (
         struct.pack(">QQQ", len(real_data), len(comp_a), len(cipher_a))
-        + salt_enc_a + nonce_enc_a + sha_a + b"\x00" * 4
+        + salt_enc_a
+        + nonce_enc_a
+        + sha_a
+        + b"\x00" * 4
     )
     if is_dual:
         metadata_b_plain = (
             struct.pack(">QQQ", len(decoy_data), len(comp_b), len(cipher_b))
-            + salt_enc_b + nonce_enc_b + sha_b + b"\x00" * 4
+            + salt_enc_b
+            + nonce_enc_b
+            + sha_b
+            + b"\x00" * 4
         )
     else:
         # Dummy metadata — same structure, random content
         metadata_b_plain = (
             struct.pack(">QQQ", len(dummy_data), len(comp_b), len(cipher_b))
-            + salt_enc_b + nonce_enc_b + sha_b + b"\x00" * 4
+            + salt_enc_b
+            + nonce_enc_b
+            + sha_b
+            + b"\x00" * 4
         )
 
     metadata_a_enc = hb.aes_gcm_encrypt(enc_key_a, nonce_a, metadata_a_plain, None)
     metadata_b_enc = hb.aes_gcm_encrypt(enc_key_b, nonce_b, metadata_b_plain, None)
 
     if len(metadata_a_enc) != 104 or len(metadata_b_enc) != 104:
-        raise RuntimeError(f"Metadata encryption length mismatch: {len(metadata_a_enc)}, {len(metadata_b_enc)}")
+        raise RuntimeError(
+            f"Metadata encryption length mismatch: {len(metadata_a_enc)}, {len(metadata_b_enc)}"
+        )
 
     # ── Compute manifest HMACs (independent per stream) ──
     temp_manifest = DualStreamManifest(
-        salt_a=salt_a, salt_b=salt_b,
-        nonce_a=nonce_a, nonce_b=nonce_b,
-        hmac_a=b"\x00" * 32, hmac_b=b"\x00" * 32,
-        metadata_a=metadata_a_enc, metadata_b=metadata_b_enc,
-        block_count=len(blocks), block_size=block_size,
+        salt_a=salt_a,
+        salt_b=salt_b,
+        nonce_a=nonce_a,
+        nonce_b=nonce_b,
+        hmac_a=b"\x00" * 32,
+        hmac_b=b"\x00" * 32,
+        metadata_a=metadata_a_enc,
+        metadata_b=metadata_b_enc,
+        block_count=len(blocks),
+        block_size=block_size,
         superposition_len=len(superposition),
         target_frames=target_frames,
         flags=flags,
@@ -349,11 +381,16 @@ def dual_stream_encode(
             pass
 
     manifest = DualStreamManifest(
-        salt_a=salt_a, salt_b=salt_b,
-        nonce_a=nonce_a, nonce_b=nonce_b,
-        hmac_a=hmac_a, hmac_b=hmac_b,
-        metadata_a=metadata_a_enc, metadata_b=metadata_b_enc,
-        block_count=len(blocks), block_size=block_size,
+        salt_a=salt_a,
+        salt_b=salt_b,
+        nonce_a=nonce_a,
+        nonce_b=nonce_b,
+        hmac_a=hmac_a,
+        hmac_b=hmac_b,
+        metadata_a=metadata_a_enc,
+        metadata_b=metadata_b_enc,
+        block_count=len(blocks),
+        block_size=block_size,
         superposition_len=len(superposition),
         target_frames=target_frames,
         flags=flags,
@@ -394,15 +431,19 @@ def dual_stream_try_decode_stream(
         # ALWAYS derive BOTH Argon2id keys (no early return after stream A)
         # This ensures constant-time behavior: 2 Argon2id derivations always.
         master_a = hb.derive_key_argon2id(
-            password_bytes, manifest.salt_a,
-            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            password_bytes,
+            manifest.salt_a,
+            memory_kib=ARGON2_MEMORY,
+            iterations=ARGON2_ITERATIONS,
             parallelism=ARGON2_PARALLELISM,
         )
         handles_to_drop.append(master_a)
 
         master_b = hb.derive_key_argon2id(
-            password_bytes, manifest.salt_b,
-            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            password_bytes,
+            manifest.salt_b,
+            memory_kib=ARGON2_MEMORY,
+            iterations=ARGON2_ITERATIONS,
             parallelism=ARGON2_PARALLELISM,
         )
         handles_to_drop.append(master_b)
@@ -418,6 +459,7 @@ def dual_stream_try_decode_stream(
         computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
 
         import secrets as _secrets
+
         matched_a = _secrets.compare_digest(computed_hmac_a, manifest.hmac_a)
         matched_b = _secrets.compare_digest(computed_hmac_b, manifest.hmac_b)
 
@@ -492,15 +534,19 @@ def secure_decode_and_zeroize(
 
         # ── ALWAYS derive BOTH Argon2id keys (AUDIT-P0: no timing oracle) ──
         master_a = hb.derive_key_argon2id(
-            bytes(password_buf), manifest.salt_a,
-            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            bytes(password_buf),
+            manifest.salt_a,
+            memory_kib=ARGON2_MEMORY,
+            iterations=ARGON2_ITERATIONS,
             parallelism=ARGON2_PARALLELISM,
         )
         handles_to_drop.append(master_a)
 
         master_b = hb.derive_key_argon2id(
-            bytes(password_buf), manifest.salt_b,
-            memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+            bytes(password_buf),
+            manifest.salt_b,
+            memory_kib=ARGON2_MEMORY,
+            iterations=ARGON2_ITERATIONS,
             parallelism=ARGON2_PARALLELISM,
         )
         handles_to_drop.append(master_b)
@@ -516,6 +562,7 @@ def secure_decode_and_zeroize(
         computed_hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
 
         import secrets as _secrets
+
         matched_a = _secrets.compare_digest(computed_hmac_a, manifest.hmac_a)
         matched_b = _secrets.compare_digest(computed_hmac_b, manifest.hmac_b)
 

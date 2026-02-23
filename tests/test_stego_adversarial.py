@@ -70,6 +70,7 @@ os.environ["MEOW_TEST_MODE"] = "1"
 # Fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture
 def master_key():
     return b"\x42" * 32
@@ -123,6 +124,7 @@ def carrier_gif(tmp_path):
 # 1. NONCE UNIQUENESS (AES-GCM safety)
 # ===========================================================================
 
+
 class TestNonceUniqueness:
     """Verify that encrypting the same payload twice produces different ciphertexts."""
 
@@ -164,16 +166,21 @@ class TestNonceUniqueness:
 # 2. FAIL-CLOSED ENCRYPTION
 # ===========================================================================
 
+
 class TestFailClosedEncryption:
     """Verify encryption is never silently disabled."""
 
     def test_no_backend_raises_runtime_error(self, master_key):
         """If both crypto backends are unavailable, must raise RuntimeError."""
         with patch("meow_decoder.stego_multilayer._RUST_AVAILABLE", False):
-            with patch.dict("sys.modules", {"cryptography": None, "cryptography.hazmat.primitives.ciphers.aead": None}):
+            with patch.dict(
+                "sys.modules",
+                {"cryptography": None, "cryptography.hazmat.primitives.ciphers.aead": None},
+            ):
                 # Force ImportError on cryptography
                 import importlib
                 import meow_decoder.stego_multilayer as mod
+
                 orig = mod._RUST_AVAILABLE
                 mod._RUST_AVAILABLE = False
                 try:
@@ -199,6 +206,7 @@ class TestFailClosedEncryption:
 # 3. CROSS-BACKEND SEED COMPATIBILITY
 # ===========================================================================
 
+
 class TestCrossBackendCompatibility:
     """Verify Python fallback produces identical results to Rust."""
 
@@ -208,6 +216,7 @@ class TestCrossBackendCompatibility:
             _py_derive_frame_seed,
             _py_derive_walk_seed,
         )
+
         try:
             import meow_crypto_rs
         except ImportError:
@@ -216,7 +225,9 @@ class TestCrossBackendCompatibility:
         for frame_idx in range(10):
             for channel in [CHANNEL_PRIMARY, CHANNEL_SECONDARY, CHANNEL_TERTIARY]:
                 py_seed = _py_derive_frame_seed(master_key, frame_idx, channel)
-                rs_seed = bytes(meow_crypto_rs.stego_derive_frame_seed(master_key, frame_idx, channel))
+                rs_seed = bytes(
+                    meow_crypto_rs.stego_derive_frame_seed(master_key, frame_idx, channel)
+                )
                 assert py_seed == rs_seed, (
                     f"Seed mismatch frame={frame_idx}, channel={channel}: "
                     f"py={py_seed[:8].hex()}... rs={rs_seed[:8].hex()}..."
@@ -230,6 +241,7 @@ class TestCrossBackendCompatibility:
     def test_python_rust_pixel_walk_match(self, master_key):
         """Python fallback pixel walk must match Rust for identical seeds."""
         from meow_decoder.stego_multilayer import _py_generate_pixel_walk
+
         try:
             import meow_crypto_rs
         except ImportError:
@@ -239,12 +251,15 @@ class TestCrossBackendCompatibility:
             seed = bytes(meow_crypto_rs.stego_derive_walk_seed(master_key, frame_idx))
             py_walk = _py_generate_pixel_walk(seed, 200)
             rs_walk = list(meow_crypto_rs.stego_generate_pixel_walk(seed, 200))
-            assert py_walk == rs_walk, f"Walk mismatch frame={frame_idx}: first diff at {next((i for i,(a,b) in enumerate(zip(py_walk,rs_walk)) if a!=b), 'none')}"
+            assert (
+                py_walk == rs_walk
+            ), f"Walk mismatch frame={frame_idx}: first diff at {next((i for i,(a,b) in enumerate(zip(py_walk,rs_walk)) if a!=b), 'none')}"
 
 
 # ===========================================================================
 # 4. STC ENCODE/DECODE ROUNDTRIP
 # ===========================================================================
+
 
 class TestSTCRoundtrip:
     """Verify STC encode→decode recovers exact payload."""
@@ -253,6 +268,7 @@ class TestSTCRoundtrip:
     def check_rust(self):
         try:
             import meow_crypto_rs
+
             if not hasattr(meow_crypto_rs, "stego_stc_encode"):
                 pytest.skip("Rust STC not available")
         except ImportError:
@@ -261,6 +277,7 @@ class TestSTCRoundtrip:
     def test_stc_roundtrip_exact(self):
         """STC encode then decode must return EXACT original payload."""
         import meow_crypto_rs
+
         seed = b"\x33" * 32
         rng = np.random.RandomState(42)
 
@@ -276,6 +293,7 @@ class TestSTCRoundtrip:
     def test_stc_all_zeros_payload(self):
         """STC with all-zeros payload."""
         import meow_crypto_rs
+
         seed = b"\x66" * 32
         rng = np.random.RandomState(77)
         cover = bytes(rng.randint(0, 2, 100, dtype=np.uint8))
@@ -289,6 +307,7 @@ class TestSTCRoundtrip:
     def test_stc_all_ones_payload(self):
         """STC with all-ones payload."""
         import meow_crypto_rs
+
         seed = b"\x88" * 32
         rng = np.random.RandomState(99)
         cover = bytes(rng.randint(0, 2, 100, dtype=np.uint8))
@@ -302,7 +321,8 @@ class TestSTCRoundtrip:
     def test_stc_fewer_changes_than_naive(self):
         """STC must make fewer changes than payload length."""
         import meow_crypto_rs
-        seed = b"\xAA" * 32
+
+        seed = b"\xaa" * 32
         rng = np.random.RandomState(42)
         cover = bytes(rng.randint(0, 2, 500, dtype=np.uint8))
         payload = bytes(rng.randint(0, 2, 100, dtype=np.uint8))
@@ -310,7 +330,9 @@ class TestSTCRoundtrip:
 
         stego = bytes(meow_crypto_rs.stego_stc_encode(seed, list(cover), list(payload), costs))
         changes = meow_crypto_rs.stego_count_changes(cover, stego)
-        assert changes <= len(payload), f"STC made {changes} changes for {len(payload)} payload bits"
+        assert changes <= len(
+            payload
+        ), f"STC made {changes} changes for {len(payload)} payload bits"
 
     def test_stc_python_fallback_roundtrip(self, master_key):
         """Python STC fallback (direct LSB) roundtrip."""
@@ -329,12 +351,13 @@ class TestSTCRoundtrip:
         payload_bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1]
         stego = encoder.embed_frame(frame, 0, payload_bits)
         extracted = encoder.extract_frame(stego, 0, stc_capacity)
-        assert extracted[:len(payload_bits)] == payload_bits
+        assert extracted[: len(payload_bits)] == payload_bits
 
 
 # ===========================================================================
 # 5. PALETTE CHANNEL ENCODE/DECODE ROUNDTRIP
 # ===========================================================================
+
 
 class TestPaletteRoundtrip:
     """Test the full palette permutation channel."""
@@ -360,10 +383,19 @@ class TestPaletteRoundtrip:
         encoder = PaletteChannelEncoder(master_key, config)
 
         # Create a palette with near-duplicate entries
-        palette = np.array([
-            [100, 0, 0], [0, 100, 0], [0, 0, 100], [50, 50, 50],
-            [51, 50, 50], [50, 51, 50], [50, 50, 51], [52, 50, 50],
-        ], dtype=np.uint8)
+        palette = np.array(
+            [
+                [100, 0, 0],
+                [0, 100, 0],
+                [0, 0, 100],
+                [50, 50, 50],
+                [51, 50, 50],
+                [50, 51, 50],
+                [50, 50, 51],
+                [52, 50, 50],
+            ],
+            dtype=np.uint8,
+        )
         # Pixels only use indices 0-3
         pixel_indices = np.array([[0, 1, 2, 3], [0, 1, 2, 3]], dtype=np.uint8)
 
@@ -374,17 +406,26 @@ class TestPaletteRoundtrip:
         permutable = PaletteChannelEncoder.find_permutable_entries(palette, pixel_indices)
         if len(permutable) >= config.min_permutable_entries:
             decoded = encoder.decode_frame(new_palette, new_pixels, 0, permutable, palette)
-            assert decoded[:len(payload_bits)] == payload_bits
+            assert decoded[: len(payload_bits)] == payload_bits
 
     def test_palette_encode_preserves_visual(self, master_key):
         """Palette reordering must not change visual appearance."""
         config = MultiLayerConfig(min_permutable_entries=4)
         encoder = PaletteChannelEncoder(master_key, config)
 
-        palette = np.array([
-            [200, 0, 0], [0, 200, 0], [0, 0, 200], [128, 128, 128],
-            [130, 128, 128], [128, 130, 128], [128, 128, 130], [132, 128, 128],
-        ], dtype=np.uint8)
+        palette = np.array(
+            [
+                [200, 0, 0],
+                [0, 200, 0],
+                [0, 0, 200],
+                [128, 128, 128],
+                [130, 128, 128],
+                [128, 130, 128],
+                [128, 128, 130],
+                [132, 128, 128],
+            ],
+            dtype=np.uint8,
+        )
         pixel_indices = np.array([[0, 1, 2, 3], [0, 1, 2, 3]], dtype=np.uint8)
 
         new_palette, new_pixels = encoder.encode_frame(palette, pixel_indices, 0, [1, 0])
@@ -394,14 +435,15 @@ class TestPaletteRoundtrip:
             for x in range(pixel_indices.shape[1]):
                 orig_color = palette[pixel_indices[y, x]]
                 new_color = new_palette[new_pixels[y, x]]
-                assert np.array_equal(orig_color, new_color), (
-                    f"Visual mismatch at ({y},{x}): orig={orig_color} new={new_color}"
-                )
+                assert np.array_equal(
+                    orig_color, new_color
+                ), f"Visual mismatch at ({y},{x}): orig={orig_color} new={new_color}"
 
 
 # ===========================================================================
 # 6. PAYLOAD TAMPERING DETECTION
 # ===========================================================================
+
 
 class TestTamperDetection:
     """Verify tampered payloads are always rejected."""
@@ -412,7 +454,7 @@ class TestTamperDetection:
         for byte_idx in range(14):
             for bit in range(8):
                 tampered = bytearray(prepared)
-                tampered[byte_idx] ^= (1 << bit)
+                tampered[byte_idx] ^= 1 << bit
                 _, valid = unpack_payload(bytes(tampered), master_key)
                 assert not valid, f"Tamper at header byte {byte_idx} bit {bit} not detected"
 
@@ -445,7 +487,7 @@ class TestTamperDetection:
     def test_extension_attack(self, master_key):
         """Appended bytes must not affect parse (HMAC position is fixed by header)."""
         prepared = prepare_payload(b"secret", master_key)
-        extended = prepared + b"\xFF" * 100
+        extended = prepared + b"\xff" * 100
         recovered, valid = unpack_payload(extended, master_key)
         # Should still work since header specifies exact data_len
         assert valid
@@ -456,6 +498,7 @@ class TestTamperDetection:
 # 7. CAPACITY OVERFLOW REJECTION
 # ===========================================================================
 
+
 class TestCapacityOverflow:
     """Payload exceeding carrier capacity must be rejected."""
 
@@ -465,7 +508,8 @@ class TestCapacityOverflow:
         prepared = prepare_payload(huge_payload, b"\x42" * 32, compress=False, encrypt=False)
         with pytest.raises(ValueError, match="exceeds total carrier capacity"):
             distribute_payload(
-                prepared, config,
+                prepared,
+                config,
                 num_frames=2,
                 frame_pixel_counts=[100, 100],
                 permutable_counts=[4, 4],
@@ -475,6 +519,7 @@ class TestCapacityOverflow:
 # ===========================================================================
 # 8. COERCION/DURESS KEY ISOLATION
 # ===========================================================================
+
 
 class TestCoercionIsolation:
     """Verify coercion key derivation produces distinct, isolated keys."""
@@ -507,7 +552,7 @@ class TestCoercionIsolation:
     def test_salt_affects_all_keys(self):
         """Different salts must produce different keys."""
         k1 = derive_stego_keys_for_reality("pass", b"\x00" * 16, CoercionLevel.FULL)
-        k2 = derive_stego_keys_for_reality("pass", b"\xFF" * 16, CoercionLevel.FULL)
+        k2 = derive_stego_keys_for_reality("pass", b"\xff" * 16, CoercionLevel.FULL)
         for ch in ["primary", "secondary", "tertiary", "disposal", "comment", "temporal"]:
             assert k1[ch] != k2[ch]
 
@@ -516,12 +561,17 @@ class TestCoercionIsolation:
 # 9. STEGANALYSIS RESISTANCE
 # ===========================================================================
 
+
 class TestSteganalysisResistance:
     """Verify stego images resist detection under standard steganalysis."""
 
     def test_lsb_embedding_preserves_statistics(self, master_key, sample_frame):
         """1-bit LSB embedding should not dramatically alter pixel statistics."""
-        from meow_decoder.stego_multilayer import _chi_square_lsb, _rs_analysis, _sample_pair_analysis
+        from meow_decoder.stego_multilayer import (
+            _chi_square_lsb,
+            _rs_analysis,
+            _sample_pair_analysis,
+        )
 
         config = MultiLayerConfig(lsb_bits=1, use_stc=False)
         encoder = PrimaryChannelEncoder(master_key, config)
@@ -541,7 +591,9 @@ class TestSteganalysisResistance:
 
         # SPA on pseudorandom images can overestimate; just verify it returns a valid result
         spa = _sample_pair_analysis(stego)
-        assert 0.0 <= spa["estimated_rate"] <= 1.0, f"SPA rate out of range: {spa['estimated_rate']}"
+        assert (
+            0.0 <= spa["estimated_rate"] <= 1.0
+        ), f"SPA rate out of range: {spa['estimated_rate']}"
 
     def test_psnr_above_threshold(self, master_key, sample_frame):
         """PSNR must stay above 50 dB for 1-bit LSB."""
@@ -552,7 +604,7 @@ class TestSteganalysisResistance:
         stego = encoder.embed_frame(sample_frame, 0, bits)
 
         diff = sample_frame.astype(float) - stego.astype(float)
-        mse = np.mean(diff ** 2)
+        mse = np.mean(diff**2)
         if mse > 0:
             psnr = 10 * np.log10(255**2 / mse)
             assert psnr > 50.0, f"PSNR too low: {psnr:.1f} dB"
@@ -561,6 +613,7 @@ class TestSteganalysisResistance:
 # ===========================================================================
 # 10. ADVERSARIAL FRAME SHAPES
 # ===========================================================================
+
 
 class TestAdversarialFrameShapes:
     """Edge case frame dimensions and channel counts."""
@@ -576,7 +629,7 @@ class TestAdversarialFrameShapes:
         bits = [1, 0, 1, 1, 0, 0, 1, 0]
         stego = encoder.embed_frame(frame_rgb, 0, bits)
         extracted = encoder.extract_frame(stego, 0, len(bits))
-        assert extracted[:len(bits)] == bits
+        assert extracted[: len(bits)] == bits
 
     def test_small_frame(self, master_key):
         """Very small frame (8x8) should work."""
@@ -587,7 +640,7 @@ class TestAdversarialFrameShapes:
         bits = [1, 0, 1, 0]
         stego = encoder.embed_frame(frame, 0, bits)
         extracted = encoder.extract_frame(stego, 0, len(bits))
-        assert extracted[:len(bits)] == bits
+        assert extracted[: len(bits)] == bits
 
     def test_single_pixel_frame(self, master_key):
         """1x1 frame — extremely limited capacity.
@@ -614,18 +667,20 @@ class TestAdversarialFrameShapes:
         bits = [1, 0] * 50  # 100 bits
         stego = encoder.embed_frame(frame, 0, bits)
         extracted = encoder.extract_frame(stego, 0, len(bits))
-        assert extracted[:len(bits)] == bits
+        assert extracted[: len(bits)] == bits
 
 
 # ===========================================================================
 # 11. FUZZ-STYLE PAYLOAD INJECTION (500+ payloads)
 # ===========================================================================
 
+
 class TestFuzzPayloads:
     """Fuzz prepare_payload/unpack_payload with diverse payloads."""
 
-    @pytest.mark.parametrize("size", [0, 1, 2, 3, 7, 8, 15, 16, 31, 32, 63, 64,
-                                      127, 128, 255, 256, 511, 512, 1023, 1024])
+    @pytest.mark.parametrize(
+        "size", [0, 1, 2, 3, 7, 8, 15, 16, 31, 32, 63, 64, 127, 128, 255, 256, 511, 512, 1023, 1024]
+    )
     def test_roundtrip_various_sizes(self, master_key, size):
         """Roundtrip with various payload sizes."""
         data = os.urandom(size)
@@ -645,9 +700,9 @@ class TestFuzzPayloads:
             assert valid, f"MAC failed for payload #{i} (size={size})"
             assert recovered == data, f"Data mismatch for payload #{i}"
 
-    @pytest.mark.parametrize("compress,encrypt", [
-        (True, True), (True, False), (False, True), (False, False)
-    ])
+    @pytest.mark.parametrize(
+        "compress,encrypt", [(True, True), (True, False), (False, True), (False, False)]
+    )
     def test_all_flag_combinations(self, master_key, compress, encrypt):
         """All compress/encrypt flag combinations."""
         data = b"flag combo test payload " * 5
@@ -659,12 +714,12 @@ class TestFuzzPayloads:
     def test_binary_payloads(self, master_key):
         """Payloads with adversarial byte patterns."""
         adversarial = [
-            b"\x00" * 100,         # all zeros
-            b"\xFF" * 100,         # all ones
-            b"MSTG" * 25,         # magic bytes
-            b"\x00\xFF" * 50,     # alternating
-            bytes(range(256)),    # all byte values
-            b"\x01\x00" * 50,    # header format bytes
+            b"\x00" * 100,  # all zeros
+            b"\xff" * 100,  # all ones
+            b"MSTG" * 25,  # magic bytes
+            b"\x00\xff" * 50,  # alternating
+            bytes(range(256)),  # all byte values
+            b"\x01\x00" * 50,  # header format bytes
         ]
         for i, data in enumerate(adversarial):
             prepared = prepare_payload(data, master_key)
@@ -676,6 +731,7 @@ class TestFuzzPayloads:
 # ===========================================================================
 # 12. TIMING CHANNEL ADVERSARIAL VALUES
 # ===========================================================================
+
 
 class TestTimingAdversarial:
     """Timing channel with edge-case delay values."""
@@ -710,6 +766,7 @@ class TestTimingAdversarial:
 # ===========================================================================
 # 13. BIT CONVERSION EDGE CASES
 # ===========================================================================
+
 
 class TestBitConversionEdgeCases:
     """Edge cases in byte↔bit conversion."""
@@ -746,6 +803,7 @@ class TestBitConversionEdgeCases:
 # 14. E2E ENCODE/DECODE (requires imageio)
 # ===========================================================================
 
+
 class TestE2ERoundtrip:
     """Full encode→decode roundtrip through GIF files."""
 
@@ -767,15 +825,20 @@ class TestE2ERoundtrip:
         the frame-level pipeline works correctly, which is the true correctness test.
         """
         config = MultiLayerConfig(
-            enable_primary=True, enable_secondary=False,
-            enable_tertiary=False, lsb_bits=1, use_stc=False,
-            compress=True, encrypt=True,
+            enable_primary=True,
+            enable_secondary=False,
+            enable_tertiary=False,
+            lsb_bits=1,
+            use_stc=False,
+            compress=True,
+            encrypt=True,
         )
         payload = b"Frame-level roundtrip test payload!"
 
         # Prepare payload
-        prepared = prepare_payload(payload, master_key,
-                                   compress=config.compress, encrypt=config.encrypt)
+        prepared = prepare_payload(
+            payload, master_key, compress=config.compress, encrypt=config.encrypt
+        )
         payload_bits = _bytes_to_bits(prepared)
 
         # Create large enough frame
@@ -785,7 +848,7 @@ class TestE2ERoundtrip:
         encoder = PrimaryChannelEncoder(master_key, config)
         stego = encoder.embed_frame(frame, 0, payload_bits)
         extracted = encoder.extract_frame(stego, 0, len(payload_bits))
-        extracted_bytes = _bits_to_bytes(extracted[:len(payload_bits)])
+        extracted_bytes = _bits_to_bytes(extracted[: len(payload_bits)])
 
         assert extracted_bytes == prepared, "Frame-level payload mismatch"
         recovered, valid = unpack_payload(extracted_bytes, master_key)
@@ -795,8 +858,11 @@ class TestE2ERoundtrip:
     def test_wrong_key_decode_fails(self, master_key, carrier_gif, tmp_path):
         """Wrong key cannot decode."""
         config = MultiLayerConfig(
-            enable_primary=True, enable_secondary=False,
-            enable_tertiary=False, lsb_bits=1, use_stc=False,
+            enable_primary=True,
+            enable_secondary=False,
+            enable_tertiary=False,
+            lsb_bits=1,
+            use_stc=False,
         )
         output = tmp_path / "stego.gif"
         payload = b"Wrong key test"
@@ -806,7 +872,7 @@ class TestE2ERoundtrip:
 
         # Encoder auto-switches to APNG when primary channel is enabled
         actual_output = Path(meta["output_path"])
-        wrong_key = b"\xFF" * 32
+        wrong_key = b"\xff" * 32
         decoder = MultiLayerStegoDecoder(config, wrong_key)
         result = decoder.decode(actual_output)
         assert not result.mac_valid
@@ -814,14 +880,19 @@ class TestE2ERoundtrip:
     def test_stc_frame_level_roundtrip(self, master_key):
         """STC mode frame-level encode→decode roundtrip."""
         config = MultiLayerConfig(
-            enable_primary=True, enable_secondary=False,
-            enable_tertiary=False, lsb_bits=1, use_stc=True,
-            compress=True, encrypt=True,
+            enable_primary=True,
+            enable_secondary=False,
+            enable_tertiary=False,
+            lsb_bits=1,
+            use_stc=True,
+            compress=True,
+            encrypt=True,
         )
         payload = b"STC frame-level test!"
 
-        prepared = prepare_payload(payload, master_key,
-                                   compress=config.compress, encrypt=config.encrypt)
+        prepared = prepare_payload(
+            payload, master_key, compress=config.compress, encrypt=config.encrypt
+        )
         payload_bits = _bytes_to_bits(prepared)
 
         # Use a large frame for sufficient STC capacity (need n >= 4*m at rate 1/4)
@@ -834,7 +905,7 @@ class TestE2ERoundtrip:
         encoder = PrimaryChannelEncoder(master_key, config)
         stego = encoder.embed_frame(frame, 0, payload_bits)
         extracted = encoder.extract_frame(stego, 0, stc_cap)
-        extracted_bytes = _bits_to_bytes(extracted[:len(payload_bits)])
+        extracted_bytes = _bits_to_bytes(extracted[: len(payload_bits)])
 
         assert extracted_bytes == prepared, "STC frame-level payload mismatch"
         recovered, valid = unpack_payload(extracted_bytes, master_key)
@@ -844,8 +915,10 @@ class TestE2ERoundtrip:
     def test_timing_channel_preservation(self, master_key, carrier_gif, tmp_path):
         """Timing channel data survives GIF write/read."""
         config = MultiLayerConfig(
-            enable_primary=False, enable_secondary=True,
-            enable_tertiary=False, timing_bits_per_frame=2,
+            enable_primary=False,
+            enable_secondary=True,
+            enable_tertiary=False,
+            timing_bits_per_frame=2,
         )
         # Encode timing only
         timing = TimingChannelEncoder(master_key, config)
@@ -858,6 +931,7 @@ class TestE2ERoundtrip:
 # ===========================================================================
 # 15. LEHMER CODE OVERFLOW PROTECTION
 # ===========================================================================
+
 
 class TestLehmerOverflow:
     """Test Lehmer code with large permutation sets."""
@@ -880,6 +954,7 @@ class TestLehmerOverflow:
     def test_factorial_bits_correctness(self):
         """Verify factorial_bits calculation."""
         import math
+
         for n in range(0, 25):
             expected = 0 if n <= 1 else int(math.log2(math.factorial(n)))
             actual = _factorial_bits(n)
@@ -889,6 +964,7 @@ class TestLehmerOverflow:
 # ===========================================================================
 # 16. MULTI-KEY ISOLATION
 # ===========================================================================
+
 
 class TestKeyIsolation:
     """Verify different keys produce completely independent outputs."""
@@ -916,6 +992,7 @@ class TestKeyIsolation:
 # ===========================================================================
 # 17. ADVERSARIAL UNPACK INPUTS
 # ===========================================================================
+
 
 class TestAdversarialUnpack:
     """Feed malformed data to unpack_payload."""
@@ -958,6 +1035,7 @@ class TestAdversarialUnpack:
 # 18. PRIMARY CHANNEL MULTI-BIT LSB
 # ===========================================================================
 
+
 class TestMultiBitLSB:
     """Test lsb_bits > 1 embedding."""
 
@@ -971,12 +1049,13 @@ class TestMultiBitLSB:
         bits = [1, 0, 1, 1, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 1, 1]
         stego = encoder.embed_frame(frame, 0, bits)
         extracted = encoder.extract_frame(stego, 0, len(bits))
-        assert extracted[:len(bits)] == bits, f"Roundtrip failed for lsb_bits={lsb_bits}"
+        assert extracted[: len(bits)] == bits, f"Roundtrip failed for lsb_bits={lsb_bits}"
 
 
 # ===========================================================================
 # 19. VALIDATION FUNCTION TESTS
 # ===========================================================================
+
 
 class TestValidateFunction:
     """Test the validate_stego function on synthetic images."""
@@ -994,6 +1073,7 @@ class TestValidateFunction:
     def test_validate_clean_gif(self, carrier_gif):
         """Clean GIF should pass validation."""
         from meow_decoder.stego_multilayer import validate_stego
+
         result = validate_stego(str(carrier_gif))
         # Clean GIF with random pixels should pass most tests
         assert result.rs_analysis["detection_probability"] < 0.5

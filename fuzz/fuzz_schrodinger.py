@@ -19,6 +19,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.quantum_mixer import (
@@ -35,9 +36,13 @@ def _setup_imports():
 
 if atheris is not None:
     with atheris.instrument_imports():
-        entangle_realities, collapse_to_reality, SchrodingerManifest, schrodinger_encode_data = _setup_imports()
+        entangle_realities, collapse_to_reality, SchrodingerManifest, schrodinger_encode_data = (
+            _setup_imports()
+        )
 else:
-    entangle_realities, collapse_to_reality, SchrodingerManifest, schrodinger_encode_data = _setup_imports()
+    entangle_realities, collapse_to_reality, SchrodingerManifest, schrodinger_encode_data = (
+        _setup_imports()
+    )
 
 
 def fuzz_schrodinger_roundtrip(data: bytes):
@@ -46,8 +51,8 @@ def fuzz_schrodinger_roundtrip(data: bytes):
         return
 
     split = max(1, data[0] % (len(data) - 1))
-    secret_a = data[1:split + 1]
-    secret_b = data[split + 1:]
+    secret_a = data[1 : split + 1]
+    secret_b = data[split + 1 :]
 
     if not secret_a or not secret_b:
         return
@@ -61,8 +66,8 @@ def fuzz_schrodinger_roundtrip(data: bytes):
         recovered_b = collapse_to_reality(superposition, 1)
 
         # Verify original data is prefix of recovered (padding may differ)
-        assert recovered_a[:len(secret_a)] == secret_a, "Reality A corruption"
-        assert recovered_b[:len(secret_b)] == secret_b, "Reality B corruption"
+        assert recovered_a[: len(secret_a)] == secret_a, "Reality A corruption"
+        assert recovered_b[: len(secret_b)] == secret_b, "Reality B corruption"
 
         # Verify superposition is exactly 2x max length
         max_len = max(len(secret_a), len(secret_b))
@@ -80,7 +85,7 @@ def fuzz_xor_mixing_properties(data: bytes):
     # Split into two equal-ish halves
     mid = len(data) // 2
     a = data[:mid]
-    b = data[mid:mid + len(a)]  # Same length as a
+    b = data[mid : mid + len(a)]  # Same length as a
 
     if not a or not b or len(a) != len(b):
         return
@@ -142,10 +147,10 @@ def fuzz_superposition_statistical(data: bytes):
         odd_bytes = superposition[1::2]
 
         # Verify even positions start with a's bytes
-        assert even_bytes[:len(a)] == a
+        assert even_bytes[: len(a)] == a
 
         # Verify odd positions start with b's bytes
-        assert odd_bytes[:len(b)] == b
+        assert odd_bytes[: len(b)] == b
 
     except (ValueError, TypeError):
         pass
@@ -161,7 +166,7 @@ def fuzz_merkle_like_integrity(data: bytes):
     try:
         # Simulate building a Merkle tree from frame chunks
         chunk_size = max(1, data[0] % 32 + 1)
-        chunks = [data[i:i + chunk_size] for i in range(1, len(data), chunk_size)]
+        chunks = [data[i : i + chunk_size] for i in range(1, len(data), chunk_size)]
 
         if not chunks:
             return
@@ -242,9 +247,9 @@ def fuzz_schrodinger_encode_data(data: bytes):
         # Derive two "payloads" and two "passwords" from fuzz data
         split1 = max(1, data[0] % (len(data) // 3 + 1))
         split2 = split1 + max(1, data[1] % ((len(data) - split1) // 2 + 1))
-        real_data = data[2:split1 + 2]
-        decoy_data = data[split1 + 2:split2 + 2]
-        pw_bytes = data[split2 + 2:]
+        real_data = data[2 : split1 + 2]
+        decoy_data = data[split1 + 2 : split2 + 2]
+        pw_bytes = data[split2 + 2 :]
 
         if len(real_data) < 1 or len(decoy_data) < 1 or len(pw_bytes) < 2:
             return
@@ -258,7 +263,11 @@ def fuzz_schrodinger_encode_data(data: bytes):
             decoy_pw += "X"
 
         superposition, manifest = schrodinger_encode_data(
-            real_data, decoy_data, real_pw, decoy_pw, block_size=64,
+            real_data,
+            decoy_data,
+            real_pw,
+            decoy_pw,
+            block_size=64,
         )
         assert isinstance(superposition, bytes)
         assert isinstance(manifest, SchrodingerManifest)

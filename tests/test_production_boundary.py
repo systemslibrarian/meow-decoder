@@ -133,9 +133,9 @@ class TestProductionBoundary:
         """The _testonly directory must exist (archived or at root)."""
         testonly = PRODUCTION_ROOT / "_testonly"
         testonly_archived = PRODUCTION_ROOT / "_archive" / "_testonly"
-        assert testonly.exists() or testonly_archived.exists(), (
-            "_testonly directory missing (not at root or in _archive)"
-        )
+        assert (
+            testonly.exists() or testonly_archived.exists()
+        ), "_testonly directory missing (not at root or in _archive)"
 
 
 class TestProductionEntrypointPurity:

@@ -51,13 +51,17 @@ def schrodinger_decode_data(
 
     # Derive master metadata keys using Argon2id (returns opaque handles)
     master_meta_key_a = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        password.encode("utf-8"),
+        manifest.salt_a,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
     master_meta_key_b = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        password.encode("utf-8"),
+        manifest.salt_b,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
 

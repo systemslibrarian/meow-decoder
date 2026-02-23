@@ -212,7 +212,7 @@ class TestBitConversion:
 
     def test_roundtrip(self):
         """Bytes → bits → bytes is identity."""
-        data = b"\xAB\xCD\xEF"
+        data = b"\xab\xcd\xef"
         bits = _bytes_to_bits(data)
         assert len(bits) == 24
         recovered = _bits_to_bytes(bits)
@@ -220,7 +220,7 @@ class TestBitConversion:
 
     def test_single_byte(self):
         """Single byte correctly converted."""
-        bits = _bytes_to_bits(b"\xFF")
+        bits = _bytes_to_bits(b"\xff")
         assert bits == [1, 1, 1, 1, 1, 1, 1, 1]
 
     def test_zero_byte(self):
@@ -265,7 +265,7 @@ class TestPayloadPrep:
         """Wrong key fails MAC verification."""
         data = b"secret"
         prepared = prepare_payload(data, master_key)
-        wrong_key = b"\xFF" * 32
+        wrong_key = b"\xff" * 32
         recovered, mac_valid = unpack_payload(prepared, wrong_key)
         assert not mac_valid
 
@@ -316,9 +316,9 @@ class TestPrimaryChannel:
 
         # PSNR should be high (> 40 dB for 1-bit LSB)
         diff = sample_frame.astype(float) - stego.astype(float)
-        mse = np.mean(diff ** 2)
+        mse = np.mean(diff**2)
         if mse > 0:
-            psnr = 10 * np.log10(255 ** 2 / mse)
+            psnr = 10 * np.log10(255**2 / mse)
             assert psnr > 40.0, f"PSNR too low: {psnr:.1f} dB"
 
     def test_frame_independence(self, master_key, config, sample_frame):
@@ -645,7 +645,9 @@ class TestEndToEnd:
         output_path = tmp_path / "stego.gif"
 
         rng = np.random.RandomState(42)
-        frames = [Image.fromarray(rng.randint(0, 256, (48, 64, 3), dtype=np.uint8)) for _ in range(5)]
+        frames = [
+            Image.fromarray(rng.randint(0, 256, (48, 64, 3), dtype=np.uint8)) for _ in range(5)
+        ]
         frames[0].save(
             str(carrier_path),
             save_all=True,

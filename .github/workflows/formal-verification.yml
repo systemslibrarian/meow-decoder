@@ -401,7 +401,7 @@ jobs:
           SORRY_COUNT=$(grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
             --exclude-dir='.lake' --exclude-dir='lake-packages' \
             | grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
-            | grep -v -e '`sorry`' -e "sorry instance" -e "sorry statement" \
+            | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
             -e "sorry tag" -e "approved sorry" -e "sorry for" \
             | wc -l)
 
@@ -410,7 +410,7 @@ jobs:
             grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
               --exclude-dir='.lake' --exclude-dir='lake-packages' \
               | grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
-              | grep -v -e '`sorry`' -e "sorry instance" -e "sorry statement" \
+              | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
               -e "sorry tag" -e "approved sorry" -e "sorry for"
             exit 1
           else

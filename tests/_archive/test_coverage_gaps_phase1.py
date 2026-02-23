@@ -799,8 +799,9 @@ class TestEntropyBoostCoverageGaps(unittest.TestCase):
         from meow_decoder.entropy_boost import EntropyPool
 
         pool = EntropyPool()
-        with patch("builtins.print"), patch(
-            "builtins.input", return_value="random_keyboard_smash_1234"
+        with (
+            patch("builtins.print"),
+            patch("builtins.input", return_value="random_keyboard_smash_1234"),
         ):
             pool.add_user_entropy("Type stuff: ")
 

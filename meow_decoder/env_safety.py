@@ -48,6 +48,7 @@ __all__ = [
 
 class RiskCategory(Enum):
     """Categories of security risks."""
+
     VIRTUAL_MACHINE = "virtual_machine"
     DEBUGGER = "debugger"
     SCREEN_RECORDER = "screen_recorder"
@@ -61,6 +62,7 @@ class RiskCategory(Enum):
 @dataclass
 class Risk:
     """A detected security risk."""
+
     category: RiskCategory
     description: str
     severity: str  # "low", "medium", "high", "critical"
@@ -70,6 +72,7 @@ class Risk:
 @dataclass
 class SafetyReport:
     """Report from environment safety checks."""
+
     is_safe: bool
     risks: List[Risk] = field(default_factory=list)
     platform: str = ""
@@ -98,54 +101,117 @@ class EnvironmentSafety:
 
     # Known VM indicators in various system strings
     VM_INDICATORS = {
-        "vmware", "virtualbox", "vbox", "qemu", "xen", "hyperv",
-        "hyper-v", "virtual", "kvm", "parallels", "bhyve",
-        "bochs", "innotek", "oracle vm", "microsoft corporation virtual",
+        "vmware",
+        "virtualbox",
+        "vbox",
+        "qemu",
+        "xen",
+        "hyperv",
+        "hyper-v",
+        "virtual",
+        "kvm",
+        "parallels",
+        "bhyve",
+        "bochs",
+        "innotek",
+        "oracle vm",
+        "microsoft corporation virtual",
     }
 
     # Suspicious process names (Windows)
     WINDOWS_SUSPICIOUS_PROCESSES = {
         # Debuggers
-        "x64dbg.exe", "x32dbg.exe", "ollydbg.exe", "windbg.exe",
-        "idaq.exe", "idaq64.exe", "ida.exe", "ida64.exe",
-        "radare2.exe", "r2.exe", "immunity.exe", "dnspy.exe",
-
+        "x64dbg.exe",
+        "x32dbg.exe",
+        "ollydbg.exe",
+        "windbg.exe",
+        "idaq.exe",
+        "idaq64.exe",
+        "ida.exe",
+        "ida64.exe",
+        "radare2.exe",
+        "r2.exe",
+        "immunity.exe",
+        "dnspy.exe",
         # Screen recorders
-        "obs.exe", "obs64.exe", "obs32.exe", "bandicam.exe",
-        "camtasia.exe", "snagit32.exe", "screencast.exe",
-        "fraps.exe", "action.exe", "xsplit.exe", "streamlabs.exe",
-
+        "obs.exe",
+        "obs64.exe",
+        "obs32.exe",
+        "bandicam.exe",
+        "camtasia.exe",
+        "snagit32.exe",
+        "screencast.exe",
+        "fraps.exe",
+        "action.exe",
+        "xsplit.exe",
+        "streamlabs.exe",
         # Analysis tools
-        "procmon.exe", "procmon64.exe", "procexp.exe", "procexp64.exe",
-        "wireshark.exe", "fiddler.exe", "charles.exe", "mitmproxy.exe",
-        "cff explorer.exe", "pe-bear.exe", "pestudio.exe",
-        "apimonitor.exe", "api_monitor.exe", "regmon.exe", "filemon.exe",
-
+        "procmon.exe",
+        "procmon64.exe",
+        "procexp.exe",
+        "procexp64.exe",
+        "wireshark.exe",
+        "fiddler.exe",
+        "charles.exe",
+        "mitmproxy.exe",
+        "cff explorer.exe",
+        "pe-bear.exe",
+        "pestudio.exe",
+        "apimonitor.exe",
+        "api_monitor.exe",
+        "regmon.exe",
+        "filemon.exe",
         # VM tools
-        "vmtoolsd.exe", "vmwaretray.exe", "vboxservice.exe",
-        "vboxtray.exe", "vmusrvc.exe", "vgauthservice.exe",
-
+        "vmtoolsd.exe",
+        "vmwaretray.exe",
+        "vboxservice.exe",
+        "vboxtray.exe",
+        "vmusrvc.exe",
+        "vgauthservice.exe",
         # Sandboxes
-        "sandboxie.exe", "sbiesvc.exe", "cuckoo.exe",
+        "sandboxie.exe",
+        "sbiesvc.exe",
+        "cuckoo.exe",
     }
 
     # Suspicious process names (Linux/macOS)
     UNIX_SUSPICIOUS_PROCESSES = {
         # Debuggers
-        "gdb", "lldb", "strace", "ltrace", "ptrace", "radare2", "r2",
-        "ida", "ida64", "edb", "ddd",
-
+        "gdb",
+        "lldb",
+        "strace",
+        "ltrace",
+        "ptrace",
+        "radare2",
+        "r2",
+        "ida",
+        "ida64",
+        "edb",
+        "ddd",
         # Screen recorders
-        "obs", "simplescreenrecorder", "kazam", "recordmydesktop",
-        "ffmpeg", "avconv", "vlc",  # Can be used for screen capture
-
+        "obs",
+        "simplescreenrecorder",
+        "kazam",
+        "recordmydesktop",
+        "ffmpeg",
+        "avconv",
+        "vlc",  # Can be used for screen capture
         # Analysis tools
-        "wireshark", "tshark", "tcpdump", "ngrep", "mitmproxy",
-        "burpsuite", "charles", "fiddler",
-
+        "wireshark",
+        "tshark",
+        "tcpdump",
+        "ngrep",
+        "mitmproxy",
+        "burpsuite",
+        "charles",
+        "fiddler",
         # VM tools
-        "vmtoolsd", "VBoxClient", "VBoxService", "qemu-ga",
-        "spice-vdagent", "xe-daemon",
+        "vmtoolsd",
+        "VBoxClient",
+        "VBoxService",
+        "qemu-ga",
+        "spice-vdagent",
+        "xe-daemon",
     }
 
     def __init__(self, strict_mode: bool = False):
@@ -186,19 +252,25 @@ class EnvironmentSafety:
         ]
 
         if self._system == "Windows":
-            checks.extend([
-                self._check_windows_debugger_api,
-                self._check_windows_vm_registry,
-            ])
+            checks.extend(
+                [
+                    self._check_windows_debugger_api,
+                    self._check_windows_vm_registry,
+                ]
+            )
         elif self._system == "Linux":
-            checks.extend([
-                self._check_linux_ptrace,
-                self._check_linux_proc,
-            ])
+            checks.extend(
+                [
+                    self._check_linux_ptrace,
+                    self._check_linux_proc,
+                ]
+            )
         elif self._system == "Darwin":
-            checks.extend([
-                self._check_macos_debugger,
-            ])
+            checks.extend(
+                [
+                    self._check_macos_debugger,
+                ]
+            )
 
         for check in checks:
             try:
@@ -219,11 +291,13 @@ class EnvironmentSafety:
         indicators_to_check: List[str] = []
 
         # Check platform strings
-        indicators_to_check.extend([
-            platform.platform().lower(),
-            platform.processor().lower(),
-            platform.machine().lower(),
-        ])
+        indicators_to_check.extend(
+            [
+                platform.platform().lower(),
+                platform.processor().lower(),
+                platform.machine().lower(),
+            ]
+        )
 
         # Check BIOS/DMI info on Linux
         if self._system == "Linux":
@@ -235,9 +309,7 @@ class EnvironmentSafety:
             ]
             for path in dmi_paths:
                 try:
-                    indicators_to_check.append(
-                        Path(path).read_text().lower().strip()
-                    )
+                    indicators_to_check.append(Path(path).read_text().lower().strip())
                 except (OSError, IOError):
                     pass
 
@@ -245,30 +317,38 @@ class EnvironmentSafety:
         for indicator in indicators_to_check:
             for vm_sign in self.VM_INDICATORS:
                 if vm_sign in indicator:
-                    report.add_risk(Risk(
-                        category=RiskCategory.VIRTUAL_MACHINE,
-                        description=f"VM indicator detected: {vm_sign}",
-                        severity="high",
-                        evidence=indicator[:100],
-                    ))
+                    report.add_risk(
+                        Risk(
+                            category=RiskCategory.VIRTUAL_MACHINE,
+                            description=f"VM indicator detected: {vm_sign}",
+                            severity="high",
+                            evidence=indicator[:100],
+                        )
+                    )
                     return  # One VM detection is enough
 
     def _check_debugger(self, report: SafetyReport) -> None:
         """Generic debugger detection."""
         # Check for common debugger environment variables
         debug_env_vars = [
-            "DEBUG", "_DEBUG", "PYTHONDEBUG", "PYTHONINSPECT",
-            "PYTHONTRACEMALLOC", "REMOTE_DEBUG",
+            "DEBUG",
+            "_DEBUG",
+            "PYTHONDEBUG",
+            "PYTHONINSPECT",
+            "PYTHONTRACEMALLOC",
+            "REMOTE_DEBUG",
         ]
 
         for var in debug_env_vars:
             if os.environ.get(var):
-                report.add_risk(Risk(
-                    category=RiskCategory.DEBUGGER,
-                    description=f"Debug environment variable set: {var}",
-                    severity="medium",
-                    evidence=f"{var}={os.environ.get(var, '')[:20]}",
-                ))
+                report.add_risk(
+                    Risk(
+                        category=RiskCategory.DEBUGGER,
+                        description=f"Debug environment variable set: {var}",
+                        severity="medium",
+                        evidence=f"{var}={os.environ.get(var, '')[:20]}",
+                    )
+                )
 
     def _check_suspicious_processes(self, report: SafetyReport) -> None:
         """Check for suspicious running processes."""
@@ -316,10 +396,24 @@ class EnvironmentSafety:
             for susp in suspicious:
                 if susp.lower() in proc.lower():
                     # Determine category and severity
-                    if any(x in susp.lower() for x in ["dbg", "debug", "ida", "radare", "strace", "ptrace", "gdb", "lldb"]):
+                    if any(
+                        x in susp.lower()
+                        for x in [
+                            "dbg",
+                            "debug",
+                            "ida",
+                            "radare",
+                            "strace",
+                            "ptrace",
+                            "gdb",
+                            "lldb",
+                        ]
+                    ):
                         category = RiskCategory.DEBUGGER
                         severity = "critical"
-                    elif any(x in susp.lower() for x in ["obs", "recorder", "screen", "cam", "fraps"]):
+                    elif any(
+                        x in susp.lower() for x in ["obs", "recorder", "screen", "cam", "fraps"]
+                    ):
                         category = RiskCategory.SCREEN_RECORDER
                         severity = "high"
                     elif any(x in susp.lower() for x in ["vm", "vbox", "qemu"]):
@@ -332,12 +426,14 @@ class EnvironmentSafety:
                         category = RiskCategory.ANALYSIS_TOOL
                         severity = "medium"
 
-                    report.add_risk(Risk(
-                        category=category,
-                        description=f"Suspicious process detected: {proc}",
-                        severity=severity,
-                        evidence=proc,
-                    ))
+                    report.add_risk(
+                        Risk(
+                            category=category,
+                            description=f"Suspicious process detected: {proc}",
+                            severity=severity,
+                            evidence=proc,
+                        )
+                    )
 
     def _check_suspicious_files(self, report: SafetyReport) -> None:
         """Check for suspicious files indicating analysis environment."""
@@ -360,12 +456,14 @@ class EnvironmentSafety:
 
         for path, category, description in suspicious_paths:
             if Path(path).exists():
-                report.add_risk(Risk(
-                    category=category,
-                    description=description,
-                    severity="high",
-                    evidence=path,
-                ))
+                report.add_risk(
+                    Risk(
+                        category=category,
+                        description=description,
+                        severity="high",
+                        evidence=path,
+                    )
+                )
 
     def _check_windows_debugger_api(self, report: SafetyReport) -> None:
         """Windows-specific debugger detection using kernel32."""
@@ -374,24 +472,27 @@ class EnvironmentSafety:
 
             # IsDebuggerPresent
             if kernel32.IsDebuggerPresent():
-                report.add_risk(Risk(
-                    category=RiskCategory.DEBUGGER,
-                    description="Debugger detected via IsDebuggerPresent()",
-                    severity="critical",
-                ))
+                report.add_risk(
+                    Risk(
+                        category=RiskCategory.DEBUGGER,
+                        description="Debugger detected via IsDebuggerPresent()",
+                        severity="critical",
+                    )
+                )
 
             # CheckRemoteDebuggerPresent
             is_debugged = ctypes.c_bool(False)
             kernel32.CheckRemoteDebuggerPresent(
-                kernel32.GetCurrentProcess(),
-                ctypes.byref(is_debugged)
+                kernel32.GetCurrentProcess(), ctypes.byref(is_debugged)
             )
             if is_debugged.value:
-                report.add_risk(Risk(
-                    category=RiskCategory.DEBUGGER,
-                    description="Remote debugger detected",
-                    severity="critical",
-                ))
+                report.add_risk(
+                    Risk(
+                        category=RiskCategory.DEBUGGER,
+                        description="Remote debugger detected",
+                        severity="critical",
+                    )
+                )
         except (AttributeError, OSError):
             pass
 
@@ -410,12 +511,14 @@ class EnvironmentSafety:
             for hive, key_path in vm_keys:
                 try:
                     with winreg.OpenKey(hive, key_path):
-                        report.add_risk(Risk(
-                            category=RiskCategory.VIRTUAL_MACHINE,
-                            description=f"VM registry key found: {key_path}",
-                            severity="high",
-                            evidence=key_path,
-                        ))
+                        report.add_risk(
+                            Risk(
+                                category=RiskCategory.VIRTUAL_MACHINE,
+                                description=f"VM registry key found: {key_path}",
+                                severity="high",
+                                evidence=key_path,
+                            )
+                        )
                 except WindowsError:
                     pass
         except ImportError:
@@ -429,12 +532,14 @@ class EnvironmentSafety:
                 if line.startswith("TracerPid:"):
                     tracer_pid = int(line.split(":")[1].strip())
                     if tracer_pid != 0:
-                        report.add_risk(Risk(
-                            category=RiskCategory.DEBUGGER,
-                            description=f"Process is being traced by PID {tracer_pid}",
-                            severity="critical",
-                            evidence=f"TracerPid: {tracer_pid}",
-                        ))
+                        report.add_risk(
+                            Risk(
+                                category=RiskCategory.DEBUGGER,
+                                description=f"Process is being traced by PID {tracer_pid}",
+                                severity="critical",
+                                evidence=f"TracerPid: {tracer_pid}",
+                            )
+                        )
                     break
         except (OSError, IOError, ValueError):
             pass
@@ -451,12 +556,14 @@ class EnvironmentSafety:
                 content = Path(filepath).read_text().lower()
                 for indicator in indicators:
                     if indicator in content:
-                        report.add_risk(Risk(
-                            category=RiskCategory.VIRTUAL_MACHINE,
-                            description=f"VM indicator in {filepath}: {indicator}",
-                            severity="high",
-                            evidence=content[:100],
-                        ))
+                        report.add_risk(
+                            Risk(
+                                category=RiskCategory.VIRTUAL_MACHINE,
+                                description=f"VM indicator in {filepath}: {indicator}",
+                                severity="high",
+                                evidence=content[:100],
+                            )
+                        )
             except (OSError, IOError):
                 pass
 
@@ -524,9 +631,7 @@ def require_safe_environment(
                     risk_summary = ", ".join(
                         r.description for r in report.get_high_severity_risks()
                     )
-                    raise RuntimeError(
-                        f"Unsafe environment detected: {risk_summary}"
-                    )
+                    raise RuntimeError(f"Unsafe environment detected: {risk_summary}")
 
             return func(*args, **kwargs)
 

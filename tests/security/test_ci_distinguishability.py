@@ -34,6 +34,7 @@ os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 # ── Statistical helpers ──
 
+
 def chi_squared_byte_uniformity(data: bytes) -> float:
     """Chi-squared statistic for byte-value uniformity (256 bins)."""
     n = len(data)
@@ -145,13 +146,11 @@ def byte_pair_entropy(data: bytes) -> float:
         pairs[(data[i], data[i + 1])] += 1
 
     total = sum(pairs.values())
-    return -sum(
-        (c / total) * math.log2(c / total)
-        for c in pairs.values() if c > 0
-    )
+    return -sum((c / total) * math.log2(c / total) for c in pairs.values() if c > 0)
 
 
 # ── Generate test samples ──
+
 
 def _generate_samples(payload_size: int = 4000, block_size: int = 256, n_samples: int = 5):
     """Generate matched single-secret and dual-secret ciphertext samples."""
@@ -165,7 +164,8 @@ def _generate_samples(payload_size: int = 4000, block_size: int = 256, n_samples
         singles.append(ct_s)
 
         ct_d, _ = dual_stream_encode(
-            data, f"dual_A_{i:04d}!",
+            data,
+            f"dual_A_{i:04d}!",
             decoy_data=secrets.token_bytes(payload_size),
             decoy_password=f"dual_B_{i:04d}!",
             block_size=block_size,
@@ -176,6 +176,7 @@ def _generate_samples(payload_size: int = 4000, block_size: int = 256, n_samples
 
 
 # ── CI Tests ──
+
 
 class TestChiSquaredUniformity:
     """Chi-squared byte uniformity: both modes must pass."""
@@ -195,7 +196,8 @@ class TestChiSquaredUniformity:
         """Dual-secret ciphertext passes chi-squared uniformity."""
         data = secrets.token_bytes(8000)
         ct, _ = dual_stream_encode(
-            data, "chi2_dual_AA!",
+            data,
+            "chi2_dual_AA!",
             decoy_data=secrets.token_bytes(8000),
             decoy_password="chi2_dual_BB!",
             block_size=256,
@@ -213,9 +215,9 @@ class TestChiSquaredUniformity:
         avg_dual = sum(chi2_duals) / len(chi2_duals)
 
         # Difference should be within normal variation
-        assert abs(avg_single - avg_dual) < 100, (
-            f"Chi2 gap: single={avg_single:.1f} vs dual={avg_dual:.1f}"
-        )
+        assert (
+            abs(avg_single - avg_dual) < 100
+        ), f"Chi2 gap: single={avg_single:.1f} vs dual={avg_dual:.1f}"
 
 
 class TestKolmogorovSmirnov:
@@ -226,7 +228,8 @@ class TestKolmogorovSmirnov:
         data = secrets.token_bytes(8000)
         ct_s, _ = dual_stream_encode(data, "ks_single_11", block_size=256)
         ct_d, _ = dual_stream_encode(
-            data, "ks_dual_AAAA",
+            data,
+            "ks_dual_AAAA",
             decoy_data=secrets.token_bytes(8000),
             decoy_password="ks_dual_BBBB",
             block_size=256,
@@ -258,7 +261,8 @@ class TestEntropyComparison:
         """Dual-secret entropy > 7.9 bits/byte."""
         data = secrets.token_bytes(8000)
         ct, _ = dual_stream_encode(
-            data, "ent_dual_AAA",
+            data,
+            "ent_dual_AAA",
             decoy_data=secrets.token_bytes(8000),
             decoy_password="ent_dual_BBB",
             block_size=256,
@@ -272,9 +276,7 @@ class TestEntropyComparison:
         e_singles = [shannon_entropy(s) for s in singles]
         e_duals = [shannon_entropy(d) for d in duals]
 
-        avg_gap = abs(
-            sum(e_singles) / len(e_singles) - sum(e_duals) / len(e_duals)
-        )
+        avg_gap = abs(sum(e_singles) / len(e_singles) - sum(e_duals) / len(e_duals))
         assert avg_gap < 0.05, f"Entropy gap {avg_gap:.4f} bits/byte > 0.05"
 
 
@@ -292,7 +294,8 @@ class TestAutocorrelation:
         """Dual-secret lag-1 autocorrelation near zero."""
         data = secrets.token_bytes(8000)
         ct, _ = dual_stream_encode(
-            data, "ac_dual_AAAA",
+            data,
+            "ac_dual_AAAA",
             decoy_data=secrets.token_bytes(8000),
             decoy_password="ac_dual_BBBB",
             block_size=256,
@@ -306,9 +309,7 @@ class TestAutocorrelation:
         ac_singles = [autocorrelation_lag1(s) for s in singles]
         ac_duals = [autocorrelation_lag1(d) for d in duals]
 
-        avg_gap = abs(
-            sum(ac_singles) / len(ac_singles) - sum(ac_duals) / len(ac_duals)
-        )
+        avg_gap = abs(sum(ac_singles) / len(ac_singles) - sum(ac_duals) / len(ac_duals))
         assert avg_gap < 0.03, f"Autocorrelation gap {avg_gap:.4f} > 0.03"
 
 
@@ -326,7 +327,8 @@ class TestRunsRandomness:
         """Dual-secret passes runs test (Z < 2.58)."""
         data = secrets.token_bytes(8000)
         ct, _ = dual_stream_encode(
-            data, "runs_dual_AA",
+            data,
+            "runs_dual_AA",
             decoy_data=secrets.token_bytes(8000),
             decoy_password="runs_dual_BB",
             block_size=256,
@@ -351,7 +353,8 @@ class TestBytePairAnalysis:
         """Dual-secret byte-pair entropy close to maximum 16 bits."""
         data = secrets.token_bytes(20000)
         ct, _ = dual_stream_encode(
-            data, "pair_dual_AA",
+            data,
+            "pair_dual_AA",
             decoy_data=secrets.token_bytes(20000),
             decoy_password="pair_dual_BB",
             block_size=256,
@@ -365,9 +368,7 @@ class TestBytePairAnalysis:
         pe_singles = [byte_pair_entropy(s) for s in singles]
         pe_duals = [byte_pair_entropy(d) for d in duals]
 
-        avg_gap = abs(
-            sum(pe_singles) / len(pe_singles) - sum(pe_duals) / len(pe_duals)
-        )
+        avg_gap = abs(sum(pe_singles) / len(pe_singles) - sum(pe_duals) / len(pe_duals))
         assert avg_gap < 0.5, f"Pair entropy gap {avg_gap:.2f} > 0.5"
 
 
@@ -384,7 +385,8 @@ class TestCIIntegration:
 
         ct_single, _ = dual_stream_encode(payload, "ci_battery_1", block_size=256)
         ct_dual, _ = dual_stream_encode(
-            payload, "ci_batt_AAAA",
+            payload,
+            "ci_batt_AAAA",
             decoy_data=secrets.token_bytes(10000),
             decoy_password="ci_batt_BBBB",
             block_size=256,

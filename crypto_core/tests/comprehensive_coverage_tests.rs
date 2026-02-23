@@ -231,6 +231,7 @@ mod nonce_tests {
     }
 
     #[test]
+    #[allow(clippy::clone_on_copy)] // Intentionally testing both Copy and Clone traits
     fn test_nonce_copy_clone() {
         let n1 = Nonce::from_array([0x33u8; 12]);
         let n2 = n1; // Copy
@@ -249,7 +250,9 @@ mod nonce_tests {
         assert!(format!("{}", e1).contains("8"));
 
         let e2 = NonceError::AlreadyUsed;
-        assert!(format!("{}", e2).contains("already used") || format!("{}", e2).contains("Already"));
+        assert!(
+            format!("{}", e2).contains("already used") || format!("{}", e2).contains("Already")
+        );
 
         let e3 = NonceError::Exhausted;
         assert!(format!("{}", e3).contains("exhausted") || format!("{}", e3).contains("Exhausted"));
@@ -460,10 +463,7 @@ mod types_tests {
 
     #[test]
     fn test_aad_error_debug_clone_eq() {
-        let e1 = AadError::TooLong {
-            max: 100,
-            got: 200,
-        };
+        let e1 = AadError::TooLong { max: 100, got: 200 };
         let e2 = e1.clone();
         assert_eq!(e1, e2);
         assert!(!format!("{:?}", e1).is_empty());
@@ -720,20 +720,18 @@ mod pure_crypto_tests {
     fn test_sha256_known_empty() {
         let hash = sha256(b"");
         // SHA-256 of empty string
-        let expected = hex::decode(
-            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        )
-        .unwrap();
+        let expected =
+            hex::decode("e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+                .unwrap();
         assert_eq!(hash.as_slice(), expected.as_slice());
     }
 
     #[test]
     fn test_sha256_known_abc() {
         let hash = sha256(b"abc");
-        let expected = hex::decode(
-            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
-        )
-        .unwrap();
+        let expected =
+            hex::decode("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+                .unwrap();
         assert_eq!(hash.as_slice(), expected.as_slice());
     }
 

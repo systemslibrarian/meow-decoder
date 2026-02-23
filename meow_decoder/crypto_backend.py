@@ -342,6 +342,7 @@ def get_available_backends() -> list:  # pragma: no cover
 # and non-secret outputs (ciphertext, public keys, tags, plaintext after auth).
 # This eliminates Rules #2 and #9 violations.
 
+
 class HandleBackend:
     """
     Handle-based crypto backend where secrets NEVER enter Python.
@@ -390,8 +391,13 @@ class HandleBackend:
         combination and Argon2id derivation are performed entirely in Rust.
         """
         return self._rs.handle_derive_key_argon2id_with_keyfile(
-            password, keyfile, keyfile_domain_sep, salt,
-            memory_kib, iterations, parallelism,
+            password,
+            keyfile,
+            keyfile_domain_sep,
+            salt,
+            memory_kib,
+            iterations,
+            parallelism,
         )
 
     def derive_key_yubikey(
@@ -526,7 +532,9 @@ class HandleBackend:
         """Reset stream byte offset to 0."""
         return self._rs.handle_stream_reset_offset(stream_handle)
 
-    def aes_ctr_crypt_handle(self, key_handle: int, nonce: bytes, data: bytes, byte_offset: int = 0) -> bytes:
+    def aes_ctr_crypt_handle(
+        self, key_handle: int, nonce: bytes, data: bytes, byte_offset: int = 0
+    ) -> bytes:
         """AES-CTR crypt using any key handle (key stays in Rust)."""
         return self._rs.handle_aes_ctr_crypt(key_handle, nonce, data, byte_offset)
 

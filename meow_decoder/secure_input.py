@@ -43,6 +43,7 @@ __all__ = [
 
 class SecurePasswordWarning(UserWarning):
     """Warning for password input security concerns."""
+
     pass
 
 

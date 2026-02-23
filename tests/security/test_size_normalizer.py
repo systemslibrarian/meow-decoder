@@ -32,7 +32,6 @@ from meow_decoder.size_normalizer import (
     compute_frame_metadata,
 )
 
-
 # ══════════════════════════════════════════════════════════════
 #  Size Class Selection
 # ══════════════════════════════════════════════════════════════
@@ -240,7 +239,10 @@ class TestPadFrames:
 
     def test_pad_with_generator(self):
         frames = ["f1", "f2", "f3"]
-        def gen(): return "extra"
+
+        def gen():
+            return "extra"
+
         result = pad_frames(frames, 5, frame_generator=gen)
         assert len(result) == 5
         assert result[:3] == ["f1", "f2", "f3"]
@@ -265,7 +267,10 @@ class TestPadFrames:
 
     def test_empty_frames_with_generator(self):
         frames = []
-        def gen(): return "new"
+
+        def gen():
+            return "new"
+
         result = pad_frames(frames, 3, frame_generator=gen)
         assert len(result) == 3
         assert all(f == "new" for f in result)

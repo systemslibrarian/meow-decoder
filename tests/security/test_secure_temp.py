@@ -121,9 +121,7 @@ class TestGetSecureTempDir:
         finally:
             os.rmdir(path)
 
-    @pytest.mark.skipif(
-        not os.path.isdir("/dev/shm"), reason="No /dev/shm available"
-    )
+    @pytest.mark.skipif(not os.path.isdir("/dev/shm"), reason="No /dev/shm available")
     def test_prefers_dev_shm(self):
         """Should prefer /dev/shm when available."""
         path = get_secure_temp_dir()

@@ -44,6 +44,7 @@ class Argon2Preset:
         description: User-facing description of security level.
         approximate_time: Rough timing estimate on 2020 laptop.
     """
+
     name: str
     memory_kib: int
     iterations: int
@@ -56,31 +57,27 @@ class Argon2Preset:
 
 PRESET_PARANOID = Argon2Preset(
     name="paranoid",
-    memory_kib=524288,   # 512 MiB
+    memory_kib=524288,  # 512 MiB
     iterations=20,
     parallelism=4,
     description=(
-        "Maximum brute-force resistance. 8x OWASP minimum. "
-        "Very strong vs non-state attackers."
+        "Maximum brute-force resistance. 8x OWASP minimum. " "Very strong vs non-state attackers."
     ),
     approximate_time="~10-40s on 2020 laptop",
 )
 
 PRESET_BALANCED = Argon2Preset(
     name="balanced",
-    memory_kib=262144,   # 256 MiB
+    memory_kib=262144,  # 256 MiB
     iterations=8,
     parallelism=4,
-    description=(
-        "Strong security with reasonable wait time. "
-        "Good for regular use."
-    ),
+    description=("Strong security with reasonable wait time. " "Good for regular use."),
     approximate_time="~4-15s on 2020 laptop",
 )
 
 PRESET_ACTIVIST_FAST = Argon2Preset(
     name="activist-fast",
-    memory_kib=198656,   # 194 MiB (194 * 1024)
+    memory_kib=198656,  # 194 MiB (194 * 1024)
     iterations=4,
     parallelism=4,
     description=(
@@ -92,7 +89,7 @@ PRESET_ACTIVIST_FAST = Argon2Preset(
 
 PRESET_TEST = Argon2Preset(
     name="test",
-    memory_kib=32768,    # 32 MiB
+    memory_kib=32768,  # 32 MiB
     iterations=1,
     parallelism=1,
     description="CI/testing only. NOT for production use.",
@@ -141,9 +138,7 @@ def get_preset(name: Optional[str] = None) -> Argon2Preset:
 
     if name not in PRESETS:
         valid = ", ".join(sorted(PRESETS.keys()))
-        raise ValueError(
-            f"Unknown Argon2id preset '{name}'. Valid presets: {valid}"
-        )
+        raise ValueError(f"Unknown Argon2id preset '{name}'. Valid presets: {valid}")
 
     return PRESETS[name]
 
@@ -165,11 +160,15 @@ def list_presets() -> str:
     lines = ["Available Argon2id presets:"]
     for name, preset in sorted(PRESETS.items()):
         lines.append(f"  {name:16s} — {preset.description}")
-        lines.append(f"                     Memory: {preset.memory_kib // 1024} MiB, "
-                     f"Iterations: {preset.iterations}, "
-                     f"Parallelism: {preset.parallelism}")
+        lines.append(
+            f"                     Memory: {preset.memory_kib // 1024} MiB, "
+            f"Iterations: {preset.iterations}, "
+            f"Parallelism: {preset.parallelism}"
+        )
         lines.append(f"                     Estimated time: {preset.approximate_time}")
     lines.append("")
-    lines.append("⚠️  Even strong parameters do not protect against a state actor "
-                 "who obtains the real password via coercion.")
+    lines.append(
+        "⚠️  Even strong parameters do not protect against a state actor "
+        "who obtains the real password via coercion."
+    )
     return "\n".join(lines)

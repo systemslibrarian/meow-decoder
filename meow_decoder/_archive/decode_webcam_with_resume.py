@@ -504,6 +504,7 @@ Resume Feature:
                         # it verifies password correctness, not ciphertext auth.
                         # Using Rust constant-time compare for defense-in-depth.
                         from .crypto_backend import get_default_backend as _get_ct_backend
+
                         if not _get_ct_backend().constant_time_compare(
                             decoder.manifest.hmac, expected_hmac
                         ):

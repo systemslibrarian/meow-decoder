@@ -143,7 +143,9 @@ def derive_frame_key(master_key: bytes, frame_index: int, salt: bytes) -> bytes:
     return frame_key
 
 
-def compute_frame_mac(frame_data: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes) -> bytes:
+def compute_frame_mac(
+    frame_data: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes
+) -> bytes:
     """
     Compute MAC for QR frame.
 
@@ -192,7 +194,11 @@ def compute_frame_mac(frame_data: bytes, master_key: Union[bytes, int], frame_in
 
 
 def verify_frame_mac(
-    frame_data: bytes, received_mac: bytes, master_key: Union[bytes, int], frame_index: int, salt: bytes
+    frame_data: bytes,
+    received_mac: bytes,
+    master_key: Union[bytes, int],
+    frame_index: int,
+    salt: bytes,
 ) -> bool:
     """
     Verify frame MAC in constant time.
@@ -220,6 +226,7 @@ def verify_frame_mac(
 
     # Constant-time comparison via Rust backend
     from .crypto_backend import get_default_backend
+
     return get_default_backend().constant_time_compare(expected_mac, received_mac)
 
 
@@ -353,7 +360,7 @@ if __name__ == "__main__":
     print(f"   Data: {unpacked2!r}")
 
     # Test tampered data
-    tampered = packed[:MAC_SIZE] + b"TAMPERED" + packed[MAC_SIZE + 8:]
+    tampered = packed[:MAC_SIZE] + b"TAMPERED" + packed[MAC_SIZE + 8 :]
     valid3, unpacked3 = unpack_frame_with_mac(tampered, master_key, frame_index, salt)
     print(f"\n❌ Tampered frame:")
     print(f"   Valid: {valid3}")

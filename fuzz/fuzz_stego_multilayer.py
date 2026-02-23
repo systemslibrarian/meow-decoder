@@ -38,7 +38,15 @@ def _setup_imports():
     from PIL import Image
     import io
 
-    return MultiLayerStegoEncoder, MultiLayerStegoDecoder, MultiLayerConfig, validate_stego, np, Image, io
+    return (
+        MultiLayerStegoEncoder,
+        MultiLayerStegoDecoder,
+        MultiLayerConfig,
+        validate_stego,
+        np,
+        Image,
+        io,
+    )
 
 
 if atheris is not None:
@@ -66,9 +74,9 @@ else:
 
 def _make_carrier_gif(fdp) -> bytes:
     """Generate a small carrier GIF from fuzz-derived parameters."""
-    width = (fdp.ConsumeIntInRange(8, 64) if atheris else 32)
-    height = (fdp.ConsumeIntInRange(8, 64) if atheris else 32)
-    n_frames = (fdp.ConsumeIntInRange(1, 8) if atheris else 4)
+    width = fdp.ConsumeIntInRange(8, 64) if atheris else 32
+    height = fdp.ConsumeIntInRange(8, 64) if atheris else 32
+    n_frames = fdp.ConsumeIntInRange(1, 8) if atheris else 4
 
     frames = []
     for _ in range(n_frames):
@@ -98,7 +106,7 @@ def fuzz_encoder_decoder_roundtrip(data: bytes):
 
     master_key = data[:32]
     payload_len_hint = data[32] % 200 + 1
-    payload = data[33: 33 + payload_len_hint]
+    payload = data[33 : 33 + payload_len_hint]
     if not payload:
         return
 
@@ -142,9 +150,23 @@ def fuzz_encoder_decoder_roundtrip(data: bytes):
     except Exception as e:
         msg = str(e).lower()
         expected = [
-            "capacity", "too large", "payload", "encode", "decode",
-            "gif", "frame", "image", "shape", "stego", "lsb", "walk",
-            "numpy", "array", "palette", "invalid", "corrupt",
+            "capacity",
+            "too large",
+            "payload",
+            "encode",
+            "decode",
+            "gif",
+            "frame",
+            "image",
+            "shape",
+            "stego",
+            "lsb",
+            "walk",
+            "numpy",
+            "array",
+            "palette",
+            "invalid",
+            "corrupt",
         ]
         if any(x in msg for x in expected):
             pass
@@ -167,10 +189,27 @@ def fuzz_decode_corrupt_gif(data: bytes):
     except Exception as e:
         msg = str(e).lower()
         ignored = [
-            "capacity", "too large", "payload", "encode", "decode",
-            "gif", "frame", "image", "shape", "stego", "lsb", "walk",
-            "numpy", "array", "palette", "invalid", "corrupt", "truncate",
-            "not a gif", "cannot identify", "pil",
+            "capacity",
+            "too large",
+            "payload",
+            "encode",
+            "decode",
+            "gif",
+            "frame",
+            "image",
+            "shape",
+            "stego",
+            "lsb",
+            "walk",
+            "numpy",
+            "array",
+            "palette",
+            "invalid",
+            "corrupt",
+            "truncate",
+            "not a gif",
+            "cannot identify",
+            "pil",
         ]
         if not any(x in msg for x in ignored):
             raise
@@ -190,8 +229,16 @@ def fuzz_validate_stego(data: bytes):
     except Exception as e:
         msg = str(e).lower()
         ignored = [
-            "gif", "invalid", "validate", "stego", "image", "pil",
-            "frame", "corrupt", "not a gif", "cannot identify",
+            "gif",
+            "invalid",
+            "validate",
+            "stego",
+            "image",
+            "pil",
+            "frame",
+            "corrupt",
+            "not a gif",
+            "cannot identify",
         ]
         if not any(x in msg for x in ignored):
             raise

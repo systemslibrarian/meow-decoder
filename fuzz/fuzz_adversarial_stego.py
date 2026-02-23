@@ -30,6 +30,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.adversarial_carrier import (
@@ -126,8 +127,7 @@ def fuzz_rotation_differential(data: bytes):
         fingerprints = [fp_sensor, fp_texture, fp_dct, fp_combined]
         unique = set(fingerprints)
         assert len(unique) == 4, (
-            f"Rotation algorithms produced duplicate noise: "
-            f"{len(unique)} unique of 4"
+            f"Rotation algorithms produced duplicate noise: " f"{len(unique)} unique of 4"
         )
 
     except (ValueError, TypeError, ZeroDivisionError):
@@ -278,9 +278,7 @@ def fuzz_dct_matching_psnr(data: bytes):
             assert len(row) == width
 
         # DCT-matched noise should not be all zeros
-        all_zero = all(
-            abs(v) < 1e-10 for row in dct_noise for v in row
-        )
+        all_zero = all(abs(v) < 1e-10 for row in dct_noise for v in row)
         assert not all_zero, "DCT matching produced all-zero noise"
 
         # Compute RMS of noise to verify it's in reasonable range
@@ -596,9 +594,7 @@ def fuzz_cross_seed_independence(data: bytes):
 
             if var1 > 0 and var2 > 0:
                 correlation = cov / (math.sqrt(var1) * math.sqrt(var2))
-                assert abs(correlation) < 0.5, (
-                    f"Cross-seed correlation too high: {correlation:.4f}"
-                )
+                assert abs(correlation) < 0.5, f"Cross-seed correlation too high: {correlation:.4f}"
     except (ValueError, TypeError, ZeroDivisionError, OverflowError):
         pass
 

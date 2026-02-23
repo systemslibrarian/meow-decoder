@@ -60,6 +60,7 @@ __all__ = [
 
 class ForensicCleanupWarning(UserWarning):
     """Warning issued when forensic cleanup encounters issues."""
+
     pass
 
 
@@ -138,9 +139,7 @@ class ForensicCleaner:
             ]
         elif self.system == "Darwin":
             targets = [
-                os.path.expanduser(
-                    "~/Library/Caches/com.apple.QuickLook.thumbnailcache/"
-                ),
+                os.path.expanduser("~/Library/Caches/com.apple.QuickLook.thumbnailcache/"),
             ]
         elif self.system == "Windows":
             local_app = os.environ.get("LOCALAPPDATA", "")
@@ -207,10 +206,12 @@ class ForensicCleaner:
 
         # Also check /dev/shm
         if os.path.isdir("/dev/shm"):
-            patterns.extend([
-                "/dev/shm/meow_*",
-                "/dev/shm/meow-*",
-            ])
+            patterns.extend(
+                [
+                    "/dev/shm/meow_*",
+                    "/dev/shm/meow-*",
+                ]
+            )
 
         for pattern in patterns:
             for f in glob.glob(pattern):
@@ -372,10 +373,7 @@ def _scrub_file_lines(filepath: str, patterns: List[str]) -> int:
             lines = f.readlines()
 
         original_count = len(lines)
-        filtered = [
-            line for line in lines
-            if not any(p in line for p in patterns)
-        ]
+        filtered = [line for line in lines if not any(p in line for p in patterns)]
         removed = original_count - len(filtered)
 
         if removed > 0:

@@ -115,7 +115,7 @@ impl<T: Zeroize> SecureBox<T> {
 
         let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
         // Round data up to page boundary
-        let data_pages = (data_size + page_size - 1) / page_size;
+        let data_pages = data_size.div_ceil(page_size);
         let data_region_size = data_pages * page_size;
         // Total: guard_before + data + guard_after
         let total_size = data_region_size + 2 * page_size;
@@ -210,9 +210,13 @@ impl<T: Zeroize> SecureBox<T> {
     #[cfg(windows)]
     pub fn new(value: T) -> Result<Self, SecureAllocError> {
         use std::ptr;
-        use winapi::um::memoryapi::{VirtualAlloc, VirtualFree, VirtualLock, VirtualProtect, VirtualUnlock};
+        use winapi::um::memoryapi::{
+            VirtualAlloc, VirtualFree, VirtualLock, VirtualProtect, VirtualUnlock,
+        };
         use winapi::um::sysinfoapi::{GetSystemInfo, SYSTEM_INFO};
-        use winapi::um::winnt::{MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_NOACCESS, PAGE_READWRITE};
+        use winapi::um::winnt::{
+            MEM_COMMIT, MEM_RELEASE, MEM_RESERVE, PAGE_NOACCESS, PAGE_READWRITE,
+        };
 
         let data_size = std::mem::size_of::<T>();
         if data_size == 0 {

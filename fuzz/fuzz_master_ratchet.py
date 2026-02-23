@@ -119,6 +119,7 @@ def fuzz_master_ratchet_load_corrupt(data: bytes):
 
     try:
         from pathlib import Path
+
         result = MasterRatchet.load(password, Path(tmppath))
         # Should return None for corrupted state (fail-closed)
         if result is not None:
@@ -128,7 +129,9 @@ def fuzz_master_ratchet_load_corrupt(data: bytes):
         pass
     except Exception as e:
         error_msg = str(e).lower()
-        if any(x in error_msg for x in ["decrypt", "authentication", "invalid", "corrupt", "memory"]):
+        if any(
+            x in error_msg for x in ["decrypt", "authentication", "invalid", "corrupt", "memory"]
+        ):
             pass
         else:
             raise
@@ -178,9 +181,9 @@ def fuzz_ratchet_step_monotonicity(data: bytes):
 
         for _ in range(n_steps):
             ratchet.ratchet()
-            assert ratchet.generation == prev_gen + 1, (
-                f"Generation not monotonic: {ratchet.generation} != {prev_gen + 1}"
-            )
+            assert (
+                ratchet.generation == prev_gen + 1
+            ), f"Generation not monotonic: {ratchet.generation} != {prev_gen + 1}"
             prev_gen = ratchet.generation
 
     except (ValueError, TypeError):
@@ -203,6 +206,7 @@ def fuzz_emergency_wipe(data: bytes):
 
     try:
         from pathlib import Path
+
         ratchet = MasterRatchet.from_password(
             "fuzz_password",
             state_file=Path(tmppath),

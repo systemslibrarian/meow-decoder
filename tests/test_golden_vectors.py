@@ -362,6 +362,7 @@ class TestGoldenRatchet:
 
     def test_ratchet_init_produces_32byte_keys(self):
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         assert len(hb.export_key(state.root_key)) == 32
@@ -369,6 +370,7 @@ class TestGoldenRatchet:
 
     def test_ratchet_step_produces_32byte_msg_key(self):
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         msg_key, new_state = ratchet_step(state)
@@ -377,6 +379,7 @@ class TestGoldenRatchet:
 
     def test_ratchet_step_advances_chain(self):
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         _, state2 = ratchet_step(state)
@@ -384,6 +387,7 @@ class TestGoldenRatchet:
 
     def test_ratchet_frame_keys_structure(self):
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(IKM_32, SALT)
         msg_key, _ = ratchet_step(state)
@@ -395,6 +399,7 @@ class TestGoldenRatchet:
     def test_ratchet_deterministic_init(self):
         """Same inputs must produce same outputs."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         s1 = init_ratchet(IKM_32, SALT)
         s2 = init_ratchet(IKM_32, SALT)
@@ -404,6 +409,7 @@ class TestGoldenRatchet:
     def test_ratchet_deterministic_step(self):
         """Same init state must produce same msg_key."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         s1 = init_ratchet(IKM_32, SALT)
         s2 = init_ratchet(IKM_32, SALT)

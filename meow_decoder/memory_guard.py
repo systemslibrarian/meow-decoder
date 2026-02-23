@@ -55,6 +55,7 @@ __all__ = [
 
 class MemoryGuardWarning(UserWarning):
     """Warning issued when a memory guard protection cannot be activated."""
+
     pass
 
 
@@ -107,6 +108,7 @@ def raise_mlock_limit(target_bytes: int = 256 * 1024 * 1024) -> bool:
         return True
     try:
         import resource
+
         soft, hard = resource.getrlimit(resource.RLIMIT_MEMLOCK)
         if soft >= target_bytes:
             return True
@@ -147,6 +149,7 @@ def _disable_core_dumps() -> bool:
     else:
         try:
             import resource
+
             resource.setrlimit(resource.RLIMIT_CORE, (0, 0))
             return True
         except (ValueError, ImportError, OSError):
@@ -189,6 +192,7 @@ def _windows_set_privilege() -> bool:
         return False
     try:
         import ctypes.wintypes
+
         advapi32 = ctypes.windll.advapi32
         kernel32 = _get_kernel32()
 
@@ -198,31 +202,27 @@ def _windows_set_privilege() -> bool:
         TOKEN_QUERY = 0x0008
 
         class LUID(ctypes.Structure):
-            _fields_ = [("LowPart", ctypes.wintypes.DWORD),
-                        ("HighPart", ctypes.wintypes.LONG)]
+            _fields_ = [("LowPart", ctypes.wintypes.DWORD), ("HighPart", ctypes.wintypes.LONG)]
 
         class LUID_AND_ATTRIBUTES(ctypes.Structure):
-            _fields_ = [("Luid", LUID),
-                        ("Attributes", ctypes.wintypes.DWORD)]
+            _fields_ = [("Luid", LUID), ("Attributes", ctypes.wintypes.DWORD)]
 
         class TOKEN_PRIVILEGES(ctypes.Structure):
-            _fields_ = [("PrivilegeCount", ctypes.wintypes.DWORD),
-                        ("Privileges", LUID_AND_ATTRIBUTES * 1)]
+            _fields_ = [
+                ("PrivilegeCount", ctypes.wintypes.DWORD),
+                ("Privileges", LUID_AND_ATTRIBUTES * 1),
+            ]
 
         # Open process token
         token = ctypes.wintypes.HANDLE()
         if not advapi32.OpenProcessToken(
-            kernel32.GetCurrentProcess(),
-            TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,
-            ctypes.byref(token)
+            kernel32.GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, ctypes.byref(token)
         ):
             return False
 
         # Lookup privilege
         luid = LUID()
-        if not advapi32.LookupPrivilegeValueW(
-            None, "SeLockMemoryPrivilege", ctypes.byref(luid)
-        ):
+        if not advapi32.LookupPrivilegeValueW(None, "SeLockMemoryPrivilege", ctypes.byref(luid)):
             kernel32.CloseHandle(token)
             return False
 
@@ -232,9 +232,7 @@ def _windows_set_privilege() -> bool:
         tp.Privileges[0].Luid = luid
         tp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED
 
-        result = advapi32.AdjustTokenPrivileges(
-            token, False, ctypes.byref(tp), 0, None, None
-        )
+        result = advapi32.AdjustTokenPrivileges(token, False, ctypes.byref(tp), 0, None, None)
         kernel32.CloseHandle(token)
 
         # Check if privilege was actually enabled
@@ -439,22 +437,16 @@ class GuardedBuffer:
 
         # Step 1: mmap entire region as PROT_NONE (all inaccessible)
         libc.mmap.restype = ct.c_void_p
-        libc.mmap.argtypes = [
-            ct.c_void_p, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_long
-        ]
-        base = libc.mmap(None, self._total_size, PROT_NONE,
-                         MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)
+        libc.mmap.argtypes = [ct.c_void_p, ct.c_size_t, ct.c_int, ct.c_int, ct.c_int, ct.c_long]
+        base = libc.mmap(None, self._total_size, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0)
         if base is None or base == MAP_FAILED:
-            raise RuntimeError(
-                f"mmap failed for guarded buffer ({self._total_size} bytes)"
-            )
+            raise RuntimeError(f"mmap failed for guarded buffer ({self._total_size} bytes)")
 
         # Step 2: mprotect data pages to READ|WRITE (skip first guard page)
         data_ptr = base + self._page_size
         libc.mprotect.restype = ct.c_int
         libc.mprotect.argtypes = [ct.c_void_p, ct.c_size_t, ct.c_int]
-        ret = libc.mprotect(ct.c_void_p(data_ptr), self._data_region_size,
-                            PROT_READ | PROT_WRITE)
+        ret = libc.mprotect(ct.c_void_p(data_ptr), self._data_region_size, PROT_READ | PROT_WRITE)
         if ret != 0:
             libc.munmap(ct.c_void_p(base), self._total_size)
             raise RuntimeError("mprotect failed for guarded buffer data pages")
@@ -487,8 +479,7 @@ class GuardedBuffer:
             # Step 1: VirtualAlloc entire region as PAGE_NOACCESS
             kernel32.VirtualAlloc.restype = ct.c_void_p
             base = kernel32.VirtualAlloc(
-                None, self._total_size,
-                MEM_COMMIT | MEM_RESERVE, PAGE_NOACCESS
+                None, self._total_size, MEM_COMMIT | MEM_RESERVE, PAGE_NOACCESS
             )
             if not base:
                 raise RuntimeError(
@@ -499,8 +490,7 @@ class GuardedBuffer:
             data_ptr = base + self._page_size
             old_protect = ct.c_ulong()
             ret = kernel32.VirtualProtect(
-                ct.c_void_p(data_ptr), self._data_region_size,
-                PAGE_READWRITE, ct.byref(old_protect)
+                ct.c_void_p(data_ptr), self._data_region_size, PAGE_READWRITE, ct.byref(old_protect)
             )
             if not ret:
                 kernel32.VirtualFree(ct.c_void_p(base), 0, 0x8000)  # MEM_RELEASE
@@ -519,10 +509,12 @@ class GuardedBuffer:
             try:
                 kernel32 = _get_kernel32()
                 if kernel32:
-                    return kernel32.VirtualLock(
-                        ctypes.c_void_p(self._data_ptr),
-                        self._data_region_size
-                    ) != 0
+                    return (
+                        kernel32.VirtualLock(
+                            ctypes.c_void_p(self._data_ptr), self._data_region_size
+                        )
+                        != 0
+                    )
             except Exception:
                 pass
             return False
@@ -530,10 +522,7 @@ class GuardedBuffer:
             libc = _get_libc()
             if libc:
                 try:
-                    return libc.mlock(
-                        ctypes.c_void_p(self._data_ptr),
-                        self._data_region_size
-                    ) == 0
+                    return libc.mlock(ctypes.c_void_p(self._data_ptr), self._data_region_size) == 0
                 except Exception:
                     pass
             return False
@@ -588,8 +577,7 @@ class GuardedBuffer:
             raise RuntimeError("GuardedBuffer is closed")
         if offset < 0 or offset + length > self._size:
             raise ValueError(
-                f"Read of {length} bytes at offset {offset} "
-                f"exceeds buffer size {self._size}"
+                f"Read of {length} bytes at offset {offset} " f"exceeds buffer size {self._size}"
             )
         return ctypes.string_at(self._data_ptr + offset, length)
 
@@ -628,8 +616,7 @@ class GuardedBuffer:
                     kernel32 = _get_kernel32()
                     if kernel32:
                         kernel32.VirtualUnlock(
-                            ctypes.c_void_p(self._data_ptr),
-                            self._data_region_size
+                            ctypes.c_void_p(self._data_ptr), self._data_region_size
                         )
                 except Exception:
                     pass
@@ -637,10 +624,7 @@ class GuardedBuffer:
                 libc = _get_libc()
                 if libc:
                     try:
-                        libc.munlock(
-                            ctypes.c_void_p(self._data_ptr),
-                            self._data_region_size
-                        )
+                        libc.munlock(ctypes.c_void_p(self._data_ptr), self._data_region_size)
                     except Exception:
                         pass
 
@@ -650,9 +634,7 @@ class GuardedBuffer:
                 kernel32 = _get_kernel32()
                 if kernel32:
                     MEM_RELEASE = 0x8000
-                    kernel32.VirtualFree(
-                        ctypes.c_void_p(self._base), 0, MEM_RELEASE
-                    )
+                    kernel32.VirtualFree(ctypes.c_void_p(self._base), 0, MEM_RELEASE)
             except Exception:
                 pass
         else:
@@ -819,7 +801,9 @@ def require_memory_guard(
         # to succeed on large buffers.  Core dump suppression is also critical.
         # Both must succeed for the memory guard to be considered active.
         if not status.get("lock_memory_privilege", False):
-            failures.append("lock_memory_privilege (SE_LOCK_MEMORY_PRIVILEGE \u2014 required for VirtualLock)")
+            failures.append(
+                "lock_memory_privilege (SE_LOCK_MEMORY_PRIVILEGE \u2014 required for VirtualLock)"
+            )
         if not status.get("no_coredump", False):
             failures.append("core dump disabling")
     else:
@@ -884,6 +868,7 @@ def deactivate_memory_guard() -> Dict[str, bool]:
     # Re-enable core dumps (for testing)
     try:
         import resource
+
         resource.setrlimit(resource.RLIMIT_CORE, (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
         status["coredump_restored"] = True
     except (ValueError, resource.error, OSError):

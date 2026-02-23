@@ -19,6 +19,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.quantum_mixer import (
@@ -29,14 +30,28 @@ def _setup_imports():
     )
     from meow_decoder.dual_stream import DualStreamManifest
 
-    return entangle_realities, collapse_to_reality, YARN_REALITY_A, YARN_REALITY_B, DualStreamManifest
+    return (
+        entangle_realities,
+        collapse_to_reality,
+        YARN_REALITY_A,
+        YARN_REALITY_B,
+        DualStreamManifest,
+    )
 
 
 if atheris is not None:
     with atheris.instrument_imports():
-        entangle_realities, collapse_to_reality, YARN_REALITY_A, YARN_REALITY_B, DualStreamManifest = _setup_imports()
+        (
+            entangle_realities,
+            collapse_to_reality,
+            YARN_REALITY_A,
+            YARN_REALITY_B,
+            DualStreamManifest,
+        ) = _setup_imports()
 else:
-    entangle_realities, collapse_to_reality, YARN_REALITY_A, YARN_REALITY_B, DualStreamManifest = _setup_imports()
+    entangle_realities, collapse_to_reality, YARN_REALITY_A, YARN_REALITY_B, DualStreamManifest = (
+        _setup_imports()
+    )
 
 
 def fuzz_entangle_realities(data: bytes):
@@ -45,8 +60,8 @@ def fuzz_entangle_realities(data: bytes):
         return
 
     split = data[0] % len(data)
-    reality_a = data[1:split + 1]
-    reality_b = data[split + 1:]
+    reality_a = data[1 : split + 1]
+    reality_b = data[split + 1 :]
 
     if not reality_a or not reality_b:
         return
@@ -56,9 +71,9 @@ def fuzz_entangle_realities(data: bytes):
 
         # Verify structural properties
         max_len = max(len(reality_a), len(reality_b))
-        assert len(superposition) == max_len * 2, (
-            f"Superposition length {len(superposition)} != 2 * {max_len}"
-        )
+        assert (
+            len(superposition) == max_len * 2
+        ), f"Superposition length {len(superposition)} != 2 * {max_len}"
 
         # Verify collapse recovers correct bytes
         collapsed_a = collapse_to_reality(superposition, YARN_REALITY_A)
@@ -69,10 +84,10 @@ def fuzz_entangle_realities(data: bytes):
 
         # First len(reality_a) bytes of collapsed_a must match reality_a
         # (rest is random padding)
-        assert collapsed_a[:len(reality_a)] == reality_a
+        assert collapsed_a[: len(reality_a)] == reality_a
 
         # First len(reality_b) bytes of collapsed_b must match reality_b
-        assert collapsed_b[:len(reality_b)] == reality_b
+        assert collapsed_b[: len(reality_b)] == reality_b
 
     except (ValueError, TypeError):
         pass  # Expected for edge-case inputs

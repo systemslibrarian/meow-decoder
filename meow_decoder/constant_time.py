@@ -59,6 +59,7 @@ def _set_dontdump(addr: int, size: int) -> bool:
         return False
     try:
         import os
+
         page_size = os.sysconf("SC_PAGESIZE")
         # Align address down to page boundary
         aligned_addr = addr & ~(page_size - 1)
@@ -99,6 +100,7 @@ def constant_time_compare(a: bytes, b: bytes) -> bool:
         for guaranteed constant-time behavior.
     """
     from .crypto_backend import get_default_backend
+
     return get_default_backend().constant_time_compare(a, b)
 
 
@@ -234,6 +236,7 @@ def timing_safe_equal_with_delay(
 
     # Constant-time comparison via Rust backend
     from .crypto_backend import get_default_backend
+
     result = get_default_backend().constant_time_compare(a, b)
 
     # Random delay AFTER comparison
@@ -300,13 +303,13 @@ class SecureBuffer:
         """Write data to buffer."""
         if offset + len(data) > self.size:
             raise ValueError("Data too large for buffer")
-        self.buffer[offset: offset + len(data)] = data
+        self.buffer[offset : offset + len(data)] = data
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """Read data from buffer."""
         if length is None:
             return bytes(self.buffer[offset:])
-        return bytes(self.buffer[offset: offset + length])
+        return bytes(self.buffer[offset : offset + length])
 
     def __del__(self):
         """Clean up: zero and unlock."""

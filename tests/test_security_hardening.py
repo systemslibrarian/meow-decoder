@@ -28,9 +28,9 @@ def test_insecure_mldsa_stubs_disabled():
 
         # If no secure backend is available, generation must fail
         has_backend = (
-            manifest_signing._RUST_MLDSA_AVAILABLE or
-            manifest_signing._MLDSA_PURE_AVAILABLE or
-            manifest_signing._OQS_SIG_AVAILABLE
+            manifest_signing._RUST_MLDSA_AVAILABLE
+            or manifest_signing._MLDSA_PURE_AVAILABLE
+            or manifest_signing._OQS_SIG_AVAILABLE
         )
 
         if not has_backend:
@@ -54,9 +54,9 @@ def test_insecure_mlkem_stubs_disabled():
         from meow_decoder import pq_ratchet_beacon
 
         has_backend = (
-            pq_ratchet_beacon._RUST_MLKEM_AVAILABLE or
-            pq_ratchet_beacon._MLKEM_PURE_AVAILABLE or
-            pq_ratchet_beacon._OQS_AVAILABLE
+            pq_ratchet_beacon._RUST_MLKEM_AVAILABLE
+            or pq_ratchet_beacon._MLKEM_PURE_AVAILABLE
+            or pq_ratchet_beacon._OQS_AVAILABLE
         )
 
         if not has_backend:
@@ -118,6 +118,7 @@ def _require_liboqs_sig():
     """Skip test if liboqs Signature API is not available."""
     try:
         import oqs
+
         oqs.get_enabled_sig_mechanisms()
     except (ImportError, AttributeError):
         pytest.skip("liboqs with Signature API not available")
@@ -127,6 +128,7 @@ def _require_liboqs_kem():
     """Skip test if liboqs KEM API is not available."""
     try:
         import oqs
+
         oqs.get_enabled_kem_mechanisms()
     except (ImportError, AttributeError):
         pytest.skip("liboqs with KEM API not available")
@@ -237,11 +239,7 @@ def test_encode_enforces_signature():
         # Encode should work with OQS backend
         config = EncodingConfig()
         stats = encode_file(
-            input_file,
-            output_file,
-            password="test1234pass",
-            config=config,
-            verbose=False
+            input_file, output_file, password="test1234pass", config=config, verbose=False
         )
 
         assert output_file.exists()
@@ -258,9 +256,9 @@ def test_pq_beacon_encapsulate_no_insecure_stub():
     from meow_decoder import pq_ratchet_beacon
 
     has_backend = (
-        pq_ratchet_beacon._RUST_MLKEM_AVAILABLE or
-        pq_ratchet_beacon._MLKEM_PURE_AVAILABLE or
-        pq_ratchet_beacon._OQS_AVAILABLE
+        pq_ratchet_beacon._RUST_MLKEM_AVAILABLE
+        or pq_ratchet_beacon._MLKEM_PURE_AVAILABLE
+        or pq_ratchet_beacon._OQS_AVAILABLE
     )
 
     if has_backend:
@@ -300,6 +298,7 @@ def test_decoder_rejects_unsigned_manifest_when_signing_enabled():
         # Verify the code raises ValueError (read the actual source to confirm)
         import inspect
         from meow_decoder import decode_gif
+
         source = inspect.getsource(decode_gif)
         assert "raise ValueError" in source
         assert "Unsigned manifest rejected" in source
@@ -356,6 +355,7 @@ def test_require_memory_guard_exists_and_fail_closed():
 
     # Verify the function exists and has correct signature
     import inspect
+
     sig = inspect.signature(require_memory_guard)
     assert "raise_mlock" in sig.parameters
 
@@ -382,6 +382,7 @@ def test_metadata_obfuscation_uses_secure_prng():
     """
     import inspect
     from meow_decoder import metadata_obfuscation
+
     source = inspect.getsource(metadata_obfuscation)
 
     # Must NOT use random.Random or random.shuffle for security-sensitive operations
@@ -391,10 +392,13 @@ def test_metadata_obfuscation_uses_secure_prng():
 
     # Must use cryptographic primitives
     assert "secrets" in source, "metadata_obfuscation should use secrets module"
-    assert "hmac" in source.lower(), "metadata_obfuscation should use HMAC for deterministic shuffle"
+    assert (
+        "hmac" in source.lower()
+    ), "metadata_obfuscation should use HMAC for deterministic shuffle"
 
 
 # ── GuardedBuffer Tests ──────────────────────────────────────────────────────
+
 
 def test_guarded_buffer_basic_read_write():
     """Verify GuardedBuffer allocates, writes, reads, and closes correctly."""
@@ -453,10 +457,12 @@ def test_guarded_buffer_invalid_size():
 
 # ── PQ Beacon Ratchet Integration Tests ──────────────────────────────────────
 
+
 def _has_mlkem():
     """Check if ML-KEM-1024 is available."""
     try:
         from meow_decoder.pq_ratchet_beacon import _mlkem1024_keygen
+
         _mlkem1024_keygen()
         return True
     except Exception:

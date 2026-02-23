@@ -35,7 +35,9 @@ class QRCodeGenerator:
     QR code generator with configurable parameters.
     """
 
-    def __init__(self, error_correction: str = "H", box_size: int = 14, border: int = 4, version: int = 25):
+    def __init__(
+        self, error_correction: str = "H", box_size: int = 14, border: int = 4, version: int = 25
+    ):
         """
         Initialize QR code generator.
 

@@ -4,6 +4,9 @@ version = "0.0.1"
 publish = false
 edition = "2021"
 
+[package.metadata]
+cargo-fuzz = true
+
 # Must not be part of the workspace to get its own dependency graph
 [workspace]
 members = ["."]

@@ -83,6 +83,7 @@ class TestAsymmetricRekeyPrimitives:
     def _export(self, handle: int) -> bytes:
         """Export handle key bytes for test comparison (test mode only)."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         return hb.export_key(handle)
 
@@ -173,6 +174,7 @@ class TestRatchetStateV2:
     def test_init_ratchet_stores_root_key(self):
         """init_ratchet() stores a derived root key in state."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
@@ -186,6 +188,7 @@ class TestRatchetStateV2:
     def test_root_key_differs_from_chain_key(self):
         """Root key and chain key must be distinct (different domain separators)."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
@@ -195,6 +198,7 @@ class TestRatchetStateV2:
     def test_zeroize_cleans_root_key(self):
         """zeroize() drops the root_key handle."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
@@ -208,6 +212,7 @@ class TestRatchetStateV2:
     def test_ratchet_step_preserves_root_key(self):
         """ratchet_step() preserves root_key across steps."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         root_key = os.urandom(32)
         salt = os.urandom(16)
@@ -498,6 +503,7 @@ class TestForwardSecrecyV2:
     def test_old_chain_key_zeroed_on_step(self):
         """ratchet_step drops old chain key handle."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(os.urandom(32), os.urandom(16))
         old_chain = state.chain_key

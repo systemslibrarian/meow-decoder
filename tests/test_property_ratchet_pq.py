@@ -75,12 +75,12 @@ class TestRatchetChainInvariants:
             seen_keys = [chain_key]
             for _ in range(n_steps):
                 ratchet.step()
-                current = ratchet._chain_key if hasattr(ratchet, '_chain_key') else None
+                current = ratchet._chain_key if hasattr(ratchet, "_chain_key") else None
                 if current is not None:
                     # No previous key should appear again
-                    assert current not in seen_keys[:-1], (
-                        "Chain key collision — forward secrecy violated"
-                    )
+                    assert (
+                        current not in seen_keys[:-1]
+                    ), "Chain key collision — forward secrecy violated"
                     seen_keys.append(current)
         except (ImportError, AttributeError, TypeError, RuntimeError):
             pytest.skip("Ratchet API not available in expected form")
@@ -116,9 +116,9 @@ class TestRatchetChainInvariants:
         different_key = bytes((b + 1) % 256 for b in chain_key)
         different_commitment = hmac_mod.new(different_key, frame_data, hashlib.sha256).digest()[:16]
 
-        assert commitment != different_commitment, (
-            "Key commitment collision — invisible salamanders possible"
-        )
+        assert (
+            commitment != different_commitment
+        ), "Key commitment collision — invisible salamanders possible"
 
 
 # =============================================================================
@@ -142,9 +142,9 @@ class TestMasterRatchetInvariants:
 
             for i in range(n_steps):
                 ratchet.ratchet()
-                assert ratchet.generation == prev + 1, (
-                    f"Step {i}: generation {ratchet.generation} != expected {prev + 1}"
-                )
+                assert (
+                    ratchet.generation == prev + 1
+                ), f"Step {i}: generation {ratchet.generation} != expected {prev + 1}"
                 prev = ratchet.generation
         except (ImportError, RuntimeError):
             pytest.skip("MasterRatchet not available")
@@ -244,9 +244,7 @@ class TestPQBeaconInvariants:
             receiver = PQRatchetBeacon(receiver_keypair=keypair)
             enhanced_receiver = receiver.decapsulate(ct, message_key, salt=salt)
 
-            assert enhanced_sender == enhanced_receiver, (
-                "PQ beacon roundtrip mismatch"
-            )
+            assert enhanced_sender == enhanced_receiver, "PQ beacon roundtrip mismatch"
             assert len(enhanced_sender) == 32
         except (ImportError, RuntimeError):
             pytest.skip("ML-KEM-1024 not available")
@@ -304,9 +302,7 @@ class TestManifestSigningInvariants:
 
             keypair = generate_signing_keypair()
             sig = sign_manifest(keypair, manifest_data)
-            result = verify_manifest_signature(
-                keypair.export_public_key(), manifest_data, sig
-            )
+            result = verify_manifest_signature(keypair.export_public_key(), manifest_data, sig)
             assert result is True
         except (ImportError, RuntimeError):
             pytest.skip("Signing implementation not available")
@@ -333,9 +329,7 @@ class TestManifestSigningInvariants:
             tampered = bytes(tampered)
 
             with pytest.raises(ValueError):
-                verify_manifest_signature(
-                    keypair.export_public_key(), tampered, sig
-                )
+                verify_manifest_signature(keypair.export_public_key(), tampered, sig)
         except (ImportError, RuntimeError):
             pytest.skip("Signing implementation not available")
 
@@ -356,9 +350,7 @@ class TestManifestSigningInvariants:
             sig = sign_manifest(keypair_a, manifest_data)
 
             with pytest.raises(ValueError):
-                verify_manifest_signature(
-                    keypair_b.export_public_key(), manifest_data, sig
-                )
+                verify_manifest_signature(keypair_b.export_public_key(), manifest_data, sig)
         except (ImportError, RuntimeError):
             pytest.skip("Signing implementation not available")
 
@@ -441,7 +433,7 @@ class TestShamirInvariants:
             shares = shamir_split(secret, num_shares=n_shares, threshold=threshold)
 
             # Use fewer than threshold
-            insufficient = shares[:threshold - 1]
+            insufficient = shares[: threshold - 1]
             recovered = shamir_combine(insufficient, threshold=threshold)
 
             # If it returned, the data must differ from original
@@ -484,9 +476,7 @@ class TestSizeNormalizerInvariants:
             from meow_decoder.size_normalizer import normalize_size, BUCKET_SIZES
 
             bucket = normalize_size(data_size)
-            assert bucket >= data_size, (
-                f"Bucket {bucket} < data size {data_size} — truncation!"
-            )
+            assert bucket >= data_size, f"Bucket {bucket} < data size {data_size} — truncation!"
         except (ImportError, AttributeError):
             pytest.skip("size_normalizer not available")
         except (ValueError, TypeError):

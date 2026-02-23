@@ -13,7 +13,6 @@ import types
 import pytest
 import secrets
 
-
 # Check if Rust PQ backend is available
 _RUST_PQ_AVAILABLE = False
 try:

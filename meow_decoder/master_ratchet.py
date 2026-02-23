@@ -40,6 +40,7 @@ try:
     from cryptography.hazmat.primitives import hashes
     from cryptography.hazmat.primitives.kdf.hkdf import HKDF
     from cryptography.hazmat.backends import default_backend
+
     HAS_CRYPTOGRAPHY = True
 except ImportError:
     HAS_CRYPTOGRAPHY = False
@@ -135,10 +136,10 @@ class ChainState:
             from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
             plaintext = (
-                struct.pack("<Q", self.generation) +
-                struct.pack("<d", self.last_ratchet_time) +
-                self.master_salt +
-                self.chain_key
+                struct.pack("<Q", self.generation)
+                + struct.pack("<d", self.last_ratchet_time)
+                + self.master_salt
+                + self.chain_key
             )
 
             nonce = secrets.token_bytes(12)
@@ -150,10 +151,10 @@ class ChainState:
             # Fallback: XOR with derived key (less secure, but works)
             derived = _hkdf_expand(encryption_key, b"chain_state_encryption", 80)
             plaintext = (
-                struct.pack("<Q", self.generation) +
-                struct.pack("<d", self.last_ratchet_time) +
-                self.master_salt +
-                self.chain_key
+                struct.pack("<Q", self.generation)
+                + struct.pack("<d", self.last_ratchet_time)
+                + self.master_salt
+                + self.chain_key
             )
             ciphertext = bytes(a ^ b for a, b in zip(plaintext, derived))
             mac = hmac.new(encryption_key, ciphertext, hashlib.sha256).digest()[:16]
@@ -299,11 +300,7 @@ class MasterRatchet:
         master_salt = secrets.token_bytes(32)
 
         # Derive initial chain key from password + salt
-        key_material = (
-            password.encode("utf-8") +
-            master_salt +
-            cls._get_hardware_entropy()
-        )
+        key_material = password.encode("utf-8") + master_salt + cls._get_hardware_entropy()
 
         chain_key = _hkdf_expand(
             key_material,
@@ -452,9 +449,9 @@ class MasterRatchet:
             Derived file key.
         """
         context = (
-            self.DOMAIN_FILE_KEY +
-            struct.pack("<Q", self._state.generation) +
-            file_id.encode("utf-8")
+            self.DOMAIN_FILE_KEY
+            + struct.pack("<Q", self._state.generation)
+            + file_id.encode("utf-8")
         )
 
         return _hkdf_expand(
@@ -551,9 +548,7 @@ class MasterRatchet:
 
         Can be used to verify chain continuity without exposing keys.
         """
-        return hashlib.sha256(
-            b"chain_id:" + self._state.master_salt
-        ).digest()[:16]
+        return hashlib.sha256(b"chain_id:" + self._state.master_salt).digest()[:16]
 
 
 def derive_file_key(

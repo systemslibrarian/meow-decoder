@@ -152,8 +152,8 @@ class TestCatStreamingCipherInit:
         cipher = StreamingCipher(valid_key, nonce=valid_nonce)
 
         # Rule #2: cipher must NOT store raw key bytes
-        assert not hasattr(cipher, 'key'), "cipher.key must not exist (Rule #2)"
-        assert not hasattr(cipher, '_mac_key'), "cipher._mac_key must not exist (Rule #2)"
+        assert not hasattr(cipher, "key"), "cipher.key must not exist (Rule #2)"
+        assert not hasattr(cipher, "_mac_key"), "cipher._mac_key must not exist (Rule #2)"
         # Nonce is non-secret metadata — OK to store
         assert cipher.nonce == valid_nonce
         # Stream handle must be an integer (opaque Rust handle)
@@ -1994,6 +1994,7 @@ class TestMACKeyDerivation:
 
         # Compute same HMAC via stream handle (key stays in Rust)
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         actual_mac = hb.stream_hmac(cipher._stream_handle, test_msg)
 

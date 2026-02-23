@@ -33,6 +33,7 @@ os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 # ── Helpers ──
 
+
 def _make_payload(size: int = 120) -> bytes:
     """Generate a realistic-sized payload."""
     return secrets.token_bytes(size)
@@ -52,12 +53,11 @@ def _shannon_entropy(data: bytes) -> float:
     if n == 0:
         return 0.0
     counts = Counter(data)
-    return -sum(
-        (c / n) * math.log2(c / n) for c in counts.values() if c > 0
-    )
+    return -sum((c / n) * math.log2(c / n) for c in counts.values() if c > 0)
 
 
 # ── Basic Functionality ──
+
 
 class TestDualStreamBasic:
     """Core encode/decode functionality."""
@@ -78,8 +78,10 @@ class TestDualStreamBasic:
         data_a = _make_payload(200)
         data_b = _make_payload(150)
         ct, manifest = dual_stream_encode(
-            data_a, "passwordAAA1",
-            decoy_data=data_b, decoy_password="passwordBBB1",
+            data_a,
+            "passwordAAA1",
+            decoy_data=data_b,
+            decoy_password="passwordBBB1",
             block_size=128,
         )
 
@@ -93,7 +95,7 @@ class TestDualStreamBasic:
         ct, manifest = dual_stream_encode(data, "correct_pass1", block_size=128)
 
         result = dual_stream_try_decode_stream(
-            manifest, "correct_pass1", ct[:manifest.superposition_len]
+            manifest, "correct_pass1", ct[: manifest.superposition_len]
         )
         assert result is not None
         cipher, idx = result
@@ -106,7 +108,7 @@ class TestDualStreamBasic:
         ct, manifest = dual_stream_encode(data, "correct_pass1", block_size=128)
 
         result = dual_stream_try_decode_stream(
-            manifest, "wrong_password", ct[:manifest.superposition_len]
+            manifest, "wrong_password", ct[: manifest.superposition_len]
         )
         assert result is None
 
@@ -115,16 +117,18 @@ class TestDualStreamBasic:
         data_a = _make_payload(200)
         data_b = _make_payload(150)
         ct, manifest = dual_stream_encode(
-            data_a, "schrodinger_A",
-            decoy_data=data_b, decoy_password="schrodinger_B",
+            data_a,
+            "schrodinger_A",
+            decoy_data=data_b,
+            decoy_password="schrodinger_B",
             block_size=128,
         )
 
         r_a = dual_stream_try_decode_stream(
-            manifest, "schrodinger_A", ct[:manifest.superposition_len]
+            manifest, "schrodinger_A", ct[: manifest.superposition_len]
         )
         r_b = dual_stream_try_decode_stream(
-            manifest, "schrodinger_B", ct[:manifest.superposition_len]
+            manifest, "schrodinger_B", ct[: manifest.superposition_len]
         )
 
         assert r_a is not None and r_a[1] == 0
@@ -135,18 +139,21 @@ class TestDualStreamBasic:
         data_a = _make_payload(200)
         data_b = _make_payload(150)
         ct, manifest = dual_stream_encode(
-            data_a, "schrodinger_A",
-            decoy_data=data_b, decoy_password="schrodinger_B",
+            data_a,
+            "schrodinger_A",
+            decoy_data=data_b,
+            decoy_password="schrodinger_B",
             block_size=128,
         )
 
         result = dual_stream_try_decode_stream(
-            manifest, "nope_not_it!", ct[:manifest.superposition_len]
+            manifest, "nope_not_it!", ct[: manifest.superposition_len]
         )
         assert result is None
 
 
 # ── Manifest Serialization ──
+
 
 class TestDualStreamManifest:
     """Manifest pack/unpack roundtrip."""
@@ -209,8 +216,10 @@ class TestDualStreamManifest:
         data = _make_payload(200)
         _, m_single = dual_stream_encode(data, "single_pass1", block_size=128)
         _, m_dual = dual_stream_encode(
-            data, "dual_passAAAA",
-            decoy_data=_make_payload(200), decoy_password="dual_passBBBB",
+            data,
+            "dual_passAAAA",
+            decoy_data=_make_payload(200),
+            decoy_password="dual_passBBBB",
             block_size=128,
         )
         assert len(m_single.pack()) == 382
@@ -218,6 +227,7 @@ class TestDualStreamManifest:
 
 
 # ── Structural Indistinguishability ──
+
 
 class TestStructuralIndistinguishability:
     """Single-secret and dual-secret outputs must be structurally identical."""
@@ -227,8 +237,10 @@ class TestStructuralIndistinguishability:
         data = _make_payload(300)
         _, m_single = dual_stream_encode(data, "singlepass11", block_size=128)
         _, m_dual = dual_stream_encode(
-            data, "dualpassAAAA",
-            decoy_data=_make_payload(300), decoy_password="dualpassBBBB",
+            data,
+            "dualpassAAAA",
+            decoy_data=_make_payload(300),
+            decoy_password="dualpassBBBB",
             block_size=128,
         )
         assert len(m_single.pack()) == len(m_dual.pack())
@@ -238,8 +250,10 @@ class TestStructuralIndistinguishability:
         data = _make_payload(300)
         _, m_single = dual_stream_encode(data, "singlepass11", block_size=128)
         _, m_dual = dual_stream_encode(
-            data, "dualpassAAAA",
-            decoy_data=_make_payload(300), decoy_password="dualpassBBBB",
+            data,
+            "dualpassAAAA",
+            decoy_data=_make_payload(300),
+            decoy_password="dualpassBBBB",
             block_size=128,
         )
         assert m_single.version == m_dual.version == 0x08
@@ -253,6 +267,7 @@ class TestStructuralIndistinguishability:
 
 
 # ── Statistical Indistinguishability ──
+
 
 class TestStatisticalIndistinguishability:
     """Prove single vs dual ciphertext is statistically indistinguishable."""
@@ -271,8 +286,10 @@ class TestStatisticalIndistinguishability:
         data_a = _make_payload(2000)
         data_b = _make_payload(1500)
         ct, _ = dual_stream_encode(
-            data_a, "chi_pass_AAA",
-            decoy_data=data_b, decoy_password="chi_pass_BBB",
+            data_a,
+            "chi_pass_AAA",
+            decoy_data=data_b,
+            decoy_password="chi_pass_BBB",
             block_size=256,
         )
 
@@ -285,8 +302,10 @@ class TestStatisticalIndistinguishability:
 
         ct_single, _ = dual_stream_encode(data, "entropy_test", block_size=256)
         ct_dual, _ = dual_stream_encode(
-            data, "entropy_AAAA",
-            decoy_data=_make_payload(4000), decoy_password="entropy_BBBB",
+            data,
+            "entropy_AAAA",
+            decoy_data=_make_payload(4000),
+            decoy_password="entropy_BBBB",
             block_size=256,
         )
 
@@ -303,8 +322,10 @@ class TestStatisticalIndistinguishability:
 
         ct_single, _ = dual_stream_encode(data, "entropy_test", block_size=256)
         ct_dual, _ = dual_stream_encode(
-            data, "entropy_AAAA",
-            decoy_data=_make_payload(4000), decoy_password="entropy_BBBB",
+            data,
+            "entropy_AAAA",
+            decoy_data=_make_payload(4000),
+            decoy_password="entropy_BBBB",
             block_size=256,
         )
 
@@ -312,12 +333,13 @@ class TestStatisticalIndistinguishability:
         e_dual = _shannon_entropy(ct_dual)
 
         # Should be within 0.1 bits/byte of each other
-        assert abs(e_single - e_dual) < 0.1, (
-            f"Entropy gap {abs(e_single - e_dual):.4f} bits/byte is suspicious"
-        )
+        assert (
+            abs(e_single - e_dual) < 0.1
+        ), f"Entropy gap {abs(e_single - e_dual):.4f} bits/byte is suspicious"
 
 
 # ── Independent Keys ──
+
 
 class TestIndependentKeys:
     """Each sub-stream must have completely independent key material."""
@@ -326,8 +348,10 @@ class TestIndependentKeys:
         """Stream A and B salts must be different."""
         data = _make_payload(200)
         _, m = dual_stream_encode(
-            data, "indep_pass_A",
-            decoy_data=_make_payload(200), decoy_password="indep_pass_B",
+            data,
+            "indep_pass_A",
+            decoy_data=_make_payload(200),
+            decoy_password="indep_pass_B",
             block_size=128,
         )
         assert m.salt_a != m.salt_b
@@ -336,8 +360,10 @@ class TestIndependentKeys:
         """Stream A and B nonces must be different."""
         data = _make_payload(200)
         _, m = dual_stream_encode(
-            data, "indep_pass_A",
-            decoy_data=_make_payload(200), decoy_password="indep_pass_B",
+            data,
+            "indep_pass_A",
+            decoy_data=_make_payload(200),
+            decoy_password="indep_pass_B",
             block_size=128,
         )
         assert m.nonce_a != m.nonce_b
@@ -346,8 +372,10 @@ class TestIndependentKeys:
         """Stream A and B HMACs must be different."""
         data = _make_payload(200)
         _, m = dual_stream_encode(
-            data, "indep_pass_A",
-            decoy_data=_make_payload(200), decoy_password="indep_pass_B",
+            data,
+            "indep_pass_A",
+            decoy_data=_make_payload(200),
+            decoy_password="indep_pass_B",
             block_size=128,
         )
         assert m.hmac_a != m.hmac_b
@@ -356,8 +384,10 @@ class TestIndependentKeys:
         """Stream A and B encrypted metadata must be different."""
         data = _make_payload(200)
         _, m = dual_stream_encode(
-            data, "indep_pass_A",
-            decoy_data=_make_payload(200), decoy_password="indep_pass_B",
+            data,
+            "indep_pass_A",
+            decoy_data=_make_payload(200),
+            decoy_password="indep_pass_B",
             block_size=128,
         )
         assert m.metadata_a != m.metadata_b
@@ -367,11 +397,13 @@ class TestIndependentKeys:
         data_a = _make_payload(200)
         data_b = _make_payload(200)
         ct, m = dual_stream_encode(
-            data_a, "cross_test_A",
-            decoy_data=data_b, decoy_password="cross_test_B",
+            data_a,
+            "cross_test_A",
+            decoy_data=data_b,
+            decoy_password="cross_test_B",
             block_size=128,
         )
-        interleaved = ct[:m.superposition_len]
+        interleaved = ct[: m.superposition_len]
 
         # Password A decodes stream 0 (A), not stream 1 (B)
         r_a = dual_stream_try_decode_stream(m, "cross_test_A", interleaved)
@@ -383,15 +415,14 @@ class TestIndependentKeys:
 
 # ── Target Frames / Size Normalization ──
 
+
 class TestSizeNormalization:
     """--target-frames normalization pads output to target size."""
 
     def test_target_frames_increases_size(self):
         """target_frames > natural count pads output."""
         data = _make_payload(100)
-        ct_normal, m_normal = dual_stream_encode(
-            data, "size_test_11", block_size=64
-        )
+        ct_normal, m_normal = dual_stream_encode(data, "size_test_11", block_size=64)
         ct_padded, m_padded = dual_stream_encode(
             data, "size_test_11", block_size=64, target_frames=100
         )
@@ -416,6 +447,7 @@ class TestSizeNormalization:
 
 # ── Tamper Detection ──
 
+
 class TestTamperDetection:
     """Manifest tampering must be detected."""
 
@@ -428,18 +460,23 @@ class TestTamperDetection:
         tampered_hmac = bytearray(m.hmac_a)
         tampered_hmac[0] ^= 0x01
         m_tampered = DualStreamManifest(
-            salt_a=m.salt_a, salt_b=m.salt_b,
-            nonce_a=m.nonce_a, nonce_b=m.nonce_b,
-            hmac_a=bytes(tampered_hmac), hmac_b=m.hmac_b,
-            metadata_a=m.metadata_a, metadata_b=m.metadata_b,
-            block_count=m.block_count, block_size=m.block_size,
+            salt_a=m.salt_a,
+            salt_b=m.salt_b,
+            nonce_a=m.nonce_a,
+            nonce_b=m.nonce_b,
+            hmac_a=bytes(tampered_hmac),
+            hmac_b=m.hmac_b,
+            metadata_a=m.metadata_a,
+            metadata_b=m.metadata_b,
+            block_count=m.block_count,
+            block_size=m.block_size,
             superposition_len=m.superposition_len,
             target_frames=m.target_frames,
             flags=m.flags,
         )
 
         result = dual_stream_try_decode_stream(
-            m_tampered, "tamper_test1", ct[:m.superposition_len]
+            m_tampered, "tamper_test1", ct[: m.superposition_len]
         )
         assert result is None
 
@@ -449,19 +486,22 @@ class TestTamperDetection:
         ct, m = dual_stream_encode(data, "swap_salt_AA", block_size=128)
 
         m_swapped = DualStreamManifest(
-            salt_a=m.salt_b, salt_b=m.salt_a,  # swapped!
-            nonce_a=m.nonce_a, nonce_b=m.nonce_b,
-            hmac_a=m.hmac_a, hmac_b=m.hmac_b,
-            metadata_a=m.metadata_a, metadata_b=m.metadata_b,
-            block_count=m.block_count, block_size=m.block_size,
+            salt_a=m.salt_b,
+            salt_b=m.salt_a,  # swapped!
+            nonce_a=m.nonce_a,
+            nonce_b=m.nonce_b,
+            hmac_a=m.hmac_a,
+            hmac_b=m.hmac_b,
+            metadata_a=m.metadata_a,
+            metadata_b=m.metadata_b,
+            block_count=m.block_count,
+            block_size=m.block_size,
             superposition_len=m.superposition_len,
             target_frames=m.target_frames,
             flags=m.flags,
         )
 
-        result = dual_stream_try_decode_stream(
-            m_swapped, "swap_salt_AA", ct[:m.superposition_len]
-        )
+        result = dual_stream_try_decode_stream(m_swapped, "swap_salt_AA", ct[: m.superposition_len])
         assert result is None
 
     def test_modified_metadata_detected(self):
@@ -472,11 +512,16 @@ class TestTamperDetection:
         tampered_meta = bytearray(m.metadata_a)
         tampered_meta[10] ^= 0xFF
         m_tampered = DualStreamManifest(
-            salt_a=m.salt_a, salt_b=m.salt_b,
-            nonce_a=m.nonce_a, nonce_b=m.nonce_b,
-            hmac_a=m.hmac_a, hmac_b=m.hmac_b,
-            metadata_a=bytes(tampered_meta), metadata_b=m.metadata_b,
-            block_count=m.block_count, block_size=m.block_size,
+            salt_a=m.salt_a,
+            salt_b=m.salt_b,
+            nonce_a=m.nonce_a,
+            nonce_b=m.nonce_b,
+            hmac_a=m.hmac_a,
+            hmac_b=m.hmac_b,
+            metadata_a=bytes(tampered_meta),
+            metadata_b=m.metadata_b,
+            block_count=m.block_count,
+            block_size=m.block_size,
             superposition_len=m.superposition_len,
             target_frames=m.target_frames,
             flags=m.flags,
@@ -484,12 +529,13 @@ class TestTamperDetection:
 
         # HMAC check will fail because metadata is part of authenticated core
         result = dual_stream_try_decode_stream(
-            m_tampered, "meta_tamper1", ct[:m.superposition_len]
+            m_tampered, "meta_tamper1", ct[: m.superposition_len]
         )
         assert result is None
 
 
 # ── Edge Cases ──
+
 
 class TestEdgeCases:
     """Boundary conditions and edge cases."""
@@ -498,18 +544,14 @@ class TestEdgeCases:
         """Smallest possible payload encodes and decodes."""
         data = b"x"
         ct, m = dual_stream_encode(data, "tiny_test_11", block_size=64)
-        result = dual_stream_try_decode_stream(
-            m, "tiny_test_11", ct[:m.superposition_len]
-        )
+        result = dual_stream_try_decode_stream(m, "tiny_test_11", ct[: m.superposition_len])
         assert result is not None
 
     def test_large_payload(self):
         """Reasonably large payload works."""
         data = _make_payload(10000)
         ct, m = dual_stream_encode(data, "large_test11", block_size=256)
-        result = dual_stream_try_decode_stream(
-            m, "large_test11", ct[:m.superposition_len]
-        )
+        result = dual_stream_try_decode_stream(m, "large_test11", ct[: m.superposition_len])
         assert result is not None
 
     def test_equal_size_payloads(self):
@@ -517,12 +559,14 @@ class TestEdgeCases:
         data_a = _make_payload(500)
         data_b = _make_payload(500)
         ct, m = dual_stream_encode(
-            data_a, "equal_pass_A",
-            decoy_data=data_b, decoy_password="equal_pass_B",
+            data_a,
+            "equal_pass_A",
+            decoy_data=data_b,
+            decoy_password="equal_pass_B",
             block_size=128,
         )
-        r_a = dual_stream_try_decode_stream(m, "equal_pass_A", ct[:m.superposition_len])
-        r_b = dual_stream_try_decode_stream(m, "equal_pass_B", ct[:m.superposition_len])
+        r_a = dual_stream_try_decode_stream(m, "equal_pass_A", ct[: m.superposition_len])
+        r_b = dual_stream_try_decode_stream(m, "equal_pass_B", ct[: m.superposition_len])
         assert r_a is not None and r_b is not None
 
     def test_very_different_size_payloads(self):
@@ -530,16 +574,19 @@ class TestEdgeCases:
         data_a = _make_payload(100)
         data_b = _make_payload(5000)
         ct, m = dual_stream_encode(
-            data_a, "diff_size__A",
-            decoy_data=data_b, decoy_password="diff_size__B",
+            data_a,
+            "diff_size__A",
+            decoy_data=data_b,
+            decoy_password="diff_size__B",
             block_size=128,
         )
-        r_a = dual_stream_try_decode_stream(m, "diff_size__A", ct[:m.superposition_len])
-        r_b = dual_stream_try_decode_stream(m, "diff_size__B", ct[:m.superposition_len])
+        r_a = dual_stream_try_decode_stream(m, "diff_size__A", ct[: m.superposition_len])
+        r_b = dual_stream_try_decode_stream(m, "diff_size__B", ct[: m.superposition_len])
         assert r_a is not None and r_b is not None
 
 
 # ── Secure Zeroize ──
+
 
 class TestSecureZeroize:
     """Verify secure_decode_and_zeroize cleans up key material."""
@@ -548,14 +595,14 @@ class TestSecureZeroize:
         """Correct password decodes and zeroizes."""
         data = _make_payload(200)
         ct, m = dual_stream_encode(data, "zero_correct", block_size=128)
-        result = secure_decode_and_zeroize(m, "zero_correct", ct[:m.superposition_len])
+        result = secure_decode_and_zeroize(m, "zero_correct", ct[: m.superposition_len])
         assert result is not None and result[1] == 0
 
     def test_zeroize_wrong_password(self):
         """Wrong password returns None and still zeroizes without error."""
         data = _make_payload(200)
         ct, m = dual_stream_encode(data, "zero_correct", block_size=128)
-        result = secure_decode_and_zeroize(m, "zero_wrong_!!", ct[:m.superposition_len])
+        result = secure_decode_and_zeroize(m, "zero_wrong_!!", ct[: m.superposition_len])
         assert result is None
 
     def test_zeroize_duress_mode(self):
@@ -563,38 +610,39 @@ class TestSecureZeroize:
         data = _make_payload(200)
         ct, m = dual_stream_encode(data, "duress_pass1", block_size=128)
         result = secure_decode_and_zeroize(
-            m, "duress_pass1", ct[:m.superposition_len], duress=True
+            m, "duress_pass1", ct[: m.superposition_len], duress=True
         )
         assert result is not None and result[1] == 0
 
     def test_zeroize_handles_dropped(self):
         """After decode, all key handles should be dropped from Rust."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
 
         initial_count = hb.count()
 
         data = _make_payload(200)
         ct, m = dual_stream_encode(data, "handle_test1", block_size=128)
-        _ = secure_decode_and_zeroize(m, "handle_test1", ct[:m.superposition_len])
+        _ = secure_decode_and_zeroize(m, "handle_test1", ct[: m.superposition_len])
 
         final_count = hb.count()
         # Should not leak handles (may have some baseline from other tests)
         # The key is that we don't grow unboundedly
-        assert final_count <= initial_count + 2, (
-            f"Handle leak: {initial_count} → {final_count}"
-        )
+        assert final_count <= initial_count + 2, f"Handle leak: {initial_count} → {final_count}"
 
     def test_zeroize_dual_secret_both_passwords(self):
         """Dual-secret: both passwords work through zeroize wrapper."""
         data_a = _make_payload(200)
         data_b = _make_payload(200)
         ct, m = dual_stream_encode(
-            data_a, "zero_dual__A",
-            decoy_data=data_b, decoy_password="zero_dual__B",
+            data_a,
+            "zero_dual__A",
+            decoy_data=data_b,
+            decoy_password="zero_dual__B",
             block_size=128,
         )
-        r_a = secure_decode_and_zeroize(m, "zero_dual__A", ct[:m.superposition_len])
-        r_b = secure_decode_and_zeroize(m, "zero_dual__B", ct[:m.superposition_len])
+        r_a = secure_decode_and_zeroize(m, "zero_dual__A", ct[: m.superposition_len])
+        r_b = secure_decode_and_zeroize(m, "zero_dual__B", ct[: m.superposition_len])
         assert r_a is not None and r_a[1] == 0
         assert r_b is not None and r_b[1] == 1

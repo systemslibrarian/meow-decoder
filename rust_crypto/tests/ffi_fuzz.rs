@@ -283,7 +283,7 @@ fn ffi_reordered_frames() {
 }
 
 /// 6. Corrupted PQ ciphertext — must return Err.
-/// (Modeled as corrupted ciphertext bytes past the HMAC-verified region.)
+///    (Modeled as corrupted ciphertext bytes past the HMAC-verified region.)
 #[test]
 fn ffi_corrupted_pq_ciphertext() {
     let data = b"secret data for PQ corruption test";
@@ -381,7 +381,7 @@ fn ffi_error_propagation() {
 }
 
 /// 13. No memory leak after multiple encode/decode cycles.
-/// (Rely on Zeroize + Drop implementations; no allocator tracing in std tests.)
+///     (Rely on Zeroize + Drop implementations; no allocator tracing in std tests.)
 #[test]
 fn ffi_repeated_cycles_no_crash() {
     for i in 0..1000 {

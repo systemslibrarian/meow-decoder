@@ -56,6 +56,7 @@ __all__ = [
 
 class SecureTempWarning(UserWarning):
     """Warning issued when secure temp storage is unavailable."""
+
     pass
 
 

@@ -183,8 +183,7 @@ proptest! {
 
         // Past keys (steps 0..compromise_at) must not appear in adversary's output
         for (_, adv_mk) in &adversary {
-            for past in 0..compromise_at {
-                let (_, past_mk) = &honest[past];
+            for (past, (_, past_mk)) in honest.iter().enumerate().take(compromise_at) {
                 prop_assert_ne!(
                     adv_mk, past_mk,
                     "Adversary must not derive past key at step {} (PCS violated)", past
@@ -221,8 +220,8 @@ proptest! {
         transcript   in prop::collection::vec(any::<u8>(), 0..=64),
     ) {
         let full   = pqxdh_combine(&classical_ss, &pq_ss, &transcript);
-        let no_pq  = pqxdh_combine(&classical_ss, &vec![0u8; 32], &transcript);
-        let no_cls = pqxdh_combine(&vec![0u8; 32], &pq_ss, &transcript);
+        let no_pq  = pqxdh_combine(&classical_ss, &[0u8; 32], &transcript);
+        let no_cls = pqxdh_combine(&[0u8; 32], &pq_ss, &transcript);
 
         // Zeroing PQ must change the output (PQ contributes).
         if pq_ss != vec![0u8; 32] {

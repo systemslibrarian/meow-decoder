@@ -368,9 +368,7 @@ def compute_duress_tag(password: str, salt: bytes, manifest_core: bytes) -> byte
     )
     try:
         # Domain-separate duress key from encryption key via HKDF info string
-        duress_handle = hb.derive_key_hkdf(
-            master_handle, salt, b"meow_duress_tag_v2", 32
-        )
+        duress_handle = hb.derive_key_hkdf(master_handle, salt, b"meow_duress_tag_v2", 32)
         try:
             return hb.hmac_sha256(duress_handle, manifest_core)
         finally:
@@ -498,9 +496,7 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
 # ── Handle-based key derivation (Rule #2: Python never holds secret key bytes) ──
 
 
-def derive_key_handle(
-    password: str, salt: bytes, keyfile: Optional[bytes] = None
-) -> int:
+def derive_key_handle(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> int:
     """
     Derive encryption key using Argon2id — returns opaque Rust handle.
 
@@ -647,9 +643,7 @@ def decrypt_to_raw_handle(
             pass
 
         decomp_limit = (
-            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
-            if orig_len > 0
-            else 100 * 1024 * 1024
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
         )
         decompressor = zlib.decompressobj()
         chunk = decompressor.decompress(comp, decomp_limit + 1)
@@ -663,9 +657,7 @@ def decrypt_to_raw_handle(
         hb.drop(key_handle)
 
 
-def compute_manifest_hmac_handle(
-    key_handle: int, salt: bytes, packed_no_hmac: bytes
-) -> bytes:
+def compute_manifest_hmac_handle(key_handle: int, salt: bytes, packed_no_hmac: bytes) -> bytes:
     """
     Compute HMAC over manifest using a key handle.
 
@@ -1204,7 +1196,9 @@ def decrypt_to_raw_production(
     else:
         # Derive key → handle
         key_handle = derive_encryption_key_for_manifest_handle(
-            password, salt, keyfile=keyfile,
+            password,
+            salt,
+            keyfile=keyfile,
             ephemeral_public_key=ephemeral_public_key,
             receiver_private_key=receiver_private_key,
             yubikey_slot=yubikey_slot,
@@ -1241,9 +1235,7 @@ def decrypt_to_raw_production(
             pass
 
         decomp_limit = (
-            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
-            if orig_len > 0
-            else 100 * 1024 * 1024
+            max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024) if orig_len > 0 else 100 * 1024 * 1024
         )
         decompressor = zlib.decompressobj()
         chunk = decompressor.decompress(comp, decomp_limit + 1)
@@ -1276,7 +1268,9 @@ def verify_manifest_hmac_production(
     hb = get_handle_backend()
 
     key_handle = derive_encryption_key_for_manifest_handle(
-        password, manifest.salt, keyfile=keyfile,
+        password,
+        manifest.salt,
+        keyfile=keyfile,
         ephemeral_public_key=manifest.ephemeral_public_key,
         receiver_private_key=receiver_private_key,
         yubikey_slot=yubikey_slot,
@@ -1287,11 +1281,14 @@ def verify_manifest_hmac_production(
     try:
         packed_no_hmac = pack_manifest_core(manifest, include_duress_tag=True)
         expected_hmac = compute_manifest_hmac_from_handle(
-            key_handle, manifest.salt, packed_no_hmac,
+            key_handle,
+            manifest.salt,
+            packed_no_hmac,
         )
 
         try:
             from .constant_time import constant_time_compare, equalize_timing
+
             result = constant_time_compare(expected_hmac, manifest.hmac)
             equalize_timing(0.001, 0.005)
             return result
@@ -1626,7 +1623,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     mode_byte = MODE_LEGACY
 
     if has_mode_byte:
-        mode_byte = struct.unpack("B", b[off: off + 1])[0]
+        mode_byte = struct.unpack("B", b[off : off + 1])[0]
         off += 1
         if mode_byte not in _VALID_MODE_BYTES:
             raise ValueError(
@@ -1634,17 +1631,17 @@ def unpack_manifest(b: bytes) -> Manifest:
                 f"(valid: {', '.join(f'0x{v:02x}' for v in sorted(_VALID_MODE_BYTES))})"
             )
 
-    salt = b[off: off + 16]
+    salt = b[off : off + 16]
     off += 16
-    nonce = b[off: off + 12]
+    nonce = b[off : off + 12]
     off += 12
-    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off: off + 12])
+    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off : off + 12])
     off += 12
-    block_size, k_blocks = struct.unpack(">HI", b[off: off + 6])
+    block_size, k_blocks = struct.unpack(">HI", b[off : off + 6])
     off += 6
-    sha = b[off: off + 32]
+    sha = b[off : off + 32]
     off += 32
-    hmac_tag = b[off: off + 32]
+    hmac_tag = b[off : off + 32]
     off += 32
 
     # Parse optional fields based on manifest size
@@ -1656,7 +1653,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     effective_len = len(b) - (1 if has_mode_byte else 0)
 
     if effective_len >= fs_len:
-        ephemeral_public_key = b[off: off + 32]
+        ephemeral_public_key = b[off : off + 32]
         off += 32
 
     # Determine PQ ciphertext size from mode byte
@@ -1667,17 +1664,17 @@ def unpack_manifest(b: bytes) -> Manifest:
     if base_version_clean == MODE_MEOW5:
         # ML-KEM-768: ciphertext is 1088 bytes
         if effective_len >= pq_768_len:
-            pq_ciphertext = b[off: off + 1088]
+            pq_ciphertext = b[off : off + 1088]
             off += 1088
     elif effective_len >= pq_1024_len:
         # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
-        pq_ciphertext = b[off: off + 1568]
+        pq_ciphertext = b[off : off + 1568]
         off += 1568
 
     # Check for duress tag (always last field)
     remaining = len(b) - off
     if remaining == 32:
-        duress_tag = b[off: off + 32]
+        duress_tag = b[off : off + 32]
 
     # FIX-D3: Validate mode byte consistency (reject mismatches)
     if mode_byte != MODE_LEGACY:

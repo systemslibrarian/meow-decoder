@@ -105,9 +105,7 @@ class TimingAnalyzer:
 
         return is_constant, stats
 
-    def welch_t_test(
-        self, label_a: str, label_b: str, threshold: float = 4.5
-    ) -> Tuple[bool, dict]:
+    def welch_t_test(self, label_a: str, label_b: str, threshold: float = 4.5) -> Tuple[bool, dict]:
         """
         Welch's t-test for timing side-channel detection (dudect methodology).
 
@@ -154,8 +152,12 @@ class TimingAnalyzer:
         else:
             t_stat = (mean_a - mean_b) / math.sqrt(denom_sq)
             # Welch-Satterthwaite degrees of freedom
-            num = denom_sq ** 2
-            den = (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1) if (n_a > 1 and n_b > 1) else 1.0
+            num = denom_sq**2
+            den = (
+                (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1)
+                if (n_a > 1 and n_b > 1)
+                else 1.0
+            )
             df = num / den if den > 0 else max(n_a, n_b) - 1
 
         is_constant = abs(t_stat) < threshold
@@ -693,13 +695,9 @@ class TestWelchTTestSideChannel:
 
         print(f"\nWelch's t-test (dudect) — HMAC verification:")
         print(
-            f"  Correct vs Wrong-First: |t|={stats_first['abs_t']:.2f} "
-            f"(pass={is_const_first})"
+            f"  Correct vs Wrong-First: |t|={stats_first['abs_t']:.2f} " f"(pass={is_const_first})"
         )
-        print(
-            f"  Correct vs Wrong-Last:  |t|={stats_last['abs_t']:.2f} "
-            f"(pass={is_const_last})"
-        )
+        print(f"  Correct vs Wrong-Last:  |t|={stats_last['abs_t']:.2f} " f"(pass={is_const_last})")
 
         assert is_const_first, f"HMAC timing leak: |t|={stats_first['abs_t']:.2f}"
         assert is_const_last, f"HMAC timing leak: |t|={stats_last['abs_t']:.2f}"
@@ -724,27 +722,17 @@ class TestWelchTTestSideChannel:
         wrong_15[15] ^= 0xFF
         wrong_15 = bytes(wrong_15)
 
-        analyzer.measure(
-            "wrong_0", lambda: constant_time_compare(mac, wrong_0), iterations=2000
-        )
-        analyzer.measure(
-            "wrong_8", lambda: constant_time_compare(mac, wrong_8), iterations=2000
-        )
-        analyzer.measure(
-            "wrong_15", lambda: constant_time_compare(mac, wrong_15), iterations=2000
-        )
+        analyzer.measure("wrong_0", lambda: constant_time_compare(mac, wrong_0), iterations=2000)
+        analyzer.measure("wrong_8", lambda: constant_time_compare(mac, wrong_8), iterations=2000)
+        analyzer.measure("wrong_15", lambda: constant_time_compare(mac, wrong_15), iterations=2000)
 
         # Compare wrong_0 vs wrong_15 — if constant-time, position doesn't matter
         is_const, stats = analyzer.welch_t_test("wrong_0", "wrong_15")
 
         print(f"\nWelch's t-test (dudect) — frame MAC position independence:")
-        print(
-            f"  Wrong@0 vs Wrong@15: |t|={stats['abs_t']:.2f} (pass={is_const})"
-        )
+        print(f"  Wrong@0 vs Wrong@15: |t|={stats['abs_t']:.2f} (pass={is_const})")
 
-        assert is_const, (
-            f"Frame MAC timing depends on error position: |t|={stats['abs_t']:.2f}"
-        )
+        assert is_const, f"Frame MAC timing depends on error position: |t|={stats['abs_t']:.2f}"
 
 
 # Summary report

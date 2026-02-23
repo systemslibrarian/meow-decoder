@@ -25,6 +25,7 @@ class TestSetDontdump:
         """_set_dontdump should return a boolean."""
         buf = bytearray(4096)
         import ctypes
+
         addr = ctypes.addressof((ctypes.c_char * len(buf)).from_buffer(buf))
         result = _set_dontdump(addr, len(buf))
         assert isinstance(result, bool)

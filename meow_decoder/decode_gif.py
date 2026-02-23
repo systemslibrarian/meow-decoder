@@ -40,7 +40,6 @@ from .cat_errors import fur_ball_error, hiss_error, purr_success, cat_translate_
 from .secure_keyboard import MouseGesturePassword, secure_password_input
 from .tamper_report import TamperReport
 
-
 MANIFEST_SIG_CHUNK_MAGIC = b"MSGC"
 MANIFEST_SIG_BLOB_MAGIC = b"MSGB"
 MANIFEST_SIG_VERSION = 1
@@ -451,14 +450,17 @@ def decode_gif(
         print("\nVerifying manifest HMAC...")
 
     from .crypto import compute_manifest_hmac_from_handle, pack_manifest_core as _pack_core
+
     packed_no_hmac = _pack_core(manifest, include_duress_tag=True)
     expected_hmac = compute_manifest_hmac_from_handle(key_handle, manifest.salt, packed_no_hmac)
     try:
         from .constant_time import constant_time_compare, equalize_timing
+
         _hmac_ok = constant_time_compare(expected_hmac, manifest.hmac)
         equalize_timing(0.001, 0.005)
     except ImportError:
         import secrets as _secrets
+
         _hmac_ok = _secrets.compare_digest(expected_hmac, manifest.hmac)
 
     if not _hmac_ok:
@@ -482,7 +484,9 @@ def decode_gif(
             print("\n🔒 Frame MAC verification enabled (DoS protection)")
 
         # Derive frame MAC master key from handle (key never enters Python)
-        frame_master_key_handle = frame_mac.derive_frame_master_key_handle(key_handle, manifest.salt)
+        frame_master_key_handle = frame_mac.derive_frame_master_key_handle(
+            key_handle, manifest.salt
+        )
 
         # Initialize decoder ratchet if ratchet mode is active (uses handle)
         if _has_ratchet:
@@ -603,7 +607,9 @@ def decode_gif(
                     if tamper_report is not None:
                         tamper_report.record(actual_frame_idx, False, "MAC mismatch")
                     if verbose and droplets_rejected <= 5:
-                        print(f"  ⚠️  Frame {actual_frame_idx}: MAC invalid, skipping (frame injection?)")
+                        print(
+                            f"  ⚠️  Frame {actual_frame_idx}: MAC invalid, skipping (frame injection?)"
+                        )
                     continue
 
                 mac_stats.record_valid()
@@ -658,20 +664,22 @@ def decode_gif(
     # Verify manifest signature if signature chunks were present.
     if sig_total_parts is not None:
         if sig_parts_seen != sig_total_parts:
-            raise ValueError(
-                "Manifest signature chunks incomplete — possible tampering/corruption"
-            )
+            raise ValueError("Manifest signature chunks incomplete — possible tampering/corruption")
 
         sig_blob = b"".join(sig_chunks[i] for i in range(sig_total_parts))
-        if len(sig_blob) < 9 or sig_blob[:4] != MANIFEST_SIG_BLOB_MAGIC or sig_blob[4] != MANIFEST_SIG_VERSION:
+        if (
+            len(sig_blob) < 9
+            or sig_blob[:4] != MANIFEST_SIG_BLOB_MAGIC
+            or sig_blob[4] != MANIFEST_SIG_VERSION
+        ):
             raise ValueError("Invalid manifest signature blob format")
 
         pk_len, sig_len = struct.unpack(">HH", sig_blob[5:9])
         if len(sig_blob) < 9 + pk_len + sig_len:
             raise ValueError("Truncated manifest signature blob")
 
-        public_key = sig_blob[9:9 + pk_len]
-        signature_bytes = sig_blob[9 + pk_len:9 + pk_len + sig_len]
+        public_key = sig_blob[9 : 9 + pk_len]
+        signature_bytes = sig_blob[9 + pk_len : 9 + pk_len + sig_len]
 
         from .manifest_signing import ManifestSignature, verify_manifest_signature
 
@@ -681,7 +689,9 @@ def decode_gif(
             print("  ✓ Manifest signature verified")
     else:
         _mode_hint = getattr(manifest, "mode_byte", 0)
-        _legacy_hint = " (legacy/compatibility stream)" if (_has_ratchet or _mode_hint < 0x05) else ""
+        _legacy_hint = (
+            " (legacy/compatibility stream)" if (_has_ratchet or _mode_hint < 0x05) else ""
+        )
         if not _signing_enabled:
             print(
                 "⚠️  Unsigned manifest accepted (signing disabled by policy) — vulnerable to forgery. "
@@ -804,6 +814,7 @@ def decode_gif(
         # Drop PQ handle after decryption (we own it)
         if pq_precomputed_key_handle is not None:
             from .crypto_backend import get_handle_backend as _ghb
+
             _ghb().drop(pq_precomputed_key_handle)
             pq_precomputed_key_handle = None  # prevent double-drop
 
@@ -814,6 +825,7 @@ def decode_gif(
         if pq_precomputed_key_handle is not None:
             try:
                 from .crypto_backend import get_handle_backend as _ghb2
+
                 _ghb2().drop(pq_precomputed_key_handle)
             except Exception:
                 pass
@@ -1110,7 +1122,8 @@ Examples:
                 if decoder.is_complete():
                     encrypted = decoder.get_decoded()
                     plaintext = decrypt_to_raw_production(
-                        encrypted, decode_args.password,
+                        encrypted,
+                        decode_args.password,
                         salt=decode_args.salt,
                         nonce=decode_args.nonce,
                     )

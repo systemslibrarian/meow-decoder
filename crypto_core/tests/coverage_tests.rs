@@ -119,6 +119,7 @@ fn test_nonce_as_ref() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)] // Intentionally testing both Copy and Clone traits
 fn test_nonce_clone_and_copy() {
     let n1 = Nonce::from_array([1u8; 12]);
     let n2 = n1; // Copy

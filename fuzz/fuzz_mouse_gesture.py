@@ -26,6 +26,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.secure_keyboard import MouseGesturePassword
@@ -50,8 +51,8 @@ def fuzz_quantize_determinism(data: bytes):
     # Parse points from fuzz data
     points = []
     for i in range(0, len(data) - 3, 4):
-        x = struct.unpack(">H", data[i:i + 2])[0]
-        y = struct.unpack(">H", data[i + 2:i + 4])[0]
+        x = struct.unpack(">H", data[i : i + 2])[0]
+        y = struct.unpack(">H", data[i + 2 : i + 4])[0]
         points.append((x, y))
 
     if len(points) < 2:
@@ -75,8 +76,8 @@ def fuzz_blake2b_derivation(data: bytes):
 
     points = []
     for i in range(0, len(data) - 3, 4):
-        x = struct.unpack(">H", data[i:i + 2])[0]
-        y = struct.unpack(">H", data[i + 2:i + 4])[0]
+        x = struct.unpack(">H", data[i : i + 2])[0]
+        y = struct.unpack(">H", data[i + 2 : i + 4])[0]
         points.append((float(x), float(y)))
 
     if len(points) < 2:
@@ -109,8 +110,8 @@ def fuzz_blake2b_person_tag(data: bytes):
 
     points = []
     for i in range(0, len(data) - 3, 4):
-        x = struct.unpack(">H", data[i:i + 2])[0]
-        y = struct.unpack(">H", data[i + 2:i + 4])[0]
+        x = struct.unpack(">H", data[i : i + 2])[0]
+        y = struct.unpack(">H", data[i + 2 : i + 4])[0]
         points.append((float(x), float(y)))
 
     if len(points) < 2:
@@ -126,9 +127,7 @@ def fuzz_blake2b_person_tag(data: bytes):
         ).hexdigest()
 
         # Without person tag
-        without_person = hashlib.blake2b(
-            quantized, digest_size=32
-        ).hexdigest()
+        without_person = hashlib.blake2b(quantized, digest_size=32).hexdigest()
 
         # They MUST differ (domain separation)
         if len(quantized) > 0:
@@ -147,10 +146,10 @@ def fuzz_quantize_zero_coords(data: bytes):
 
     n_points = max(2, data[0] % 20 + 2)
     degenerate_cases = [
-        [(0, 0)] * n_points,                    # All zeros
-        [(1, 1)] * n_points,                    # All same point
-        [(0, i) for i in range(n_points)],       # Y-only variation
-        [(i, 0) for i in range(n_points)],       # X-only variation
+        [(0, 0)] * n_points,  # All zeros
+        [(1, 1)] * n_points,  # All same point
+        [(0, i) for i in range(n_points)],  # Y-only variation
+        [(i, 0) for i in range(n_points)],  # X-only variation
     ]
 
     for points in degenerate_cases:
@@ -173,8 +172,8 @@ def fuzz_quantize_huge_coords(data: bytes):
     points = []
     for i in range(0, len(data) - 3, 4):
         # Use full 32-bit range
-        x = struct.unpack(">H", data[i:i + 2])[0] * 10000
-        y = struct.unpack(">H", data[i + 2:i + 4])[0] * 10000
+        x = struct.unpack(">H", data[i : i + 2])[0] * 10000
+        y = struct.unpack(">H", data[i + 2 : i + 4])[0] * 10000
         points.append((x, y))
 
     if len(points) < 2:
@@ -205,8 +204,8 @@ def fuzz_quantize_negative_coords(data: bytes):
 
     points = []
     for i in range(0, len(data) - 3, 4):
-        x = struct.unpack(">h", data[i:i + 2])[0]  # signed
-        y = struct.unpack(">h", data[i + 2:i + 4])[0]
+        x = struct.unpack(">h", data[i : i + 2])[0]  # signed
+        y = struct.unpack(">h", data[i + 2 : i + 4])[0]
         points.append((x, y))
 
     if len(points) < 2:
@@ -231,8 +230,8 @@ def fuzz_grid_size_variation(data: bytes):
     grid_size = max(2, data[0] % 64 + 2)  # 2 to 65
     points = []
     for i in range(1, len(data) - 3, 4):
-        x = struct.unpack(">H", data[i:i + 2])[0]
-        y = struct.unpack(">H", data[i + 2:i + 4])[0]
+        x = struct.unpack(">H", data[i : i + 2])[0]
+        y = struct.unpack(">H", data[i + 2 : i + 4])[0]
         points.append((x, y))
 
     if len(points) < 2:
@@ -310,8 +309,8 @@ def fuzz_collision_resistance(data: bytes):
 
         points = []
         for i in range(offset, min(offset + 8, len(data) - 3), 4):
-            x = struct.unpack(">H", data[i:i + 2])[0]
-            y = struct.unpack(">H", data[i + 2:i + 4])[0]
+            x = struct.unpack(">H", data[i : i + 2])[0]
+            y = struct.unpack(">H", data[i + 2 : i + 4])[0]
             points.append((float(x), float(y)))
 
         if len(points) < 2:
@@ -412,7 +411,7 @@ def fuzz_quantize_grid_boundary(data: bytes):
     step = 65535 // grid_size
     points = []
     for i in range(min(len(data) // 2 - 1, 10)):
-        idx = (data[1 + i] % grid_size)
+        idx = data[1 + i] % grid_size
         points.append((idx * step, idx * step))
 
     if len(points) >= 2:

@@ -156,9 +156,9 @@ class TestEntropyDistinguishability:
         avg_dual = sum(dual_entropies) / len(dual_entropies)
 
         # Both should be near 8.0 bits (max entropy for byte stream)
-        assert abs(avg_single - avg_dual) < 0.05, (
-            f"Entropy gap too large: single={avg_single:.4f}, dual={avg_dual:.4f}"
-        )
+        assert (
+            abs(avg_single - avg_dual) < 0.05
+        ), f"Entropy gap too large: single={avg_single:.4f}, dual={avg_dual:.4f}"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

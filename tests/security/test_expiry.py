@@ -274,8 +274,12 @@ class TestExpiryPolicy:
 
     def test_policy_with_encode(self):
         """Policies should work with encode_expiry."""
-        for policy in [ExpiryPolicy.EPHEMERAL, ExpiryPolicy.SHORT,
-                       ExpiryPolicy.MEDIUM, ExpiryPolicy.LONG]:
+        for policy in [
+            ExpiryPolicy.EPHEMERAL,
+            ExpiryPolicy.SHORT,
+            ExpiryPolicy.MEDIUM,
+            ExpiryPolicy.LONG,
+        ]:
             expiry = ExpiryManager.encode_expiry(policy.ttl_seconds)
             assert len(expiry) == 8
             assert ExpiryManager.check_expiry(expiry) is True

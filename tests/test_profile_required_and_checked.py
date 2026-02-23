@@ -58,7 +58,10 @@ class TestClassifyCryptoProfile:
         assert classify_crypto_profile(MODE_MEOW3 | MODE_RATCHET) == PROFILE_PROD_MIN
 
     def test_meow5_ratchet_duress_is_pq_experimental(self):
-        assert classify_crypto_profile(MODE_MEOW5 | MODE_RATCHET | MODE_DURESS) == PROFILE_PQ_EXPERIMENTAL
+        assert (
+            classify_crypto_profile(MODE_MEOW5 | MODE_RATCHET | MODE_DURESS)
+            == PROFILE_PQ_EXPERIMENTAL
+        )
 
 
 class TestValidateDecodeProfile:

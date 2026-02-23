@@ -132,7 +132,7 @@ class StreamingCipher:
 
     def __del__(self):
         """Drop the stream handle when the cipher is garbage collected."""
-        if hasattr(self, '_stream_handle') and self._stream_handle is not None:
+        if hasattr(self, "_stream_handle") and self._stream_handle is not None:
             try:
                 hb = get_handle_backend()
                 hb.drop(self._stream_handle)
@@ -194,9 +194,7 @@ class StreamingCipher:
 
             # Encrypt chunk using Rust stream handle (key stays in Rust)
             if compressed_chunk:
-                encrypted_chunk = self._hb.stream_ctr_crypt(
-                    self._stream_handle, compressed_chunk
-                )
+                encrypted_chunk = self._hb.stream_ctr_crypt(self._stream_handle, compressed_chunk)
                 output_stream.write(encrypted_chunk)
                 all_ciphertext_chunks.append(encrypted_chunk)
                 compressed_size += len(compressed_chunk)
@@ -211,9 +209,7 @@ class StreamingCipher:
         if enable_compression:
             final_compressed = compressor.flush()
             if final_compressed:
-                encrypted_final = self._hb.stream_ctr_crypt(
-                    self._stream_handle, final_compressed
-                )
+                encrypted_final = self._hb.stream_ctr_crypt(self._stream_handle, final_compressed)
                 output_stream.write(encrypted_final)
                 all_ciphertext_chunks.append(encrypted_final)
                 compressed_size += len(final_compressed)
@@ -301,7 +297,9 @@ class StreamingCipher:
         # Reset stream handle offset for decryption (encrypt may have advanced it)
         self._hb.stream_reset_offset(self._stream_handle)
         try:
-            return self._decrypt_verified_stream(verified_stream, output_stream, enable_decompression)
+            return self._decrypt_verified_stream(
+                verified_stream, output_stream, enable_decompression
+            )
         finally:
             self._mac_verified = False
 
@@ -314,7 +312,7 @@ class StreamingCipher:
         SECURITY: This method MUST only be called after MAC verification
         succeeds in decrypt_stream(). It is not a public API.
         """
-        if not hasattr(self, '_mac_verified') or not self._mac_verified:
+        if not hasattr(self, "_mac_verified") or not self._mac_verified:
             raise RuntimeError("BUG: _decrypt_verified_stream called without MAC verification")
         total_written = 0
         backend = get_default_backend()
@@ -330,9 +328,7 @@ class StreamingCipher:
                 break
 
             # Decrypt chunk using Rust stream handle (key stays in Rust)
-            decrypted_chunk = self._hb.stream_ctr_crypt(
-                self._stream_handle, encrypted_chunk
-            )
+            decrypted_chunk = self._hb.stream_ctr_crypt(self._stream_handle, encrypted_chunk)
 
             # Decompress if enabled
             if enable_decompression:

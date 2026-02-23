@@ -450,7 +450,7 @@ class TestBuildFrameAAD:
         aad = build_frame_aad(42, salt, 5, 800, 10)
         # Frame index is 4 bytes little-endian after the prefix
         offset = len(RATCHET_AAD_PREFIX)
-        idx = struct.unpack("<I", aad[offset: offset + 4])[0]
+        idx = struct.unpack("<I", aad[offset : offset + 4])[0]
         assert idx == 42
 
     def test_aad_contains_salt(self, salt):
@@ -1897,9 +1897,15 @@ class TestRekeyBeacons:
 
     @pytest.mark.skipif(
         not (
-            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+            __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"]
+            )._RUST_MLKEM_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"]
+            )._MLKEM_PURE_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"]
+            )._OQS_AVAILABLE
         ),
         reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
     )
@@ -1948,9 +1954,15 @@ class TestRekeyBeacons:
 
     @pytest.mark.skipif(
         not (
-            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+            __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"]
+            )._RUST_MLKEM_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"]
+            )._MLKEM_PURE_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"]
+            )._OQS_AVAILABLE
         ),
         reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
     )
@@ -1967,13 +1979,21 @@ class TestRekeyBeacons:
         rekey = 2  # Hybrid beacon at frames 2, 4
 
         encoder = EncoderRatchet(
-            root_key, salt, k_blocks=3, block_size=800, total_frames=total,
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
             rekey_interval=rekey,
             receiver_public_key=receiver_public_bytes,
             receiver_pq_public_key=correct_pq_keypair.public_key,
         )
         decoder_wrong = DecoderRatchet(
-            root_key, salt, k_blocks=3, block_size=800, total_frames=total,
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=800,
+            total_frames=total,
             rekey_interval=rekey,
             receiver_private_key=receiver_private_bytes,
             receiver_pq_keypair=wrong_pq_keypair,  # Wrong PQ key
@@ -1997,9 +2017,15 @@ class TestRekeyBeacons:
 
     @pytest.mark.skipif(
         not (
-            __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"])._RUST_MLKEM_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"])._MLKEM_PURE_AVAILABLE
-            or __import__("meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"])._OQS_AVAILABLE
+            __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"]
+            )._RUST_MLKEM_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"]
+            )._MLKEM_PURE_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"]
+            )._OQS_AVAILABLE
         ),
         reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
     )
@@ -2018,7 +2044,11 @@ class TestRekeyBeacons:
         data = [f"ooo_hybrid_{i}".encode() for i in range(total)]
 
         encoder = EncoderRatchet(
-            root_key, salt, k_blocks=4, block_size=800, total_frames=total,
+            root_key,
+            salt,
+            k_blocks=4,
+            block_size=800,
+            total_frames=total,
             rekey_interval=rekey,
             receiver_public_key=receiver_public_bytes,
             receiver_pq_public_key=pq_keypair.public_key,
@@ -2027,7 +2057,11 @@ class TestRekeyBeacons:
         encoder.finalize()
 
         decoder = DecoderRatchet(
-            root_key, salt, k_blocks=4, block_size=800, total_frames=total,
+            root_key,
+            salt,
+            k_blocks=4,
+            block_size=800,
+            total_frames=total,
             rekey_interval=rekey,
             receiver_private_key=receiver_private_bytes,
             receiver_pq_keypair=pq_keypair,
@@ -2044,7 +2078,6 @@ class TestRekeyBeacons:
             assert results[i] == data[i], f"OOO PQ-hybrid frame {i} mismatch"
 
 
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Tasteful Meow Aliases
 # ══════════════════════════════════════════════════════════════════════════════
@@ -2058,6 +2091,7 @@ class TestMeowAliases:
         """Enable cat-themed aliases for this test class."""
         monkeypatch.setenv("MEOW_CAT_API", "1")
         from meow_decoder.ratchet import _register_cat_aliases
+
         _register_cat_aliases()
 
     def test_paw_state_is_ratchet_state(self):

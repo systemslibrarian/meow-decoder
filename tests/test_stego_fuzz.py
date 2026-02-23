@@ -56,11 +56,11 @@ st_bit_list = st.lists(st.integers(min_value=0, max_value=1), min_size=0, max_si
 # 1. prepare/unpack Roundtrip
 # ===========================================================================
 
+
 class TestFuzzPrepareUnpack:
     """Property: prepare(data, key) → unpack(_, key) == data."""
 
-    @given(data=st_payload, key=st_key,
-           compress=st.booleans(), encrypt=st.booleans())
+    @given(data=st_payload, key=st_key, compress=st.booleans(), encrypt=st.booleans())
     @settings(max_examples=200, deadline=5000, suppress_health_check=[HealthCheck.too_slow])
     def test_roundtrip(self, data, key, compress, encrypt):
         prepared = prepare_payload(data, key, compress=compress, encrypt=encrypt)
@@ -96,6 +96,7 @@ class TestFuzzPrepareUnpack:
 # 2. Primary Channel Embed/Extract
 # ===========================================================================
 
+
 class TestFuzzPrimaryChannel:
     """Property: embed(frame, bits) → extract(stego, n) recovers bits."""
 
@@ -117,13 +118,13 @@ class TestFuzzPrimaryChannel:
 
         capacity = frame_h * frame_w * 3 * 1
         # Stay within capacity to avoid truncation
-        use_bits = bits[:capacity - 1]
+        use_bits = bits[: capacity - 1]
         if not use_bits:
             return
 
         stego = encoder.embed_frame(frame, 0, use_bits)
         extracted = encoder.extract_frame(stego, 0, len(use_bits))
-        assert extracted[:len(use_bits)] == use_bits
+        assert extracted[: len(use_bits)] == use_bits
 
     @given(
         seed=st.integers(min_value=0, max_value=2**31),
@@ -140,18 +141,19 @@ class TestFuzzPrimaryChannel:
         frame = rng.randint(0, 256, (32, 32, 3), dtype=np.uint8)
 
         capacity = 32 * 32 * 3 * 2
-        use_bits = bits[:capacity - 1]
+        use_bits = bits[: capacity - 1]
         if not use_bits:
             return
 
         stego = encoder.embed_frame(frame, 0, use_bits)
         extracted = encoder.extract_frame(stego, 0, len(use_bits))
-        assert extracted[:len(use_bits)] == use_bits
+        assert extracted[: len(use_bits)] == use_bits
 
 
 # ===========================================================================
 # 3. Seed Derivation
 # ===========================================================================
+
 
 class TestFuzzSeedDerivation:
     """Property: same inputs → same output; different inputs → different output."""
@@ -178,8 +180,7 @@ class TestFuzzSeedDerivation:
         w2 = derive_walk_seed(key, frame)
         assert w1 == w2
 
-    @given(key=st_key, frame=st_frame_idx,
-           n_pixels=st.integers(min_value=2, max_value=1000))
+    @given(key=st_key, frame=st_frame_idx, n_pixels=st.integers(min_value=2, max_value=1000))
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_pixel_walk_is_permutation(self, key, frame, n_pixels):
         """Pixel walk must be a valid permutation (all unique)."""
@@ -194,6 +195,7 @@ class TestFuzzSeedDerivation:
 # 4. STC Encode/Decode (Rust backend)
 # ===========================================================================
 
+
 class TestFuzzSTC:
     """Property: stc_encode → stc_decode == payload."""
 
@@ -201,6 +203,7 @@ class TestFuzzSTC:
     def check_rust(self):
         try:
             import meow_crypto_rs
+
             if not hasattr(meow_crypto_rs, "stego_stc_encode"):
                 pytest.skip("Rust STC not available")
         except ImportError:
@@ -220,6 +223,7 @@ class TestFuzzSTC:
         fail-closed behavior. We only assert roundtrip when it succeeds.
         """
         import meow_crypto_rs
+
         seed = bytes([seed_val]) * 32
         rng = np.random.RandomState(rng_seed)
 
@@ -241,6 +245,7 @@ class TestFuzzSTC:
 # 5. Timing Channel
 # ===========================================================================
 
+
 class TestFuzzTiming:
     """Property: timing encode → decode recovers bits."""
 
@@ -257,12 +262,13 @@ class TestFuzzTiming:
         n_frames = len(padded) // 2
         delays = timing.encode(n_frames, padded)
         recovered = timing.decode(delays)
-        assert recovered[:len(padded)] == padded
+        assert recovered[: len(padded)] == padded
 
 
 # ===========================================================================
 # 6. Palette Encode/Decode (Rust)
 # ===========================================================================
+
 
 class TestFuzzPalette:
     """Property: palette_encode → palette_decode recovers bits."""
@@ -283,6 +289,7 @@ class TestFuzzPalette:
     def test_palette_roundtrip(self, seed_val, n_entries, n_bits):
         import meow_crypto_rs
         import math
+
         seed = bytes([seed_val]) * 32
         max_bits = int(math.log2(math.factorial(n_entries))) if n_entries > 1 else 0
         use_bits = min(n_bits, max_bits)
@@ -301,6 +308,7 @@ class TestFuzzPalette:
 # 7. Bit Conversion
 # ===========================================================================
 
+
 class TestFuzzBitConversion:
     """Property: bytes → bits → bytes == original."""
 
@@ -316,6 +324,7 @@ class TestFuzzBitConversion:
 # ===========================================================================
 # 8. Adversarial Unpack
 # ===========================================================================
+
 
 class TestFuzzAdversarialUnpack:
     """Property: random garbage never unpacks successfully."""
@@ -335,6 +344,7 @@ class TestFuzzAdversarialUnpack:
 # 9. Cross-Backend Consistency (if both available)
 # ===========================================================================
 
+
 class TestFuzzCrossBackend:
     """Property: Python fallback matches Rust for all inputs."""
 
@@ -345,12 +355,12 @@ class TestFuzzCrossBackend:
         except ImportError:
             pytest.skip("Rust backend not available")
 
-    @given(key=st_key, frame=st.integers(min_value=0, max_value=999),
-           channel=st_channel)
+    @given(key=st_key, frame=st.integers(min_value=0, max_value=999), channel=st_channel)
     @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
     def test_frame_seed_match(self, key, frame, channel):
         from meow_decoder.stego_multilayer import _py_derive_frame_seed
         import meow_crypto_rs
+
         py_seed = _py_derive_frame_seed(key, frame, channel)
         rs_seed = bytes(meow_crypto_rs.stego_derive_frame_seed(key, frame, channel))
         assert py_seed == rs_seed
@@ -360,16 +370,21 @@ class TestFuzzCrossBackend:
     def test_walk_seed_match(self, key, frame):
         from meow_decoder.stego_multilayer import _py_derive_walk_seed
         import meow_crypto_rs
+
         py_ws = _py_derive_walk_seed(key, frame)
         rs_ws = bytes(meow_crypto_rs.stego_derive_walk_seed(key, frame))
         assert py_ws == rs_ws
 
-    @given(key=st_key, frame=st.integers(min_value=0, max_value=99),
-           n_pixels=st.integers(min_value=2, max_value=500))
+    @given(
+        key=st_key,
+        frame=st.integers(min_value=0, max_value=99),
+        n_pixels=st.integers(min_value=2, max_value=500),
+    )
     @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
     def test_pixel_walk_match(self, key, frame, n_pixels):
         from meow_decoder.stego_multilayer import _py_generate_pixel_walk
         import meow_crypto_rs
+
         seed = bytes(meow_crypto_rs.stego_derive_walk_seed(key, frame))
         py_walk = _py_generate_pixel_walk(seed, n_pixels)
         rs_walk = list(meow_crypto_rs.stego_generate_pixel_walk(seed, n_pixels))

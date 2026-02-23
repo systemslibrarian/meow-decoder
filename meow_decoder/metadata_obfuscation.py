@@ -183,6 +183,7 @@ def randomize_frame_order(
     # (cryptographically secure, unlike random.Random which uses Mersenne Twister)
     import hashlib
     import hmac
+
     for i in range(len(indices) - 1, 0, -1):
         # Derive a deterministic index from seed + position using HMAC-SHA256
         h = hmac.new(seed, i.to_bytes(4, "big"), hashlib.sha256).digest()

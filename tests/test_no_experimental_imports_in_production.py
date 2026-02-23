@@ -98,9 +98,10 @@ class TestNoExperimentalImportsInProduction:
                     rel = py_file.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno} imports '{module}'")
 
-        assert not violations, (
-            "Production code has module-level imports of experimental modules:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production code has module-level imports of experimental modules:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_unconditional_experimental_imports(self):
@@ -126,20 +127,24 @@ class TestNoExperimentalImportsInProduction:
                         module = node.module
                     elif isinstance(node, ast.Import):
                         for alias in node.names:
-                            if alias.name.startswith("meow_decoder.experimental") or alias.name == "experimental":
+                            if (
+                                alias.name.startswith("meow_decoder.experimental")
+                                or alias.name == "experimental"
+                            ):
                                 rel = py_file.relative_to(WORKSPACE)
                                 violations.append(
                                     f"{rel}:{node.lineno} unconditionally imports '{alias.name}'"
                                 )
-                    if module and (module.startswith("meow_decoder.experimental") or module == "experimental"):
+                    if module and (
+                        module.startswith("meow_decoder.experimental") or module == "experimental"
+                    ):
                         rel = py_file.relative_to(WORKSPACE)
-                        violations.append(
-                            f"{rel}:{node.lineno} unconditionally imports '{module}'"
-                        )
+                        violations.append(f"{rel}:{node.lineno} unconditionally imports '{module}'")
 
-        assert not violations, (
-            "Production code unconditionally imports experimental modules:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production code unconditionally imports experimental modules:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_experimental_init_has_warning(self):
@@ -148,9 +153,9 @@ class TestNoExperimentalImportsInProduction:
         if not init_path.exists():
             pytest.skip("experimental/ directory does not exist")
         content = init_path.read_text(encoding="utf-8")
-        assert "NOT" in content or "not" in content, (
-            "experimental/__init__.py must contain a warning about non-production status"
-        )
-        assert "production" in content.lower(), (
-            "experimental/__init__.py must mention 'production' in its warning"
-        )
+        assert (
+            "NOT" in content or "not" in content
+        ), "experimental/__init__.py must contain a warning about non-production status"
+        assert (
+            "production" in content.lower()
+        ), "experimental/__init__.py must mention 'production' in its warning"

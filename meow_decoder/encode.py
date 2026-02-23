@@ -41,7 +41,6 @@ from .secure_keyboard import MouseGesturePassword, secure_password_input
 
 from typing import List
 
-
 MANIFEST_SIG_CHUNK_MAGIC = b"MSGC"
 MANIFEST_SIG_BLOB_MAGIC = b"MSGB"
 MANIFEST_SIG_VERSION = 1
@@ -266,8 +265,8 @@ def encode_file(
                 f"  ⚠️  PQ mode requested but no receiver public key; using password-only encryption"
             )
 
-    comp, sha256, salt, nonce, cipher, ephemeral_public_key, key_handle = encrypt_file_bytes_production(
-        **encrypt_kwargs
+    comp, sha256, salt, nonce, cipher, ephemeral_public_key, key_handle = (
+        encrypt_file_bytes_production(**encrypt_kwargs)
     )
 
     if verbose:
@@ -333,7 +332,9 @@ def encode_file(
 
     # Compute HMAC using the encryption key handle (key never enters Python)
     manifest.hmac = compute_manifest_hmac_from_handle(
-        key_handle, salt, packed_no_hmac,
+        key_handle,
+        salt,
+        packed_no_hmac,
     )
 
     # Pack final manifest
@@ -347,7 +348,7 @@ def encode_file(
 
         # Signing requires a real ML-DSA backend. Fail closed if not available.
         _has_mldsa_backend = bool(
-            _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE # type: ignore[attr-defined]
+            _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE  # type: ignore[attr-defined]
         )
 
         if not _has_mldsa_backend:
@@ -372,7 +373,7 @@ def encode_file(
         _chunk_size = 900
         _total_parts = (len(_blob) + _chunk_size - 1) // _chunk_size
         for _part_idx in range(_total_parts):
-            _chunk = _blob[_part_idx * _chunk_size: (_part_idx + 1) * _chunk_size]
+            _chunk = _blob[_part_idx * _chunk_size : (_part_idx + 1) * _chunk_size]
             _payload = (
                 MANIFEST_SIG_CHUNK_MAGIC
                 + bytes([MANIFEST_SIG_VERSION, _total_parts, _part_idx])
@@ -470,7 +471,9 @@ def encode_file(
     # Optional signature metadata frames (MAC'd, not ratchet-encrypted)
     next_frame_index = 1
     for sig_chunk in manifest_sig_chunks:
-        sig_with_mac = pack_frame_with_mac(sig_chunk, frame_master_key_handle, next_frame_index, salt)
+        sig_with_mac = pack_frame_with_mac(
+            sig_chunk, frame_master_key_handle, next_frame_index, salt
+        )
         sig_qr = qr_generator.generate(sig_with_mac)
         qr_frames.append(sig_qr)
         mac_stats.record_valid()
@@ -491,7 +494,9 @@ def encode_file(
             frame_data = encoder_ratchet.encrypt_next(droplet_bytes)
 
         # Add MAC to (possibly encrypted) frame data
-        droplet_with_mac = pack_frame_with_mac(frame_data, frame_master_key_handle, next_frame_index, salt)
+        droplet_with_mac = pack_frame_with_mac(
+            frame_data, frame_master_key_handle, next_frame_index, salt
+        )
 
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
@@ -773,8 +778,13 @@ def _run_self_test() -> int:  # pragma: no cover
         password = "self-test-" + _sec.token_hex(8)
         _comp, _sha, _salt, _nonce, _cipher, _epk, _key = encrypt_file_bytes(plaintext, password)
         pt = decrypt_to_raw(
-            _cipher, password, _salt, _nonce,
-            orig_len=len(plaintext), comp_len=len(_comp), sha256=_sha,
+            _cipher,
+            password,
+            _salt,
+            _nonce,
+            orig_len=len(plaintext),
+            comp_len=len(_comp),
+            sha256=_sha,
         )
         assert pt == plaintext, "Decrypted data does not match original"
         print(f"  [✅] AES-256-GCM roundtrip ({len(plaintext)} bytes)")
@@ -1861,12 +1871,10 @@ Nothing to see here. 😶‍🌫️
                 print(f"\nSplitting output into {total} shares (threshold: {threshold})...")
             try:
                 from meow_decoder.shamir_split import split_gif_to_files
+
                 output_dir = args.output.parent / f"{args.output.stem}_shares"
                 share_paths = split_gif_to_files(
-                    str(args.output),
-                    str(output_dir),
-                    threshold,
-                    total
+                    str(args.output), str(output_dir), threshold, total
                 )
                 print(f"  ✓ Created {len(share_paths)} shares in {output_dir}")
                 # Optionally remove the original GIF to leave only shares
@@ -1876,6 +1884,7 @@ Nothing to see here. 😶‍🌫️
                 print(f"\n⚠️  Shamir split failed: {e}", file=sys.stderr)
                 if args.verbose:
                     import traceback
+
                     traceback.print_exc()
 
         print(f"\nOutput saved to: {args.output}")

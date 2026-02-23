@@ -167,16 +167,12 @@ class AdversarialNoiseGenerator:
             row = []
             for x in range(width):
                 # Read noise (Gaussian, constant sigma)
-                read = self.rng.random_gaussian(
-                    0, self.profile.read_noise_sigma
-                )
+                read = self.rng.random_gaussian(0, self.profile.read_noise_sigma)
 
                 # Shot noise (Poisson, approximated as Gaussian)
                 # Variance proportional to signal level
                 signal_estimate = self.profile.target_mean + read
-                shot_sigma = math.sqrt(
-                    max(0, signal_estimate) * self.profile.shot_noise_factor
-                )
+                shot_sigma = math.sqrt(max(0, signal_estimate) * self.profile.shot_noise_factor)
                 shot = self.rng.random_gaussian(0, shot_sigma)
 
                 row.append(read + shot)
@@ -208,10 +204,7 @@ class AdversarialNoiseGenerator:
         grid_w = (width // grain) + 2
         grid_h = (height // grain) + 2
 
-        grid = [
-            [self.rng.random_float() for _ in range(grid_w)]
-            for _ in range(grid_h)
-        ]
+        grid = [[self.rng.random_float() for _ in range(grid_w)] for _ in range(grid_h)]
 
         # Interpolate to full resolution
         noise = []
@@ -282,14 +275,14 @@ class AdversarialNoiseGenerator:
 
                 # Simulate different frequency bands
                 for freq in range(1, 5):
-                    amplitude = self.profile.target_std * (falloff ** freq)
+                    amplitude = self.profile.target_std * (falloff**freq)
                     phase_x = self.rng.random_float() * 2 * math.pi
                     phase_y = self.rng.random_float() * 2 * math.pi
 
-                    component = amplitude * math.sin(
-                        freq * x * math.pi / block_size + phase_x
-                    ) * math.sin(
-                        freq * y * math.pi / block_size + phase_y
+                    component = (
+                        amplitude
+                        * math.sin(freq * x * math.pi / block_size + phase_x)
+                        * math.sin(freq * y * math.pi / block_size + phase_y)
                     )
                     value += component * self.rng.random_gaussian(0, 0.3)
 
@@ -339,9 +332,9 @@ class AdversarialNoiseGenerator:
             row = []
             for x in range(width):
                 value = (
-                    sensor[y][x] * sensor_weight +
-                    texture[y][x] * texture_weight +
-                    dct[y][x] * dct_weight
+                    sensor[y][x] * sensor_weight
+                    + texture[y][x] * texture_weight
+                    + dct[y][x] * dct_weight
                 )
                 row.append(value)
             noise.append(row)
@@ -606,6 +599,7 @@ def pairs_test(data: bytes) -> float:
     # Return imbalance ratio
     return abs(even_count - odd_count) / total
 
+
 def adversarial_embed(
     frame: "Image.Image",
     carrier: Optional["Image.Image"],
@@ -614,25 +608,25 @@ def adversarial_embed(
 ) -> "Image.Image":
     """
     Apply adversarial noise to a carrier image to defeat steganalysis.
-    
+
     Args:
         frame: The QR frame (used for sizing if carrier is None)
         carrier: The carrier image to modify
         algo: Noise algorithm ('sensor', 'texture', 'dct', 'combined')
         seed: Random seed for deterministic noise
-        
+
     Returns:
         Modified carrier image
     """
     from PIL import Image
     import numpy as np
-    
+
     if carrier is None:
         # Create a blank carrier if none provided
         carrier = Image.new("RGB", frame.size, (128, 128, 128))
-        
+
     width, height = carrier.size
-    
+
     # Generate noise based on algorithm
     if algo == "sensor":
         noise = generate_sensor_noise(width, height, seed)
@@ -647,15 +641,15 @@ def adversarial_embed(
         noise = gen.generate_combined_noise(width, height)
     else:
         noise = generate_sensor_noise(width, height, seed)
-        
+
     # Apply noise to carrier
     carrier_arr = np.array(carrier).astype(np.float32)
-    
+
     # Add noise to all channels
     noise_arr = np.array(noise)
     for c in range(3):
         carrier_arr[:, :, c] += noise_arr
-        
+
     # Clip and convert back
     carrier_arr = np.clip(carrier_arr, 0, 255).astype(np.uint8)
     return Image.fromarray(carrier_arr)

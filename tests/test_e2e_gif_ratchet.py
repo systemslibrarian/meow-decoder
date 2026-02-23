@@ -119,9 +119,7 @@ class TestGIFRatchetWithRekeyBeacons:
     def test_plaintext_beacon_roundtrip(self, tmp_path):
         """Ratchet + plaintext rekey beacons survive full GIF pipeline."""
         data = secrets.token_bytes(300)
-        recovered = _roundtrip(
-            tmp_path, data, "beacon-gif-plain", rekey_beacon_interval=3
-        )
+        recovered = _roundtrip(tmp_path, data, "beacon-gif-plain", rekey_beacon_interval=3)
         assert recovered == data
 
     def test_kem_beacon_roundtrip(self, tmp_path):

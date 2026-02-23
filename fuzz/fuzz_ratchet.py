@@ -112,7 +112,7 @@ def fuzz_encrypt_decrypt_frame(data: bytes):
 
     root_key = data[:32]
     salt = data[32:48]
-    frame_data = data[48:48 + min(len(data) - 48, 512)]
+    frame_data = data[48 : 48 + min(len(data) - 48, 512)]
 
     try:
         state = API["init_ratchet"](root_key, salt)
@@ -193,7 +193,9 @@ def fuzz_header_encryption(data: bytes):
 
     try:
         header_key = API["_derive_header_key"](root_key, salt)
-        encrypted_idx = API["_encrypt_index"](header_key, frame_index % (API["MAX_FRAME_INDEX"] + 1))
+        encrypted_idx = API["_encrypt_index"](
+            header_key, frame_index % (API["MAX_FRAME_INDEX"] + 1)
+        )
         assert isinstance(encrypted_idx, bytes)
         assert len(encrypted_idx) == 4  # Frame index is 4 bytes
 

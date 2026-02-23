@@ -38,7 +38,7 @@ SELF_TEST_FUNCTION_NAMES = {"_run_self_test"}
 # Functions that return raw key bytes — FORBIDDEN in production call graph
 FORBIDDEN_KEY_RETURNING_CALLS = {
     "derive_key",
-    "encrypt_file_bytes",           # returns key as 7th tuple element
+    "encrypt_file_bytes",  # returns key as 7th tuple element
     "derive_encryption_key_for_manifest",
 }
 
@@ -76,8 +76,8 @@ class _CallVisitor(ast.NodeVisitor):
     """AST visitor collecting function calls and imports."""
 
     def __init__(self):
-        self.calls = []       # (lineno, func_name)
-        self.imports = []     # (lineno, module_path)
+        self.calls = []  # (lineno, func_name)
+        self.imports = []  # (lineno, module_path)
         self.assignments = []  # (lineno, target_name, rhs_call_name)
 
     def visit_Call(self, node):
@@ -155,9 +155,8 @@ class TestLegacyPyRemoved:
                     rel = py_file.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno} imports '{module}'")
 
-        assert not violations, (
-            "Production code imports legacy_py:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert not violations, "Production code imports legacy_py:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_packaging_excludes_legacy_py(self):
@@ -165,9 +164,11 @@ class TestLegacyPyRemoved:
         pyproject_path = WORKSPACE / "pyproject.toml"
         content = pyproject_path.read_text()
         # Must NOT include legacy_py in packages
-        assert "legacy_py" not in content.split("include = ")[1].split("]")[0] if "include = " in content else True, (
-            "pyproject.toml includes legacy_py in shipped packages"
-        )
+        assert (
+            "legacy_py" not in content.split("include = ")[1].split("]")[0]
+            if "include = " in content
+            else True
+        ), "pyproject.toml includes legacy_py in shipped packages"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -220,9 +221,10 @@ class TestNoKeyBytesInProduction:
                     rel = ep_path.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno} imports '{imported_name}'")
 
-        assert not violations, (
-            "Production entrypoints use key-returning APIs (Rule #2 violation):\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production entrypoints use key-returning APIs (Rule #2 violation):\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_encryption_key_variable_in_entrypoints(self):
@@ -240,13 +242,12 @@ class TestNoKeyBytesInProduction:
             for lineno, target_name, call_name in visitor.assignments:
                 if target_name == "encryption_key":
                     rel = ep_path.relative_to(WORKSPACE)
-                    violations.append(
-                        f"{rel}:{lineno} assigns encryption_key = {call_name}(...)"
-                    )
+                    violations.append(f"{rel}:{lineno} assigns encryption_key = {call_name}(...)")
 
-        assert not violations, (
-            "Production entrypoints hold raw key bytes in 'encryption_key' variable:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production entrypoints hold raw key bytes in 'encryption_key' variable:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_handle_apis_used_in_entrypoints(self):
@@ -315,13 +316,10 @@ class TestNoKeyBytesInProduction:
                     for pat in FORBIDDEN_EXPORT_PATTERNS:
                         if pat.match(node.name):
                             rel = py_file.relative_to(WORKSPACE)
-                            violations.append(
-                                f"{rel}:{node.lineno} defines '{node.name}'"
-                            )
+                            violations.append(f"{rel}:{node.lineno} defines '{node.name}'")
 
-        assert not violations, (
-            "Production modules expose key-returning symbols:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert not violations, "Production modules expose key-returning symbols:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
 
@@ -359,9 +357,10 @@ class TestStaticKeyByteScan:
                         rel = ep_path.relative_to(WORKSPACE)
                         violations.append(f"{rel}:{i} matches pattern: {pat.pattern}")
 
-        assert not violations, (
-            "Production entrypoints contain suspicious key-byte patterns:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production entrypoints contain suspicious key-byte patterns:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_derive_key_import_in_entrypoints(self):

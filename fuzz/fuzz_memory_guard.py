@@ -19,6 +19,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.memory_guard import (
@@ -50,7 +51,7 @@ def fuzz_guarded_buffer_lifecycle(data: bytes):
         buf = GuardedBuffer(size)
 
         # Write data (truncated to buffer size)
-        write_data = payload[:min(len(payload), size)]
+        write_data = payload[: min(len(payload), size)]
         if write_data:
             buf.write(write_data)
 
@@ -94,8 +95,8 @@ def fuzz_guarded_buffer_invalid_sizes(data: bytes):
         return
 
     sizes_to_test = [
-        0,                              # Zero (should raise ValueError)
-        -1,                             # Negative (should raise ValueError)
+        0,  # Zero (should raise ValueError)
+        -1,  # Negative (should raise ValueError)
         struct.unpack(">I", data[:4])[0],  # Random 32-bit size
     ]
 
@@ -135,9 +136,9 @@ def fuzz_guarded_buffer_overwrite(data: bytes):
         buf = GuardedBuffer(size)
 
         # Write exactly size bytes
-        fill = data[1:size + 1]
+        fill = data[1 : size + 1]
         if fill:
-            buf.write(fill[:min(len(fill), size)])
+            buf.write(fill[: min(len(fill), size)])
 
         # Attempt to write more than size (should raise or truncate)
         oversized = data * 10  # Much bigger than buffer

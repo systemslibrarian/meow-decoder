@@ -6,6 +6,7 @@ Enforces:
 2. No production module imports from meow_decoder._archive.
 3. _archive is excluded from package metadata (setuptools config).
 """
+
 import ast
 import pathlib
 from collections import deque
@@ -24,37 +25,39 @@ ENTRYPOINTS = [
 
 # Modules that MUST be the ONLY ones reachable from entrypoints.
 # If a new module is added to production, add it here explicitly.
-PRODUCTION_ALLOWLIST = frozenset({
-    "meow_decoder",
-    "meow_decoder.argon2_presets",
-    "meow_decoder.cat_errors",
-    "meow_decoder.cat_utils",
-    "meow_decoder.config",
-    "meow_decoder.constant_time",
-    "meow_decoder.crypto",
-    "meow_decoder.crypto_backend",
-    "meow_decoder.deadmans_switch_cli",
-    "meow_decoder.decode_gif",
-    "meow_decoder.duress_mode",
-    "meow_decoder.encode",
-    "meow_decoder.fountain",
-    "meow_decoder.frame_mac",
-    "meow_decoder.gif_handler",
-    "meow_decoder.hardware_integration",
-    "meow_decoder.high_security",
-    "meow_decoder.logo_eyes",
-    "meow_decoder.metadata_obfuscation",
-    "meow_decoder.mobile_bridge",
-    "meow_decoder.pq_hybrid",
-    "meow_decoder.progress",
-    "meow_decoder.qr_code",
-    "meow_decoder.ratchet",
-    "meow_decoder.security_warnings",
-    "meow_decoder.stego_advanced",
-    "meow_decoder.tamper_report",
-    "meow_decoder.timelock_duress",
-    "meow_decoder.x25519_forward_secrecy",
-})
+PRODUCTION_ALLOWLIST = frozenset(
+    {
+        "meow_decoder",
+        "meow_decoder.argon2_presets",
+        "meow_decoder.cat_errors",
+        "meow_decoder.cat_utils",
+        "meow_decoder.config",
+        "meow_decoder.constant_time",
+        "meow_decoder.crypto",
+        "meow_decoder.crypto_backend",
+        "meow_decoder.deadmans_switch_cli",
+        "meow_decoder.decode_gif",
+        "meow_decoder.duress_mode",
+        "meow_decoder.encode",
+        "meow_decoder.fountain",
+        "meow_decoder.frame_mac",
+        "meow_decoder.gif_handler",
+        "meow_decoder.hardware_integration",
+        "meow_decoder.high_security",
+        "meow_decoder.logo_eyes",
+        "meow_decoder.metadata_obfuscation",
+        "meow_decoder.mobile_bridge",
+        "meow_decoder.pq_hybrid",
+        "meow_decoder.progress",
+        "meow_decoder.qr_code",
+        "meow_decoder.ratchet",
+        "meow_decoder.security_warnings",
+        "meow_decoder.stego_advanced",
+        "meow_decoder.tamper_report",
+        "meow_decoder.timelock_duress",
+        "meow_decoder.x25519_forward_secrecy",
+    }
+)
 
 FORBIDDEN_PREFIXES = (
     "meow_decoder._archive",
@@ -204,21 +207,18 @@ class TestProductionImportBoundary:
             imports = _get_imports(py_file)
             for imp in imports:
                 if any(imp.startswith(prefix) for prefix in FORBIDDEN_PREFIXES):
-                    violations.append(
-                        f"{_file_to_module(py_file)} imports {imp}"
-                    )
-        assert not violations, (
-            f"Production code imports from forbidden packages:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+                    violations.append(f"{_file_to_module(py_file)} imports {imp}")
+        assert not violations, f"Production code imports from forbidden packages:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_archive_not_in_package_config(self):
         """_archive must be excluded from setuptools package discovery."""
         pyproject = WORKSPACE / "pyproject.toml"
         content = pyproject.read_text(encoding="utf-8")
-        assert "meow_decoder._archive" in content, (
-            "pyproject.toml must exclude meow_decoder._archive from packaging"
-        )
+        assert (
+            "meow_decoder._archive" in content
+        ), "pyproject.toml must exclude meow_decoder._archive from packaging"
 
     def test_archive_init_raises_importerror(self):
         """Importing meow_decoder._archive must raise ImportError."""

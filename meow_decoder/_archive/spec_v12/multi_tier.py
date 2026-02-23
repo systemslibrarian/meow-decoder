@@ -61,7 +61,8 @@ def encode_multi_tier(
 
     max_len = max(len(pt) for pt in tier_plaintexts)
     padded_plaintexts = [
-        pt + secrets.token_bytes(max_len - len(pt)) if len(pt) < max_len else pt for pt in tier_plaintexts
+        pt + secrets.token_bytes(max_len - len(pt)) if len(pt) < max_len else pt
+        for pt in tier_plaintexts
     ]
 
     header = VERSION + recipient_ed25519_pk + tier_count.to_bytes(1, "big")
@@ -167,25 +168,25 @@ def decode_multi_tier(
         sender_pub = _ed25519_public_from_bytes(sender_ed25519_pk)
 
         for i in range(tier_count):
-            ephemeral_pk = payload[offset: offset + 32]
-            hkdf_salt = payload[offset + 32: offset + 48]
-            aead_nonce = payload[offset + 48: offset + 72]
+            ephemeral_pk = payload[offset : offset + 32]
+            hkdf_salt = payload[offset + 32 : offset + 48]
+            aead_nonce = payload[offset + 48 : offset + 72]
             kdf_info_len = payload[offset + 72]
             if kdf_info_len != expected_kdf_info_len:
                 had_error = True
                 break
-            kdf_info = payload[offset + 73: offset + 73 + kdf_info_len]
+            kdf_info = payload[offset + 73 : offset + 73 + kdf_info_len]
 
             tier_header_len = 73 + expected_kdf_info_len
-            tier_header_before_sig = payload[offset: offset + tier_header_len]
-            signature = payload[offset + tier_header_len: offset + tier_header_len + 64]
+            tier_header_before_sig = payload[offset : offset + tier_header_len]
+            signature = payload[offset + tier_header_len : offset + tier_header_len + 64]
 
             ciphertext_start = offset + tier_header_len + 64
             if ciphertext_start + cipher_len > len(payload):
                 had_error = True
                 break
 
-            ciphertext = payload[ciphertext_start: ciphertext_start + cipher_len]
+            ciphertext = payload[ciphertext_start : ciphertext_start + cipher_len]
             offset = ciphertext_start + cipher_len
 
             # Verify signature and decrypt (constant-order processing)

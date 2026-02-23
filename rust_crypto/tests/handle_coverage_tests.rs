@@ -373,8 +373,8 @@ fn test_ratchet_multi_step_chain() {
     // All message keys should be distinct
     for i in 0..msg_keys.len() {
         let bytes_i = handle_export_key(msg_keys[i]).unwrap();
-        for j in (i + 1)..msg_keys.len() {
-            let bytes_j = handle_export_key(msg_keys[j]).unwrap();
+        for (j, key_j) in msg_keys.iter().enumerate().skip(i + 1) {
+            let bytes_j = handle_export_key(*key_j).unwrap();
             assert_ne!(bytes_i, bytes_j, "Message keys {} and {} must differ", i, j);
         }
     }

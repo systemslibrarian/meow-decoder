@@ -148,9 +148,9 @@ TEMPORAL_BLOCK_SIZE = 8  # pixels per embedding block
 
 # Adversarial perturbation strength levels
 ADVERSARIAL_STRENGTH_OFF = 0
-ADVERSARIAL_STRENGTH_LOW = 1    # Gentle histogram equalization only
+ADVERSARIAL_STRENGTH_LOW = 1  # Gentle histogram equalization only
 ADVERSARIAL_STRENGTH_MEDIUM = 2  # + DCT coefficient smoothing
-ADVERSARIAL_STRENGTH_HIGH = 3    # + statistical model matching
+ADVERSARIAL_STRENGTH_HIGH = 3  # + statistical model matching
 
 
 # ---------------------------------------------------------------------------
@@ -160,9 +160,10 @@ ADVERSARIAL_STRENGTH_HIGH = 3    # + statistical model matching
 
 class CoercionLevel(IntEnum):
     """Coercion resistance level controlling which channels are derived."""
-    DECOY = 0    # Only visible QR + shallow LSB (fake content)
+
+    DECOY = 0  # Only visible QR + shallow LSB (fake content)
     SHALLOW = 1  # Primary LSB channel only
-    FULL = 2     # All three channels (real content)
+    FULL = 2  # All three channels (real content)
 
 
 @dataclass
@@ -405,7 +406,9 @@ def prepare_payload(
 
     if encrypt:
         # Derive encryption key via HKDF domain separation (independent of nonce)
-        enc_key = hmac_stdlib.new(master_key, b"meow_stego_payload_enc_key_v2", hashlib.sha256).digest()
+        enc_key = hmac_stdlib.new(
+            master_key, b"meow_stego_payload_enc_key_v2", hashlib.sha256
+        ).digest()
 
         # Generate random 12-byte nonce for AES-GCM (CRITICAL: never reuse key+nonce)
         nonce = os.urandom(12)
@@ -465,8 +468,8 @@ def unpack_payload(
     if 14 + data_len + 32 > len(raw):
         return b"", False
 
-    payload = raw[14: 14 + data_len]
-    stored_mac = raw[14 + data_len: 14 + data_len + 32]
+    payload = raw[14 : 14 + data_len]
+    stored_mac = raw[14 + data_len : 14 + data_len + 32]
 
     # Verify HMAC
     header = raw[:14]
@@ -579,7 +582,9 @@ def distribute_payload(
             if n >= config.min_permutable_entries:
                 tertiary_cap += _factorial_bits(n) // 8
 
-    total_cap = primary_cap + comment_cap + secondary_cap + disposal_cap + temporal_cap + tertiary_cap
+    total_cap = (
+        primary_cap + comment_cap + secondary_cap + disposal_cap + temporal_cap + tertiary_cap
+    )
     if total_cap < len(remaining):
         raise ValueError(
             f"Payload ({len(remaining)} bytes) exceeds total carrier capacity "
@@ -594,32 +599,32 @@ def distribute_payload(
     if config.enable_primary and primary_cap > 0:
         chunk = remaining[: min(primary_cap, len(remaining))]
         channels["primary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_comment and comment_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(comment_cap, len(remaining))]
         channels["comment"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_secondary and secondary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(secondary_cap, len(remaining))]
         channels["secondary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_temporal and temporal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(temporal_cap, len(remaining))]
         channels["temporal"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_disposal and disposal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(disposal_cap, len(remaining))]
         channels["disposal"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_tertiary and tertiary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(tertiary_cap, len(remaining))]
         channels["tertiary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if len(remaining) > 0:
         logger.warning("Could not fit %d bytes into any channel", len(remaining))
@@ -711,7 +716,7 @@ class PrimaryChannelEncoder:
                 n_payload,
                 n_cover,
             )
-            payload_bits = payload_bits[:n_cover - 1]
+            payload_bits = payload_bits[: n_cover - 1]
             n_payload = len(payload_bits)
 
         payload_arr = np.array(payload_bits, dtype=np.uint8)
@@ -1119,9 +1124,7 @@ class PaletteChannelEncoder:
         observed_bytes = bytes(observed)
 
         if _RUST_AVAILABLE:
-            bits = meow_crypto_rs.stego_palette_decode(
-                seed, list(perm_bytes), list(observed_bytes)
-            )
+            bits = meow_crypto_rs.stego_palette_decode(seed, list(perm_bytes), list(observed_bytes))
             return [int(b) for b in bits]
 
         return self._py_palette_decode(seed, list(perm_bytes), observed)
@@ -1166,9 +1169,7 @@ class PaletteChannelEncoder:
 
         return result
 
-    def _py_palette_decode(
-        self, seed: bytes, indices: List[int], observed: List[int]
-    ) -> List[int]:
+    def _py_palette_decode(self, seed: bytes, indices: List[int], observed: List[int]) -> List[int]:
         """Python fallback for palette permutation decoding."""
         n = len(indices)
         max_bits = _factorial_bits(n)
@@ -1258,7 +1259,7 @@ class SaliencyCostComputer:
         # Sobel magnitude (first derivative -- edge strength)
         sobel_x = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=3)
         sobel_y = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=3)
-        sobel = np.sqrt(sobel_x ** 2 + sobel_y ** 2)
+        sobel = np.sqrt(sobel_x**2 + sobel_y**2)
 
         # Local variance via Gaussian window (texture measure)
         gray_f = gray.astype(np.float64)
@@ -1391,9 +1392,7 @@ class ImmunizationLayer:
         noise = rng.normal(0, sigma, frame_array.shape)
 
         # Apply and clamp to valid uint8 range
-        noised = np.clip(
-            frame_array.astype(np.float64) + noise, 0, 255
-        ).astype(np.uint8)
+        noised = np.clip(frame_array.astype(np.float64) + noise, 0, 255).astype(np.uint8)
 
         return noised
 
@@ -1432,9 +1431,7 @@ class TemporalChannelEncoder:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._channel_key = hmac_stdlib.new(
-            master_key, DOMAIN_TEMPORAL, hashlib.sha256
-        ).digest()
+        self._channel_key = hmac_stdlib.new(master_key, DOMAIN_TEMPORAL, hashlib.sha256).digest()
 
     def embed(
         self,
@@ -1576,9 +1573,7 @@ class TemporalChannelEncoder:
 
         # All block positions
         all_blocks = [
-            (r * block_size, c * block_size)
-            for r in range(block_rows)
-            for c in range(block_cols)
+            (r * block_size, c * block_size) for r in range(block_rows) for c in range(block_cols)
         ]
 
         # Keyed shuffle using deterministic seed
@@ -1636,9 +1631,7 @@ class AdversarialPerturbationLayer:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._perturb_key = hmac_stdlib.new(
-            master_key, DOMAIN_ADVERSARIAL, hashlib.sha256
-        ).digest()
+        self._perturb_key = hmac_stdlib.new(master_key, DOMAIN_ADVERSARIAL, hashlib.sha256).digest()
 
     def apply(
         self,
@@ -1783,9 +1776,7 @@ class AdversarialPerturbationLayer:
         result = frame.copy().astype(np.int16)
 
         # Compute 3x3 high-pass kernel residual (core SRM filter)
-        kernel_hpf = np.array([[-1, -1, -1],
-                               [-1,  8, -1],
-                               [-1, -1, -1]], dtype=np.float32) / 8.0
+        kernel_hpf = np.array([[-1, -1, -1], [-1, 8, -1], [-1, -1, -1]], dtype=np.float32) / 8.0
 
         for ch in range(min(3, result.shape[2]) if result.ndim == 3 else 1):
             if result.ndim == 3:
@@ -1853,7 +1844,9 @@ class AdversarialPerturbationLayer:
         for ch in range(min(3, result.shape[2]) if result.ndim == 3 else 1):
             if result.ndim == 3:
                 stego_ch = result[:, :, ch].astype(np.int32)
-                cover_ch = cover[:, :, ch].astype(np.int32) if cover.ndim == 3 else cover.astype(np.int32)
+                cover_ch = (
+                    cover[:, :, ch].astype(np.int32) if cover.ndim == 3 else cover.astype(np.int32)
+                )
             else:
                 stego_ch = result.astype(np.int32)
                 cover_ch = cover.astype(np.int32)
@@ -1903,7 +1896,11 @@ class AdversarialPerturbationLayer:
                             lsb_bits = self.config.lsb_bits
                             flip_bit = 1 << lsb_bits
                             lsb_mask = (1 << lsb_bits) - 1
-                            pixel = int(result[row, col + 1, ch] if result.ndim == 3 else result[row, col + 1])
+                            pixel = int(
+                                result[row, col + 1, ch]
+                                if result.ndim == 3
+                                else result[row, col + 1]
+                            )
                             orig_lsbs = pixel & lsb_mask
                             new_val = pixel ^ flip_bit
                             new_val = max(0, min(255, new_val))
@@ -1946,9 +1943,7 @@ class ProceduralCatGenerator:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._seed_key = hmac_stdlib.new(
-            master_key, DOMAIN_PROCCAT_SEED, hashlib.sha256
-        ).digest()
+        self._seed_key = hmac_stdlib.new(master_key, DOMAIN_PROCCAT_SEED, hashlib.sha256).digest()
 
     def generate(
         self,
@@ -1968,9 +1963,7 @@ class ProceduralCatGenerator:
         w, h = size or self.config.procedural_cat_size
 
         # Derive per-frame seeds
-        rng = np.random.Generator(
-            np.random.PCG64(int.from_bytes(self._seed_key[:8], "little"))
-        )
+        rng = np.random.Generator(np.random.PCG64(int.from_bytes(self._seed_key[:8], "little")))
 
         frames = []
         for t in range(num_frames):
@@ -2022,13 +2015,14 @@ class ProceduralCatGenerator:
 
         # Create body mask (ellipse)
         yy, xx = np.ogrid[:height, :width]
-        body_mask = ((xx - cx) ** 2 / max(body_rx ** 2, 1) +
-                     (yy - cy) ** 2 / max(body_ry ** 2, 1)) <= 1.0
+        body_mask = (
+            (xx - cx) ** 2 / max(body_rx**2, 1) + (yy - cy) ** 2 / max(body_ry**2, 1)
+        ) <= 1.0
 
         # Head (circle above body)
         head_cx, head_cy = cx, cy - body_ry - int(height * 0.08)
         head_r = int(min(width, height) * 0.13)
-        head_mask = ((xx - head_cx) ** 2 + (yy - head_cy) ** 2) <= head_r ** 2
+        head_mask = ((xx - head_cx) ** 2 + (yy - head_cy) ** 2) <= head_r**2
 
         # Ears (two triangular bumps on head, with animation)
         ear_offset = int(3 * np.sin(t * 2.0))  # Ear twitch
@@ -2037,8 +2031,8 @@ class ProceduralCatGenerator:
         ear_r_cx = head_cx + int(head_r * 0.7)
         ear_r_cy = head_cy - head_r - ear_offset
         ear_r_val = int(head_r * 0.5)
-        ear_l_mask = ((xx - ear_l_cx) ** 2 + (yy - ear_l_cy) ** 2) <= ear_r_val ** 2
-        ear_r_mask = ((xx - ear_r_cx) ** 2 + (yy - ear_r_cy) ** 2) <= ear_r_val ** 2
+        ear_l_mask = ((xx - ear_l_cx) ** 2 + (yy - ear_l_cy) ** 2) <= ear_r_val**2
+        ear_r_mask = ((xx - ear_r_cx) ** 2 + (yy - ear_r_cy) ** 2) <= ear_r_val**2
 
         # Tail (arc to the right, animated sway)
         tail_sway = int(15 * np.sin(t * 1.5))
@@ -2080,10 +2074,12 @@ class ProceduralCatGenerator:
         eye_r_cx = head_cx + int(head_r * 0.35)
         eye_cy = head_cy + int(head_r * 0.1)
 
-        eye_l_mask = ((xx - eye_l_cx) ** 2 / max(eye_rx ** 2, 1) +
-                      (yy - eye_cy) ** 2 / max(eye_ry ** 2, 1)) <= 1.0
-        eye_r_mask = ((xx - eye_r_cx) ** 2 / max(eye_rx ** 2, 1) +
-                      (yy - eye_cy) ** 2 / max(eye_ry ** 2, 1)) <= 1.0
+        eye_l_mask = (
+            (xx - eye_l_cx) ** 2 / max(eye_rx**2, 1) + (yy - eye_cy) ** 2 / max(eye_ry**2, 1)
+        ) <= 1.0
+        eye_r_mask = (
+            (xx - eye_r_cx) ** 2 / max(eye_rx**2, 1) + (yy - eye_cy) ** 2 / max(eye_ry**2, 1)
+        ) <= 1.0
 
         # Green/gold eyes
         eye_color = np.array([180, 200, 50], dtype=np.float64)
@@ -2096,15 +2092,15 @@ class ProceduralCatGenerator:
 
         # Pupil (small dark circle in each eye)
         pupil_r = max(1, eye_rx // 2)
-        pupil_l_mask = ((xx - eye_l_cx) ** 2 + (yy - eye_cy) ** 2) <= pupil_r ** 2
-        pupil_r_mask = ((xx - eye_r_cx) ** 2 + (yy - eye_cy) ** 2) <= pupil_r ** 2
+        pupil_l_mask = ((xx - eye_l_cx) ** 2 + (yy - eye_cy) ** 2) <= pupil_r**2
+        pupil_r_mask = ((xx - eye_r_cx) ** 2 + (yy - eye_cy) ** 2) <= pupil_r**2
         frame[pupil_l_mask | pupil_r_mask] = [10, 10, 10]
 
         # 6. Nose (small pink triangle)
         nose_cx = head_cx
         nose_cy = head_cy + int(head_r * 0.35)
         nose_r = max(1, head_r // 6)
-        nose_mask = ((xx - nose_cx) ** 2 + (yy - nose_cy) ** 2) <= nose_r ** 2
+        nose_mask = ((xx - nose_cx) ** 2 + (yy - nose_cy) ** 2) <= nose_r**2
         frame[nose_mask] = [200, 140, 140]
 
         # Clamp and convert
@@ -2182,9 +2178,7 @@ class DisposalChannelEncoder:
         self.master_key = master_key
         self.config = config
         # Derive channel-specific key
-        self._channel_key = hmac_stdlib.new(
-            master_key, DOMAIN_DISPOSAL, hashlib.sha256
-        ).digest()
+        self._channel_key = hmac_stdlib.new(master_key, DOMAIN_DISPOSAL, hashlib.sha256).digest()
 
     def encode(
         self,
@@ -2210,29 +2204,15 @@ class DisposalChannelEncoder:
 
             # Extract 4 bits for this frame (zero-pad if not enough)
             b0 = payload_bits[bit_offset] if bit_offset < len(payload_bits) else 0
-            b1 = (
-                payload_bits[bit_offset + 1]
-                if bit_offset + 1 < len(payload_bits)
-                else 0
-            )
-            b2 = (
-                payload_bits[bit_offset + 2]
-                if bit_offset + 2 < len(payload_bits)
-                else 0
-            )
-            b3 = (
-                payload_bits[bit_offset + 3]
-                if bit_offset + 3 < len(payload_bits)
-                else 0
-            )
+            b1 = payload_bits[bit_offset + 1] if bit_offset + 1 < len(payload_bits) else 0
+            b2 = payload_bits[bit_offset + 2] if bit_offset + 2 < len(payload_bits) else 0
+            b3 = payload_bits[bit_offset + 3] if bit_offset + 3 < len(payload_bits) else 0
 
             disposal = ((b1 & 1) << 1) | (b0 & 1)
             user_input = b2 & 1
             transparent = b3 & 1
 
-            GifBinaryEditor.set_gce_bits(
-                structure, frame_idx, disposal, user_input, transparent
-            )
+            GifBinaryEditor.set_gce_bits(structure, frame_idx, disposal, user_input, transparent)
 
         return structure
 
@@ -2296,12 +2276,8 @@ class CommentChannelEncoder:
         self.master_key = master_key
         self.config = config
         # Derive channel-specific keys
-        self._enc_key = hmac_stdlib.new(
-            master_key, DOMAIN_COMMENT_ENC, hashlib.sha256
-        ).digest()
-        self._mac_key = hmac_stdlib.new(
-            master_key, DOMAIN_COMMENT_MAC, hashlib.sha256
-        ).digest()
+        self._enc_key = hmac_stdlib.new(master_key, DOMAIN_COMMENT_ENC, hashlib.sha256).digest()
+        self._mac_key = hmac_stdlib.new(master_key, DOMAIN_COMMENT_MAC, hashlib.sha256).digest()
 
     def encode(self, payload: bytes) -> bytes:
         """Prepare comment payload (encrypt + MAC).
@@ -2320,9 +2296,7 @@ class CommentChannelEncoder:
 
         if _RUST_AVAILABLE:
             ciphertext = bytes(
-                meow_crypto_rs.aes_gcm_encrypt(
-                    self._enc_key, nonce, payload, DOMAIN_COMMENT_ENC
-                )
+                meow_crypto_rs.aes_gcm_encrypt(self._enc_key, nonce, payload, DOMAIN_COMMENT_ENC)
             )
         else:
             try:
@@ -2337,12 +2311,7 @@ class CommentChannelEncoder:
                 )
 
         # Build: MAGIC(4) + orig_len(4) + nonce(12) + ciphertext
-        inner = (
-            COMMENT_MAGIC
-            + struct.pack("<I", len(payload))
-            + nonce
-            + ciphertext
-        )
+        inner = COMMENT_MAGIC + struct.pack("<I", len(payload)) + nonce + ciphertext
 
         # HMAC-SHA256 over entire inner payload
         mac = hmac_stdlib.new(self._mac_key, inner, hashlib.sha256).digest()
@@ -2373,9 +2342,7 @@ class CommentChannelEncoder:
         stored_mac = comment_data[-32:]
 
         # Verify HMAC (constant-time via compare_digest)
-        expected_mac = hmac_stdlib.new(
-            self._mac_key, inner, hashlib.sha256
-        ).digest()
+        expected_mac = hmac_stdlib.new(self._mac_key, inner, hashlib.sha256).digest()
         if not hmac_stdlib.compare_digest(stored_mac, expected_mac):
             return b"", False
 
@@ -2568,8 +2535,13 @@ class MultiLayerStegoEncoder:
         frame_h = frames[0].shape[0] if frames else 0
         frame_w = frames[0].shape[1] if frames else 0
         channel_data = distribute_payload(
-            prepared, self.config, num_frames, frame_pixel_counts, permutable_counts,
-            frame_height=frame_h, frame_width=frame_w,
+            prepared,
+            self.config,
+            num_frames,
+            frame_pixel_counts,
+            permutable_counts,
+            frame_height=frame_h,
+            frame_width=frame_w,
         )
 
         metadata = {
@@ -2630,15 +2602,15 @@ class MultiLayerStegoEncoder:
 
                 remaining = len(primary_bits) - offset
                 n_bits = min(remaining, frame_capacity)
-                frame_bits = primary_bits[offset:offset + n_bits] if n_bits > 0 else []
+                frame_bits = primary_bits[offset : offset + n_bits] if n_bits > 0 else []
 
                 if frame_bits:
                     stego_frame = self.primary.embed_frame(frame, i, frame_bits)
                     # Calculate PSNR
                     diff = frame.astype(float) - stego_frame.astype(float)
-                    mse = np.mean(diff ** 2)
+                    mse = np.mean(diff**2)
                     if mse > 0:
-                        psnr = 10 * np.log10(255 ** 2 / mse)
+                        psnr = 10 * np.log10(255**2 / mse)
                         metadata["psnr"] = min(metadata["psnr"], float(psnr))
                     stego_frames.append(stego_frame)
                     offset += n_bits
@@ -2696,8 +2668,7 @@ class MultiLayerStegoEncoder:
             output_path = output_path.with_suffix(".png")
             is_apng = True
             logger.info(
-                "Switched output to APNG (%s) — GIF palette quantization "
-                "destroys LSB embedding",
+                "Switched output to APNG (%s) — GIF palette quantization " "destroys LSB embedding",
                 output_path,
             )
 
@@ -2758,8 +2729,7 @@ class MultiLayerStegoEncoder:
         )
 
         logger.info(
-            "Encoded %d bytes across %d channels. PSNR=%.1f dB. "
-            "Immunize=%s, Saliency=%s",
+            "Encoded %d bytes across %d channels. PSNR=%.1f dB. " "Immunize=%s, Saliency=%s",
             len(payload),
             len(metadata["channels_used"]),
             metadata["psnr"],
@@ -2988,7 +2958,12 @@ class MultiLayerStegoDecoder:
                 channel_sources.append("secondary")
 
         # --- Extract from disposal channel (GIF-only, Phase 0.1) ---
-        if self.config.enable_disposal and is_gif and gif_structure is not None and len(gif_structure.gce_blocks) > 0:
+        if (
+            self.config.enable_disposal
+            and is_gif
+            and gif_structure is not None
+            and len(gif_structure.gce_blocks) > 0
+        ):
             disposal_decoder = DisposalChannelEncoder(active_key, self.config)
             disposal_bits = disposal_decoder.decode(gif_structure)
             if disposal_bits:
@@ -3232,10 +3207,12 @@ def validate_stego(
 
     if chi_agg["detection_probability"] >= 0.3:
         summary_parts.append(
-            f"Chi^2: DETECTED (det={chi_agg['detection_probability']:.3f}, p={chi_agg['mean_p_value']:.4f})")
+            f"Chi^2: DETECTED (det={chi_agg['detection_probability']:.3f}, p={chi_agg['mean_p_value']:.4f})"
+        )
     else:
         summary_parts.append(
-            f"Chi^2: PASS (det={chi_agg['detection_probability']:.3f}, p={chi_agg['mean_p_value']:.4f})")
+            f"Chi^2: PASS (det={chi_agg['detection_probability']:.3f}, p={chi_agg['mean_p_value']:.4f})"
+        )
 
     if spa_agg["mean_embedding_rate"] >= 0.15:
         summary_parts.append(f"SPA: DETECTED (rate={spa_agg['mean_embedding_rate']:.3f})")
@@ -3283,7 +3260,7 @@ def _rs_analysis(frame: np.ndarray) -> Dict[str, Any]:
 
     for y in range(0, h - 1, group_size):
         for x in range(0, w - group_size, group_size):
-            group = gray[y, x: x + group_size].astype(np.int16)
+            group = gray[y, x : x + group_size].astype(np.int16)
             if len(group) < group_size:
                 continue
 
@@ -3337,6 +3314,7 @@ def _chi2_survival(chi_stat: float, dof: int) -> float:
     """
     try:
         from scipy.stats import chi2  # type: ignore
+
         return float(1.0 - chi2.cdf(chi_stat, dof))
     except ImportError:
         pass
@@ -3354,6 +3332,7 @@ def _chi2_survival(chi_stat: float, dof: int) -> float:
     z = (t - mu) / sigma
     # Standard normal survival: Φ(-z) ~= erfc(z/√2)/2
     from math import erfc, sqrt
+
     p = 0.5 * erfc(z / sqrt(2.0))
     return max(0.0, min(1.0, p))
 
@@ -3429,8 +3408,8 @@ def _sample_pair_analysis(frame: np.ndarray) -> Dict[str, Any]:
     flat = gray.flatten()
     hist = np.bincount(flat, minlength=256).astype(np.float64)
 
-    E_same = 0.0   # Expected same-value pair count (independent model)
-    E_close = 0.0   # Expected within-trace different-value pairs
+    E_same = 0.0  # Expected same-value pair count (independent model)
+    E_close = 0.0  # Expected within-trace different-value pairs
 
     for t in range(128):
         h_even = hist[2 * t]
@@ -3448,9 +3427,7 @@ def _sample_pair_analysis(frame: np.ndarray) -> Dict[str, Any]:
     right = gray[:, 1:].flatten().astype(np.int32)
 
     O_same = float(np.sum(left == right))
-    O_close = float(np.sum(
-        (np.abs(left - right) == 1) & ((left >> 1) == (right >> 1))
-    ))
+    O_close = float(np.sum((np.abs(left - right) == 1) & ((left >> 1) == (right >> 1))))
 
     if O_same < 1.0:
         return {"estimated_rate": 0.0, "correlation": 1.0}
@@ -3464,7 +3441,10 @@ def _sample_pair_analysis(frame: np.ndarray) -> Dict[str, Any]:
 
     estimated_rate = max(0.0, min(1.0, alpha - 1.0))
 
-    return {"estimated_rate": float(estimated_rate), "correlation": float(O_same / max(O_same + O_close, 1))}
+    return {
+        "estimated_rate": float(estimated_rate),
+        "correlation": float(O_same / max(O_same + O_close, 1)),
+    }
 
 
 def _entropy_analysis(frame: np.ndarray) -> Dict[str, Any]:

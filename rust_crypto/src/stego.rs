@@ -439,7 +439,7 @@ pub fn stc_encode(
     } else {
         4096
     };
-    let num_chunks = (n + chunk_size - 1) / chunk_size;
+    let num_chunks = n.div_ceil(chunk_size);
 
     // Save dp at the START of each chunk (including position 0)
     let mut checkpoints: Vec<Vec<f64>> = Vec::with_capacity(num_chunks + 1);
@@ -456,6 +456,9 @@ pub fn stc_encode(
 
         let mut dp_next = vec![f64::INFINITY; num_states];
 
+        // state is both an index into dp[] and a trellis syndrome value used
+        // in bitwise ops (XOR, shift, mask), so indexing by range is clearest.
+        #[allow(clippy::needless_range_loop)]
         for state in 0..num_states {
             if dp[state].is_infinite() {
                 continue;
@@ -498,7 +501,7 @@ pub fn stc_encode(
         }
     }
     // Save final dp if chunk didn't end exactly at n
-    if n % chunk_size != 0 {
+    if !n.is_multiple_of(chunk_size) {
         checkpoints.push(dp.clone());
     }
 
@@ -536,6 +539,9 @@ pub fn stc_encode(
 
             let mut dp_next = vec![f64::INFINITY; num_states];
 
+            // state is both an index into local_dp[] and a trellis syndrome value
+            // used in bitwise ops (XOR, shift, mask), so indexing by range is clearest.
+            #[allow(clippy::needless_range_loop)]
             for state in 0..num_states {
                 if local_dp[state].is_infinite() {
                     continue;

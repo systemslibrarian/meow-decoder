@@ -762,8 +762,13 @@ class TestOpaqueHandleAPI:
         comp, sha, salt, nonce, ct, key_h = encrypt_file_bytes_handle(data, "password1234")
         assert isinstance(key_h, int), "Key handle must be int"
         pt = decrypt_to_raw_handle(
-            ct, "password1234", salt, nonce,
-            orig_len=len(data), comp_len=len(comp), sha256=sha,
+            ct,
+            "password1234",
+            salt,
+            nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            sha256=sha,
         )
         assert pt == data, "Handle-based roundtrip must recover original"
         get_handle_backend().drop(key_h)
@@ -791,8 +796,13 @@ class TestOpaqueHandleAPI:
 
         with pytest.raises(Exception):
             decrypt_to_raw_handle(
-                ct, "wrong_password!", salt, nonce,
-                orig_len=len(data), comp_len=len(comp), sha256=sha,
+                ct,
+                "wrong_password!",
+                salt,
+                nonce,
+                orig_len=len(data),
+                comp_len=len(comp),
+                sha256=sha,
             )
 
     def test_handle_registry_bounded(self):
@@ -1079,17 +1089,25 @@ class TestProtocolInvariants:
     def test_hmac_verification_rejects_tampering(self):
         """Modified manifest must fail HMAC verification."""
         from meow_decoder.crypto import (
-            encrypt_file_bytes, Manifest, pack_manifest_core,
-            compute_manifest_hmac, verify_manifest_hmac,
+            encrypt_file_bytes,
+            Manifest,
+            pack_manifest_core,
+            compute_manifest_hmac,
+            verify_manifest_hmac,
         )
 
         data = b"integrity test" * 10
         comp, sha, salt, nonce, cipher, _, key = encrypt_file_bytes(data, "password1234")
 
         m = Manifest(
-            salt=salt, nonce=nonce,
-            orig_len=len(data), comp_len=len(comp), cipher_len=len(cipher),
-            sha256=sha, block_size=800, k_blocks=1,
+            salt=salt,
+            nonce=nonce,
+            orig_len=len(data),
+            comp_len=len(comp),
+            cipher_len=len(cipher),
+            sha256=sha,
+            block_size=800,
+            k_blocks=1,
             hmac=b"\x00" * 32,
         )
         packed_core = pack_manifest_core(m, include_duress_tag=False)
@@ -1100,9 +1118,14 @@ class TestProtocolInvariants:
 
         # Tampered orig_len should fail
         m_tampered = Manifest(
-            salt=m.salt, nonce=m.nonce,
-            orig_len=m.orig_len + 1, comp_len=m.comp_len, cipher_len=m.cipher_len,
-            sha256=m.sha256, block_size=m.block_size, k_blocks=m.k_blocks,
+            salt=m.salt,
+            nonce=m.nonce,
+            orig_len=m.orig_len + 1,
+            comp_len=m.comp_len,
+            cipher_len=m.cipher_len,
+            sha256=m.sha256,
+            block_size=m.block_size,
+            k_blocks=m.k_blocks,
             hmac=m.hmac,
         )
         assert verify_manifest_hmac("password1234", m_tampered) is False
@@ -1112,9 +1135,14 @@ class TestProtocolInvariants:
         from meow_decoder.crypto import unpack_manifest, pack_manifest, Manifest, MODE_MEOW3
 
         m = Manifest(
-            salt=os.urandom(16), nonce=os.urandom(12),
-            orig_len=100, comp_len=50, cipher_len=60,
-            sha256=os.urandom(32), block_size=800, k_blocks=1,
+            salt=os.urandom(16),
+            nonce=os.urandom(12),
+            orig_len=100,
+            comp_len=50,
+            cipher_len=60,
+            sha256=os.urandom(32),
+            block_size=800,
+            k_blocks=1,
             hmac=os.urandom(32),
             ephemeral_public_key=os.urandom(32),
             mode_byte=MODE_MEOW3,
@@ -1151,18 +1179,15 @@ class TestNoPythonPQFallback:
                 continue
             code_part = stripped.split("#")[0] if "#" in stripped else stripped
             if "import oqs" in code_part or "from oqs" in code_part:
-                pytest.fail(
-                    f"pq_hybrid.py:{lineno} still imports oqs Python library: {stripped}"
-                )
+                pytest.fail(f"pq_hybrid.py:{lineno} still imports oqs Python library: {stripped}")
             if "oqs.KeyEncapsulation" in code_part:
-                pytest.fail(
-                    f"pq_hybrid.py:{lineno} still uses oqs.KeyEncapsulation: {stripped}"
-                )
+                pytest.fail(f"pq_hybrid.py:{lineno} still uses oqs.KeyEncapsulation: {stripped}")
 
     def test_pq_check_uses_rust(self):
         """check_pq_available must check Rust PQ, not Python oqs."""
         try:
             from meow_decoder.pq_hybrid import check_pq_available
+
             # Should not raise
             result = check_pq_available()
             # May return bool or (bool, str) tuple

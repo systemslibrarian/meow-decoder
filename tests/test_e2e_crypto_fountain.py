@@ -470,6 +470,7 @@ class TestPQHybridRoundtrip:
             hybrid_decapsulate,
             generate_hybrid_keypair,
         )
+
         keypair_sender = generate_hybrid_keypair()
         keypair_wrong = generate_hybrid_keypair()
 

@@ -36,19 +36,18 @@ import secrets
 import struct
 from typing import Optional, Tuple
 
-
 # ── Size Classes ──
 # Exponential classes (powers of 4 × 1KB) to limit fingerprinting.
 # An observer sees only the size class, not the actual payload size.
 SIZE_CLASSES = [
-    4_096,        # 4 KB
-    16_384,       # 16 KB
-    65_536,       # 64 KB
-    262_144,      # 256 KB
-    1_048_576,    # 1 MB
-    4_194_304,    # 4 MB
-    16_777_216,   # 16 MB
-    67_108_864,   # 64 MB
+    4_096,  # 4 KB
+    16_384,  # 16 KB
+    65_536,  # 64 KB
+    262_144,  # 256 KB
+    1_048_576,  # 1 MB
+    4_194_304,  # 4 MB
+    16_777_216,  # 16 MB
+    67_108_864,  # 64 MB
 ]
 
 # Maximum allowed payload size before padding
@@ -170,7 +169,7 @@ def unpad_from_size_class(padded_data: bytes) -> bytes:
             f"{len(padded_data) - PADDING_HEADER_SIZE} available"
         )
 
-    return padded_data[PADDING_HEADER_SIZE:PADDING_HEADER_SIZE + original_len]
+    return padded_data[PADDING_HEADER_SIZE : PADDING_HEADER_SIZE + original_len]
 
 
 def get_size_class_for_display(size_class: int) -> str:
@@ -280,9 +279,7 @@ def compute_frame_metadata(
         "normalized_frames": normalized_frames,
         "padding_frames": normalized_frames - actual_frames,
         "padding_ratio": (
-            (normalized_frames - actual_frames) / actual_frames
-            if actual_frames > 0
-            else 0.0
+            (normalized_frames - actual_frames) / actual_frames if actual_frames > 0 else 0.0
         ),
         "quantum": FRAME_QUANTUM,
     }

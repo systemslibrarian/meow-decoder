@@ -80,6 +80,7 @@ class DuressHandler:
         if not isinstance(data, bytearray):
             return
         import ctypes
+
         ctypes.memset((ctypes.c_char * len(data)).from_buffer(data), 0, len(data))
 
     def set_passwords(self, duress_password: str, real_password: str, salt: bytes):

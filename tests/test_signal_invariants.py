@@ -126,6 +126,7 @@ class TestInvariant1_BackwardSecrecy:
     def test_chain_key_is_one_way(self):
         """Given chain_key[N], chain_key[N-1] is not derivable."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         chain_keys = [hb.export_key(state.chain_key)]
@@ -441,6 +442,7 @@ class TestInvariant6_NonceUniqueness:
     def test_100_frames_all_unique_pairs(self):
         """100 consecutive frames have 100 unique (key, nonce) pairs."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
@@ -457,6 +459,7 @@ class TestInvariant6_NonceUniqueness:
     def test_encryption_keys_all_unique(self):
         """All 100 encryption keys are distinct."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
 
@@ -623,6 +626,7 @@ class TestRatchetDeterminism:
     def test_same_inputs_same_outputs_ratchet(self):
         """Identical init → identical chain progression."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         s1 = init_ratchet(ROOT_KEY, SALT)
         s2 = init_ratchet(ROOT_KEY, SALT)
@@ -635,6 +639,7 @@ class TestRatchetDeterminism:
     def test_same_inputs_same_frame_keys(self):
         """Same message key + salt → same (enc_key, nonce, mac_key)."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         state = init_ratchet(ROOT_KEY, SALT)
         mk, _ = ratchet_step(state)

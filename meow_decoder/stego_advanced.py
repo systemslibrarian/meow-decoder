@@ -503,6 +503,7 @@ def encode_with_stego(
     # Generate a session seed for deterministic noise
     import secrets
     import hashlib
+
     session_seed = secrets.token_bytes(32)
 
     for i, qr_frame in enumerate(qr_frames):
@@ -512,6 +513,7 @@ def encode_with_stego(
         if stealth_level == StealthLevel.PARANOID:
             try:
                 from meow_decoder.adversarial_carrier import adversarial_embed
+
                 algo = rotation_schedule[i % len(rotation_schedule)]
                 # Seed is deterministic per frame to allow reproducible tests if needed,
                 # but unique per session

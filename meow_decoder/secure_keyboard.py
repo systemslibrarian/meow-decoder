@@ -175,6 +175,7 @@ class SecureKeyboard:
         """Check if GUI (tkinter) is available."""
         try:
             import tkinter as tk
+
             # Test if display is available
             root = tk.Tk()
             root.withdraw()
@@ -186,9 +187,7 @@ class SecureKeyboard:
     def _generate_layout(self) -> List[List[str]]:
         """Generate potentially randomized keyboard layout."""
         # Combine layouts
-        layout = [
-            row.copy() for row in self.LAYOUT_QWERTY
-        ]
+        layout = [row.copy() for row in self.LAYOUT_QWERTY]
 
         if self.randomize_layout:
             # Shuffle within each row
@@ -203,9 +202,10 @@ class SecureKeyboard:
     def _add_timing_jitter(self) -> None:
         """Add timing jitter to defeat keystroke timing analysis."""
         if self.timing_normalize:
-            jitter_ms = secrets.randbelow(
-                self.max_keystroke_ms - self.min_keystroke_ms
-            ) + self.min_keystroke_ms
+            jitter_ms = (
+                secrets.randbelow(self.max_keystroke_ms - self.min_keystroke_ms)
+                + self.min_keystroke_ms
+            )
             time.sleep(jitter_ms / 1000.0)
 
     def _generate_decoy_mask(self, length: int) -> str:
@@ -227,9 +227,9 @@ class SecureKeyboard:
             leading = secrets.randbelow(3)
             trailing = secrets.randbelow(3)
             mask = (
-                [secrets.choice(decoy_chars) for _ in range(leading)] +
-                mask +
-                [secrets.choice(decoy_chars) for _ in range(trailing)]
+                [secrets.choice(decoy_chars) for _ in range(leading)]
+                + mask
+                + [secrets.choice(decoy_chars) for _ in range(trailing)]
             )
 
         return "".join(mask)
@@ -665,7 +665,7 @@ class MouseGesturePassword:
             if os.environ.get("DISPLAY") or platform.system() == "Windows":
                 captured_points = self._capture_path_gui()
         except Exception:
-            captured_points = None # Fallback to CLI
+            captured_points = None  # Fallback to CLI
 
         if captured_points is None:
             # Fallback to CLI
@@ -679,7 +679,6 @@ class MouseGesturePassword:
         # Use a strong, standard KDF like BLAKE2b
         digest = hashlib.blake2b(quantized_bytes, digest_size=32).hexdigest()
         return digest
-
 
         return bytes(path)
 

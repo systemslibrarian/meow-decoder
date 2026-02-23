@@ -73,13 +73,17 @@ def schrodinger_decode_data(
 
     # EQUALIZED-01: Derive BOTH keys upfront — Argon2id is the dominant cost.
     master_meta_key_a = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        password.encode("utf-8"),
+        manifest.salt_a,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
     master_meta_key_b = hb.derive_key_argon2id(
-        password.encode("utf-8"), manifest.salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        password.encode("utf-8"),
+        manifest.salt_b,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
 
@@ -107,12 +111,8 @@ def schrodinger_decode_data(
     hb.drop(hmac_key_b)
 
     # EQUALIZED-02: Check BOTH HMACs in constant time — no early exit.
-    is_reality_a = _get_backend().constant_time_compare(
-        expected_hmac_a, manifest.reality_a_hmac
-    )
-    is_reality_b = _get_backend().constant_time_compare(
-        expected_hmac_b, manifest.reality_b_hmac
-    )
+    is_reality_a = _get_backend().constant_time_compare(expected_hmac_a, manifest.reality_a_hmac)
+    is_reality_b = _get_backend().constant_time_compare(expected_hmac_b, manifest.reality_b_hmac)
 
     # EQUALIZED-03: Always derive BOTH enc keys, regardless of HMAC result.
     # This prevents timing oracles on the key-derivation path.
@@ -181,13 +181,18 @@ def schrodinger_decode_data(
 
     if is_reality_a and metadata_a_plain is not None:
         try:
-            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = \
-                _unpack_metadata(metadata_a_plain)
+            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = _unpack_metadata(
+                metadata_a_plain
+            )
             ciphertext_a = collapse_to_reality(superposition, 0)[:cipher_len]
             plaintext = decrypt_to_raw_handle(
-                cipher=ciphertext_a, password=password,
-                salt=salt_enc, nonce=nonce_enc,
-                orig_len=orig_len, comp_len=comp_len, sha256=sha256,
+                cipher=ciphertext_a,
+                password=password,
+                salt=salt_enc,
+                nonce=nonce_enc,
+                orig_len=orig_len,
+                comp_len=comp_len,
+                sha256=sha256,
             )
             return plaintext
         except Exception:
@@ -195,13 +200,18 @@ def schrodinger_decode_data(
 
     if is_reality_b and metadata_b_plain is not None:
         try:
-            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = \
-                _unpack_metadata(metadata_b_plain)
+            orig_len, comp_len, cipher_len, salt_enc, nonce_enc, sha256 = _unpack_metadata(
+                metadata_b_plain
+            )
             ciphertext_b = collapse_to_reality(superposition, 1)[:cipher_len]
             plaintext = decrypt_to_raw_handle(
-                cipher=ciphertext_b, password=password,
-                salt=salt_enc, nonce=nonce_enc,
-                orig_len=orig_len, comp_len=comp_len, sha256=sha256,
+                cipher=ciphertext_b,
+                password=password,
+                salt=salt_enc,
+                nonce=nonce_enc,
+                orig_len=orig_len,
+                comp_len=comp_len,
+                sha256=sha256,
             )
             return plaintext
         except Exception:
@@ -302,9 +312,7 @@ def schrodinger_decode_file(
     _zero_seed = b"\x00" * 16
     if manifest.frame_mac_seed != _zero_seed:
         # v0x08 (current): derive key from public seed and verify MAC
-        frame_mac_master = backend.sha256(
-            manifest.frame_mac_seed + _FRAME_MAC_SEED_INFO
-        )
+        frame_mac_master = backend.sha256(manifest.frame_mac_seed + _FRAME_MAC_SEED_INFO)
         frame0_valid = verify_frame_mac(
             manifest_payload,
             frame0_mac_bytes,
@@ -395,9 +403,7 @@ def schrodinger_decode_file(
     plaintext = schrodinger_decode_data(superposition, manifest, password)
 
     if plaintext is None:
-        raise ValueError(
-            "Password does not match either reality — authentication failed"
-        )
+        raise ValueError("Password does not match either reality — authentication failed")
 
     # Write output
     with open(output, "wb") as f:
@@ -455,12 +461,14 @@ Examples:
     except Exception as e:
         try:
             from .cat_errors import cat_translate_error
+
             cat_msg = cat_translate_error(e)
             print(f"\n{cat_msg}", file=sys.stderr)
         except ImportError:
             print(f"\n\u274c Decoding failed: invalid input or internal error", file=sys.stderr)
         if args.debug:
             import traceback
+
             traceback.print_exc()
         return 1
 

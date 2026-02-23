@@ -24,7 +24,6 @@ from unittest import mock
 
 import pytest
 
-
 # ============================================================================
 # Shamir Secret Sharing Tests
 # ============================================================================
@@ -36,8 +35,9 @@ class TestShamirSplit:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import shamir_split
-        assert hasattr(shamir_split, 'shamir_split')
-        assert hasattr(shamir_split, 'shamir_combine')
+
+        assert hasattr(shamir_split, "shamir_split")
+        assert hasattr(shamir_split, "shamir_combine")
 
     def test_basic_split_combine(self):
         """Basic (3,5) split and combine."""
@@ -68,6 +68,7 @@ class TestShamirSplit:
 
         # Try different combinations
         import itertools
+
         for combo in itertools.combinations(range(num_shares), threshold):
             selected = [shares[i] for i in combo]
             recovered = shamir_combine(selected, threshold)
@@ -144,8 +145,9 @@ class TestTamperDetection:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import tamper_detection
-        assert hasattr(tamper_detection, 'TamperDetector')
-        assert hasattr(tamper_detection, 'TamperState')
+
+        assert hasattr(tamper_detection, "TamperDetector")
+        assert hasattr(tamper_detection, "TamperState")
 
     def test_baseline_initialization(self):
         """Baseline should initialize correctly."""
@@ -245,8 +247,9 @@ class TestEnvSafety:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import env_safety
-        assert hasattr(env_safety, 'EnvironmentSafety')
-        assert hasattr(env_safety, 'SafetyReport')
+
+        assert hasattr(env_safety, "EnvironmentSafety")
+        assert hasattr(env_safety, "SafetyReport")
 
     def test_basic_check(self):
         """Basic safety check should return report."""
@@ -256,8 +259,8 @@ class TestEnvSafety:
         report = safety.check_all()
 
         assert report is not None
-        assert hasattr(report, 'is_safe')
-        assert hasattr(report, 'risks')
+        assert hasattr(report, "is_safe")
+        assert hasattr(report, "risks")
         assert report.checks_performed > 0
 
     def test_risk_category_enum(self):
@@ -275,11 +278,13 @@ class TestEnvSafety:
         report = SafetyReport(is_safe=True)
         assert report.is_safe
 
-        report.add_risk(Risk(
-            category=RiskCategory.DEBUGGER,
-            description="Test risk",
-            severity="high",
-        ))
+        report.add_risk(
+            Risk(
+                category=RiskCategory.DEBUGGER,
+                description="Test risk",
+                severity="high",
+            )
+        )
 
         assert not report.is_safe
         assert len(report.risks) == 1
@@ -299,10 +304,7 @@ class TestEnvSafety:
 
         assert report1 is not report3  # New object
 
-    @pytest.mark.skipif(
-        platform.system() != "Linux",
-        reason="Linux-specific test"
-    )
+    @pytest.mark.skipif(platform.system() != "Linux", reason="Linux-specific test")
     def test_linux_ptrace_check(self):
         """Linux ptrace check should not raise."""
         from meow_decoder.env_safety import EnvironmentSafety
@@ -324,8 +326,9 @@ class TestMasterRatchet:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import master_ratchet
-        assert hasattr(master_ratchet, 'MasterRatchet')
-        assert hasattr(master_ratchet, 'ChainState')
+
+        assert hasattr(master_ratchet, "MasterRatchet")
+        assert hasattr(master_ratchet, "ChainState")
 
     def test_create_from_password(self):
         """Ratchet should create from password."""
@@ -462,19 +465,20 @@ class TestSecureKeyboard:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import secure_keyboard
-        assert hasattr(secure_keyboard, 'SecureKeyboard')
-        assert hasattr(secure_keyboard, 'SecureString')
+
+        assert hasattr(secure_keyboard, "SecureKeyboard")
+        assert hasattr(secure_keyboard, "SecureString")
 
     def test_secure_string_operations(self):
         """SecureString basic operations."""
         from meow_decoder.secure_keyboard import SecureString
 
         s = SecureString()
-        s.append_char('a')
-        s.append_char('b')
-        s.append_char('c')
+        s.append_char("a")
+        s.append_char("b")
+        s.append_char("c")
 
-        assert s.get_value() == 'abc'
+        assert s.get_value() == "abc"
         assert len(s) == 3
 
     def test_secure_string_backspace(self):
@@ -482,31 +486,32 @@ class TestSecureKeyboard:
         from meow_decoder.secure_keyboard import SecureString
 
         s = SecureString()
-        s.append_char('a')
-        s.append_char('b')
+        s.append_char("a")
+        s.append_char("b")
         s.backspace()
 
-        assert s.get_value() == 'a'
+        assert s.get_value() == "a"
 
     def test_secure_string_clear(self):
         """SecureString clear."""
         from meow_decoder.secure_keyboard import SecureString
 
         s = SecureString()
-        s.append_char('s')
-        s.append_char('e')
-        s.append_char('c')
-        s.append_char('r')
-        s.append_char('e')
-        s.append_char('t')
+        s.append_char("s")
+        s.append_char("e")
+        s.append_char("c")
+        s.append_char("r")
+        s.append_char("e")
+        s.append_char("t")
 
         s.clear()
-        assert s.get_value() == ''
+        assert s.get_value() == ""
         assert len(s) == 0
 
     def test_timing_normalized_input_exists(self):
         """timing_normalized_input function should exist."""
         from meow_decoder.secure_keyboard import timing_normalized_input
+
         assert callable(timing_normalized_input)
 
     def test_keyboard_layout_generation(self):
@@ -591,8 +596,9 @@ class TestAdversarialCarrier:
     def test_import(self):
         """Module should import without errors."""
         from meow_decoder import adversarial_carrier
-        assert hasattr(adversarial_carrier, 'AdversarialNoiseGenerator')
-        assert hasattr(adversarial_carrier, 'generate_carrier_noise')
+
+        assert hasattr(adversarial_carrier, "AdversarialNoiseGenerator")
+        assert hasattr(adversarial_carrier, "generate_carrier_noise")
 
     def test_seeded_rng_determinism(self):
         """Seeded RNG should be deterministic."""
@@ -722,7 +728,7 @@ class TestPhase5Integration:
 
         # Should complete without error
         assert isinstance(tampered, bool)
-        assert hasattr(report, 'is_safe')
+        assert hasattr(report, "is_safe")
 
     def test_ratchet_emergency_wipe_sequence(self):
         """Emergency wipe should work in sequence."""
@@ -1054,9 +1060,7 @@ class TestPQRatchetBeacon:
         receiver_keypair = generate_beacon_keypair()
 
         # Sender creates beacon with receiver's public key
-        sender_beacon = PQRatchetBeacon(
-            receiver_public_key=receiver_keypair.public_key
-        )
+        sender_beacon = PQRatchetBeacon(receiver_public_key=receiver_keypair.public_key)
         message_key = os.urandom(32)
         ciphertext, sender_enhanced = sender_beacon.encapsulate(message_key)
 

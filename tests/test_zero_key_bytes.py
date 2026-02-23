@@ -66,14 +66,10 @@ class _ExportKeyVisitor(ast.NodeVisitor):
         if isinstance(node.func, ast.Attribute):
             if node.func.attr == "export_key":
                 loc = f"line {node.lineno}"
-                self.violations.append(
-                    f"export_key() call at {loc}"
-                )
+                self.violations.append(f"export_key() call at {loc}")
             if node.func.attr == "handle_export_key":
                 loc = f"line {node.lineno}"
-                self.violations.append(
-                    f"handle_export_key() call at {loc}"
-                )
+                self.violations.append(f"handle_export_key() call at {loc}")
         self.generic_visit(node)
 
 
@@ -90,9 +86,7 @@ class _RawKeyMaterialVisitor(ast.NodeVisitor):
         for target in node.targets:
             if isinstance(target, ast.Name) and target.id in self.SUSPICIOUS_NAMES:
                 # Check RHS is an export_key call
-                if isinstance(node.value, ast.Call) and isinstance(
-                    node.value.func, ast.Attribute
-                ):
+                if isinstance(node.value, ast.Call) and isinstance(node.value.func, ast.Attribute):
                     if node.value.func.attr in ("export_key", "handle_export_key"):
                         self.violations.append(
                             f"Raw key assignment `{target.id} = ...export_key(...)` "
@@ -114,18 +108,16 @@ class TestASTNoExportKey:
         tree = _get_source_ast(func)
         visitor = _ExportKeyVisitor()
         visitor.visit(tree)
-        assert not visitor.violations, (
-            f"{func.__name__} leaks key bytes via: {visitor.violations}"
-        )
+        assert not visitor.violations, f"{func.__name__} leaks key bytes via: {visitor.violations}"
 
     @pytest.mark.parametrize("func", PRODUCTION_FUNCTIONS, ids=lambda f: f.__name__)
     def test_no_raw_key_assignment(self, func):
         tree = _get_source_ast(func)
         visitor = _RawKeyMaterialVisitor()
         visitor.visit(tree)
-        assert not visitor.violations, (
-            f"{func.__name__} materialises raw key bytes: {visitor.violations}"
-        )
+        assert (
+            not visitor.violations
+        ), f"{func.__name__} materialises raw key bytes: {visitor.violations}"
 
 
 # ===========================================================================
@@ -146,9 +138,7 @@ class TestHandleTypes:
             salt=salt,
         )
         try:
-            assert isinstance(handle, int), (
-                f"Expected int handle, got {type(handle).__name__}"
-            )
+            assert isinstance(handle, int), f"Expected int handle, got {type(handle).__name__}"
             assert hb.exists(handle), "Handle must be valid in the registry"
         finally:
             hb.drop(handle)
@@ -157,17 +147,15 @@ class TestHandleTypes:
         """encrypt_file_bytes_production key_handle must be int."""
         data = b"enforcement test payload"
         password = secrets.token_hex(16)
-        comp, sha, salt, nonce, cipher, epk, key_handle = (
-            encrypt_file_bytes_production(
-                raw=data,
-                password=password,
-            )
+        comp, sha, salt, nonce, cipher, epk, key_handle = encrypt_file_bytes_production(
+            raw=data,
+            password=password,
         )
         hb = get_handle_backend()
         try:
-            assert isinstance(key_handle, int), (
-                f"Expected int handle, got {type(key_handle).__name__}"
-            )
+            assert isinstance(
+                key_handle, int
+            ), f"Expected int handle, got {type(key_handle).__name__}"
             assert not isinstance(key_handle, bytes)
             assert hb.exists(key_handle), "Handle must be valid"
         finally:
@@ -185,7 +173,9 @@ class TestHandleTypes:
         packed_no_hmac = b"MEOW3" + b"\x00" * 100  # Dummy manifest
         try:
             hmac_tag = compute_manifest_hmac_from_handle(
-                handle, salt, packed_no_hmac,
+                handle,
+                salt,
+                packed_no_hmac,
             )
             assert isinstance(hmac_tag, bytes)
             assert len(hmac_tag) == 32, "HMAC-SHA256 must produce 32-byte tag"
@@ -208,11 +198,9 @@ class TestProductionRoundtrip:
         hb = get_handle_backend()
 
         # Encrypt
-        comp, sha, salt, nonce, cipher, epk, enc_handle = (
-            encrypt_file_bytes_production(
-                raw=data,
-                password=password,
-            )
+        comp, sha, salt, nonce, cipher, epk, enc_handle = encrypt_file_bytes_production(
+            raw=data,
+            password=password,
         )
         assert isinstance(enc_handle, int)
         hb.drop(enc_handle)
@@ -282,11 +270,9 @@ class TestProductionRoundtrip:
         wrong_password = secrets.token_hex(16)
         hb = get_handle_backend()
 
-        comp, sha, salt, nonce, cipher, epk, enc_handle = (
-            encrypt_file_bytes_production(
-                raw=data,
-                password=password,
-            )
+        comp, sha, salt, nonce, cipher, epk, enc_handle = encrypt_file_bytes_production(
+            raw=data,
+            password=password,
         )
         hb.drop(enc_handle)
 
@@ -311,7 +297,8 @@ class TestProductionRoundtrip:
         password = secrets.token_hex(16)
 
         _, _, _, _, _, _, key_handle = encrypt_file_bytes_production(
-            raw=b"drop test", password=password,
+            raw=b"drop test",
+            password=password,
         )
         # One new handle exists
         assert hb.count() == initial_count + 1

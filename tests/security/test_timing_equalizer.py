@@ -26,7 +26,6 @@ from meow_decoder.timing_equalizer import (
     MIN_SLEEP_MS,
 )
 
-
 # ══════════════════════════════════════════════════════════════
 #  TimingResult
 # ══════════════════════════════════════════════════════════════
@@ -119,6 +118,7 @@ class TestEqualizeTiming:
 
     def test_args_and_kwargs_passed(self):
         """Arguments are correctly forwarded to the wrapped function."""
+
         def add(a, b, c=0):
             return a + b + c
 
@@ -128,6 +128,7 @@ class TestEqualizeTiming:
 
     def test_elapsed_ms_recorded(self):
         """elapsed_ms should reflect actual execution time, not padded time."""
+
         def fast():
             return 42
 
@@ -200,10 +201,14 @@ class TestConstantTimePasswordCheck:
         def check(pw):
             return True
 
-        constant_time_password_check(check, "any", dummy_work=dummy, target_ms=200, jitter_percent=0)
+        constant_time_password_check(
+            check, "any", dummy_work=dummy, target_ms=200, jitter_percent=0
+        )
         assert dummy_called["count"] == 1
 
-        constant_time_password_check(check, "any", dummy_work=dummy, target_ms=200, jitter_percent=0)
+        constant_time_password_check(
+            check, "any", dummy_work=dummy, target_ms=200, jitter_percent=0
+        )
         assert dummy_called["count"] == 2
 
     def test_timing_equalized_correct_vs_wrong(self):
@@ -220,7 +225,9 @@ class TestConstantTimePasswordCheck:
         correct_times = []
         wrong_times = []
         for _ in range(5):
-            r = constant_time_password_check(check, "correct", target_ms=target_ms, jitter_percent=0)
+            r = constant_time_password_check(
+                check, "correct", target_ms=target_ms, jitter_percent=0
+            )
             correct_times.append(r.padded_ms)
             r = constant_time_password_check(check, "wrong", target_ms=target_ms, jitter_percent=0)
             wrong_times.append(r.padded_ms)
@@ -248,7 +255,11 @@ class TestDuressTimingEqualizer:
         dummy = MagicMock()
 
         result = duress_timing_equalizer(
-            real_check, dummy, "password", target_ms=200, jitter_percent=0,
+            real_check,
+            dummy,
+            "password",
+            target_ms=200,
+            jitter_percent=0,
         )
         assert result.success is True
         assert result.value == (True, False)
@@ -261,7 +272,11 @@ class TestDuressTimingEqualizer:
         dummy = MagicMock()
 
         result = duress_timing_equalizer(
-            real_check, dummy, "duress_pw", target_ms=200, jitter_percent=0,
+            real_check,
+            dummy,
+            "duress_pw",
+            target_ms=200,
+            jitter_percent=0,
         )
         assert result.success is True
         assert result.value == (True, True)
@@ -274,7 +289,11 @@ class TestDuressTimingEqualizer:
         dummy = MagicMock()
 
         result = duress_timing_equalizer(
-            real_check, dummy, "bad", target_ms=200, jitter_percent=0,
+            real_check,
+            dummy,
+            "bad",
+            target_ms=200,
+            jitter_percent=0,
         )
         assert result.success is True
         assert result.value == (False, False)
@@ -288,11 +307,16 @@ class TestDuressTimingEqualizer:
             calls.append(1)
 
         for pw_result in [(True, False), (True, True), (False, False)]:
+
             def check(pw, _result=pw_result):
                 return _result
 
             duress_timing_equalizer(
-                check, dummy, "pw", target_ms=100, jitter_percent=0,
+                check,
+                dummy,
+                "pw",
+                target_ms=100,
+                jitter_percent=0,
             )
 
         assert len(calls) == 3, "Dummy Argon2id should be called 3 times (one per path)"

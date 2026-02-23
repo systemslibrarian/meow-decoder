@@ -115,15 +115,11 @@ class NonceGenerator:
         if isinstance(self._root_key, int):
             # Handle-based: nonce bytes are non-secret, safe to extract
             hb = get_handle_backend()
-            nonce = hb.derive_key_hkdf_bytes(
-                self._root_key, salt, NONCE_DOMAIN_INFO, 12
-            )
+            nonce = hb.derive_key_hkdf_bytes(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
         else:
             # Bytes-based (test/legacy path)
             backend = get_default_backend()
-            nonce = backend.derive_key_hkdf(
-                self._root_key, salt, NONCE_DOMAIN_INFO, 12
-            )
+            nonce = backend.derive_key_hkdf(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
 
         return nonce
 
@@ -150,14 +146,10 @@ class NonceGenerator:
 
         if isinstance(self._root_key, int):
             hb = get_handle_backend()
-            nonce = hb.derive_key_hkdf_bytes(
-                self._root_key, salt, NONCE_DOMAIN_INFO, 12
-            )
+            nonce = hb.derive_key_hkdf_bytes(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
         else:
             backend = get_default_backend()
-            nonce = backend.derive_key_hkdf(
-                self._root_key, salt, NONCE_DOMAIN_INFO, 12
-            )
+            nonce = backend.derive_key_hkdf(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
 
         return nonce
 

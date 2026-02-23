@@ -382,6 +382,7 @@ def _patch_encode_pipeline(monkeypatch):
     class _FakeHB:
         def drop(self, handle):
             pass
+
     monkeypatch.setattr(enc, "get_handle_backend", lambda: _FakeHB())
 
 

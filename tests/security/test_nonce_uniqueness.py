@@ -162,9 +162,7 @@ class TestCrashRestartNonceReuse:
             gen = NonceGenerator(root_key=key, manifest_hash=manifest_hash)
             for frame in range(20):
                 nonce = gen.generate(frame)
-                assert nonce not in all_nonces, (
-                    f"Collision in session {session}, frame {frame}"
-                )
+                assert nonce not in all_nonces, f"Collision in session {session}, frame {frame}"
                 all_nonces.add(nonce)
         assert len(all_nonces) == 50 * 20
 

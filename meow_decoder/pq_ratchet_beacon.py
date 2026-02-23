@@ -58,6 +58,7 @@ BEACON_DERIVE_DOMAIN = b"meow_pq_beacon_derive_v1"
 _RUST_MLKEM_AVAILABLE = False
 try:
     import meow_crypto_rs as _rs
+
     _RUST_MLKEM_AVAILABLE = hasattr(_rs, "mlkem1024_keygen")
 except ImportError:
     pass
@@ -66,6 +67,7 @@ except ImportError:
 _MLKEM_PURE_AVAILABLE = False
 try:
     from ml_kem import ML_KEM_1024  # type: ignore
+
     _MLKEM_PURE_AVAILABLE = True
 except ImportError:
     pass
@@ -74,6 +76,7 @@ except ImportError:
 _OQS_AVAILABLE = False
 try:
     import oqs  # type: ignore[import-not-found]
+
     _OQS_AVAILABLE = "Kyber1024" in oqs.get_enabled_kem_mechanisms()
 except (ImportError, AttributeError):
     pass
@@ -82,6 +85,7 @@ except (ImportError, AttributeError):
 @dataclass
 class PQBeaconKeyPair:
     """ML-KEM-1024 keypair for PQ ratchet beacons."""
+
     secret_key: bytes  # 3168 bytes
     public_key: bytes  # 1568 bytes
 
@@ -94,6 +98,7 @@ def _mlkem1024_keygen() -> Tuple[bytes, bytes]:
     """Generate ML-KEM-1024 keypair."""
     if _RUST_MLKEM_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.mlkem1024_keygen()
 
     if _MLKEM_PURE_AVAILABLE:
@@ -117,6 +122,7 @@ def _mlkem1024_encapsulate(pk: bytes) -> Tuple[bytes, bytes]:
     """Encapsulate to ML-KEM-1024 public key."""
     if _RUST_MLKEM_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.mlkem1024_encapsulate(pk)
 
     if _MLKEM_PURE_AVAILABLE:
@@ -139,6 +145,7 @@ def _mlkem1024_decapsulate(sk: bytes, ct: bytes) -> bytes:
     """Decapsulate ML-KEM-1024 ciphertext."""
     if _RUST_MLKEM_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.mlkem1024_decapsulate(sk, ct)
 
     if _MLKEM_PURE_AVAILABLE:
@@ -195,9 +202,7 @@ class PQRatchetBeacon:
         self.receiver_keypair = receiver_keypair
 
         if receiver_public_key is None and receiver_keypair is None:
-            raise ValueError(
-                "Either receiver_public_key or receiver_keypair must be provided"
-            )
+            raise ValueError("Either receiver_public_key or receiver_keypair must be provided")
 
         if receiver_keypair is not None:
             self.receiver_public_key = receiver_keypair.public_key
@@ -264,9 +269,7 @@ class PQRatchetBeacon:
             )
 
         # Decapsulate
-        shared_secret = _mlkem1024_decapsulate(
-            self.receiver_keypair.secret_key, ciphertext
-        )
+        shared_secret = _mlkem1024_decapsulate(self.receiver_keypair.secret_key, ciphertext)
 
         # Mix shared secret into message key
         enhanced_key = self._mix_beacon(message_key, shared_secret, salt)
@@ -354,9 +357,7 @@ class PQRatchetBeacon:
 
         hb = get_handle_backend()
         effective_salt = salt or b"\x00" * 32
-        return hb.mix_hkdf(
-            message_key_handle, shared_secret, effective_salt, BEACON_MIX_DOMAIN, 32
-        )
+        return hb.mix_hkdf(message_key_handle, shared_secret, effective_salt, BEACON_MIX_DOMAIN, 32)
 
 
 @dataclass
@@ -366,6 +367,7 @@ class PQBeaconFrame:
 
     Embedded in frame when beacon is active.
     """
+
     # Magic identifier
     MAGIC = b"PQBCN"
 
@@ -374,11 +376,7 @@ class PQBeaconFrame:
 
     def to_bytes(self) -> bytes:
         """Serialize beacon frame."""
-        return (
-            self.MAGIC
-            + struct.pack(">H", len(self.ciphertext))
-            + self.ciphertext
-        )
+        return self.MAGIC + struct.pack(">H", len(self.ciphertext)) + self.ciphertext
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Optional["PQBeaconFrame"]:
@@ -393,7 +391,7 @@ class PQBeaconFrame:
         if len(data) < 7 + ct_len:
             return None
 
-        ciphertext = data[7:7 + ct_len]
+        ciphertext = data[7 : 7 + ct_len]
         return cls(ciphertext=ciphertext)
 
     @classmethod

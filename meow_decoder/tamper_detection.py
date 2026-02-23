@@ -184,34 +184,35 @@ class TamperState:
 
     def compute_state_hmac(self) -> bytes:
         """Compute HMAC of state for integrity verification."""
-        state_data = json.dumps({
-            "baseline_hashes": self.baseline_hashes,
-            "baseline_timestamp": self.baseline_timestamp,
-            "tamper_count": self.tamper_count,
-            "last_tamper_time": self.last_tamper_time,
-            "tampered_modules": self.tampered_modules,
-        }, sort_keys=True).encode()
+        state_data = json.dumps(
+            {
+                "baseline_hashes": self.baseline_hashes,
+                "baseline_timestamp": self.baseline_timestamp,
+                "tamper_count": self.tamper_count,
+                "last_tamper_time": self.last_tamper_time,
+                "tampered_modules": self.tampered_modules,
+            },
+            sort_keys=True,
+        ).encode()
         return hmac.new(self.state_key, state_data, hashlib.sha256).digest()
 
     def to_bytes(self) -> bytes:
         """Serialize state with HMAC protection."""
-        state_data = json.dumps({
-            "baseline_hashes": self.baseline_hashes,
-            "baseline_timestamp": self.baseline_timestamp,
-            "tamper_count": self.tamper_count,
-            "last_tamper_time": self.last_tamper_time,
-            "tampered_modules": self.tampered_modules,
-        }, sort_keys=True).encode()
+        state_data = json.dumps(
+            {
+                "baseline_hashes": self.baseline_hashes,
+                "baseline_timestamp": self.baseline_timestamp,
+                "tamper_count": self.tamper_count,
+                "last_tamper_time": self.last_tamper_time,
+                "tampered_modules": self.tampered_modules,
+            },
+            sort_keys=True,
+        ).encode()
 
         mac = hmac.new(self.state_key, state_data, hashlib.sha256).digest()
 
         # Format: key (32) + mac (32) + length (4) + data
-        return (
-            self.state_key +
-            mac +
-            struct.pack("<I", len(state_data)) +
-            state_data
-        )
+        return self.state_key + mac + struct.pack("<I", len(state_data)) + state_data
 
     @classmethod
     def from_bytes(cls, data: bytes) -> Optional["TamperState"]:
@@ -227,7 +228,7 @@ class TamperState:
             if len(data) < 68 + length:
                 return None
 
-            state_data = data[68:68 + length]
+            state_data = data[68 : 68 + length]
 
             # Verify HMAC
             computed_mac = hmac.new(state_key, state_data, hashlib.sha256).digest()
@@ -369,9 +370,7 @@ class TamperDetector:
             self._tampered = True
             self.state.tamper_count += 1
             self.state.last_tamper_time = time.time()
-            self.state.tampered_modules = list(set(
-                self.state.tampered_modules + tampered
-            ))
+            self.state.tampered_modules = list(set(self.state.tampered_modules + tampered))
             self._save_state()
 
             # Call tamper hooks

@@ -89,7 +89,7 @@ pub fn check_guard_layout(
         // page_size > 0 (required so guards are non-empty)
         && page_size > 0
         // data region is page-aligned (GB-006)
-        && data_region_size % page_size == 0
+        && data_region_size.is_multiple_of(page_size)
         // data region covers at least one page
         && data_region_size >= page_size
 }
@@ -108,7 +108,7 @@ pub fn check_total_size_invariant(total_size: usize, data_size: usize, page_size
 
 /// **GB-006** — data_region_size is a multiple of page_size.
 pub fn check_alignment(data_region_size: usize, page_size: usize) -> bool {
-    page_size > 0 && data_region_size % page_size == 0
+    page_size > 0 && data_region_size.is_multiple_of(page_size)
 }
 
 /// **GB-007** — After drop, the data region must be all zeros (zeroize-on-drop).
@@ -516,7 +516,7 @@ mod tests {
     fn test_gb001_guard_layout_valid() {
         let page_size: usize = 4096;
         let data_size: usize = 32;
-        let data_pages = (data_size + page_size - 1) / page_size; // = 1
+        let data_pages = data_size.div_ceil(page_size); // = 1
         let data_region_size = data_pages * page_size; // = 4096
         let mmap_size = data_region_size + 2 * page_size; // = 12288
         let mmap_base: usize = 0x1000_0000;
@@ -611,7 +611,7 @@ mod tests {
         // Works for different page sizes (4K, 16K, 64K)
         for page_size in [4096_usize, 16384, 65536] {
             let data_size: usize = 100;
-            let data_pages = (data_size + page_size - 1) / page_size;
+            let data_pages = data_size.div_ceil(page_size);
             let data_region_size = data_pages * page_size;
             let mmap_size = data_region_size + 2 * page_size;
             let mmap_base: usize = 0x1000_0000;

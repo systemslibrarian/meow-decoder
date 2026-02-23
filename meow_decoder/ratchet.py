@@ -70,6 +70,7 @@ import secrets
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple, Union
 
+from .crypto_backend import get_default_backend, get_handle_backend
 from .pq_ratchet_beacon import (
     PQRatchetBeacon,
     PQBeaconFrame,
@@ -1336,9 +1337,7 @@ class DecoderRatchet:
         # the PQ keypair, decapsulate and fold the shared secret into the root.
         # This must mirror encode_next's PQ-hybrid block exactly.
         if pq_ct is not None and self._receiver_pq_keypair is not None:
-            pq_shared = _mlkem1024_decapsulate(
-                self._receiver_pq_keypair.secret_key, pq_ct
-            )
+            pq_shared = _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
             new_root_h = _fold_pq_into_root(new_root_h, pq_shared, epoch)
             # Zeroize Python-side copy (defense in depth)
             pq_shared = b"\x00" * len(pq_shared)
@@ -1459,10 +1458,10 @@ class DecoderRatchet:
         frame_index = self._header_lookup[enc_idx]
 
         # Step 2: Extract commitment tag
-        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE: FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
+        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
 
         # Frame body = everything after index + commitment
-        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE:]
+        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE :]
 
         # Step 3: Replay detection
         if frame_index in self._consumed_indices:
@@ -1535,10 +1534,7 @@ class DecoderRatchet:
             #    the root key by _execute_rekey() → only strip PQ beacon bytes.
             # B. PQ-only fallback (is_asym_rekey=False, no X25519 key): mix PQ
             #    shared secret into the message key (mirrors encoder fallback).
-            if (
-                self._is_rekey_frame(frame_index)
-                and self._receiver_pq_keypair is not None
-            ):
+            if self._is_rekey_frame(frame_index) and self._receiver_pq_keypair is not None:
                 pq_frame = PQBeaconFrame.from_bytes(ciphertext_body)
                 if pq_frame is not None:
                     if not is_asym_rekey:
@@ -1547,9 +1543,7 @@ class DecoderRatchet:
                             self._receiver_pq_keypair.secret_key,
                             pq_frame.ciphertext,
                         )
-                        new_mk_handle = _mix_pq_beacon_handle(
-                            msg_key_handle, pq_shared, self._salt
-                        )
+                        new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
                         hb.drop(msg_key_handle)
                         msg_key_handle = new_mk_handle
                         # Zeroize Python-side copy (defense in depth)

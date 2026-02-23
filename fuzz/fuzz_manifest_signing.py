@@ -43,10 +43,14 @@ def _setup_imports():
     import secrets
 
     return (
-        ManifestSignature, SigningKeyPair,
-        generate_signing_keypair, sign_manifest,
-        verify_manifest_signature, compute_public_key_commitment,
-        _ed25519_verify, _mldsa65_verify,
+        ManifestSignature,
+        SigningKeyPair,
+        generate_signing_keypair,
+        sign_manifest,
+        verify_manifest_signature,
+        compute_public_key_commitment,
+        _ed25519_verify,
+        _mldsa65_verify,
         secrets,
     )
 
@@ -54,18 +58,26 @@ def _setup_imports():
 if atheris is not None:
     with atheris.instrument_imports():
         (
-            ManifestSignature, SigningKeyPair,
-            generate_signing_keypair, sign_manifest,
-            verify_manifest_signature, compute_public_key_commitment,
-            _ed25519_verify, _mldsa65_verify,
+            ManifestSignature,
+            SigningKeyPair,
+            generate_signing_keypair,
+            sign_manifest,
+            verify_manifest_signature,
+            compute_public_key_commitment,
+            _ed25519_verify,
+            _mldsa65_verify,
             secrets,
         ) = _setup_imports()
 else:
     (
-        ManifestSignature, SigningKeyPair,
-        generate_signing_keypair, sign_manifest,
-        verify_manifest_signature, compute_public_key_commitment,
-        _ed25519_verify, _mldsa65_verify,
+        ManifestSignature,
+        SigningKeyPair,
+        generate_signing_keypair,
+        sign_manifest,
+        verify_manifest_signature,
+        compute_public_key_commitment,
+        _ed25519_verify,
+        _mldsa65_verify,
         secrets,
     ) = _setup_imports()
 
@@ -166,10 +178,19 @@ def fuzz_verify_corrupt_signature(data: bytes):
         pass
     except Exception as e:
         error_msg = str(e).lower()
-        if any(x in error_msg for x in [
-            "signature", "verify", "invalid", "failed", "ed25519", "mldsa",
-            "dilithium", "key"
-        ]):
+        if any(
+            x in error_msg
+            for x in [
+                "signature",
+                "verify",
+                "invalid",
+                "failed",
+                "ed25519",
+                "mldsa",
+                "dilithium",
+                "key",
+            ]
+        ):
             pass
         else:
             raise
@@ -202,9 +223,7 @@ def fuzz_verify_corrupt_pubkey(data: bytes):
         pass
     except Exception as e:
         error_msg = str(e).lower()
-        if any(x in error_msg for x in [
-            "key", "short", "invalid", "verify", "failed"
-        ]):
+        if any(x in error_msg for x in ["key", "short", "invalid", "verify", "failed"]):
             pass
         else:
             raise
@@ -255,9 +274,7 @@ def fuzz_sign_verify_wrong_context(data: bytes):
 
     try:
         sig = sign_manifest(keypair, manifest, context=context_a)
-        verify_manifest_signature(
-            keypair.export_public_key(), manifest, sig, context=context_b
-        )
+        verify_manifest_signature(keypair.export_public_key(), manifest, sig, context=context_b)
         # Should have raised ValueError — contexts differ
         assert False, "Verification should fail with different context"
     except ValueError:

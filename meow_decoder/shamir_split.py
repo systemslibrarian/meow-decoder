@@ -21,6 +21,7 @@ Example:
     recovered = shamir_combine(shares[:2], threshold=2)
     assert recovered == gif_bytes
 """
+
 from __future__ import annotations
 
 import secrets
@@ -32,6 +33,7 @@ from typing import List, Tuple
 # This is a primitive polynomial where 2 is a primitive element (order 255)
 GF_EXP = [0] * 512  # Anti-log table
 GF_LOG = [0] * 256  # Log table
+
 
 def _init_gf_tables():
     """Initialize GF(2^8) lookup tables."""
@@ -45,6 +47,7 @@ def _init_gf_tables():
     # Extend exp table for easier multiplication
     for i in range(255, 512):
         GF_EXP[i] = GF_EXP[i - 255]
+
 
 _init_gf_tables()
 
@@ -112,12 +115,13 @@ def _lagrange_interpolate(shares: List[Tuple[int, int]], x: int = 0) -> int:
 @dataclass
 class ShamirShare:
     """A single Shamir share."""
-    share_id: int           # 1-indexed share identifier (x coordinate)
-    threshold: int          # Minimum shares needed to reconstruct
-    total_shares: int       # Total number of shares created
-    data: bytes             # The share data (y coordinates for each byte)
-    share_checksum: bytes   # SHA-256 of data for integrity verification
-    set_id: bytes = b"\x00" * 16 # 16-byte random ID binding the share set together
+
+    share_id: int  # 1-indexed share identifier (x coordinate)
+    threshold: int  # Minimum shares needed to reconstruct
+    total_shares: int  # Total number of shares created
+    data: bytes  # The share data (y coordinates for each byte)
+    share_checksum: bytes  # SHA-256 of data for integrity verification
+    set_id: bytes = b"\x00" * 16  # 16-byte random ID binding the share set together
 
     def to_bytes(self) -> bytes:
         """Serialize share to bytes for storage/transmission."""
@@ -125,8 +129,8 @@ class ShamirShare:
         #         data_len(4) | set_id(16) | data | checksum(32)
         header = struct.pack(
             ">4sBBBBI16s",
-            b"MSHR",           # Magic: Meow SHamiR
-            2,                 # Version 2 (adds set_id)
+            b"MSHR",  # Magic: Meow SHamiR
+            2,  # Version 2 (adds set_id)
             self.share_id,
             self.threshold,
             self.total_shares,
@@ -153,7 +157,7 @@ class ShamirShare:
             header_len = 12
         elif version == 2:
             # v2 format with set_id
-            if len(raw) < 60: # header(28) + checksum(32)
+            if len(raw) < 60:  # header(28) + checksum(32)
                 raise ValueError("Share data too short for v2")
             share_id, threshold, total, data_len, set_id = struct.unpack(">BBBI16s", raw[5:28])
             header_len = 28
@@ -163,13 +167,15 @@ class ShamirShare:
         if len(raw) < header_len + data_len + 32:
             raise ValueError("Share data truncated")
 
-        data = raw[header_len:header_len + data_len]
-        checksum = raw[header_len + data_len:header_len + data_len + 32]
+        data = raw[header_len : header_len + data_len]
+        checksum = raw[header_len + data_len : header_len + data_len + 32]
 
         # Verify checksum
         import hashlib
+
         expected = hashlib.sha256(data).digest()
         import secrets
+
         if not secrets.compare_digest(expected, checksum):
             raise ValueError("Share checksum mismatch — possible tampering")
 
@@ -261,14 +267,16 @@ def shamir_split(
     for i, data in enumerate(shares_data):
         data_bytes = bytes(data)
         checksum = hashlib.sha256(data_bytes).digest()
-        result.append(ShamirShare(
-            share_id=i + 1,
-            threshold=threshold,
-            total_shares=num_shares,
-            data=data_bytes,
-            share_checksum=checksum,
-            set_id=set_id,
-        ))
+        result.append(
+            ShamirShare(
+                share_id=i + 1,
+                threshold=threshold,
+                total_shares=num_shares,
+                data=data_bytes,
+                share_checksum=checksum,
+                set_id=set_id,
+            )
+        )
 
     return result
 
@@ -295,9 +303,7 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
         threshold = shares[0].threshold
 
     if len(shares) < threshold:
-        raise ValueError(
-            f"Need at least {threshold} shares, got {len(shares)}"
-        )
+        raise ValueError(f"Need at least {threshold} shares, got {len(shares)}")
 
     # Verify all shares have consistent parameters
     data_len = len(shares[0].data)
@@ -305,13 +311,9 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
 
     for share in shares:
         if share.threshold != threshold:
-            raise ValueError(
-                f"Inconsistent threshold: {share.threshold} vs {threshold}"
-            )
+            raise ValueError(f"Inconsistent threshold: {share.threshold} vs {threshold}")
         if len(share.data) != data_len:
-            raise ValueError(
-                f"Inconsistent data length: {len(share.data)} vs {data_len}"
-            )
+            raise ValueError(f"Inconsistent data length: {len(share.data)} vs {data_len}")
         if share.set_id != set_id:
             # Reject mismatched set IDs unconditionally — including all-zero
             # (legacy v1) shares. Mixing unauthenticated v1 shares with v2
@@ -327,10 +329,7 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
     # Reconstruct each byte via Lagrange interpolation at x=0
     result = bytearray()
     for byte_idx in range(data_len):
-        points = [
-            (share.share_id, share.data[byte_idx])
-            for share in working_shares
-        ]
+        points = [(share.share_id, share.data[byte_idx]) for share in working_shares]
         secret_byte = _lagrange_interpolate(points, x=0)
         result.append(secret_byte)
 
@@ -410,12 +409,15 @@ def combine_files_to_gif(share_paths: List[str], output_path: str) -> bool:
 
 # Cross-platform compatibility
 import sys
+
 if sys.platform == "win32":
     # Windows-specific: ensure binary mode for all file operations
     import msvcrt
     import os
+
     msvcrt.setmode(0, os.O_BINARY)  # stdin
     msvcrt.setmode(1, os.O_BINARY)  # stdout
+
 
 def main():
     import argparse
@@ -427,13 +429,21 @@ def main():
     # Split command
     split_parser = subparsers.add_parser("split", help="Split a file into shares")
     split_parser.add_argument("-i", "--input", required=True, help="Input file to split")
-    split_parser.add_argument("-o", "--output-dir", required=True, help="Output directory for shares")
-    split_parser.add_argument("-t", "--threshold", type=int, required=True, help="Minimum shares needed to reconstruct")
-    split_parser.add_argument("-n", "--num-shares", type=int, required=True, help="Total number of shares to create")
+    split_parser.add_argument(
+        "-o", "--output-dir", required=True, help="Output directory for shares"
+    )
+    split_parser.add_argument(
+        "-t", "--threshold", type=int, required=True, help="Minimum shares needed to reconstruct"
+    )
+    split_parser.add_argument(
+        "-n", "--num-shares", type=int, required=True, help="Total number of shares to create"
+    )
 
     # Combine command
     combine_parser = subparsers.add_parser("combine", help="Combine shares into a file")
-    combine_parser.add_argument("-i", "--inputs", nargs="+", required=True, help="Input share files")
+    combine_parser.add_argument(
+        "-i", "--inputs", nargs="+", required=True, help="Input share files"
+    )
     combine_parser.add_argument("-o", "--output", required=True, help="Output file")
 
     args = parser.parse_args()
@@ -457,6 +467,7 @@ def main():
         except Exception as e:
             print(f"Error combining shares: {e}", file=sys.stderr)
             sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

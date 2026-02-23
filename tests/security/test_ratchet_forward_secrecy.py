@@ -129,8 +129,16 @@ class TestForwardSecrecy:
             mk_handle, state = ratchet_step(state)
             keys = derive_frame_keys(mk_handle, salt)
 
-            enc_bytes = hb.export_key(keys.enc_key) if isinstance(keys.enc_key, int) else bytes(keys.enc_key)
-            mac_bytes = hb.export_key(keys.mac_key) if isinstance(keys.mac_key, int) else bytes(keys.mac_key)
+            enc_bytes = (
+                hb.export_key(keys.enc_key)
+                if isinstance(keys.enc_key, int)
+                else bytes(keys.enc_key)
+            )
+            mac_bytes = (
+                hb.export_key(keys.mac_key)
+                if isinstance(keys.mac_key, int)
+                else bytes(keys.mac_key)
+            )
             nonce_bytes = bytes(keys.nonce)
 
             all_enc.add(enc_bytes)
@@ -306,9 +314,9 @@ class TestNoRollback:
 
         # Verify strict monotonic increase
         for i in range(1, len(positions)):
-            assert positions[i] > positions[i - 1], (
-                f"Position did not advance: {positions[i-1]} -> {positions[i]}"
-            )
+            assert (
+                positions[i] > positions[i - 1]
+            ), f"Position did not advance: {positions[i-1]} -> {positions[i]}"
 
         state.zeroize()
 

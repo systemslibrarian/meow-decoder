@@ -35,6 +35,7 @@ class TestGuardedBuffer:
 
     def _get_cls(self):
         from meow_decoder.memory_guard import GuardedBuffer
+
         return GuardedBuffer
 
     def test_basic_write_read_roundtrip(self):
@@ -51,9 +52,9 @@ class TestGuardedBuffer:
         GuardedBuffer = self._get_cls()
         with GuardedBuffer(256) as buf:
             buf.write(b"\x00" * 256)  # zero fill
-            buf.write(b"\xAA\xBB", offset=100)
+            buf.write(b"\xaa\xbb", offset=100)
             got = buf.read(2, offset=100)
-            assert got == b"\xAA\xBB"
+            assert got == b"\xaa\xbb"
 
     def test_write_oob_raises(self):
         """Writing beyond buffer end raises ValueError."""
@@ -73,7 +74,7 @@ class TestGuardedBuffer:
         """zero() clears all buffer contents."""
         GuardedBuffer = self._get_cls()
         with GuardedBuffer(64) as buf:
-            buf.write(b"\xFF" * 64)
+            buf.write(b"\xff" * 64)
             buf.zero()
             got = buf.read(64)
             assert got == b"\x00" * 64
@@ -123,6 +124,7 @@ class TestMouseGesturePassword:
 
     def _get_cls(self):
         from meow_decoder.secure_keyboard import MouseGesturePassword
+
         return MouseGesturePassword
 
     def test_quantize_determinism(self):
@@ -154,9 +156,7 @@ class TestMouseGesturePassword:
 
         # Manually compute expected
         quantized = mgp._quantize(points)
-        expected = hashlib.blake2b(
-            quantized, digest_size=32, person=b"meow_gesture_v1"
-        ).hexdigest()
+        expected = hashlib.blake2b(quantized, digest_size=32, person=b"meow_gesture_v1").hexdigest()
         assert result == expected
 
     def test_different_points_different_keys(self):
@@ -223,6 +223,7 @@ class TestTamperState:
 
     def _get_cls(self):
         from meow_decoder.tamper_detection import TamperState
+
         return TamperState
 
     def test_roundtrip_serialize(self):
@@ -261,7 +262,7 @@ class TestTamperState:
         TamperState = self._get_cls()
         state = TamperState()
         data = state.to_bytes()
-        truncated = data[:len(data) // 2]
+        truncated = data[: len(data) // 2]
         result = TamperState.from_bytes(truncated)
         assert result is None
 
@@ -279,6 +280,7 @@ class TestSilentPoison:
 
     def _get_fn(self):
         from meow_decoder.tamper_detection import silent_poison_bytes
+
         return silent_poison_bytes
 
     def test_determinism(self):
@@ -309,6 +311,7 @@ class TestTamperDetector:
 
     def _get_cls(self):
         from meow_decoder.tamper_detection import TamperDetector
+
         return TamperDetector
 
     def test_detector_init(self):
@@ -361,16 +364,22 @@ class TestAdversarialNoiseGenerator:
             chi_square_test,
             pairs_test,
         )
+
         return (
-            AdversarialNoiseGenerator, NoiseProfile,
-            generate_sensor_noise, generate_texture_noise,
-            generate_carrier_noise, apply_dct_matching,
-            histogram_equalize_noise, chi_square_test, pairs_test,
+            AdversarialNoiseGenerator,
+            NoiseProfile,
+            generate_sensor_noise,
+            generate_texture_noise,
+            generate_carrier_noise,
+            apply_dct_matching,
+            histogram_equalize_noise,
+            chi_square_test,
+            pairs_test,
         )
 
     def test_rotation_differential(self):
         """Sensor/texture/dct/combined produce DIFFERENT noise for same seed."""
-        (ANG, *_) = self._get_modules()
+        ANG, *_ = self._get_modules()
         seed = secrets.token_bytes(32)
         gen = ANG(seed)
 
@@ -393,7 +402,7 @@ class TestAdversarialNoiseGenerator:
 
     def test_determinism_same_seed(self):
         """Same seed = identical noise for each algorithm."""
-        (ANG, *_) = self._get_modules()
+        ANG, *_ = self._get_modules()
         seed = b"determinism_test_seed_0123456789"
 
         for method_name in [
@@ -410,7 +419,7 @@ class TestAdversarialNoiseGenerator:
 
     def test_different_seeds_differ(self):
         """Different seeds produce different noise."""
-        (ANG, *_) = self._get_modules()
+        ANG, *_ = self._get_modules()
         gen_a = ANG(b"a" * 32)
         gen_b = ANG(b"b" * 32)
         n_a = gen_a.generate_sensor_noise(8, 8)
@@ -419,7 +428,7 @@ class TestAdversarialNoiseGenerator:
 
     def test_carrier_noise_integer_range(self):
         """generate_carrier_noise returns ints in [-128, 127]."""
-        (_, _, _, _, gen_carrier, *_) = self._get_modules()
+        _, _, _, _, gen_carrier, *_ = self._get_modules()
         noise = gen_carrier(16, 16, seed=b"range_check_seed_0123456789AB")
         for row in noise:
             for v in row:
@@ -428,7 +437,7 @@ class TestAdversarialNoiseGenerator:
 
     def test_histogram_equalization_dimensions(self):
         """histogram_equalize preserves 2D array dimensions."""
-        (ANG, _, _, _, _, _, hist_eq, *_) = self._get_modules()
+        ANG, _, _, _, _, _, hist_eq, *_ = self._get_modules()
         gen = ANG(b"hist_eq_test_seed_0123456789AB")
         raw = gen.generate_sensor_noise(12, 10)
         eq = gen.histogram_equalize(raw)
@@ -438,21 +447,21 @@ class TestAdversarialNoiseGenerator:
 
     def test_chi_square_is_finite(self):
         """chi_square_test returns a finite float for random data."""
-        (*_, chi_sq, _) = self._get_modules()
+        *_, chi_sq, _ = self._get_modules()
         data = list(range(256))  # uniform
         result = chi_sq(data)
         assert math.isfinite(result)
 
     def test_pairs_test_is_finite(self):
         """pairs_test returns a finite float for random bytes."""
-        (*_, pairs) = self._get_modules()
+        *_, pairs = self._get_modules()
         data = secrets.token_bytes(256)
         result = pairs(data)
         assert math.isfinite(result)
 
     def test_rotation_schedule_coverage(self):
         """Simulate rotation schedule and verify all 4 algorithms are used."""
-        (ANG, _, gen_sensor, gen_texture, _, apply_dct, *_) = self._get_modules()
+        ANG, _, gen_sensor, gen_texture, _, apply_dct, *_ = self._get_modules()
         rotation_schedule = ["sensor", "texture", "dct", "combined"]
         seed = b"rotation_schedule_test_seed_0123"
         used = set()
@@ -460,9 +469,7 @@ class TestAdversarialNoiseGenerator:
         for i in range(8):
             algo = rotation_schedule[i % len(rotation_schedule)]
             used.add(algo)
-            frame_seed = hashlib.sha256(
-                seed + i.to_bytes(4, "little")
-            ).digest()
+            frame_seed = hashlib.sha256(seed + i.to_bytes(4, "little")).digest()
 
             if algo == "sensor":
                 noise = gen_sensor(8, 8, seed=frame_seed)
@@ -482,7 +489,7 @@ class TestAdversarialNoiseGenerator:
 
     def test_noise_profile_customization(self):
         """Custom NoiseProfile changes generator output."""
-        (ANG, NP, *_) = self._get_modules()
+        ANG, NP, *_ = self._get_modules()
         seed = b"profile_test_seed_0123456789AB"
 
         default_gen = ANG(seed, profile=NP())
@@ -552,6 +559,7 @@ class TestGuardedBufferEnhanced:
 
     def _get_cls(self):
         from meow_decoder.memory_guard import GuardedBuffer
+
         return GuardedBuffer
 
     def test_rapid_alloc_free_no_leak(self):
@@ -559,7 +567,7 @@ class TestGuardedBufferEnhanced:
         cls = self._get_cls()
         for _ in range(50):
             buf = cls(64)
-            buf.write(b"\xAA" * 64)
+            buf.write(b"\xaa" * 64)
             buf.close()
 
     def test_boundary_write_exact(self):
@@ -575,7 +583,7 @@ class TestGuardedBufferEnhanced:
         """Multiple zero() calls produce consistent zeroed state."""
         cls = self._get_cls()
         buf = cls(64)
-        buf.write(b"\xFF" * 64)
+        buf.write(b"\xff" * 64)
         buf.zero()
         buf.zero()
         buf.zero()
@@ -604,6 +612,7 @@ class TestMouseGestureEnhanced:
 
     def _get_mgp(self, grid_size=16):
         from meow_decoder.secure_keyboard import MouseGesturePassword
+
         return MouseGesturePassword(grid_size=grid_size)
 
     def test_person_tag_domain_separation(self):
@@ -669,10 +678,12 @@ class TestTamperDetectionEnhanced:
 
     def _get_state_cls(self):
         from meow_decoder.tamper_detection import TamperState
+
         return TamperState
 
     def _get_poison(self):
         from meow_decoder.tamper_detection import silent_poison_bytes
+
         return silent_poison_bytes
 
     def test_poison_entropy_quality(self):
@@ -753,15 +764,19 @@ class TestAdversarialStegoEnhanced:
             chi_square_test,
             pairs_test,
         )
+
         return (
-            AdversarialNoiseGenerator, NoiseProfile,
-            generate_sensor_noise, generate_carrier_noise,
-            chi_square_test, pairs_test,
+            AdversarialNoiseGenerator,
+            NoiseProfile,
+            generate_sensor_noise,
+            generate_carrier_noise,
+            chi_square_test,
+            pairs_test,
         )
 
     def test_cross_seed_independence(self):
         """Different seeds produce statistically independent noise."""
-        (ANG, NP, *_) = self._get_modules()
+        ANG, NP, *_ = self._get_modules()
         gen1 = ANG(b"seed_1_for_independence_test!!", NP())
         gen2 = ANG(b"seed_2_for_independence_test!!", NP())
 
@@ -775,11 +790,15 @@ class TestAdversarialStegoEnhanced:
 
     def test_noise_all_finite(self):
         """All noise values must be finite (no NaN/Inf)."""
-        (ANG, NP, *_) = self._get_modules()
+        ANG, NP, *_ = self._get_modules()
         gen = ANG(b"finite_test_seed_0123456789AB", NP())
 
-        for method in ["generate_sensor_noise", "generate_texture_noise",
-                       "generate_dct_matched_noise", "generate_combined_noise"]:
+        for method in [
+            "generate_sensor_noise",
+            "generate_texture_noise",
+            "generate_dct_matched_noise",
+            "generate_combined_noise",
+        ]:
             noise = getattr(gen, method)(16, 16)
             for row in noise:
                 for v in row:
@@ -787,7 +806,7 @@ class TestAdversarialStegoEnhanced:
 
     def test_rotation_visits_all_algorithms(self):
         """Rotation schedule visits all algorithm indices over 100+ frames."""
-        (ANG, *_) = self._get_modules()
+        ANG, *_ = self._get_modules()
         seed = b"rotation_visit_test_seed_012345"
         gen = ANG(seed)
 
@@ -801,7 +820,7 @@ class TestAdversarialStegoEnhanced:
 
     def test_carrier_noise_range_strict(self):
         """Carrier noise must be in [-128, 127] for all pixels."""
-        (_, _, _, gen_carrier, *_) = self._get_modules()
+        _, _, _, gen_carrier, *_ = self._get_modules()
         noise = gen_carrier(32, 32, seed=b"strict_range_check_seed_0123AB")
         for row in noise:
             for v in row:
@@ -810,7 +829,7 @@ class TestAdversarialStegoEnhanced:
 
     def test_large_dimension_no_crash(self):
         """Large image dimensions don't crash the generator."""
-        (ANG, NP, *_) = self._get_modules()
+        ANG, NP, *_ = self._get_modules()
         gen = ANG(b"large_dim_test_seed_0123456789", NP())
         noise = gen.generate_combined_noise(256, 256)
         assert len(noise) == 256
@@ -828,19 +847,21 @@ class TestRatchetIntegration:
     def test_default_rekey_interval_nonzero(self):
         """DEFAULT_REKEY_INTERVAL must be non-zero (enabled by default)."""
         from meow_decoder.ratchet import DEFAULT_REKEY_INTERVAL
-        assert DEFAULT_REKEY_INTERVAL > 0, (
-            f"DEFAULT_REKEY_INTERVAL={DEFAULT_REKEY_INTERVAL} — must be >0"
-        )
+
+        assert (
+            DEFAULT_REKEY_INTERVAL > 0
+        ), f"DEFAULT_REKEY_INTERVAL={DEFAULT_REKEY_INTERVAL} — must be >0"
 
     def test_dead_kem_beacon_functions_removed(self):
         """_generate_kem_beacon and _recover_kem_beacon must not exist."""
         import meow_decoder.ratchet as ratchet_mod
-        assert not hasattr(ratchet_mod, "_generate_kem_beacon"), (
-            "Dead function _generate_kem_beacon still exists"
-        )
-        assert not hasattr(ratchet_mod, "_recover_kem_beacon"), (
-            "Dead function _recover_kem_beacon still exists"
-        )
+
+        assert not hasattr(
+            ratchet_mod, "_generate_kem_beacon"
+        ), "Dead function _generate_kem_beacon still exists"
+        assert not hasattr(
+            ratchet_mod, "_recover_kem_beacon"
+        ), "Dead function _recover_kem_beacon still exists"
 
     def test_pq_beacon_domain_separation(self):
         """PQ beacon mix info differs from classical beacon info."""
@@ -849,6 +870,7 @@ class TestRatchetIntegration:
             REKEY_BEACON_INFO,
             REKEY_BEACON_KEM_INFO,
         )
+
         assert PQ_BEACON_MIX_INFO != REKEY_BEACON_INFO
         assert PQ_BEACON_MIX_INFO != REKEY_BEACON_KEM_INFO
         assert REKEY_BEACON_INFO != REKEY_BEACON_KEM_INFO
@@ -860,6 +882,7 @@ class TestRatchetIntegration:
             HEADER_MASK_INFO,
             REKEY_BEACON_INFO,
         )
+
         assert HEADER_ENC_INFO != HEADER_MASK_INFO
         assert HEADER_ENC_INFO != REKEY_BEACON_INFO
         assert HEADER_MASK_INFO != REKEY_BEACON_INFO
@@ -867,12 +890,11 @@ class TestRatchetIntegration:
     def test_ratchet_state_has_required_fields(self):
         """RatchetState must expose root_key, position, epoch."""
         from meow_decoder.ratchet import RatchetState
+
         # Verify the dataclass has expected field names
         fields = {f.name for f in RatchetState.__dataclass_fields__.values()}
         for required in ["root_key", "position", "epoch"]:
-            assert required in fields, (
-                f"RatchetState missing '{required}' field"
-            )
+            assert required in fields, f"RatchetState missing '{required}' field"
 
 
 # =============================================================================

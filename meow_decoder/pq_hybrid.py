@@ -488,9 +488,7 @@ def hybrid_decapsulate_handle(
     pq_shared_secret = None
     if pq_ciphertext is not None:
         if receiver_keypair._pq_secret_bytes is None:
-            raise RuntimeError(
-                "Post-quantum ciphertext provided but receiver has no PQ secret key"
-            )
+            raise RuntimeError("Post-quantum ciphertext provided but receiver has no PQ secret key")
         if not _RUST_PQ_AVAILABLE:
             raise RuntimeError("Rust PQ backend required for PQ decapsulation")
         try:

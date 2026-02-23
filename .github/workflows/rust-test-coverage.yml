@@ -92,7 +92,7 @@ jobs:
 
           cargo tarpaulin \
             --lib --tests \
-            --features "pq" \
+            --features "pq,pq-signing" \
             --out Lcov \
             --out Json \
             --output-dir . \
@@ -202,4 +202,4 @@ jobs:
       - name: Run regular tests (rust_crypto, without coverage)
         if: always()
         run: |
-          cd rust_crypto && cargo test --features "pq"
+          cd rust_crypto && cargo test --features "pq,pq-signing"

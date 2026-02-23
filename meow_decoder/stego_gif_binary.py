@@ -207,7 +207,7 @@ class GifBinaryEditor:
                             break
                         if pos + sub_size > len(data):
                             break
-                        comment_data.extend(data[pos: pos + sub_size])
+                        comment_data.extend(data[pos : pos + sub_size])
                         pos += sub_size
                     structure.comment_blocks.append(
                         CommentBlock(
@@ -297,8 +297,7 @@ class GifBinaryEditor:
         """
         if frame_idx >= len(structure.gce_blocks):
             raise IndexError(
-                f"Frame {frame_idx} out of range "
-                f"(have {len(structure.gce_blocks)} GCE blocks)"
+                f"Frame {frame_idx} out of range " f"(have {len(structure.gce_blocks)} GCE blocks)"
             )
 
         gce = structure.gce_blocks[frame_idx]
@@ -324,8 +323,7 @@ class GifBinaryEditor:
         """
         if frame_idx >= len(structure.gce_blocks):
             raise IndexError(
-                f"Frame {frame_idx} out of range "
-                f"(have {len(structure.gce_blocks)} GCE blocks)"
+                f"Frame {frame_idx} out of range " f"(have {len(structure.gce_blocks)} GCE blocks)"
             )
         gce = structure.gce_blocks[frame_idx]
         return (gce.disposal_method, gce.user_input_flag, gce.transparent_flag)
@@ -361,7 +359,7 @@ class GifBinaryEditor:
         while offset < len(data):
             chunk_size = min(255, len(data) - offset)
             comment_block.append(chunk_size)
-            comment_block.extend(data[offset: offset + chunk_size])
+            comment_block.extend(data[offset : offset + chunk_size])
             offset += chunk_size
         comment_block.append(0x00)  # Block terminator
 
@@ -389,7 +387,7 @@ class GifBinaryEditor:
         # Remove blocks in reverse order (to preserve offsets)
         raw = bytearray(structure.raw)
         for cb in reversed(structure.comment_blocks):
-            raw = raw[: cb.offset] + raw[cb.end_offset:]
+            raw = raw[: cb.offset] + raw[cb.end_offset :]
 
         return GifBinaryEditor.parse(bytes(raw))
 

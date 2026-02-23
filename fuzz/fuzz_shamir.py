@@ -19,6 +19,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.shamir_split import (
@@ -32,14 +33,41 @@ def _setup_imports():
         _lagrange_interpolate,
     )
 
-    return shamir_split, shamir_combine, ShamirShare, _gf_mul, _gf_div, _gf_pow, _eval_poly_at, _lagrange_interpolate
+    return (
+        shamir_split,
+        shamir_combine,
+        ShamirShare,
+        _gf_mul,
+        _gf_div,
+        _gf_pow,
+        _eval_poly_at,
+        _lagrange_interpolate,
+    )
 
 
 if atheris is not None:
     with atheris.instrument_imports():
-        shamir_split, shamir_combine, ShamirShare, _gf_mul, _gf_div, _gf_pow, _eval_poly_at, _lagrange_interpolate = _setup_imports()
+        (
+            shamir_split,
+            shamir_combine,
+            ShamirShare,
+            _gf_mul,
+            _gf_div,
+            _gf_pow,
+            _eval_poly_at,
+            _lagrange_interpolate,
+        ) = _setup_imports()
 else:
-    shamir_split, shamir_combine, ShamirShare, _gf_mul, _gf_div, _gf_pow, _eval_poly_at, _lagrange_interpolate = _setup_imports()
+    (
+        shamir_split,
+        shamir_combine,
+        ShamirShare,
+        _gf_mul,
+        _gf_div,
+        _gf_pow,
+        _eval_poly_at,
+        _lagrange_interpolate,
+    ) = _setup_imports()
 
 
 def fuzz_gf_arithmetic(data: bytes):
@@ -104,7 +132,7 @@ def fuzz_polynomial_evaluation(data: bytes):
 
     # Use first byte as evaluation point, rest as coefficients
     x = data[0]
-    coeffs = list(data[1:min(len(data), 256)])
+    coeffs = list(data[1 : min(len(data), 256)])
 
     if not coeffs:
         return
@@ -119,9 +147,9 @@ def fuzz_polynomial_evaluation(data: bytes):
 
         # At x=0, result should be coeffs[0] (the constant term)
         result_at_zero = _eval_poly_at(coeffs, 0)
-        assert result_at_zero == coeffs[0], (
-            f"Polynomial eval at 0 should be constant term: {result_at_zero} != {coeffs[0]}"
-        )
+        assert (
+            result_at_zero == coeffs[0]
+        ), f"Polynomial eval at 0 should be constant term: {result_at_zero} != {coeffs[0]}"
 
     except (ValueError, IndexError):
         pass
@@ -174,7 +202,7 @@ def fuzz_split_and_combine(data: bytes):
         return
 
     # Use first two bytes for parameters
-    threshold = max(2, min(data[0] % 10 + 2, 10))    # 2-10
+    threshold = max(2, min(data[0] % 10 + 2, 10))  # 2-10
     num_shares = max(threshold, min(data[1] % 10 + threshold, 20))  # threshold-20
     secret = data[2:]
 
@@ -197,7 +225,7 @@ def fuzz_split_and_combine(data: bytes):
 
         # Combine with more than threshold shares should also succeed
         if num_shares > threshold:
-            recovered2 = shamir_combine(shares[:threshold + 1], threshold)
+            recovered2 = shamir_combine(shares[: threshold + 1], threshold)
             assert recovered2 == secret, "Shamir roundtrip with extra shares failed"
 
     except (ValueError, TypeError) as e:
@@ -253,9 +281,10 @@ def fuzz_corrupted_shares(data: bytes):
 
         if corrupt_share.data:
             import hashlib
+
             corrupted_data = bytearray(corrupt_share.data)
             flip_pos = data[1] % len(corrupted_data)
-            corrupted_data[flip_pos] ^= (data[2] | 1)  # Ensure at least 1 bit flips
+            corrupted_data[flip_pos] ^= data[2] | 1  # Ensure at least 1 bit flips
 
             corrupted_share = ShamirShare(
                 share_id=corrupt_share.share_id,

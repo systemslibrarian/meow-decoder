@@ -93,8 +93,7 @@ class TestCheckNetworkInterfaces:
         mock_run.return_value = MagicMock(
             returncode=0,
             stdout=(
-                "1: lo: <LOOPBACK,UP> mtu 65536\n"
-                "2: eth0: <BROADCAST,MULTICAST,UP> mtu 1500\n"
+                "1: lo: <LOOPBACK,UP> mtu 65536\n" "2: eth0: <BROADCAST,MULTICAST,UP> mtu 1500\n"
             ),
         )
         status = AirGapStatus()

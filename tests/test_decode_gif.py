@@ -99,9 +99,7 @@ def _build_manifest_signature_chunk(public_key: bytes, signature: bytes) -> byte
         + signature
     )
     return (
-        decode_mod.MANIFEST_SIG_CHUNK_MAGIC
-        + bytes([decode_mod.MANIFEST_SIG_VERSION, 1, 0])
-        + blob
+        decode_mod.MANIFEST_SIG_CHUNK_MAGIC + bytes([decode_mod.MANIFEST_SIG_VERSION, 1, 0]) + blob
     )
 
 
@@ -109,9 +107,7 @@ def _patch_decode_success_pipeline(monkeypatch, sequence, plaintext: bytes):
     monkeypatch.setattr(
         decode_mod,
         "GIFDecoder",
-        lambda: _DummyGIFDecoder(
-            frames=[Image.new("RGB", (64, 64)) for _ in range(len(sequence))]
-        ),
+        lambda: _DummyGIFDecoder(frames=[Image.new("RGB", (64, 64)) for _ in range(len(sequence))]),
     )
     monkeypatch.setattr(
         decode_mod,
@@ -119,7 +115,9 @@ def _patch_decode_success_pipeline(monkeypatch, sequence, plaintext: bytes):
         lambda preprocessing=None: _SequenceQRCodeReader(sequence),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
     monkeypatch.setattr(
         decode_mod,
         "derive_encryption_key_for_manifest_handle",
@@ -175,6 +173,7 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     monkeypatch.setattr(
         decode_mod,
         "GIFDecoder",
@@ -192,9 +191,17 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
 
     monkeypatch.setattr(decode_mod, "QRCodeReader", lambda preprocessing=None: _Reader())
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
@@ -216,7 +223,9 @@ def test_decode_gif_unsigned_manifest_warns_but_succeeds(tmp_path, monkeypatch, 
     _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, droplet_bytes], plaintext)
 
     out_path = tmp_path / "unsigned_out.bin"
-    stats = decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
+    stats = decode_mod.decode_gif(
+        tmp_path / "in.gif", out_path, password="password123", verbose=False
+    )
 
     captured = capsys.readouterr()
     assert "Unsigned manifest" in captured.err
@@ -232,7 +241,9 @@ def test_decode_gif_signed_manifest_verifies(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext)
+    _patch_decode_success_pipeline(
+        monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext
+    )
 
     import meow_decoder.manifest_signing as ms
 
@@ -265,7 +276,9 @@ def test_decode_gif_tampered_signature_rejected(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
-    _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext)
+    _patch_decode_success_pipeline(
+        monkeypatch, [manifest_bytes, sig_chunk, droplet_bytes], plaintext
+    )
 
     import meow_decoder.manifest_signing as ms
 
@@ -282,7 +295,9 @@ def test_decode_gif_tampered_signature_rejected(tmp_path, monkeypatch):
     )
 
     with pytest.raises(ValueError, match="invalid signature"):
-        decode_mod.decode_gif(tmp_path / "in.gif", tmp_path / "bad_out.bin", password="password123", verbose=False)
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", tmp_path / "bad_out.bin", password="password123", verbose=False
+        )
 
 
 def test_decode_gif_legacy_unsigned_warns_and_succeeds(tmp_path, monkeypatch, capsys):
@@ -320,10 +335,20 @@ def test_decode_gif_hmac_failure(tmp_path, monkeypatch):
         "QRCodeReader",
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
-    monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: False)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\xff" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: False
+    )
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\xff" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
 
     with pytest.raises(ValueError, match="HMAC verification failed"):
         decode_mod.decode_gif(
@@ -351,14 +376,24 @@ def test_decode_gif_frame_mac_invalid_fails_closed(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type(
-        "HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "get_handle_backend",
+        lambda: type("HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})(),
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
     import meow_decoder.frame_mac as frame_mac
+
     monkeypatch.setattr(frame_mac, "derive_frame_master_key_handle", lambda *a, **kw: 42)
 
     def _invalid_manifest(*args, **kwargs):
@@ -392,14 +427,24 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type(
-        "HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "get_handle_backend",
+        lambda: type("HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})(),
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
     import meow_decoder.frame_mac as frame_mac
+
     monkeypatch.setattr(frame_mac, "derive_frame_master_key_handle", lambda *a, **kw: 42)
 
     calls = []
@@ -441,9 +486,17 @@ def test_decode_gif_incomplete_decode(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _IncompleteFountainDecoder)
 
     with pytest.raises(RuntimeError, match="Decoding incomplete"):
@@ -470,9 +523,17 @@ def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
 
     def _fail_decrypt(*args, **kwargs):
@@ -504,9 +565,17 @@ def test_decode_gif_sha_mismatch(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: b"wrong")
 
@@ -559,9 +628,17 @@ def test_decode_gif_forward_secrecy_verbose(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
@@ -593,9 +670,17 @@ def test_decode_gif_droplet_unpack_warning(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
@@ -631,9 +716,17 @@ def test_decode_gif_deadman_import_error(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_bytes, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod, "get_handle_backend", lambda: type("HB", (), {"drop": lambda self, h: None})()
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
@@ -673,14 +766,24 @@ def test_decode_gif_verbose_frame_mac_stats(tmp_path, monkeypatch):
         lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type(
-        "HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "get_handle_backend",
+        lambda: type("HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})(),
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
     import meow_decoder.frame_mac as frame_mac
+
     monkeypatch.setattr(frame_mac, "derive_frame_master_key_handle", lambda *a, **kw: 42)
     monkeypatch.setattr("meow_decoder.constant_time.constant_time_compare", lambda a, b: a == b)
 
@@ -733,14 +836,24 @@ def test_decode_gif_rejects_invalid_droplet_mac_then_succeeds(tmp_path, monkeypa
         ),
     )
     monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
-    monkeypatch.setattr(_crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
-    monkeypatch.setattr(decode_mod, "derive_encryption_key_for_manifest_handle", lambda *args, **kwargs: "test_handle")
-    monkeypatch.setattr(decode_mod, "get_handle_backend", lambda: type(
-        "HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})())
+    monkeypatch.setattr(
+        _crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "derive_encryption_key_for_manifest_handle",
+        lambda *args, **kwargs: "test_handle",
+    )
+    monkeypatch.setattr(
+        decode_mod,
+        "get_handle_backend",
+        lambda: type("HB", (), {"drop": lambda self, h: None, "import_key": lambda self, k: 99})(),
+    )
     monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
     monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
 
     import meow_decoder.frame_mac as frame_mac
+
     monkeypatch.setattr(frame_mac, "derive_frame_master_key_handle", lambda *a, **kw: 42)
 
     calls = {"count": 0}

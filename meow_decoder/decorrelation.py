@@ -130,9 +130,7 @@ def decorrelate_config(
     # Jitter redundancy factor
     if hasattr(config, "redundancy"):
         # Round to 1 decimal place for cleanliness
-        config.redundancy = round(
-            _csprng_float(params.redundancy_min, params.redundancy_max), 1
-        )
+        config.redundancy = round(_csprng_float(params.redundancy_min, params.redundancy_max), 1)
 
     # Jitter FPS (visual parameter — encoded in GIF timing)
     if hasattr(config, "fps"):

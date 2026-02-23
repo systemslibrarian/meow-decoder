@@ -94,10 +94,7 @@ def _scan_file(filepath: pathlib.Path):
                 if "not formally verified" in stripped.lower():
                     continue
                 rel = filepath.relative_to(WORKSPACE)
-                violations.append(
-                    f"{rel}:{lineno}: {description}\n"
-                    f"    Line: {stripped[:120]}"
-                )
+                violations.append(f"{rel}:{lineno}: {description}\n" f"    Line: {stripped[:120]}")
 
     return violations
 
@@ -123,9 +120,8 @@ class TestNoOverclaims:
                     rel = filepath.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno}: {line.strip()[:100]}")
 
-        assert not violations, (
-            "'Signal parity' found in documentation (overclaim):\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert not violations, "'Signal parity' found in documentation (overclaim):\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_signal_grade(self):
@@ -143,9 +139,8 @@ class TestNoOverclaims:
                     rel = filepath.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno}: {line.strip()[:100]}")
 
-        assert not violations, (
-            "'Signal-grade' found in documentation (overclaim):\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert not violations, "'Signal-grade' found in documentation (overclaim):\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_unqualified_nist_level_5(self):
@@ -167,9 +162,10 @@ class TestNoOverclaims:
                     rel = filepath.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno}: {line.strip()[:100]}")
 
-        assert not violations, (
-            "'NIST Level 5' without qualification found (overclaim):\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "'NIST Level 5' without qualification found (overclaim):\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_security_reviewed_v1_marketing(self):
@@ -219,6 +215,6 @@ class TestNoOverclaims:
             "experimental",
         ]
         for phrase in required:
-            assert phrase.lower() in content.lower(), (
-                f"SECURITY_CLAIMS.md missing required disclaimer phrase: '{phrase}'"
-            )
+            assert (
+                phrase.lower() in content.lower()
+            ), f"SECURITY_CLAIMS.md missing required disclaimer phrase: '{phrase}'"

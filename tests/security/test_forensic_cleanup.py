@@ -93,7 +93,14 @@ class TestForensicCleaner:
         cleaner = ForensicCleaner()
         report = cleaner.clean_all()
         assert isinstance(report, dict)
-        expected_keys = {"thumbnails", "recent_files", "clipboard", "shell_history", "temp_files", "gvfs_metadata"}
+        expected_keys = {
+            "thumbnails",
+            "recent_files",
+            "clipboard",
+            "shell_history",
+            "temp_files",
+            "gvfs_metadata",
+        }
         assert expected_keys == set(report.keys())
 
     def test_each_category_has_standard_keys(self):
@@ -185,11 +192,7 @@ class TestCleanShellHistory:
         """
         # Create a fake history file
         fake_history = tmp_path / ".bash_history"
-        fake_history.write_text(
-            "cd /home\n"
-            "meow-encode -p secret\n"
-            "git status\n"
-        )
+        fake_history.write_text("cd /home\n" "meow-encode -p secret\n" "git status\n")
 
         # Monkeypatch expanduser to redirect to tmp_path
         original_expanduser = os.path.expanduser

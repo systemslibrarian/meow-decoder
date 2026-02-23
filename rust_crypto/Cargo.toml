@@ -15,9 +15,9 @@ crate-type = ["cdylib", "lib"]
 # Verified crypto primitives (local crate with Verus proofs)
 crypto_core = { path = "../crypto_core" }
 
-# PyO3 for Python bindings (upgrade to address RUSTSEC-2025-0020)
+# PyO3 for Python bindings (upgrade to address RUSTSEC-2026-0013)
 # Made optional so cargo-tarpaulin can run without Python linking
-pyo3 = { version = "0.28", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.28.2", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
 argon2 = "0.5"   # Argon2id KDF (password hashing)
@@ -57,11 +57,13 @@ proptest = "1.4"
 
 [features]
 default = []
-python = ["pyo3"]                                            # Enable Python bindings (required for maturin build)
-pq = ["pqcrypto-mlkem", "pqcrypto-traits"]                   # Enable post-quantum crypto
-pq-signing = ["crypto_core/pq-crypto"]                       # Enable ML-DSA-65 signing via crypto_core
+python = ["pyo3"] # Enable Python bindings (required for maturin build)
+pq = ["pqcrypto-mlkem", "pqcrypto-traits"] # Enable post-quantum crypto
+pq-signing = [
+    "crypto_core/pq-crypto",
+] # Enable ML-DSA-65 signing via crypto_core
 yubikey = ["crypto_core/yubikey", "crypto_core/pure-crypto"]
-python-tests = ["python"]                                    # Enable tests that require Python bindings
+python-tests = ["python"] # Enable tests that require Python bindings
 
 # ─── Panic hardening ─────────────────────────────────────────────────────────
 # ANY panic in a cryptographic code path is a bug; in release builds a panic

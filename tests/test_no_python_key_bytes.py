@@ -58,8 +58,8 @@ SECRET_KEY_VAR_PATTERNS = re.compile(
 
 # Functions known to return raw key bytes — FORBIDDEN in production wrappers
 FORBIDDEN_BYTES_RETURNING_CALLS = {
-    "encrypt_file_bytes",         # returns key as 7th tuple element
-    "derive_key",                 # returns raw 32-byte key
+    "encrypt_file_bytes",  # returns key as 7th tuple element
+    "derive_key",  # returns raw 32-byte key
     "derive_encryption_key_for_manifest",  # returns raw key
 }
 
@@ -71,8 +71,8 @@ CONDITIONAL_IMPORT_CALLS = {
 
 # Backend methods that return raw secret bytes — FORBIDDEN in wrappers
 FORBIDDEN_BACKEND_METHODS = {
-    "derive_key_argon2id",   # CryptoBackend version returns bytes
-    "derive_key_yubikey",    # CryptoBackend version returns bytes
+    "derive_key_argon2id",  # CryptoBackend version returns bytes
+    "derive_key_yubikey",  # CryptoBackend version returns bytes
 }
 
 
@@ -80,9 +80,9 @@ class _WrapperVisitor(ast.NodeVisitor):
     """Collect assignments, calls, and attribute calls inside a function."""
 
     def __init__(self):
-        self.assignments = []   # (lineno, var_name, call_name_or_attr)
-        self.calls = []         # (lineno, full_call_name)
-        self.attr_calls = []    # (lineno, obj_name, method_name)
+        self.assignments = []  # (lineno, var_name, call_name_or_attr)
+        self.calls = []  # (lineno, full_call_name)
+        self.attr_calls = []  # (lineno, obj_name, method_name)
 
     def visit_Assign(self, node):
         rhs_name = self._call_name(node.value)
@@ -161,9 +161,10 @@ class TestNoSecretKeyVariables:
                         f"assigns '{var_name}' = {call_name}(...)"
                     )
 
-        assert not violations, (
-            "Production wrappers assign secret-key-like variables:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production wrappers assign secret-key-like variables:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
 
@@ -181,13 +182,12 @@ class TestNoForbiddenCalls:
             node, visitor = _parse_function(file_stem, func_name)
             for lineno, call_name in visitor.calls:
                 if call_name in FORBIDDEN_BYTES_RETURNING_CALLS:
-                    violations.append(
-                        f"{file_stem}.py:{func_name}:{lineno} calls '{call_name}'"
-                    )
+                    violations.append(f"{file_stem}.py:{func_name}:{lineno} calls '{call_name}'")
 
-        assert not violations, (
-            "Production wrappers call bytes-returning key functions:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production wrappers call bytes-returning key functions:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_backend_bytes_returning_methods_in_production_wrappers(self):
@@ -198,13 +198,13 @@ class TestNoForbiddenCalls:
             for lineno, obj, method in visitor.attr_calls:
                 if obj == "backend" and method in FORBIDDEN_BACKEND_METHODS:
                     violations.append(
-                        f"{file_stem}.py:{func_name}:{lineno} "
-                        f"calls backend.{method}()"
+                        f"{file_stem}.py:{func_name}:{lineno} " f"calls backend.{method}()"
                     )
 
-        assert not violations, (
-            "Production wrappers call CryptoBackend bytes-returning methods:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production wrappers call CryptoBackend bytes-returning methods:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
     def test_no_forbidden_calls_in_entrypoints(self):
@@ -239,9 +239,10 @@ class TestNoForbiddenCalls:
                     rel = ep_path.relative_to(WORKSPACE)
                     violations.append(f"{rel}:{lineno} calls '{call_name}'")
 
-        assert not violations, (
-            "Production entrypoints call bytes-returning key functions:\n"
-            + "\n".join(f"  - {v}" for v in violations)
+        assert (
+            not violations
+        ), "Production entrypoints call bytes-returning key functions:\n" + "\n".join(
+            f"  - {v}" for v in violations
         )
 
 
@@ -255,47 +256,56 @@ class TestHandleAPIsExist:
 
     def test_handle_backend_has_derive_key_argon2id(self):
         from meow_decoder.crypto_backend import HandleBackend
-        assert hasattr(HandleBackend, "derive_key_argon2id"), (
-            "HandleBackend.derive_key_argon2id must exist"
-        )
+
+        assert hasattr(
+            HandleBackend, "derive_key_argon2id"
+        ), "HandleBackend.derive_key_argon2id must exist"
 
     def test_handle_backend_has_derive_key_argon2id_with_keyfile(self):
         from meow_decoder.crypto_backend import HandleBackend
-        assert hasattr(HandleBackend, "derive_key_argon2id_with_keyfile"), (
-            "HandleBackend.derive_key_argon2id_with_keyfile must exist"
-        )
+
+        assert hasattr(
+            HandleBackend, "derive_key_argon2id_with_keyfile"
+        ), "HandleBackend.derive_key_argon2id_with_keyfile must exist"
 
     def test_handle_backend_has_derive_key_yubikey(self):
         from meow_decoder.crypto_backend import HandleBackend
-        assert hasattr(HandleBackend, "derive_key_yubikey"), (
-            "HandleBackend.derive_key_yubikey must exist"
-        )
+
+        assert hasattr(
+            HandleBackend, "derive_key_yubikey"
+        ), "HandleBackend.derive_key_yubikey must exist"
 
     def test_handle_backend_argon2id_returns_int(self):
         """Verify derive_key_argon2id returns an int handle, not bytes."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         handle = hb.derive_key_argon2id(b"test_password", b"\x00" * 16, 1024, 1, 1)
         try:
-            assert isinstance(handle, int), (
-                f"derive_key_argon2id returned {type(handle)}, expected int"
-            )
+            assert isinstance(
+                handle, int
+            ), f"derive_key_argon2id returned {type(handle)}, expected int"
         finally:
             hb.drop(handle)
 
     def test_handle_backend_argon2id_with_keyfile_returns_int(self):
         """Verify derive_key_argon2id_with_keyfile returns an int handle, not bytes."""
         from meow_decoder.crypto_backend import get_handle_backend
+
         hb = get_handle_backend()
         handle = hb.derive_key_argon2id_with_keyfile(
-            b"test_password", b"keyfile_content",
-            b"meow_keyfile_separation_v2", b"\x00" * 16,
-            1024, 1, 1,
+            b"test_password",
+            b"keyfile_content",
+            b"meow_keyfile_separation_v2",
+            b"\x00" * 16,
+            1024,
+            1,
+            1,
         )
         try:
-            assert isinstance(handle, int), (
-                f"derive_key_argon2id_with_keyfile returned {type(handle)}, expected int"
-            )
+            assert isinstance(
+                handle, int
+            ), f"derive_key_argon2id_with_keyfile returned {type(handle)}, expected int"
         finally:
             hb.drop(handle)
 
@@ -312,7 +322,8 @@ class TestHandleAPIsExist:
 
                 # Must call hb.derive_key_argon2id or hb.derive_key_argon2id_with_keyfile
                 hb_calls = [
-                    m for _, o, m in visitor.attr_calls
+                    m
+                    for _, o, m in visitor.attr_calls
                     if o == "hb" and m.startswith("derive_key_argon2id")
                 ]
                 assert hb_calls, (
@@ -322,8 +333,7 @@ class TestHandleAPIsExist:
 
                 # Must NOT call backend.derive_key_hkdf (old keyfile path)
                 bad = [
-                    m for _, o, m in visitor.attr_calls
-                    if o == "backend" and m == "derive_key_hkdf"
+                    m for _, o, m in visitor.attr_calls if o == "backend" and m == "derive_key_hkdf"
                 ]
                 assert not bad, (
                     "derive_key_handle must not call backend.derive_key_hkdf "
@@ -346,14 +356,12 @@ class TestHandleAPIsExist:
 
                 # Must call derive_key_handle (handle-returning) not derive_key (bytes-returning)
                 derive_calls = [c for _, c in visitor.calls if c == "derive_key_handle"]
-                assert derive_calls, (
-                    "encrypt_file_bytes_production must call derive_key_handle"
-                )
+                assert derive_calls, "encrypt_file_bytes_production must call derive_key_handle"
 
                 bad_derive = [c for _, c in visitor.calls if c == "derive_key"]
-                assert not bad_derive, (
-                    "encrypt_file_bytes_production must NOT call derive_key (bytes path)"
-                )
+                assert (
+                    not bad_derive
+                ), "encrypt_file_bytes_production must NOT call derive_key (bytes path)"
                 return
 
         pytest.fail("encrypt_file_bytes_production not found in crypto.py")
@@ -374,12 +382,12 @@ class TestHandleLifecycle:
 
         # Check that the function contains try/finally with hb.drop
         func_source = _extract_function_source(source, "decrypt_to_raw_production")
-        assert "finally:" in func_source, (
-            "decrypt_to_raw_production must use try/finally for handle cleanup"
-        )
-        assert "hb.drop(" in func_source or ".drop(key_handle)" in func_source, (
-            "decrypt_to_raw_production must call hb.drop(key_handle) in finally block"
-        )
+        assert (
+            "finally:" in func_source
+        ), "decrypt_to_raw_production must use try/finally for handle cleanup"
+        assert (
+            "hb.drop(" in func_source or ".drop(key_handle)" in func_source
+        ), "decrypt_to_raw_production must call hb.drop(key_handle) in finally block"
 
     def test_verify_manifest_hmac_production_drops_handle(self):
         """verify_manifest_hmac_production must use try/finally with hb.drop."""
@@ -387,9 +395,9 @@ class TestHandleLifecycle:
         source = py_file.read_text(encoding="utf-8")
 
         func_source = _extract_function_source(source, "verify_manifest_hmac_production")
-        assert "finally:" in func_source, (
-            "verify_manifest_hmac_production must use try/finally for handle cleanup"
-        )
+        assert (
+            "finally:" in func_source
+        ), "verify_manifest_hmac_production must use try/finally for handle cleanup"
 
     def test_encrypt_production_drops_handle_on_error(self):
         """encrypt_file_bytes_production must drop handle on exception paths."""
@@ -397,9 +405,9 @@ class TestHandleLifecycle:
         source = py_file.read_text(encoding="utf-8")
 
         func_source = _extract_function_source(source, "encrypt_file_bytes_production")
-        assert "hb.drop(" in func_source or ".drop(key_handle)" in func_source, (
-            "encrypt_file_bytes_production must call hb.drop on error paths"
-        )
+        assert (
+            "hb.drop(" in func_source or ".drop(key_handle)" in func_source
+        ), "encrypt_file_bytes_production must call hb.drop on error paths"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -413,10 +421,11 @@ class TestProductionForbiddenMethods:
     def test_crypto_backend_derive_key_argon2id_is_deprecated(self):
         """RustCryptoBackend.derive_key_argon2id docstring must say PRODUCTION-FORBIDDEN."""
         from meow_decoder.crypto_backend import RustCryptoBackend
+
         doc = RustCryptoBackend.derive_key_argon2id.__doc__ or ""
-        assert "PRODUCTION-FORBIDDEN" in doc, (
-            "RustCryptoBackend.derive_key_argon2id must be marked PRODUCTION-FORBIDDEN"
-        )
+        assert (
+            "PRODUCTION-FORBIDDEN" in doc
+        ), "RustCryptoBackend.derive_key_argon2id must be marked PRODUCTION-FORBIDDEN"
 
     def test_no_production_wrapper_calls_crypto_backend_derive_key_argon2id(self):
         """Production wrappers must not call CryptoBackend().derive_key_argon2id()."""
@@ -447,6 +456,7 @@ class TestHandleOnlyRoundTrip:
     def test_encrypt_decrypt_production_roundtrip(self):
         """encrypt_file_bytes_production → decrypt_to_raw_production with no key bytes."""
         import os
+
         os.environ["MEOW_TEST_MODE"] = "1"
         from meow_decoder.crypto import (
             encrypt_file_bytes_production,
@@ -459,8 +469,9 @@ class TestHandleOnlyRoundTrip:
         plaintext = b"Top secret meow data for handle-only roundtrip test!"
         password = "test_password_secure_1234"
 
-        comp, sha, salt, nonce, cipher, eph_pk, key_handle = \
-            encrypt_file_bytes_production(plaintext, password)
+        comp, sha, salt, nonce, cipher, eph_pk, key_handle = encrypt_file_bytes_production(
+            plaintext, password
+        )
 
         try:
             # Verify key_handle is an int, not bytes
@@ -474,7 +485,10 @@ class TestHandleOnlyRoundTrip:
 
         # Decrypt
         recovered = decrypt_to_raw_production(
-            cipher, password, salt, nonce,
+            cipher,
+            password,
+            salt,
+            nonce,
             orig_len=len(plaintext),
             comp_len=len(comp),
             sha256=sha,
@@ -484,6 +498,7 @@ class TestHandleOnlyRoundTrip:
     def test_keyfile_roundtrip_no_bytes_leak(self):
         """derive_key_handle with keyfile uses Rust-side HKDF+Argon2id."""
         import os
+
         os.environ["MEOW_TEST_MODE"] = "1"
         from meow_decoder.crypto import derive_key_handle
         from meow_decoder.crypto_backend import get_handle_backend
@@ -520,7 +535,7 @@ def _extract_function_source(source: str, func_name: str) -> str:
                 end = getattr(node, "end_lineno", None)
                 if end is not None:
                     lines = source.splitlines()
-                    return "\n".join(lines[node.lineno - 1: end])
+                    return "\n".join(lines[node.lineno - 1 : end])
     return ""
 
 
@@ -534,38 +549,43 @@ class TestPQHybridHandleAPIs:
 
     def test_handle_backend_has_pqxdh_encapsulate(self):
         from meow_decoder.crypto_backend import HandleBackend
-        assert hasattr(HandleBackend, "pqxdh_encapsulate"), (
-            "HandleBackend.pqxdh_encapsulate must exist"
-        )
+
+        assert hasattr(
+            HandleBackend, "pqxdh_encapsulate"
+        ), "HandleBackend.pqxdh_encapsulate must exist"
 
     def test_handle_backend_has_pqxdh_decapsulate(self):
         from meow_decoder.crypto_backend import HandleBackend
-        assert hasattr(HandleBackend, "pqxdh_decapsulate"), (
-            "HandleBackend.pqxdh_decapsulate must exist"
-        )
+
+        assert hasattr(
+            HandleBackend, "pqxdh_decapsulate"
+        ), "HandleBackend.pqxdh_decapsulate must exist"
 
     def test_hybrid_encapsulate_handle_exists(self):
         from meow_decoder.pq_hybrid import hybrid_encapsulate_handle
+
         assert callable(hybrid_encapsulate_handle)
 
     def test_hybrid_decapsulate_handle_exists(self):
         from meow_decoder.pq_hybrid import hybrid_decapsulate_handle
+
         assert callable(hybrid_decapsulate_handle)
 
     def test_encode_uses_handle_encapsulation(self):
         """encode.py must call hybrid_encapsulate_handle, not hybrid_encapsulate."""
         py_file = PRODUCTION_ROOT / "encode.py"
         source = py_file.read_text(encoding="utf-8")
-        assert "hybrid_encapsulate_handle" in source, (
-            "encode.py must call hybrid_encapsulate_handle (handle-based)"
-        )
+        assert (
+            "hybrid_encapsulate_handle" in source
+        ), "encode.py must call hybrid_encapsulate_handle (handle-based)"
         # The bytes-returning hybrid_encapsulate should not be called
         # (except in imports / dead code / comments)
         tree = ast.parse(source)
         visitor = _WrapperVisitor()
         visitor.visit(tree)
         bad = [
-            (ln, c) for ln, c in visitor.calls
+            (ln, c)
+            for ln, c in visitor.calls
             if c == "hybrid_encapsulate" and c != "hybrid_encapsulate_handle"
         ]
         # Filter: hybrid_encapsulate as standalone call (not handle variant)
@@ -579,18 +599,19 @@ class TestPQHybridHandleAPIs:
                 and not stripped.startswith("#")
             ):
                 bad.append((i, "imports hybrid_encapsulate (legacy bytes API)"))
-        assert not bad, (
-            "encode.py must NOT import/call hybrid_encapsulate (legacy bytes):\n"
-            + "\n".join(f"  - L{ln}: {c}" for ln, c in bad)
+        assert (
+            not bad
+        ), "encode.py must NOT import/call hybrid_encapsulate (legacy bytes):\n" + "\n".join(
+            f"  - L{ln}: {c}" for ln, c in bad
         )
 
     def test_decode_uses_handle_decapsulation(self):
         """decode_gif.py must call hybrid_decapsulate_handle, not hybrid_decapsulate."""
         py_file = PRODUCTION_ROOT / "decode_gif.py"
         source = py_file.read_text(encoding="utf-8")
-        assert "hybrid_decapsulate_handle" in source, (
-            "decode_gif.py must call hybrid_decapsulate_handle (handle-based)"
-        )
+        assert (
+            "hybrid_decapsulate_handle" in source
+        ), "decode_gif.py must call hybrid_decapsulate_handle (handle-based)"
         # Check no import of legacy hybrid_decapsulate
         lines = source.splitlines()
         bad = []
@@ -602,18 +623,19 @@ class TestPQHybridHandleAPIs:
                 and not stripped.startswith("#")
             ):
                 bad.append((i, "imports hybrid_decapsulate (legacy bytes API)"))
-        assert not bad, (
-            "decode_gif.py must NOT import hybrid_decapsulate (legacy bytes):\n"
-            + "\n".join(f"  - L{ln}: {c}" for ln, c in bad)
+        assert (
+            not bad
+        ), "decode_gif.py must NOT import hybrid_decapsulate (legacy bytes):\n" + "\n".join(
+            f"  - L{ln}: {c}" for ln, c in bad
         )
 
     def test_decode_uses_precomputed_key_handle(self):
         """decode_gif.py must pass precomputed_key_handle to decrypt_to_raw_production."""
         py_file = PRODUCTION_ROOT / "decode_gif.py"
         source = py_file.read_text(encoding="utf-8")
-        assert "precomputed_key_handle=" in source, (
-            "decode_gif.py must pass precomputed_key_handle to decrypt_to_raw_production"
-        )
+        assert (
+            "precomputed_key_handle=" in source
+        ), "decode_gif.py must pass precomputed_key_handle to decrypt_to_raw_production"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -636,9 +658,9 @@ class TestRatchetNoSharedSecretBytes:
             "(leaks shared secret as Python bytes)"
         )
         # Must call derive_key_hkdf (returns handle)
-        assert "derive_key_hkdf(" in func_source, (
-            "_generate_asym_rekey must call hb.derive_key_hkdf (returns handle)"
-        )
+        assert (
+            "derive_key_hkdf(" in func_source
+        ), "_generate_asym_rekey must call hb.derive_key_hkdf (returns handle)"
 
     def test_recover_asym_rekey_returns_handle(self):
         """_recover_asym_rekey must return handle, not bytes."""
@@ -646,12 +668,12 @@ class TestRatchetNoSharedSecretBytes:
         func_source = _extract_function_source(source, "_recover_asym_rekey")
         assert func_source, "_recover_asym_rekey not found in ratchet.py"
 
-        assert "derive_key_hkdf_bytes" not in func_source, (
-            "_recover_asym_rekey must NOT call derive_key_hkdf_bytes"
-        )
-        assert "derive_key_hkdf(" in func_source, (
-            "_recover_asym_rekey must call hb.derive_key_hkdf (returns handle)"
-        )
+        assert (
+            "derive_key_hkdf_bytes" not in func_source
+        ), "_recover_asym_rekey must NOT call derive_key_hkdf_bytes"
+        assert (
+            "derive_key_hkdf(" in func_source
+        ), "_recover_asym_rekey must call hb.derive_key_hkdf (returns handle)"
 
     def test_asymmetric_root_rekey_handle_uses_two_handles(self):
         """_asymmetric_root_rekey_handle must use hkdf_two_handles, not hkdf_with_handle_salt."""
@@ -674,9 +696,9 @@ class TestRatchetNoSharedSecretBytes:
         func_source = _extract_function_source(source, "_generate_asym_rekey")
         assert func_source, "_generate_asym_rekey not found in ratchet.py"
 
-        assert "derive_key_hkdf_bytes" not in func_source, (
-            "_generate_asym_rekey must NOT call derive_key_hkdf_bytes"
-        )
+        assert (
+            "derive_key_hkdf_bytes" not in func_source
+        ), "_generate_asym_rekey must NOT call derive_key_hkdf_bytes"
 
     def test_recover_asym_rekey_returns_handle(self):
         """_recover_asym_rekey must use handles, not bytes."""
@@ -684,9 +706,9 @@ class TestRatchetNoSharedSecretBytes:
         func_source = _extract_function_source(source, "_recover_asym_rekey")
         assert func_source, "_recover_asym_rekey not found in ratchet.py"
 
-        assert "derive_key_hkdf_bytes" not in func_source, (
-            "_recover_asym_rekey must NOT call derive_key_hkdf_bytes"
-        )
+        assert (
+            "derive_key_hkdf_bytes" not in func_source
+        ), "_recover_asym_rekey must NOT call derive_key_hkdf_bytes"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -700,44 +722,34 @@ class TestLegacyRuntimeGuards:
     def test_derive_key_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "derive_key")
-        assert "_legacy_guard" in func_source, (
-            "derive_key must call _legacy_guard()"
-        )
+        assert "_legacy_guard" in func_source, "derive_key must call _legacy_guard()"
 
     def test_encrypt_file_bytes_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "encrypt_file_bytes")
-        assert "_legacy_guard" in func_source, (
-            "encrypt_file_bytes must call _legacy_guard()"
-        )
+        assert "_legacy_guard" in func_source, "encrypt_file_bytes must call _legacy_guard()"
 
     def test_decrypt_to_raw_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "decrypt_to_raw")
-        assert "_legacy_guard" in func_source, (
-            "decrypt_to_raw must call _legacy_guard()"
-        )
+        assert "_legacy_guard" in func_source, "decrypt_to_raw must call _legacy_guard()"
 
     def test_compute_manifest_hmac_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "compute_manifest_hmac")
-        assert "_legacy_guard" in func_source, (
-            "compute_manifest_hmac must call _legacy_guard()"
-        )
+        assert "_legacy_guard" in func_source, "compute_manifest_hmac must call _legacy_guard()"
 
     def test_verify_manifest_hmac_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "verify_manifest_hmac")
-        assert "_legacy_guard" in func_source, (
-            "verify_manifest_hmac must call _legacy_guard()"
-        )
+        assert "_legacy_guard" in func_source, "verify_manifest_hmac must call _legacy_guard()"
 
     def test_derive_encryption_key_for_manifest_has_legacy_guard(self):
         source = (PRODUCTION_ROOT / "crypto.py").read_text(encoding="utf-8")
         func_source = _extract_function_source(source, "derive_encryption_key_for_manifest")
-        assert "_legacy_guard" in func_source, (
-            "derive_encryption_key_for_manifest must call _legacy_guard()"
-        )
+        assert (
+            "_legacy_guard" in func_source
+        ), "derive_encryption_key_for_manifest must call _legacy_guard()"
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -759,10 +771,7 @@ class TestMobileBridgeProduction:
             if stripped.startswith("#"):
                 continue
             # Check for import of legacy decrypt_to_raw (but not decrypt_to_raw_production)
-            if (
-                "import decrypt_to_raw" in stripped
-                and "decrypt_to_raw_production" not in stripped
-            ):
+            if "import decrypt_to_raw" in stripped and "decrypt_to_raw_production" not in stripped:
                 bad.append((i, stripped))
             # Check for bare call to decrypt_to_raw(
             if (
@@ -771,7 +780,8 @@ class TestMobileBridgeProduction:
                 and "# " not in stripped.split("decrypt_to_raw(")[0]
             ):
                 bad.append((i, stripped))
-        assert not bad, (
-            "decode_gif.py references legacy decrypt_to_raw (must use *_production):\n"
-            + "\n".join(f"  - L{ln}: {s}" for ln, s in bad)
+        assert (
+            not bad
+        ), "decode_gif.py references legacy decrypt_to_raw (must use *_production):\n" + "\n".join(
+            f"  - L{ln}: {s}" for ln, s in bad
         )

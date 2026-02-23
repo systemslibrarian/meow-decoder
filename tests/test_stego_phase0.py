@@ -94,7 +94,7 @@ def _make_test_gif_path(num_frames: int = 5, width: int = 32, height: int = 32) 
     return Path(tmpfile.name)
 
 
-MASTER_KEY = b"\xAB" * 32
+MASTER_KEY = b"\xab" * 32
 
 
 # ===========================================================================
@@ -188,7 +188,9 @@ class TestGifBinaryEditor(unittest.TestCase):
 
         for i, disposal in enumerate([0, 1, 2, 3]):
             if i < len(structure.gce_blocks):
-                GifBinaryEditor.set_gce_bits(structure, i, disposal=disposal, user_input=0, transparent=0)
+                GifBinaryEditor.set_gce_bits(
+                    structure, i, disposal=disposal, user_input=0, transparent=0
+                )
                 self.assertEqual(structure.gce_blocks[i].disposal_method, disposal)
 
     def test_inject_comment(self):
@@ -605,8 +607,8 @@ class TestImmunizationLayer(unittest.TestCase):
     def test_noise_different_keys(self):
         """Different keys should produce different noise."""
         frame = np.full((32, 32, 3), 128, dtype=np.uint8)
-        noised_a = ImmunizationLayer.apply(frame, b"\xAA" * 32, 0, sigma=0.5)
-        noised_b = ImmunizationLayer.apply(frame, b"\xBB" * 32, 0, sigma=0.5)
+        noised_a = ImmunizationLayer.apply(frame, b"\xaa" * 32, 0, sigma=0.5)
+        noised_b = ImmunizationLayer.apply(frame, b"\xbb" * 32, 0, sigma=0.5)
         self.assertFalse(np.array_equal(noised_a, noised_b))
 
     def test_noise_low_amplitude(self):
@@ -759,13 +761,13 @@ class TestPhase0Integration(unittest.TestCase):
         frame = np.full((64, 64, 3), 128, dtype=np.uint8)  # 128 = 10000000, LSB=0
 
         # Measure LSB entropy before
-        lsbs_before = (frame.flatten() & 1)
+        lsbs_before = frame.flatten() & 1
         ones_before = np.sum(lsbs_before)
         ratio_before = ones_before / len(lsbs_before)
 
         # Apply immunization
         noised = ImmunizationLayer.apply(frame, MASTER_KEY, 0, sigma=0.5)
-        lsbs_after = (noised.flatten() & 1)
+        lsbs_after = noised.flatten() & 1
         ones_after = np.sum(lsbs_after)
         ratio_after = ones_after / len(lsbs_after)
 
@@ -815,6 +817,7 @@ class TestBackwardCompatibility(unittest.TestCase):
         flags = 0x00  # no compress, no encrypt
         header = STEGO_MAGIC + struct.pack("<BBI I", 1, flags, len(data), len(data))
         import hmac
+
         mac_key = hmac.new(MASTER_KEY, b"meow_stego_payload_mac_v1", hashlib.sha256).digest()
         mac = hmac.new(mac_key, header + data, hashlib.sha256).digest()
         raw = header + data + mac
@@ -883,8 +886,8 @@ class TestPhase0Security(unittest.TestCase):
         frame = np.full((32, 32, 3), 128, dtype=np.uint8)
 
         # Two different keys produce different noise patterns
-        noised_a = ImmunizationLayer.apply(frame, b"\xAA" * 32, 0, sigma=1.0)
-        noised_b = ImmunizationLayer.apply(frame, b"\xBB" * 32, 0, sigma=1.0)
+        noised_a = ImmunizationLayer.apply(frame, b"\xaa" * 32, 0, sigma=1.0)
+        noised_b = ImmunizationLayer.apply(frame, b"\xbb" * 32, 0, sigma=1.0)
 
         # Extract the NOISE (difference from original), not the noised image
         noise_a = noised_a.astype(np.int16) - frame.astype(np.int16)

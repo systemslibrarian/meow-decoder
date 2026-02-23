@@ -31,6 +31,7 @@ except ImportError:
 
 def _setup_imports():
     from pathlib import Path
+
     sys.path.insert(0, str(Path(__file__).parent.parent))
 
     from meow_decoder.memory_guard import (
@@ -91,7 +92,7 @@ def fuzz_guard_page_trap_write(data: bytes):
         buf = GuardedBuffer(size)
 
         # Valid write
-        valid_data = data[4:min(4 + size, len(data))]
+        valid_data = data[4 : min(4 + size, len(data))]
         if valid_data:
             buf.write(valid_data)
 
@@ -142,10 +143,10 @@ def fuzz_guard_page_trap_read(data: bytes):
 
         # Out-of-bounds read attempts
         bad_reads = [
-            (size + 1, 0),       # Too long from start
-            (1, size),           # Start at end
-            (1, size + 4096),    # Way past end
-            (size, 1),           # Extends past end by 1
+            (size + 1, 0),  # Too long from start
+            (1, size),  # Start at end
+            (1, size + 4096),  # Way past end
+            (size, 1),  # Extends past end by 1
         ]
         for length, offset in bad_reads:
             try:
@@ -178,7 +179,7 @@ def fuzz_virtuallock_lifecycle(data: bytes):
         buf = GuardedBuffer(size)
 
         # Write data
-        payload = data[2:min(2 + size, len(data))]
+        payload = data[2 : min(2 + size, len(data))]
         if payload:
             buf.write(payload)
 
@@ -234,14 +235,14 @@ def fuzz_virtualprotect_alignment(data: bytes):
 
     test_sizes = [
         base_size,
-        page_size - 1,       # Just under page boundary
-        page_size,           # Exact page
-        page_size + 1,       # Just over page boundary
-        page_size * 2 - 1,   # Under 2-page boundary
-        page_size * 2,       # Exact 2 pages
-        1,                   # Minimum
-        7,                   # Odd small
-        255,                 # Byte boundary
+        page_size - 1,  # Just under page boundary
+        page_size,  # Exact page
+        page_size + 1,  # Just over page boundary
+        page_size * 2 - 1,  # Under 2-page boundary
+        page_size * 2,  # Exact 2 pages
+        1,  # Minimum
+        7,  # Odd small
+        255,  # Byte boundary
     ]
 
     for size in test_sizes:
@@ -286,7 +287,7 @@ def fuzz_double_free_safety(data: bytes):
 
     try:
         buf = GuardedBuffer(size)
-        buf.write(b"\xBB" * min(size, 16))
+        buf.write(b"\xbb" * min(size, 16))
 
         # Close multiple times
         buf.close()
@@ -311,7 +312,7 @@ def fuzz_use_after_free_detection(data: bytes):
 
     try:
         buf = GuardedBuffer(size)
-        buf.write(data[1:min(1 + size, len(data))])
+        buf.write(data[1 : min(1 + size, len(data))])
         buf.close()
 
         # All operations on closed buffer must raise RuntimeError
@@ -415,7 +416,7 @@ def fuzz_rapid_alloc_free_cycle(data: bytes):
     for _ in range(cycle_count):
         try:
             buf = GuardedBuffer(size)
-            buf.write(b"\xAA" * min(size, 8))
+            buf.write(b"\xaa" * min(size, 8))
             buf.close()
         except (RuntimeError, OSError, MemoryError):
             break
@@ -467,7 +468,7 @@ def fuzz_zero_wipe_idempotent(data: bytes):
 
     try:
         buf = GuardedBuffer(size)
-        buf.write(b"\xFF" * size)
+        buf.write(b"\xff" * size)
         for _ in range(wipe_count):
             buf.zero()
         # After wiping, read should return zeros (only valid if at least one wipe occurred)

@@ -8,6 +8,7 @@ the production entrypoints (encode.py, decode_gif.py, deadmans_switch_cli.py).
 To restore a module to production, move it back to meow_decoder/ and
 re-run the import-graph analysis.
 """
+
 raise ImportError(
     "meow_decoder._archive is an archive of non-production modules. "
     "Importing from it is forbidden. If you need a module that was "

@@ -38,7 +38,13 @@ from getpass import getpass
 from typing import Tuple, Optional, List
 from dataclasses import dataclass
 
-from .crypto import encrypt_file_bytes, derive_key, ARGON2_MEMORY, ARGON2_ITERATIONS, ARGON2_PARALLELISM
+from .crypto import (
+    encrypt_file_bytes,
+    derive_key,
+    ARGON2_MEMORY,
+    ARGON2_ITERATIONS,
+    ARGON2_PARALLELISM,
+)
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
 from .gif_handler import GIFEncoder
@@ -233,33 +239,29 @@ def schrodinger_encode_data(
     # --- Task B: Strengthened Password Hardening ---
     # Derive master metadata keys using Argon2id (returns opaque handles)
     master_meta_key_a = hb.derive_key_argon2id(
-        real_password.encode("utf-8"), salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        real_password.encode("utf-8"),
+        salt_a,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
     master_meta_key_b = hb.derive_key_argon2id(
-        decoy_password.encode("utf-8"), salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        decoy_password.encode("utf-8"),
+        salt_b,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
 
     # --- Task C: Enforce Key Separation ---
     # Derive separate keys for encryption and HMAC using HKDF (handle-based)
-    enc_key_a = hb.derive_key_hkdf(
-        master_meta_key_a, salt_a, b"schrodinger_enc_key_v1", 32
-    )
+    enc_key_a = hb.derive_key_hkdf(master_meta_key_a, salt_a, b"schrodinger_enc_key_v1", 32)
 
-    hmac_key_a = hb.derive_key_hkdf(
-        master_meta_key_a, salt_a, b"schrodinger_hmac_key_v1", 32
-    )
+    hmac_key_a = hb.derive_key_hkdf(master_meta_key_a, salt_a, b"schrodinger_hmac_key_v1", 32)
 
-    enc_key_b = hb.derive_key_hkdf(
-        master_meta_key_b, salt_b, b"schrodinger_enc_key_v1", 32
-    )
+    enc_key_b = hb.derive_key_hkdf(master_meta_key_b, salt_b, b"schrodinger_enc_key_v1", 32)
 
-    hmac_key_b = hb.derive_key_hkdf(
-        master_meta_key_b, salt_b, b"schrodinger_hmac_key_v1", 32
-    )
+    hmac_key_b = hb.derive_key_hkdf(master_meta_key_b, salt_b, b"schrodinger_hmac_key_v1", 32)
 
     # Pack all necessary decryption info into metadata.
     # Base plaintext layout:
@@ -308,8 +310,7 @@ def schrodinger_encode_data(
     hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
 
     # Drop intermediate key handles (zeroize in Rust)
-    for h in (master_meta_key_a, master_meta_key_b,
-              enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
+    for h in (master_meta_key_a, master_meta_key_b, enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
         try:
             hb.drop(h)
         except Exception:

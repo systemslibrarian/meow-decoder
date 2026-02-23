@@ -129,9 +129,7 @@ def _check_network_interfaces(status: AirGapStatus) -> None:
 
         status.checks["no_active_network"] = len(active) == 0
         if active:
-            status.details["no_active_network"] = (
-                f"Active interfaces: {', '.join(active)}"
-            )
+            status.details["no_active_network"] = f"Active interfaces: {', '.join(active)}"
     except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
         status.checks["no_active_network"] = None
         status.details["no_active_network"] = "Could not check (ip command unavailable)"
@@ -149,15 +147,11 @@ def _check_dns(status: AirGapStatus) -> None:
         nameservers = [
             line.split()[1]
             for line in content.split("\n")
-            if line.strip().startswith("nameserver")
-            and len(line.split()) >= 2
+            if line.strip().startswith("nameserver") and len(line.split()) >= 2
         ]
 
         # Filter out localhost resolvers (they're local, not external)
-        external = [
-            ns for ns in nameservers
-            if ns not in ("127.0.0.1", "::1", "127.0.0.53")
-        ]
+        external = [ns for ns in nameservers if ns not in ("127.0.0.1", "::1", "127.0.0.53")]
 
         status.checks["no_dns"] = len(external) == 0
         if external:

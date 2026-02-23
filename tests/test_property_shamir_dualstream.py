@@ -33,7 +33,9 @@ from hypothesis import strategies as st
 threshold_strategy = st.integers(min_value=2, max_value=5)
 share_count_strategy = st.integers(min_value=2, max_value=5)
 small_secret_strategy = st.binary(min_size=1, max_size=512)
-password_strategy = st.text(min_size=8, max_size=64, alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd")))
+password_strategy = st.text(
+    min_size=8, max_size=64, alphabet=st.characters(whitelist_categories=("Lu", "Ll", "Nd"))
+)
 
 
 # ---------------------------------------------------------------------------
@@ -50,6 +52,7 @@ try:
         GF_EXP,
         GF_LOG,
     )
+
     SHAMIR_AVAILABLE = True
 except (ImportError, AttributeError):
     SHAMIR_AVAILABLE = False
@@ -60,6 +63,7 @@ try:
         dual_stream_try_decode_stream,
         DualStreamManifest,
     )
+
     DUAL_STREAM_AVAILABLE = True
 except (ImportError, AttributeError):
     DUAL_STREAM_AVAILABLE = False
@@ -71,6 +75,7 @@ try:
         select_size_class,
         SIZE_CLASSES,
     )
+
     SIZE_NORMALIZER_AVAILABLE = True
 except (ImportError, AttributeError):
     try:
@@ -79,6 +84,7 @@ except (ImportError, AttributeError):
             unpad_from_size_class,
             select_size_class,
         )
+
         SIZE_CLASSES = None
         SIZE_NORMALIZER_AVAILABLE = True
     except (ImportError, AttributeError):
@@ -89,6 +95,7 @@ try:
         decorrelate_config,
         DecorrelationParams,
     )
+
     DECORRELATION_AVAILABLE = True
 except (ImportError, AttributeError):
     DECORRELATION_AVAILABLE = False
@@ -97,6 +104,7 @@ except (ImportError, AttributeError):
 # ===========================================================================
 # 1. Shamir GF(2^8) Field Arithmetic
 # ===========================================================================
+
 
 @pytest.mark.skipif(not SHAMIR_AVAILABLE, reason="shamir_split not available")
 class TestShamirGFArithmetic:
@@ -175,6 +183,7 @@ class TestShamirGFArithmetic:
 # 2. Shamir Threshold Secret Sharing
 # ===========================================================================
 
+
 @pytest.mark.skipif(not SHAMIR_AVAILABLE, reason="shamir_split not available")
 class TestShamirThreshold:
     """Shamir's Secret Sharing: threshold reconstruction and security."""
@@ -194,11 +203,11 @@ class TestShamirThreshold:
 
         # Test all subsets of exactly `threshold` shares
         import itertools
+
         for combo in list(itertools.combinations(shares, threshold))[:5]:
             recovered = shamir_combine(list(combo), threshold=threshold)
             assert recovered == secret, (
-                f"Recovery failed for threshold={threshold}, "
-                f"num_shares={num_shares}"
+                f"Recovery failed for threshold={threshold}, " f"num_shares={num_shares}"
             )
 
     @given(
@@ -288,8 +297,7 @@ class TestShamirThreshold:
         try:
             recovered = shamir_combine(corrupted_set, threshold=2)
             assert recovered != secret, (
-                "Corrupted share silently produced correct secret "
-                "— corruption detection failed"
+                "Corrupted share silently produced correct secret " "— corruption detection failed"
             )
         except (ValueError, RuntimeError):
             pass  # Expected: corruption detected
@@ -298,6 +306,7 @@ class TestShamirThreshold:
 # ===========================================================================
 # 3. Dual-Stream Encode / Decode
 # ===========================================================================
+
 
 @pytest.mark.skipif(not DUAL_STREAM_AVAILABLE, reason="dual_stream not available")
 class TestDualStreamInvariants:
@@ -404,6 +413,7 @@ class TestDualStreamInvariants:
 # 4. Size Normalizer Invariants
 # ===========================================================================
 
+
 @pytest.mark.skipif(not SIZE_NORMALIZER_AVAILABLE, reason="size_normalizer not available")
 class TestSizeNormalizerInvariants:
     """Size normalizer: padded size ≥ input, unpad(pad(x)) == x."""
@@ -413,9 +423,9 @@ class TestSizeNormalizerInvariants:
     def test_padded_size_never_less_than_input(self, data):
         """Padded output is always at least as large as input — never truncates."""
         padded = pad_to_size_class(data)
-        assert len(padded) >= len(data), (
-            f"Padding truncated: input={len(data)}, output={len(padded)}"
-        )
+        assert len(padded) >= len(
+            data
+        ), f"Padding truncated: input={len(data)}, output={len(padded)}"
 
     @given(data=st.binary(min_size=0, max_size=65536))
     @settings(max_examples=200, suppress_health_check=[HealthCheck.too_slow])
@@ -465,9 +475,7 @@ class TestSizeNormalizerInvariants:
         """select_size_class returns a class ≥ size."""
         try:
             sc = select_size_class(size)
-            assert sc >= size, (
-                f"Size class {sc} is smaller than input size {size}"
-            )
+            assert sc >= size, f"Size class {sc} is smaller than input size {size}"
         except (ValueError, OverflowError):
             pass  # Input too large for any class
 
@@ -475,6 +483,7 @@ class TestSizeNormalizerInvariants:
 # ===========================================================================
 # 5. Decorrelation Invariants
 # ===========================================================================
+
 
 @pytest.mark.skipif(not DECORRELATION_AVAILABLE, reason="decorrelation not available")
 class TestDecorrelationInvariants:
@@ -487,9 +496,9 @@ class TestDecorrelationInvariants:
         try:
             params = decorrelate_config(seed=seed)
             assert isinstance(params, DecorrelationParams)
-            assert 128 <= params.block_size <= 1200, (
-                f"block_size={params.block_size} out of valid range [128, 1200]"
-            )
+            assert (
+                128 <= params.block_size <= 1200
+            ), f"block_size={params.block_size} out of valid range [128, 1200]"
         except (ValueError, TypeError):
             pass
 
@@ -499,9 +508,9 @@ class TestDecorrelationInvariants:
         """Decorrelated redundancy factor is always in [1.2, 3.0]."""
         try:
             params = decorrelate_config(seed=seed)
-            assert 1.0 <= params.redundancy <= 4.0, (
-                f"redundancy={params.redundancy} out of valid range [1.0, 4.0]"
-            )
+            assert (
+                1.0 <= params.redundancy <= 4.0
+            ), f"redundancy={params.redundancy} out of valid range [1.0, 4.0]"
         except (ValueError, TypeError):
             pass
 
@@ -512,9 +521,7 @@ class TestDecorrelationInvariants:
         try:
             params = decorrelate_config(seed=seed)
             assert isinstance(params.fps, int)
-            assert 1 <= params.fps <= 30, (
-                f"fps={params.fps} out of valid range [1, 30]"
-            )
+            assert 1 <= params.fps <= 30, f"fps={params.fps} out of valid range [1, 30]"
         except (ValueError, TypeError, AttributeError):
             pass
 

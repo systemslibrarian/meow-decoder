@@ -416,14 +416,21 @@ class TestFixE1FrameMACFailClosed:
             "QRCodeReader",
             lambda preprocessing=None: _SequenceQRCodeReader([manifest_with_mac, droplet_bytes]),
         )
-        monkeypatch.setattr(decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True)
+        monkeypatch.setattr(
+            decode_mod, "verify_manifest_hmac_production", lambda *args, **kwargs: True
+        )
         monkeypatch.setattr(decode_mod, "FountainDecoder", _DummyFountainDecoder)
-        monkeypatch.setattr(decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext)
+        monkeypatch.setattr(
+            decode_mod, "decrypt_to_raw_production", lambda *args, **kwargs: plaintext
+        )
 
         # Bypass inline HMAC verification: compute_manifest_hmac_from_handle
         # is imported inside decode_gif, so patch it at the source
         import meow_decoder.crypto as crypto_mod
-        monkeypatch.setattr(crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32)
+
+        monkeypatch.setattr(
+            crypto_mod, "compute_manifest_hmac_from_handle", lambda *args, **kwargs: b"\x00" * 32
+        )
 
         import meow_decoder.frame_mac as frame_mac
 

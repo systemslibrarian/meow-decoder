@@ -53,6 +53,7 @@ __all__ = [
 
 class ContentExpiredError(Exception):
     """Raised when attempting to decode content that has expired."""
+
     pass
 
 
@@ -148,8 +149,7 @@ class ExpiryManager:
         """
         if len(expiry_bytes) != EXPIRY_FIELD_SIZE:
             raise ValueError(
-                f"Expiry field must be {EXPIRY_FIELD_SIZE} bytes, "
-                f"got {len(expiry_bytes)}"
+                f"Expiry field must be {EXPIRY_FIELD_SIZE} bytes, " f"got {len(expiry_bytes)}"
             )
         return struct.unpack(">Q", expiry_bytes)[0]
 
@@ -326,7 +326,6 @@ class ExpiryManager:
         policy = policies.get(name.lower())
         if policy is None:
             raise ValueError(
-                f"Unknown expiry policy: {name!r}. "
-                f"Available: {', '.join(policies.keys())}"
+                f"Unknown expiry policy: {name!r}. " f"Available: {', '.join(policies.keys())}"
             )
         return policy

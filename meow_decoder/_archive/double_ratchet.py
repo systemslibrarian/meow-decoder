@@ -455,9 +455,7 @@ class DoubleRatchet:
         assert self.state.dh_keypair is not None, "DH keypair must exist"
         dh_handle = self.state.dh_keypair.exchange(their_public)
         old_root = self.state.root_key
-        self.state.root_key, self.state.recv_chain_key = self._kdf_rk(
-            old_root, dh_handle
-        )
+        self.state.root_key, self.state.recv_chain_key = self._kdf_rk(old_root, dh_handle)
         hb.drop(dh_handle)
         if old_root is not None and old_root != self.state.root_key:
             hb.drop(old_root)
@@ -470,9 +468,7 @@ class DoubleRatchet:
         # Derive sending chain
         dh_handle = self.state.dh_keypair.exchange(their_public)
         old_root = self.state.root_key
-        self.state.root_key, self.state.send_chain_key = self._kdf_rk(
-            old_root, dh_handle
-        )
+        self.state.root_key, self.state.send_chain_key = self._kdf_rk(old_root, dh_handle)
         hb.drop(dh_handle)
         if old_root is not None and old_root != self.state.root_key:
             hb.drop(old_root)
@@ -515,7 +511,9 @@ class DoubleRatchet:
         """
         hb = get_handle_backend()
         new_root = hb.hkdf_two_handles(dh_handle, root_key_handle, RATCHET_INFO_ROOT + b":root", 32)
-        chain_key = hb.hkdf_two_handles(dh_handle, root_key_handle, RATCHET_INFO_ROOT + b":chain", 32)
+        chain_key = hb.hkdf_two_handles(
+            dh_handle, root_key_handle, RATCHET_INFO_ROOT + b":chain", 32
+        )
         return new_root, chain_key
 
     @staticmethod

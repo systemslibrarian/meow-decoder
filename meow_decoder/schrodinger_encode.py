@@ -46,7 +46,6 @@ from .frame_mac import pack_frame_with_mac
 from .quantum_mixer import entangle_realities
 from .decoy_generator import generate_convincing_decoy
 
-
 # Current manifest version.  Bump when the binary layout changes.
 #   0x07 = legacy (no frame_mac_seed, reserved=32 zeros)
 #   0x08 = current (first 16 bytes of old-reserved repurposed as frame_mac_seed;
@@ -153,8 +152,8 @@ class SchrodingerManifest:
         data += self.metadata_a
         data += self.metadata_b
         data += struct.pack(">IIQ", self.block_count, self.block_size, self.superposition_len)
-        data += self.frame_mac_seed   # 16 bytes (was first 16B of reserved)
-        data += self.reserved         # 16 bytes (remaining reserved)
+        data += self.frame_mac_seed  # 16 bytes (was first 16B of reserved)
+        data += self.reserved  # 16 bytes (remaining reserved)
         return data
 
     @classmethod
@@ -174,28 +173,37 @@ class SchrodingerManifest:
             raise ValueError(f"Not a Schrödinger manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset: offset + 16]; offset += 16
-        salt_b = data[offset: offset + 16]; offset += 16
-        nonce_a = data[offset: offset + 12]; offset += 12
-        nonce_b = data[offset: offset + 12]; offset += 12
-        reality_a_hmac = data[offset: offset + 32]; offset += 32
-        reality_b_hmac = data[offset: offset + 32]; offset += 32
-        metadata_a = data[offset: offset + 104]; offset += 104
-        metadata_b = data[offset: offset + 104]; offset += 104
+        salt_a = data[offset : offset + 16]
+        offset += 16
+        salt_b = data[offset : offset + 16]
+        offset += 16
+        nonce_a = data[offset : offset + 12]
+        offset += 12
+        nonce_b = data[offset : offset + 12]
+        offset += 12
+        reality_a_hmac = data[offset : offset + 32]
+        offset += 32
+        reality_b_hmac = data[offset : offset + 32]
+        offset += 32
+        metadata_a = data[offset : offset + 104]
+        offset += 104
+        metadata_b = data[offset : offset + 104]
+        offset += 104
         block_count, block_size, superposition_len = struct.unpack(
-            ">IIQ", data[offset: offset + 16]
+            ">IIQ", data[offset : offset + 16]
         )
         offset += 16
 
         if version == 0x08:
             # v0x08: first 16 bytes of old-reserved = frame_mac_seed
-            frame_mac_seed = data[offset: offset + 16]; offset += 16
-            reserved = data[offset: offset + 16]  # remaining 16 reserved bytes
+            frame_mac_seed = data[offset : offset + 16]
+            offset += 16
+            reserved = data[offset : offset + 16]  # remaining 16 reserved bytes
         else:
             # v0x07 legacy: no explicit seed; use all-zeros placeholder
             # Frame MAC verification is unavailable for legacy GIFs.
             frame_mac_seed = b"\x00" * 16
-            reserved = data[offset: offset + 32]
+            reserved = data[offset : offset + 32]
 
         return cls(
             magic=data[:4],
@@ -255,11 +263,13 @@ def schrodinger_encode_data(
 
     # ── Encrypt both realities via handle-based API ──
     # Key NEVER enters Python memory.
-    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, key_handle_a = \
-        encrypt_file_bytes_handle(real_data, real_password, use_length_padding=True)
+    comp_a, sha_a, salt_enc_a, nonce_enc_a, cipher_a, key_handle_a = encrypt_file_bytes_handle(
+        real_data, real_password, use_length_padding=True
+    )
 
-    comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = \
-        encrypt_file_bytes_handle(decoy_data, decoy_password, use_length_padding=True)
+    comp_b, sha_b, salt_enc_b, nonce_enc_b, cipher_b, key_handle_b = encrypt_file_bytes_handle(
+        decoy_data, decoy_password, use_length_padding=True
+    )
 
     # Drop encryption key handles — we derive fresh metadata keys below
     hb.drop(key_handle_a)
@@ -269,38 +279,31 @@ def schrodinger_encode_data(
     superposition = entangle_realities(cipher_a, cipher_b)
 
     # Split into blocks for fountain encoding
-    blocks = [
-        superposition[i: i + block_size]
-        for i in range(0, len(superposition), block_size)
-    ]
+    blocks = [superposition[i : i + block_size] for i in range(0, len(superposition), block_size)]
     if blocks and len(blocks[-1]) < block_size:
         blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))
 
     # ── Derive metadata keys via Argon2id → HKDF (all handle-based) ──
     master_meta_key_a = hb.derive_key_argon2id(
-        real_password.encode("utf-8"), salt_a,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        real_password.encode("utf-8"),
+        salt_a,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
     master_meta_key_b = hb.derive_key_argon2id(
-        decoy_password.encode("utf-8"), salt_b,
-        memory_kib=ARGON2_MEMORY, iterations=ARGON2_ITERATIONS,
+        decoy_password.encode("utf-8"),
+        salt_b,
+        memory_kib=ARGON2_MEMORY,
+        iterations=ARGON2_ITERATIONS,
         parallelism=ARGON2_PARALLELISM,
     )
 
     # HKDF domain separation: separate enc and HMAC keys
-    enc_key_a = hb.derive_key_hkdf(
-        master_meta_key_a, salt_a, b"schrodinger_enc_key_v1", 32
-    )
-    hmac_key_a = hb.derive_key_hkdf(
-        master_meta_key_a, salt_a, b"schrodinger_hmac_key_v1", 32
-    )
-    enc_key_b = hb.derive_key_hkdf(
-        master_meta_key_b, salt_b, b"schrodinger_enc_key_v1", 32
-    )
-    hmac_key_b = hb.derive_key_hkdf(
-        master_meta_key_b, salt_b, b"schrodinger_hmac_key_v1", 32
-    )
+    enc_key_a = hb.derive_key_hkdf(master_meta_key_a, salt_a, b"schrodinger_enc_key_v1", 32)
+    hmac_key_a = hb.derive_key_hkdf(master_meta_key_a, salt_a, b"schrodinger_hmac_key_v1", 32)
+    enc_key_b = hb.derive_key_hkdf(master_meta_key_b, salt_b, b"schrodinger_enc_key_v1", 32)
+    hmac_key_b = hb.derive_key_hkdf(master_meta_key_b, salt_b, b"schrodinger_hmac_key_v1", 32)
 
     # ── Pack metadata payloads ──
     # Layout: orig_len(8) + comp_len(8) + cipher_len(8) + salt_enc(16) +
@@ -308,11 +311,17 @@ def schrodinger_encode_data(
     # AES-GCM adds 16-byte tag → 104 bytes ciphertext
     metadata_a_plain = (
         struct.pack(">QQQ", len(real_data), len(comp_a), len(cipher_a))
-        + salt_enc_a + nonce_enc_a + sha_a + b"\x00" * 4
+        + salt_enc_a
+        + nonce_enc_a
+        + sha_a
+        + b"\x00" * 4
     )
     metadata_b_plain = (
         struct.pack(">QQQ", len(decoy_data), len(comp_b), len(cipher_b))
-        + salt_enc_b + nonce_enc_b + sha_b + b"\x00" * 4
+        + salt_enc_b
+        + nonce_enc_b
+        + sha_b
+        + b"\x00" * 4
     )
 
     metadata_a_enc = hb.aes_gcm_encrypt(enc_key_a, nonce_a, metadata_a_plain, None)
@@ -323,8 +332,10 @@ def schrodinger_encode_data(
 
     # ── Compute manifest HMACs ──
     temp_manifest = SchrodingerManifest(
-        salt_a=salt_a, salt_b=salt_b,
-        nonce_a=nonce_a, nonce_b=nonce_b,
+        salt_a=salt_a,
+        salt_b=salt_b,
+        nonce_a=nonce_a,
+        nonce_b=nonce_b,
         reality_a_hmac=b"\x00" * 32,
         reality_b_hmac=b"\x00" * 32,
         metadata_a=metadata_a_enc,
@@ -340,8 +351,7 @@ def schrodinger_encode_data(
     hmac_b = hb.hmac_sha256(hmac_key_b, manifest_core)
 
     # ── Drop all intermediate key handles (zeroize in Rust) ──
-    for h in (master_meta_key_a, master_meta_key_b,
-              enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
+    for h in (master_meta_key_a, master_meta_key_b, enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
         try:
             hb.drop(h)
         except Exception:
@@ -349,8 +359,10 @@ def schrodinger_encode_data(
 
     # ── Build final manifest ──
     manifest = SchrodingerManifest(
-        salt_a=salt_a, salt_b=salt_b,
-        nonce_a=nonce_a, nonce_b=nonce_b,
+        salt_a=salt_a,
+        salt_b=salt_b,
+        nonce_a=nonce_a,
+        nonce_b=nonce_b,
         reality_a_hmac=hmac_a,
         reality_b_hmac=hmac_b,
         metadata_a=metadata_a_enc,
@@ -476,7 +488,9 @@ def schrodinger_encode_file(
     qr_data_list = [manifest_with_mac]
     for i, droplet in enumerate(droplets, 1):
         droplet_bytes = pack_droplet(droplet)
-        droplet_with_mac = pack_frame_with_mac(droplet_bytes, master_key, i, manifest.frame_mac_seed)
+        droplet_with_mac = pack_frame_with_mac(
+            droplet_bytes, master_key, i, manifest.frame_mac_seed
+        )
         qr_data_list.append(droplet_with_mac)
 
     hb.drop(master_key)
@@ -562,6 +576,7 @@ def main():
         print(f"\n\u274c Encoding failed: invalid input or internal error", file=sys.stderr)
         if args.debug:
             import traceback
+
             traceback.print_exc()
         return 1
 

@@ -118,8 +118,15 @@ def fuzz_aes_gcm_decrypt_corrupt(data: bytes):
     except Exception as e:
         msg = str(e).lower()
         expected = [
-            "tag", "authentication", "decrypt", "invalid", "gcm",
-            "cipher", "length", "nonce", "key",
+            "tag",
+            "authentication",
+            "decrypt",
+            "invalid",
+            "gcm",
+            "cipher",
+            "length",
+            "nonce",
+            "key",
         ]
         if not any(x in msg for x in expected):
             raise

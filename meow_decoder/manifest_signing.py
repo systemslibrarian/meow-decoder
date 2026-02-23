@@ -67,6 +67,7 @@ _RUST_ED25519_AVAILABLE = False
 _RUST_MLDSA_AVAILABLE = False
 try:
     import meow_crypto_rs as _rs
+
     _RUST_ED25519_AVAILABLE = hasattr(_rs, "ed25519_sign")
     _RUST_MLDSA_AVAILABLE = hasattr(_rs, "mldsa65_sign")
     _RUST_SIGNING_AVAILABLE = _RUST_ED25519_AVAILABLE
@@ -80,6 +81,7 @@ try:
         Ed25519PublicKey,
     )
     from cryptography.hazmat.primitives import serialization
+
     _CRYPTO_AVAILABLE = True
 except ImportError:
     _CRYPTO_AVAILABLE = False
@@ -87,6 +89,7 @@ except ImportError:
 # Fallback to ml-dsa pure Python or pqcrypto
 try:
     from ml_dsa import ML_DSA_65  # type: ignore
+
     _MLDSA_PURE_AVAILABLE = True
 except ImportError:
     _MLDSA_PURE_AVAILABLE = False
@@ -95,6 +98,7 @@ except ImportError:
 _OQS_SIG_AVAILABLE = False
 try:
     import oqs  # type: ignore[import-not-found]
+
     _OQS_SIG_AVAILABLE = "Dilithium3" in oqs.get_enabled_sig_mechanisms()
 except (ImportError, AttributeError):
     pass
@@ -107,6 +111,7 @@ class SigningKeyPair:
 
     Always contains BOTH keys for hybrid signing.
     """
+
     # Ed25519 keys (32 bytes each)
     ed25519_sk: bytes
     ed25519_pk: bytes
@@ -132,6 +137,7 @@ class ManifestSignature:
 
     Contains BOTH Ed25519 and ML-DSA-65 signatures.
     """
+
     ed25519_sig: bytes
     mldsa65_sig: bytes
 
@@ -165,7 +171,7 @@ class ManifestSignature:
         if len(data) < 71 + mldsa_len:
             raise ValueError("Signature truncated")
 
-        mldsa65_sig = data[71:71 + mldsa_len]
+        mldsa65_sig = data[71 : 71 + mldsa_len]
 
         return cls(ed25519_sig=ed25519_sig, mldsa65_sig=mldsa65_sig)
 
@@ -180,6 +186,7 @@ def _ed25519_generate() -> Tuple[bytes, bytes]:
     """Generate Ed25519 keypair."""
     if _RUST_ED25519_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.ed25519_keygen()
 
     if _CRYPTO_AVAILABLE:
@@ -203,6 +210,7 @@ def _ed25519_sign(sk: bytes, message: bytes) -> bytes:
     """Sign with Ed25519."""
     if _RUST_ED25519_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.ed25519_sign(sk, message)
 
     if _CRYPTO_AVAILABLE:
@@ -216,6 +224,7 @@ def _ed25519_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
     """Verify Ed25519 signature."""
     if _RUST_ED25519_AVAILABLE:
         import meow_crypto_rs as rs
+
         try:
             rs.ed25519_verify(pk, message, signature)
             return True
@@ -237,6 +246,7 @@ def _mldsa65_generate() -> Tuple[bytes, bytes]:
     """Generate ML-DSA-65 keypair."""
     if _RUST_MLDSA_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.mldsa65_keygen()
 
     if _MLDSA_PURE_AVAILABLE:
@@ -260,6 +270,7 @@ def _mldsa65_sign(sk: bytes, message: bytes) -> bytes:
     """Sign with ML-DSA-65."""
     if _RUST_MLDSA_AVAILABLE:
         import meow_crypto_rs as rs
+
         return rs.mldsa65_sign(sk, message)
 
     if _MLDSA_PURE_AVAILABLE:
@@ -271,8 +282,7 @@ def _mldsa65_sign(sk: bytes, message: bytes) -> bytes:
             return sig.sign(message, sk)
 
     raise RuntimeError(
-        "No secure ML-DSA-65 implementation available. "
-        "Insecure stubs are permanently disabled."
+        "No secure ML-DSA-65 implementation available. " "Insecure stubs are permanently disabled."
     )
 
 
@@ -280,6 +290,7 @@ def _mldsa65_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
     """Verify ML-DSA-65 signature."""
     if _RUST_MLDSA_AVAILABLE:
         import meow_crypto_rs as rs
+
         try:
             rs.mldsa65_verify(pk, message, signature)
             return True
@@ -301,8 +312,7 @@ def _mldsa65_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
             return False
 
     raise RuntimeError(
-        "No secure ML-DSA-65 implementation available. "
-        "Insecure stubs are permanently disabled."
+        "No secure ML-DSA-65 implementation available. " "Insecure stubs are permanently disabled."
     )
 
 
@@ -387,7 +397,7 @@ def verify_manifest_signature(
         )
 
     ed_pk = public_key[:ED25519_PK_SIZE]
-    ml_pk = public_key[ED25519_PK_SIZE:ED25519_PK_SIZE + MLDSA65_PK_SIZE]
+    ml_pk = public_key[ED25519_PK_SIZE : ED25519_PK_SIZE + MLDSA65_PK_SIZE]
 
     # Compute message hash with domain separation
     message = MANIFEST_SIGN_DOMAIN + context + manifest_bytes

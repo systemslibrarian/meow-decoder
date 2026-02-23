@@ -40,6 +40,7 @@ os.environ.setdefault("MEOW_TEST_MODE", "1")
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def make_key(seed: str = "test_phase1_key_material") -> bytes:
     """Generate a deterministic 32-byte test key."""
     return hashlib.sha256(seed.encode()).digest()
@@ -126,7 +127,7 @@ class TestTemporalChannelEncoder:
         frames = make_test_frames(num_frames=15, height=64, width=80)
 
         # 14 transitions * 4 bits = 56 bits max
-        payload_bits = [int(b) for b in format(0xDEADBEEF, '032b')]  # 32 bits
+        payload_bits = [int(b) for b in format(0xDEADBEEF, "032b")]  # 32 bits
         modified = enc.embed(frames, payload_bits)
         extracted = enc.extract(modified, len(payload_bits))
         assert extracted == payload_bits
@@ -402,10 +403,8 @@ class TestAdversarialPerturbationLayer:
         # Create covers and intentionally shifted stego (simulates embedding)
         covers1 = make_test_frames(num_frames=3, seed=42)
         covers2 = make_test_frames(num_frames=3, seed=42)
-        frames1 = [np.clip(f.astype(np.int16) + 15, 0, 255).astype(np.uint8)
-                   for f in covers1]
-        frames2 = [np.clip(f.astype(np.int16) + 15, 0, 255).astype(np.uint8)
-                   for f in covers2]
+        frames1 = [np.clip(f.astype(np.int16) + 15, 0, 255).astype(np.uint8) for f in covers1]
+        frames2 = [np.clip(f.astype(np.int16) + 15, 0, 255).astype(np.uint8) for f in covers2]
 
         layer1 = AdversarialPerturbationLayer(key1, config)
         layer2 = AdversarialPerturbationLayer(key2, config)
@@ -413,10 +412,7 @@ class TestAdversarialPerturbationLayer:
         result1 = layer1.apply(frames1, covers1)
         result2 = layer2.apply(frames2, covers2)
 
-        any_different = any(
-            not np.array_equal(result1[i], result2[i])
-            for i in range(len(result1))
-        )
+        any_different = any(not np.array_equal(result1[i], result2[i]) for i in range(len(result1)))
         assert any_different, "Different keys should produce different perturbations"
 
     def test_histogram_match_improves_distribution(self):
@@ -443,9 +439,9 @@ class TestAdversarialPerturbationLayer:
         dist_before = np.sum(np.abs(shifted_hist.astype(np.int64) - cover_hist.astype(np.int64)))
         dist_after = np.sum(np.abs(result_hist.astype(np.int64) - cover_hist.astype(np.int64)))
 
-        assert dist_after <= dist_before, (
-            f"Histogram matching should improve: before={dist_before}, after={dist_after}"
-        )
+        assert (
+            dist_after <= dist_before
+        ), f"Histogram matching should improve: before={dist_before}, after={dist_after}"
 
     def test_strength_constants(self):
         """Adversarial strength constants have correct values."""
@@ -531,10 +527,7 @@ class TestProceduralCatGenerator:
         frames1 = gen1.generate()
         frames2 = gen2.generate()
 
-        any_diff = any(
-            not np.array_equal(frames1[i], frames2[i])
-            for i in range(len(frames1))
-        )
+        any_diff = any(not np.array_equal(frames1[i], frames2[i]) for i in range(len(frames1)))
         assert any_diff, "Different keys should produce different carriers"
 
     def test_pixel_values_valid(self):
@@ -621,24 +614,18 @@ class TestPhase1Integration:
 
     def test_key_derivation_includes_temporal(self):
         """derive_stego_keys_for_reality returns temporal key at FULL level."""
-        keys = derive_stego_keys_for_reality(
-            "test_pass", b"0" * 16, CoercionLevel.FULL
-        )
+        keys = derive_stego_keys_for_reality("test_pass", b"0" * 16, CoercionLevel.FULL)
         assert "temporal" in keys
         assert len(keys["temporal"]) == 32
 
     def test_key_derivation_shallow_no_temporal(self):
         """SHALLOW level does not include temporal key."""
-        keys = derive_stego_keys_for_reality(
-            "test_pass", b"0" * 16, CoercionLevel.SHALLOW
-        )
+        keys = derive_stego_keys_for_reality("test_pass", b"0" * 16, CoercionLevel.SHALLOW)
         assert "temporal" not in keys
 
     def test_key_derivation_decoy_no_temporal(self):
         """DECOY level does not include temporal key."""
-        keys = derive_stego_keys_for_reality(
-            "test_pass", b"0" * 16, CoercionLevel.DECOY
-        )
+        keys = derive_stego_keys_for_reality("test_pass", b"0" * 16, CoercionLevel.DECOY)
         assert "temporal" not in keys
 
     def test_config_defaults(self):
@@ -703,11 +690,17 @@ class TestDistributePayloadTemporal:
         # Small payload that fits in primary
         payload = b"Hello, temporal channel!"
         from meow_decoder.stego_multilayer import prepare_payload
+
         prepared = prepare_payload(payload, make_key())
 
         channels = distribute_payload(
-            prepared, config, 10, frame_counts, perm_counts,
-            frame_height=64, frame_width=80,
+            prepared,
+            config,
+            10,
+            frame_counts,
+            perm_counts,
+            frame_height=64,
+            frame_width=80,
         )
 
         # Primary should get bulk data
@@ -723,11 +716,17 @@ class TestDistributePayloadTemporal:
 
         payload = b"test"
         from meow_decoder.stego_multilayer import prepare_payload
+
         prepared = prepare_payload(payload, make_key())
 
         channels = distribute_payload(
-            prepared, config, 10, frame_counts, perm_counts,
-            frame_height=64, frame_width=80,
+            prepared,
+            config,
+            10,
+            frame_counts,
+            perm_counts,
+            frame_height=64,
+            frame_width=80,
         )
 
         assert "temporal" not in channels
@@ -742,11 +741,17 @@ class TestDistributePayloadTemporal:
 
         payload = b"t"
         from meow_decoder.stego_multilayer import prepare_payload
+
         prepared = prepare_payload(payload, make_key())
 
         channels = distribute_payload(
-            prepared, config, 1, frame_counts, perm_counts,
-            frame_height=64, frame_width=80,
+            prepared,
+            config,
+            1,
+            frame_counts,
+            perm_counts,
+            frame_height=64,
+            frame_width=80,
         )
 
         assert "temporal" not in channels
@@ -763,11 +768,13 @@ class TestStegoVersionExports:
     def test_stego_version(self):
         """STEGO_VERSION is 3 for Phase 1."""
         from meow_decoder.stego_multilayer import STEGO_VERSION
+
         assert STEGO_VERSION == 3
 
     def test_all_phase1_exports(self):
         """All Phase 1 classes and constants are in __all__."""
         from meow_decoder import stego_multilayer
+
         all_exports = stego_multilayer.__all__
 
         phase1_exports = [
@@ -786,9 +793,20 @@ class TestStegoVersionExports:
     def test_channel_temporal_unique(self):
         """CHANNEL_TEMPORAL is a unique channel ID."""
         from meow_decoder.stego_multilayer import (
-            CHANNEL_PRIMARY, CHANNEL_SECONDARY, CHANNEL_TERTIARY,
-            CHANNEL_DISPOSAL, CHANNEL_COMMENT, CHANNEL_TEMPORAL,
+            CHANNEL_PRIMARY,
+            CHANNEL_SECONDARY,
+            CHANNEL_TERTIARY,
+            CHANNEL_DISPOSAL,
+            CHANNEL_COMMENT,
+            CHANNEL_TEMPORAL,
         )
-        all_ids = [CHANNEL_PRIMARY, CHANNEL_SECONDARY, CHANNEL_TERTIARY,
-                   CHANNEL_DISPOSAL, CHANNEL_COMMENT, CHANNEL_TEMPORAL]
+
+        all_ids = [
+            CHANNEL_PRIMARY,
+            CHANNEL_SECONDARY,
+            CHANNEL_TERTIARY,
+            CHANNEL_DISPOSAL,
+            CHANNEL_COMMENT,
+            CHANNEL_TEMPORAL,
+        ]
         assert len(set(all_ids)) == len(all_ids), "Channel IDs must be unique"

@@ -57,16 +57,26 @@ def _setup_imports():
 if atheris is not None:
     with atheris.instrument_imports():
         (
-            PQBeaconFrame, PQBeaconKeyPair, PQRatchetBeacon,
-            generate_beacon_keypair, integrate_with_ratchet,
-            _mlkem1024_keygen, _mlkem1024_encapsulate, _mlkem1024_decapsulate,
+            PQBeaconFrame,
+            PQBeaconKeyPair,
+            PQRatchetBeacon,
+            generate_beacon_keypair,
+            integrate_with_ratchet,
+            _mlkem1024_keygen,
+            _mlkem1024_encapsulate,
+            _mlkem1024_decapsulate,
             secrets,
         ) = _setup_imports()
 else:
     (
-        PQBeaconFrame, PQBeaconKeyPair, PQRatchetBeacon,
-        generate_beacon_keypair, integrate_with_ratchet,
-        _mlkem1024_keygen, _mlkem1024_encapsulate, _mlkem1024_decapsulate,
+        PQBeaconFrame,
+        PQBeaconKeyPair,
+        PQRatchetBeacon,
+        generate_beacon_keypair,
+        integrate_with_ratchet,
+        _mlkem1024_keygen,
+        _mlkem1024_encapsulate,
+        _mlkem1024_decapsulate,
         secrets,
     ) = _setup_imports()
 
@@ -151,10 +161,19 @@ def fuzz_decapsulate_corrupt_ciphertext(data: bytes):
         pass
     except Exception as e:
         error_msg = str(e).lower()
-        if any(x in error_msg for x in [
-            "ciphertext", "invalid", "decapsulate", "size", "kem",
-            "kyber", "ml-kem", "decap"
-        ]):
+        if any(
+            x in error_msg
+            for x in [
+                "ciphertext",
+                "invalid",
+                "decapsulate",
+                "size",
+                "kem",
+                "kyber",
+                "ml-kem",
+                "decap",
+            ]
+        ):
             pass
         else:
             raise
@@ -176,10 +195,20 @@ def fuzz_encapsulate_corrupt_pubkey(data: bytes):
         pass
     except Exception as e:
         error_msg = str(e).lower()
-        if any(x in error_msg for x in [
-            "key", "invalid", "encapsulate", "size", "kem",
-            "kyber", "ml-kem", "encap", "public"
-        ]):
+        if any(
+            x in error_msg
+            for x in [
+                "key",
+                "invalid",
+                "encapsulate",
+                "size",
+                "kem",
+                "kyber",
+                "ml-kem",
+                "encap",
+                "public",
+            ]
+        ):
             pass
         else:
             raise
@@ -209,9 +238,9 @@ def fuzz_beacon_mixing(data: bytes):
         enhanced_key_receiver = receiver.decapsulate(ciphertext, message_key, salt=salt)
 
         # Sender and receiver must derive the same enhanced key
-        assert enhanced_key_sender == enhanced_key_receiver, (
-            "Beacon mixing mismatch: sender and receiver derived different keys"
-        )
+        assert (
+            enhanced_key_sender == enhanced_key_receiver
+        ), "Beacon mixing mismatch: sender and receiver derived different keys"
     except (ValueError, RuntimeError):
         pass
     except Exception as e:

@@ -118,10 +118,7 @@ def equalize_timing(
     jitter_range_ms = target_ms * (jitter_percent / 100.0)
     if jitter_range_ms > 0:
         # Generate uniform jitter in [-jitter_range, +jitter_range]
-        jitter_ms = (
-            secrets.randbelow(int(jitter_range_ms * 2 * 1000)) / 1000.0
-            - jitter_range_ms
-        )
+        jitter_ms = secrets.randbelow(int(jitter_range_ms * 2 * 1000)) / 1000.0 - jitter_range_ms
     else:
         jitter_ms = 0.0
 
@@ -161,6 +158,7 @@ def constant_time_password_check(
     Returns:
         TimingResult wrapping the check result.
     """
+
     def _inner():
         result = check_func(password)
         # Always execute dummy work regardless of result
@@ -202,6 +200,7 @@ def duress_timing_equalizer(
     Returns:
         TimingResult wrapping (is_valid, is_duress) tuple.
     """
+
     def _inner():
         is_valid, is_duress = real_check(password)
 
