@@ -196,6 +196,12 @@ module = [
 ]
 ignore_errors = true
 
+[tool.mutmut]
+paths_to_mutate = "meow_decoder/"
+tests_dir = "tests/"
+runner = "python -m pytest -x --timeout=30"
+dict_synonyms = "Struct,NamedStruct"
+
 # NOTE: flake8 config lives in .flake8 (flake8 does not read pyproject.toml)
 
 [tool.setuptools.packages.find]

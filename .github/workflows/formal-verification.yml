@@ -13,15 +13,31 @@ name: Formal Verification
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - "formal/**"
       - "crypto_core/src/verus*"
+      - "crypto_core/src/lib.rs"
+      - "crypto_core/src/aead.rs"
+      - "meow_decoder/crypto.py"
+      - "meow_decoder/crypto_enhanced.py"
+      - "meow_decoder/ratchet.py"
+      - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/forward_secrecy.py"
+      - "meow_decoder/schrodinger_encode.py"
       - ".github/workflows/formal-verification.yml"
   pull_request:
     paths:
       - "formal/**"
       - "crypto_core/src/verus*"
+      - "crypto_core/src/lib.rs"
+      - "crypto_core/src/aead.rs"
+      - "meow_decoder/crypto.py"
+      - "meow_decoder/crypto_enhanced.py"
+      - "meow_decoder/ratchet.py"
+      - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/forward_secrecy.py"
+      - "meow_decoder/schrodinger_encode.py"
       - ".github/workflows/formal-verification.yml"
   workflow_dispatch:
     inputs:

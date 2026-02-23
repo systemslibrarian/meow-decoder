@@ -241,6 +241,88 @@ jobs:
           key: corpus-${{ matrix.target }}-${{ github.ref }}-${{ github.run_id }}
 
   # ═══════════════════════════════════════════════════════════════════════════
+  # JOB 2b – cargo-fuzz for crypto_core (AEAD, nonce, alloc, pure crypto)
+  #
+  # Previously missing from CI (audit gap #10). These targets exercise the
+  # core cryptographic primitives independently of the FFI layer.
+  # ═══════════════════════════════════════════════════════════════════════════
+  fuzz-crypto-core:
+    name: cargo-fuzz crypto_core (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: true
+      matrix:
+        target:
+          - fuzz_aead
+          - fuzz_nonce
+          - fuzz_secure_alloc
+          - fuzz_pure_crypto
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust nightly
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3
+        with:
+          toolchain: nightly
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Cache Cargo
+        uses: actions/cache@1bd1e32a3bdc45362d1e726936510720a7c6158d # v4.2.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crypto_core/target
+          key: ${{ runner.os }}-crypto-core-fuzz-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Create corpus directory
+        run: mkdir -p crypto_core/fuzz/corpus/${{ matrix.target }}
+
+      - name: Seed corpus
+        run: |
+          echo -n "" > crypto_core/fuzz/corpus/${{ matrix.target }}/empty
+          printf '\x00' > crypto_core/fuzz/corpus/${{ matrix.target }}/zero_byte
+          python3 -c "import sys; sys.stdout.buffer.write(b'\x00'*32)" \
+            > crypto_core/fuzz/corpus/${{ matrix.target }}/key_zeros
+
+      - name: Run cargo fuzz (${{ matrix.target }})
+        working-directory: crypto_core
+        run: |
+          FUZZ_SECS="${{ github.event.inputs.fuzz_duration_secs || '60' }}"
+          cargo +nightly fuzz run ${{ matrix.target }} \
+            fuzz/corpus/${{ matrix.target }} \
+            -- \
+            -max_total_time="${FUZZ_SECS}" \
+            -error_exitcode=77 \
+            -runs=200000 \
+            -print_final_stats=1
+
+      - name: Check for crash artifacts
+        if: always()
+        run: |
+          set +e
+          CRASHES=$(find crypto_core/fuzz/artifacts/${{ matrix.target }}/ \
+            -maxdepth 1 -type f 2>/dev/null | head -5)
+          if [ -n "$CRASHES" ]; then
+            echo "::error::crypto_core crash artifact(s) for ${{ matrix.target }}:"
+            echo "$CRASHES"
+            exit 1
+          fi
+
+      - name: Upload crash artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        with:
+          name: crypto-core-fuzz-crashes-${{ matrix.target }}
+          path: crypto_core/fuzz/artifacts/${{ matrix.target }}/
+          retention-days: 90
+
+  # ═══════════════════════════════════════════════════════════════════════════
   # JOB 3 – ASan + UBSan (nightly only)
   # Detect use-after-free, buffer overflows, and undefined behaviour in
   # crypto code executed by the property and FFI fuzz tests.

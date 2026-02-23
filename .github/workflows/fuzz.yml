@@ -1,6 +1,10 @@
 name: Fuzzing
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   schedule:
     # Run fuzzing weekly on Sundays at midnight UTC
     - cron: "0 0 * * 0"
@@ -18,7 +22,11 @@ jobs:
   atheris-fuzz:
     name: Python Fuzzing (Atheris)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
+
+    env:
+      MEOW_TEST_MODE: "1"
+      MEOW_CRYPTO_BACKEND: rust
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -64,56 +72,111 @@ jobs:
         run: |
           python fuzz/seed_corpus.py
 
+      # ── Core security targets (always run) ──────────────────────────────
       - name: Fuzz manifest parser
         run: |
-          # Use shorter duration on push (keep CI fast); full duration on schedule/dispatch
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_manifest.py fuzz/corpus/manifest || true
-        continue-on-error: true
 
       - name: Fuzz fountain decoder
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_fountain.py fuzz/corpus/fountain || true
-        continue-on-error: true
 
       - name: Fuzz crypto operations
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_crypto.py fuzz/corpus/manifest || true
-        continue-on-error: true
 
       - name: Fuzz guard page memory safety
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_windows_guard.py || true
-        continue-on-error: true
 
       - name: Fuzz mouse gesture auth
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_mouse_gesture.py || true
-        continue-on-error: true
 
       - name: Fuzz tamper detection
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_tamper_detection.py || true
-        continue-on-error: true
 
       - name: Fuzz adversarial stego rotation
         run: |
           DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
           timeout ${DURATION}s \
             python fuzz/fuzz_adversarial_stego.py || true
-        continue-on-error: true
 
+      # ── Previously-missing security targets (FIX: audit gap #2) ─────────
+      - name: Fuzz ratchet (frame encrypt/decrypt)
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_ratchet.py || true
+
+      - name: Fuzz manifest signing (Ed25519/ML-DSA)
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_manifest_signing.py || true
+
+      - name: Fuzz PQ ratchet beacon
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_pq_ratchet_beacon.py || true
+
+      - name: Fuzz master ratchet
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_master_ratchet.py || true
+
+      - name: Fuzz Schrödinger encode/decode
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_schrodinger.py || true
+
+      - name: Fuzz crypto backend (Rust FFI)
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_crypto_backend.py || true
+
+      - name: Fuzz Shamir secret sharing
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_shamir.py || true
+
+      - name: Fuzz memory guard operations
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_memory_guard.py || true
+
+      - name: Fuzz dual stream encoding
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_dual_stream.py || true
+
+      - name: Fuzz multi-layer stego
+        run: |
+          DURATION=${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}
+          timeout ${DURATION}s \
+            python fuzz/fuzz_stego_multilayer.py || true
+
+      # ── Crash gate (MUST fail the build on any crash) ───────────────────
       - name: Check for crashes
         run: |
           if [ -n "$(ls -A fuzz/crashes 2>/dev/null)" ]; then
@@ -186,7 +249,6 @@ jobs:
           timeout ${{ github.event.inputs.fuzz_duration || '300' }}s \
             py-afl-fuzz -i afl-corpus -o afl-output -m none -- \
             python afl_fuzz_manifest.py || true
-        continue-on-error: true
 
       - name: Check AFL++ results
         run: |

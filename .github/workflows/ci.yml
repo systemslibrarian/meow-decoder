@@ -156,7 +156,7 @@ jobs:
             --cov=meow_decoder \
             --cov-config=.coveragerc \
             --cov-report=term-missing \
-            --cov-fail-under=0 \
+            --cov-fail-under=70 \
             -q --no-header
 
       # Python coverage is local-only (terminal report above).
@@ -384,7 +384,7 @@ jobs:
           pytest tests/ -m "security or crypto or adversarial" \
             --override-ini="addopts=" \
             --cov --cov-config=.coveragerc-security \
-            --cov-fail-under=30 \
+            --cov-fail-under=80 \
             --cov-report=term-missing \
             -q --no-header
 

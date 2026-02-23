@@ -40,8 +40,8 @@ builtins: diffie-hellman, hashing, symmetric-encryption, xor
 
 functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
-  aead_enc/3,     /* AEAD-Enc(key, nonce, pt)                          */
-  aead_dec/3,     /* AEAD-Dec(key, nonce, ct)                          */
+  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) — AAD-bound         */
+  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) — AAD-bound         */
   h/1,            /* SHA-256(x)                                        */
   blake2b/2,      /* BLAKE2b(key, msg) — used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
@@ -50,8 +50,14 @@ functions:
   commitment/2,   /* KDF-commitment: commitment(key, salt)             */
   verify_commit/3 /* verify_commit(tag, key, salt) = true iff valid    */
 
+/*
+ * AEAD equation: decryption succeeds only when key, nonce, AND AAD match.
+ * This models AES-256-GCM authenticated additional data binding per
+ * crypto.py encrypt_file_bytes() — AAD includes salt, nonce, merkle root,
+ * orig_len, comp_len, sha256 hash, and magic bytes.
+ */
 equations:
-  aead_dec(k, n, aead_enc(k, n, pt)) = pt,
+  aead_dec(k, n, aead_enc(k, n, pt, aad), aad) = pt,
   verify_commit(commitment(k, s), k, s) = true
 
 
@@ -97,9 +103,14 @@ rule SchrodingerEncode:
     /* Quantum noise: XOR of password hashes */
     noise  = h(pw_a) XOR h(pw_b)
 
-    /* AEAD encryption */
-    ct_a   = aead_enc(k_a, nonce_a, payload_a)
-    ct_b   = aead_enc(k_b, nonce_b, payload_b)
+    /* AAD binds salt + nonce + payload hash (models crypto.py AAD fields:
+     * orig_len, comp_len, salt, sha256, magic, ephemeral_pub, pq_ct) */
+    aad_a  = <salt_a, nonce_a, h(payload_a)>
+    aad_b  = <salt_b, nonce_b, h(payload_b)>
+
+    /* AEAD encryption with AAD binding */
+    ct_a   = aead_enc(k_a, nonce_a, payload_a, aad_a)
+    ct_b   = aead_enc(k_b, nonce_b, payload_b, aad_b)
 
     /* Wire format: stream A is XOR'd with noise */
     wire_a = ct_a XOR noise
@@ -153,7 +164,8 @@ rule DecodeStreamA:
     k_a    = kdf(pw_a, salt_a)
     noise  = h(pw_a) XOR h(pw_b)
     ct_a   = wire_a XOR noise
-    pt_a   = aead_dec(k_a, nonce_a, ct_a)
+    aad_a  = <salt_a, nonce_a, h(pt_a)>
+    pt_a   = aead_dec(k_a, nonce_a, ct_a, aad_a)
   in
   [ !PasswordA(sid, pw_a),
     !PasswordB(sid, pw_b),
@@ -165,8 +177,9 @@ rule DecodeStreamA:
 /* Decode stream B with password B (honest) */
 rule DecodeStreamB:
   let
-    k_b  = kdf(pw_b, salt_b)
-    pt_b = aead_dec(k_b, nonce_b, wire_b)
+    k_b    = kdf(pw_b, salt_b)
+    aad_b  = <salt_b, nonce_b, h(pt_b)>
+    pt_b   = aead_dec(k_b, nonce_b, wire_b, aad_b)
   in
   [ !PasswordB(sid, pw_b),
     In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,

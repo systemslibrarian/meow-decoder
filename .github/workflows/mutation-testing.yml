@@ -1,0 +1,182 @@
+# Mutation Testing Workflow
+# Runs mutation testing on security-critical modules to verify test quality.
+#
+# Tools:
+#   - mutmut (Python): Mutates meow_decoder/ crypto modules
+#   - cargo-mutants (Rust): Mutates crypto_core crate
+#
+# Triggered on:
+#   - Push to main that modifies crypto source or tests
+#   - Weekly schedule (comprehensive mutation run)
+#   - Manual dispatch
+
+name: Mutation Testing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "meow_decoder/crypto*.py"
+      - "meow_decoder/ratchet.py"
+      - "meow_decoder/fountain.py"
+      - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/schrodinger_encode.py"
+      - "crypto_core/src/**"
+      - "tests/test_crypto*.py"
+      - "tests/test_security*.py"
+      - "tests/test_ratchet*.py"
+  pull_request:
+    paths:
+      - "meow_decoder/crypto*.py"
+      - "meow_decoder/ratchet.py"
+      - "meow_decoder/fountain.py"
+      - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/schrodinger_encode.py"
+      - "crypto_core/src/**"
+      - "tests/test_crypto*.py"
+      - "tests/test_security*.py"
+      - "tests/test_ratchet*.py"
+  workflow_dispatch:
+    inputs:
+      full_run:
+        description: "Run full mutation suite (slow, ~2h)"
+        required: false
+        default: "false"
+        type: boolean
+  schedule:
+    - cron: "0 6 * * 0" # Weekly on Sunday 6 AM UTC
+
+permissions:
+  contents: read
+
+jobs:
+  python-mutation:
+    name: Python Mutation Testing (mutmut)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libzbar0
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt -r requirements-dev.txt
+          pip install mutmut
+
+      - name: Build Rust backend
+        run: |
+          cd rust_crypto && pip install -e . && cd ..
+
+      - name: Run mutmut on security-critical modules
+        env:
+          MEOW_TEST_MODE: "1"
+        run: |
+          # Run mutation testing focused on crypto modules
+          mutmut run \
+            --paths-to-mutate meow_decoder/crypto.py \
+            --runner "python -m pytest tests/test_crypto.py tests/test_security.py -x --timeout=30" \
+            || true
+          echo "=== Mutation Results: crypto.py ==="
+          mutmut results
+
+          # Reset and run for ratchet
+          mutmut run \
+            --paths-to-mutate meow_decoder/ratchet.py \
+            --runner "python -m pytest tests/test_ratchet.py tests/test_ratchet_e2e.py -x --timeout=30" \
+            || true
+          echo "=== Mutation Results: ratchet.py ==="
+          mutmut results
+
+      - name: Check mutation score threshold
+        run: |
+          # Extract killed/total from mutmut results
+          RESULTS=$(mutmut results 2>&1 || true)
+          echo "$RESULTS"
+          SURVIVED=$(echo "$RESULTS" | grep -oP 'Survived \K[0-9]+' || echo "0")
+          TOTAL=$(echo "$RESULTS" | grep -oP 'of \K[0-9]+' || echo "1")
+
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$(( (TOTAL - SURVIVED) * 100 / TOTAL ))
+            echo "Mutation score: ${SCORE}%"
+            if [ "$SCORE" -lt 70 ]; then
+              echo "::error::Mutation score ${SCORE}% is below 70% threshold"
+              exit 1
+            fi
+          fi
+
+      - name: Upload mutation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-mutation-report
+          path: .mutmut-cache/
+
+  rust-mutation:
+    name: Rust Mutation Testing (cargo-mutants)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants
+
+      - name: Cache cargo
+        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            crypto_core/target
+          key: ${{ runner.os }}-mutants-${{ hashFiles('crypto_core/Cargo.lock') }}
+
+      - name: Run cargo-mutants on crypto_core
+        working-directory: crypto_core
+        run: |
+          cargo mutants --timeout=60 \
+            --features "pure-crypto,pq-crypto" \
+            -- --test-threads=2 \
+            2>&1 | tee mutants-output.txt
+
+      - name: Check Rust mutation results
+        working-directory: crypto_core
+        run: |
+          if grep -q "SURVIVED" mutants-output.txt; then
+            SURVIVED=$(grep -c "SURVIVED" mutants-output.txt || echo "0")
+            echo "::warning::${SURVIVED} mutants survived in crypto_core"
+          fi
+          # Fail if more than 10% survive
+          TOTAL=$(grep -cE "KILLED|SURVIVED|TIMEOUT" mutants-output.txt || echo "1")
+          SURVIVED=$(grep -c "SURVIVED" mutants-output.txt || echo "0")
+          if [ "$TOTAL" -gt 0 ]; then
+            SCORE=$(( (TOTAL - SURVIVED) * 100 / TOTAL ))
+            echo "Rust mutation score: ${SCORE}%"
+            if [ "$SCORE" -lt 70 ]; then
+              echo "::error::Rust mutation score ${SCORE}% is below 70% threshold"
+              exit 1
+            fi
+          fi
+
+      - name: Upload Rust mutation report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: rust-mutation-report
+          path: crypto_core/mutants.out/

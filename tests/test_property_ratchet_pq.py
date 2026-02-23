@@ -63,7 +63,7 @@ class TestRatchetChainInvariants:
     """Property: ratchet chain provides one-way forward secrecy."""
 
     @given(chain_key=key_strategy, n_steps=st.integers(min_value=1, max_value=5))
-    @settings(max_examples=10, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_chain_key_one_wayness(self, chain_key, n_steps):
         """chain_key[n] must not be derivable from chain_key[n+k]."""
         try:
@@ -86,7 +86,7 @@ class TestRatchetChainInvariants:
             pytest.skip("Ratchet API not available in expected form")
 
     @given(chain_key=key_strategy)
-    @settings(max_examples=10, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_chain_step_deterministic(self, chain_key):
         """Same starting key + same step count => same result."""
         try:
@@ -104,7 +104,7 @@ class TestRatchetChainInvariants:
             pytest.skip("Ratchet API not available in expected form")
 
     @given(chain_key=key_strategy, frame_data=small_data_strategy)
-    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_key_commitment_binding(self, chain_key, frame_data):
         """Key commitment tag must reject data encrypted under a different key."""
         import hmac as hmac_mod
@@ -130,7 +130,7 @@ class TestMasterRatchetInvariants:
     """Property: master ratchet provides cross-session forward secrecy."""
 
     @given(n_steps=st.integers(min_value=1, max_value=8))
-    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_generation_monotonically_increasing(self, n_steps):
         """Generation counter must strictly increase with each ratchet."""
         try:
@@ -150,7 +150,7 @@ class TestMasterRatchetInvariants:
             pytest.skip("MasterRatchet not available")
 
     @given(file_id=st.text(min_size=1, max_size=50))
-    @settings(max_examples=10, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_file_key_deterministic_within_generation(self, file_id):
         """Same generation + same file_id => same file key."""
         try:
@@ -164,7 +164,7 @@ class TestMasterRatchetInvariants:
             pytest.skip("MasterRatchet not available")
 
     @given(file_id=st.text(min_size=1, max_size=50))
-    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_file_key_changes_after_ratchet(self, file_id):
         """File key must change after ratcheting."""
         try:
@@ -202,7 +202,7 @@ class TestMasterRatchetInvariants:
         file_id=st.text(min_size=1, max_size=30),
         key_length=st.integers(min_value=16, max_value=64),
     )
-    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_commitment_tag_accompanies_file_key(self, file_id, key_length):
         """derive_file_key_with_commitment must return (key, commitment) pair."""
         try:
@@ -227,7 +227,7 @@ class TestPQBeaconInvariants:
     """Property: PQ beacon provides quantum-resistant entropy injection."""
 
     @given(message_key=key_strategy, salt=st.binary(min_size=0, max_size=64))
-    @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
     def test_encapsulate_decapsulate_roundtrip(self, message_key, salt):
         """Sender encapsulate + receiver decapsulate must yield same enhanced key."""
         try:
@@ -252,7 +252,7 @@ class TestPQBeaconInvariants:
             pytest.skip("ML-KEM-1024 not available")
 
     @given(message_key=key_strategy)
-    @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
     def test_enhanced_key_differs_from_input(self, message_key):
         """Enhanced key must differ from input message key."""
         try:
@@ -292,7 +292,7 @@ class TestManifestSigningInvariants:
     """Property: hybrid signing provides non-malleability and dual-algo enforcement."""
 
     @given(manifest_data=small_data_strategy)
-    @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
     def test_sign_verify_roundtrip(self, manifest_data):
         """sign then verify must always succeed for valid keypair."""
         try:
@@ -312,7 +312,7 @@ class TestManifestSigningInvariants:
             pytest.skip("Signing implementation not available")
 
     @given(manifest_data=small_data_strategy)
-    @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
     def test_tampered_manifest_rejected(self, manifest_data):
         """Modified manifest must fail verification."""
         assume(len(manifest_data) > 0)
@@ -340,7 +340,7 @@ class TestManifestSigningInvariants:
             pytest.skip("Signing implementation not available")
 
     @given(manifest_data=small_data_strategy)
-    @settings(max_examples=3, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=60000, suppress_health_check=[HealthCheck.too_slow])
     def test_wrong_keypair_rejected(self, manifest_data):
         """Signature from different keypair must fail verification."""
         try:
@@ -379,7 +379,7 @@ class TestManifestSigningInvariants:
             pytest.skip("ManifestSignature not available")
 
     @given(public_key=st.binary(min_size=32, max_size=2048))
-    @settings(max_examples=10, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
     def test_public_key_commitment_deterministic(self, public_key):
         """Public key commitment must be deterministic."""
         try:
@@ -405,7 +405,7 @@ class TestShamirInvariants:
         secret=st.binary(min_size=1, max_size=256),
         threshold=st.integers(min_value=2, max_value=5),
     )
-    @settings(max_examples=5, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_threshold_shares_reconstruct(self, secret, threshold):
         """Any t-of-n shares must reconstruct the secret."""
         n_shares = threshold + 2  # Always have more shares than threshold
@@ -429,7 +429,7 @@ class TestShamirInvariants:
     @given(
         secret=st.binary(min_size=1, max_size=64),
     )
-    @settings(max_examples=3, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_insufficient_shares_fail(self, secret):
         """Fewer than threshold shares must not reconstruct."""
         threshold = 3
@@ -452,7 +452,7 @@ class TestShamirInvariants:
             pass  # Expected
 
     @given(secret=st.binary(min_size=1, max_size=100))
-    @settings(max_examples=3, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_share_serialization_roundtrip(self, secret):
         """ShamirShare to_bytes/from_bytes must be lossless."""
         try:
@@ -477,7 +477,7 @@ class TestSizeNormalizerInvariants:
     """Property: size normalizer bucket must always be >= input."""
 
     @given(data_size=st.integers(min_value=0, max_value=100_000))
-    @settings(max_examples=20, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=50, deadline=10000, suppress_health_check=[HealthCheck.too_slow])
     def test_bucket_never_truncates(self, data_size):
         """Padded size must always be >= original data size."""
         try:
@@ -526,7 +526,7 @@ class TestDualStreamInvariants:
             pytest.skip("DualStreamManifest not available")
 
     @given(data=st.binary(min_size=10, max_size=500))
-    @settings(max_examples=3, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
+    @settings(max_examples=500, deadline=30000, suppress_health_check=[HealthCheck.too_slow])
     def test_corrupt_manifest_rejected(self, data):
         """Random bytes must not parse as valid DualStreamManifest."""
         try:

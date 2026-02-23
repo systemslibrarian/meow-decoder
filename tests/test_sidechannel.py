@@ -20,6 +20,7 @@ Reference: CRYPTO_SECURITY_REVIEW.md, docs/THREAT_MODEL.md
 """
 
 import time
+import math
 import secrets
 import statistics
 import sys
@@ -99,6 +100,77 @@ class TimingAnalyzer:
             "stdev_a_ns": stdev_a,
             "stdev_b_ns": stdev_b,
             "noise_floor_ns": noise_floor,
+            "is_constant_time": is_constant,
+        }
+
+        return is_constant, stats
+
+    def welch_t_test(
+        self, label_a: str, label_b: str, threshold: float = 4.5
+    ) -> Tuple[bool, dict]:
+        """
+        Welch's t-test for timing side-channel detection (dudect methodology).
+
+        This implements the statistical approach from:
+          Reparaz, Balasch, Verbauwhede — "dude, is my code constant time?" (2017)
+
+        The idea: collect two timing distributions and compute Welch's t-statistic.
+        If |t| < threshold, the distributions are statistically indistinguishable
+        (i.e., no detectable timing leak).
+
+        Args:
+            label_a: First measurement label
+            label_b: Second measurement label
+            threshold: |t| threshold for detection (4.5 is standard dudect cutoff;
+                       corresponds to ~p < 1e-5 for large N)
+
+        Returns:
+            Tuple of (is_constant_time, statistics_dict)
+        """
+        times_a = None
+        times_b = None
+
+        for label, times in self.measurements:
+            if label == label_a:
+                times_a = times
+            elif label == label_b:
+                times_b = times
+
+        if times_a is None or times_b is None:
+            raise ValueError(f"Missing measurements for {label_a} or {label_b}")
+
+        n_a = len(times_a)
+        n_b = len(times_b)
+        mean_a = statistics.mean(times_a)
+        mean_b = statistics.mean(times_b)
+        var_a = statistics.variance(times_a) if n_a > 1 else 0.0
+        var_b = statistics.variance(times_b) if n_b > 1 else 0.0
+
+        # Welch's t-statistic: t = (mean_a - mean_b) / sqrt(var_a/n_a + var_b/n_b)
+        denom_sq = var_a / n_a + var_b / n_b
+        if denom_sq <= 0:
+            t_stat = 0.0
+            df = max(n_a, n_b) - 1
+        else:
+            t_stat = (mean_a - mean_b) / math.sqrt(denom_sq)
+            # Welch-Satterthwaite degrees of freedom
+            num = denom_sq ** 2
+            den = (var_a / n_a) ** 2 / (n_a - 1) + (var_b / n_b) ** 2 / (n_b - 1) if (n_a > 1 and n_b > 1) else 1.0
+            df = num / den if den > 0 else max(n_a, n_b) - 1
+
+        is_constant = abs(t_stat) < threshold
+
+        stats = {
+            "t_statistic": t_stat,
+            "abs_t": abs(t_stat),
+            "threshold": threshold,
+            "degrees_of_freedom": df,
+            "mean_a_ns": mean_a,
+            "mean_b_ns": mean_b,
+            "var_a": var_a,
+            "var_b": var_b,
+            "n_a": n_a,
+            "n_b": n_b,
             "is_constant_time": is_constant,
         }
 
@@ -538,6 +610,143 @@ class TestRustBackendSideChannel:
             print("  ✅ zeroize crate detected for secure memory clearing")
 
 
+class TestWelchTTestSideChannel:
+    """
+    Welch's t-test based side-channel detection (dudect methodology).
+
+    Reference: Reparaz, Balasch, Verbauwhede —
+        "dude, is my code constant time?" (USENIX Security 2017)
+
+    The dudect approach: collect many timing measurements for two classes
+    of inputs (e.g., correct vs wrong first byte) and apply Welch's t-test.
+    |t| < 4.5 → no detectable timing leak at the ~1e-5 significance level.
+    """
+
+    def test_welch_password_comparison(self):
+        """Welch's t-test on password comparison timing."""
+        from meow_decoder.constant_time import constant_time_compare
+
+        analyzer = TimingAnalyzer("welch_password")
+
+        correct = b"CorrectCatPassword123!"
+        wrong_first = b"XorrectCatPassword123!"
+        wrong_last = b"CorrectCatPassword123X"
+
+        analyzer.measure(
+            "correct", lambda: constant_time_compare(correct, correct), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_first", lambda: constant_time_compare(correct, wrong_first), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_last", lambda: constant_time_compare(correct, wrong_last), iterations=2000
+        )
+
+        is_const_first, stats_first = analyzer.welch_t_test("correct", "wrong_first")
+        is_const_last, stats_last = analyzer.welch_t_test("correct", "wrong_last")
+
+        print(f"\nWelch's t-test (dudect) — password comparison:")
+        print(
+            f"  Correct vs Wrong-First: |t|={stats_first['abs_t']:.2f} "
+            f"(threshold={stats_first['threshold']}, pass={is_const_first})"
+        )
+        print(
+            f"  Correct vs Wrong-Last:  |t|={stats_last['abs_t']:.2f} "
+            f"(threshold={stats_last['threshold']}, pass={is_const_last})"
+        )
+
+        assert is_const_first, (
+            f"Welch's t-test detected timing leak (wrong first byte): "
+            f"|t|={stats_first['abs_t']:.2f} > {stats_first['threshold']}"
+        )
+        assert is_const_last, (
+            f"Welch's t-test detected timing leak (wrong last byte): "
+            f"|t|={stats_last['abs_t']:.2f} > {stats_last['threshold']}"
+        )
+
+    def test_welch_hmac_verification(self):
+        """Welch's t-test on HMAC verification timing."""
+        from meow_decoder.constant_time import constant_time_compare
+
+        analyzer = TimingAnalyzer("welch_hmac")
+
+        correct_hmac = secrets.token_bytes(32)
+        wrong_first = bytearray(correct_hmac)
+        wrong_first[0] ^= 0xFF
+        wrong_first = bytes(wrong_first)
+        wrong_last = bytearray(correct_hmac)
+        wrong_last[-1] ^= 0xFF
+        wrong_last = bytes(wrong_last)
+
+        analyzer.measure(
+            "correct", lambda: constant_time_compare(correct_hmac, correct_hmac), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_first", lambda: constant_time_compare(correct_hmac, wrong_first), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_last", lambda: constant_time_compare(correct_hmac, wrong_last), iterations=2000
+        )
+
+        is_const_first, stats_first = analyzer.welch_t_test("correct", "wrong_first")
+        is_const_last, stats_last = analyzer.welch_t_test("correct", "wrong_last")
+
+        print(f"\nWelch's t-test (dudect) — HMAC verification:")
+        print(
+            f"  Correct vs Wrong-First: |t|={stats_first['abs_t']:.2f} "
+            f"(pass={is_const_first})"
+        )
+        print(
+            f"  Correct vs Wrong-Last:  |t|={stats_last['abs_t']:.2f} "
+            f"(pass={is_const_last})"
+        )
+
+        assert is_const_first, f"HMAC timing leak: |t|={stats_first['abs_t']:.2f}"
+        assert is_const_last, f"HMAC timing leak: |t|={stats_last['abs_t']:.2f}"
+
+    def test_welch_frame_mac(self):
+        """Welch's t-test on frame MAC comparison — varying match positions."""
+        from meow_decoder.constant_time import constant_time_compare
+
+        analyzer = TimingAnalyzer("welch_frame_mac")
+
+        mac = secrets.token_bytes(16)
+        # Wrong at byte 0
+        wrong_0 = bytearray(mac)
+        wrong_0[0] ^= 0xFF
+        wrong_0 = bytes(wrong_0)
+        # Wrong at byte 8 (middle)
+        wrong_8 = bytearray(mac)
+        wrong_8[8] ^= 0xFF
+        wrong_8 = bytes(wrong_8)
+        # Wrong at byte 15 (last)
+        wrong_15 = bytearray(mac)
+        wrong_15[15] ^= 0xFF
+        wrong_15 = bytes(wrong_15)
+
+        analyzer.measure(
+            "wrong_0", lambda: constant_time_compare(mac, wrong_0), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_8", lambda: constant_time_compare(mac, wrong_8), iterations=2000
+        )
+        analyzer.measure(
+            "wrong_15", lambda: constant_time_compare(mac, wrong_15), iterations=2000
+        )
+
+        # Compare wrong_0 vs wrong_15 — if constant-time, position doesn't matter
+        is_const, stats = analyzer.welch_t_test("wrong_0", "wrong_15")
+
+        print(f"\nWelch's t-test (dudect) — frame MAC position independence:")
+        print(
+            f"  Wrong@0 vs Wrong@15: |t|={stats['abs_t']:.2f} (pass={is_const})"
+        )
+
+        assert is_const, (
+            f"Frame MAC timing depends on error position: |t|={stats['abs_t']:.2f}"
+        )
+
+
 # Summary report
 def test_sidechannel_summary():
     """Print summary of side-channel resistance."""
@@ -565,7 +774,7 @@ Recommendations:
   1. Use Rust backend for security-critical deployments
   2. Run on dedicated hardware for high-security use
   3. Consider HSM/TPM for key storage
-  
+
 Reference: docs/THREAT_MODEL.md § Side-Channel Attacks
 """)
     print("=" * 60)
