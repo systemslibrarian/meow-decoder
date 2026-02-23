@@ -478,6 +478,8 @@ def decode_gif(
 
     _has_ratchet = bool(manifest.mode_byte & MODE_RATCHET)
     decoder_ratchet = None
+    _ratchet_deferred = False
+    _ratchet_params: dict = {}
 
     if has_frame_macs:
         if verbose:
@@ -488,34 +490,24 @@ def decode_gif(
             key_handle, manifest.salt
         )
 
-        # Initialize decoder ratchet if ratchet mode is active (uses handle)
+        # Ratchet initialization is DEFERRED until we know how many signature
+        # metadata frames exist.  The encoder binds total_frames=num_droplets
+        # in the ratchet AAD, so the decoder must use the same value.
+        # GIF layout: [manifest][sig_0..sig_n][droplet_0..droplet_m]
+        # total_droplet_frames = len(frames) - 1 (manifest) - n_sig_frames
+        # n_sig_frames is only known after MAC-verifying the first few frames.
+        _ratchet_deferred = False
         if _has_ratchet:
-            from .ratchet import DecoderRatchet
-
-            # Only droplet frames are ratchet-encrypted (manifest is not).
-            # CRITICAL: Use the GIF frame count (deterministic, set by encoder),
-            # NOT len(qr_data_list) which depends on QR scanning success.
-            # The ratchet AAD binds total_frames, so a mismatch causes ALL
-            # AES-GCM decryptions to fail — even if only 1 QR frame was lost.
-            total_droplet_frames = len(frames) - 1  # GIF frame count minus manifest
+            _ratchet_deferred = True
             _rekey_interval = getattr(config, "rekey_beacon_interval", 0) if config else 0
-            decoder_ratchet = DecoderRatchet(
+            _ratchet_params = dict(
                 root_key=key_handle,
                 salt=manifest.salt,
                 k_blocks=manifest.k_blocks,
                 block_size=manifest.block_size,
-                total_frames=total_droplet_frames,
                 rekey_interval=_rekey_interval,
                 receiver_private_key=receiver_private_key,
             )
-            if verbose:
-                _beacon_msg = (
-                    f", rekey beacons every {_rekey_interval} frames" if _rekey_interval > 0 else ""
-                )
-                print(
-                    f"  🐾 Paw state decryption enabled "
-                    f"(MSR v1, {total_droplet_frames} frames{_beacon_msg})"
-                )
 
         # Verify manifest frame MAC retroactively (v2 key derivation)
         manifest_valid, _ = frame_mac.unpack_frame_with_mac(
@@ -558,8 +550,10 @@ def decode_gif(
 
     # Drop the encryption key handle — ratchet and frame MAC own their own
     # derived handles.  key_handle is no longer needed.
-    hb.drop(key_handle)
-    del key_handle
+    # If ratchet init is deferred, keep key_handle alive until then.
+    if not _ratchet_deferred:
+        hb.drop(key_handle)
+        del key_handle
 
     # Decode fountain codes
     if verbose:
@@ -637,6 +631,28 @@ def decode_gif(
                 continue
 
             # Ratchet-decrypt the frame if ratchet mode is active
+            # Lazy ratchet init: now we know how many sig frames were seen
+            if _ratchet_deferred and decoder_ratchet is None:
+                from .ratchet import DecoderRatchet
+
+                total_droplet_frames = len(frames) - 1 - sig_parts_seen
+                decoder_ratchet = DecoderRatchet(
+                    **_ratchet_params,
+                    total_frames=total_droplet_frames,
+                )
+                _ratchet_deferred = False
+                # Now safe to drop key_handle
+                hb.drop(_ratchet_params["root_key"])
+                if verbose:
+                    _beacon_msg = (
+                        f", rekey beacons every {_ratchet_params['rekey_interval']} frames"
+                        if _ratchet_params.get("rekey_interval", 0) > 0
+                        else ""
+                    )
+                    print(
+                        f"  🐾 Paw state decryption enabled "
+                        f"(MSR v1, {total_droplet_frames} frames{_beacon_msg})"
+                    )
             if decoder_ratchet is not None:
                 try:
                     droplet_bytes = decoder_ratchet.decrypt(droplet_bytes)
@@ -660,6 +676,12 @@ def decode_gif(
             if verbose:
                 print(f"  Warning: Failed to process droplet: {e}")
             continue
+
+    # Clean up key_handle if ratchet was deferred but never initialized
+    # (e.g. all frames were signature chunks or decoding failed early)
+    if _ratchet_deferred and decoder_ratchet is None:
+        hb.drop(_ratchet_params["root_key"])
+        _ratchet_deferred = False
 
     # Verify manifest signature if signature chunks were present.
     if sig_total_parts is not None:

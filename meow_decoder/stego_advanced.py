@@ -252,12 +252,22 @@ class AdvancedStegoEncoder:
         """
         Apply visual obfuscation for paranoid mode.
 
+        Noise and blur are applied only to higher bits, preserving
+        the LSBs that carry embedded QR data.
+
         Args:
             stego_array: Stego array
 
         Returns:
             Obfuscated stego array
         """
+        lsb_bits = getattr(self.config, 'lsb_bits', 1) if hasattr(self, 'config') else 1
+        lsb_mask = (1 << lsb_bits) - 1  # e.g. 0x01 for 1-bit, 0x03 for 2-bit
+        carrier_mask = 0xFF ^ lsb_mask   # e.g. 0xFE for 1-bit
+
+        # Save embedded LSB data before obfuscation
+        saved_lsbs = stego_array & lsb_mask
+
         obfuscated = stego_array.copy().astype(np.int16)
 
         # Add imperceptible noise (±1-2 pixel values)
@@ -272,6 +282,9 @@ class AdvancedStegoEncoder:
                 obfuscated[:, :, c] = gaussian_filter(obfuscated[:, :, c], sigma=0.3)
         except ImportError:
             pass  # Skip blur if scipy not available
+
+        # Restore LSBs — noise/blur may have altered them
+        obfuscated = (obfuscated & carrier_mask) | saved_lsbs
 
         return obfuscated  # type: ignore[no-any-return]
 

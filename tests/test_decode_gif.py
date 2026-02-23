@@ -215,6 +215,7 @@ def test_decode_gif_happy_path(tmp_path, monkeypatch):
 
 
 def test_decode_gif_unsigned_manifest_warns_but_succeeds(tmp_path, monkeypatch, capsys):
+    """Unsigned manifests are REJECTED (fail-closed) when signing is mandatory."""
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
@@ -223,15 +224,10 @@ def test_decode_gif_unsigned_manifest_warns_but_succeeds(tmp_path, monkeypatch, 
     _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, droplet_bytes], plaintext)
 
     out_path = tmp_path / "unsigned_out.bin"
-    stats = decode_mod.decode_gif(
-        tmp_path / "in.gif", out_path, password="password123", verbose=False
-    )
-
-    captured = capsys.readouterr()
-    assert "Unsigned manifest" in captured.err
-    assert "vulnerable to forgery" in captured.err
-    assert out_path.read_bytes() == plaintext
-    assert stats["output_size"] == len(plaintext)
+    with pytest.raises(ValueError, match="Unsigned manifest rejected"):
+        decode_mod.decode_gif(
+            tmp_path / "in.gif", out_path, password="password123", verbose=False
+        )
 
 
 def test_decode_gif_signed_manifest_verifies(tmp_path, monkeypatch):
@@ -301,6 +297,7 @@ def test_decode_gif_tampered_signature_rejected(tmp_path, monkeypatch):
 
 
 def test_decode_gif_legacy_unsigned_warns_and_succeeds(tmp_path, monkeypatch, capsys):
+    """Legacy unsigned manifests are REJECTED (fail-closed) when signing is mandatory."""
     plaintext = b"legacy"
     manifest_bytes = _build_manifest_bytes(plaintext)
 
@@ -310,12 +307,8 @@ def test_decode_gif_legacy_unsigned_warns_and_succeeds(tmp_path, monkeypatch, ca
     _patch_decode_success_pipeline(monkeypatch, [manifest_bytes, droplet_bytes], plaintext)
 
     out_path = tmp_path / "legacy_out.bin"
-    decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
-
-    captured = capsys.readouterr()
-    assert "Unsigned manifest" in captured.err
-    assert "legacy/compatibility stream" in captured.err
-    assert out_path.read_bytes() == plaintext
+    with pytest.raises(ValueError, match="Unsigned manifest rejected"):
+        decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
 
 
 def test_decode_gif_hmac_failure(tmp_path, monkeypatch):
@@ -416,6 +409,9 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
     droplet = Droplet(seed=1, block_indices=[0], data=b"\x00" * 8)
     droplet_bytes = pack_droplet(droplet)
 
+    # Disable mandatory signing so unsigned manifests are accepted
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
+
     monkeypatch.setattr(
         decode_mod,
         "GIFDecoder",
@@ -469,6 +465,7 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
 
 
 def test_decode_gif_incomplete_decode(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext, k_blocks=2)
 
@@ -506,6 +503,7 @@ def test_decode_gif_incomplete_decode(tmp_path, monkeypatch):
 
 
 def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
 
@@ -548,6 +546,7 @@ def test_decode_gif_decrypt_failure(tmp_path, monkeypatch):
 
 
 def test_decode_gif_sha_mismatch(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
 
@@ -614,6 +613,7 @@ def test_decode_gif_bad_precomputed_key_length(tmp_path, monkeypatch):
 
 
 def test_decode_gif_forward_secrecy_verbose(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext, ephemeral_public_key=b"E" * 32)
 
@@ -656,6 +656,7 @@ def test_decode_gif_forward_secrecy_verbose(tmp_path, monkeypatch):
 
 
 def test_decode_gif_droplet_unpack_warning(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
 
@@ -699,6 +700,7 @@ def test_decode_gif_droplet_unpack_warning(tmp_path, monkeypatch):
 
 
 def test_decode_gif_deadman_import_error(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
 
@@ -751,6 +753,7 @@ def test_decode_gif_deadman_import_error(tmp_path, monkeypatch):
 
 
 def test_decode_gif_verbose_frame_mac_stats(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
     manifest_with_mac = b"\x00" * 8 + manifest_bytes
@@ -819,6 +822,7 @@ def test_decode_gif_verbose_frame_mac_stats(tmp_path, monkeypatch):
 
 
 def test_decode_gif_rejects_invalid_droplet_mac_then_succeeds(tmp_path, monkeypatch):
+    monkeypatch.setenv("MEOW_MANIFEST_SIGNING", "off")
     plaintext = b"plaintext"
     manifest_bytes = _build_manifest_bytes(plaintext)
     manifest_with_mac = b"\x00" * 8 + manifest_bytes

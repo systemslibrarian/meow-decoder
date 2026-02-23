@@ -257,8 +257,6 @@ def encode_file(
                 "PQ hybrid encapsulation failed: pq_ciphertext is None despite "
                 "receiver_pq_public being provided. This indicates a bug in hybrid_encapsulate_handle()."
             )
-            if verbose:
-                print(f"  ℹ️  PQ hybrid: Classical-only fallback (no PQ ciphertext)")
     elif use_pq:
         if verbose:
             print(
@@ -451,6 +449,7 @@ def encode_file(
     )
 
     qr_frames = []
+    droplet_payloads_with_mac = []  # Saved for cat_eyes_blink reuse
 
     # First frame: manifest (MAC'd but NOT ratchet-encrypted)
     # The manifest must be readable before ratchet initialization (decoder needs
@@ -500,6 +499,7 @@ def encode_file(
 
         qr = qr_generator.generate(droplet_with_mac)
         qr_frames.append(qr)
+        droplet_payloads_with_mac.append(droplet_with_mac)
         mac_stats.record_valid()
         next_frame_index += 1
 
@@ -539,13 +539,8 @@ def encode_file(
 
                 dummy_logo = LogoEyesEncoder(logo_config)._get_scaled_logo()
                 encoder = LogoEyesEncoder(logo_config)
-                # Use manifest_with_mac and all droplet_with_mac as payload
-                payloads = [manifest_with_mac] + [
-                    pack_frame_with_mac(
-                        pack_droplet(fountain.droplet()), frame_master_key_handle, i + 1, salt
-                    )
-                    for i in range(num_droplets)
-                ]
+                # Use manifest_with_mac and all saved droplet_with_mac payloads
+                payloads = [manifest_with_mac] + droplet_payloads_with_mac
                 # Flatten all payloads into a single bytearray
                 all_bytes = b"".join(payloads)
                 # Get green pixel count per frame

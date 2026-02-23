@@ -163,11 +163,23 @@ impl NonceGenerator {
     ///     forall prev_nonce in old(self.generated): result.unwrap() != prev_nonce
     /// ```
     pub fn next(&self) -> Result<Nonce, NonceError> {
-        let count = self.counter.fetch_add(1, Ordering::SeqCst);
-
-        if count >= Self::MAX_COUNTER {
-            return Err(NonceError::Exhausted);
-        }
+        // Use CAS loop instead of fetch_add to prevent counter wrap-around.
+        // A plain fetch_add wraps past u64::MAX and silently re-issues nonce 0.
+        let count = loop {
+            let current = self.counter.load(Ordering::SeqCst);
+            if current >= Self::MAX_COUNTER {
+                return Err(NonceError::Exhausted);
+            }
+            match self.counter.compare_exchange(
+                current,
+                current + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(val) => break val,
+                Err(_) => continue,
+            }
+        };
 
         // Build nonce: [8-byte counter (big-endian) || 4-byte session]
         let mut bytes = [0u8; 12];

@@ -247,6 +247,14 @@ def schrodinger_encode_data(
     Returns:
         (interleaved_ciphertext, manifest)
     """
+    # Identical passwords break plausible deniability: the same key would
+    # decrypt both realities, revealing that two secrets exist.
+    if real_password == decoy_password:
+        raise ValueError(
+            "Real and decoy passwords must differ for Schrödinger mode "
+            "to provide plausible deniability."
+        )
+
     hb = get_handle_backend()
 
     # Generate salts, nonces, and frame MAC seed

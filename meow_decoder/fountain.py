@@ -96,16 +96,19 @@ class RobustSolitonDistribution:
 
         return mu
 
-    def sample_degree(self) -> int:
+    def sample_degree(self, rng: Optional[random.Random] = None) -> int:
         """
         Sample a degree from the distribution.
+
+        Args:
+            rng: Optional Random instance for reproducibility (uses module random if None)
 
         Returns:
             Degree (number of blocks to XOR)
         """
         # Cumulative distribution
         cumulative = 0.0
-        r = random.random()
+        r = rng.random() if rng is not None else random.random()
 
         for degree, prob in enumerate(self.distribution):
             cumulative += prob
@@ -170,14 +173,15 @@ class FountainEncoder:
             block_indices = [block_idx]
             xor_data = bytearray(self.blocks[block_idx])
         else:
-            # Seed RNG for reproducibility
-            random.seed(seed)
+            # Use a local RNG instance to avoid mutating global random state
+            # (thread safety + prevents interference from other code)
+            rng = random.Random(seed)
 
             # Sample degree
-            degree = self.distribution.sample_degree()
+            degree = self.distribution.sample_degree(rng)
 
             # Select random blocks
-            block_indices = random.sample(range(self.k_blocks), min(degree, self.k_blocks))
+            block_indices = rng.sample(range(self.k_blocks), min(degree, self.k_blocks))
             block_indices.sort()
 
             # XOR selected blocks

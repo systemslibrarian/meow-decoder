@@ -61,9 +61,9 @@ def collapse_to_reality(superposition: bytes, reality_index: int) -> bytes:
         Collapsed reality (original encrypted ciphertext).
     """
     if reality_index == 0:
-        return bytes(superposition[i] for i in range(0, len(superposition), 2))
+        return superposition[0::2]
     else:
-        return bytes(superposition[i] for i in range(1, len(superposition), 2))
+        return superposition[1::2]
 
 
 # Constants for yarn metaphor

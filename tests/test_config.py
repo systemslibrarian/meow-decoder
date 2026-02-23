@@ -116,6 +116,9 @@ def test_path_config_creates_directories(tmp_path):
     resume = tmp_path / "resume"
     temp = tmp_path / "temp"
     config = PathConfig(cache_dir=cache, resume_dir=resume, temp_dir=temp)
+    # Directories are created lazily via ensure_dirs(), not at construction
+    assert not cache.exists()
+    config.ensure_dirs()
     assert cache.exists()
     assert resume.exists()
     assert temp.exists()

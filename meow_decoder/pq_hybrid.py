@@ -123,7 +123,10 @@ class HybridKeyPair:
             if _RUST_PQ_AVAILABLE:
                 # Use Rust-backed ML-KEM (required)
                 try:
-                    sk_bytes, pk_bytes = _pq_rs.mlkem768_keygen()
+                    if self.paranoid:
+                        sk_bytes, pk_bytes = _pq_rs.mlkem1024_keygen()
+                    else:
+                        sk_bytes, pk_bytes = _pq_rs.mlkem768_keygen()
                     self.pq_public = pk_bytes
                     self._pq_secret_bytes = sk_bytes
                     self.pq_kem = None
@@ -322,8 +325,11 @@ def hybrid_encapsulate(
             raise RuntimeError("Post-quantum requested but Rust PQ backend unavailable")
         algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
         try:
-            # Use Rust ML-KEM encapsulation
-            pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
+            # Use Rust ML-KEM encapsulation — dispatch based on paranoid flag
+            if paranoid:
+                pq_shared_secret, pq_ciphertext = _pq_rs.mlkem1024_encapsulate(receiver_pq_public)
+            else:
+                pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
         except Exception as e:
             raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
 
@@ -376,9 +382,14 @@ def hybrid_decapsulate(
         if not _RUST_PQ_AVAILABLE:
             raise RuntimeError("Rust PQ backend required for PQ decapsulation")
         try:
-            pq_shared_secret = _pq_rs.mlkem768_decapsulate(
-                receiver_keypair._pq_secret_bytes, pq_ciphertext
-            )
+            if receiver_keypair.paranoid:
+                pq_shared_secret = _pq_rs.mlkem1024_decapsulate(
+                    receiver_keypair._pq_secret_bytes, pq_ciphertext
+                )
+            else:
+                pq_shared_secret = _pq_rs.mlkem768_decapsulate(
+                    receiver_keypair._pq_secret_bytes, pq_ciphertext
+                )
         except Exception as e:
             raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
 
@@ -439,7 +450,10 @@ def hybrid_encapsulate_handle(
             raise RuntimeError("Post-quantum requested but Rust PQ backend unavailable")
         try:
             # ML-KEM encap runs in Rust — pq_shared_secret briefly in Python
-            pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
+            if paranoid:
+                pq_shared_secret, pq_ciphertext = _pq_rs.mlkem1024_encapsulate(receiver_pq_public)
+            else:
+                pq_shared_secret, pq_ciphertext = _pq_rs.mlkem768_encapsulate(receiver_pq_public)
         except Exception as e:
             raise RuntimeError(f"Post-quantum encapsulation failed: {e}")
 
@@ -492,9 +506,14 @@ def hybrid_decapsulate_handle(
         if not _RUST_PQ_AVAILABLE:
             raise RuntimeError("Rust PQ backend required for PQ decapsulation")
         try:
-            pq_shared_secret = _pq_rs.mlkem768_decapsulate(
-                receiver_keypair._pq_secret_bytes, pq_ciphertext
-            )
+            if receiver_keypair.paranoid:
+                pq_shared_secret = _pq_rs.mlkem1024_decapsulate(
+                    receiver_keypair._pq_secret_bytes, pq_ciphertext
+                )
+            else:
+                pq_shared_secret = _pq_rs.mlkem768_decapsulate(
+                    receiver_keypair._pq_secret_bytes, pq_ciphertext
+                )
         except Exception as e:
             raise RuntimeError(f"Post-quantum decapsulation failed: {e}")
 
@@ -543,8 +562,11 @@ def check_pq_available(paranoid: bool = False) -> Tuple[bool, str]:
     variant_name = "ML-KEM-1024" if paranoid else "ML-KEM-768"
 
     try:
-        # Test Rust PQ keygen
-        _sk, _pk = _pq_rs.mlkem768_keygen()
+        # Test Rust PQ keygen — use the correct variant
+        if paranoid:
+            _sk, _pk = _pq_rs.mlkem1024_keygen()
+        else:
+            _sk, _pk = _pq_rs.mlkem768_keygen()
         return True, f"{variant_name} available (Rust backend)"
     except Exception as e:
         return False, f"{variant_name} unavailable: {e}"

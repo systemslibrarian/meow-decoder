@@ -154,13 +154,24 @@ impl NonceManager {
     /// # Errors
     /// Returns `AeadError::NonceExhaustion` if counter would overflow
     pub fn allocate_nonce(&self) -> Result<UniqueNonce, AeadError> {
-        // Atomically increment counter
-        let counter_value = self.counter.fetch_add(1, Ordering::SeqCst);
-
-        // Check for exhaustion (should never happen in practice)
-        if counter_value >= MAX_NONCE_COUNTER {
-            return Err(AeadError::NonceExhaustion);
-        }
+        // Atomically increment counter using CAS loop to prevent wrap-around.
+        // A plain fetch_add would wrap past u64::MAX and silently re-issue
+        // nonce 0, violating AES-GCM's uniqueness requirement.
+        let counter_value = loop {
+            let current = self.counter.load(Ordering::SeqCst);
+            if current >= MAX_NONCE_COUNTER {
+                return Err(AeadError::NonceExhaustion);
+            }
+            match self.counter.compare_exchange(
+                current,
+                current + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(val) => break val,
+                Err(_) => continue, // Another thread incremented; retry
+            }
+        };
 
         // Construct nonce: [8-byte counter (big-endian) | 4-byte random]
         let mut nonce = [0u8; NONCE_SIZE];

@@ -354,6 +354,16 @@ pub fn x25519_exchange(
 
     let shared = secret.diffie_hellman(&public);
 
+    // Reject low-order points that produce an all-zero shared secret,
+    // which would yield a predictable derived key.
+    if shared.as_bytes().iter().all(|&b| b == 0) {
+        priv_bytes.zeroize();
+        return Err(CryptoError::InvalidKeyLength {
+            expected: 32,
+            got: 0,
+        });
+    }
+
     // Zeroize private key copy
     priv_bytes.zeroize();
 
@@ -399,9 +409,9 @@ pub fn secure_zero(data: &mut [u8]) {
 
 /// Generate secure random bytes.
 pub fn secure_random(size: usize) -> Vec<u8> {
-    use rand::RngCore;
+    use rand_core::{OsRng, RngCore};
     let mut buffer = vec![0u8; size];
-    rand::thread_rng().fill_bytes(&mut buffer);
+    OsRng.fill_bytes(&mut buffer);
     buffer
 }
 

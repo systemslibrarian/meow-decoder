@@ -278,8 +278,8 @@ def _mldsa65_sign(sk: bytes, message: bytes) -> bytes:
         return mldsa.sign(sk, message)
 
     if _OQS_SIG_AVAILABLE:
-        with oqs.Signature("Dilithium3") as sig:
-            return sig.sign(message, sk)
+        with oqs.Signature("Dilithium3", secret_key=sk) as sig:
+            return sig.sign(message)
 
     raise RuntimeError(
         "No secure ML-DSA-65 implementation available. " "Insecure stubs are permanently disabled."

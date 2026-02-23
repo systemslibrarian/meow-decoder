@@ -173,7 +173,11 @@ class PathConfig:
     temp_dir: Path = field(default_factory=lambda: Path.home() / ".cache" / "meowdecoder" / "temp")
 
     def __post_init__(self):
-        """Ensure directories exist."""
+        """Directories are created lazily via ensure_dirs(), not at import time."""
+        pass
+
+    def ensure_dirs(self):
+        """Create cache/resume/temp directories if they don't exist."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.resume_dir.mkdir(parents=True, exist_ok=True)
         self.temp_dir.mkdir(parents=True, exist_ok=True)
@@ -195,9 +199,12 @@ class MeowConfig:
 
     def save(self, path: Path):
         """Save configuration to JSON file."""
-        # Custom serialization for enums
-        duress_dict = self.duress.__dict__.copy()
-        if isinstance(duress_dict["mode"], DuressMode):
+        # Custom serialization for enums and non-serializable fields
+        duress_dict = {
+            k: v for k, v in self.duress.__dict__.items()
+            if k != "trigger_callback" and not callable(v)
+        }
+        if isinstance(duress_dict.get("mode"), DuressMode):
             duress_dict["mode"] = duress_dict["mode"].value
 
         config_dict = {

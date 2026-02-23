@@ -506,9 +506,9 @@ fn secure_zero(_py: Python<'_>, data: &Bound<'_, pyo3::types::PyByteArray>) -> P
 #[cfg(feature = "python")]
 #[pyfunction]
 fn secure_random<'py>(py: Python<'py>, size: usize) -> PyResult<Bound<'py, PyBytes>> {
-    use rand::RngCore;
+    use rand_core::{OsRng, RngCore};
     let mut buffer = vec![0u8; size];
-    rand::thread_rng().fill_bytes(&mut buffer);
+    OsRng.fill_bytes(&mut buffer);
     Ok(PyBytes::new(py, &buffer))
 }
 
@@ -589,14 +589,82 @@ fn mlkem768_decapsulate<'py>(
 }
 
 // =============================================================================
+// ML-KEM-1024 (Post-Quantum Paranoid) - NIST Level 5
+// =============================================================================
+
+#[cfg(all(feature = "python", feature = "pq"))]
+#[pyfunction]
+fn mlkem1024_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    use pqcrypto_mlkem::mlkem1024;
+    let (pk, sk) = mlkem1024::keypair();
+    Ok((
+        PyBytes::new(py, sk.as_bytes()),
+        PyBytes::new(py, pk.as_bytes()),
+    ))
+}
+
+#[cfg(all(feature = "python", feature = "pq"))]
+#[pyfunction]
+fn mlkem1024_encapsulate<'py>(
+    py: Python<'py>,
+    public_key: &[u8],
+) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+    use pqcrypto_mlkem::mlkem1024;
+    if public_key.len() != mlkem1024::public_key_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid public key length: expected {}, got {}",
+            mlkem1024::public_key_bytes(),
+            public_key.len()
+        )));
+    }
+
+    let pk = mlkem1024::PublicKey::from_bytes(public_key)
+        .map_err(|e| PyValueError::new_err(format!("Invalid public key: {:?}", e)))?;
+    let (ss, ct) = mlkem1024::encapsulate(&pk);
+    Ok((
+        PyBytes::new(py, ss.as_bytes()),
+        PyBytes::new(py, ct.as_bytes()),
+    ))
+}
+
+#[cfg(all(feature = "python", feature = "pq"))]
+#[pyfunction]
+fn mlkem1024_decapsulate<'py>(
+    py: Python<'py>,
+    private_key: &[u8],
+    ciphertext: &[u8],
+) -> PyResult<Bound<'py, PyBytes>> {
+    use pqcrypto_mlkem::mlkem1024;
+    if private_key.len() != mlkem1024::secret_key_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid private key length: expected {}, got {}",
+            mlkem1024::secret_key_bytes(),
+            private_key.len()
+        )));
+    }
+    if ciphertext.len() != mlkem1024::ciphertext_bytes() {
+        return Err(PyValueError::new_err(format!(
+            "Invalid ciphertext length: expected {}, got {}",
+            mlkem1024::ciphertext_bytes(),
+            ciphertext.len()
+        )));
+    }
+
+    let sk = mlkem1024::SecretKey::from_bytes(private_key)
+        .map_err(|e| PyValueError::new_err(format!("Invalid private key: {:?}", e)))?;
+    let ct = mlkem1024::Ciphertext::from_bytes(ciphertext)
+        .map_err(|e| PyValueError::new_err(format!("Invalid ciphertext: {:?}", e)))?;
+    let ss = mlkem1024::decapsulate(&ct, &sk);
+    Ok(PyBytes::new(py, ss.as_bytes()))
+}
+
+// =============================================================================
 // ML-DSA-65 Signing (FIPS 204) — via crypto_core pq-crypto backend
 // =============================================================================
 
 #[cfg(all(feature = "python", feature = "pq-signing"))]
 #[pyfunction]
-fn mldsa65_keygen<'py>(
-    py: Python<'py>,
-) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
+fn mldsa65_keygen<'py>(py: Python<'py>) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
     let (sk, pk) = crypto_core::pure_crypto::pq::mldsa65_keygen()
         .map_err(|e| PyValueError::new_err(format!("ML-DSA-65 keygen failed: {:?}", e)))?;
     Ok((PyBytes::new(py, &sk), PyBytes::new(py, &pk)))
@@ -616,11 +684,7 @@ fn mldsa65_sign<'py>(
 
 #[cfg(all(feature = "python", feature = "pq-signing"))]
 #[pyfunction]
-fn mldsa65_verify(
-    public_key: &[u8],
-    message: &[u8],
-    signature: &[u8],
-) -> PyResult<bool> {
+fn mldsa65_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> PyResult<bool> {
     crypto_core::pure_crypto::pq::mldsa65_verify(public_key, message, signature)
         .map_err(|e| PyValueError::new_err(format!("ML-DSA-65 verify failed: {:?}", e)))
 }
@@ -1540,6 +1604,9 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m.add_function(wrap_pyfunction!(mlkem768_keygen, m)?)?;
         m.add_function(wrap_pyfunction!(mlkem768_encapsulate, m)?)?;
         m.add_function(wrap_pyfunction!(mlkem768_decapsulate, m)?)?;
+        m.add_function(wrap_pyfunction!(mlkem1024_keygen, m)?)?;
+        m.add_function(wrap_pyfunction!(mlkem1024_encapsulate, m)?)?;
+        m.add_function(wrap_pyfunction!(mlkem1024_decapsulate, m)?)?;
     }
 
     // ML-DSA-65 signing (optional - requires pq-signing feature)

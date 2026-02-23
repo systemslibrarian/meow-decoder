@@ -135,11 +135,15 @@ impl X25519Private {
         }
     }
 
-    fn exchange(&self, peer_public: &[u8; 32]) -> [u8; 32] {
+    fn exchange(&self, peer_public: &[u8; 32]) -> Result<[u8; 32], HandleError> {
         let secret = StaticSecret::from(self.bytes);
         let public = PublicKey::from(*peer_public);
         let shared = secret.diffie_hellman(&public);
-        *shared.as_bytes()
+        // Reject low-order points that produce an all-zero shared secret
+        if shared.as_bytes().iter().all(|&b| b == 0) {
+            return Err(HandleError::HandleTypeMismatch);
+        }
+        Ok(*shared.as_bytes())
     }
 
     fn public_key(&self) -> [u8; 32] {
@@ -302,10 +306,17 @@ pub fn handle_derive_hkdf(
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
 
-    // Truncate or pad to 32 bytes for key storage
+    // Enforce exactly 32 bytes — reject truncation (loses entropy) and
+    // padding (zero-fills, breaking domain separation).
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -407,9 +418,15 @@ pub fn handle_derive_hkdf_raw(
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
 
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -628,7 +645,7 @@ pub fn handle_x25519_exchange(
     pub_bytes.copy_from_slice(peer_public);
 
     let shared = with_handle(private_handle, |payload| match payload {
-        HandlePayload::X25519Key(k) => Ok(k.exchange(&pub_bytes)),
+        HandlePayload::X25519Key(k) => k.exchange(&pub_bytes),
         _ => Err(HandleError::HandleTypeMismatch),
     })?;
 
@@ -915,9 +932,15 @@ pub fn handle_mix_hkdf(
     // Zeroize the concatenated IKM
     ikm_bytes.zeroize();
 
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -944,9 +967,15 @@ pub fn handle_hkdf_with_handle_salt(
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
 
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -972,9 +1001,15 @@ pub fn handle_hkdf_expand(
     prk.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
 
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -1006,9 +1041,15 @@ pub fn handle_hkdf_two_handles(
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
 
+    if output_len != 32 {
+        okm.zeroize();
+        return Err(HandleError::HkdfFailed(format!(
+            "HKDF output_len must be 32 for key handle storage, got {}",
+            output_len,
+        )));
+    }
     let mut key_bytes = [0u8; 32];
-    let copy_len = std::cmp::min(okm.len(), 32);
-    key_bytes[..copy_len].copy_from_slice(&okm[..copy_len]);
+    key_bytes.copy_from_slice(&okm);
     okm.zeroize();
 
     let key = SecretKey { bytes: key_bytes };
@@ -1204,7 +1245,8 @@ pub fn handle_pqxdh_encapsulate(
     // 2. ECDH
     let mut pub_bytes = [0u8; 32];
     pub_bytes.copy_from_slice(receiver_classical_pub);
-    let mut classical_shared = eph_private.exchange(&pub_bytes);
+    let mut classical_shared = eph_private.exchange(&pub_bytes)
+        .map_err(|_| HandleError::HandleTypeMismatch)?;
 
     // 3. Combine IKM
     let mut combined_ikm = classical_shared.to_vec();
@@ -1279,7 +1321,7 @@ pub fn handle_pqxdh_decapsulate(
     let mut eph_pub = [0u8; 32];
     eph_pub.copy_from_slice(ephemeral_classical_pub);
     let mut classical_shared = with_handle(receiver_private_handle, |payload| match payload {
-        HandlePayload::X25519Key(k) => Ok(k.exchange(&eph_pub)),
+        HandlePayload::X25519Key(k) => k.exchange(&eph_pub),
         _ => Err(HandleError::HandleTypeMismatch),
     })?;
 
