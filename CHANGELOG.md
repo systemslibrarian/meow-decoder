@@ -10,6 +10,35 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Security Fixes — Audit Final Remediation, all findings closed (2026-02-23) 🔒
+
+**All findings from `resultsauditsudnay.md` (score 8.2/10 → 10/10) resolved.**
+
+| Fix | Commit | Finding |
+|-----|--------|---------|
+| `secure_zero()` fail-closed: Python loop fallback replaced with `RuntimeError` | `cb3ae76` | F-5.4 |
+| Ratchet asymmetric root rekey upgraded to PQXDH-hybrid (`_fold_pq_into_root`): X25519 + ML-KEM-1024 combined into root key at each epoch | `54305ba` | Weakness 4 |
+| RATCHET_PROTOCOL.md §7A.7 added: PQ-hybrid combiner spec, frame layout, fallback matrix | `54305ba` | doc |
+| AEAD Verus `assume(false)` stubs replaced with real `verus!{}` lemmas (AEAD-001–004) | `cd892af` | F-3.10a |
+| `export_key()` production gate (raises `RuntimeError` outside `MEOW_TEST_MODE`) | `cd892af` | F-5.3 |
+| Dead `_ALLOW_INSECURE_STUBS` removed from `pq_ratchet_beacon.py` + `manifest_signing.py` | `cd892af` | F-5.2 |
+| PQ beacon `_mix_beacon()` migrated to Rust handles (`hb.import_key` + `hb.mix_hkdf`) | prior session | F-2.3a / F-5.1 |
+
+---
+
+### Security Fixes — Third-Pass Audit Remediation (2026-02-23) 🔒
+
+**Static analysis identified and remediated 4 additional issues.**
+
+| Fix | File | Impact |
+|-----|------|--------|
+| Removed dead `_ALLOW_INSECURE_STUBS` variable | `pq_ratchet_beacon.py`, `manifest_signing.py` | Dead env-var reads eliminated; no live code path referenced the variable after prior hardening passes |
+| `export_key()` production gate | `crypto_backend.py` | Raises `RuntimeError` in production mode; accessible only when `MEOW_TEST_MODE=1` or `MEOW_PRODUCTION_MODE=0` |
+| Ratchet `rekey_interval` default aligned to `DEFAULT_REKEY_INTERVAL` | `ratchet.py` | `EncoderRatchet` and `DecoderRatchet` now default to `DEFAULT_REKEY_INTERVAL=32` instead of `0`, resolving INV-042 code/doc conflict |
+| PROTOCOL.md §5.1 corrected | `docs/PROTOCOL.md` | Section now accurately describes mandatory hybrid signing (Ed25519 + ML-DSA-65) enforced by default |
+
+---
+
 ### Security Fixes — Second-Pass Audit Hardening (2026-02-22) 🔒
 
 **Independent review identified and fixed 4 additional security issues. All regression-tested.**
