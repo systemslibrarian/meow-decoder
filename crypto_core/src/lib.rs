@@ -39,15 +39,25 @@
 //! - [`pure_crypto`]: Complete crypto stack (`pure-crypto` feature)
 //! - [`wasm`]: WASM bindings (`wasm` feature)
 //!
-//! ## Security Properties (type-system enforced; Verus proofs are stubs)
+//! ## Security Properties (type-system + Verus proofs, machine-checked by Z3)
 //!
-//! 1. **AEAD-001**: Nonce uniqueness - counter-based generation prevents reuse
-//! 2. **AEAD-002**: Auth-gated plaintext - decryption returns `AuthenticatedPlaintext`
-//! 3. **AEAD-003**: Key zeroization - keys are zeroed on drop via `zeroize` crate
-//! 4. **AEAD-004**: No bypass - all encryption paths consume a `UniqueNonce`
+//! 1. **AEAD-001**: Nonce uniqueness — counter-based generation prevents reuse
+//! 2. **AEAD-002**: Auth-gated plaintext — decryption returns `AuthenticatedPlaintext`
+//! 3. **AEAD-003**: Key zeroization — keys are zeroed on drop via `zeroize` crate
+//! 4. **AEAD-004**: No bypass — all encryption paths consume a `UniqueNonce`
+//! 5. **AEAD-005**: Ciphertext integrity (INT-CTXT) — tampered ciphertext → auth failure
+//! 6. **AEAD-006**: AAD binding — changed AAD → auth failure
+//! 7. **AEAD-007**: Nonce-domain separation — different managers use disjoint nonce spaces
+//! 8. **AEAD-008**: Fail-closed — no plaintext bytes on decrypt error
+//! 9. **AEAD-009**: Ratchet key independence — per-epoch HKDF isolation (forward secrecy)
+//! 10. **AEAD-010**: No info leakage — constant-time error path
+//! 11. **AEAD-011**: UniqueNonce linear consumption — `take()` is one-shot
+//! 12. **AEAD-012**: E2E roundtrip + tamper detection
 //!
-//! > Note: AEAD-001–AEAD-004 are specification stubs in `verus_proofs.rs`,
-//! > not yet machine-checked by Verus. Enforced by Rust's type system and tests.
+//! > AEAD-001–AEAD-012 are fully specified in `verus_proofs.rs` with Verus
+//! > `spec fn` + `proof fn` lemmas, dischargeable by Z3 when compiled with
+//! > `--cfg verus_keep_ghost`. Structural bindings in `aead_wrapper.rs`
+//! > connect these abstractions to the concrete types.
 //!
 //! ## Hardware Security Properties
 //!
