@@ -178,13 +178,21 @@ class RustCryptoBackend:
         Securely zero memory using Rust zeroize crate.
 
         Uses volatile writes to prevent compiler optimization.
+        Fail-closed: raises RuntimeError rather than falling back to a Python
+        loop that may be optimized away and does not carry zeroize guarantees.
         """
         try:
             self._rs.secure_zero(data)
-        except (TypeError, AttributeError):
-            # Fallback if Rust binding can't handle this bytearray
-            for i in range(len(data)):
-                data[i] = 0
+        except (TypeError, AttributeError) as exc:
+            # F-5.4 fix: do NOT fall back to a Python loop — Python's GC and
+            # interpreter can optimize away plain assignments, providing no
+            # volatile-write or zeroize guarantees.  If the Rust binding
+            # cannot handle this bytearray the call must fail loudly.
+            raise RuntimeError(
+                "secure_zero: Rust backend could not zero memory — "
+                "refusing Python fallback (unsafe). "
+                f"Original error: {exc}"
+            ) from exc
 
 
 class CryptoBackend:
