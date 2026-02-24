@@ -21,8 +21,6 @@ include =
     meow_decoder/crypto_backend.py
     meow_decoder/crypto.py
     meow_decoder/metadata_obfuscation.py
-    meow_decoder/ratchet.py
-    meow_decoder/pq_hybrid.py
 
 branch = true
 
@@ -33,8 +31,6 @@ include =
     meow_decoder/crypto_backend.py
     meow_decoder/crypto.py
     meow_decoder/metadata_obfuscation.py
-    meow_decoder/ratchet.py
-    meow_decoder/pq_hybrid.py
 
 exclude_also =
     pragma: no cover

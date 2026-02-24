@@ -560,6 +560,7 @@ class TestProceduralCatGenerator:
 
     def test_save_carrier_gif(self):
         """save_carrier produces a valid GIF file."""
+        pytest.importorskip("imageio", reason="imageio not installed; skipping GIF output test")
         key = make_key()
         config = make_config(procedural_cat_frames=3, procedural_cat_size=(80, 64))
         gen = ProceduralCatGenerator(key, config)

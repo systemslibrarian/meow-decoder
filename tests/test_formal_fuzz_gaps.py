@@ -560,10 +560,10 @@ class TestGap1ContinueOnErrorAbsent:
 
     def test_fuzz_tamper_is_importable(self):
         import importlib.util
+        from pathlib import Path
 
-        spec = importlib.util.spec_from_file_location(
-            "fuzz_tamper_detection", "/workspaces/meow-decoder/fuzz/fuzz_tamper_detection.py"
-        )
+        fuzz_path = Path(__file__).parent.parent / "fuzz" / "fuzz_tamper_detection.py"
+        spec = importlib.util.spec_from_file_location("fuzz_tamper_detection", str(fuzz_path))
         mod = importlib.util.module_from_spec(spec)
         try:
             spec.loader.exec_module(mod)
