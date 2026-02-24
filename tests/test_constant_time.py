@@ -6,6 +6,9 @@ Tests for constant-time operations module.
 import ctypes
 import pytest
 import secrets
+
+# Mark as security so Gate 5 (security-coverage) includes these tests
+pytestmark = pytest.mark.security
 import time
 
 from meow_decoder.constant_time import (

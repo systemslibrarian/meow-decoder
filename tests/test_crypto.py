@@ -6,6 +6,9 @@ import pytest
 import secrets
 import hashlib
 import os
+
+# Mark as security so Gate 5 (security-coverage) includes these tests
+pytestmark = pytest.mark.security
 from unittest.mock import patch, MagicMock
 
 from meow_decoder.crypto import (

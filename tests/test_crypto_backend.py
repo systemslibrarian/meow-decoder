@@ -18,6 +18,9 @@ import types
 import pytest
 from hypothesis import given, strategies as st, settings, assume
 
+# Mark as security so Gate 5 (security-coverage) includes these tests
+pytestmark = pytest.mark.security
+
 # Ensure test mode is set before importing
 os.environ["MEOW_TEST_MODE"] = "1"
 

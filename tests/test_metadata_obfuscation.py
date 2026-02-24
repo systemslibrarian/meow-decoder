@@ -4,6 +4,10 @@ import secrets
 import pytest
 import runpy
 
+# Mark all tests as security so Gate 5 (security-coverage) includes them
+# when measuring coverage of metadata_obfuscation.py.
+pytestmark = pytest.mark.security
+
 from meow_decoder.metadata_obfuscation import (
     SIZE_CLASSES,
     add_length_padding,
