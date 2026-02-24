@@ -427,6 +427,14 @@ def encode_file(
         from .ratchet import EncoderRatchet
 
         _rekey_interval = getattr(config, "rekey_beacon_interval", 0)
+        # Only wire PQ public key for ratchet beacons when ML-KEM-1024 is in use
+        # (paranoid mode, 1568-byte public key).  ML-KEM-768 keys (1184 bytes)
+        # are used for FS hybrid encryption but ratchet beacons require 1024.
+        _ratchet_pq_pub = (
+            receiver_pq_public
+            if (receiver_pq_public is not None and len(receiver_pq_public) == 1568)
+            else None
+        )
         encoder_ratchet = EncoderRatchet(
             root_key=key_handle,
             salt=salt,
@@ -435,14 +443,16 @@ def encode_file(
             total_frames=num_droplets,  # Only droplet frames are ratchet-encrypted
             rekey_interval=_rekey_interval,
             receiver_public_key=receiver_public_key,
+            receiver_pq_public_key=_ratchet_pq_pub,  # PQ ratchet beacon (ML-KEM-1024 only)
         )
         if verbose:
             _beacon_msg = (
                 f", rekey beacons every {_rekey_interval} frames" if _rekey_interval > 0 else ""
             )
+            _pq_beacon_msg = " + ML-KEM-1024 PQ beacons" if _ratchet_pq_pub is not None else ""
             print(
                 f"  \U0001f43e Paw state initialized: {num_droplets} frames, "
-                f"per-frame AES-256-GCM{_beacon_msg}"
+                f"per-frame AES-256-GCM{_beacon_msg}{_pq_beacon_msg}"
             )
 
     # Drop the encryption key handle — frame_master_key_handle and ratchet own

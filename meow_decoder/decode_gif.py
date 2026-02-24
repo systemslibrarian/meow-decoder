@@ -500,6 +500,23 @@ def decode_gif(
         if _has_ratchet:
             _ratchet_deferred = True
             _rekey_interval = getattr(config, "rekey_beacon_interval", 0) if config else 0
+            # Build PQBeaconKeyPair for ratchet beacons from HybridKeyPair (ML-KEM-1024 only).
+            # Only wire when the public key is 1568 bytes (ML-KEM-1024 / paranoid mode);
+            # ML-KEM-768 keys are used for FS hybrid encryption but the ratchet
+            # beacon implementation is specific to ML-KEM-1024.
+            _ratchet_pq_keypair = None
+            if (
+                receiver_pq_keypair is not None
+                and getattr(receiver_pq_keypair, "pq_public", None) is not None
+                and len(receiver_pq_keypair.pq_public) == 1568  # ML-KEM-1024 key size
+                and getattr(receiver_pq_keypair, "_pq_secret_bytes", None) is not None
+            ):
+                from .pq_ratchet_beacon import PQBeaconKeyPair as _PQBeaconKP
+
+                _ratchet_pq_keypair = _PQBeaconKP(
+                    secret_key=receiver_pq_keypair._pq_secret_bytes,
+                    public_key=receiver_pq_keypair.pq_public,
+                )
             _ratchet_params = dict(
                 root_key=key_handle,
                 salt=manifest.salt,
@@ -507,6 +524,7 @@ def decode_gif(
                 block_size=manifest.block_size,
                 rekey_interval=_rekey_interval,
                 receiver_private_key=receiver_private_key,
+                receiver_pq_keypair=_ratchet_pq_keypair,  # PQ ratchet beacon (ML-KEM-1024 only)
             )
 
         # Verify manifest frame MAC retroactively (v2 key derivation)
@@ -649,9 +667,14 @@ def decode_gif(
                         if _ratchet_params.get("rekey_interval", 0) > 0
                         else ""
                     )
+                    _pq_beacon_msg = (
+                        " + ML-KEM-1024 PQ beacons"
+                        if _ratchet_params.get("receiver_pq_keypair") is not None
+                        else ""
+                    )
                     print(
                         f"  🐾 Paw state decryption enabled "
-                        f"(MSR v1, {total_droplet_frames} frames{_beacon_msg})"
+                        f"(MSR v1, {total_droplet_frames} frames{_beacon_msg}{_pq_beacon_msg})"
                     )
             if decoder_ratchet is not None:
                 try:

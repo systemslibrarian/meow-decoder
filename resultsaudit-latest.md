@@ -10,11 +10,11 @@
 - Any remaining weakness, stub, or incomplete integration? None observed in these paths.
 
 2) Mandatory ML-DSA manifest signing + full PQ ratchet beacon (ML-KEM-1024 integrated into ratchet path)
-- Status: Partially Implemented
-- Is it correctly wired into production paths? Partially
-- Reachability: production (signing), production-only optional (ratchet), PQ ratchet not wired
-- Evidence: Mandatory signing in [meow_decoder/manifest_signing.py](meow_decoder/manifest_signing.py#L1-L58); encoder fail-closed on missing ML-DSA backend in [meow_decoder/encode.py](meow_decoder/encode.py#L340-L391); decoder enforces signature by default in [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L573-L699). PQ ratchet beacon logic exists in [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170) and [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1308-L1660).
-- Any remaining weakness, stub, or incomplete integration? Encoder ratchet is instantiated without `receiver_pq_public_key` in production path ([meow_decoder/encode.py](meow_decoder/encode.py#L420-L439)), and decoder ratchet is instantiated without `receiver_pq_keypair` ([meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L487-L510)), so ML-KEM-1024 PQ ratchet beacons are implemented but not wired into production CLI paths. Signing can be disabled via `MEOW_MANIFEST_SIGNING=off`, which weakens mandatory enforcement ([meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L573-L699)).
+- Status: Fully Implemented
+- Is it correctly wired into production paths? Yes
+- Reachability: production
+- Evidence: Mandatory signing in [meow_decoder/manifest_signing.py](meow_decoder/manifest_signing.py#L1-L58); encoder fail-closed on missing ML-DSA backend in [meow_decoder/encode.py](meow_decoder/encode.py#L340-L391); decoder enforces signature by default in [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L573-L699). PQ ratchet beacon logic exists in [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170) and [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1308-L1660). Encoder now passes `receiver_pq_public_key` (ML-KEM-1024 keys only, 1568 bytes) to `EncoderRatchet` in [meow_decoder/encode.py](meow_decoder/encode.py#L430-L449); decoder now constructs a `PQBeaconKeyPair` from the `HybridKeyPair` and passes it as `receiver_pq_keypair` to `DecoderRatchet` via `_ratchet_params` in [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L503-L530).
+- Any remaining weakness, stub, or incomplete integration? Signing can be disabled via `MEOW_MANIFEST_SIGNING=off`, which weakens mandatory enforcement ([meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L573-L699)). PQ ratchet beacons are silently skipped for ML-KEM-768 keys (1184 bytes) since the beacon implementation is ML-KEM-1024-only; paranoid mode (`--paranoid`) is required for PQ ratchet beacons.
 
 3) On-screen randomized keyboard + mouse-gesture password auth (full working implementation)
 - Status: Fully Implemented
@@ -73,10 +73,10 @@
   - Evidence / reachability: Presets and parameters in [meow_decoder/crypto.py](meow_decoder/crypto.py#L36-L72); canonical AAD layout and domain separation constants in [meow_decoder/crypto.py](meow_decoder/crypto.py#L60-L150); handle-based derivation in [meow_decoder/crypto.py](meow_decoder/crypto.py#L930-L1038).
 
 - Ratchet forward secrecy (including PQ beacon integration)
-  - Status: Partially Implemented
-  - Findings: Observed ratchet supports asymmetric rekey and PQ hybrid fold with ML-KEM-1024. Observed production CLI wiring does not pass PQ ratchet keys.
-  - Severity: High
-  - Evidence / reachability: PQ beacon logic in [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170) and [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1308-L1660); encoder ratchet instantiated without PQ public key [meow_decoder/encode.py](meow_decoder/encode.py#L420-L439); decoder ratchet instantiated without PQ keypair [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L487-L510).
+  - Status: Implemented
+  - Findings: Ratchet supports asymmetric rekey and PQ hybrid fold with ML-KEM-1024. Production CLI now wires ML-KEM-1024 key material into both `EncoderRatchet` and `DecoderRatchet` when paranoid PQ mode is used.
+  - Severity: Low
+  - Evidence / reachability: PQ beacon logic in [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170) and [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1308-L1660); encoder now passes `receiver_pq_public_key` to `EncoderRatchet` [meow_decoder/encode.py](meow_decoder/encode.py#L430-L449); decoder now passes `receiver_pq_keypair` (as `PQBeaconKeyPair`) to `DecoderRatchet` via `_ratchet_params` [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L503-L530).
 
 - Manifest signing, AAD binding, and HMAC verification
   - Status: Implemented
@@ -130,9 +130,9 @@
 
 ## 4. General Bug & Regression Hunt
 
-- Finding: PQ ratchet beacons are implemented but not wired into production CLI paths.
-  - Severity: High
-  - Evidence / reachability: PQ beacon logic in [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170) and [meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1308-L1660) but encoder/decoder do not pass PQ key material in [meow_decoder/encode.py](meow_decoder/encode.py#L420-L439) and [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L487-L510).
+- Finding: PQ ratchet beacons are now wired into production CLI paths. (FIXED)
+  - Severity: Resolved
+  - Evidence: Encoder passes ML-KEM-1024 public key as `receiver_pq_public_key` to `EncoderRatchet` [meow_decoder/encode.py](meow_decoder/encode.py#L430-L449); decoder converts `HybridKeyPair` to `PQBeaconKeyPair` and passes as `receiver_pq_keypair` in `_ratchet_params` to `DecoderRatchet` [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L503-L530). Keys are only wired for ML-KEM-1024 (1568-byte public key, paranoid mode); ML-KEM-768 silently skips PQ beacons.
 
 - Finding: Protocol documentation claims deterministic HKDF nonces, but production encryption uses random nonces.
   - Severity: Medium
@@ -165,8 +165,10 @@
 
 ## 6. Final Independent Verdict
 
-- Overall security score out of 10 (conservative): 7.2/10
-- Is the current implementation ready for high-stakes use? No, not without resolving the PQ ratchet beacon wiring gap and the nonce-specification mismatch.
+- Overall security score out of 10 (conservative): 7.7/10
+- Is the current implementation ready for high-stakes use? No, not without resolving the nonce-specification mismatch between code and documentation.
 - Remaining Critical/High issues that must be addressed before release:
-  - High: PQ ratchet beacon is implemented but not wired into production encode/decode flows; this undermines the full PQ ratchet beacon hardening claim ([meow_decoder/ratchet.py](meow_decoder/ratchet.py#L1006-L1170), [meow_decoder/encode.py](meow_decoder/encode.py#L420-L439), [meow_decoder/decode_gif.py](meow_decoder/decode_gif.py#L487-L510)).
-- One-sentence recommendation before release: Align PQ and nonce behavior between code and documentation, and wire PQ ratchet beacons into the production CLI paths before claiming full PQ ratchet coverage.
+  - Medium: Protocol documentation claims deterministic HKDF nonces, but production encryption uses random nonces ([docs/PROTOCOL.md](docs/PROTOCOL.md#L43-L72), [meow_decoder/crypto.py](meow_decoder/crypto.py#L1018-L1046)).
+- Resolved issues:
+  - FIXED (was High): PQ ratchet beacons now wired into production encode/decode flows: encoder passes ML-KEM-1024 key via `receiver_pq_public_key`, decoder constructs `PQBeaconKeyPair` and passes via `receiver_pq_keypair` in `_ratchet_params`.
+- One-sentence recommendation before release: Align nonce derivation behavior between code and protocol documentation (either document that random nonces are intentional or wire in the existing deterministic `NonceGenerator`).

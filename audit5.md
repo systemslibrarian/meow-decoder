@@ -35,7 +35,7 @@
 | `meow_decoder/crypto.py` | 642 | 180 | 238 | 50 | **72%** | ⚠️ |
 | **TOTAL** | ~1753 | ~276 | ~516 | ~67 | **82%** | ✅ |
 
-**Source:** CI run on commit `7571ed8`, Gate 5: Security Coverage
+**Source:** CI run on commit `e719561`, Gate 5: Security Coverage
 
 **Evidence:**
 - `.coveragerc-security` — now defines 7-module scope (added `ratchet.py`, `pq_hybrid.py`)
@@ -121,8 +121,8 @@
 |------|--------|-------|----------|
 | Gate 1: Tests + Coverage | ✅ | 2000+ tests | 74% coverage (70% threshold) |
 | Gate 5: Security Coverage | ✅ | 1500+ tests | 82%+ coverage (80% threshold) |
-| Gate 6: Slow Tests (Monte Carlo) | ✅ | Fountain stress | CI run on `7571ed8` |
-| Security CI | ✅ | Bandit, pip-audit, cargo-audit | Passed on `e719561` |
+| Gate 6: Slow Tests (Monte Carlo) | ✅ | Fountain stress | Passed |
+| Security CI | ✅ | Bandit, pip-audit, cargo-audit | Passed`e719561` |
 | Rust Tests & Coverage | ✅ | cargo test + tarpaulin | 93-95% enforced |
 
 ### Recent Changes Potentially Untested
@@ -179,6 +179,7 @@
 | `7571ed8` | Make Cat Mode gates non-blocking | Gates 2/3/4 use `continue-on-error: true` |
 | `5937143` | Comprehensive audit5.md update | Documentation with all progress |
 | `44d3b22` | Fix fuzz: pass password as bytes | Fixed argon2id fuzz target type error |
+| `e719561` | Finalize coverage verification audit | Final audit conclusion |
 
 **Total test files with security markers:** 52
 
