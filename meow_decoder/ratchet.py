@@ -1110,6 +1110,15 @@ class EncoderRatchet:
                 pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
                 pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
                 new_root_h = _fold_pq_into_root(new_root_h, pq_shared, self._state.epoch)
+                # CRITICAL: Re-derive chain from the PQ-hybrid root so that the
+                # chain key (and all subsequent message keys) depend on BOTH
+                # X25519 AND ML-KEM-1024.  Without this, the PQ fold only
+                # updates the root but the chain remains X25519-only.
+                if isinstance(new_chain_h, int):
+                    hb.drop(new_chain_h)
+                new_chain_h = _hkdf_derive_handle(
+                    new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
+                )
                 # Zeroize Python-side copy (handle keeps the real secret in Rust)
                 pq_shared = b"\x00" * len(pq_shared)
 
@@ -1339,6 +1348,14 @@ class DecoderRatchet:
         if pq_ct is not None and self._receiver_pq_keypair is not None:
             pq_shared = _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
             new_root_h = _fold_pq_into_root(new_root_h, pq_shared, epoch)
+            # CRITICAL: Re-derive chain from the PQ-hybrid root so that the
+            # chain key (and all subsequent message keys) depend on BOTH
+            # X25519 AND ML-KEM-1024.  Must mirror the encoder's fix exactly.
+            if isinstance(new_chain_h, int):
+                hb.drop(new_chain_h)
+            new_chain_h = _hkdf_derive_handle(
+                new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
+            )
             # Zeroize Python-side copy (defense in depth)
             pq_shared = b"\x00" * len(pq_shared)
 

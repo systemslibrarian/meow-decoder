@@ -22,5 +22,5 @@ classifiers = [
 ]
 
 [tool.maturin]
-features = ["pyo3/extension-module", "python", "pq-signing"]
+features = ["pyo3/extension-module", "python", "pq", "pq-signing"]
 module-name = "meow_crypto_rs"

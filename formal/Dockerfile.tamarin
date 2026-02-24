@@ -19,9 +19,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Tamarin from official GitHub release binary
-# Using v1.8.1 — latest stable as of 2025-12
+# Using v1.10.0 — latest stable (1.8.1 never existed; went 1.8.0 → 1.10.0)
 RUN curl -sL -o /tmp/tamarin.tar.gz \
-      "https://github.com/tamarin-prover/tamarin-prover/releases/download/1.8.1/tamarin-prover-1.8.1-linux64-ubuntu.tar.gz" \
+      "https://github.com/tamarin-prover/tamarin-prover/releases/download/1.10.0/tamarin-prover-1.10.0-linux64-ubuntu.tar.gz" \
     && tar xzf /tmp/tamarin.tar.gz -C /usr/local/bin/ \
     && chmod +x /usr/local/bin/tamarin-prover \
     && rm /tmp/tamarin.tar.gz \

@@ -339,55 +339,65 @@ def encode_file(
     manifest_bytes = pack_manifest(manifest)
 
     # Manifest signature transport.
-    # Policy: signing is MANDATORY. Unsigned manifests are a security risk.
+    # Policy: signing is MANDATORY unless overridden by MEOW_MANIFEST_SIGNING=off
+    # (for testing/offline scenarios). Unsigned manifests are a security risk.
     manifest_sig_chunks: List[bytes] = []
-    try:
-        from . import manifest_signing as _ms
-
-        # Signing requires a real ML-DSA backend. Fail closed if not available.
-        _has_mldsa_backend = bool(
-            _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE  # type: ignore[attr-defined]
+    _signing_policy = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
+    if _signing_policy == "off":
+        import sys as _sys
+        print(
+            "⚠️  WARNING: Manifest signing disabled by policy (MEOW_MANIFEST_SIGNING=off). "
+            "This manifest is vulnerable to forgery. Do not use in production.",
+            file=_sys.stderr,
         )
+    else:
+        try:
+            from . import manifest_signing as _ms
 
-        if not _has_mldsa_backend:
-            raise RuntimeError(
-                "Mandatory manifest signing failed: no secure ML-DSA backend detected (Rust, ml-dsa, or OQS). "
-                "Cannot produce a secure, signed artifact."
+            # Signing requires a real ML-DSA backend. Fail closed if not available.
+            _has_mldsa_backend = bool(
+                _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE  # type: ignore[attr-defined]
             )
 
-        _keypair = _ms.generate_signing_keypair()
-        _signature = _ms.sign_manifest(_keypair, manifest_bytes, context=b"manifest-v1")
-        _public_key = _keypair.export_public_key()
-        _sig_bytes = _signature.to_bytes()
+            if not _has_mldsa_backend:
+                raise RuntimeError(
+                    "Mandatory manifest signing failed: no secure ML-DSA backend detected (Rust, ml-dsa, or OQS). "
+                    "Cannot produce a secure, signed artifact."
+                )
 
-        _blob = (
-            MANIFEST_SIG_BLOB_MAGIC
-            + bytes([MANIFEST_SIG_VERSION])
-            + struct.pack(">HH", len(_public_key), len(_sig_bytes))
-            + _public_key
-            + _sig_bytes
-        )
+            _keypair = _ms.generate_signing_keypair()
+            _signature = _ms.sign_manifest(_keypair, manifest_bytes, context=b"manifest-v1")
+            _public_key = _keypair.export_public_key()
+            _sig_bytes = _signature.to_bytes()
 
-        _chunk_size = 900
-        _total_parts = (len(_blob) + _chunk_size - 1) // _chunk_size
-        for _part_idx in range(_total_parts):
-            _chunk = _blob[_part_idx * _chunk_size : (_part_idx + 1) * _chunk_size]
-            _payload = (
-                MANIFEST_SIG_CHUNK_MAGIC
-                + bytes([MANIFEST_SIG_VERSION, _total_parts, _part_idx])
-                + _chunk
-            )
-            manifest_sig_chunks.append(_payload)
-
-        if verbose:
-            print(
-                f"  ✍️ Manifest signature enabled: {_total_parts} metadata frame(s), "
-                f"{len(_blob)} bytes"
+            _blob = (
+                MANIFEST_SIG_BLOB_MAGIC
+                + bytes([MANIFEST_SIG_VERSION])
+                + struct.pack(">HH", len(_public_key), len(_sig_bytes))
+                + _public_key
+                + _sig_bytes
             )
 
-    except Exception as _sig_err:
-        # Re-raise as a runtime error to ensure fail-closed behavior
-        raise RuntimeError(f"Mandatory manifest signing failed: {_sig_err}") from _sig_err
+            _chunk_size = 900
+            _total_parts = (len(_blob) + _chunk_size - 1) // _chunk_size
+            for _part_idx in range(_total_parts):
+                _chunk = _blob[_part_idx * _chunk_size : (_part_idx + 1) * _chunk_size]
+                _payload = (
+                    MANIFEST_SIG_CHUNK_MAGIC
+                    + bytes([MANIFEST_SIG_VERSION, _total_parts, _part_idx])
+                    + _chunk
+                )
+                manifest_sig_chunks.append(_payload)
+
+            if verbose:
+                print(
+                    f"  ✍️ Manifest signature enabled: {_total_parts} metadata frame(s), "
+                    f"{len(_blob)} bytes"
+                )
+
+        except Exception as _sig_err:
+            # Re-raise as a runtime error to ensure fail-closed behavior
+            raise RuntimeError(f"Mandatory manifest signing failed: {_sig_err}") from _sig_err
 
     if verbose:
         if ephemeral_public_key:

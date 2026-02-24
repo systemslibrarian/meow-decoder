@@ -123,7 +123,9 @@ def _mlkem1024_encapsulate(pk: bytes) -> Tuple[bytes, bytes]:
     if _RUST_MLKEM_AVAILABLE:
         import meow_crypto_rs as rs
 
-        return rs.mlkem1024_encapsulate(pk)
+        # Rust returns (ss, ct); normalise to (ct, ss) to match other backends.
+        ss, ct = rs.mlkem1024_encapsulate(pk)
+        return ct, ss
 
     if _MLKEM_PURE_AVAILABLE:
         kem = ML_KEM_1024()

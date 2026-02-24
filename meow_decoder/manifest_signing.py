@@ -55,7 +55,11 @@ ED25519_SK_SIZE = 32
 # ML-DSA-65 sizes (FIPS 204 / Dilithium3)
 MLDSA65_SIG_SIZE = 3293
 MLDSA65_PK_SIZE = 1952
-MLDSA65_SK_SIZE = 4000
+# Rust backend (meow_crypto_rs) stores SK as compact 32-byte seed; signing and
+# verification both operate on the seed internally.  The OQS/pure-Python path
+# would use the full 4000-byte expanded key — but that path is not installed in
+# production (ml_dsa / oqs not in requirements).
+MLDSA65_SK_SIZE = 32  # compact seed format (Rust backend)
 
 # Domain separation
 MANIFEST_SIGN_DOMAIN = b"meow_manifest_sign_v1"
@@ -292,8 +296,7 @@ def _mldsa65_verify(pk: bytes, message: bytes, signature: bytes) -> bool:
         import meow_crypto_rs as rs
 
         try:
-            rs.mldsa65_verify(pk, message, signature)
-            return True
+            return bool(rs.mldsa65_verify(pk, message, signature))
         except Exception:
             return False
 

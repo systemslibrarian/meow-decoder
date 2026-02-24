@@ -688,6 +688,11 @@ class MouseGesturePassword:
             points: Sequence of (x, y) points from mouse/touch capture.
             output_hex: Return hex string when True; otherwise base64-url style.
         """
+        if len(points) < 2:
+            raise ValueError(
+                f"Gesture too short: {len(points)} point(s) provided, minimum is 2. "
+                "A single-point gesture provides no directional entropy."
+            )
         quantized = self._quantize(points)
         digest = hashlib.blake2b(
             quantized,

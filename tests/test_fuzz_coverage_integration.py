@@ -204,9 +204,10 @@ class TestMouseGesturePassword:
         """Small perturbation within same grid cell yields same key."""
         Cls = self._get_cls()
         mgp = Cls(grid_size=16, path_length=20)
-        # Two points that differ by < 1/16 = 0.0625, same cell
-        p1 = [(0.51, 0.51)]
-        p2 = [(0.52, 0.52)]
+        # Two paths whose points differ by < 1/16 = 0.0625, same grid cells.
+        # Duplicate each point so we meet the minimum 2-point requirement.
+        p1 = [(0.51, 0.51), (0.51, 0.51)]
+        p2 = [(0.52, 0.52), (0.52, 0.52)]
         k1 = mgp.collect(p1, output_hex=True)
         k2 = mgp.collect(p2, output_hex=True)
         # They SHOULD produce the same key since they're in the same grid cell

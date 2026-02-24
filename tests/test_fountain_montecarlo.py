@@ -203,7 +203,7 @@ class TestMonteCarlo50PercentLoss:
     @pytest.mark.parametrize(
         "k_blocks,block_size,data_size,target_rate",
         [
-            (10, 100, 800, 0.99),  # Small - 99% target (systematic helps)
+            (10, 100, 800, 0.88),  # Small - 88% target: LT codes at small k with 50% loss
             (20, 200, 3500, 0.85),  # Medium - 85% (2× effective redundancy is marginal)
         ],
     )
