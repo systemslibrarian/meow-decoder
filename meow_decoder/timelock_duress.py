@@ -530,9 +530,12 @@ def decode_with_timelock(
 
     # Parse timelocked data
     puzzle_len = struct.unpack(">I", timelocked_data[:4])[0]
-    puzzle_data = timelocked_data[4 : 4 + puzzle_len]
-    encrypted_key = timelocked_data[4 + puzzle_len : 4 + puzzle_len + 32]
-    cipher = timelocked_data[4 + puzzle_len + 32 :]
+    puzzle_data = timelocked_data[4: 4 + puzzle_len]
+    encrypted_key = timelocked_data[4 + puzzle_len: 4 + puzzle_len + 32]
+    # The remaining bytes are the AES-GCM ciphertext; a full implementation
+    # will pass (enc_key, cipher_blob, salt, nonce) into decrypt_to_raw().
+    cipher_blob = timelocked_data[4 + puzzle_len + 32 :]
+    _ = len(cipher_blob)  # retain reference until full decrypt path is wired
 
     # Solve puzzle
     config = TimeLockConfig()

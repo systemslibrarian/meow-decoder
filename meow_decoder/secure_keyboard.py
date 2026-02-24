@@ -565,7 +565,7 @@ class MouseGesturePassword:
         self.path_length = path_length
         self.points: List[Tuple[int, int]] = []
 
-    def _quantize(self, points: List[Tuple[int, int]]) -> bytes:
+    def _quantize(self, points: List[Tuple[float, float]]) -> bytes:
         """
         Quantize a list of (x, y) points to a grid and serialize.
 
@@ -650,9 +650,9 @@ class MouseGesturePassword:
                     print("  Invalid format. Please use 'x, y' (e.g., '120, 345').")
         return points
 
-    def collect(self) -> str:
+    def capture_and_collect(self) -> str:
         """
-        Collect mouse gesture and return the derived password hash.
+        Interactively capture mouse gesture and return the derived password hash.
 
         Tries to use a GUI for capture, falling back to CLI input if unavailable.
 
@@ -674,11 +674,7 @@ class MouseGesturePassword:
         if not captured_points or len(captured_points) != self.path_length:
             raise ValueError(f"Failed to collect the required {self.path_length} gesture points.")
 
-        # Quantize and hash the path
-        quantized_bytes = self._quantize(captured_points)
-        # Use a strong, standard KDF like BLAKE2b
-        digest = hashlib.blake2b(quantized_bytes, digest_size=32).hexdigest()
-        return digest
+        return self.collect(captured_points)
 
     def collect(self, points: List[Tuple[float, float]], *, output_hex: bool = True) -> str:
         """

@@ -508,7 +508,6 @@ if __name__ == "__main__":
     # Save test frame to a temp location (avoid hardcoded /tmp path)
     print("\n3. Saving test frame...")
     import tempfile
-    from pathlib import Path
 
     temp_dir = Path(tempfile.gettempdir())
     temp_path = temp_dir / "logo_eyes_test.png"

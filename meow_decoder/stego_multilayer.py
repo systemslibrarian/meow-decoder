@@ -468,8 +468,8 @@ def unpack_payload(
     if 14 + data_len + 32 > len(raw):
         return b"", False
 
-    payload = raw[14 : 14 + data_len]
-    stored_mac = raw[14 + data_len : 14 + data_len + 32]
+    payload = raw[14: 14 + data_len]
+    stored_mac = raw[14 + data_len: 14 + data_len + 32]
 
     # Verify HMAC
     header = raw[:14]
@@ -599,32 +599,32 @@ def distribute_payload(
     if config.enable_primary and primary_cap > 0:
         chunk = remaining[: min(primary_cap, len(remaining))]
         channels["primary"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if config.enable_comment and comment_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(comment_cap, len(remaining))]
         channels["comment"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if config.enable_secondary and secondary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(secondary_cap, len(remaining))]
         channels["secondary"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if config.enable_temporal and temporal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(temporal_cap, len(remaining))]
         channels["temporal"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if config.enable_disposal and disposal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(disposal_cap, len(remaining))]
         channels["disposal"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if config.enable_tertiary and tertiary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(tertiary_cap, len(remaining))]
         channels["tertiary"] = chunk
-        remaining = remaining[len(chunk) :]
+        remaining = remaining[len(chunk):]
 
     if len(remaining) > 0:
         logger.warning("Could not fit %d bytes into any channel", len(remaining))
@@ -1041,7 +1041,6 @@ class PaletteChannelEncoder:
         if len(permutable) < self.config.min_permutable_entries:
             return palette.copy(), pixel_indices.copy()
 
-        perm_indices = [palette[i] for i in permutable]
         perm_bytes = bytes([p for p in permutable])
 
         if _RUST_AVAILABLE:
@@ -2370,7 +2369,7 @@ class CommentChannelEncoder:
             except Exception:
                 return b"", False
 
-        return plaintext, True
+        return plaintext[:orig_len], True
 
 
 def _bytes_to_bits(data: bytes) -> List[int]:
@@ -2522,9 +2521,6 @@ class MultiLayerStegoEncoder:
                 encrypt=self.config.encrypt,
             )
 
-        # Convert to bits
-        payload_bits = _bytes_to_bits(prepared)
-
         # Calculate per-frame capacities
         frame_pixel_counts = [f.shape[0] * f.shape[1] for f in frames]
         # For palette channel, estimate permutable entries (will be refined per frame)
@@ -2602,7 +2598,7 @@ class MultiLayerStegoEncoder:
 
                 remaining = len(primary_bits) - offset
                 n_bits = min(remaining, frame_capacity)
-                frame_bits = primary_bits[offset : offset + n_bits] if n_bits > 0 else []
+                frame_bits = primary_bits[offset: offset + n_bits] if n_bits > 0 else []
 
                 if frame_bits:
                     stego_frame = self.primary.embed_frame(frame, i, frame_bits)
@@ -3139,6 +3135,7 @@ def validate_stego(
     chi_results = []
     spa_results = []
     entropy_results = []
+    cover_rs_results = []
 
     for frame_idx, frame in enumerate(stego_frames):
         frame_arr = np.array(frame)
@@ -3161,12 +3158,22 @@ def validate_stego(
         ent = _entropy_analysis(frame_arr)
         entropy_results.append(ent)
 
+        # 5. Cover comparison (if cover provided)
+        if cover_frames is not None and frame_idx < len(cover_frames):
+            cover_arr = np.array(cover_frames[frame_idx])
+            if cover_arr.ndim == 2:
+                cover_arr = np.stack([cover_arr] * 3, axis=-1)
+            cover_rs_results.append(_rs_analysis(cover_arr))
+
     # Aggregate
-    rs_agg = {
+    rs_agg: Dict[str, Any] = {
         "mean_rm_ratio": float(np.mean([r["rm_ratio"] for r in rs_results])),
         "detection_probability": float(np.mean([r["detection_prob"] for r in rs_results])),
         "per_frame": rs_results,
     }
+    if cover_rs_results:
+        rs_agg["cover_mean_rm_ratio"] = float(np.mean([r["rm_ratio"] for r in cover_rs_results]))
+        rs_agg["cover_per_frame"] = cover_rs_results
 
     chi_agg = {
         "mean_p_value": float(np.mean([c["p_value"] for c in chi_results])),
@@ -3260,7 +3267,7 @@ def _rs_analysis(frame: np.ndarray) -> Dict[str, Any]:
 
     for y in range(0, h - 1, group_size):
         for x in range(0, w - group_size, group_size):
-            group = gray[y, x : x + group_size].astype(np.int16)
+            group = gray[y, x: x + group_size].astype(np.int16)
             if len(group) < group_size:
                 continue
 
@@ -3297,11 +3304,15 @@ def _rs_analysis(frame: np.ndarray) -> Dict[str, Any]:
     rn = regular_n / total_groups
     sn = singular_n / total_groups
 
-    # In clean images: rp ~= rn; in stego: rp > rn (or rp approaches sp)
+    # RS detection: in clean images rp≈rn and sp≈sn; stego breaks this symmetry.
+    # rm_ratio captures the main asymmetry; include sp/sn for a fuller metric.
     rm_ratio = abs(rp - rn) / max(rp + rn, 1e-10)
+    # Improved: also measure (Rp-Sp) vs (Rn-Sn) asymmetry (Fridrich RS criterion)
+    rs_asymmetry = abs((rp - sp) - (rn - sn)) / max(rp + sp + rn + sn, 1e-10)
+    combined = max(rm_ratio, rs_asymmetry)
 
-    # Detection if rm_ratio is significantly different from 0
-    detection_prob = min(1.0, rm_ratio * 3)  # Heuristic scaling
+    # Detection if combined metric is significantly different from 0
+    detection_prob = min(1.0, combined * 3)  # Heuristic scaling
 
     return {"rm_ratio": float(rm_ratio), "detection_prob": float(detection_prob)}
 

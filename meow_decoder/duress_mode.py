@@ -539,7 +539,6 @@ if __name__ == "__main__":
 
     # Test 5: Timing consistency
     print("\n5. Testing timing consistency...")
-    import time
 
     # Time real password
     start = time.time()

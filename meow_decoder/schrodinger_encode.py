@@ -173,37 +173,37 @@ class SchrodingerManifest:
             raise ValueError(f"Not a Schrödinger manifest (version 0x{version:02x})")
 
         offset = 6
-        salt_a = data[offset : offset + 16]
+        salt_a = data[offset: offset + 16]
         offset += 16
-        salt_b = data[offset : offset + 16]
+        salt_b = data[offset: offset + 16]
         offset += 16
-        nonce_a = data[offset : offset + 12]
+        nonce_a = data[offset: offset + 12]
         offset += 12
-        nonce_b = data[offset : offset + 12]
+        nonce_b = data[offset: offset + 12]
         offset += 12
-        reality_a_hmac = data[offset : offset + 32]
+        reality_a_hmac = data[offset: offset + 32]
         offset += 32
-        reality_b_hmac = data[offset : offset + 32]
+        reality_b_hmac = data[offset: offset + 32]
         offset += 32
-        metadata_a = data[offset : offset + 104]
+        metadata_a = data[offset: offset + 104]
         offset += 104
-        metadata_b = data[offset : offset + 104]
+        metadata_b = data[offset: offset + 104]
         offset += 104
         block_count, block_size, superposition_len = struct.unpack(
-            ">IIQ", data[offset : offset + 16]
+            ">IIQ", data[offset: offset + 16]
         )
         offset += 16
 
         if version == 0x08:
             # v0x08: first 16 bytes of old-reserved = frame_mac_seed
-            frame_mac_seed = data[offset : offset + 16]
+            frame_mac_seed = data[offset: offset + 16]
             offset += 16
-            reserved = data[offset : offset + 16]  # remaining 16 reserved bytes
+            reserved = data[offset: offset + 16]  # remaining 16 reserved bytes
         else:
             # v0x07 legacy: no explicit seed; use all-zeros placeholder
             # Frame MAC verification is unavailable for legacy GIFs.
             frame_mac_seed = b"\x00" * 16
-            reserved = data[offset : offset + 32]
+            reserved = data[offset: offset + 32]
 
         return cls(
             magic=data[:4],
@@ -287,7 +287,7 @@ def schrodinger_encode_data(
     superposition = entangle_realities(cipher_a, cipher_b)
 
     # Split into blocks for fountain encoding
-    blocks = [superposition[i : i + block_size] for i in range(0, len(superposition), block_size)]
+    blocks = [superposition[i: i + block_size] for i in range(0, len(superposition), block_size)]
     if blocks and len(blocks[-1]) < block_size:
         blocks[-1] += secrets.token_bytes(block_size - len(blocks[-1]))
 
@@ -578,7 +578,7 @@ def main():
             print(f"✅ Quantum superposition: {stats['gif_size']:,} bytes")
             print(f"   {stats['qr_frames']} frames | {stats['blocks']} blocks")
         return 0
-    except Exception as e:
+    except Exception:
         # Security (Bug 7): never print full tracebacks by default.
         # Tracebacks expose file paths and internals; use --debug for diagnostics.
         print(f"\n\u274c Encoding failed: invalid input or internal error", file=sys.stderr)

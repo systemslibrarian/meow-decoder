@@ -388,7 +388,6 @@ def cat_tqdm(iterable=None, desc=None, total=None, **kwargs):
         # Fallback: print dots
         if iterable:
             count = 0
-            total_est = total or len(list(iterable)) if hasattr(iterable, "__len__") else 100
             for item in iterable:
                 count += 1
                 if count % 10 == 0:

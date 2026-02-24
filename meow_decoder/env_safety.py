@@ -572,14 +572,16 @@ class EnvironmentSafety:
     def _check_macos_debugger(self, report: SafetyReport) -> None:
         """Check for debugger on macOS using sysctl."""
         try:
-            # P_TRACED flag check
+            # P_TRACED flag check via sysctl
             result = subprocess.run(
                 ["sysctl", "-n", "kern.proc.pid." + str(os.getpid())],
                 capture_output=True,
                 timeout=5,
             )
-            # If this succeeds, we can parse the output for P_TRACED
-            # For simplicity, just check if lldb/gdb are running
+            # A non-zero return code or unexpected output may indicate ptrace issues.
+            # For a deeper check, also scan running processes for known debugger names.
+            if result.returncode != 0:
+                report.add_warning("macOS sysctl ptrace check returned non-zero exit code")
         except (subprocess.SubprocessError, OSError):
             pass
 

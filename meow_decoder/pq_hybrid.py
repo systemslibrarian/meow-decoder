@@ -323,7 +323,6 @@ def hybrid_encapsulate(
     if receiver_pq_public is not None:
         if not LIBOQS_AVAILABLE or not _RUST_PQ_AVAILABLE:
             raise RuntimeError("Post-quantum requested but Rust PQ backend unavailable")
-        algorithm = PQ_ALGORITHM_1024 if paranoid else PQ_ALGORITHM_768
         try:
             # Use Rust ML-KEM encapsulation — dispatch based on paranoid flag
             if paranoid:

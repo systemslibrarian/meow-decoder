@@ -723,8 +723,8 @@ def decode_gif(
         if len(sig_blob) < 9 + pk_len + sig_len:
             raise ValueError("Truncated manifest signature blob")
 
-        public_key = sig_blob[9 : 9 + pk_len]
-        signature_bytes = sig_blob[9 + pk_len : 9 + pk_len + sig_len]
+        public_key = sig_blob[9: 9 + pk_len]
+        signature_bytes = sig_blob[9 + pk_len: 9 + pk_len + sig_len]
 
         from .manifest_signing import ManifestSignature, verify_manifest_signature
 
@@ -1137,7 +1137,7 @@ Examples:
     if args.purr_mode:
         from .cat_utils import enable_purr_mode
 
-        purr = enable_purr_mode(enabled=True)
+        enable_purr_mode(enabled=True)
         # Purr mode implies verbose
         args.verbose = True
 
