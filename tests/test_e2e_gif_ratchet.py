@@ -19,6 +19,8 @@ import secrets
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 

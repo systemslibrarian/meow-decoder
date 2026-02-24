@@ -14,6 +14,8 @@ from dataclasses import dataclass
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.decorrelation import (
     DecorrelationParams,
     _csprng_float,

@@ -12,6 +12,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.secure_temp import (
     SecureTempDir,
     SecureTempWarning,

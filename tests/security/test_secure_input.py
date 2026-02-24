@@ -15,6 +15,8 @@ from unittest.mock import patch
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.secure_input import (
     SecurePasswordWarning,
     _csprng_delay,

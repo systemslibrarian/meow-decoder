@@ -18,6 +18,8 @@ from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.air_gap import (
     AirGapStatus,
     _check_bluetooth,

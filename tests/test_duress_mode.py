@@ -7,6 +7,8 @@ import argparse
 import os
 from pathlib import Path
 import pytest
+
+pytestmark = pytest.mark.security
 import secrets
 import gc
 from meow_decoder.config import DuressConfig, DuressMode

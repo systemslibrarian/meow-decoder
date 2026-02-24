@@ -19,6 +19,8 @@ These tests PROVE the security model works under attack.
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 pytestmark = pytest.mark.adversarial
 
 import secrets

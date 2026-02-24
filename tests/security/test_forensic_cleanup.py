@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.forensic_cleanup import (
     ForensicCleaner,
     ForensicCleanupWarning,

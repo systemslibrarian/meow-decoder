@@ -16,6 +16,8 @@ Tests verify:
 import secrets
 import struct
 import pytest
+
+pytestmark = pytest.mark.security
 from meow_decoder.size_normalizer import (
     SIZE_CLASSES,
     PADDING_HEADER_SIZE,

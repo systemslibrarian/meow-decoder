@@ -14,6 +14,8 @@ Tests verify:
 
 import time
 import pytest
+
+pytestmark = pytest.mark.security
 from unittest.mock import MagicMock
 from meow_decoder.timing_equalizer import (
     equalize_timing,

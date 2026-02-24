@@ -9,6 +9,8 @@ import platform
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.constant_time import (
     SecureBuffer,
     _set_dontdump,

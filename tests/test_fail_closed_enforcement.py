@@ -20,6 +20,8 @@ import sys
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 WORKSPACE = pathlib.Path(__file__).parent.parent
 PRODUCTION_ROOT = WORKSPACE / "meow_decoder"
 

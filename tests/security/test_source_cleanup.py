@@ -15,6 +15,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.source_cleanup import (
     _get_mount_point,
     issue_trim_hint,

@@ -11,6 +11,8 @@ import warnings
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.memory_guard import (
     MemoryGuardWarning,
     activate_memory_guard,
