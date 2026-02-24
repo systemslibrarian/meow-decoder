@@ -178,7 +178,7 @@ def fuzz_argon2id_derive(data: bytes):
         return
 
     salt = data[:16]
-    password = data[16:80].decode("utf-8", errors="replace")
+    password = data[16:80]  # Keep as bytes - Rust backend expects bytes
 
     if not password:
         return
