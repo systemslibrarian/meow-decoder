@@ -91,13 +91,16 @@ jobs:
           echo "✅ Core crypto files are clean"
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # GATE 1: Tests + Coverage (only runs after preflight passes)
+  # GATE 1a/1b: Tests split into two parallel batches to avoid timeouts.
+  # Batch 1 (a–m): adversarial → metadata_obfuscation
+  # Batch 2 (m–z): mobile_bridge → zero_key_bytes + security/
+  # Both must pass. Coverage threshold enforced in batch-1 only.
   # ═══════════════════════════════════════════════════════════════════════════
-  test:
-    name: "Gate 1: Tests + Coverage"
+  test-batch-1:
+    name: "Gate 1a: Tests Batch 1 (a-m)"
     needs: preflight
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -142,7 +145,7 @@ jobs:
           cd crypto_core && cargo test --features "pure-crypto,pq-crypto" --release
           echo "✅ Rust crypto_core tests passed"
 
-      - name: Run test suite (no slow markers)
+      - name: Run test suite batch 1 (a-m, no slow markers)
         run: |
           pytest -m "not slow" \
             --override-ini="addopts=" \
@@ -150,7 +153,128 @@ jobs:
             --cov-config=.coveragerc \
             --cov-report=term-missing \
             --cov-fail-under=70 \
-            -q --no-header
+            -q --no-header \
+            tests/test_adversarial.py \
+            tests/test_asymmetric_rekey.py \
+            tests/test_audit_fixes.py \
+            tests/test_bridge_protocol.py \
+            tests/test_cat_errors.py \
+            tests/test_cat_js_runner.py \
+            tests/test_cat_utils.py \
+            tests/test_config.py \
+            tests/test_constant_time.py \
+            tests/test_crypto.py \
+            tests/test_crypto_DEBUG.py \
+            tests/test_crypto_backend.py \
+            tests/test_deadmans_switch_cli.py \
+            tests/test_decode_gif.py \
+            tests/test_duress_mode.py \
+            tests/test_e2e_crypto_fountain.py \
+            tests/test_e2e_gif_ratchet.py \
+            tests/test_e2e_ratchet_pipeline.py \
+            tests/test_encode.py \
+            tests/test_encode_DEBUG.py \
+            tests/test_fail_closed_enforcement.py \
+            tests/test_formal_fuzz_gaps.py \
+            tests/test_fountain.py \
+            tests/test_fountain_montecarlo.py \
+            tests/test_frame_mac.py \
+            tests/test_fuzz_coverage_integration.py \
+            tests/test_fuzz_targets.py \
+            tests/test_gif_handler.py \
+            tests/test_golden_vectors.py \
+            tests/test_hardware_integration.py \
+            tests/test_high_security.py \
+            tests/test_invariants.py \
+            tests/test_logo_eyes.py \
+            tests/test_metadata_obfuscation.py
+
+  test-batch-2:
+    name: "Gate 1b: Tests Batch 2 (m-z)"
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.3.0
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libzbar0 libgl1 libglib2.0-0 \
+            build-essential pkg-config libssl-dev \
+            libpcsclite-dev libudev-dev
+
+      - uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
+        with:
+          toolchain: stable
+
+      - name: Install Python dependencies
+        run: |
+          pip install --require-hashes -r requirements-pip.lock
+          pip install --require-hashes -r requirements.lock
+          pip install --require-hashes -r requirements-dev.lock
+          pip install --require-hashes -r requirements-ci.lock
+
+      - name: Build and install Rust crypto backend
+        # Local wheel install - can't hash-pin freshly-built artifacts
+        run: |
+          cd rust_crypto
+          maturin build --release --out dist
+          python -m pip install --force-reinstall --no-deps dist/*.whl
+          cd ..
+
+      - name: Verify Rust backend
+        run: python -c "import meow_crypto_rs; print('Rust backend OK')"
+
+      - name: Run test suite batch 2 (m-z, no slow markers)
+        run: |
+          pytest -m "not slow" \
+            --override-ini="addopts=" \
+            --cov=meow_decoder \
+            --cov-config=.coveragerc \
+            --cov-report=term-missing \
+            -q --no-header \
+            tests/test_mobile_bridge.py \
+            tests/test_no_experimental_imports_in_production.py \
+            tests/test_no_overclaims.py \
+            tests/test_no_python_key_bytes.py \
+            tests/test_phase5_modules.py \
+            tests/test_pq_crypto_real.py \
+            tests/test_pq_hybrid.py \
+            tests/test_pqxdh_upgrade.py \
+            tests/test_production_boundary.py \
+            tests/test_production_import_boundary.py \
+            tests/test_profile_required_and_checked.py \
+            tests/test_progress.py \
+            tests/test_property_based.py \
+            tests/test_property_ratchet_pq.py \
+            tests/test_property_shamir_dualstream.py \
+            tests/test_qr_code.py \
+            tests/test_ratchet.py \
+            tests/test_rust_crypto_backend.py \
+            tests/test_security.py \
+            tests/test_security_hardening.py \
+            tests/test_security_warnings.py \
+            tests/test_setup.py \
+            tests/test_sidechannel.py \
+            tests/test_signal_invariants.py \
+            tests/test_stego_advanced.py \
+            tests/test_stego_adversarial.py \
+            tests/test_stego_fuzz.py \
+            tests/test_stego_multilayer.py \
+            tests/test_stego_phase0.py \
+            tests/test_stego_phase1.py \
+            tests/test_tamper_report.py \
+            tests/test_timelock_duress.py \
+            tests/test_x25519_forward_secrecy.py \
+            tests/test_zero_key_bytes.py \
+            tests/security/
 
       # Python coverage is local-only (terminal report above).
       # Codecov monitors Rust coverage via rust-test-coverage.yml.
@@ -460,7 +584,8 @@ jobs:
     needs:
       [
         preflight,
-        test,
+        test-batch-1,
+        test-batch-2,
         cat-mode-golden-test,
         cat-mode-error-test,
         cat-mode-cross-browser,
@@ -474,13 +599,17 @@ jobs:
       - name: Check gate results
         run: |
           FAILED=0
-          
+
           if [[ "${{ needs.preflight.result }}" != "success" ]]; then
             echo "❌ Preflight (Lint + Lock Check) failed"
             FAILED=1
           fi
-          if [[ "${{ needs.test.result }}" != "success" ]]; then
-            echo "❌ Gate 1 (Tests + Coverage) failed"
+          if [[ "${{ needs.test-batch-1.result }}" != "success" ]]; then
+            echo "❌ Gate 1a (Tests Batch 1) failed"
+            FAILED=1
+          fi
+          if [[ "${{ needs.test-batch-2.result }}" != "success" ]]; then
+            echo "❌ Gate 1b (Tests Batch 2) failed"
             FAILED=1
           fi
           # Gates 2-4 are Cat Mode video tests - treat as warnings (continue-on-error)
@@ -501,7 +630,7 @@ jobs:
             echo "❌ Gate 6 (Slow Tests - Monte Carlo) failed"
             FAILED=1
           fi
-          
+
           if [[ "$FAILED" == "1" ]]; then
             echo "❌ Some critical CI gates failed"
             exit 1
