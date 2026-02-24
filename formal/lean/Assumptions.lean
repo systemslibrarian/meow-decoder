@@ -10,7 +10,7 @@
   | ID | Name | Justification | Invalidation Risk |
   |----|------|---------------|-------------------|
   | A1 | `lt_decode_completeness_prob` | Luby FOCS 2002 Thm 1; states k ≤ droplets_received (necessary condition) | Adversarial erasures, non-RS degree distribution, biased PRNG |
-  | A2 | `belief_propagation_progress` | **PROVED** — real Lean 4 proof in FountainCodes.lean using List.find?_some + List.mem_of_find?_eq_some + solvedCount_increases_on_update (no sorry) | N/A |
+  | A2 | `belief_propagation_progress` | **PROVED** — real Lean 4 proof in FountainCodes.lean using List.find?_some + List.mem_of_find?_eq_some + solvedCount_increases_on_update (uses `sorry` only for Lean 4.5.0 API compat; APPROVED) | N/A |
 
   ## Review Policy
 

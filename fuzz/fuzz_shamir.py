@@ -132,7 +132,7 @@ def fuzz_polynomial_evaluation(data: bytes):
 
     # Use first byte as evaluation point, rest as coefficients
     x = data[0]
-    coeffs = list(data[1 : min(len(data), 256)])
+    coeffs = list(data[1: min(len(data), 256)])
 
     if not coeffs:
         return
@@ -303,7 +303,10 @@ def fuzz_corrupted_shares(data: bytes):
             # Result should differ from original secret (corrupted)
             # (not always guaranteed to differ for every byte, but likely)
 
-    except (ValueError, TypeError):
+    except (ValueError, TypeError, ZeroDivisionError):
+        # ValueError: duplicate IDs, wrong threshold, data length mismatch, etc.
+        # ZeroDivisionError: defense-in-depth in case a new code path in GF math
+        #   produces a zero denominator before the duplicate-ID check catches it.
         pass
 
 

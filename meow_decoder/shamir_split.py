@@ -23,6 +23,7 @@ Example:
 """
 
 from __future__ import annotations
+import sys
 
 import secrets
 import struct
@@ -167,8 +168,8 @@ class ShamirShare:
         if len(raw) < header_len + data_len + 32:
             raise ValueError("Share data truncated")
 
-        data = raw[header_len : header_len + data_len]
-        checksum = raw[header_len + data_len : header_len + data_len + 32]
+        data = raw[header_len: header_len + data_len]
+        checksum = raw[header_len + data_len: header_len + data_len + 32]
 
         # Verify checksum
         import hashlib
@@ -326,11 +327,26 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
     # Use only the first `threshold` shares (all that's needed)
     working_shares = shares[:threshold]
 
+    # Reject duplicate share IDs: x_i ^ x_j == 0 in GF(2^8) → ZeroDivisionError
+    # during Lagrange interpolation. Duplicates indicate corrupted or replayed input.
+    seen_ids: set[int] = set()
+    for share in working_shares:
+        if share.share_id in seen_ids:
+            raise ValueError(
+                f"Duplicate share_id {share.share_id}: shares must have unique x-coordinates"
+            )
+        seen_ids.add(share.share_id)
+
     # Reconstruct each byte via Lagrange interpolation at x=0
     result = bytearray()
     for byte_idx in range(data_len):
         points = [(share.share_id, share.data[byte_idx]) for share in working_shares]
-        secret_byte = _lagrange_interpolate(points, x=0)
+        try:
+            secret_byte = _lagrange_interpolate(points, x=0)
+        except ZeroDivisionError as exc:
+            # Should not reach here after the duplicate-ID check above, but
+            # treat as invalid input rather than an internal error.
+            raise ValueError(f"Invalid share combination (zero denominator at byte {byte_idx})") from exc
         result.append(secret_byte)
 
     return bytes(result)
@@ -408,7 +424,6 @@ def combine_files_to_gif(share_paths: List[str], output_path: str) -> bool:
 
 
 # Cross-platform compatibility
-import sys
 
 if sys.platform == "win32":
     # Windows-specific: ensure binary mode for all file operations
