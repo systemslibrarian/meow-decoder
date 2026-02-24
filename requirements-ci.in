@@ -3,7 +3,7 @@
 
 pytest==9.0.2
 pytest-cov==7.0.0
-maturin==1.12.2
+maturin==1.12.4
 coverage==7.13.4
 flake8==7.3.0
 black==26.1.0
@@ -14,7 +14,7 @@ atheris==3.0.0
 python-afl==0.7.3
 pip-audit==2.10.0
 pip-licenses==5.5.1
-cyclonedx-bom==7.2.1
+cyclonedx-bom==7.2.2
 toml==0.10.2
 hypothesis==6.151.9
 cryptography==46.0.5
