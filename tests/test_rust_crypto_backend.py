@@ -4,6 +4,8 @@ import secrets
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 import meow_crypto_rs
 
 

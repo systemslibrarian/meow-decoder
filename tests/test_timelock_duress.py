@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.timelock_duress import (
     TimeLockConfig,
     TimeLockState,

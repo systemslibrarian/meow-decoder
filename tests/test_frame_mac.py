@@ -3,6 +3,8 @@
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 pytestmark = [pytest.mark.security, pytest.mark.crypto]
 
 import runpy

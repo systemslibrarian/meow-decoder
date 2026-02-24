@@ -20,6 +20,8 @@ import types
 from unittest.mock import patch
 
 import pytest
+
+pytestmark = pytest.mark.security
 import secrets
 
 # ── Helpers ──────────────────────────────────────────────────────────────────

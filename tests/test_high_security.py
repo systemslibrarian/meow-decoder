@@ -2,6 +2,8 @@ import os
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder import high_security
 from meow_decoder.config import MeowConfig
 

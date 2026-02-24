@@ -13,6 +13,8 @@ from collections import deque
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 WORKSPACE = pathlib.Path(__file__).resolve().parent.parent
 PRODUCTION_ROOT = WORKSPACE / "meow_decoder"
 

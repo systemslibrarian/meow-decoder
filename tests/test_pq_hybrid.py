@@ -11,6 +11,8 @@ import sys
 import types
 
 import pytest
+
+pytestmark = pytest.mark.security
 import secrets
 
 # Check if Rust PQ backend is available

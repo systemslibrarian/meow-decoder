@@ -36,6 +36,8 @@ import zlib
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 os.environ["MEOW_TEST_MODE"] = "1"
 
 

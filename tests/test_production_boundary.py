@@ -14,6 +14,8 @@ import pathlib
 import re
 import pytest
 
+pytestmark = pytest.mark.security
+
 # =============================================================================
 # Production boundary definition
 # =============================================================================

@@ -3,6 +3,8 @@ Comprehensive tests for fountain.py - Fountain code implementation
 """
 
 import pytest
+
+pytestmark = pytest.mark.security
 import secrets
 from meow_decoder.fountain import (
     FountainEncoder,

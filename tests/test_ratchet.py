@@ -52,6 +52,8 @@ from meow_decoder.ratchet import (
     _compute_commitment,
 )
 import pytest
+
+pytestmark = pytest.mark.security
 import os
 import secrets
 import struct
