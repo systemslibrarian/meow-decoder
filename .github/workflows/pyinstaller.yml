@@ -64,7 +64,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
-        uses: Swatinem/rust-cache@f0deed1e0edfc6ed9be4f3dd6ccd7ccf3ae76a80 # v2
+        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.7.7
         with:
           workspaces: crypto_core
 

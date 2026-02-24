@@ -1,4 +1,5 @@
 #![no_main]
+use crypto_core::secure_alloc::SecureBox;
 /// Fuzz target: SecureBox memory hardening with extreme / adversarial sizes.
 ///
 /// Discovers:
@@ -7,9 +8,7 @@
 /// - Zeroization: data must be cleared upon Drop
 /// - is_locked() consistency: always matches allocation state
 /// - total_size() >= data_size() invariant
-
 use libfuzzer_sys::fuzz_target;
-use crypto_core::secure_alloc::SecureBox;
 
 fuzz_target!(|raw: &[u8]| {
     if raw.is_empty() {
