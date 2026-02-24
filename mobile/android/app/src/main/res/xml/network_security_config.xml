@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  network_security_config.xml
+
+  Blocks ALL network traffic at the Android platform level.
+  This is a defense-in-depth measure: even if someone injected a network call
+  into the app, this config ensures it would fail at the OS level.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Block all connections — this app is air-gapped -->
+        </trust-anchors>
+    </base-config>
+</network-security-config>

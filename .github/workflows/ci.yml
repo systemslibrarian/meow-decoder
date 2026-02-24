@@ -186,7 +186,7 @@ jobs:
 
       - name: Setup Chrome
         if: steps.check_golden.outputs.exists == 'true'
-        uses: browser-actions/setup-chrome@latest  # v1.7.1+
+        uses: browser-actions/setup-chrome@latest # v1.7.1+
         with:
           chrome-version: stable
 
