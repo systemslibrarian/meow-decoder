@@ -11,9 +11,9 @@ on:
   workflow_dispatch:
     inputs:
       fuzz_duration:
-        description: "Fuzzing duration in seconds"
+        description: "Fuzzing duration in seconds per target (push=120, PR=300, dispatch default=600)"
         required: false
-        default: "300"
+        default: "600"
 
 permissions:
   contents: read
@@ -22,7 +22,7 @@ jobs:
   atheris-fuzz:
     name: Python Fuzzing (Atheris)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 90
 
     env:
       MEOW_TEST_MODE: "1"
@@ -75,105 +75,112 @@ jobs:
       # ── Core security targets (always run) ──────────────────────────────
       - name: Fuzz manifest parser
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_manifest.py fuzz/corpus/manifest || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz fountain decoder
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_fountain.py fuzz/corpus/fountain || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz crypto operations
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_crypto.py fuzz/corpus/manifest || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz guard page memory safety
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_windows_guard.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz mouse gesture auth
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_mouse_gesture.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz tamper detection
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_tamper_detection.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz adversarial stego rotation
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_adversarial_stego.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       # ── Previously-missing security targets (FIX: audit gap #2) ─────────
       - name: Fuzz ratchet (frame encrypt/decrypt)
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_ratchet.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz manifest signing (Ed25519/ML-DSA)
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_manifest_signing.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz PQ ratchet beacon
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_pq_ratchet_beacon.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz master ratchet
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_master_ratchet.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz Schrodinger encode/decode
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_schrodinger.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz crypto backend (Rust FFI)
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_crypto_backend.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz Shamir secret sharing
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_shamir.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz memory guard operations
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_memory_guard.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz dual stream encoding
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_dual_stream.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       - name: Fuzz multi-layer stego
         run: |
-          DURATION="${{ github.event_name == 'push' && '30' || github.event.inputs.fuzz_duration || '60' }}"
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
           timeout ${DURATION}s python fuzz/fuzz_stego_multilayer.py || RC=$?
+          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+
+      # ── Audit-fix: PQXDH hybrid key exchange (was absent — Critical gap) ──
+      - name: Fuzz PQ hybrid PQXDH (ML-KEM-768/1024 + X25519)
+        run: |
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
+          timeout ${DURATION}s python fuzz/fuzz_pq_hybrid.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
       # ── Crash gate (MUST fail the build on any crash) ───────────────────

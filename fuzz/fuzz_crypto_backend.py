@@ -152,7 +152,9 @@ def fuzz_hkdf_derive(data: bytes):
 
     try:
         if hasattr(backend, "hkdf_expand"):
-            result = backend.hkdf_expand(ikm, salt=salt, info=info, length=output_len)
+            # hkdf_expand(prk, info, output_len) — no salt; use hkdf_extract
+            # first if a true extract step is needed.
+            result = backend.hkdf_expand(ikm, info, output_len)
             assert isinstance(result, bytes)
             assert len(result) == output_len
         elif hasattr(backend, "hkdf_derive"):

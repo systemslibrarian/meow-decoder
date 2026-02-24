@@ -31,8 +31,9 @@ fuzz_target!(|raw: &[u8]| {
                 b.data_size()
             );
 
-            // Invariant: data_size == the size of what we allocated
-            assert_eq!(b.data_size(), size);
+            // Invariant: data_size == the actual length of data allocated
+            // (alloc_data may be shorter than `size` when raw.len() < size)
+            assert_eq!(b.data_size(), alloc_data.len());
 
             // is_locked() must not panic
             let _locked = b.is_locked();

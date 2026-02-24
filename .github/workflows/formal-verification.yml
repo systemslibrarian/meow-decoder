@@ -23,8 +23,12 @@ on:
       - "meow_decoder/crypto_enhanced.py"
       - "meow_decoder/ratchet.py"
       - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/pq_ratchet_beacon.py"
       - "meow_decoder/forward_secrecy.py"
+      - "meow_decoder/x25519_forward_secrecy.py"
       - "meow_decoder/schrodinger_encode.py"
+      - "meow_decoder/encode.py"
+      - "meow_decoder/decode_gif.py"
       - ".github/workflows/formal-verification.yml"
       # F-04: expanded trigger surface for all formally-modelled modules
       - "crypto_core/src/secure_alloc.rs"
@@ -43,8 +47,12 @@ on:
       - "meow_decoder/crypto_enhanced.py"
       - "meow_decoder/ratchet.py"
       - "meow_decoder/pq_hybrid.py"
+      - "meow_decoder/pq_ratchet_beacon.py"
       - "meow_decoder/forward_secrecy.py"
+      - "meow_decoder/x25519_forward_secrecy.py"
       - "meow_decoder/schrodinger_encode.py"
+      - "meow_decoder/encode.py"
+      - "meow_decoder/decode_gif.py"
       - ".github/workflows/formal-verification.yml"
       # F-04: expanded trigger surface for all formally-modelled modules
       - "crypto_core/src/secure_alloc.rs"
@@ -603,9 +611,11 @@ jobs:
             fi
           fi
 
-      # F-03: Run additional Tamarin models not previously CI-gated
-      # Models with many lemmas use 30-min timeouts; analysis-incomplete is
-      # treated as a WARNING (not failure) to avoid flaky CI on large models.
+      # F-03: Run additional Tamarin models not previously CI-gated.
+      # Critical models (Schrödinger deniability, key commitment, ratchet FS) are
+      # now "blocking" — timeout counts as a failure, not inconclusive.
+      # Auxiliary models (OE simplifications, guard pages) remain non-blocking on
+      # timeout to avoid flaky CI on large models with many lemmas.
       - name: Run Tamarin Extended Models (F-03)
         run: |
           echo "============================================"
@@ -614,9 +624,13 @@ jobs:
 
           EXTENDED_FAILED=0
 
+          # $1 = model filename
+          # $2 = description
+          # $3 = "blocking" (timeout is failure) | "nonblocking" (timeout is inconclusive)
           run_tamarin_model() {
             local MODEL="$1"
             local DESC="$2"
+            local BLOCKING="${3:-nonblocking}"
             echo ""
             echo "--- $DESC ---"
             set +e
@@ -627,7 +641,12 @@ jobs:
             set -e
 
             if [ "$EXIT" -eq 124 ]; then
-              echo "⚠️  $MODEL timed out (30 min) — treated as inconclusive"
+              if [ "$BLOCKING" = "blocking" ]; then
+                echo "❌ $MODEL timed out (30 min) — BLOCKING model must complete; increase runner resources or split model further"
+                EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
+              else
+                echo "⚠️  $MODEL timed out (30 min) — treated as inconclusive (non-blocking auxiliary model)"
+              fi
             elif grep -q "falsified" "tamarin_ext_${MODEL%.spthy}.txt"; then
               echo "❌ $MODEL: lemma FALSIFIED — security property violated"
               EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
@@ -635,32 +654,39 @@ jobs:
               NVERIFIED=$(grep -c "verified" "tamarin_ext_${MODEL%.spthy}.txt" || echo "?")
               echo "✅ $MODEL: $NVERIFIED lemma(s) verified"
             else
-              echo "⚠️  $MODEL: analysis incomplete — inconclusive (non-blocking)"
+              if [ "$BLOCKING" = "blocking" ]; then
+                echo "❌ $MODEL: analysis incomplete — BLOCKING model must verify; check Tamarin output artifact"
+                EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
+              else
+                echo "⚠️  $MODEL: analysis incomplete — inconclusive (non-blocking auxiliary model)"
+              fi
             fi
           }
 
-          # RL-3 mitigation: split 15-lemma model into two files so each half
-          # completes within the 30-minute per-model timeout on 2-core runners.
-          run_tamarin_model "MeowSchrodingerDeniability_Core.spthy"    "Schrödinger deniability core (lemmas 1-10)"
-          run_tamarin_model "MeowSchrodingerDeniability_Ratchet.spthy" "Schrödinger deniability ratchet (lemmas 11-15)"
-          run_tamarin_model "MeowSchrodingerDeniabilityTiming.spthy"   "Schrödinger deniability with timing channel (Gap-7 fix, lemmas T1-T5)"
-          run_tamarin_model "MeowKeyCommitment.spthy"           "Key commitment / invisible salamanders"
-          run_tamarin_model "MeowRatchetFS.spthy"               "Per-frame forward secrecy + PCS (ratchet)"
-          run_tamarin_model "secure_alloc_guard_pages.spthy"    "Guard page memory isolation proofs"
-          run_tamarin_model "meow_deadmans_switch.spthy"         "Dead man's switch duress protocol"
+          # ── BLOCKING: critical security properties ────────────────────────
+          # RL-3 mitigation: split 15-lemma Schrödinger model into two files.
+          run_tamarin_model "MeowSchrodingerDeniability_Core.spthy"    "Schrödinger deniability core (lemmas 1-10)"              blocking
+          run_tamarin_model "MeowSchrodingerDeniability_Ratchet.spthy" "Schrödinger deniability ratchet (lemmas 11-15)"           blocking
+          run_tamarin_model "MeowKeyCommitment.spthy"           "Key commitment / invisible salamanders"                  blocking
+          run_tamarin_model "MeowRatchetFS.spthy"               "Per-frame forward secrecy + PCS (ratchet)"               blocking
+          run_tamarin_model "meow_deadmans_switch.spthy"         "Dead man's switch duress protocol"                      blocking
+
+          # ── NON-BLOCKING: large / auxiliary models ────────────────────────
+          run_tamarin_model "MeowSchrodingerDeniabilityTiming.spthy"   "Schrödinger deniability with timing channel (Gap-7 fix, lemmas T1-T5)"  nonblocking
+          run_tamarin_model "secure_alloc_guard_pages.spthy"    "Guard page memory isolation proofs"                      nonblocking
 
           # F-10: Gate the 3 remaining Tamarin models not covered by F-03
-          run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"
-          run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"
-          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"
+          run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"            nonblocking
+          run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"                   nonblocking
+          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking
 
           if [ "$EXTENDED_FAILED" -gt 0 ]; then
             echo ""
-            echo "❌ $EXTENDED_FAILED Tamarin model(s) had falsified lemmas"
+            echo "❌ $EXTENDED_FAILED Tamarin model(s) failed (falsified lemma or blocking timeout)"
             exit 1
           fi
           echo ""
-          echo "✅ Tamarin extended models: no falsified lemmas"
+          echo "✅ Tamarin extended models: all blocking models verified, no falsified lemmas"
 
       - name: Upload Tamarin Results
         if: always()
@@ -704,8 +730,10 @@ jobs:
             fi
             echo "✅ Verus: all $VERIFIED properties verified"
           else
-            echo "⚠️  Could not parse Verus output — check artifact"
-            # Don't fail; Verus output format may vary
+            echo "❌ Could not parse Verus output — Verus may have failed to run or output format changed"
+            echo "   Treating as a verification failure (fail-closed). Check the verus-results artifact."
+            echo "   To investigate: docker run --rm meow-verus 2>&1"
+            exit 1
           fi
 
       - name: Upload Verus Results

@@ -519,7 +519,9 @@ class EnvironmentSafety:
                                 evidence=key_path,
                             )
                         )
-                except WindowsError:
+                except OSError:
+                    # WindowsError is a subclass of OSError; use base class
+                    # so this branch is reachable on all platforms.
                     pass
         except ImportError:
             pass

@@ -25,7 +25,8 @@ omit =
     meow_decoder/decode_webcam_with_resume.py
     # Experimental/unstable
     meow_decoder/experimental/*
-    meow_decoder/pq_*.py
+    # pq_hybrid.py is production-reachable (MEOW4/5) — measured, not omitted
+    meow_decoder/pq_ratchet_beacon.py
     # Network/device modules (require external services)
     meow_decoder/cat_api.py
     meow_decoder/mobile_bridge.py
