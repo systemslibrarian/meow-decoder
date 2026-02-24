@@ -261,9 +261,9 @@ class AdvancedStegoEncoder:
         Returns:
             Obfuscated stego array
         """
-        lsb_bits = getattr(self.config, 'lsb_bits', 1) if hasattr(self, 'config') else 1
+        lsb_bits = getattr(self.config, "lsb_bits", 1) if hasattr(self, "config") else 1
         lsb_mask = (1 << lsb_bits) - 1  # e.g. 0x01 for 1-bit, 0x03 for 2-bit
-        carrier_mask = 0xFF ^ lsb_mask   # e.g. 0xFE for 1-bit
+        carrier_mask = 0xFF ^ lsb_mask  # e.g. 0xFE for 1-bit
 
         # Save embedded LSB data before obfuscation
         saved_lsbs = stego_array & lsb_mask

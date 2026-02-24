@@ -1126,9 +1126,7 @@ class EncoderRatchet:
                 # updates the root but the chain remains X25519-only.
                 if isinstance(new_chain_h, int):
                     hb.drop(new_chain_h)
-                new_chain_h = _hkdf_derive_handle(
-                    new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
-                )
+                new_chain_h = _hkdf_derive_handle(new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32)
                 # Zeroize Python-side copy (handle keeps the real secret in Rust)
                 pq_shared = b"\x00" * len(pq_shared)
 
@@ -1363,9 +1361,7 @@ class DecoderRatchet:
             # X25519 AND ML-KEM-1024.  Must mirror the encoder's fix exactly.
             if isinstance(new_chain_h, int):
                 hb.drop(new_chain_h)
-            new_chain_h = _hkdf_derive_handle(
-                new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
-            )
+            new_chain_h = _hkdf_derive_handle(new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32)
             # Zeroize Python-side copy (defense in depth)
             pq_shared = b"\x00" * len(pq_shared)
 
@@ -1485,10 +1481,10 @@ class DecoderRatchet:
         frame_index = self._header_lookup[enc_idx]
 
         # Step 2: Extract commitment tag
-        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE: FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
+        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
 
         # Frame body = everything after index + commitment
-        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE:]
+        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE :]
 
         # Step 3: Replay detection
         if frame_index in self._consumed_indices:

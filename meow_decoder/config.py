@@ -201,7 +201,8 @@ class MeowConfig:
         """Save configuration to JSON file."""
         # Custom serialization for enums and non-serializable fields
         duress_dict = {
-            k: v for k, v in self.duress.__dict__.items()
+            k: v
+            for k, v in self.duress.__dict__.items()
             if k != "trigger_callback" and not callable(v)
         }
         if isinstance(duress_dict.get("mode"), DuressMode):

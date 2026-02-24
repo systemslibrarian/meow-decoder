@@ -1631,7 +1631,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     mode_byte = MODE_LEGACY
 
     if has_mode_byte:
-        mode_byte = struct.unpack("B", b[off: off + 1])[0]
+        mode_byte = struct.unpack("B", b[off : off + 1])[0]
         off += 1
         if mode_byte not in _VALID_MODE_BYTES:
             raise ValueError(
@@ -1639,17 +1639,17 @@ def unpack_manifest(b: bytes) -> Manifest:
                 f"(valid: {', '.join(f'0x{v:02x}' for v in sorted(_VALID_MODE_BYTES))})"
             )
 
-    salt = b[off: off + 16]
+    salt = b[off : off + 16]
     off += 16
-    nonce = b[off: off + 12]
+    nonce = b[off : off + 12]
     off += 12
-    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off: off + 12])
+    orig_len, comp_len, cipher_len = struct.unpack(">III", b[off : off + 12])
     off += 12
-    block_size, k_blocks = struct.unpack(">HI", b[off: off + 6])
+    block_size, k_blocks = struct.unpack(">HI", b[off : off + 6])
     off += 6
-    sha = b[off: off + 32]
+    sha = b[off : off + 32]
     off += 32
-    hmac_tag = b[off: off + 32]
+    hmac_tag = b[off : off + 32]
     off += 32
 
     # Parse optional fields based on manifest size
@@ -1661,7 +1661,7 @@ def unpack_manifest(b: bytes) -> Manifest:
     effective_len = len(b) - (1 if has_mode_byte else 0)
 
     if effective_len >= fs_len:
-        ephemeral_public_key = b[off: off + 32]
+        ephemeral_public_key = b[off : off + 32]
         off += 32
 
     # Determine PQ ciphertext size from mode byte
@@ -1672,17 +1672,17 @@ def unpack_manifest(b: bytes) -> Manifest:
     if base_version_clean == MODE_MEOW5:
         # ML-KEM-768: ciphertext is 1088 bytes
         if effective_len >= pq_768_len:
-            pq_ciphertext = b[off: off + 1088]
+            pq_ciphertext = b[off : off + 1088]
             off += 1088
     elif effective_len >= pq_1024_len:
         # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
-        pq_ciphertext = b[off: off + 1568]
+        pq_ciphertext = b[off : off + 1568]
         off += 1568
 
     # Check for duress tag (always last field)
     remaining = len(b) - off
     if remaining == 32:
-        duress_tag = b[off: off + 32]
+        duress_tag = b[off : off + 32]
 
     # FIX-D3: Validate mode byte consistency (reject mismatches)
     if mode_byte != MODE_LEGACY:

@@ -395,7 +395,7 @@ class PQBeaconFrame:
         if len(data) < 7 + ct_len:
             return None
 
-        ciphertext = data[7: 7 + ct_len]
+        ciphertext = data[7 : 7 + ct_len]
         return cls(ciphertext=ciphertext)
 
     @classmethod

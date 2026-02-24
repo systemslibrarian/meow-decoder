@@ -74,6 +74,8 @@ use vstd::prelude::*;
 ///
 /// Matches the Windows SecureBox constructor invariant:
 /// ```rust
+/// # let page_size: usize = 4096;
+/// # let data_region_size: usize = 8192;
 /// let alloc_size = page_size + data_region_size + page_size;
 /// ```
 pub fn check_windows_alloc_covers_guards(

@@ -313,13 +313,13 @@ class SecureBuffer:
         """Write data to buffer."""
         if offset + len(data) > self.size:
             raise ValueError("Data too large for buffer")
-        self.buffer[offset: offset + len(data)] = data
+        self.buffer[offset : offset + len(data)] = data
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """Read data from buffer."""
         if length is None:
             return bytes(self.buffer[offset:])
-        return bytes(self.buffer[offset: offset + length])
+        return bytes(self.buffer[offset : offset + length])
 
     def __del__(self):
         """Clean up: zero and unlock."""

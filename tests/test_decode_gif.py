@@ -225,9 +225,7 @@ def test_decode_gif_unsigned_manifest_warns_but_succeeds(tmp_path, monkeypatch, 
 
     out_path = tmp_path / "unsigned_out.bin"
     with pytest.raises(ValueError, match="Unsigned manifest rejected"):
-        decode_mod.decode_gif(
-            tmp_path / "in.gif", out_path, password="password123", verbose=False
-        )
+        decode_mod.decode_gif(tmp_path / "in.gif", out_path, password="password123", verbose=False)
 
 
 def test_decode_gif_signed_manifest_verifies(tmp_path, monkeypatch):

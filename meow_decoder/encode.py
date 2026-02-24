@@ -345,6 +345,7 @@ def encode_file(
     _signing_policy = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
     if _signing_policy == "off":
         import sys as _sys
+
         print(
             "⚠️  WARNING: Manifest signing disabled by policy (MEOW_MANIFEST_SIGNING=off). "
             "This manifest is vulnerable to forgery. Do not use in production.",
