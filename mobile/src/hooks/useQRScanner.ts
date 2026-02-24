@@ -15,7 +15,9 @@
 
 import { useCallback, useRef } from 'react';
 import { useFrameProcessor } from 'react-native-vision-camera';
-import { Worklets } from 'react-native-worklets-core';
+// useRunOnJS replaces the deprecated Worklets.createRunInJsFn (now typed `never`).
+// It memoizes a JS-thread callback and returns a worklet-safe wrapper.
+import { useRunOnJS } from 'react-native-worklets-core';
 import type { CapturedFrame } from '../types/capture';
 import { parseQRPayload } from '../services/qrDecoder';
 import {
@@ -56,8 +58,10 @@ export function useQRScanner({
   const recentCodesRef = useRef<Array<{ value: string; time: number }>>([]);
   const gifDetectedRef = useRef<boolean>(false);
 
-  // Worklet-safe callbacks (bridge JS thread ↔ worklet thread)
-  const handleFrameJS = Worklets.createRunInJsFn(
+  // Worklet-safe callbacks via useRunOnJS.
+  // These are called from the worklet thread and execute on the JS thread.
+  // useRunOnJS replaces deprecated Worklets.createRunInJsFn (typed `never` in v1.3+).
+  const handleFrameJS = useRunOnJS(
     useCallback(
       (qrValue: string, timestamp: number) => {
         const payload = parseQRPayload(qrValue, sessionId);
@@ -71,15 +75,17 @@ export function useQRScanner({
       },
       [sessionId, onFrame],
     ),
+    [sessionId, onFrame],
   );
 
-  const handleGifDetectedJS = Worklets.createRunInJsFn(
+  const handleGifDetectedJS = useRunOnJS(
     useCallback(() => {
       if (!gifDetectedRef.current) {
         gifDetectedRef.current = true;
         onGifDetected();
       }
     }, [onGifDetected]),
+    [onGifDetected],
   );
 
   const frameProcessor = useFrameProcessor(
@@ -111,18 +117,46 @@ export function useQRScanner({
       lastScannedRef.current = qrData;
       lastTimestampRef.current = now;
 
+      // Inline prefix check for worklet thread — can't call module functions.
+      // IMPORTANT: must stay in sync with QR_PREFIXES in qrDecoder.ts and the
+      // isMeowQRPayload() function.  Any new prefix added there must be added here too.
+      const isMeow =
+        qrData.startsWith('FOUNTAIN:') ||
+        qrData.startsWith('MEOW:') ||
+        qrData.startsWith('FS:') ||
+        qrData.startsWith('QUANTUM:') ||
+        qrData.startsWith('HYBRID-PQ:') ||
+        qrData.startsWith('DURESS:') ||   // single-frame duress
+        qrData.startsWith('DURESS-') ||   // legacy chunked large-duress (DURESS-N/total:)
+        qrData.startsWith('MEOW-') ||     // legacy chunked large-MEOW (MEOW-N/total:)
+        qrData.startsWith('{');           // JSON bridge / CLI session mode
+
+      if (!isMeow) return; // ignore non-meow QR codes entirely
+
       // ── GIF auto-detection heuristic ─────────────────────────────────────
       if (!gifDetectedRef.current) {
-        const recent = recentCodesRef.current;
-        recent.push({ value: qrData, time: now });
-        // Evict entries older than the detection window
-        const cutoff = now - GIF_DETECT_WINDOW_MS;
-        recentCodesRef.current = recent.filter((e) => e.time >= cutoff);
+        // Single-frame formats: trigger immediately on first valid scan
+        const isSingleFrame =
+          qrData.startsWith('MEOW:') ||
+          qrData.startsWith('FS:') ||
+          qrData.startsWith('QUANTUM:') ||
+          qrData.startsWith('HYBRID-PQ:') ||
+          qrData.startsWith('DURESS:');
 
-        const uniqueCount = new Set(recentCodesRef.current.map((e) => e.value))
-          .size;
-        if (uniqueCount >= GIF_DETECT_MIN_UNIQUE) {
+        if (isSingleFrame) {
           handleGifDetectedJS();
+        } else {
+          // Multi-frame: require GIF_DETECT_MIN_UNIQUE distinct codes within window
+          const recent = recentCodesRef.current;
+          recent.push({ value: qrData, time: now });
+          const cutoff = now - GIF_DETECT_WINDOW_MS;
+          recentCodesRef.current = recent.filter((e) => e.time >= cutoff);
+
+          const uniqueCount = new Set(recentCodesRef.current.map((e) => e.value))
+            .size;
+          if (uniqueCount >= GIF_DETECT_MIN_UNIQUE) {
+            handleGifDetectedJS();
+          }
         }
       }
 
