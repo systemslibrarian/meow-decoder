@@ -645,6 +645,11 @@ jobs:
           run_tamarin_model "secure_alloc_guard_pages.spthy"    "Guard page memory isolation proofs"
           run_tamarin_model "meow_deadmans_switch.spthy"         "Dead man's switch duress protocol"
 
+          # F-10: Gate the 3 remaining Tamarin models not covered by F-03
+          run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"
+          run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"
+          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"
+
           if [ "$EXTENDED_FAILED" -gt 0 ]; then
             echo ""
             echo "❌ $EXTENDED_FAILED Tamarin model(s) had falsified lemmas"

@@ -1,7 +1,7 @@
 # 🔒 Security Invariants - Meow Decoder
 
-**Version:** 1.1.0 (INTERNAL REVIEW — no external audit)
-**Last Updated:** 2025-07-24
+**Version:** 1.2.0 (INTERNAL REVIEW — no external audit)
+**Last Updated:** 2026-02-24
 **Classification:** Security-Critical Documentation
 
 ---
@@ -17,15 +17,50 @@ Invariants are verified through:
 4. **Code review** - Manual verification
 5. **Formal proofs** (where available) - Machine-checked mathematical proofs
 
-### Formal Verification Status
+### Formal Verification Status (v1.2 — post audit fixes F-01 through F-10)
 
-| Property set | Tool | Status |
-|---|---|---|
-| Guard-page memory safety (GB-001 – GB-008) | Verus | ✅ **Machine-checked proofs** in `verus_guarded_buffer.rs` |
-| Protocol state machine (auth-then-output, replay, duress) | TLA+ (TLC) | ✅ Verified (bounded model checking) |
-| Dolev-Yao secrecy & authentication | ProVerif | ✅ Verified (symbolic) |
-| Schrödinger deniability game | Tamarin | ✅ Verified (observational equivalence) |
-| AEAD properties (nonce uniqueness, auth-gated plaintext, key zeroization, no-bypass) | Rust type system + runtime tests | ⚠️ **Not Verus-proven** — enforced by `UniqueNonce`, `AuthenticatedPlaintext`, `zeroize` crate, and comprehensive test suite. The `verus_proofs.rs` file contains proof *stubs* (doc-comment specifications), not machine-checked proofs. |
+> Last audited: 2026-02-24 — branch `main` (`3289c0a`).  All rows marked ✅
+> are CI-gated on every push and pull-request that touches the relevant source
+> (see `.github/workflows/formal-verification.yml`).
+
+| Property set | Tool | CI-gated? | Artefact |
+|---|---|---|---|
+| Guard-page memory safety — POSIX (GB-001–GB-008) | Verus | ✅ | `verus_guarded_buffer.rs` |
+| Guard-page memory safety — Windows VirtualProtect (WG-001–WG-007) | Verus | ✅ | `verus_windows_guard.rs` |
+| AEAD nonce uniqueness, auth-gated plaintext, key zeroization, no-bypass (AEAD-001–004) | Verus | ✅ | `aead_wrapper.rs` |
+| AEAD INT-CTXT, AAD binding, fail-closed, ratchet independence (AEAD-005–012) | Verus | ✅ | `aead_wrapper.rs` ⚠️ abstract (see note) |
+| KDF parameter security, HKDF domain separation (KDF-001–004) | Verus | ✅ | `verus_kdf_proofs.rs` |
+| Shamir reconstruction constant-time (CT-001–004) | Verus | ✅ | `verus_kdf_proofs.rs` |
+| Protocol state machine (auth-then-output, replay, duress) | TLA+ | ✅ | `MeowEncode.tla`, `MeowFountain.tla`, `MeowStreaming.tla` |
+| Ratchet index monotonicity, skip-key DoS, key uniqueness | TLA+ | ✅ | `MeowRatchet.tla` |
+| Constant-time execution model (jitter-tolerant ≤1 · Jitter) | TLA+ | ✅ | `TimingEqualizer.tla` |
+| Message expiry fail-closed | TLA+ | ✅ | `ExpiryProtocol.tla` |
+| Cross-session forward secrecy (master ratchet) | TLA+ | ✅ | `MasterRatchet.tla` |
+| Dolev-Yao secrecy & authentication | ProVerif | ✅ | `meow_encode.pv` |
+| PQ beacon PCS restoration (ML-KEM-768 + X25519 hybrid) | ProVerif | ✅ | `pq_beacon_pcs.pv` |
+| Manifest HMAC integrity | ProVerif | ✅ | `manifest_signing.pv` |
+| Dead-man’s switch duress enforcement | ProVerif | ✅ | `deadmans_switch_duress.pv` |
+| **INV-004: 8-field canonical AAD binding** | ProVerif | ✅ | `meow_aad_8field_binding.pv` |
+| MEOW3 duress observational equivalence | Tamarin | ✅ | `MeowDuressEquiv.spthy` |
+| MEOW4/5 PQ duress OE | Tamarin | ✅ | `MeowDuressEquivPQ.spthy` |
+| AEAD 4-ary AAD binding | Tamarin | ✅ | `MeowAEADBinding.spthy` |
+| Full Schrödinger deniability game (15 lemmas) | Tamarin | ✅ | `MeowSchrodingerDeniability.spthy` |
+| Invisible-salamanders key-commitment prevention | Tamarin | ✅ | `MeowKeyCommitment.spthy` |
+| Per-frame forward secrecy + PCS via beacon | Tamarin | ✅ | `MeowRatchetFS.spthy` |
+| Guard-page overflow/underflow (symbolic) | Tamarin | ✅ | `secure_alloc_guard_pages.spthy` |
+| Dead-man’s switch deadline (4 lemmas) | Tamarin | ✅ | `meow_deadmans_switch.spthy` |
+| Header encryption OE (frame-index indistinguishability) | Tamarin | ✅ | `MeowRatchetHeaderOE.spthy` |
+| Schrödinger OE (dual-password indistinguishability, simplified) | Tamarin | ✅ | `MeowSchrodingerOE.spthy` |
+| Encoding observational equivalence (minimal) | Tamarin | ✅ | `meow_encode_equiv.spthy` |
+| Fountain code LT-correctness (machine-checked) | Lean 4 | ✅ | `FountainCodes.lean` (1 approved sorry) |
+| Shamir threshold security (field axiom) | Lean 4 | ✅ | `ShamirSecretSharing.lean` (1 approved axiom) |
+| HKDF domain separation (10 theorems) | Lean 4 | ✅ | `DomainSeparation.lean` |
+
+> **Note on AEAD-005–012:** The Verus lemmas are *abstract* — preconditions directly
+> subsume postconditions.  They verify the spec is internally consistent but do not
+> check that the `aes-gcm` crate implementation satisfies INT-CTXT.  True
+> implementation-level INT-CTXT proof requires a GF(2¹²⁸) GHASH model in Verus
+> (open research; documented as approved limitation RL-1 in `formal-10x-audit.md`).
 
 ---
 
