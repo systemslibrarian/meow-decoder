@@ -17,7 +17,12 @@ import {
 } from 'react-native';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
+import { MMKV } from 'react-native-mmkv';
 import type { OnboardingScreenProps } from '../types/navigation';
+
+// MMKV instance — same id/key as App.tsx so both read the same value
+const storage = new MMKV({ id: 'meow_settings' });
+const FIRST_LAUNCH_KEY = 'has_completed_onboarding';
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
@@ -26,10 +31,12 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
 
   const handleGrant = useCallback(async () => {
     await requestPermission();
+    storage.set(FIRST_LAUNCH_KEY, true);
     navigation.replace('Home');
   }, [requestPermission, navigation]);
 
   const handleSkip = useCallback(() => {
+    storage.set(FIRST_LAUNCH_KEY, true);
     navigation.replace('Home');
   }, [navigation]);
 

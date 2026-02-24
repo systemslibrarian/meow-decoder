@@ -62,12 +62,15 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
   // react-native-worklets-core brings Node globals; Buffer is available here.
   const byteLength = Buffer.byteLength(json, 'utf8');
 
+  let totalWrittenBytes = 0;
+
   if (byteLength <= MAX_EXPORT_CHUNK_BYTES) {
     // Single file path
     const filename = `meow-capture-${sessionPrefix}-${timestamp}.json`;
     const path = `${directory}/${filename}`;
     await RNFS.writeFile(path, json, 'utf8');
     exportedPaths.push(path);
+    totalWrittenBytes = byteLength;
   } else {
     // Chunked path — split the frames array
     const frames = response.frames;
@@ -85,21 +88,18 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
         frames_missed: response.frames_missed,
       };
       const chunkJson = JSON.stringify(chunk, null, 2);
+      const chunkByteLength = Buffer.byteLength(chunkJson, 'utf8');
       const filename = `meow-capture-${sessionPrefix}-part${chunkIndex}-${timestamp}.json`;
       const path = `${directory}/${filename}`;
       await RNFS.writeFile(path, chunkJson, 'utf8');
       exportedPaths.push(path);
+      totalWrittenBytes += chunkByteLength;
     }
   }
 
-  const totalBytes = exportedPaths.reduce(
-    (acc, _p) => acc + byteLength / exportedPaths.length,
-    0,
-  );
-
   return {
     paths: exportedPaths,
-    totalBytes: Math.round(totalBytes),
+    totalBytes: totalWrittenBytes,
     chunkCount: exportedPaths.length,
     exportedAt: new Date().toISOString(),
   };

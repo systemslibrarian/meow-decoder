@@ -106,7 +106,7 @@ export interface CaptureProgress {
   percentRaw: number;
   /** captured / fountainThreshold × 100 (threshold = expected × FOUNTAIN_OVERHEAD) */
   percentRecoverable: number;
-  /** True when captured >= expected (basic decodability threshold) */
+  /** True when captured >= expected × MIN_RECOVERABLE_RATIO (~67%); fountain can likely decode */
   isRecoverable: boolean;
   /** True when captured >= expected × FOUNTAIN_OVERHEAD (recommended threshold) */
   isFountainComplete: boolean;

@@ -8,7 +8,7 @@
  * After successful export, shows ADB pull instructions.
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -77,6 +77,12 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   useEffect(() => {
     void handleExport();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Memoize chunk count — avoids re-serializing the full response on every render
+  const qrChunkCount = useMemo(
+    () => buildQRExportChunks(response).length,
+    [response],
+  );
 
   // ── QR fallback ────────────────────────────────────────────────────────────
   const startQrFallback = useCallback(() => {
@@ -241,7 +247,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
             onPress={startQrFallback}
           >
             <Text style={styles.secondaryButtonText}>
-              📲 Show as QR codes ({buildQRExportChunks(response).length} screens)
+              📲 Show as QR codes ({qrChunkCount} screens)
             </Text>
           </TouchableOpacity>
         </View>

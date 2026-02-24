@@ -21,7 +21,6 @@ import { Colors } from '../constants/theme';
 interface AppNavigatorProps {
   initialRoute: keyof RootStackParamList;
   hasCompletedOnboarding: boolean;
-  onOnboardingComplete: () => void;
 }
 
 // ── Navigator ─────────────────────────────────────────────────────────────────

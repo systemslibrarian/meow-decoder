@@ -34,10 +34,6 @@ export default function App(): React.ReactElement {
 
   const hasCompletedOnboarding = storage.getBoolean(FIRST_LAUNCH_KEY) ?? false;
 
-  const markOnboardingComplete = () => {
-    storage.set(FIRST_LAUNCH_KEY, true);
-  };
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
@@ -46,7 +42,6 @@ export default function App(): React.ReactElement {
           <AppNavigator
             initialRoute={initialRoute}
             hasCompletedOnboarding={hasCompletedOnboarding}
-            onOnboardingComplete={markOnboardingComplete}
           />
         </NavigationContainer>
       </CatToastProvider>

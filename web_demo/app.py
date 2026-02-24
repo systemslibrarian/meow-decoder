@@ -61,6 +61,15 @@ def cleanup_old_files(max_age_minutes=30):
                 except Exception:
                     pass
 
+    # Evict stale download_tokens whose associated files are gone or expired
+    cutoff_dt = datetime.now() - timedelta(minutes=max_age_minutes)
+    stale_tokens = [
+        t for t, info in list(download_tokens.items())
+        if info.get("created", datetime.min) < cutoff_dt
+    ]
+    for t in stale_tokens:
+        download_tokens.pop(t, None)
+
 
 def allowed_file(filename, allowed_set):
     """Check if file extension is allowed."""
@@ -279,6 +288,9 @@ def cat_mode_video_download(token, filename):
     """Serve a saved cat mode video for download."""
     from flask import send_file
 
+    filename = secure_filename(filename)
+    if not filename:
+        return "Invalid filename", 400
     filepath = os.path.join(UPLOADS_DIR, f"{token}_{filename}")
     if not os.path.exists(filepath):
         return "Video not found or expired", 404
@@ -1149,9 +1161,9 @@ def schrodinger_page():
             # Create download token
             token = str(uuid.uuid4())
             download_tokens[token] = {
-                "file": output_path,
-                "name": "schrodinger_quantum.gif",
-                "timestamp": time.time(),
+                "path": output_path,
+                "filename": "schrodinger_quantum.gif",
+                "created": datetime.now(),
             }
 
             flash(f"✅ Schrödinger encoding complete! Quantum superposition created.", "success")

@@ -30,7 +30,7 @@ import type {
   CaptureState,
   CaptureProgress,
 } from '../types/capture';
-import { FOUNTAIN_OVERHEAD } from '../constants/config';
+import { FOUNTAIN_OVERHEAD, MIN_RECOVERABLE_RATIO } from '../constants/config';
 
 // ── State & Actions ───────────────────────────────────────────────────────────
 
@@ -250,7 +250,7 @@ export function useCapture(): UseCaptureReturn {
           percentRaw: expected > 0 ? (captured / expected) * 100 : 0,
           percentRecoverable:
             fountainThreshold > 0 ? (captured / fountainThreshold) * 100 : 0,
-          isRecoverable: captured >= expected,
+          isRecoverable: captured >= Math.ceil(expected * MIN_RECOVERABLE_RATIO),
           isFountainComplete: captured >= fountainThreshold,
         };
       })()

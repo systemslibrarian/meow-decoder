@@ -73,7 +73,7 @@ export const CameraPreview = React.memo(function CameraPreview({
         </Text>
         <TouchableOpacity
           style={styles.permissionButton}
-          onPress={hasPermission === false ? openSettings : requestPermission}
+          onPress={requestPermission}
           accessibilityRole="button"
         >
           <Text style={styles.permissionButtonText}>
