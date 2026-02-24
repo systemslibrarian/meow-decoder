@@ -10,6 +10,49 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Features & Improvements — 2026-02-24 🐾
+
+#### Mobile Companion App — Production-Ready React Native (feat: `448e738`)
+- **267 passing tests** across 8 test suites; `tsc --noEmit` clean, zero `any` types
+- Full capture state machine: `IDLE → LOADING_REQUEST → AWAITING_GIF → CAPTURING → COMPLETE`
+- Vision Camera v4 frame processor worklet with QR deduplication
+- Zod-validated `CaptureRequest` protocol (`.strict()`, UUID v4, numeric bounds)
+- Fountain code 1.5× auto-complete threshold built into collector
+- `AppState` background/inactive handler zeroes frame memory (security invariant)
+- Camera-only permissions; no `INTERNET` permission in any manifest
+- Chunked JSON export (5 MB boundary) to `Downloads/` only
+- Accelerometer stability monitor, cat-themed haptics/toasts/sounds
+- Animated `ProgressHUD` with recoverability bar (Reanimated v3)
+
+#### ML-KEM-1024 PQ Ratchet Beacon Wiring (`encode.py`, `decode_gif.py`)
+- Encoder now passes `receiver_pq_public_key` to `EncoderRatchet` (ML-KEM-1024 keys only, 1568 bytes); silently skipped for ML-KEM-768 to avoid beacon implementation mismatch
+- Decoder constructs `PQBeaconKeyPair` from `HybridKeyPair` and injects as `receiver_pq_keypair` into `DecoderRatchet` via `_ratchet_params`
+- Verbose output includes `+ ML-KEM-1024 PQ beacons` indicator when active
+- `--paranoid` flag required for PQ ratchet beacons; default MEOW5 (ML-KEM-768) uses classical-only ratchet beacons
+
+#### CI — Parallel Test Batches (`ef9050e`)
+- Test job split into two parallel 30-minute batches to prevent timeouts on large test suites
+- Total coverage: 3227+ tests (2411 Python + 816 Rust)
+
+#### Dependency Updates (Dependabot)
+| Package | Old | New |
+|---------|-----|-----|
+| `cryptography` | 41.0.7 | 46.0.5 |
+| `Pillow` | 10.1.0 | 12.1.1 |
+| `argon2-cffi` | 23.1.0 | 25.1.0 |
+| `qrcode[pil]` | 7.4.2 | 8.2 |
+| `flask` | 3.1.2 | 3.1.3 |
+| `werkzeug` | 3.1.5 | 3.1.6 |
+| `maturin` | 1.12.2 | 1.12.4 |
+| `cyclonedx-bom` | 7.2.1 | 7.2.2 |
+
+#### Codebase Cleanup (`0ca3918`)
+- Removed stale audit files: `3passaudit.md`, `audit2.md`, `chatgpt-audit.md`, `resultsaudit3.md`, `resultsauditsudnay.md`, `verify_domain_separation.sh`
+- Renamed `template-audircode.md` → `template-auditcode.md`
+- Updated `audit5.md` and `resultsaudit-latest.md` with PQ ratchet beacon wiring verification
+
+---
+
 ### Security & Correctness Fixes — Comprehensive Bug Audit (2026-02-25) 🔒
 
 **16 security and correctness fixes across Rust and Python, identified by automated code audit.**

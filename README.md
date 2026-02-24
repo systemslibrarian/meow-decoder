@@ -68,7 +68,7 @@
 
 **📜 Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
 
-**Honest disclaimer:** This is a **developer/research tool**, not a consumer app (yet). It requires Python, command-line comfort, and understanding of what you're doing. If you're looking for a polished mobile experience, check back later or contribute!
+**Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing. A production-ready React Native companion app for iOS/Android is available in [`mobile/`](mobile/README.md) for the optical capture side — 267 passing tests, Vision Camera v4, no network permissions, chunked JSON export.
 
 ---
 
@@ -716,7 +716,7 @@ See the [examples/](examples/) directory for full setup instructions.
 
 ## 📱 Mobile Bridge (React Native)
 
-> **Current status:** JSON protocol is fully specified and prototype capture works. Full CLI listener and production-ready React Native app are in active development (coming soon).
+> **Current status:** Production-ready. 267 passing tests, Vision Camera v4 frame processor, full state machine (`IDLE → CAPTURING → COMPLETE`), Zod-validated protocol, chunked JSON export. See [`mobile/README.md`](mobile/README.md) for setup.
 
 The React Native QR scanner app provides a seamless mobile-to-CLI workflow for capturing animated QR codes.
 

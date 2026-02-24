@@ -4,13 +4,13 @@
 # For everything: pip install -e ".[all,dev]"
 
 # Core dependencies (must match pyproject.toml [project.dependencies])
-cryptography>=43.0.1        # AES-256-GCM, HKDF, X25519
-Pillow>=10.3.0              # Image processing (QR, GIF, PNG)
-qrcode>=7.4.2               # QR code generation
+cryptography>=46.0.5        # AES-256-GCM, HKDF, X25519
+Pillow>=12.1.1              # Image processing (QR, GIF, PNG)
+qrcode>=8.2                 # QR code generation
 pyzbar>=0.1.9               # QR code reading
 opencv-python>=4.8.1.78     # Webcam capture and image processing
 numpy>=1.24.0               # Numerical operations
-argon2-cffi>=23.1.0         # Argon2id key derivation
+argon2-cffi>=25.1.0         # Argon2id key derivation
 pynacl>=1.6.2               # Ed25519/X25519 conversion (spec v1.2+)
 
 # Multi-layer steganography (optional, for timing/palette channels)
