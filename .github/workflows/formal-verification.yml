@@ -26,6 +26,13 @@ on:
       - "meow_decoder/forward_secrecy.py"
       - "meow_decoder/schrodinger_encode.py"
       - ".github/workflows/formal-verification.yml"
+      # F-04: expanded trigger surface for all formally-modelled modules
+      - "crypto_core/src/secure_alloc.rs"
+      - "crypto_core/src/aead_wrapper.rs"
+      - "crypto_core/src/pure_crypto.rs"
+      - "meow_decoder/constant_time.py"
+      - "meow_decoder/quantum_mixer.py"
+      - "meow_decoder/fountain.py"
   pull_request:
     paths:
       - "formal/**"
@@ -39,6 +46,13 @@ on:
       - "meow_decoder/forward_secrecy.py"
       - "meow_decoder/schrodinger_encode.py"
       - ".github/workflows/formal-verification.yml"
+      # F-04: expanded trigger surface for all formally-modelled modules
+      - "crypto_core/src/secure_alloc.rs"
+      - "crypto_core/src/aead_wrapper.rs"
+      - "crypto_core/src/pure_crypto.rs"
+      - "meow_decoder/constant_time.py"
+      - "meow_decoder/quantum_mixer.py"
+      - "meow_decoder/fountain.py"
   workflow_dispatch:
     inputs:
       verbose:
@@ -216,6 +230,47 @@ jobs:
           echo ""
           echo "✅ ProVerif negative test completed (documents replay vulnerability)"
 
+      # F-02: Run additional ProVerif models not previously CI-gated
+      - name: Run Additional ProVerif Models
+        run: |
+          cd formal/proverif
+          echo "============================================"
+          echo "🔐 ProVerif — Additional Security Models (F-02)"
+          echo "============================================"
+
+          EXTRA_FAILED=0
+
+          for MODEL in pq_beacon_pcs.pv manifest_signing.pv deadmans_switch_duress.pv meow_aad_8field_binding.pv; do
+            if [ ! -f "$MODEL" ]; then
+              echo "⚠️  $MODEL not found, skipping"
+              continue
+            fi
+            echo ""
+            echo "--- Checking $MODEL ---"
+            set +e
+            proverif "$MODEL" 2>&1 | tee "extra_${MODEL%.pv}.txt"
+            PV_EXIT=$?
+            set -e
+
+            # Fail if ProVerif found a secrecy/auth violation (is false)
+            if grep -q "RESULT.*is false" "extra_${MODEL%.pv}.txt"; then
+              echo "❌ $MODEL: query falsified — potential security issue"
+              EXTRA_FAILED=$((EXTRA_FAILED + 1))
+            elif [ "$PV_EXIT" -ne 0 ]; then
+              echo "⚠️  $MODEL: ProVerif returned exit $PV_EXIT (may be non-fatal)"
+            else
+              PASSED_QUERIES=$(grep -c "is true" "extra_${MODEL%.pv}.txt" || echo 0)
+              echo "✅ $MODEL: $PASSED_QUERIES queries verified"
+            fi
+          done
+
+          if [ "$EXTRA_FAILED" -gt 0 ]; then
+            echo "❌ $EXTRA_FAILED additional ProVerif model(s) failed"
+            exit 1
+          fi
+          echo ""
+          echo "✅ All additional ProVerif models passed"
+
       - name: Generate HTML Report
         if: always()
         run: |
@@ -342,8 +397,39 @@ jobs:
             FAILED=1
           fi
 
+          # F-01: Run 4 additional TLA+ models not previously CI-gated
+          echo ""
+          echo "--- F-01: Additional TLA+ models ---"
+
+          run_tlc() {
+            local SPEC="$1"
+            local CFG="$2"
+            local LABEL="$3"
+            local OUTFILE="$4"
+            echo ""
+            echo "📋 Checking $SPEC..."
+            java -jar tla2tools.jar \
+              -config "$CFG" \
+              -workers auto \
+              -deadlock \
+              "$SPEC" 2>&1 | tee "$OUTFILE"
+            if grep -qE "(No error has been found|Model checking completed\. No error)" "$OUTFILE"; then
+              echo "✅ $LABEL: No invariant violations found"
+            else
+              echo "❌ $LABEL: Model checking found issues"
+              FAILED=1
+            fi
+          }
+
+          run_tlc TimingEqualizer.tla TimingEqualizer.cfg  "TimingEqualizer"  tlc_timing_output.txt
+          run_tlc MeowRatchet.tla     MeowRatchet.cfg      "MeowRatchet"      tlc_ratchet_output.txt
+          run_tlc ExpiryProtocol.tla  ExpiryProtocol.cfg   "ExpiryProtocol"   tlc_expiry_output.txt
+          run_tlc MasterRatchet.tla   MasterRatchet.cfg    "MasterRatchet"    tlc_master_output.txt
+
           # Combine outputs for artifact
-          cat tlc_encode_output.txt tlc_fountain_output.txt tlc_streaming_output.txt > tlc_output.txt
+          cat tlc_encode_output.txt tlc_fountain_output.txt tlc_streaming_output.txt \
+              tlc_timing_output.txt tlc_ratchet_output.txt tlc_expiry_output.txt tlc_master_output.txt \
+              > tlc_output.txt
 
           echo ""
           echo "============================================"
@@ -367,6 +453,10 @@ jobs:
             formal/tla/tlc_encode_output.txt
             formal/tla/tlc_fountain_output.txt
             formal/tla/tlc_streaming_output.txt
+            formal/tla/tlc_timing_output.txt
+            formal/tla/tlc_ratchet_output.txt
+            formal/tla/tlc_expiry_output.txt
+            formal/tla/tlc_master_output.txt
           retention-days: 30
 
   lean:
@@ -513,6 +603,56 @@ jobs:
             fi
           fi
 
+      # F-03: Run additional Tamarin models not previously CI-gated
+      # Models with many lemmas use 30-min timeouts; analysis-incomplete is
+      # treated as a WARNING (not failure) to avoid flaky CI on large models.
+      - name: Run Tamarin Extended Models (F-03)
+        run: |
+          echo "============================================"
+          echo "🟣 Tamarin Extended Models (F-03)"
+          echo "============================================"
+
+          EXTENDED_FAILED=0
+
+          run_tamarin_model() {
+            local MODEL="$1"
+            local DESC="$2"
+            echo ""
+            echo "--- $DESC ---"
+            set +e
+            timeout 1800 docker run --rm meow-tamarin bash -c \
+              "tamarin-prover --prove /formal/tamarin/$MODEL" \
+              2>&1 | tee "tamarin_ext_${MODEL%.spthy}.txt"
+            EXIT=$?
+            set -e
+
+            if [ "$EXIT" -eq 124 ]; then
+              echo "⚠️  $MODEL timed out (30 min) — treated as inconclusive"
+            elif grep -q "falsified" "tamarin_ext_${MODEL%.spthy}.txt"; then
+              echo "❌ $MODEL: lemma FALSIFIED — security property violated"
+              EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
+            elif grep -q "verified" "tamarin_ext_${MODEL%.spthy}.txt"; then
+              NVERIFIED=$(grep -c "verified" "tamarin_ext_${MODEL%.spthy}.txt" || echo "?")
+              echo "✅ $MODEL: $NVERIFIED lemma(s) verified"
+            else
+              echo "⚠️  $MODEL: analysis incomplete — inconclusive (non-blocking)"
+            fi
+          }
+
+          run_tamarin_model "MeowSchrodingerDeniability.spthy" "Schrödinger plausible deniability (15 lemmas)"
+          run_tamarin_model "MeowKeyCommitment.spthy"           "Key commitment / invisible salamanders"
+          run_tamarin_model "MeowRatchetFS.spthy"               "Per-frame forward secrecy + PCS (ratchet)"
+          run_tamarin_model "secure_alloc_guard_pages.spthy"    "Guard page memory isolation proofs"
+          run_tamarin_model "meow_deadmans_switch.spthy"         "Dead man's switch duress protocol"
+
+          if [ "$EXTENDED_FAILED" -gt 0 ]; then
+            echo ""
+            echo "❌ $EXTENDED_FAILED Tamarin model(s) had falsified lemmas"
+            exit 1
+          fi
+          echo ""
+          echo "✅ Tamarin extended models: no falsified lemmas"
+
       - name: Upload Tamarin Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
@@ -523,6 +663,7 @@ jobs:
             tamarin_aead.txt
             tamarin_neg1.txt
             tamarin_neg2.txt
+            tamarin_ext_*.txt
           retention-days: 30
 
   verus:

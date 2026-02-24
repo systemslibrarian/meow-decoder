@@ -119,6 +119,9 @@ pub mod types;
 pub mod verus_guarded_buffer;
 pub mod verus_kdf_proofs;
 pub mod verus_proofs;
+/// Windows VirtualProtect guard-page layout proofs (WG-001 – WG-007).
+/// Companion to verus_guarded_buffer (POSIX path).  See formal-10x-audit.md §Fix F-06.
+pub mod verus_windows_guard;
 
 // ============================================================================
 // Hardware Security Modules (Feature-Gated)

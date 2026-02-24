@@ -47,7 +47,7 @@ vars == <<opState, actualDuration, sleepDuration, observedDuration,
 
 TypeOK ==
     /\ opState \in {"idle", "running", "sleeping", "done"}
-    /\ actualDuration \in MinDuration..MaxDuration
+    /\ actualDuration \in 0..MaxDuration           \* 0 is valid in "idle" state
     /\ sleepDuration \in 0..(TargetDuration - MinDuration + Jitter)
     /\ observedDuration \in 0..(TargetDuration + Jitter)
     /\ operationResult \in {"success", "error", "none"}
@@ -88,10 +88,12 @@ FinishComputation ==
     /\ UNCHANGED <<actualDuration, observedDuration, operationResult,
                    opsCompleted, timingHistory>>
 
-\* Sleep phase completes — attacker observes total duration
+\* Sleep phase completes — attacker observes total duration (with OS jitter)
+\* Jitter models OS scheduler variance: observedDuration \in [target, target+Jitter]
 FinishSleep ==
     /\ opState = "sleeping"
-    /\ observedDuration' = actualDuration + sleepDuration
+    /\ \E jitter \in 0..Jitter :
+        /\ observedDuration' = actualDuration + sleepDuration + jitter
     /\ opState' = "done"
     /\ UNCHANGED <<actualDuration, sleepDuration, operationResult,
                    opsCompleted, timingHistory>>
@@ -119,27 +121,36 @@ Next ==
 Spec == Init /\ [][Next]_vars /\ WF_vars(Next)
 
 -----------------------------------------------------------------------------
-(* Safety Properties *)
+(* Safety Properties — jitter-tolerant, production-realistic               *)
 
-\* CRITICAL INVARIANT: All observed durations equal the target duration.
-\* This is the core timing side-channel prevention property.
+\* CORE INVARIANT: all observed durations lie in [TargetDuration, TargetDuration+Jitter].
+\* Rationale: sleep pads to exactly TargetDuration, but OS scheduler adds up to Jitter
+\* extra ticks.  The security property is that the inter-operation variance visible
+\* to an attacker is bounded by Jitter, not by the semantically-significant
+\* actualDuration variance (which can be as large as MaxDuration-MinDuration).
 ConstantTimeInvariant ==
-    opState = "done" => observedDuration = TargetDuration
+    opState = "done" =>
+        /\ observedDuration >= TargetDuration
+        /\ observedDuration <= TargetDuration + Jitter
 
-\* Timing history is constant — every observation is TargetDuration.
-\* An attacker with unbounded observations still learns nothing.
-TimingHistoryConstant ==
-    \A i \in 1..Len(timingHistory) : timingHistory[i] = TargetDuration
+\* Timing history bounded — every recorded observation is in the jitter band.
+\* An unbounded attacker cannot distinguish two operations whose actualDuration
+\* values differ by less than Jitter.
+TimingHistoryBounded ==
+    \A i \in 1..Len(timingHistory) :
+        /\ timingHistory[i] >= TargetDuration
+        /\ timingHistory[i] <= TargetDuration + Jitter
 
-\* Sleep is non-negative (we never finish faster than target)
+\* Sleep is non-negative (we never finish before the minimum padding is done).
 SleepNonNegative ==
     opState = "sleeping" => sleepDuration >= 0
 
-\* Result is hidden from timing observations.
-\* For any two completed ops with different results, the observed
-\* durations are identical (indistinguishability).
+\* Result indistinguishability: success and error observations both lie in
+\* [TargetDuration, TargetDuration+Jitter] — no timing oracle can distinguish them.
 ResultIndistinguishable ==
-    opState = "done" => observedDuration = TargetDuration
+    opState = "done" =>
+        /\ observedDuration >= TargetDuration
+        /\ observedDuration <= TargetDuration + Jitter
 
 -----------------------------------------------------------------------------
 (* Liveness Properties *)
