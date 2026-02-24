@@ -1,6 +1,6 @@
 Flask==3.1.2
 Pillow==12.1.1
-qrcode[pil]==7.4.2
+qrcode[pil]==8.2
 argon2-cffi==25.1.0
 cryptography==46.0.5
 pyzbar==0.1.9
