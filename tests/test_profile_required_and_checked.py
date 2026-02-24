@@ -11,6 +11,8 @@ Ensures that:
 import os
 import pytest
 
+pytestmark = pytest.mark.security
+
 # Force test mode for fast Argon2id
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 

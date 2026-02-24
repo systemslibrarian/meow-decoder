@@ -9,6 +9,8 @@ import tempfile
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 from meow_decoder.x25519_forward_secrecy import (
     ForwardSecrecyKeys,
     generate_ephemeral_keypair,

@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 import meow_decoder.config as config_module
 from meow_decoder.config import (
     DuressConfig,

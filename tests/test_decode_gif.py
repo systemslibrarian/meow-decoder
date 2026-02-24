@@ -6,6 +6,9 @@ Uses stubs to avoid heavy QR/GIF dependencies.
 from pathlib import Path
 import pytest
 from PIL import Image
+
+pytestmark = pytest.mark.security
+
 import meow_decoder.decode_gif as decode_mod
 from meow_decoder.crypto import Manifest, pack_manifest
 import meow_decoder.crypto as _crypto_mod

@@ -12,6 +12,10 @@ This bridges the gap between:
     - tests/test_e2e_crypto_fountain.py (E2E without ratchet)
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 from meow_decoder.ratchet import (
     EncoderRatchet,
     DecoderRatchet,

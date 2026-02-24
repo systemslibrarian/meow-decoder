@@ -15,6 +15,10 @@ Verifies:
     - Epoch boundary edge cases
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 import copy
 import os
 import secrets

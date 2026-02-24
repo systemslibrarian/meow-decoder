@@ -11,6 +11,8 @@ These tests verify the quarantine is intact.
 
 import pytest
 
+pytestmark = pytest.mark.security
+
 
 class TestPQCryptoRealQuarantine:
     """Verify pq_crypto_real is properly quarantined."""

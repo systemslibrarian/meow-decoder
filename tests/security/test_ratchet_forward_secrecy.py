@@ -7,6 +7,10 @@ maintains forward secrecy, fail-closed behavior, and no-rollback guarantees.
 Tests verify INV-022, INV-023, INV-024 from SECURITY_INVARIANTS.md.
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 from meow_decoder.crypto_backend import get_handle_backend
 from meow_decoder.ratchet import (
     init_ratchet,

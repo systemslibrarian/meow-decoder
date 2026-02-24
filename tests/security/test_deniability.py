@@ -9,6 +9,10 @@ distinguishability boundary. They are intentionally conservative —
 some may detect real differences (which is honest reporting, not a bug).
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 from meow_decoder.quantum_mixer import entangle_realities, collapse_to_reality
 from meow_decoder.crypto import encrypt_file_bytes
 from meow_decoder.crypto_backend import get_default_backend, get_handle_backend

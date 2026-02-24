@@ -11,6 +11,10 @@ catastrophic AES-GCM nonce reuse across:
 These tests verify INV-003 (Nonce Uniqueness) from SECURITY_INVARIANTS.md.
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 from meow_decoder.crypto_backend import get_default_backend
 from meow_decoder.nonce import NonceGenerator, derive_transfer_nonce, MAX_FRAME_COUNTER
 import os
