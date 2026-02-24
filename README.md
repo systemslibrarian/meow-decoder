@@ -48,7 +48,6 @@
 
 <p align="center">
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/😺%20cat/approved/orange" alt="😺 Cat Approved"></a>
-  <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/😻%20meow/certified/pink" alt="😻 Meow Certified"></a>
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/🧶%20yarn/compatible/purple" alt="🧶 Yarn Compatible"></a>
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/🐾%20tested/9%20lives/green" alt="🐾 9 Lives"></a>
   <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/😼%20security/hiss%20level%209/red" alt="😼 Hiss"></a>
