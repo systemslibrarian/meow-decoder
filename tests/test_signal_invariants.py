@@ -19,6 +19,10 @@ Invariants tested:
 Run: MEOW_TEST_MODE=1 pytest tests/test_signal_invariants.py -v
 """
 
+import pytest
+
+pytestmark = pytest.mark.security
+
 from meow_decoder.frame_mac import (
     derive_frame_master_key,
     derive_frame_key,

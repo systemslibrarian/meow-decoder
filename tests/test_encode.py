@@ -10,6 +10,8 @@ import time
 import pytest
 from PIL import Image
 
+pytestmark = pytest.mark.security
+
 import meow_decoder.encode as enc
 
 
