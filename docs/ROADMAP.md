@@ -123,7 +123,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 ### Comprehensive Bug Audit (Feb 25, 2026)
 - [x] **16 Security/Correctness Fixes**: Rust nonce CAS loops, X25519 zero-check, HKDF length enforcement, ML-KEM-1024 paranoid dispatch, fountain thread safety, stego LSB preservation, deferred ratchet init, config safety, Schrödinger password validation
 - [x] **Rust Hardening**: `OsRng` for `secure_random()`, ML-KEM-1024 PyO3 exports
-- [x] **3200+ Tests Passing**: 2411 Python + 816 Rust tests across 83+ test files
+- [x] **3435+ Tests Passing**: 2462 Python + 973 Rust tests across 68+ test files
 
 ---
 ### Formal Methods

@@ -249,7 +249,7 @@ python -m meow_decoder.schrodinger_encode -i secret.pdf -i2 decoy.txt \
 ```
 
 **Tests:**
-- `tests/test_ratchet.py` (142 unit tests)
+- `tests/test_ratchet.py` (145 unit tests)
 - `tests/test_e2e_crypto_fountain.py` (23 E2E tests)
 
 ---

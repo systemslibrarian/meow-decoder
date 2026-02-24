@@ -148,13 +148,13 @@ raise ImportError(
 
 ## Test Results (at time of archiving, Feb 2026)
 
-**Python (`pytest -q`):** 1492 passed, 21 skipped, 29 failed. All 29 failures were **pre-existing** (Rust backend `meow_crypto_rs` missing attributes + 1 flaky timing test). Zero new failures from archiving. *(Current suite: 1841+ Python tests, 352+ Rust tests — counts have grown since this snapshot.)*
+**Python (`pytest -q`):** 1492 passed, 21 skipped, 29 failed. All 29 failures were **pre-existing** (Rust backend `meow_crypto_rs` missing attributes + 1 flaky timing test). Zero new failures from archiving. *(Current suite: 2,462 Python tests, 973 Rust tests as of 2026-02-24.)*
 
 **Post-correction verification:** `test_progress.py` (6 tests) + `test_x25519_forward_secrecy.py` (42 tests) = 48 tests, all passing.
 
 All 27 production modules (excluding `__init__`) now have a dedicated test file in `tests/`.
 
-**Rust (`cargo test -q`):** 465 passed, 0 failed, 1 ignored. All green. *(At time of archiving; current count: 352+ after test reorganization.)*
+**Rust (`cargo test -q`):** 465 passed, 0 failed, 1 ignored. All green. *(At time of archiving; current count: 973 as of 2026-02-24.)*
 
 ## Restoring an Archived Module
 

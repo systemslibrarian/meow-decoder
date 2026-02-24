@@ -4,7 +4,7 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 59 active test files (52 archived to `tests/_archive/`), 1579+ active Python tests + 465 Rust tests.
+**Current stats (February 2026):** 68 active test files (52 archived to `tests/_archive/`), 2,462 active Python tests + 973 Rust tests.
 **Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
 **Surface area minimization (2026-02-18):** 45 non-production source modules archived to `meow_decoder/_archive/`; 52 test files covering only archived modules moved to `tests/_archive/`. See `docs/SURFACE_AREA_MINIMIZATION.md` for full report.
 **Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
@@ -25,13 +25,13 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `test_crypto.py` | 205 | Core AES-256-GCM encryption, KDF, AAD construction, manifest bounds, timing harness |
+| `test_crypto.py` | 47 | Core AES-256-GCM encryption, KDF, AAD construction, manifest bounds, timing harness |
 | `test_crypto_backend.py` | 105 | Rust crypto backend bindings |
-| `test_constant_time.py` | 45 | Constant-time comparison, secure memset, timing consistency |
+| `test_constant_time.py` | 46 | Constant-time comparison, secure memset, timing consistency |
 | `test_frame_mac.py` | 11 | Frame MAC authentication, key derivation, pack/unpack |
-| `test_fountain.py` | 12 | Fountain code encoding/decoding, droplet generation |
-| `test_golden_vectors.py` | 30 | Frozen golden vectors: Argon2id, HKDF, AES-GCM, HMAC, SHA-256, AAD, ratchet, pipeline |
-| `test_ratchet.py` | 142 | MSR v1 symmetric ratchet: domain separation, forward secrecy, replay, commitment tags |
+| `test_fountain.py` | 27 | Fountain code encoding/decoding, droplet generation |
+| `test_golden_vectors.py` | 33 | Frozen golden vectors: Argon2id, HKDF, AES-GCM, HMAC, SHA-256, AAD, ratchet, pipeline |
+| `test_ratchet.py` | 145 | MSR v1 symmetric ratchet: domain separation, forward secrecy, replay, commitment tags |
 
 > **Archived from TIER 1:** `test_crypto_enhanced.py`, `test_streaming_crypto.py`, `test_crypto_enforcement.py` — moved to `tests/_archive/`
 
@@ -39,15 +39,15 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `test_encode.py` | 63 | Encoding pipeline, QR generation, frame assembly |
-| `test_decode_gif.py` | 49 | GIF decoding, frame extraction, QR reading |
-| `test_gif_handler.py` | 13 | GIF creation, frame handling, size validation |
-| `test_qr_code.py` | 16 | QR code generation and reading |
+| `test_encode.py` | 70 | Encoding pipeline, QR generation, frame assembly |
+| `test_decode_gif.py` | 53 | GIF decoding, frame extraction, QR reading |
+| `test_gif_handler.py` | 10 | GIF creation, frame handling, size validation |
+| `test_qr_code.py` | 11 | QR code generation and reading |
 | `test_config.py` | 17 | EncodingConfig, MeowConfig, DuressConfig |
 | `test_metadata_obfuscation.py` | 17 | Length padding, corruption detection |
 | `test_e2e_crypto_fountain.py` | 23 | E2E pipeline: encrypt→fountain→corrupt/reorder/drop→decode→decrypt |
-| `test_e2e_ratchet_pipeline.py` | 23 | E2E pipeline with per-frame ratchet under loss/reorder |
-| `test_e2e_gif_ratchet.py` | — | E2E GIF + ratchet integration |
+| `test_e2e_ratchet_pipeline.py` | 16 | E2E pipeline with per-frame ratchet under loss/reorder |
+| `test_e2e_gif_ratchet.py` | 6 | E2E GIF + ratchet integration |
 | `test_fountain_montecarlo.py` | 10 | Monte Carlo statistical reliability of LT codes under frame loss |
 
 > **Archived from TIER 2:** `test_spec_v12.py`, `test_coverage_gaps_phase1.py` — moved to `tests/_archive/`
@@ -58,18 +58,21 @@ This document summarizes the security-focused test suite created for Meow Decode
 |------|-------|---------|
 | `test_security.py` | 20 | Tamper detection, auth tag verification |
 | `test_adversarial.py` | 20 | Hostile input handling, corruption resilience |
-| `test_sidechannel.py` | 11 | Side-channel resistance |
+| `test_sidechannel.py` | 14 | Side-channel resistance |
 | `test_invariants.py` | 11 | Security invariant checks |
-| `test_x25519_forward_secrecy.py` | 42 | X25519 key derivation, ephemeral keys, hybrid keys |
+| `test_x25519_forward_secrecy.py` | 41 | X25519 key derivation, ephemeral keys, hybrid keys |
 | `test_duress_mode.py` | 57 | Duress mode, decoy data, timing equalization |
 | `test_timelock_duress.py` | 32 | Timelock puzzles, countdown duress, deadman switch |
-| `test_pq_crypto_real.py` | 10 | Post-quantum crypto (ML-KEM-1024) |
-| `test_pq_hybrid.py` | 13 | Post-quantum hybrid (X25519 + ML-KEM) |
-| `test_pqxdh_upgrade.py` | 25 | PQXDH: ML-KEM-768/1024, transcript binding, backward compat |
-| `test_asymmetric_rekey.py` | 40 | MSR v2 asymmetric rekey: PCS, forward secrecy, rollback resistance |
+| `test_pq_crypto_real.py` | 3 | Post-quantum crypto (ML-KEM-1024) |
+| `test_pq_hybrid.py` | 14 | Post-quantum hybrid (X25519 + ML-KEM) |
+| `test_pqxdh_upgrade.py` | 38 | PQXDH: ML-KEM-768/1024, transcript binding, backward compat |
+| `test_asymmetric_rekey.py` | 43 | MSR v2 asymmetric rekey: PCS, forward secrecy, rollback resistance |
 | `test_high_security.py` | 34 | High security mode, secure wipe, memory protection |
-| `test_audit_fixes.py` | — | OPUS-AUDIT remediation verification |
-| `test_signal_invariants.py` | — | Signal protocol invariant enforcement |
+| `test_audit_fixes.py` | 32 | OPUS-AUDIT remediation verification |
+| `test_signal_invariants.py` | 21 | Signal protocol invariant enforcement |
+| `test_security_hardening.py` | 21 | Security hardening enforcement tests |
+| `test_property_ratchet_pq.py` | 22 | Property-based ratchet + PQ correctness tests |
+| `test_property_shamir_dualstream.py` | 27 | Property-based Shamir/dual-stream tests |
 
 > **Archived from TIER 3:** `test_forward_secrecy.py`, `test_forward_secrecy_decoder.py`, `test_forward_secrecy_encoder.py`, `test_forward_secrecy_x25519.py`, `test_schrodinger.py`, `test_quantum_mixer.py`, `test_multi_secret.py`, `test_secure_bridge.py`, `test_secure_cleanup.py`, `test_entropy_boost.py`, `test_double_ratchet.py`, `test_pq_signatures.py`, `test_pq_crypto.py`, `test_schrodinger_encode.py`, `test_schrodinger_decode.py` — moved to `tests/_archive/`
 
@@ -78,11 +81,17 @@ This document summarizes the security-focused test suite created for Meow Decode
 | File | Tests | Purpose |
 |------|-------|---------|
 | `test_cat_errors.py` | 51 | Cat-themed error system, fur_ball_error, pounce_on_errors |
+| `test_phase5_modules.py` | 75 | Phase 5 module integration and surface area tests |
+| `test_stego_phase0.py` | 60 | Phase 0 steganography: palette, timing channel, carrier |
+| `test_stego_adversarial.py` | 57 | Adversarial stego: LSB tampering, noise injection, recovery |
+| `test_formal_fuzz_gaps.py` | 51 | Formal/fuzz gap coverage: boundary, adversarial, invariants |
+| `test_stego_multilayer.py` | 46 | Multi-layer stego: LSB + timing + palette combined |
+| `test_no_python_key_bytes.py` | 37 | Enforce no raw Python key bytes in production modules |
 | `test_cat_utils.py` | 78 | PurrLogger, NineLivesRetry, CatBreed, ASCII art |
 | `test_tamper_report.py` | 19 | TamperReport rendering, JSON export |
 | `test_bridge_protocol.py` | 21 | Mobile bridge wire protocol |
 | `test_fuzz_targets.py` | 122 | Comprehensive fuzz harness testing |
-| `test_fuzz_coverage_integration.py` | 38 | Guard page, gesture auth, tamper detection, stego rotation, Schrödinger structure |
+| `test_fuzz_coverage_integration.py` | 65 | Guard page, gesture auth, tamper detection, stego rotation, Schrödinger structure |
 | `test_property_based.py` | 20 | Hypothesis property-based tests |
 | `test_rust_crypto_backend.py` | 12 | Rust backend integration |
 | `test_hardware_integration.py` | 70 | Hardware security module integration |
@@ -106,14 +115,13 @@ This document summarizes the security-focused test suite created for Meow Decode
 
 | File | Tests | Purpose |
 |------|-------|---------|
-| `test_production_boundary.py` | — | Production module boundary enforcement |
+| `test_production_boundary.py` | 7 | Production module boundary enforcement |
 | `test_production_import_boundary.py` | 5 | Surface area regression: allowlist, staleness, archive guard |
-| `test_no_experimental_imports_in_production.py` | — | No experimental imports in production code |
-| `test_fail_closed_enforcement.py` | — | Fail-closed crypto enforcement |
-| `test_no_overclaims.py` | — | No security overclaims in docs |
-| `test_no_python_key_bytes.py` | — | No raw Python key bytes in production |
-| `test_zero_key_bytes.py` | — | Key zeroization enforcement |
-| `test_profile_required_and_checked.py` | — | Profile checks enforcement |
+| `test_no_experimental_imports_in_production.py` | 3 | No experimental imports in production code |
+| `test_fail_closed_enforcement.py` | 9 | Fail-closed crypto enforcement |
+| `test_no_overclaims.py` | 6 | No security overclaims in docs |
+| `test_zero_key_bytes.py` | 11 | Key zeroization enforcement |
+| `test_profile_required_and_checked.py` | 17 | Profile checks enforcement |
 
 ### Archived Tests (`tests/_archive/`)
 
@@ -127,14 +135,19 @@ See `docs/SURFACE_AREA_MINIMIZATION.md` for the complete list and restoration in
 
 ### Rust Crypto Backend Tests
 
-The project includes two Rust crypto packages with **676 total tests**:
+The project includes two Rust crypto packages with **973 total tests**:
 
-#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 306 tests
+#### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 432 tests
 
 | File | Tests | Purpose |
 |------|-------|-------|
-| `rust_crypto/src/pure.rs` (unit tests) | 41 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
-| `rust_crypto/tests/comprehensive_tests.rs` | 80 | Core crypto operations via PyO3 bindings |
+| `rust_crypto/src/pure.rs` (unit tests) | 46 | Pure Rust crypto operations: Argon2id, AES-GCM, HKDF, HMAC, SHA256, X25519, ML-KEM-1024 |
+| `rust_crypto/src/handles.rs` (unit tests) | 11 | HKDF handle functions and output length enforcement |
+| `rust_crypto/src/stego.rs` (unit tests) | 15 | Steganography Rust primitives |
+| `rust_crypto/src/lib.rs` (unit tests) | 8 | PyO3 binding smoke tests |
+| `rust_crypto/tests/comprehensive_tests.rs` | 90 | Core crypto operations via PyO3 bindings |
+| `rust_crypto/tests/coverage_boost_tests.rs` | 103 | Coverage boost: edge cases, boundary conditions, error paths |
+| `rust_crypto/tests/handle_coverage_tests.rs` | 74 | Handle-level coverage for all 6 HKDF handle functions |
 | `rust_crypto/tests/additional_security_tests.rs` | 29 | Security edge cases: zeroization, failure modes, boundary conditions |
 | `rust_crypto/tests/proptest_crypto.rs` | 23 | Property-based fuzzing with random inputs (original suite) |
 | `rust_crypto/tests/property_tests.rs` | 14 | Adversarial property tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, Argon2id domain separation, X25519 symmetry, HKDF domain separation |
@@ -152,17 +165,20 @@ The project includes two Rust crypto packages with **676 total tests**:
 | `fuzz_ratchet_step` | Replay, Nonce reuse, PCS violation |
 | `fuzz_full_decode_pipeline` | Partial decrypt leak, Truncation oracle, Replay |
 
-#### crypto_core - Formally Verified Primitives - 370 tests
+#### crypto_core - Formally Verified Primitives - 541 tests
 
 | File | Tests | Purpose |
-|------|-------|---------|
-| `crypto_core/src/*.rs` (unit tests) | 97 | Inline unit tests for AEAD, nonce, types, verus proofs; includes 8 GB-series runtime checks in `verus_guarded_buffer.rs` |
+|------|-------|------|
+| `crypto_core/src/*.rs` (unit tests) | 157 | Inline unit tests across all src modules: AEAD, nonce, types, Verus proofs, secure_alloc, GuardedBuffer (8 GB-series runtime), Verus KDF, Verus proofs |
 | `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
-| `crypto_core/tests/coverage_tests.rs` | 47 | Comprehensive coverage tests for edge cases |
-| `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests || `crypto_core/tests/golden_vectors.rs` | 22 | Frozen golden vectors: HKDF, HMAC, AES-GCM, SHA-256, Argon2id, AES-CTR, X25519, ratchet chain, frame MAC |
-| `crypto_core/tests/hsm_integration.rs` | — | HSM/PKCS#11 mock + real integration (feature-gated) |
-| `crypto_core/tests/tpm_integration.rs` | — | TPM2 mock + real integration (feature-gated) |
-| `crypto_core/tests/yubikey_integration.rs` | — | YubiKey PIV mock + real integration (feature-gated) |#### Requirements for Running Rust Tests
+| `crypto_core/tests/coverage_tests.rs` | 124 | Comprehensive coverage tests for edge cases |
+| `crypto_core/tests/comprehensive_coverage_tests.rs` | 112 | Comprehensive coverage, boundary, and error paths |
+| `crypto_core/tests/coverage_boost_tests.rs` | 54 | Additional coverage boost for crypto primitives |
+| `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests |
+| `crypto_core/tests/golden_vectors.rs` | 31 | Frozen golden vectors: HKDF, HMAC, AES-GCM, SHA-256, Argon2id, AES-CTR, X25519, ratchet chain, frame MAC |
+| `crypto_core/tests/hsm_integration.rs` | 12 | HSM/PKCS#11 mock + real integration (feature-gated) |
+| `crypto_core/tests/tpm_integration.rs` | 15 | TPM2 mock + real integration (feature-gated) |
+| `crypto_core/tests/yubikey_integration.rs` | 14 | YubiKey PIV mock + real integration (feature-gated) |
 
 ```bash
 # Install Rust (if not already installed)
@@ -190,8 +206,8 @@ cargo install cargo-tarpaulin
 | **crypto_core** | **Total (excl. hardware stubs)** | **331/338** | **97.9%** ✓ |
 
 **rust_crypto Coverage Note:** The `meow_crypto_rs` package uses PyO3 for Python bindings. Standard Rust coverage tools (cargo-tarpaulin, llvm-cov) cannot link the test binaries without Python symbols, preventing automated coverage measurement. However:
-- The `pure.rs` module (41 tests) covers all crypto operations
-- Integration tests (105 tests) verify PyO3 wrapper correctness
+- The `pure.rs` module (46 tests) covers all crypto operations
+- Integration tests (432 tests total) verify PyO3 wrapper correctness
 - The crypto logic is identical to the covered `crypto_core` primitives
 
 **Uncovered lines** (non-testable):
@@ -201,10 +217,10 @@ cargo install cargo-tarpaulin
 
 **Run Rust tests:**
 ```bash
-# rust_crypto (PyO3 bindings) - 206 tests
+# rust_crypto (PyO3 bindings) - 432 tests
 cargo test -p meow_crypto_rs              # All tests
-cargo test -p meow_crypto_rs pure::       # Pure module tests (41)
-cargo test --test comprehensive_tests     # Core functionality (80)
+cargo test -p meow_crypto_rs pure::       # Pure module tests (46)
+cargo test --test comprehensive_tests     # Core functionality (90)
 cargo test --test additional_security_tests  # Security edge cases (29)
 cargo test --test proptest_crypto         # Property-based fuzzing (23)
 cargo test --test property_tests          # Adversarial property tests (14)
@@ -374,11 +390,11 @@ pytest tests/test_fuzz_targets.py -v
 pytest tests/test_fuzz_targets.py tests/test_property_based.py -v
 
 # ============ Rust Crypto Tests ============
-# Run all 206 Rust crypto tests
+# Run all 432 Rust crypto tests
 cargo test -p meow_crypto_rs
 
 # Run individual Rust test suites
-cargo test --test comprehensive_tests         # 80 core tests
+cargo test --test comprehensive_tests         # 90 core tests
 cargo test --test additional_security_tests   # 29 security tests
 cargo test --test proptest_crypto             # 23 property tests
 ```
@@ -396,10 +412,10 @@ cargo test --test proptest_crypto             # 23 property tests
 
 # 🧪 Meow Decoder Testing Infrastructure - Complete Overview
 
-**Last Updated:** 2026-02-18
-**Phase:** Phase 5 Week 1 Complete + Post-Rust Migration Audit + Surface Area Minimization
-**Total Active Tests:** 2,380+ tests (Python) + 676 tests (Rust) = **3,056+ total active tests**
-**Active Test Files:** 83 Python test files + 9 Rust test files
+**Last Updated:** 2026-02-24
+**Phase:** Phase 5 Complete + Production React Native Mobile App + Post-Rust Migration Audit + Surface Area Minimization
+**Total Active Tests:** 2,462 tests (Python) + 973 tests (Rust) = **3,435 total active tests**
+**Active Test Files:** 68 Python test files + 9 Rust test files
 **Archived Test Files:** 52 Python test files in `tests/_archive/` (covering non-production modules)
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
 
@@ -624,14 +640,19 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 ## 🦀 Rust Test Suite
 
-**Total:** 676 tests across 2 packages
+**Total:** 973 tests across 2 packages
 
-### Package 1: rust_crypto (PyO3 Bindings) - 306 tests
+### Package 1: rust_crypto (PyO3 Bindings) - 432 tests
 
 | Module | Tests | Purpose |
 |--------|-------|---------|-----|
-| `src/pure.rs` (unit) | 41 | Pure Rust crypto (no PyO3) |
-| `tests/comprehensive_tests.rs` | 80 | PyO3 bindings |
+| `src/pure.rs` (unit) | 46 | Pure Rust crypto (no PyO3) |
+| `src/handles.rs` (unit) | 11 | HKDF handle functions |
+| `src/stego.rs` (unit) | 15 | Steganography primitives |
+| `src/lib.rs` (unit) | 8 | PyO3 binding smoke tests |
+| `tests/comprehensive_tests.rs` | 90 | PyO3 bindings |
+| `tests/coverage_boost_tests.rs` | 103 | Coverage boost: edge cases, boundary, error paths |
+| `tests/handle_coverage_tests.rs` | 74 | Handle-level coverage for all HKDF handle functions |
 | `tests/additional_security_tests.rs` | 29 | Security edge cases |
 | `tests/proptest_crypto.rs` | 23 | Property-based fuzzing (original suite) |
 | `tests/property_tests.rs` | 14 | Adversarial property tests: nonce uniqueness, ratchet monotonicity, replay, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD |
@@ -652,14 +673,20 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 - ✅ Hybrid combiner integrity (proptest)
 - ✅ FFI boundary: panic-free on all attacker-controlled inputs
 
-### Package 2: crypto_core (Formally Verified) - 370 tests
+### Package 2: crypto_core (Formally Verified) - 541 tests
 
 | Module | Tests | Coverage | Purpose |
 |--------|-------|----------|---------|
-| `src/pure_crypto.rs` | 89 | 100% | Pure crypto primitives |
-| `tests/coverage_tests.rs` | 47 | — | Edge case coverage |
+| `src/*.rs` (inline unit) | 157 | 97.9% | AEAD, nonce, Verus proofs, GuardedBuffer (GB-001–008), secure_alloc, types |
+| `tests/coverage_tests.rs` | 124 | — | Edge case coverage |
+| `tests/comprehensive_coverage_tests.rs` | 112 | — | Comprehensive coverage and boundary tests |
+| `tests/coverage_boost_tests.rs` | 54 | — | Additional coverage boost |
 | `tests/security_properties.rs` | 17 | — | Security invariants |
+| `tests/golden_vectors.rs` | 31 | — | Frozen golden vectors |
 | `tests/core_smoke.rs` | 5 | — | Smoke tests |
+| `tests/hsm_integration.rs` | 12 | — | HSM/PKCS#11 integration (feature-gated) |
+| `tests/tpm_integration.rs` | 15 | — | TPM2 integration (feature-gated) |
+| `tests/yubikey_integration.rs` | 14 | — | YubiKey PIV integration (feature-gated) |
 
 **What They Test:**
 - ✅ Verus formal verification proofs

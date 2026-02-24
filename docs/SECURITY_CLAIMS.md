@@ -16,7 +16,7 @@
 - Offers experimental ML-KEM-768/1024 post-quantum hybrid encryption.
   - **PQ mode is experimental. Not externally audited.**
 - Implemented primarily in Rust for crypto primitives (AES-GCM, HKDF, X25519, Argon2id).
-- Tested with 3200+ automated tests enforced in CI (2411 Python + 816 Rust).
+- Tested with 3435+ automated tests enforced in CI (2462 Python + 973 Rust).
 
 ## What This Project Is NOT
 

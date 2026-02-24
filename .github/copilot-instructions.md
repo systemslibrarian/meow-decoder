@@ -63,7 +63,7 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
    - Out-of-order support via skip key cache (MAX_SKIP_KEYS = 2000) for fountain code compatibility
    - Key zeroization: All chain_key, message_key, and subkeys zeroized after use
    - Frame format: `[encrypted_index(4)] [commitment(16)] [beacon?(32)] [AES-GCM ciphertext+tag]`
-   - 142 unit tests + 23 E2E pipeline tests
+   - 145 unit tests + 16 E2E pipeline tests
 
 ## Critical Development Patterns
 

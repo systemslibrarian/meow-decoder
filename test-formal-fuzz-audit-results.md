@@ -41,7 +41,7 @@ All 13 critical, high, and medium gaps identified in the initial 7.2/10 audit ha
 5. **Coverage gated at meaningful thresholds**: Python general >= 70%, security >= 80%, Tier 1 modules >= 85%. Rust coverage gated via Codecov (`fail_ci_if_error: true`).
 6. **Constant-time verification via Welch's t-test**: 3 dedicated test classes implementing dudect methodology (2000-iteration statistical tests with |t| < 4.5 threshold).
 7. **Mutation testing infrastructure**: Both Python (mutmut) and Rust (cargo-mutants) with CI workflow, 70% kill-rate threshold.
-8. **3,056+ total tests**: 2,380 Python + 676 Rust, with property-based suites at meaningful `max_examples` (>= 50 for all PQ tests).
+8. **3,435+ total tests**: 2,462 Python + 973 Rust, with property-based suites at meaningful `max_examples` (>= 50 for all PQ tests).
 
 ### Confidence Level: **High**
 
@@ -261,7 +261,7 @@ Coverage is now enforced at three tiers: 70% general, 80% security, 85% Tier 1 c
 ### 5.1 Overall Test Quality Assessment
 
 **Strengths:**
-- **3,056+ total tests**: 2,380 Python (67 files) + 676 Rust
+- **3,435+ total tests**: 2,462 Python (68 files) + 973 Rust
 - **65 integration tests** verifying fuzz target function coverage
 - **32 audit remediation tests** tracking security audit fix verification
 - **23 E2E crypto+fountain pipeline tests**

@@ -32,7 +32,7 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 #### CI — Parallel Test Batches (`ef9050e`)
 - Test job split into two parallel 30-minute batches to prevent timeouts on large test suites
-- Total coverage: 3227+ tests (2411 Python + 816 Rust)
+- Total coverage: 3435+ tests (2462 Python + 973 Rust)
 
 #### Dependency Updates (Dependabot)
 | Package | Old | New |
@@ -86,7 +86,7 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 #### Test Updates
 - 10+ tests in `test_decode_gif.py` aligned with fail-closed unsigned manifest rejection
 - `test_config.py` updated for lazy `ensure_dirs()` API
-- All 2411 Python tests collected, 816 Rust tests passing (3227+ total)
+- All 2462 Python tests collected, 973 Rust tests passing (3435+ total)
 
 ---
 
