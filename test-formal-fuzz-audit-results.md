@@ -1,9 +1,9 @@
 # test-formal-fuzz-audit-results.md
 
-**Audit Date:** 2025-07-15 (initial), 2025-07-15 (remediation complete)
+**Audit Date:** 2025-07-15 (initial), 2025-07-15 (remediation complete), 2026-02-24 (re-verified)
 **Auditor Role:** Independent formal verification and fuzzing specialist
 **Scope:** Formal verification, fuzzing, property-based testing, coverage, reachability, and test quality
-**Codebase:** Meow Decoder (`main` branch, post-remediation)
+**Codebase:** Meow Decoder (`main` branch, commit `b2841e5`)
 
 ---
 
