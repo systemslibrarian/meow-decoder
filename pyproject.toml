@@ -211,6 +211,8 @@ module = [
     "meow_decoder.size_normalizer",
     "meow_decoder.source_cleanup",
     "meow_decoder.stego_multilayer",
+    # Archive/legacy subpackage — pre-existing type errors not maintained
+    "meow_decoder._archive.*",
 ]
 ignore_errors = true
 

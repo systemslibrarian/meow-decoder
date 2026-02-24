@@ -71,14 +71,19 @@ HIDDEN_IMPORTS = [
 ]
 
 # Data files to include
-DATA_FILES = [
-    # Rust shared library
-    (str(ROOT / "crypto_core" / "pkg" / "*.so"), "crypto_core/pkg"),
-    (str(ROOT / "crypto_core" / "pkg" / "*.dll"), "crypto_core/pkg"),
-    (str(ROOT / "crypto_core" / "pkg" / "*.dylib"), "crypto_core/pkg"),
-    # Assets
-    (str(ROOT / "assets" / "*"), "assets"),
-]
+DATA_FILES = []
+
+# Rust shared library (crypto_core/pkg/ — only present after wasm-pack build)
+_pkg_dir = ROOT / "crypto_core" / "pkg"
+if _pkg_dir.exists():
+    for ext in ["*.so", "*.dll", "*.dylib"]:
+        for _f in _pkg_dir.glob(ext):
+            DATA_FILES.append((str(_f), "crypto_core/pkg"))
+
+# Assets
+_assets_dir = ROOT / "assets"
+if _assets_dir.exists():
+    DATA_FILES.append((str(_assets_dir / "*"), "assets"))
 
 # Binary dependencies (Rust .so/.dll)
 BINARIES = []
