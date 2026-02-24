@@ -90,13 +90,20 @@ jobs:
 
             # ./build detects the absence of lablgtk2 and builds only the
             # command-line proverif binary (not proverifinter).
+            # Note: ./build may exit non-zero when the optional lablgtk2 GUI
+            # package is missing. This is harmless — the CLI binary is still
+            # produced. We capture the exit code and check for the binary.
+            set +e
             ./build 2>&1
+            BUILD_EXIT=$?
+            set -e
 
-            # Hard-fail if the binary was not produced — do NOT use || true here.
+            # Hard-fail if the binary was not produced.
             if [ ! -f proverif ]; then
-              echo "ERROR: proverif binary not found after ./build"
+              echo "ERROR: proverif binary not found after ./build (exit $BUILD_EXIT)"
               exit 1
             fi
+            echo "ProVerif CLI binary built successfully (build exit=$BUILD_EXIT)."
             sudo cp proverif /usr/local/bin/proverif
             cd -
           fi

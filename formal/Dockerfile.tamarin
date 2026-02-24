@@ -10,13 +10,35 @@
 
 FROM debian:bookworm-slim
 
-# Install runtime dependencies for Tamarin (Maude, GraphViz, etc.)
+# Install runtime dependencies for Tamarin (GraphViz, etc.)
+# Note: Debian bookworm ships Maude 3.2, which Tamarin does NOT support
+# (requires 3.2.1+). We install Maude 3.5.1 from the official release instead.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    maude \
     graphviz \
     ca-certificates \
     curl \
+    libgmp10 \
+    libncurses6 \
+    libtinfo6 \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Maude 3.5.1 from official release (Tamarin-compatible, supports 3.5)
+# Repo moved from SRI-CSL/Maude to maude-lang/Maude.
+RUN curl -sL -o /tmp/maude.zip \
+      "https://github.com/maude-lang/Maude/releases/download/Maude3.5.1/Maude-3.5.1-linux-x86_64.zip" \
+    && apt-get update && apt-get install -y --no-install-recommends unzip && rm -rf /var/lib/apt/lists/* \
+    && unzip -q /tmp/maude.zip -d /opt/maude \
+    && MAUDE_BIN=$(find /opt/maude -name 'maude.linux64' -o -name 'maude' -type f | head -1) \
+    && if [ -z "$MAUDE_BIN" ]; then find /opt/maude -type f && echo "ERROR: maude binary not found" && exit 1; fi \
+    && MAUDE_DIR=$(dirname "$MAUDE_BIN") \
+    && cp "$MAUDE_BIN" /usr/local/bin/maude \
+    && chmod +x /usr/local/bin/maude \
+    && mkdir -p /usr/local/share/maude \
+    && cp "$MAUDE_DIR/"*.maude /usr/local/share/maude/ 2>/dev/null || true \
+    && rm /tmp/maude.zip
+
+# Maude needs MAUDE_LIB to find its prelude files
+ENV MAUDE_LIB=/usr/local/share/maude
 
 # Install Tamarin from official GitHub release binary
 # Using v1.10.0 — latest stable (1.8.1 never existed; went 1.8.0 → 1.10.0)

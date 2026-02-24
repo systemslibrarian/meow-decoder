@@ -14,7 +14,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     z3 \
     ca-certificates \
+    gcc \
     && rm -rf /var/lib/apt/lists/*
+
+# Verus >= 0.2026.02.15 requires rustup at runtime (it invokes rustc internally).
+# Install rustup with the specific toolchain Verus expects.
+ENV RUSTUP_HOME=/usr/local/rustup \
+    CARGO_HOME=/usr/local/cargo \
+    PATH=/usr/local/cargo/bin:$PATH
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --default-toolchain 1.93.0-x86_64-unknown-linux-gnu --profile minimal \
+    && rustup --version && rustc --version
 
 # Pin Verus to a specific known-working release.
 # See https://github.com/verus-lang/verus/releases for available tags.

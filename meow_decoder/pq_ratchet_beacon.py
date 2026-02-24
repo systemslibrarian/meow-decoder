@@ -390,10 +390,12 @@ class PQBeaconFrame:
             return None
 
         ct_len = struct.unpack(">H", data[5:7])[0]
+        if ct_len == 0:
+            return None
         if len(data) < 7 + ct_len:
             return None
 
-        ciphertext = data[7 : 7 + ct_len]
+        ciphertext = data[7: 7 + ct_len]
         return cls(ciphertext=ciphertext)
 
     @classmethod
