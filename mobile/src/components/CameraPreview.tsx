@@ -1,12 +1,13 @@
 /**
- * CameraPreview.tsx — Vision Camera wrapper with frame processor.
+ * CameraPreview.tsx — Vision Camera v4 wrapper with native code scanner.
  *
- * Encapsulates camera permission handling, device selection, and
- * mounting the frame processor returned by useQRScanner.
- *
- * The camera stays active only while a capture session is in progress,
- * releasing resources during IDLE and COMPLETE states to conserve battery
- * and reduce thermal load.
+ * Features:
+ *  - Native QR scanning via VisionCamera v4 useCodeScanner (MLKit / AVFoundation)
+ *  - Pinch-to-zoom with clamped range (1× → min(maxZoom, 6×))
+ *  - Exposure bias quick-adjust (−2 … +2 in 0.5 steps) for glare & low-light
+ *  - Torch toggle
+ *  - Privacy overlay on app backgrounding (iOS task-switcher snapshot defense)
+ *  - Camera stays inactive during IDLE/COMPLETE/EXPORTING to conserve battery
  */
 
 import React, { useCallback, useState } from 'react';
@@ -18,47 +19,81 @@ import {
   Linking,
   Platform,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  useSharedValue,
+  useAnimatedProps,
+  clamp,
+} from 'react-native-reanimated';
 import {
   Camera,
   useCameraDevice,
   useCameraPermission,
+  type CodeScanner,
 } from 'react-native-vision-camera';
-import type { ReadonlyFrameProcessor } from 'react-native-vision-camera';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { CAMERA_FPS } from '../constants/config';
 
+// Animated Camera lets us drive the `zoom` prop from a shared value
+// on the UI thread — no JS-thread round-trip per gesture event.
+const AnimatedCamera = Animated.createAnimatedComponent(Camera);
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 interface CameraPreviewProps {
-  /** The frame processor from useQRScanner — runs on worklet thread */
-  frameProcessor: ReadonlyFrameProcessor;
+  /** VisionCamera v4 code scanner — pass codeScanner from useQRScanner */
+  codeScanner: CodeScanner;
   /** Current capture status — controls isActive prop */
   status: CaptureState;
   /** Show torch toggle button */
   showTorchToggle?: boolean;
+  /** When true renders a solid privacy overlay (iOS task-switcher defense) */
+  isBackgrounding?: boolean;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export const CameraPreview = React.memo(function CameraPreview({
-  frameProcessor,
+  codeScanner,
   status,
   showTorchToggle = true,
+  isBackgrounding = false,
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const [torch, setTorch] = useState<'off' | 'on'>('off');
+  const [exposureBias, setExposureBias] = useState(0);
 
-  const isActive =
-    status === 'AWAITING_GIF' || status === 'CAPTURING';
+  // ── Pinch-to-zoom ─────────────────────────────────────────────────────────
+  const zoomSV = useSharedValue(device?.neutralZoom ?? 1);
+  const pinchStartZoom = useSharedValue(1);
 
-  const toggleTorch = useCallback(() => {
-    setTorch((prev) => (prev === 'off' ? 'on' : 'off'));
-  }, []);
+  const pinchGesture = Gesture.Pinch()
+    .onStart(() => {
+      pinchStartZoom.value = zoomSV.value;
+    })
+    .onUpdate((e) => {
+      const minZ = device?.minZoom ?? 1;
+      // Cap at 6× — beyond this QR decode reliability degrades significantly
+      const maxZ = Math.min(device?.maxZoom ?? 10, 6);
+      zoomSV.value = clamp(pinchStartZoom.value * e.scale, minZ, maxZ);
+    });
 
-  const openSettings = useCallback(() => {
-    void Linking.openSettings();
+  const animatedCameraProps = useAnimatedProps(() => ({
+    zoom: zoomSV.value,
+  }));
+
+  const isActive = status === 'AWAITING_GIF' || status === 'CAPTURING';
+
+  const toggleTorch = useCallback(() => setTorch((p) => (p === 'off' ? 'on' : 'off')), []);
+  const openSettings = useCallback(() => void Linking.openSettings(), []);
+
+  const nudgeExposure = useCallback((delta: number) => {
+    setExposureBias((v) => {
+      const next = v + delta;
+      return Math.round(Math.max(-2, Math.min(2, next)) * 2) / 2; // snap to 0.5 steps
+    });
   }, []);
 
   // ── Permission denied ─────────────────────────────────────────────────────
@@ -73,8 +108,9 @@ export const CameraPreview = React.memo(function CameraPreview({
         </Text>
         <TouchableOpacity
           style={styles.permissionButton}
-          onPress={requestPermission}
+          onPress={Platform.OS === 'ios' ? openSettings : requestPermission}
           accessibilityRole="button"
+          accessibilityLabel="Grant camera permission"
         >
           <Text style={styles.permissionButtonText}>
             {Platform.OS === 'ios' ? 'Open Settings' : 'Grant Permission'}
@@ -96,34 +132,77 @@ export const CameraPreview = React.memo(function CameraPreview({
     );
   }
 
-  // ── Active camera feed ────────────────────────────────────────────────────
   return (
-    <View style={styles.fill}>
-      <Camera
-        style={StyleSheet.absoluteFill}
-        device={device}
-        isActive={isActive}
-        frameProcessor={frameProcessor}
-        fps={CAMERA_FPS}
-        pixelFormat="yuv"
-        torch={torch}
-        enableZoomGesture={false}
-        // Disable audio — microphone permission must not be requested
-        audio={false}
-      />
+    <GestureDetector gesture={pinchGesture}>
+      <View style={styles.fill}>
+        {/* ── Camera feed ─────────────────────────────────────────────────── */}
+        <AnimatedCamera
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={isActive && !isBackgrounding}
+          codeScanner={codeScanner}
+          fps={CAMERA_FPS}
+          pixelFormat="yuv"
+          torch={torch}
+          enableZoomGesture={false}  // handled via GestureDetector above
+          audio={false}              // microphone permission must NOT be requested
+          // Exposure bias: compensates for bright laptop screens (glare)
+          // or dim environments. Range: device.minExposure … device.maxExposure
+          exposure={exposureBias}
+          animatedProps={animatedCameraProps}
+        />
 
-      {/* Torch toggle */}
-      {showTorchToggle && device.hasTorch && (
-        <TouchableOpacity
-          style={styles.torchButton}
-          onPress={toggleTorch}
-          accessibilityLabel={torch === 'on' ? 'Turn torch off' : 'Turn torch on'}
-          accessibilityRole="button"
-        >
-          <Text style={styles.torchIcon}>{torch === 'on' ? '🔦' : '💡'}</Text>
-        </TouchableOpacity>
-      )}
-    </View>
+        {/* ── Privacy overlay (iOS task-switcher snapshot defense) ───────── */}
+        {isBackgrounding && (
+          <View
+            style={styles.privacyOverlay}
+            accessibilityLabel="Screen content hidden"
+          >
+            <Text style={styles.privacyIcon}>🐱</Text>
+          </View>
+        )}
+
+        {/* ── Torch toggle ────────────────────────────────────────────────── */}
+        {showTorchToggle && device.hasTorch && !isBackgrounding && (
+          <TouchableOpacity
+            style={styles.torchButton}
+            onPress={toggleTorch}
+            accessibilityLabel={torch === 'on' ? 'Turn torch off' : 'Turn torch on'}
+            accessibilityRole="button"
+          >
+            <Text style={styles.torchIcon}>{torch === 'on' ? '🔦' : '💡'}</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* ── Exposure bias controls ───────────────────────────────────────── */}
+        {isActive && !isBackgrounding && (
+          <View style={styles.exposureRow}>
+            <TouchableOpacity
+              style={styles.exposureBtn}
+              onPress={() => nudgeExposure(-0.5)}
+              accessibilityLabel="Decrease exposure — reduce glare from bright screen"
+              accessibilityRole="button"
+            >
+              <Text style={styles.exposureText}>☀−</Text>
+            </TouchableOpacity>
+            <Text
+              style={styles.exposureLabel}
+              accessibilityLabel={`Exposure bias ${exposureBias}`}
+            >
+              {exposureBias > 0 ? `+${exposureBias}` : String(exposureBias)}
+            </Text>
+            <TouchableOpacity
+              style={styles.exposureBtn}
+              onPress={() => nudgeExposure(0.5)}
+              accessibilityLabel="Increase exposure — brighten dim screen"
+              accessibilityRole="button"
+            >
+              <Text style={styles.exposureText}>☀+</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
+    </GestureDetector>
   );
 });
 
@@ -169,9 +248,21 @@ const styles = StyleSheet.create({
     fontSize: Typography.md,
     fontWeight: Typography.bold,
   },
+  // Privacy overlay — covers camera feed during app backgrounding so the
+  // OS task-switcher snapshot shows a neutral placeholder.
+  privacyOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  privacyIcon: {
+    fontSize: 64,
+    opacity: 0.3,
+  },
   torchButton: {
     position: 'absolute',
-    top: 60,
+    top: Platform.OS === 'ios' ? 60 : 40,
     right: Spacing.lg,
     width: 48,
     height: 48,
@@ -182,5 +273,35 @@ const styles = StyleSheet.create({
   },
   torchIcon: {
     fontSize: 24,
+  },
+  // Exposure controls — bottom-center pill
+  exposureRow: {
+    position: 'absolute',
+    bottom: 108,
+    alignSelf: 'center',
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.60)',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    gap: Spacing.xs,
+  },
+  exposureBtn: {
+    padding: Spacing.xs,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  exposureText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.md,
+    fontWeight: Typography.semibold,
+  },
+  exposureLabel: {
+    color: Colors.catGold,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+    minWidth: 28,
+    textAlign: 'center',
   },
 });

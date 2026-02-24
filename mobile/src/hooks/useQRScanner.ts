@@ -1,23 +1,20 @@
 /**
- * useQRScanner.ts — Vision Camera frame processor for QR detection.
+ * useQRScanner.ts — Vision Camera v4 native code scanner.
  *
- * Processes camera frames on the worklet thread (never the JS thread),
- * extracts QR payloads, validates them as meow-decoder frames, and
- * dispatches to the capture state machine.
+ * Uses VisionCamera v4's first-class `useCodeScanner` hook which drives
+ * native MLKit (Android) / AVFoundation (iOS) directly. The callback fires
+ * on the JS thread — no worklet bridge required.
  *
- * Includes a GIF auto-detection heuristic: when 3+ distinct QR codes
- * are detected within a 500ms window, we infer the source is an animated
- * GIF and call onGifDetected().
+ * This replaces the abandoned `vision-camera-code-scanner` v0.2 worklet
+ * approach, which used an inline require() inside a worklet — fragile,
+ * unmaintained, and silently broken on Android 14+ / iOS 17+ targets.
  *
- * SECURITY: The worklet never stores frame image data. Only the decoded
- * string value is passed to the JS thread, and only after validation.
+ * SECURITY: Only decoded string values are processed — no image data ever
+ * leaves the camera frame. Non-meow-protocol QR codes are dropped immediately.
  */
 
 import { useCallback, useRef } from 'react';
-import { useFrameProcessor } from 'react-native-vision-camera';
-// useRunOnJS replaces the deprecated Worklets.createRunInJsFn (now typed `never`).
-// It memoizes a JS-thread callback and returns a worklet-safe wrapper.
-import { useRunOnJS } from 'react-native-worklets-core';
+import { useCodeScanner, type CodeScanner } from 'react-native-vision-camera';
 import type { CapturedFrame } from '../types/capture';
 import { parseQRPayload } from '../services/qrDecoder';
 import {
@@ -33,15 +30,15 @@ export interface UseQRScannerOptions {
   sessionId?: string;
   /** Called with each newly discovered frame (not duplicates) */
   onFrame: (frame: CapturedFrame) => void;
-  /** Called when animated GIF pattern detected */
+  /** Called when animated GIF pattern is detected */
   onGifDetected: () => void;
-  /** Pause/resume scanning without unmounting the frame processor */
+  /** Pause scanning without unmounting the component */
   enabled: boolean;
 }
 
 export interface UseQRScannerReturn {
-  /** Attach to Camera component's frameProcessor prop */
-  frameProcessor: ReturnType<typeof useFrameProcessor>;
+  /** Pass directly to <Camera codeScanner={...} /> */
+  codeScanner: CodeScanner;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -52,119 +49,94 @@ export function useQRScanner({
   onGifDetected,
   enabled,
 }: UseQRScannerOptions): UseQRScannerReturn {
-  // Refs are accessible in worklets via .value pattern
   const lastScannedRef = useRef<string>('');
   const lastTimestampRef = useRef<number>(0);
   const recentCodesRef = useRef<Array<{ value: string; time: number }>>([]);
   const gifDetectedRef = useRef<boolean>(false);
 
-  // Worklet-safe callbacks via useRunOnJS.
-  // These are called from the worklet thread and execute on the JS thread.
-  // useRunOnJS replaces deprecated Worklets.createRunInJsFn (typed `never` in v1.3+).
-  const handleFrameJS = useRunOnJS(
-    useCallback(
-      (qrValue: string, timestamp: number) => {
-        const payload = parseQRPayload(qrValue, sessionId);
+  const codeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+
+    onCodeScanned: useCallback(
+      (codes) => {
+        if (!enabled) return;
+
+        const qrData = codes[0]?.value;
+        if (!qrData || qrData.length === 0) return;
+
+        const now = Date.now();
+
+        // ── Dedup: skip identical payload within the dedup window ───────────
+        if (
+          qrData === lastScannedRef.current &&
+          now - lastTimestampRef.current < QR_DEDUP_INTERVAL_MS
+        ) {
+          return;
+        }
+
+        lastScannedRef.current = qrData;
+        lastTimestampRef.current = now;
+
+        // ── Fast prefix filter — discard non-meow QR codes immediately ──────
+        // IMPORTANT: keep in sync with QR_PREFIXES in qrDecoder.ts and
+        // isMeowQRPayload(). Any new prefix added there must be added here too.
+        const isMeow =
+          qrData.startsWith('FOUNTAIN:') ||
+          qrData.startsWith('MEOW:') ||
+          qrData.startsWith('FS:') ||
+          qrData.startsWith('QUANTUM:') ||
+          qrData.startsWith('HYBRID-PQ:') ||
+          qrData.startsWith('DURESS:') ||    // single-frame duress
+          qrData.startsWith('DURESS-') ||    // legacy chunked large-duress
+          qrData.startsWith('MEOW-') ||      // legacy chunked large-MEOW
+          qrData.startsWith('{');            // JSON bridge / CLI session mode
+
+        if (!isMeow) return;
+
+        // ── GIF auto-detection heuristic ─────────────────────────────────────
+        if (!gifDetectedRef.current) {
+          const isSingleFrame =
+            qrData.startsWith('MEOW:') ||
+            qrData.startsWith('FS:') ||
+            qrData.startsWith('QUANTUM:') ||
+            qrData.startsWith('HYBRID-PQ:') ||
+            qrData.startsWith('DURESS:');
+
+          if (isSingleFrame) {
+            gifDetectedRef.current = true;
+            onGifDetected();
+          } else {
+            const recent = recentCodesRef.current;
+            const cutoff = now - GIF_DETECT_WINDOW_MS;
+            const fresh = recent.filter((r) => r.time >= cutoff);
+            if (!fresh.some((r) => r.value === qrData)) {
+              fresh.push({ value: qrData, time: now });
+            }
+            recentCodesRef.current = fresh;
+
+            const uniqueCount = new Set(fresh.map((e) => e.value)).size;
+            if (uniqueCount >= GIF_DETECT_MIN_UNIQUE) {
+              gifDetectedRef.current = true;
+              recentCodesRef.current = [];
+              onGifDetected();
+            }
+          }
+        }
+
+        // ── Parse + dispatch frame to capture state machine ──────────────────
+        const payload = parseQRPayload(qrData, sessionId);
         if (!payload) return;
 
         onFrame({
           index: payload.index,
           data: payload.data,
-          timestamp_ms: timestamp,
+          timestamp_ms: now,
         });
       },
-      [sessionId, onFrame],
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [enabled, sessionId, onFrame, onGifDetected],
     ),
-    [sessionId, onFrame],
-  );
+  });
 
-  const handleGifDetectedJS = useRunOnJS(
-    useCallback(() => {
-      if (!gifDetectedRef.current) {
-        gifDetectedRef.current = true;
-        onGifDetected();
-      }
-    }, [onGifDetected]),
-    [onGifDetected],
-  );
-
-  const frameProcessor = useFrameProcessor(
-    (frame) => {
-      'worklet';
-      if (!enabled) return;
-
-      // Import scanCodes inline — worklets can't use module-level imports
-      // from non-worklet packages. The camera barcode scanner plugin wraps
-      // this for us when using vision-camera-code-scanner or @mgcrea variant.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { scanCodes } = require('vision-camera-code-scanner') as any;
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-      const codes: Array<{ value?: string }> = scanCodes(frame, { types: ['qr'] });
-      if (!codes || codes.length === 0) return;
-
-      const now = Date.now();
-      const qrData = codes[0]?.value;
-      if (!qrData || qrData.length === 0) return;
-
-      // Skip rapid-fire identical content within dedup interval
-      if (
-        qrData === lastScannedRef.current &&
-        now - lastTimestampRef.current < QR_DEDUP_INTERVAL_MS
-      ) {
-        return;
-      }
-
-      lastScannedRef.current = qrData;
-      lastTimestampRef.current = now;
-
-      // Inline prefix check for worklet thread — can't call module functions.
-      // IMPORTANT: must stay in sync with QR_PREFIXES in qrDecoder.ts and the
-      // isMeowQRPayload() function.  Any new prefix added there must be added here too.
-      const isMeow =
-        qrData.startsWith('FOUNTAIN:') ||
-        qrData.startsWith('MEOW:') ||
-        qrData.startsWith('FS:') ||
-        qrData.startsWith('QUANTUM:') ||
-        qrData.startsWith('HYBRID-PQ:') ||
-        qrData.startsWith('DURESS:') ||   // single-frame duress
-        qrData.startsWith('DURESS-') ||   // legacy chunked large-duress (DURESS-N/total:)
-        qrData.startsWith('MEOW-') ||     // legacy chunked large-MEOW (MEOW-N/total:)
-        qrData.startsWith('{');           // JSON bridge / CLI session mode
-
-      if (!isMeow) return; // ignore non-meow QR codes entirely
-
-      // ── GIF auto-detection heuristic ─────────────────────────────────────
-      if (!gifDetectedRef.current) {
-        // Single-frame formats: trigger immediately on first valid scan
-        const isSingleFrame =
-          qrData.startsWith('MEOW:') ||
-          qrData.startsWith('FS:') ||
-          qrData.startsWith('QUANTUM:') ||
-          qrData.startsWith('HYBRID-PQ:') ||
-          qrData.startsWith('DURESS:');
-
-        if (isSingleFrame) {
-          handleGifDetectedJS();
-        } else {
-          // Multi-frame: require GIF_DETECT_MIN_UNIQUE distinct codes within window
-          const recent = recentCodesRef.current;
-          recent.push({ value: qrData, time: now });
-          const cutoff = now - GIF_DETECT_WINDOW_MS;
-          recentCodesRef.current = recent.filter((e) => e.time >= cutoff);
-
-          const uniqueCount = new Set(recentCodesRef.current.map((e) => e.value))
-            .size;
-          if (uniqueCount >= GIF_DETECT_MIN_UNIQUE) {
-            handleGifDetectedJS();
-          }
-        }
-      }
-
-      // ── Dispatch to JS thread ─────────────────────────────────────────────
-      handleFrameJS(qrData, now);
-    },
-    [enabled, handleFrameJS, handleGifDetectedJS],
-  );
-
-  return { frameProcessor };
+  return { codeScanner };
 }

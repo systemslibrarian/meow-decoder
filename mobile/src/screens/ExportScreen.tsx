@@ -20,6 +20,8 @@ import {
   ActivityIndicator,
   Share,
 } from 'react-native';
+import ReactNativeBiometrics from 'react-native-biometrics';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import QRCode from 'react-native-qrcode-svg';
 import { exportResponse } from '../services/jsonExporter';
 import { buildQRExportChunks } from '../services/jsonExporter';
@@ -28,6 +30,9 @@ import type { ExportScreenProps } from '../types/navigation';
 import { useCatToast } from '../components/CatToast';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { formatPercent, formatFileSize } from '../utils/formatters';
+
+const HAPTIC_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSettings: false };
+const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -38,6 +43,9 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   const [exporting, setExporting] = useState(false);
   const [exportResult, setExportResult] = useState<ExportResult | null>(null);
   const [exportError, setExportError] = useState<string | null>(null);
+  // true until the user explicitly taps "Confirm & Export"
+  const [awaitingConfirm, setAwaitingConfirm] = useState(true);
+  const [biometricAvailable, setBiometricAvailable] = useState(false);
 
   // QR fallback state
   const [qrMode, setQrMode] = useState(false);
@@ -56,27 +64,53 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
     ratio >= 0.67 ? { label: 'Possibly recoverable', color: Colors.warning } :
     { label: 'May not decode', color: Colors.danger };
 
-  // ── Export handler ─────────────────────────────────────────────────────────
+  // ── Check biometric availability on mount ──────────────────────────────────
+  // SECURITY: No auto-export. The user must explicitly confirm and pass
+  // biometrics (if available) before any data is written to disk. This
+  // prevents an adversary with physical access from getting the export simply
+  // by opening the app while it transitions to ExportScreen.
+  useEffect(() => {
+    void rnBiometrics.isSensorAvailable().then(({ available }: { available: boolean }) => {
+      setBiometricAvailable(available);
+    }).catch(() => {
+      // Biometrics unavailable — fall through to unguarded export button
+      setBiometricAvailable(false);
+    });
+  }, []);
+
+  // ── Biometric-gated export handler ─────────────────────────────────────────
   const handleExport = useCallback(async () => {
+    // Gate with biometrics when a sensor is enrolled; fall through if not
+    if (biometricAvailable) {
+      const { success } = await rnBiometrics.simplePrompt({
+        promptMessage: 'Confirm export to device storage',
+        cancelButtonText: 'Cancel',
+      }).catch(() => ({ success: false }));
+
+      if (!success) {
+        ReactNativeHapticFeedback.trigger('notificationWarning', HAPTIC_OPTIONS);
+        showToast({ message: 'Export cancelled 🐱', type: 'info' });
+        return;
+      }
+    }
+
+    setAwaitingConfirm(false);
     setExporting(true);
     setExportError(null);
     try {
       const result = await exportResponse(response);
       setExportResult(result);
+      ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
       showToast({ message: 'Delivered to Downloads! 📦🐾', type: 'success' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setExportError(`Export failed: ${msg}`);
+      ReactNativeHapticFeedback.trigger('notificationError', HAPTIC_OPTIONS);
       showToast({ message: 'Hiss... export failed 🙀', type: 'error' });
     } finally {
       setExporting(false);
     }
-  }, [response, showToast]);
-
-  // Auto-export on mount for smooth UX
-  useEffect(() => {
-    void handleExport();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [response, showToast, biometricAvailable]);
 
   // Memoize chunk count — avoids re-serializing the full response on every render
   const qrChunkCount = useMemo(
@@ -101,6 +135,76 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       // User dismissed share sheet — not an error
     }
   }, [exportResult]);
+
+  // ── Confirmation card (shown before export is triggered) ──────────────────
+  if (awaitingConfirm && !exporting && !exportResult) {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <ScrollView contentContainerStyle={styles.scroll}>
+          <Text style={styles.title}>
+            {reason === 'timeout' ? '⏰ Capture ended' : '🎉 Capture complete'}
+          </Text>
+
+          {/* Summary card */}
+          <View style={styles.card}>
+            <Row label="Frames captured" value={`${captured} / ${expected}`} />
+            <Row label="Coverage" value={pct} />
+            <Row label="Frames missed" value={String(response.frames_missed)} />
+            <View style={styles.statusRow}>
+              <Text style={styles.rowLabel}>Recovery estimate</Text>
+              <Text style={[styles.statusValue, { color: recoveryStatus.color }]}>
+                {recoveryStatus.label}
+              </Text>
+            </View>
+          </View>
+
+          {/* Explicit export CTA */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Export to device storage</Text>
+            <Text style={styles.cardBody}>
+              Writes the capture JSON to your Downloads folder for USB/ADB retrieval.
+              {biometricAvailable ? '\nBiometric confirmation will be required.' : ''}
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, { backgroundColor: recoveryStatus.color }]}
+              onPress={handleExport}
+              accessibilityRole="button"
+              accessibilityLabel={biometricAvailable ? 'Confirm export with biometrics' : 'Export capture data to device storage'}
+            >
+              <Text style={styles.primaryButtonText}>
+                {biometricAvailable ? '🔒 Confirm & Export' : '📦 Export to Downloads'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* QR fallback option */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>No USB? Use optical transfer</Text>
+            <Text style={styles.cardBody}>
+              Display the capture as QR codes to scan on the air-gapped machine.
+            </Text>
+            <TouchableOpacity
+              style={styles.secondaryButton}
+              onPress={startQrFallback}
+              accessibilityRole="button"
+            >
+              <Text style={styles.secondaryButtonText}>
+                📲 Show as QR codes ({qrChunkCount} screens)
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity
+            style={styles.ghostButton}
+            onPress={() => navigation.navigate('Home')}
+            accessibilityRole="button"
+          >
+            <Text style={styles.ghostButtonText}>✕ Discard capture</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
 
   // ── QR Mode ────────────────────────────────────────────────────────────────
   if (qrMode && qrChunks.length > 0) {

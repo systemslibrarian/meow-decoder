@@ -19,23 +19,31 @@ import {
   Text,
   StyleSheet,
   TouchableOpacity,
+  AppState,
   Platform,
 } from 'react-native';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useCatToast } from '../components/CatToast';
 import { CameraPreview } from '../components/CameraPreview';
 import { ProgressHUD } from '../components/ProgressHUD';
 import { FrameOverlay } from '../components/FrameOverlay';
 import { StabilityIndicator } from '../components/StabilityIndicator';
 import { useSessionManager } from '../hooks/useSessionManager';
+import { useSecureScreen } from '../hooks/useSecureScreen';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { formatCountdown } from '../utils/formatters';
 import type { CaptureScreenProps } from '../types/navigation';
+
+const HAPTIC_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSettings: false };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const { request } = route.params;
   const { showToast } = useCatToast();
+
+  // ── Security: privacy overlay + FLAG_SECURE (Android via MainActivity.kt) ──
+  const { isBackgrounding } = useSecureScreen();
 
   const {
     status,
@@ -52,7 +60,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     cancel,
     markExporting,
     buildResponse,
-    frameProcessor,
+    codeScanner,
   } = useSessionManager();
 
   // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
@@ -79,17 +87,49 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     }
   }, [status, buildResponse, markExporting, navigation]);
 
-  // Handle cancel
+  // ── Foreground recovery ────────────────────────────────────────────────────
+  // useCapture dispatches RESET when the app backgrounds (security wipe).
+  // On returning to foreground the screen is in a terminal IDLE state —
+  // send the user home so they can start a clean session rather than staring
+  // at a dead camera feed with no frames.
+  const didBackgroundRef = useRef(false);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'background' || nextState === 'inactive') {
+        didBackgroundRef.current = true;
+      } else if (nextState === 'active' && didBackgroundRef.current) {
+        didBackgroundRef.current = false;
+        navigation.replace('Home');
+      }
+    });
+    return () => sub.remove();
+  }, [navigation]);
+
+  // Handle cancel (with haptic)
   const handleCancel = () => {
+    ReactNativeHapticFeedback.trigger('impactMedium', HAPTIC_OPTIONS);
     cancel();
     navigation.goBack();
   };
 
-  // ── Milestone toasts ───────────────────────────────────────────────────────
+  // Handle manual stop (with haptic)
+  const handleStop = () => {
+    ReactNativeHapticFeedback.trigger('impactHeavy', HAPTIC_OPTIONS);
+    stop();
+  };
+
+  // ── Milestone toasts + haptics ─────────────────────────────────────────────
   const firedMilestonesRef = useRef(new Set<number>());
   useEffect(() => {
     if (lastMilestone === null || firedMilestonesRef.current.has(lastMilestone)) return;
     firedMilestonesRef.current.add(lastMilestone);
+
+    // Graduated haptic: light ticks for progress, success pop for completion
+    if (lastMilestone === 1.0) {
+      ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
+    } else {
+      ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+    }
 
     const TOASTS: Record<number, { message: string; type: 'milestone' | 'success' }> = {
       0.25: { message: 'Purrfect progress! 25% 🐱', type: 'milestone' },
@@ -125,8 +165,12 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <View style={styles.container}>
-      {/* Full-screen camera with frame processor */}
-      <CameraPreview frameProcessor={frameProcessor} status={status} />
+      {/* Full-screen camera with native code scanner + privacy overlay */}
+      <CameraPreview
+        codeScanner={codeScanner}
+        status={status}
+        isBackgrounding={isBackgrounding}
+      />
 
       {/* Scan region + status badges */}
       <FrameOverlay status={status} qrDetected={status === 'CAPTURING'} />
@@ -136,9 +180,19 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
 
       {/* Status bar at top */}
       <View style={styles.statusBar}>
-        <Text style={styles.statusText}>{statusLabel(status)}</Text>
+        <Text
+          style={styles.statusText}
+          accessibilityLiveRegion="polite"
+          accessibilityLabel={statusLabel(status)}
+        >
+          {statusLabel(status)}
+        </Text>
         {remainingMs !== null && status === 'CAPTURING' && (
-          <Text style={styles.timerText}>
+          <Text
+            style={styles.timerText}
+            accessibilityLabel={`Time remaining: ${formatCountdown(remainingMs / 1000)}`}
+            accessibilityLiveRegion="assertive"
+          >
             ⏱ {formatCountdown(remainingMs / 1000)}
           </Text>
         )}
@@ -179,7 +233,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
               styles.stopButton,
               progress?.isRecoverable && styles.stopButtonReady,
             ]}
-            onPress={stop}
+            onPress={handleStop}
             accessibilityRole="button"
             accessibilityLabel="Stop capture and export"
           >

@@ -36,8 +36,8 @@ export interface SessionManagerReturn {
   cancel: () => void;
   markExporting: () => void;
   buildResponse: () => CaptureResponse | null;
-  // Frame processor for Camera component
-  frameProcessor: ReturnType<typeof useQRScanner>['frameProcessor'];
+  // Code scanner for Camera component (VisionCamera v4 native API)
+  codeScanner: ReturnType<typeof useQRScanner>['codeScanner'];
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -57,7 +57,7 @@ export function useSessionManager(): SessionManagerReturn {
 
   const { isStable, shakeMagnitude } = useStabilityMonitor();
 
-  const { frameProcessor } = useQRScanner({
+  const { codeScanner } = useQRScanner({
     // exactOptionalPropertyTypes: only pass sessionId when it is a string,
     // never pass the property as `undefined` (that would fail the strict check).
     ...(state.request?.session_id !== undefined
@@ -152,6 +152,6 @@ export function useSessionManager(): SessionManagerReturn {
     cancel,
     markExporting,
     buildResponse: buildResponseWrapper,
-    frameProcessor,
+    codeScanner,
   };
 }

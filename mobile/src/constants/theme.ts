@@ -3,7 +3,14 @@
  *
  * A single source of truth for all visual tokens keeps the app consistent
  * and makes themed components easy to build.
+ *
+ * Typography sizes are scaled by the system font-size preference via
+ * PixelRatio.getFontScale(), so Dynamic Type (iOS) and Display Size
+ * (Android) accessibility settings are respected out of the box.
+ * Hard cap at 1.4× prevents extreme sizes from breaking layouts.
  */
+
+import { PixelRatio } from 'react-native';
 
 // ── Colour Palette ────────────────────────────────────────────────────────────
 
@@ -56,15 +63,23 @@ export type ColorKey = keyof typeof Colors;
 
 // ── Typography ────────────────────────────────────────────────────────────────
 
+/** Scale factor: respect user's system font-size preference, capped at 1.4× */
+const fontScale = Math.min(PixelRatio.getFontScale(), 1.4);
+
+/** Scale a base pixel size by the user's font-size preference */
+function fs(base: number): number {
+  return Math.round(base * fontScale);
+}
+
 export const Typography = {
-  // Sizes
-  xs: 11,
-  sm: 13,
-  md: 16,
-  lg: 20,
-  xl: 24,
-  xxl: 32,
-  hero: 48,
+  // Sizes — dynamically scaled
+  xs: fs(11),
+  sm: fs(13),
+  md: fs(16),
+  lg: fs(20),
+  xl: fs(24),
+  xxl: fs(32),
+  hero: fs(48),
 
   // Weights
   regular: '400' as const,
