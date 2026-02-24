@@ -7,6 +7,16 @@ Security Goals:
 - Prevent timing attacks on MAC verification
 - Constant-time buffer operations
 - Memory wiping with mlock support
+
+Formal verification linkage
+---------------------------
+TLA+ timing model:  formal/tla/TimingEqualizer.tla  (ConstantTimeInvariant,
+                                                      jitter-tolerant
+                                                      TargetDuration+/-Jitter)
+Verus CT proofs:    crypto_core/src/verus_kdf_proofs.rs  CT-001-004
+                    (Shamir reconstruction fixed op-count, no secret branch)
+Dudect empirical:   crypto_core/benches/constant_time.rs (Welch t-test,
+                                                           |t| < 4.5 threshold)
 """
 
 import ctypes
@@ -303,13 +313,13 @@ class SecureBuffer:
         """Write data to buffer."""
         if offset + len(data) > self.size:
             raise ValueError("Data too large for buffer")
-        self.buffer[offset : offset + len(data)] = data
+        self.buffer[offset: offset + len(data)] = data
 
     def read(self, length: Optional[int] = None, offset: int = 0) -> bytes:
         """Read data from buffer."""
         if length is None:
             return bytes(self.buffer[offset:])
-        return bytes(self.buffer[offset : offset + length])
+        return bytes(self.buffer[offset: offset + length])
 
     def __del__(self):
         """Clean up: zero and unlock."""

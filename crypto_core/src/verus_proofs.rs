@@ -1,25 +1,36 @@
-//! Verus Formal Proofs for crypto_core AEAD Properties
+//! AEAD Runtime Check Functions (NOT Verus proofs)
 //!
-//! This module provides **real `verus!{}` proofs** for the security properties
-//! of the AEAD wrapper, following the same dual-compilation pattern as
-//! `verus_guarded_buffer.rs`.
+//! ⚠ **IMPORTANT — no `verus!{}` blocks exist in this file.**
 //!
-//! ## Properties Verified (AEAD series)
+//! This module contains **runtime-checkable equivalents** of the AEAD security
+//! properties: plain Rust functions and description strings that mirror the
+//! spec intent and can be exercised in unit tests.  They are NOT
+//! machine-checked proofs.
 //!
-//! | ID | Property | Status |
-//! |----|----------|--------|
-//! | AEAD-001 | Nonce Uniqueness (monotonic counter) | `verus!{}` ✅ |
-//! | AEAD-002 | Auth-Gated Plaintext (no output without auth) | `verus!{}` ✅ |
-//! | AEAD-003 | Key Zeroization (volatile zeroing on drop) | `verus!{}` ✅ |
-//! | AEAD-004 | No Bypass (every encrypt consumes UniqueNonce) | `verus!{}` ✅ |
-//! | AEAD-005 | Ciphertext Integrity (INT-CTXT) | `verus!{}` ✅ |
-//! | AEAD-006 | AAD Binding (AAD change → auth failure) | `verus!{}` ✅ |
-//! | AEAD-007 | Nonce-Domain Separation (context isolation) | `verus!{}` ✅ |
-//! | AEAD-008 | Fail-Closed Decryption (no leak on error) | `verus!{}` ✅ |
-//! | AEAD-009 | Ratchet Key Independence (forward secrecy) | `verus!{}` ✅ |
-//! | AEAD-010 | No Info Leakage on Failure (constant-time) | `verus!{}` ✅ |
-//! | AEAD-011 | UniqueNonce Linear Consumption | `verus!{}` ✅ |
-//! | AEAD-012 | End-to-End Roundtrip + Tamper Detection | `verus!{}` ✅ |
+//! The actual `verus!{}` proofs for AEAD-001–004 (non-vacuous) and
+//! AEAD-005–012 (abstract / spec-level) live in:
+//!   `crypto_core/src/aead_wrapper.rs`  ← real Verus blocks
+//!
+//! ## What is verified and where
+//!
+//! | ID | Property | Where proved | Quality |
+//! |----|----------|-------------|--------|
+//! | AEAD-001 | Nonce uniqueness (monotonic counter) | `aead_wrapper.rs` | `verus!{}` ✅ |
+//! | AEAD-002 | Auth-gated plaintext | `aead_wrapper.rs` | `verus!{}` ✅ |
+//! | AEAD-003 | Key zeroization | `aead_wrapper.rs` | `verus!{}` ✅ (structural) |
+//! | AEAD-004 | No bypass (UniqueNonce linear) | `aead_wrapper.rs` | `verus!{}` ✅ (structural) |
+//! | AEAD-005–012 | INT-CTXT, AAD binding, fail-closed, etc. | `aead_wrapper.rs` | ⚠ abstract only (preconditions subsum postconditions — see `formal-10x-audit.md` RL-1) |
+//!
+//! ## What this file provides
+//!
+//! Runtime check functions (callable in unit tests without the Verus toolchain):
+//! - `nonce_uniqueness_invariant_holds()` — AEAD-001 empirical check
+//! - `ciphertext_integrity_holds()` — AEAD-005 property test helper
+//! - `aad_binding_holds()` — AEAD-006 property test helper
+//! - etc.
+//!
+//! These are used by `tests/test_security.py` (via FFI) and Rust unit tests
+//! as the empirical mitigation for the vacuity of AEAD-005–012.
 //!
 //! ## Running the proofs
 //!

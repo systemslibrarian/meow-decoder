@@ -4,6 +4,16 @@ Per-Frame Symmetric Ratchet for Post-Compromise Security
 Implements a Signal-inspired symmetric hash ratchet that provides per-frame
 forward secrecy for fountain-coded QR/GIF air-gap file transfer.
 
+Formal verification linkage
+---------------------------
+TLA+ state machine:  formal/tla/MeowRatchet.tla          (skip-key DoS bound,
+                                                           index monotonicity,
+                                                           key uniqueness)
+TLA+ master ratchet: formal/tla/MasterRatchet.tla        (cross-session FS)
+Tamarin FS+PCS:      formal/tamarin/MeowRatchetFS.spthy   (per-frame FS,
+                                                           PCS via beacon)
+Tamarin header OE:   formal/tamarin/MeowRatchetHeaderOE.spthy
+
 ═══════════════════════════════════════════════════════════════════════════════
 PROTOCOL OVERVIEW: MEOW Symmetric Ratchet (MSR v1)
 ═══════════════════════════════════════════════════════════════════════════════
@@ -1475,10 +1485,10 @@ class DecoderRatchet:
         frame_index = self._header_lookup[enc_idx]
 
         # Step 2: Extract commitment tag
-        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE : FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
+        commitment_tag = encrypted_frame[FRAME_INDEX_SIZE: FRAME_INDEX_SIZE + COMMIT_TAG_SIZE]
 
         # Frame body = everything after index + commitment
-        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE :]
+        frame_body = encrypted_frame[FRAME_INDEX_SIZE + COMMIT_TAG_SIZE:]
 
         # Step 3: Replay detection
         if frame_index in self._consumed_indices:

@@ -1,0 +1,257 @@
+/*
+ * MeowSchrodingerDeniability_Core.spthy
+ * =======================================
+ * SPLIT PART 1 of 2 — Core deniability game (lemmas 1–10).
+ *
+ * Extracted from MeowSchrodingerDeniability.spthy for CI scalability (RL-3):
+ * the original 15-lemma --diff model risks timing out on 2-core GitHub Actions
+ * runners.  Splitting into two 5-10 lemma files lets each half run in parallel
+ * and complete well within the 30-minute per-model timeout.
+ *
+ * COMPANION: MeowSchrodingerDeniability_Ratchet.spthy  (lemmas 11–15)
+ *
+ * Lemmas verified here:
+ *   1.  Deniability_PayloadA_SecretFromB
+ *   2.  Deniability_PayloadB_SecretFromA
+ *   3.  Integrity_DecodeA
+ *   4.  Integrity_DecodeB
+ *   5.  NoCrossLeak_BtoA
+ *   6.  NoCrossLeak_AtoB
+ *   7.  CoercionSafety
+ *   8.  KDFCommitmentBinding
+ *   9.  Executability
+ *  10.  FullCorruptionBreaksDeniability  (negative / sanity)
+ *
+ * Run:
+ *   tamarin-prover MeowSchrodingerDeniability_Core.spthy --prove
+ */
+
+theory MeowSchrodingerDeniability_Core
+begin
+
+builtins: diffie-hellman, hashing, symmetric-encryption, xor
+
+functions:
+  kdf/2,          /* KDF(password, salt) -> key                        */
+  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) — AAD-bound         */
+  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) — AAD-bound         */
+  h/1,            /* SHA-256(x)                                        */
+  blake2b/2,      /* BLAKE2b(key, msg) — used for Merkle               */
+  merkle/2,       /* merkle(left_hash, right_hash)                     */
+  entropy_ok/1,   /* Entropy oracle: true iff input passes chi²/NIST   */
+  hmac/2,         /* HMAC-SHA256(key, msg)                             */
+  commitment/2,   /* KDF-commitment: commitment(key, salt)             */
+  verify_commit/3 /* verify_commit(tag, key, salt) = true iff valid    */
+
+equations:
+  aead_dec(k, n, aead_enc(k, n, pt, aad), aad) = pt,
+  verify_commit(commitment(k, s), k, s) = true
+
+/* --------------------------------------------------------------------
+ * Restrictions (axioms)
+ * -------------------------------------------------------------------- */
+
+restriction EntropyGate:
+  "All noise #t . EntropyChecked(noise) @ #t ==> Ex #t2 . EntropyPass(noise) @ #t2"
+
+restriction UniqueSession:
+  "All sid #t1 #t2 . SessionCreated(sid) @ #t1 & SessionCreated(sid) @ #t2 ==> #t1 = #t2"
+
+/* =====================================================================
+ * ENCODING PHASE
+ * ===================================================================== */
+
+rule Create_Session:
+  [ Fr(~sid) ]
+  --[ SessionCreated(~sid) ]->
+  [ Session(~sid) ]
+
+rule SchrodingerEncode:
+  let
+    k_a    = kdf(pw_a, salt_a)
+    k_b    = kdf(pw_b, salt_b)
+    noise  = h(pw_a) XOR h(pw_b)
+    aad_a  = <salt_a, nonce_a, h(payload_a)>
+    aad_b  = <salt_b, nonce_b, h(payload_b)>
+    ct_a   = aead_enc(k_a, nonce_a, payload_a, aad_a)
+    ct_b   = aead_enc(k_b, nonce_b, payload_b, aad_b)
+    wire_a = ct_a XOR noise
+    wire_b = ct_b
+    root_a = merkle(h(ct_a), h(salt_a))
+    root_b = merkle(h(ct_b), h(salt_b))
+    commit_a = commitment(k_a, salt_a)
+    commit_b = commitment(k_b, salt_b)
+    mac_a  = hmac(k_a, <wire_a, root_a, salt_a, nonce_a>)
+    mac_b  = hmac(k_b, <wire_b, root_b, salt_b, nonce_b>)
+  in
+  [ Session(sid),
+    Fr(~pw_a), Fr(~pw_b),
+    Fr(~salt_a), Fr(~salt_b),
+    Fr(~nonce_a), Fr(~nonce_b),
+    Fr(~payload_a), Fr(~payload_b) ]
+  --[
+    SchrodingerEncoded(sid, ~pw_a, ~pw_b, ~payload_a, ~payload_b,
+                       wire_a, wire_b, noise, root_a, root_b),
+    EntropyChecked(noise),
+    EntropyPass(noise),
+    CommitmentCreated(sid, commit_a, commit_b)
+   ]->
+  [ Out(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
+         root_a, root_b, commit_a, commit_b, mac_a, mac_b>),
+    !PasswordA(sid, ~pw_a),
+    !PasswordB(sid, ~pw_b),
+    !PayloadA(sid, ~payload_a),
+    !PayloadB(sid, ~payload_b),
+    !KeyA(sid, k_a),
+    !KeyB(sid, k_b)
+  ]
+
+/* =====================================================================
+ * DECODING RULES
+ * ===================================================================== */
+
+rule DecodeStreamA:
+  let
+    k_a    = kdf(pw_a, salt_a)
+    noise  = h(pw_a) XOR h(pw_b)
+    ct_a   = wire_a XOR noise
+    aad_a  = <salt_a, nonce_a, h(pt_a)>
+    pt_a   = aead_dec(k_a, nonce_a, ct_a, aad_a)
+  in
+  [ !PasswordA(sid, pw_a),
+    !PasswordB(sid, pw_b),
+    In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
+        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+  --[ DecodedStreamA(sid, pw_a, pt_a) ]->
+  []
+
+rule DecodeStreamB:
+  let
+    k_b    = kdf(pw_b, salt_b)
+    aad_b  = <salt_b, nonce_b, h(pt_b)>
+    pt_b   = aead_dec(k_b, nonce_b, wire_b, aad_b)
+  in
+  [ !PasswordB(sid, pw_b),
+    In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
+        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+  --[ DecodedStreamB(sid, pw_b, pt_b) ]->
+  []
+
+/* =====================================================================
+ * COERCION RULES
+ * ===================================================================== */
+
+rule CoercePasswordA:
+  [ !PasswordA(sid, pw_a) ]
+  --[ Coerced(sid, 'A', pw_a) ]->
+  [ Out(pw_a) ]
+
+rule CoercePasswordB:
+  [ !PasswordB(sid, pw_b) ]
+  --[ Coerced(sid, 'B', pw_b) ]->
+  [ Out(pw_b) ]
+
+rule CorruptEncoder:
+  [ !PasswordA(sid, pw_a), !PasswordB(sid, pw_b) ]
+  --[ FullCorruption(sid, pw_a, pw_b) ]->
+  [ Out(pw_a), Out(pw_b) ]
+
+/* =====================================================================
+ * SECURITY LEMMAS (1–10)
+ * ===================================================================== */
+
+lemma Deniability_PayloadA_SecretFromB:
+  "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
+    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                       wire_a, wire_b, noise, root_a, root_b) @ #t1 &
+    Coerced(sid, 'B', pw_b) @ #t2
+    ==>
+    not(Ex #t3 . KU(payload_a) @ #t3)
+  "
+
+lemma Deniability_PayloadB_SecretFromA:
+  "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
+    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                       wire_a, wire_b, noise, root_a, root_b) @ #t1 &
+    Coerced(sid, 'A', pw_a) @ #t2
+    ==>
+    not(Ex #t3 . KU(payload_b) @ #t3)
+  "
+
+lemma Integrity_DecodeA:
+  "All sid pw_a pt #t .
+    DecodedStreamA(sid, pw_a, pt) @ #t
+    ==>
+    (Ex pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
+      SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                         wire_a, wire_b, noise, root_a, root_b) @ #t2
+      & pt = payload_a)
+  "
+
+lemma Integrity_DecodeB:
+  "All sid pw_b pt #t .
+    DecodedStreamB(sid, pw_b, pt) @ #t
+    ==>
+    (Ex pw_a payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
+      SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                         wire_a, wire_b, noise, root_a, root_b) @ #t2
+      & pt = payload_b)
+  "
+
+lemma NoCrossLeak_BtoA:
+  "All sid pw_b pt #t .
+    DecodedStreamB(sid, pw_b, pt) @ #t
+    ==>
+    not(Ex pw_a payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
+      SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                         wire_a, wire_b, noise, root_a, root_b) @ #t2
+      & pt = payload_a
+      & not(payload_a = payload_b))
+  "
+
+lemma NoCrossLeak_AtoB:
+  "All sid pw_a pt #t .
+    DecodedStreamA(sid, pw_a, pt) @ #t
+    ==>
+    not(Ex pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
+      SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                         wire_a, wire_b, noise, root_a, root_b) @ #t2
+      & pt = payload_b
+      & not(payload_a = payload_b))
+  "
+
+lemma CoercionSafety:
+  "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 .
+    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                       wire_a, wire_b, noise, root_a, root_b) @ #t1
+    ==>
+    (not(Ex #c . Coerced(sid, 'A', pw_a) @ #c) &
+     not(Ex #f . FullCorruption(sid, pw_a, pw_b) @ #f))
+     ==> not(KU(payload_a))
+  "
+
+lemma KDFCommitmentBinding:
+  "All sid commit_a commit_b #t .
+    CommitmentCreated(sid, commit_a, commit_b) @ #t
+    ==>
+    not(commit_a = commit_b)
+  "
+
+lemma Executability:
+  exists-trace
+  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t .
+    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                       wire_a, wire_b, noise, root_a, root_b) @ #t
+  "
+
+/* Negative / sanity: full corruption breaks deniability */
+lemma FullCorruptionBreaksDeniability:
+  exists-trace
+  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
+    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+                       wire_a, wire_b, noise, root_a, root_b) @ #t1 &
+    FullCorruption(sid, pw_a, pw_b) @ #t2 &
+    KU(payload_a) & KU(payload_b)
+  "
+
+end

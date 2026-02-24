@@ -299,3 +299,7 @@ required-features = ["tpm"]
 [[bench]]
 name = "crypto_benchmarks"
 harness = false
+
+[[bench]]
+name = "constant_time"
+harness = false  # dudect-style statistical constant-time benchmark (RL-2 mitigation)

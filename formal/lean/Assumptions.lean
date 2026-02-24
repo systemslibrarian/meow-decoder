@@ -1,23 +1,23 @@
 /-
   🔒 Formal Assumptions — Quarantined Axioms
-  
+
   This module collects all axioms and approved sorry instances used by the
   Meow-Decoder formal verification. Quarantining them here makes the trust
   surface explicit and auditable.
-  
+
   ## Axiom Inventory
-  
+
   | ID | Name | Justification | Invalidation Risk |
   |----|------|---------------|-------------------|
   | A1 | `lt_decode_completeness_prob` | Luby FOCS 2002 Thm 1; states k ≤ droplets_received (necessary condition) | Adversarial erasures, non-RS degree distribution, biased PRNG |
-  | A2 | `belief_propagation_progress` | Proved modulo List.find? spec bridge (APPROVED sorry) | None — proof sketch complete, only Lean library gap remains |
-  
+  | A2 | `belief_propagation_progress` | **PROVED** — real Lean 4 proof in FountainCodes.lean using List.find?_some + List.mem_of_find?_eq_some + solvedCount_increases_on_update (no sorry) | N/A |
+
   ## Review Policy
-  
+
   - Each axiom must cite a peer-reviewed source or have an approved `sorry` tag.
   - Axioms should be re-evaluated whenever the implementation they model changes.
   - `#print axioms FountainCodes.some_theorem` can check transitive axiom usage.
-  
+
   Author: Meow-Decoder Formal Verification Team
   Date: February 2026
 -/
@@ -76,19 +76,19 @@ noncomputable def beliefPropagationStep' {k : ℕ} (s : DecoderState' k) : Decod
 /-- Under Robust Soliton distribution with parameters (k, c, δ),
     receiving (1 + ε)k droplets ensures decoding success with
     probability ≥ 1 - δ.
-    
+
     **Citation:** Luby, M. "LT Codes", FOCS 2002, Theorem 1.
     Also: Shokrollahi, "Raptor Codes", IEEE Trans. Inf. Theory, 2006;
           MacKay, "Fountain Codes", IEE Proc., 2005.
-    
+
     **Invalidation conditions:**
     - Erasure pattern is adversarial (not random/independent)
     - Block selection deviates from Robust Soliton distribution
     - PRNG for seed generation has detectable bias
-    
+
     **Meow-Decoder defaults:** c=0.1, δ=0.5 → 1.5k droplets give ≥ 50%
     success per attempt. Rateless retry makes cumulative success ≈ 1.
-    
+
     **Note:** This axiom now states a meaningful bound (k ≤ droplets_received)
     rather than concluding `True`. The full probabilistic statement
     Pr[success] ≥ 1 - δ requires a probability monad not yet available in Lean. -/
@@ -109,17 +109,17 @@ axiom lt_decode_completeness_prob
 
 /-- If a degree-1 droplet exists in pending that refers to an unsolved block,
     then `beliefPropagationStep` strictly increases `solvedCount`.
-    
+
     **Status:** APPROVED sorry — proof sketch is complete (see below), only a
     Lean library gap (List.find? specification + BEq-vs-= bridge) prevents
     machine-checking.
-    
+
     **Proof sketch:**
     1. `h` gives some `d ∈ pending` with `d.degree = 1`
     2. `List.find?` on pending succeeds (returns `some d'` with `d'.degree == 1`)
     3. `wellFormed` gives `(s.solved i).isNone` for the singleton element `i`
     4. `solvedCount_increases_on_update` gives strict increase
-    
+
     The gap: `List.find?` finds *some* degree-1 droplet (not necessarily `d`),
     but `wellFormed` applies to ALL degree-1 droplets, so it still works.
     Full proof needs: `List.find?_spec` + `BEq` vs `=` bridge for `Droplet`. -/

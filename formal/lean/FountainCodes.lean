@@ -225,21 +225,55 @@ theorem solvedCount_increases_on_update {k : ℕ} (s : DecoderState k) (i : Fin 
 
     See: Luby, "LT Codes", FOCS 2002, Theorem 3.
 
-    QUARANTINED: The canonical axiom statement lives in Assumptions.lean (A2).
-    This instance retains the `sorry` for backward compatibility with the
-    existing proof structure. -/
+    PROVED (Gap-6 fix): The sorry has been replaced with a complete Lean 4 proof.
+    The canonical axiom A2 in Assumptions.lean remains as documentation of the
+    proof obligation; this theorem is now fully machine-checked. -/
 theorem belief_propagation_progress {k : ℕ} (s : DecoderState k)
     (hwf : s.wellFormed)
     (h : ∃ d ∈ s.pending, Droplet.isDegreeOne d) :
     (beliefPropagationStep s).solvedCount > s.solvedCount := by
-  sorry  -- APPROVED: requires List.find? specification + wellFormed propagation
-         -- See Assumptions.lean axiom A2 for full justification and
-         -- invalidation conditions.
-         -- Proof sketch:
-         -- 1. h gives d ∈ pending with d.degree = 1
-         -- 2. List.find? on pending succeeds (returns some d' with d'.degree == 1)
-         -- 3. wellFormed gives (s.solved i).isNone for the singleton element i
-         -- 4. solvedCount_increases_on_update gives the strict increase
+  -- Unfold the step definition.
+  simp only [beliefPropagationStep]
+  -- Step 1: extract a witness d₀ ∈ pending with d₀.degree = 1.
+  obtain ⟨d₀, hd₀_mem, hd₀_deg⟩ := h
+  -- Build the Bool predicate fact for d₀ (bridges Prop `=` and Bool `==`).
+  have h_d₀_pred : (fun d : Droplet k => d.degree == 1) d₀ = true := by
+    simp [Droplet.isDegreeOne, Droplet.degree] at hd₀_deg
+    simp [hd₀_deg]
+  -- Step 2: List.find? must return some d' (proof by contradiction).
+  have hd'_exists : ∃ d', s.pending.find? (fun d => d.degree == 1) = some d' := by
+    apply Option.ne_none_iff_exists.mp
+    intro habs
+    rw [List.find?_eq_none] at habs
+    exact absurd h_d₀_pred (habs d₀ hd₀_mem)
+  obtain ⟨d', hd'⟩ := hd'_exists
+  rw [hd']
+  -- Step 3: d' satisfies the predicate → d'.degree = 1.
+  have hd'_pred : (fun d : Droplet k => d.degree == 1) d' = true :=
+    List.find?_some hd'
+  have hd'_deg : d'.degree = 1 := by simpa [Droplet.degree] using hd'_pred
+  -- Step 4: d' lives in pending.
+  have hd'_mem : d' ∈ s.pending := List.mem_of_find?_eq_some hd'
+  simp only [hd'_deg, ↓reduceIte]
+  -- Step 5: wellFormed gives that the singleton block index is unsolved.
+  have hi_unsolved :
+      (s.solved (d'.blockIndices.singletonElem hd'_deg)).isNone :=
+    hwf d' hd'_mem hd'_deg (d'.blockIndices.singletonElem hd'_deg)
+      (Finset.singletonElem_mem _ _)
+  -- Step 6: solvedCount depends only on `.solved`, not `.pending`; rewrite to
+  --         match the signature of solvedCount_increases_on_update.
+  have hsc_pending_irrel :
+      (DecoderState.mk
+          (Function.update s.solved (d'.blockIndices.singletonElem hd'_deg) (some d'.data))
+          (s.pending.filter fun d'' => d''.seed != d'.seed)).solvedCount =
+      (DecoderState.mk
+          (Function.update s.solved (d'.blockIndices.singletonElem hd'_deg) (some d'.data))
+          s.pending).solvedCount := by
+    simp [DecoderState.solvedCount]
+  rw [hsc_pending_irrel]
+  -- Step 7: strict increase via the helper lemma.
+  exact solvedCount_increases_on_update s
+    (d'.blockIndices.singletonElem hd'_deg) hi_unsolved d'.data
 
 -- ============================================================================
 -- ROBUST SOLITON DISTRIBUTION
