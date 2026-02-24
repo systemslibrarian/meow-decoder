@@ -31,7 +31,7 @@
 
 ## Phase 5 — Components Layer
 - [x] `src/components/CameraPreview.tsx` — Vision Camera wrapper with frame processor
-- [x] `src/components/ProgressHUD.tsx` — Circular progress, frame count, recoverability bar
+- [x] `src/components/ProgressHUD.tsx` — Progress bar, frame count, recoverability labels
 - [x] `src/components/FrameOverlay.tsx` — QR bounding box, status badges
 - [x] `src/components/StabilityIndicator.tsx` — Shake/blur warning overlay
 - [x] `src/components/CatToast.tsx` — Themed notification toasts with cat sounds
@@ -49,7 +49,7 @@
 
 ## Phase 8 — Project Config
 - [x] `package.json` — All dependencies per spec (vision-camera, zod, reanimated, etc.)
-- [x] `tsconfig.json` — Strict TypeScript config
+- [x] `tsconfig.json` — Strict TypeScript config with node/jest types for mocks
 - [x] `.eslintrc.js` — ESLint + Prettier rules
 - [x] `babel.config.js` — Reanimated plugin, worklets support
 
@@ -60,11 +60,30 @@
 - [x] `__tests__/jsonExporter.test.ts` — Export and chunking tests
 - [x] `__tests__/formatters.test.ts` — Utility formatter tests
 - [x] `__tests__/base64.test.ts` — Base64 validation tests
+- [x] `__tests__/qrDecoder.test.ts` — QR payload parsing tests
+- [x] `__tests__/webDemoIntegration.test.ts` — Web demo wire format integration
 
 ## Phase 10 — Platform & README
 - [x] `android/app/src/main/AndroidManifest.xml` — Camera-only permissions
 - [x] `ios/MeowCapture/Info.plist` — NSCameraUsageDescription
 - [x] `README.md` — Full updated README per spec
+
+## Phase 11 — TypeScript Strict Compliance (tsc --noEmit clean)
+- [x] `tsconfig.json` — Add node/jest to types for mock files and Buffer in tests
+- [x] `src/constants/config.ts` — Fix `as const` on arithmetic expression (not a literal)
+- [x] `src/hooks/useQRScanner.ts` — Replace deprecated `Worklets.createRunInJsFn` (typed `never`) with `useRunOnJS` hook
+- [x] `src/hooks/useStabilityMonitor.ts` — Fix `Accelerometer` class (doesn't exist) → `accelerometer` Observable + typed SensorData
+- [x] `src/hooks/useSessionManager.ts` — Fix `exactOptionalPropertyTypes` violation on sessionId
+- [x] `src/components/CameraPreview.tsx` — Fix `FrameProcessor` (not exported) → `ReadonlyFrameProcessor`
+- [x] `src/components/ProgressHUD.tsx` — Fix `strokeDashoffset` (SVG-only, not in DefaultStyle) → RN-native animated width bar
+- [x] `src/services/jsonExporter.ts` — Fix `TextEncoder` (not in ES2022 lib) → `Buffer.byteLength`
+- [x] `src/services/qrDecoder.ts` — Fix `exactOptionalPropertyTypes` violation on session_id return
+- [x] `src/screens/CaptureScreen.tsx` — Remove unused `setQrActive`, `qrActiveTimer`
+- [x] `src/screens/ExportScreen.tsx` — Remove unused `progressColor` import
+- [x] `src/screens/HomeScreen.tsx` — Remove unused `Alert`; fix `result` possibly-undefined
+- [x] `src/screens/SplashScreen.tsx` — Remove unused `runOnJS`, `FIRST_LAUNCH_KEY`
+- [x] `__tests__/jsonExporter.test.ts` — Remove `total_frames` (not in CaptureResponse type)
+- [x] `__tests__/requestValidator.test.ts` — Remove unused `CaptureRequestSchema` import
 
 ---
 

@@ -17,7 +17,7 @@ describe('FrameCollector — basic add', () => {
   it('starts empty', () => {
     const c = new FrameCollector();
     expect(c.size).toBe(0);
-    expect(c.stats.accepted).toBe(0);
+    expect(c.stats.totalAccepted).toBe(0);
   });
 
   it('accepts a new frame and returns "accepted"', () => {
@@ -25,7 +25,7 @@ describe('FrameCollector — basic add', () => {
     const result = c.add(makeFrame(0));
     expect(result).toBe('accepted');
     expect(c.size).toBe(1);
-    expect(c.stats.accepted).toBe(1);
+    expect(c.stats.totalAccepted).toBe(1);
   });
 
   it('returns "duplicate" for same index', () => {
@@ -34,7 +34,7 @@ describe('FrameCollector — basic add', () => {
     const result = c.add(makeFrame(5, 'DIFFERENT_DATA'));
     expect(result).toBe('duplicate');
     expect(c.size).toBe(1);
-    expect(c.stats.duplicates).toBe(1);
+    expect(c.stats.totalDuplicated).toBe(1);
     // First data wins
     expect(c.getSorted()[0]?.data).toBe('AAAA');
   });
@@ -59,7 +59,7 @@ describe('FrameCollector — capacity limit', () => {
     const result = c.add(makeFrame(10_000));
     expect(result).toBe('rejected');
     expect(c.size).toBe(10_000);
-    expect(c.stats.rejected).toBe(1);
+    expect(c.stats.totalRejected).toBe(1);
   });
 });
 
@@ -88,9 +88,9 @@ describe('FrameCollector — clear', () => {
     c.add(makeFrame(1)); // duplicate
     c.clear();
     expect(c.size).toBe(0);
-    expect(c.stats.accepted).toBe(0);
-    expect(c.stats.duplicates).toBe(0);
-    expect(c.stats.rejected).toBe(0);
+    expect(c.stats.totalAccepted).toBe(0);
+    expect(c.stats.totalDuplicated).toBe(0);
+    expect(c.stats.totalRejected).toBe(0);
     expect(c.getSorted()).toEqual([]);
   });
 });
@@ -102,21 +102,21 @@ describe('FrameCollector — stats', () => {
     c.add(makeFrame(1));        // accepted
     c.add(makeFrame(0));        // duplicate
 
-    expect(c.stats.accepted).toBe(2);
-    expect(c.stats.duplicates).toBe(1);
-    expect(c.stats.rejected).toBe(0);
+    expect(c.stats.totalAccepted).toBe(2);
+    expect(c.stats.totalDuplicated).toBe(1);
+    expect(c.stats.totalRejected).toBe(0);
   });
 });
 
-describe('FrameCollector — hasIndex', () => {
+describe('FrameCollector — has()', () => {
   it('returns true for existing index', () => {
     const c = new FrameCollector();
     c.add(makeFrame(42));
-    expect(c.hasIndex(42)).toBe(true);
+    expect(c.has(42)).toBe(true);
   });
 
   it('returns false for missing index', () => {
     const c = new FrameCollector();
-    expect(c.hasIndex(99)).toBe(false);
+    expect(c.has(99)).toBe(false);
   });
 });

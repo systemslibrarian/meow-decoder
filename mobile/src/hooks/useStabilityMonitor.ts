@@ -12,7 +12,14 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Accelerometer } from 'react-native-sensors';
+// react-native-sensors exports `accelerometer` as an RxJS Observable<SensorData>,
+// not a class constructor. `Accelerometer` class does not exist in this package.
+import {
+  accelerometer,
+  setUpdateIntervalForType,
+  SensorTypes,
+  type SensorData,
+} from 'react-native-sensors';
 import { SHAKE_THRESHOLD_MS2, STABILITY_WINDOW_MS } from '../constants/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -41,10 +48,12 @@ export function useStabilityMonitor(): StabilityState {
     let subscription: { unsubscribe: () => void } | null = null;
 
     try {
-      // Accelerometer emits {x, y, z} in m/s²
-      const observable = new Accelerometer({ updateInterval: 16 }); // ~60Hz
-      subscription = observable.subscribe({
-        next: ({ x, y, z }) => {
+      // Set ~60Hz update rate before subscribing
+      setUpdateIntervalForType(SensorTypes.accelerometer, 16);
+
+      // `accelerometer` is an Observable<SensorData> — subscribe directly
+      subscription = accelerometer.subscribe({
+        next: ({ x, y, z }: SensorData) => {
           const prev = prevReading.current;
           if (prev !== null) {
             // Delta magnitude: how much did the phone move since last reading?

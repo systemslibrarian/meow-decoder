@@ -41,9 +41,9 @@ interface ProgressHUDProps {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const HUD_SIZE = 120;
-const RING_STROKE = 8;
-const RING_RADIUS = (HUD_SIZE - RING_STROKE) / 2;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+/** Total width of the animated progress track in logical pixels */
+const TRACK_WIDTH = HUD_SIZE;
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -63,11 +63,11 @@ export const ProgressHUD = React.memo(function ProgressHUD({
     });
   }, [progress.percentRecoverable, fillFraction]);
 
-  const animatedRingStyle = useAnimatedStyle(() => {
-    const strokeDashoffset =
-      RING_CIRCUMFERENCE - fillFraction.value * RING_CIRCUMFERENCE;
-    return { strokeDashoffset };
-  });
+  // Animate fill bar width — `number` is always a valid ViewStyle prop
+  // (unlike SVG strokeDashoffset which is not in DefaultStyle).
+  const animatedFillStyle = useAnimatedStyle(() => ({
+    width: fillFraction.value * TRACK_WIDTH,
+  }));
 
   const ringColor = progressColor(progress.percentRecoverable);
 
@@ -79,31 +79,23 @@ export const ProgressHUD = React.memo(function ProgressHUD({
 
   return (
     <View style={styles.container} accessibilityLabel="Capture progress">
-      {/* Ring + counter */}
-      <View style={styles.ringContainer}>
-        {/* Background ring */}
-        <View
-          style={[
-            styles.ringBg,
-            { borderColor: Colors.backgroundTertiary },
-          ]}
-        />
-        {/* Animated fill ring — using Animated.View as a wrapper trick
-            since RN SVG is not in scope; we use border arc hack */}
+      {/* Frame counter */}
+      <View style={styles.counterRow}>
+        <Text style={[styles.countText, { color: ringColor }]}>
+          {progress.captured}
+        </Text>
+        <Text style={styles.expectedText}>/{progress.expected}</Text>
+      </View>
+
+      {/* Animated linear progress bar */}
+      <View style={styles.track}>
         <Animated.View
           style={[
-            styles.ringFill,
-            animatedRingStyle,
-            { borderColor: ringColor },
+            styles.fill,
+            animatedFillStyle,
+            { backgroundColor: ringColor },
           ]}
         />
-        {/* Centre counter */}
-        <View style={styles.centreText}>
-          <Text style={[styles.countText, { color: ringColor }]}>
-            {progress.captured}
-          </Text>
-          <Text style={styles.expectedText}>/{progress.expected}</Text>
-        </View>
       </View>
 
       {/* Labels */}
@@ -137,35 +129,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     ...Shadows.medium,
   },
-  ringContainer: {
-    width: HUD_SIZE,
-    height: HUD_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Spacing.sm,
-  },
-  ringBg: {
-    position: 'absolute',
-    width: HUD_SIZE - RING_STROKE,
-    height: HUD_SIZE - RING_STROKE,
-    borderRadius: (HUD_SIZE - RING_STROKE) / 2,
-    borderWidth: RING_STROKE,
-    borderColor: Colors.backgroundTertiary,
-  },
-  ringFill: {
-    position: 'absolute',
-    width: HUD_SIZE - RING_STROKE,
-    height: HUD_SIZE - RING_STROKE,
-    borderRadius: (HUD_SIZE - RING_STROKE) / 2,
-    borderWidth: RING_STROKE,
-    borderColor: Colors.success,
-    // Note: true arc animation requires react-native-svg ProgressArc or
-    // a custom skia canvas. This border approach gives a visual approximation.
-    // For production, swap to a proper SVG arc component.
-  },
-  centreText: {
+  counterRow: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    marginBottom: Spacing.sm,
   },
   countText: {
     fontSize: Typography.xl,
@@ -176,6 +143,19 @@ const styles = StyleSheet.create({
     fontSize: Typography.md,
     fontWeight: Typography.regular,
     color: Colors.textSecondary,
+  },
+  track: {
+    width: TRACK_WIDTH,
+    height: 8,
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: Spacing.sm,
+  },
+  fill: {
+    height: 8,
+    borderRadius: 4,
+    // width is driven by Reanimated animatedFillStyle
   },
   labels: {
     alignItems: 'center',

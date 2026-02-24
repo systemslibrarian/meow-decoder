@@ -14,15 +14,10 @@ import Animated, {
   withSequence,
   withDelay,
   Easing,
-  runOnJS,
 } from 'react-native-reanimated';
 import { Colors, Typography, Spacing } from '../constants/theme';
 import { APP_VERSION } from '../constants/config';
 import type { SplashScreenProps } from '../types/navigation';
-
-// ── Constants ─────────────────────────────────────────────────────────────────
-
-const FIRST_LAUNCH_KEY = 'meow_has_launched';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

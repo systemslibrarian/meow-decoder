@@ -28,7 +28,6 @@ import type { ExportScreenProps } from '../types/navigation';
 import { useCatToast } from '../components/CatToast';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { formatPercent, formatFileSize } from '../utils/formatters';
-import { progressColor } from '../constants/theme';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 

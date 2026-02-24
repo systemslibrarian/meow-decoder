@@ -35,8 +35,10 @@ describe('isValidBase64', () => {
       expect(isValidBase64(b64)).toBe(true);
     });
 
-    it('accepts mixed case and + and /', () => {
-      expect(isValidBase64('abc+/=AA')).toBe(true);
+    it('accepts + and / characters (standard base64 alphabet)', () => {
+      // Padding must be at the end — 'ab+/AA==' is valid; '='-in-middle is not
+      expect(isValidBase64('ab+/AA==')).toBe(true);
+      expect(isValidBase64('aGVsbG8=')).toBe(true); // "hello"
     });
   });
 

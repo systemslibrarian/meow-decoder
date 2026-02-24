@@ -17,7 +17,6 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
-  Alert,
   SafeAreaView,
   Platform,
   ActivityIndicator,
@@ -59,10 +58,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     setError(null);
     setLoading(true);
     try {
-      const [result] = await DocumentPicker.pick({
+      const results = await DocumentPicker.pick({
         type: [DocumentPicker.types.json],
         allowMultiSelection: false,
       });
+      // With noUncheckedIndexedAccess, index access can be T | undefined; guard it.
+      const result = results[0];
+      if (!result) return;
 
       const content = await RNFS.readFile(
         Platform.OS === 'android' ? result.uri : decodeURIComponent(result.uri),

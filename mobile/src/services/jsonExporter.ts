@@ -58,7 +58,9 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
   const exportedPaths: string[] = [];
 
   const json = JSON.stringify(response, null, 2);
-  const byteLength = new TextEncoder().encode(json).length;
+  // Buffer.byteLength gives accurate UTF-8 byte count without DOM's TextEncoder.
+  // react-native-worklets-core brings Node globals; Buffer is available here.
+  const byteLength = Buffer.byteLength(json, 'utf8');
 
   if (byteLength <= MAX_EXPORT_CHUNK_BYTES) {
     // Single file path

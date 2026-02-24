@@ -58,7 +58,11 @@ export function useSessionManager(): SessionManagerReturn {
   const { isStable, shakeMagnitude } = useStabilityMonitor();
 
   const { frameProcessor } = useQRScanner({
-    sessionId: state.request?.session_id,
+    // exactOptionalPropertyTypes: only pass sessionId when it is a string,
+    // never pass the property as `undefined` (that would fail the strict check).
+    ...(state.request?.session_id !== undefined
+      ? { sessionId: state.request.session_id }
+      : {}),
     onFrame: onFrameScanned,
     onGifDetected,
     enabled: state.status === 'AWAITING_GIF' || state.status === 'CAPTURING',

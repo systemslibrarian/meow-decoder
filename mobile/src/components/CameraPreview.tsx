@@ -23,7 +23,7 @@ import {
   useCameraDevice,
   useCameraPermission,
 } from 'react-native-vision-camera';
-import type { FrameProcessor } from 'react-native-vision-camera';
+import type { ReadonlyFrameProcessor } from 'react-native-vision-camera';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { CAMERA_FPS } from '../constants/config';
@@ -32,7 +32,7 @@ import { CAMERA_FPS } from '../constants/config';
 
 interface CameraPreviewProps {
   /** The frame processor from useQRScanner — runs on worklet thread */
-  frameProcessor: FrameProcessor;
+  frameProcessor: ReadonlyFrameProcessor;
   /** Current capture status — controls isActive prop */
   status: CaptureState;
   /** Show torch toggle button */

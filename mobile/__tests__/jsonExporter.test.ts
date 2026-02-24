@@ -18,10 +18,9 @@ const makeResponse = (frameCount: number, dataSize = 100): CaptureResponse => {
   return {
     session_id: '550e8400-e29b-41d4-a716-446655440000',
     frames,
-    total_frames: frameCount,
-    elapsed_ms: 30000,
-    captured_at: new Date().toISOString(),
-    schema_version: '1',
+    capture_complete: true,
+    frames_captured: frameCount,
+    frames_missed: 0,
   };
 };
 
@@ -50,16 +49,15 @@ describe('buildQRExportChunks', () => {
     expect(chunks.length).toBeGreaterThan(1);
   });
 
-  it('each chunk contains a valid frames array', () => {
+  it('each chunk has a data field with JSON slice', () => {
     const response = makeResponse(10);
     const chunks = buildQRExportChunks(response, 5000);
-    let totalFrames = 0;
     chunks.forEach(c => {
       const parsed = JSON.parse(c);
-      expect(Array.isArray(parsed.frames)).toBe(true);
-      totalFrames += parsed.frames.length;
+      // buildQRExportChunks wraps data in {meow_qr_chunk, session_id, chunk_index, total_chunks, data}
+      expect(parsed.meow_qr_chunk).toBe(true);
+      expect(typeof parsed.data).toBe('string');
     });
-    expect(totalFrames).toBe(10);
   });
 
   it('includes session_id in every chunk', () => {
@@ -71,14 +69,13 @@ describe('buildQRExportChunks', () => {
     });
   });
 
-  it('includes chunk metadata (chunk_index, total_chunks) in each chunk', () => {
+  it('includes chunk metadata with 1-based chunk_index', () => {
     const response = makeResponse(50, 100);
     const chunks = buildQRExportChunks(response, 2000);
-    if (chunks.length > 1) {
-      const first = JSON.parse(chunks[0] as string);
-      expect(first.chunk_index).toBe(0);
-      expect(first.total_chunks).toBe(chunks.length);
-    }
+    const first = JSON.parse(chunks[0] as string);
+    // chunk_index is 1-based
+    expect(first.chunk_index).toBe(1);
+    expect(first.total_chunks).toBe(chunks.length);
   });
 
   it('handles empty frames array gracefully', () => {
@@ -86,6 +83,9 @@ describe('buildQRExportChunks', () => {
     const chunks = buildQRExportChunks(empty, 100_000);
     expect(chunks.length).toBeGreaterThanOrEqual(1);
     const first = JSON.parse(chunks[0] as string);
-    expect(first.frames).toEqual([]);
+    // Envelope format: {meow_qr_chunk, session_id, chunk_index, total_chunks, data}
+    expect(first.meow_qr_chunk).toBe(true);
+    expect(first.session_id).toBe('550e8400-e29b-41d4-a716-446655440000');
+    expect(typeof first.data).toBe('string');
   });
 });

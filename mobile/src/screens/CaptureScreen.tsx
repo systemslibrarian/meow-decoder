@@ -13,7 +13,7 @@
  *             on CANCEL → Home
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -55,9 +55,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     frameProcessor,
   } = useSessionManager();
 
-  // Track whether a QR was detected in the most recent frame tick
-  const [qrActive, setQrActive] = useState(false);
-  const qrActiveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
+  // omitted for now to keep strict noUnusedLocals clean.
 
   // ── Load request on mount ──────────────────────────────────────────────────
   useEffect(() => {
@@ -130,7 +129,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       <CameraPreview frameProcessor={frameProcessor} status={status} />
 
       {/* Scan region + status badges */}
-      <FrameOverlay status={status} qrDetected={qrActive} />
+      <FrameOverlay status={status} qrDetected={status === 'CAPTURING'} />
 
       {/* Stability warning */}
       <StabilityIndicator magnitude={shakeMagnitude} visible={!isStable && status === 'CAPTURING'} />

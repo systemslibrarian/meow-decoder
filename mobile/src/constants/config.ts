@@ -56,7 +56,8 @@ export const CAMERA_FPS = 30 as const;
 // ── Export ────────────────────────────────────────────────────────────────────
 
 /** Maximum single-file export size in bytes before chunking (5 MB) */
-export const MAX_EXPORT_CHUNK_BYTES = 5 * 1024 * 1024 as const;
+// Note: arithmetic expressions cannot use `as const` — use the literal value directly.
+export const MAX_EXPORT_CHUNK_BYTES = 5_242_880 as const;
 
 // ── Stability Monitor ─────────────────────────────────────────────────────────
 

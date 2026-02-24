@@ -11,7 +11,6 @@ import {
   safeValidateRequest,
   validateRequestFromString,
   firstErrorMessage,
-  CaptureRequestSchema,
 } from '../src/services/requestValidator';
 
 // ── Valid requests ─────────────────────────────────────────────────────────────

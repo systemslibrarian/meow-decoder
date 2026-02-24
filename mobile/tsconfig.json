@@ -20,6 +20,8 @@
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "node",
     "jsx": "react-native",
+    // Include node and jest globals for __mocks__ and __tests__ (Buffer, module, etc.)
+    "types": ["node", "jest"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

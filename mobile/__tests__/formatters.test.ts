@@ -16,36 +16,39 @@ import {
 // ── formatElapsed ─────────────────────────────────────────────────────────────
 
 describe('formatElapsed', () => {
-  it('formats sub-minute as MM:SS', () => {
-    expect(formatElapsed(0)).toBe('0:00');
-    expect(formatElapsed(1000)).toBe('0:01');
-    expect(formatElapsed(59000)).toBe('0:59');
+  it('formats sub-minute as Xs', () => {
+    expect(formatElapsed(0)).toBe('0s');
+    expect(formatElapsed(1000)).toBe('1s');
+    expect(formatElapsed(59000)).toBe('59s');
   });
 
-  it('formats minutes', () => {
-    expect(formatElapsed(60000)).toBe('1:00');
-    expect(formatElapsed(90000)).toBe('1:30');
-    expect(formatElapsed(3600000)).toBe('60:00');
+  it('formats minutes as Xm Ys', () => {
+    expect(formatElapsed(60000)).toBe('1m 0s');
+    expect(formatElapsed(90000)).toBe('1m 30s');
   });
 
-  it('pads seconds with leading zero', () => {
-    expect(formatElapsed(65000)).toBe('1:05');
-    expect(formatElapsed(601000)).toBe('10:01');
+  it('formats hours as Xh Ym', () => {
+    expect(formatElapsed(3600000)).toBe('1h 0m');
+  });
+
+  it('includes minutes in seconds component when padding needed', () => {
+    expect(formatElapsed(65000)).toBe('1m 5s');
+    expect(formatElapsed(601000)).toBe('10m 1s');
   });
 
   it('handles 0 ms', () => {
-    expect(formatElapsed(0)).toBe('0:00');
+    expect(formatElapsed(0)).toBe('0s');
   });
 });
 
 // ── formatCountdown ───────────────────────────────────────────────────────────
 
 describe('formatCountdown', () => {
-  it('formats seconds remaining', () => {
-    expect(formatCountdown(60)).toBe('1:00');
-    expect(formatCountdown(30)).toBe('0:30');
-    expect(formatCountdown(0)).toBe('0:00');
-    expect(formatCountdown(90)).toBe('1:30');
+  it('formats seconds remaining as zero-padded MM:SS', () => {
+    expect(formatCountdown(60)).toBe('01:00');
+    expect(formatCountdown(30)).toBe('00:30');
+    expect(formatCountdown(0)).toBe('00:00');
+    expect(formatCountdown(90)).toBe('01:30');
   });
 });
 
@@ -134,20 +137,19 @@ describe('estimateETA', () => {
     expect(estimateETA(0, 15, 5000)).toBeNull();
   });
 
-  it('returns null when target already reached', () => {
-    expect(estimateETA(15, 15, 10000)).toBeNull();
-  });
-
-  it('estimates reasonable ETA', () => {
-    // 5 frames in 5 seconds = 1 fps; need 10 more frames → ~10 sec
-    const eta = estimateETA(5, 15, 5000);
-    expect(eta).not.toBeNull();
-    if (eta !== null) {
-      expect(eta).toBeGreaterThan(0);
-    }
-  });
-
   it('returns null if elapsed is 0', () => {
     expect(estimateETA(5, 15, 0)).toBeNull();
+  });
+
+  it('returns "< 1s" string when target already reached', () => {
+    expect(estimateETA(15, 15, 10000)).toBe('< 1s');
+  });
+
+  it('returns a non-null ETA string when frames remain', () => {
+    // 5 frames in 5 seconds = 1 fps; need 10 more frames → ETA string
+    const eta = estimateETA(5, 15, 5000);
+    expect(eta).not.toBeNull();
+    expect(typeof eta).toBe('string');
+    expect(eta).toContain('left');
   });
 });

@@ -47,9 +47,10 @@ npx react-native run-android
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│  Desktop (meow-encoder)                                 │
-│  $ meow-encode -i secret.pdf -o secret.gif -p "pass"   │
-│  → Displays animated QR GIF on screen                   │
+│  Desktop (web demo or CLI encoder)                      │
+│  Opens wasm_browser_example.html — choose a mode:      │
+│    Standard / FS / Schrödinger / Hybrid-PQ / Duress     │
+│  → Displays QR code (static or animated GIF) on screen  │
 └────────────────────┬────────────────────────────────────┘
                      │ Camera (optical, air-gapped)
                      ▼
@@ -57,36 +58,95 @@ npx react-native run-android
 │  MeowCapture (this app)                                 │
 │  1. Home  — load capture request JSON (session params)  │
 │  2. Camera — aim at screen, app scans QR frames         │
+│     • Single QR: immediately captured & complete        │
+│     • Fountain GIF: scan until progress bar fills       │
 │  3. Export — save captured_frames.json to Downloads     │
 └────────────────────┬────────────────────────────────────┘
                      │ USB/ADB transfer or manual copy
                      ▼
 ┌─────────────────────────────────────────────────────────┐
-│  Desktop (meow-decoder)                                 │
+│  Desktop (meow-decoder or web demo decrypt tab)         │
 │  $ meow-decode-gif -i captured_frames.json -p "pass"   │
 └─────────────────────────────────────────────────────────┘
 ```
 
 ### Step-by-step
 
-1. **Generate a capture request** on the desktop:
+1. **Open the web demo** on the desktop (`examples/wasm_browser_example.html` or
+   `web_demo/wasm_browser_example_FULL.html`). Choose any encryption mode:
+   Standard, Forward Secrecy, Schrödinger, Post-Quantum, or Duress.
+
+2. **Encrypt** a file or message in the demo. For multi-frame (animated QR),
+   the payload is too large for one code and will be fountain-coded automatically.
+   For single-frame, a static QR appears.
+
+3. **Generate a capture request** (or enter manually in the app):
+   - Multi-frame: set `expected_frames` to the droplet count shown in the demo log.
+   - Single-frame: set `expected_frames: 1`.
    ```bash
+   # CLI alternative
    meow-encode --print-request -i file.pdf
-   # Outputs capture_request.json with session_id and expected_frames
    ```
 
-2. **Load the request** in the app — tap "Load JSON File" on the Home screen and select `capture_request.json`, OR enter the session UUID manually.
+4. **Load the request** in the app — tap "Load JSON File" on the Home screen, or
+   enter the session UUID and frame count manually.
 
-3. **Point your camera** at the GIF playing on the desktop screen. Keep the phone steady; the stability indicator turns green.
+5. **Point your camera** at the QR on screen:
+   - **Single-frame modes**: app captures the QR and immediately completes.
+   - **Fountain animated GIF**: hold steady until the progress bar reaches 100%.
 
-4. **Wait for completion** — the app shows live frame progress. Fountain coding means you don't need every frame; ~67% suffices.
+6. **Export** — tap "Save to Downloads". Transfer `meow_capture_<session_id>.json`
+   back to the desktop via USB.
 
-5. **Export** — when capture completes, tap "Save to Downloads". Transfer `meow_capture_<session_id>.json` back to the desktop via USB.
-
-6. **Decrypt** on the desktop:
+7. **Decrypt** — paste the captured JSON into the web demo's decrypt tab, or use the CLI:
    ```bash
    meow-decode-gif -i meow_capture_<session_id>.json -p "password"
    ```
+
+---
+
+## Supported QR Modes
+
+The app recognises every QR format produced by the web demo (`wasm_browser_example.html`,
+`wasm_browser_example_FULL.html`) and the Python CLI encoder.
+
+### Multi-frame (fountain coded — animated GIF)
+
+| Format | Prefix | Source | Notes |
+|--------|--------|--------|-------|
+| Fountain | `FOUNTAIN:<k>:<block_size>:<length>:<b64>` | Web demo animated QR / CLI | Each frame is a fountain droplet. Capture any ~67% of frames to decode. App auto-completes at `ceil(expected_frames × 1.5)`. |
+
+### Single-frame (static QR — scan once)
+
+| Format | Prefix | Web Demo Mode | Notes |
+|--------|--------|---------------|-------|
+| Standard | `MEOW:<b64>` | Standard / Normal | AES-256-GCM password encryption. |
+| Forward Secrecy | `FS:<b64>` | Forward Secrecy | X25519 ephemeral key exchange (MEOW3). |
+| Schrödinger | `QUANTUM:<b64>` | Schrödinger | Dual-secret plausible deniability. |
+| Post-Quantum Hybrid | `HYBRID-PQ:<b64>` | Post-Quantum | ML-KEM-768/1024 + X25519 (MEOW5/MEOW4). |
+| Duress | `DURESS:<b64>` | Duress | Panic-password aware; reveals decoy on wrong key. |
+
+### Legacy chunked (web demo older animated format)
+
+| Format | Prefix | Notes |
+|--------|--------|-------|
+| MEOW chunks | `MEOW-N/total:<b64>` | Split MEOW: payload across N QR frames. Index = N-1. |
+
+### CLI bridge (JSON envelope)
+
+| Format | Shape | Notes |
+|--------|-------|-------|
+| JSON | `{"index": N, "data": "<b64>", "session_id"?: "..."}` | Used by `meow-encode --mobile-bridge`. |
+
+**Behaviour by format type:**
+
+- **Single-frame** (`MEOW:`, `FS:`, `QUANTUM:`, `HYBRID-PQ:`, `DURESS:`): capture session
+  auto-starts and auto-completes on the first valid scan. Set `expected_frames: 1`
+  in the capture request.
+- **Fountain / multi-frame**: camera stays active until fountain threshold is met
+  (`captured >= ceil(expected_frames × 1.5)`).
+- **Unknown prefixes** (e.g. arbitrary QR codes in the environment) are silently
+  ignored — only meow-format strings trigger the capture state machine.
 
 ---
 
@@ -107,7 +167,7 @@ The app validates all incoming requests with Zod strict schema. Extra fields are
 |-------|------|----------|-------------|
 | `action` | `"capture"` | ✓ | Must be exactly `"capture"` |
 | `session_id` | UUID v4 | ✓ | Validated as UUID regex |
-| `expected_frames` | integer | ✓ | 1–10,000 |
+| `expected_frames` | integer | ✓ | 1 for single-frame modes; fountain frame count for multi-frame |
 | `timeout_seconds` | integer | — | 1–600, defaults to 60 |
 
 ---
@@ -127,6 +187,21 @@ The app validates all incoming requests with Zod strict schema. Extra fields are
   ]
 }
 ```
+
+The `data` field contains the raw QR string **including its format prefix**:
+
+| Capture mode | Example `data` value |
+|-------------|----------------------|
+| Fountain multi-frame | `FOUNTAIN:10:800:4523:AABg...` |
+| Standard | `MEOW:AABg...` |
+| Forward Secrecy | `FS:AABg...` |
+| Schrödinger | `QUANTUM:AABg...` |
+| Post-Quantum | `HYBRID-PQ:AABg...` |
+| Duress | `DURESS:AABg...` |
+| Legacy chunked | `MEOW-1/5:AABg...` |
+| CLI bridge | `{"index":0,"data":"..."}` (stored as-is) |
+
+The desktop decoder identifies the encryption mode from the prefix and dispatches accordingly.
 
 ---
 
@@ -198,9 +273,12 @@ mobile/
 | Blank camera preview | Permission denied | Settings → Apps → MeowCapture → Permissions → Camera |
 | Frames not incrementing | Camera too far | Move 20–40 cm from screen |
 | Low frame count warning | Motion blur | Use stability indicator; hold phone still |
+| App completes instantly (0 frames shown) | expected_frames=0 in request JSON | Set expected_frames to the frame count from the demo log |
+| Single-frame mode never auto-completes | expected_frames > 1 | Set expected_frames: 1 for static MEOW:/FS:/etc. QR codes |
 | Export silently fails | Downloads folder full | Free storage and retry |
 | Timeout before completion | GIF too fast / poor lighting | Increase `timeout_seconds` in request JSON |
-| "Invalid request" error | Extra fields in JSON | Remove unrecognized fields; see schema above |
+| "Invalid request" error | Extra fields in JSON | Remove unrecognised fields; see schema above |
+| "Unknown QR format" (not shown, silently skipped) | Non-meow QR in environment | App only collects meow-prefixed QR codes; others are discarded |
 
 ### ADB extract (Android)
 
@@ -214,7 +292,11 @@ adb pull /sdcard/Download/meow_capture_<session_id>.json ./
 
 ## Fountain Code Tolerance
 
-The app uses a 1.5× redundancy factor. Capture completes automatically when:
+Applies to **multi-frame fountain coded QRs** (`FOUNTAIN:` prefix) only.
+Single-frame modes (`MEOW:`, `FS:`, `QUANTUM:`, `HYBRID-PQ:`, `DURESS:`) complete in one scan.
+
+For fountain-coded animated GIFs, the app uses a 1.5× redundancy factor.
+Capture completes automatically when:
 
 ```
 captured_frames ≥ ceil(expected_frames × 1.5)
