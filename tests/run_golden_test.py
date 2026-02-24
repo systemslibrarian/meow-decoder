@@ -13,9 +13,18 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+
+# Try to import webdriver-manager for auto chromedriver download
+try:
+    from webdriver_manager.chrome import ChromeDriverManager
+
+    USE_WEBDRIVER_MANAGER = True
+except ImportError:
+    USE_WEBDRIVER_MANAGER = False
 
 # ====================================================================
 # Configuration
@@ -81,8 +90,13 @@ def run_headless_test():
             chrome_options.binary_location = chrome_binary
             print(f"✓ Using Chrome: {chrome_binary}\n")
 
-        # Create driver
-        driver = webdriver.Chrome(options=chrome_options)
+        # Create driver with webdriver-manager if available
+        if USE_WEBDRIVER_MANAGER:
+            print("✓ Using webdriver-manager for chromedriver\n")
+            service = Service(ChromeDriverManager().install())
+            driver = webdriver.Chrome(service=service, options=chrome_options)
+        else:
+            driver = webdriver.Chrome(options=chrome_options)
         driver.set_page_load_timeout(TIMEOUT_SEC)
 
         try:

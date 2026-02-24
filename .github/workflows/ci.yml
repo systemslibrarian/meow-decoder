@@ -188,15 +188,14 @@ jobs:
         if: steps.check_golden.outputs.exists == 'true'
         run: |
           sudo apt-get update
-          sudo apt-get install -y chromium-browser || true
-          # Ubuntu 24.04 removed chromium-browser from apt — install via playwright
-          pip install playwright
-          python -m playwright install --with-deps chromium
+          sudo apt-get install -y chromium-browser chromium-chromedriver || true
+          # Ubuntu 24.04 may need snap chromium
+          which chromedriver || sudo apt-get install -y chromium-chromedriver || true
 
       - name: Install Python dependencies for test runner
         if: steps.check_golden.outputs.exists == 'true'
         run: |
-          pip install selenium
+          pip install selenium webdriver-manager
 
       - name: Verify golden video checksums
         if: steps.check_golden.outputs.exists == 'true'
