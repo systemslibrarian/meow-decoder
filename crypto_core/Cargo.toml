@@ -167,7 +167,7 @@ winapi = { version = "0.3", features = ["memoryapi", "sysinfoapi", "winnt", "err
 
 [dev-dependencies]
 # Benchmarking
-criterion = { version = "0.5", features = ["html_reports"] }
+criterion = { version = "0.8", features = ["html_reports"] }
 
 # Property-based testing
 proptest = "1.4"
