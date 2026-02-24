@@ -184,18 +184,18 @@ jobs:
             echo "   Run 'npm run generate-golden-videos' to create test assets."
           fi
 
-      - name: Install system dependencies
+      - name: Setup Chrome
         if: steps.check_golden.outputs.exists == 'true'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver || true
-          # Ubuntu 24.04 may need snap chromium
-          which chromedriver || sudo apt-get install -y chromium-chromedriver || true
+        uses: browser-actions/setup-chrome@latest  # v1.7.1+
+        with:
+          chrome-version: stable
 
       - name: Install Python dependencies for test runner
         if: steps.check_golden.outputs.exists == 'true'
         run: |
           pip install selenium webdriver-manager
+          # Set Chrome binary for webdriver-manager
+          echo "CHROME_BIN=$(which google-chrome || which chrome)" >> $GITHUB_ENV
 
       - name: Verify golden video checksums
         if: steps.check_golden.outputs.exists == 'true'
