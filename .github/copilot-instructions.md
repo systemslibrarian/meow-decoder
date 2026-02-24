@@ -68,6 +68,7 @@ Meow Decoder is a security-focused optical air-gap file transfer system that enc
 ## Critical Development Patterns
 
 ### Module Import Structure
+
 ```python
 from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
 from meow_decoder.fountain import FountainEncoder, FountainDecoder
@@ -77,7 +78,9 @@ from meow_decoder.config import EncodingConfig, MeowConfig
 Core modules live in `meow_decoder/`, tests in `tests/`, examples in `examples/`.
 
 ### Manifest Versions (Critical!)
+
 When editing crypto code, respect manifest version boundaries:
+
 - **MEOW2**: Base encryption (password-only, no forward secrecy) — mode_byte=0x02
 - **MEOW3**: Forward secrecy support (X25519 ephemeral keys optional) — mode_byte=0x03
 - **MEOW4**: Post-quantum hybrid paranoid (ML-KEM-1024 + X25519) — mode_byte=0x04
@@ -90,7 +93,9 @@ Legacy manifests (mode_byte=0) are still accepted for backward compatibility.
 Check version in [encode.py](../meow_decoder/encode.py) lines 56-73 for proper mode selection.
 
 ### Testing Requirements
+
 All security-critical changes must include tests in `tests/test_security.py` or `tests/test_adversarial.py`:
+
 - **Tamper detection**: Verify modified manifests/ciphertext are rejected
 - **Authentication**: Wrong password must fail cleanly
 - **Corruption handling**: Partial frames, corrupted QR codes
@@ -99,6 +104,7 @@ All security-critical changes must include tests in `tests/test_security.py` or 
 Run tests: `make test` or `pytest tests/ -v --cov=meow_decoder`
 
 ### Security Invariants (NEVER violate!)
+
 1. **AAD binding**: Manifest must be bound to ciphertext via AES-GCM AAD — includes `orig_len`, `comp_len`, `salt`, `sha256`, `magic`, `ephemeral_public_key`, `pq_ciphertext`
 2. **No AAD bypass**: `decrypt_to_raw()` requires all AAD params; `aad=None` is never allowed
 3. **HMAC verification**: Compute and verify manifest HMAC before using any fields
@@ -111,6 +117,7 @@ Run tests: `make test` or `pytest tests/ -v --cov=meow_decoder`
 ## Command Reference
 
 ### Development Workflow
+
 ```bash
 make install     # Install dependencies
 make dev         # Install dev dependencies + pre-commit hooks
@@ -120,6 +127,7 @@ make format      # Auto-format with black
 ```
 
 ### Common CLI Operations
+
 ```bash
 # Basic encode/decode
 meow-encode -i secret.pdf -o secret.gif -p "password123"
@@ -135,6 +143,7 @@ python -m meow_decoder.schrodinger_encode -i secret.pdf -i2 decoy.txt \
 ```
 
 ### Docker Testing
+
 ```bash
 docker-compose up --build  # Runs full integration tests
 docker run -it meow-decoder python -m pytest tests/
@@ -143,18 +152,21 @@ docker run -it meow-decoder python -m pytest tests/
 ## Fountain Codes - Frame Loss Tolerance
 
 ### Python Implementation ([fountain.py](../meow_decoder/fountain.py))
+
 - **506 lines** implementing Luby Transform codes
 - `RobustSolitonDistribution`: Optimal degree selection (c=0.1, δ=0.5)
 - `FountainEncoder`: Generate unlimited droplets from source blocks
 - `FountainDecoder`: Belief propagation reconstruction
 
 ### JavaScript Implementation ([examples/fountain-codes.js](../examples/fountain-codes.js))
+
 - **414 lines** for web demo (production-ready, no dependencies)
 - Identical algorithm to Python version for compatibility
 - Classes: `FountainEncoder`, `FountainDecoder`, `Droplet`, `RobustSolitonDistribution`, `SeededRandom`
 - Integrated into `wasm_browser_example.html` webcam scanner
 
 ### Frame Format
+
 ```
 FOUNTAIN:<k_blocks>:<block_size>:<original_length>:<base64_droplet>
 
@@ -167,6 +179,7 @@ Example: FOUNTAIN:5:600:2847:AABgAC...
 ```
 
 ### Key Properties
+
 - **Rateless**: Can generate unlimited droplets until decode succeeds
 - **Loss-tolerant**: Decode from ANY ~67% of frames (with 1.5× redundancy)
 - **Stateless**: No need to track which specific frames were received
@@ -175,6 +188,7 @@ Example: FOUNTAIN:5:600:2847:AABgAC...
 ### Integration Points
 
 **Python CLI:**
+
 ```python
 from meow_decoder.fountain import FountainEncoder, FountainDecoder
 
@@ -191,38 +205,42 @@ recovered = decoder.getData()
 ```
 
 **JavaScript Web Demo:**
+
 ```javascript
 // Encode (wasm_browser_example.html line ~2540)
 const encoder = new FountainEncoder(payloadBytes, kBlocks, blockSize);
 const numDroplets = Math.ceil(kBlocks * 1.5);
 for (let i = 0; i < numDroplets; i++) {
-    const droplet = encoder.generateDroplet(i);
-    const framePayload = `FOUNTAIN:${kBlocks}:${blockSize}:${length}:${bytesToBase64(droplet.pack())}`;
-    // Generate QR from framePayload
+  const droplet = encoder.generateDroplet(i);
+  const framePayload = `FOUNTAIN:${kBlocks}:${blockSize}:${length}:${bytesToBase64(droplet.pack())}`;
+  // Generate QR from framePayload
 }
 
 // Decode (scanWebcamFrame line ~5800)
-if (code.data.startsWith('FOUNTAIN:')) {
-    const [_, k, blockSize, length, dropletB64] = code.data.split(':');
-    const decoder = new FountainDecoder(parseInt(k), parseInt(blockSize), parseInt(length));
-    const droplet = Droplet.unpack(base64ToBytes(dropletB64), blockSize);
-    if (decoder.addDroplet(droplet) && decoder.isComplete()) {
-        const payload = decoder.getData();  // Success!
-    }
+if (code.data.startsWith("FOUNTAIN:")) {
+  const [_, k, blockSize, length, dropletB64] = code.data.split(":");
+  const decoder = new FountainDecoder(parseInt(k), parseInt(blockSize), parseInt(length));
+  const droplet = Droplet.unpack(base64ToBytes(dropletB64), blockSize);
+  if (decoder.addDroplet(droplet) && decoder.isComplete()) {
+    const payload = decoder.getData(); // Success!
+  }
 }
 ```
 
 ### Testing
+
 - **Python**: `tests/test_fountain.py` - comprehensive unit tests
 - **JavaScript**: `examples/test_fountain.html` - browser-based test suite
 - Run both: `pytest tests/test_fountain.py` and open test_fountain.html in browser
 
 ### Performance Tuning
+
 - **block_size**: 600-800 bytes balances QR capacity vs frame count
 - **redundancy**: 1.5× (50% overhead) tolerates 33% loss; 2.0× tolerates 50% loss
 - **Systematic optimization**: First 2k droplets are degree-1, dramatically improves decode speed
 
 ### Security Note
+
 Fountain codes operate on **already-encrypted** ciphertext. They are information-theoretic erasure codes, not encryption. Observing partial droplets reveals nothing about plaintext. No security regression from adding fountain encoding.
 
 ## Common Gotchas
@@ -252,12 +270,14 @@ Fountain codes operate on **already-encrypted** ciphertext. They are information
 ## Configuration & Tuning
 
 Key parameters in [config.py](../meow_decoder/config.py):
+
 - `block_size`: Fountain code block size (default 800 bytes)
 - `redundancy`: Fountain code redundancy factor (default 1.5 = 50% overhead)
 - `qr_version`: Auto-selected based on data size
 - `fps`: GIF frame rate (default 10)
 
 Argon2id params in [crypto.py](../meow_decoder/crypto.py) lines 28-37:
+
 ```python
 # Test mode (MEOW_TEST_MODE=1):
 ARGON2_MEMORY = 32768      # 32 MiB (fast)
