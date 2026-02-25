@@ -11,6 +11,9 @@ import {
   formatFileSize,
   estimateETA,
   formatCountdown,
+  formatFrameCount,
+  recoveryConfidenceLabel,
+  decodeRateDisplay,
 } from '../src/utils/formatters';
 
 // ── formatElapsed ─────────────────────────────────────────────────────────────
@@ -151,5 +154,109 @@ describe('estimateETA', () => {
     expect(eta).not.toBeNull();
     expect(typeof eta).toBe('string');
     expect(eta).toContain('left');
+  });
+});
+
+// ── formatFrameCount ──────────────────────────────────────────────────────────
+
+describe('formatFrameCount', () => {
+  it('formats captured / expected', () => {
+    expect(formatFrameCount(32, 45)).toBe('32 / 45');
+  });
+
+  it('handles zero captured', () => {
+    expect(formatFrameCount(0, 10)).toBe('0 / 10');
+  });
+
+  it('handles zero expected', () => {
+    expect(formatFrameCount(0, 0)).toBe('0 / 0');
+  });
+
+  it('handles overcapture', () => {
+    expect(formatFrameCount(20, 10)).toBe('20 / 10');
+  });
+});
+
+// ── recoveryConfidenceLabel ───────────────────────────────────────────────────
+
+describe('recoveryConfidenceLabel', () => {
+  it('returns "Waiting…" when expected is 0', () => {
+    const result = recoveryConfidenceLabel(0, 0);
+    expect(result.label).toBe('Waiting…');
+    expect(result.safeToStop).toBe(false);
+    expect(result.color).toBe('dim');
+  });
+
+  it('returns "Keep scanning" (danger) below 0.67 ratio', () => {
+    const result = recoveryConfidenceLabel(3, 10);
+    expect(result.label).toBe('Keep scanning');
+    expect(result.color).toBe('danger');
+    expect(result.safeToStop).toBe(false);
+    expect(result.sublabel).toContain('more frames');
+  });
+
+  it('returns "Getting there" (warning) at 0.67–1.0 ratio', () => {
+    const result = recoveryConfidenceLabel(7, 10);
+    expect(result.label).toBe('Getting there');
+    expect(result.color).toBe('warning');
+    expect(result.safeToStop).toBe(false);
+    expect(result.sublabel).toContain('more frames');
+  });
+
+  it('returns "Good progress" (success) at 1.0–1.2 ratio', () => {
+    const result = recoveryConfidenceLabel(10, 10);
+    expect(result.label).toBe('Good progress');
+    expect(result.color).toBe('success');
+    expect(result.safeToStop).toBe(false);
+  });
+
+  it('returns "Strong recovery confidence" (success, safeToStop) at 1.2–1.5 ratio', () => {
+    const result = recoveryConfidenceLabel(13, 10);
+    expect(result.label).toBe('Strong recovery confidence');
+    expect(result.color).toBe('success');
+    expect(result.safeToStop).toBe(true);
+  });
+
+  it('returns "Transfer complete" (gold, safeToStop) at ≥ 1.5 ratio', () => {
+    const result = recoveryConfidenceLabel(15, 10);
+    expect(result.label).toBe('Transfer complete');
+    expect(result.color).toBe('gold');
+    expect(result.safeToStop).toBe(true);
+  });
+
+  it('boundary: exactly 0.67 ratio returns "Getting there"', () => {
+    // 67 captured, 100 expected → 0.67
+    const result = recoveryConfidenceLabel(67, 100);
+    expect(result.label).toBe('Getting there');
+  });
+
+  it('boundary: exactly 1.5 ratio returns "Transfer complete"', () => {
+    const result = recoveryConfidenceLabel(15, 10);
+    expect(result.label).toBe('Transfer complete');
+  });
+});
+
+// ── decodeRateDisplay ─────────────────────────────────────────────────────────
+
+describe('decodeRateDisplay', () => {
+  it('formats normal fps and dup rate', () => {
+    expect(decodeRateDisplay(3.5, 0.12)).toBe('3.5 fps · 12% dup');
+  });
+
+  it('returns "— fps (no signal)" when rate is below 0.1', () => {
+    expect(decodeRateDisplay(0.05, 0)).toBe('— fps (no signal)');
+    expect(decodeRateDisplay(0, 0.5)).toBe('— fps (no signal)');
+  });
+
+  it('rounds duplicate percentage to whole number', () => {
+    expect(decodeRateDisplay(2.0, 0.156)).toBe('2.0 fps · 16% dup');
+  });
+
+  it('handles 0% duplicate rate', () => {
+    expect(decodeRateDisplay(5.0, 0)).toBe('5.0 fps · 0% dup');
+  });
+
+  it('handles 100% duplicate rate', () => {
+    expect(decodeRateDisplay(1.0, 1.0)).toBe('1.0 fps · 100% dup');
   });
 });

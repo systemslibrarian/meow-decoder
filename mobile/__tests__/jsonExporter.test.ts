@@ -4,7 +4,7 @@
  * Uses mocked react-native-fs to test file write logic without filesystem.
  */
 
-import { buildQRExportChunks } from '../src/services/jsonExporter';
+import { buildQRExportChunks, verifyQRExportReassembly } from '../src/services/jsonExporter';
 import type { CaptureResponse } from '../src/types/capture';
 
 // react-native-fs is mocked globally via __mocks__/react-native-fs.ts
@@ -87,5 +87,74 @@ describe('buildQRExportChunks', () => {
     expect(first.meow_qr_chunk).toBe(true);
     expect(first.session_id).toBe('550e8400-e29b-41d4-a716-446655440000');
     expect(typeof first.data).toBe('string');
+  });
+});
+
+// ── verifyQRExportReassembly ──────────────────────────────────────────────────
+
+describe('verifyQRExportReassembly', () => {
+  /** Helper: build chunks and parse them back into structured objects */
+  const buildAndParse = (frameCount: number, maxChunkBytes = 2000) => {
+    const response = makeResponse(frameCount);
+    const rawChunks = buildQRExportChunks(response, maxChunkBytes);
+    return rawChunks.map((c) => JSON.parse(c));
+  };
+
+  it('validates correctly reassembled chunks', () => {
+    const chunks = buildAndParse(10, 2000);
+    const result = verifyQRExportReassembly(chunks);
+    expect(result.valid).toBe(true);
+    expect(result.error).toBeUndefined();
+    expect(typeof result.reassembled).toBe('string');
+  });
+
+  it('reconstructed payload parses back to original JSON', () => {
+    const response = makeResponse(5);
+    const rawChunks = buildQRExportChunks(response, 100_000);
+    const chunks = rawChunks.map((c) => JSON.parse(c));
+    const result = verifyQRExportReassembly(chunks);
+    expect(result.valid).toBe(true);
+    const parsed = JSON.parse(result.reassembled!);
+    expect(parsed.session_id).toBe('550e8400-e29b-41d4-a716-446655440000');
+    expect(parsed.frames.length).toBe(5);
+  });
+
+  it('rejects empty chunks array', () => {
+    const result = verifyQRExportReassembly([]);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('No chunks');
+  });
+
+  it('rejects when chunk count does not match total_chunks', () => {
+    const chunks = buildAndParse(50, 1000);
+    // Remove last chunk to create a mismatch
+    chunks.pop();
+    const result = verifyQRExportReassembly(chunks);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('Expected');
+  });
+
+  it('rejects when chunk data is tampered', () => {
+    const chunks = buildAndParse(10, 2000);
+    // Tamper with one chunk's data
+    chunks[0].data = 'TAMPERED_DATA';
+    const result = verifyQRExportReassembly(chunks);
+    expect(result.valid).toBe(false);
+    expect(result.error).toContain('checksum mismatch');
+  });
+
+  it('handles single-chunk payloads', () => {
+    const chunks = buildAndParse(1, 100_000);
+    expect(chunks.length).toBe(1);
+    const result = verifyQRExportReassembly(chunks);
+    expect(result.valid).toBe(true);
+  });
+
+  it('reassembles multi-chunk payloads in correct order regardless of input order', () => {
+    const chunks = buildAndParse(50, 1000);
+    // Reverse the chunks — verifyQRExportReassembly should sort by chunk_index
+    const reversed = [...chunks].reverse();
+    const result = verifyQRExportReassembly(reversed);
+    expect(result.valid).toBe(true);
   });
 });

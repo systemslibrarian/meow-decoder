@@ -1,0 +1,16 @@
+{
+  "name": "web_demo",
+  "version": "1.0.0",
+  "description": "A minimal Flask web interface for Meow Decoder featuring **Cat Mode** as a flagship demonstration of steganographic QR code camouflage.",
+  "main": "adaptive-threshold.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "jest": "^30.2.0"
+  }
+}
