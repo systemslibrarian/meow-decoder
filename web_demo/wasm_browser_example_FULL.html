@@ -470,6 +470,7 @@
         <div class="mode-tab active" onclick="switchMode('standard')">🔐 Standard</div>
         <div class="mode-tab" onclick="switchMode('schrodinger')">🐱 Schrödinger</div>
         <div class="mode-tab" onclick="switchMode('stego')">🖼️ Stego</div>
+        <div class="mode-tab" onclick="switchMode('cat')">😺 Cat</div>
         <div class="mode-tab" onclick="switchMode('catAnimated')">🧶 Cat Animated</div>
         <div class="mode-tab" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</div>
         <div class="mode-tab" onclick="switchMode('postQuantum')">🔮 Post-Quantum</div>
@@ -1435,7 +1436,7 @@
     </details>
 
     <!-- FOUNTAIN CODES - Loss-tolerant encoding for frame drops -->
-    <script src="fountain-codes.js"></script>
+    <script src="static/fountain-codes.js"></script>
 
     <!-- CAT MODE PROTOCOL - CRC32 packet framing -->
     <script src="cat-mode-protocol.js"></script>
@@ -4054,8 +4055,11 @@
             document.getElementById('catVideoInfo').textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
             document.getElementById('catVideoDecodeBtn').disabled = false;
 
-            // Show preview
+            // Show preview (revoke previous object URL to avoid memory leak)
             const video = document.getElementById('catVideoPreview');
+            if (video.src && video.src.startsWith('blob:')) {
+                URL.revokeObjectURL(video.src);
+            }
             video.src = URL.createObjectURL(file);
             video.style.display = 'block';
             video.load();
@@ -6205,7 +6209,7 @@
                 }
 
             } catch (err) {
-                resultEl.innerHTML = `<span style=\"color:#f44336\">❌ Error: ${err.message}</span>`;
+                resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${escapeHtml(err.message)}</span>`;
                 log('❌ [Cat Anim] Error: ' + err.message);
                 catAnimatedStop();
             }
@@ -6621,7 +6625,7 @@
 
             } catch (err) {
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${escapeHtml(err.message)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('❌ [FS] Error: ' + err.message);
             }
@@ -6748,8 +6752,10 @@
             const blob = new Blob([JSON.stringify(keyData, null, 2)], { type: 'application/json' });
             const link = document.createElement('a');
             link.download = 'meow-pq-keypair-KEEP-SECRET.json';
-            link.href = URL.createObjectURL(blob);
+            const objUrl = URL.createObjectURL(blob);
+            link.href = objUrl;
             link.click();
+            URL.revokeObjectURL(objUrl);
 
             log('💾 [PQ] Key pair exported (contains secret keys — store securely!)');
         };
@@ -7029,7 +7035,7 @@
                 scanWebcamFrame();
 
             } catch (err) {
-                document.getElementById('webcamStatus').innerHTML = `<span style="color: #ff6464;">❌ Camera error: ${err.message}</span>`;
+                document.getElementById('webcamStatus').innerHTML = `<span style="color: #ff6464;">❌ Camera error: ${escapeHtml(err.message)}</span>`;
                 log('❌ [Webcam] Error: ' + err.message);
             }
         };
@@ -7209,7 +7215,7 @@
 
             } catch (err) {
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${err.message}</div>`;
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class='message'>${escapeHtml(err.message)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('❌ [Webcam] Error: ' + err.message);
             }
@@ -7272,9 +7278,9 @@
             showProgress('Encrypting with duress tag...');
 
             log('\n🚨 [Duress] Encrypting message with duress tag...');
-            log(`   Real password: ${realPassword.substring(0,3)}***`);
-            log(`   Panic password: ${panicPassword.substring(0,3)}***`);
-            log(`   Decoy message: "${decoyMessage.substring(0,30)}..."`);
+            log(`   Real password: [REDACTED]`);
+            log(`   Panic password: [REDACTED]`);
+            log(`   Decoy message: [REDACTED ${decoyMessage.length} chars]`);
 
             try {
                 // Generate salt and nonce
@@ -8065,7 +8071,7 @@
                     statusEl.innerHTML = `<span style="color: #f44336;">❌ No QR code found (scanners: ${hasBD ? 'BarcodeDetector' : ''}${hasBD && hasJsQR ? ' + ' : ''}${hasJsQR ? 'jsQR' : ''}${!hasBD && !hasJsQR ? 'none available!' : ''}). Try using "Copy Encrypted Data" button instead and paste the payload directly.</span>`;
                 }
             } catch (err) {
-                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${escapeHtml(err.message)}</span>`;
                 log(`❌ [Duress] QR scan error: ${err.message}`);
             }
 
@@ -8171,7 +8177,7 @@
                     statusEl.innerHTML = '<span style="color: #f44336;">❌ No QR code found.</span>';
                 }
             } catch (err) {
-                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${err.message}</span>`;
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ ${escapeHtml(err.message)}</span>`;
             }
 
             input.value = '';
