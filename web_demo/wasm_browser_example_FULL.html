@@ -2843,11 +2843,12 @@
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 enableStegoButtons();
 
+                const workerStatus = useWorker && workerReady ? 'off-thread' : 'main thread';
                 statusEl.className = 'status ready';
                 statusEl.textContent = '✅ Ready';
 
                 log('🐱 Meow Decoder WASM initialized');
-                log(`📦 Crypto: AES-256-GCM + Argon2id ${workerStatus}`);
+                log(`📦 Crypto: AES-256-GCM + Argon2id (${workerStatus})`);
 
                 // Load QR libraries in background after WASM is ready
                 Promise.all([loadQRCode(), loadJsQR()]).then(() => {
