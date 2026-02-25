@@ -311,7 +311,13 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             self.data.as_mut().zeroize();
         }
 
-        // Step 2: munlock if we locked it
+        // Step 2: Drop the inner value so heap-allocating types (e.g. Vec<u8>)
+        // free their buffers. Must happen AFTER zeroize, BEFORE munmap.
+        unsafe {
+            std::ptr::drop_in_place(self.data.as_ptr());
+        }
+
+        // Step 3: munlock if we locked it
         if self.mlocked {
             let data_ptr = unsafe { self.mmap_base.add(self.page_size) };
             let data_region_size = self.mmap_size - 2 * self.page_size;
@@ -320,7 +326,7 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             }
         }
 
-        // Step 3: munmap the entire region (guard pages + data)
+        // Step 4: munmap the entire region (guard pages + data)
         unsafe {
             libc::munmap(self.mmap_base as *mut libc::c_void, self.mmap_size);
         }
@@ -338,7 +344,13 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             self.data.as_mut().zeroize();
         }
 
-        // Step 2: VirtualUnlock if we locked it
+        // Step 2: Drop the inner value so heap-allocating types (e.g. Vec<u8>)
+        // free their buffers. Must happen AFTER zeroize, BEFORE VirtualFree.
+        unsafe {
+            std::ptr::drop_in_place(self.data.as_ptr());
+        }
+
+        // Step 3: VirtualUnlock if we locked it
         if self.mlocked {
             let data_ptr = unsafe { self.mmap_base.add(self.page_size) };
             let data_region_size = self.mmap_size - 2 * self.page_size;
@@ -347,7 +359,7 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             }
         }
 
-        // Step 3: VirtualFree the entire region
+        // Step 4: VirtualFree the entire region
         unsafe {
             VirtualFree(self.mmap_base as *mut _, 0, MEM_RELEASE);
         }

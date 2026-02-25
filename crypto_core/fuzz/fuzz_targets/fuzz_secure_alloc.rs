@@ -30,16 +30,16 @@ fuzz_target!(|raw: &[u8]| {
                 b.data_size()
             );
 
-            // Invariant: data_size == the actual length of data allocated
-            // (alloc_data may be shorter than `size` when raw.len() < size)
-            assert_eq!(b.data_size(), alloc_data.len());
+            // Invariant: data_size == size_of the stored type (Vec<u8> = 24 bytes)
+            // NOT the number of elements in the Vec
+            assert_eq!(b.data_size(), std::mem::size_of::<Vec<u8>>());
 
             // is_locked() must not panic
             let _locked = b.is_locked();
 
             // Deref must yield original data
             let data_ref: &Vec<u8> = &*b;
-            assert_eq!(data_ref.len(), size);
+            assert_eq!(data_ref.len(), alloc_data.len());
             for (i, &byte) in data_ref.iter().enumerate() {
                 assert_eq!(byte, alloc_data[i]);
             }
