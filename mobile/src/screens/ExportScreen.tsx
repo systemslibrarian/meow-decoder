@@ -19,6 +19,7 @@ import {
   Platform,
   ActivityIndicator,
   Share,
+  Alert,
 } from 'react-native';
 import Clipboard from '@react-native-clipboard/clipboard';
 import ReactNativeBiometrics from 'react-native-biometrics';
@@ -57,6 +58,10 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   const [qrChunks, setQrChunks] = useState<string[]>([]);
   const [currentQrIndex, setCurrentQrIndex] = useState(0);
 
+  // Debug bundle state
+  const [debugBundleExporting, setDebugBundleExporting] = useState(false);
+  const [debugBundlePath, setDebugBundlePath] = useState<string | null>(null);
+
   // ── Summary stats ──────────────────────────────────────────────────────────
   const captured = response.frames_captured;
   const expected = response.frames_missed + response.frames_captured;
@@ -64,10 +69,10 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   const pct = formatPercent(ratio);
 
   const recoveryStatus =
-    ratio >= 1.5 ? { label: 'Fountain complete', color: Colors.catGold } :
-    ratio >= 1.0 ? { label: 'Likely recoverable', color: Colors.success } :
-    ratio >= 0.67 ? { label: 'Possibly recoverable', color: Colors.warning } :
-    { label: 'May not decode', color: Colors.danger };
+    ratio >= 1.5 ? { label: 'Transfer complete — all data captured', color: Colors.catGold } :
+    ratio >= 1.0 ? { label: 'Likely recoverable — good capture', color: Colors.success } :
+    ratio >= 0.67 ? { label: 'Possibly recoverable — try decoding', color: Colors.warning } :
+    { label: 'May not decode — consider recapturing', color: Colors.danger };
 
   // ── Check biometric availability on mount ──────────────────────────────────
   // SECURITY: No auto-export. The user must explicitly confirm and pass
@@ -145,7 +150,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
       if (!success) {
         ReactNativeHapticFeedback.trigger('notificationWarning', HAPTIC_OPTIONS);
-        showToast({ message: 'Export cancelled 🐱', type: 'info' });
+        showToast({ message: 'Export cancelled — your captured data is still here. Tap Export again when ready.', type: 'info', durationMs: 4_000 });
         return;
       }
     }
@@ -160,9 +165,9 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       showToast({ message: 'Delivered to Downloads! 📦🐾', type: 'success' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
-      setExportError(`Export failed: ${msg}`);
+      setExportError(`Export failed: ${msg}. Your captured data is still in memory — tap Retry to try again.`);
       ReactNativeHapticFeedback.trigger('notificationError', HAPTIC_OPTIONS);
-      showToast({ message: 'Hiss... export failed 🙀', type: 'error' });
+      showToast({ message: 'Export failed — your data is safe in memory. Check storage space and try again.', type: 'error', durationMs: 5_000 });
     } finally {
       setExporting(false);
     }
@@ -191,6 +196,28 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       // User dismissed share sheet — not an error
     }
   }, [exportResult]);
+
+  // ── Debug bundle export (one-tap sanitized support artifact) ──────────────
+  const handleDebugBundleExport = useCallback(async () => {
+    setDebugBundleExporting(true);
+    try {
+      const { exportDebugBundle } = await import('../services/debugBundleExporter');
+      const path = await exportDebugBundle({
+        response,
+        exportResult,
+        exportError,
+        reason,
+        cameraPermission: 'granted', // If we got here, camera was granted
+      });
+      setDebugBundlePath(path);
+      ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
+      showToast({ message: 'Debug bundle saved — safe to share for troubleshooting', type: 'success', durationMs: 3_000 });
+    } catch {
+      showToast({ message: 'Could not export debug bundle', type: 'error' });
+    } finally {
+      setDebugBundleExporting(false);
+    }
+  }, [response, exportResult, exportError, reason, showToast]);
 
   // ── Confirmation card (shown before export is triggered) ──────────────────
   if (awaitingConfirm && !exporting && !exportResult) {
@@ -252,8 +279,18 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
           <TouchableOpacity
             style={styles.ghostButton}
-            onPress={() => navigation.navigate('Home')}
+            onPress={() => {
+              Alert.alert(
+                'Discard this capture?',
+                'All captured frames will be permanently deleted. This cannot be undone.',
+                [
+                  { text: 'Keep capture', style: 'cancel' },
+                  { text: 'Discard', style: 'destructive', onPress: () => navigation.navigate('Home') },
+                ],
+              );
+            }}
             accessibilityRole="button"
+            accessibilityLabel="Discard capture and return home. All frames will be deleted."
           >
             <Text style={styles.ghostButtonText}>✕ Discard capture</Text>
           </TouchableOpacity>
@@ -348,7 +385,13 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
         </Text>
         {reason === 'timeout' && (
           <Text style={styles.timeoutMsg}>
-            We caught {captured} of {expected} frames. That might be enough!
+            Captured {captured} of {expected} frames before timeout.
+            {ratio >= 1.0
+              ? ' This is likely enough for full recovery.'
+              : ratio >= 0.67
+                ? ' Recovery may be possible — export and try decoding.'
+                : ' This may not be enough to decode. You can start a new capture to get more frames.'}
+            {' Your captured data is safe until you leave this screen.'}
           </Text>
         )}
 
@@ -485,6 +528,35 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
               📲 Show as QR codes ({qrChunkCount} screens)
             </Text>
           </TouchableOpacity>
+        </View>
+
+        {/* Debug bundle export — safe to share */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Need help? Export debug info</Text>
+          <Text style={styles.cardBody}>
+            Creates a small text file with capture statistics and device info.
+            {'\n\n'}No payloads, passwords, or sensitive content included — safe to share for troubleshooting.
+          </Text>
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={handleDebugBundleExport}
+            disabled={debugBundleExporting}
+            accessibilityRole="button"
+            accessibilityLabel="Export sanitized debug bundle. Contains no sensitive data."
+          >
+            <Text style={styles.secondaryButtonText}>
+              {debugBundleExporting
+                ? '⏳ Exporting…'
+                : debugBundlePath
+                  ? '✅ Debug bundle saved'
+                  : '🛡️ Export Debug Bundle'}
+            </Text>
+          </TouchableOpacity>
+          {debugBundlePath && (
+            <Text style={styles.debugBundleHint}>
+              Saved to Downloads — safe to share with support
+            </Text>
+          )}
         </View>
 
         {/* New capture */}
@@ -715,6 +787,13 @@ const styles = StyleSheet.create({
   ghostButtonText: {
     color: Colors.textTertiary,
     fontSize: Typography.sm,
+  },
+  debugBundleHint: {
+    color: Colors.textTertiary,
+    fontSize: Typography.xs ?? 10,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+    fontStyle: 'italic',
   },
   // QR mode
   qrContainer: {

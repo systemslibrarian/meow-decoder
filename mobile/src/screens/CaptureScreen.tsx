@@ -33,6 +33,7 @@ import { FrameOverlay } from '../components/FrameOverlay';
 import { StabilityIndicator } from '../components/StabilityIndicator';
 import { CatWhiskerHUD } from '../components/CatWhiskerHUD';
 import { CaptureCoachPanel } from '../components/CaptureCoachPanel';
+import { CalibrationWizard } from '../components/CalibrationWizard';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useSecureScreen } from '../hooks/useSecureScreen';
 import { useStallDetector } from '../hooks/useStallDetector';
@@ -52,6 +53,10 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const { request } = route.params;
   const { showToast } = useCatToast();
   const { play: playAudioCue } = useAudioCues();
+
+  // ── Calibration wizard state ───────────────────────────────────────────────
+  const [showCalibration, setShowCalibration] = useState(true);
+  const calibrationCompleteRef = useRef(false);
 
   // ── Security: privacy overlay + FLAG_SECURE (Android via MainActivity.kt) ──
   const { isBackgrounding } = useSecureScreen();
@@ -82,10 +87,24 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
   // omitted for now to keep strict noUnusedLocals clean.
 
-  // ── Load request on mount ──────────────────────────────────────────────────
+  // ── Load request only after calibration wizard completes ─────────────────
   useEffect(() => {
-    loadRequest(request);
+    if (calibrationCompleteRef.current) {
+      loadRequest(request);
+    }
   }, [request, loadRequest]);
+
+  const handleCalibrationComplete = () => {
+    calibrationCompleteRef.current = true;
+    setShowCalibration(false);
+    loadRequest(request);
+  };
+
+  const handleCalibrationSkip = () => {
+    calibrationCompleteRef.current = true;
+    setShowCalibration(false);
+    loadRequest(request);
+  };
 
   // ── Navigate on terminal states ────────────────────────────────────────────
   useEffect(() => {
@@ -185,23 +204,23 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       stallCountRef.current += 1;
       if (stallCountRef.current === 1) {
         showToast({
-          message: '😿 No new frames detected — try moving the camera closer or adjusting the angle',
+          message: 'No new frames arriving. Try moving the camera closer, adjusting the angle, or checking that the GIF is still playing on the other screen.',
           type: 'info',
-          durationMs: 5_000,
+          durationMs: 6_000,
         });
       } else if (stallCountRef.current === 2) {
         // Auto-nudge exposure up half a stop and inform user
         autoRecoveryRef.current?.(0.5);
         showToast({
-          message: '🌙 Adjusting brightness — if there\'s glare, tap the ☀️− button',
+          message: 'Adjusting brightness automatically. If there is glare on the screen, try tilting your phone slightly.',
           type: 'info',
-          durationMs: 5_000,
+          durationMs: 6_000,
         });
       } else {
         showToast({
-          message: '💡 Still stuck? Try turning on the flashlight or moving about 10 cm closer to the screen',
+          message: 'Still not receiving frames. Try turning on your phone flashlight, or move about 10 cm closer to the other screen. Your data so far is safe.',
           type: 'info',
-          durationMs: 6_000,
+          durationMs: 7_000,
         });
       }
     },
@@ -265,10 +284,10 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     }
 
     const TOASTS: Record<number, { message: string; type: 'milestone' | 'success' }> = {
-      0.25: { message: '25% captured — keep going! 🐱', type: 'milestone' },
-      0.5: { message: 'Halfway there! 🐾', type: 'milestone' },
-      0.75: { message: '75% done — almost there! 😼', type: 'milestone' },
-      1.0: { message: 'All frames captured — safe to stop! 😸', type: 'success' },
+      0.25: { message: '25% captured — keep scanning, good start', type: 'milestone' },
+      0.5: { message: 'Halfway there — keep holding steady', type: 'milestone' },
+      0.75: { message: '75% done — almost there, keep going', type: 'milestone' },
+      1.0: { message: 'All expected frames captured! You can safely tap Done now.', type: 'success' },
     };
 
     const toast = TOASTS[lastMilestone];
@@ -290,9 +309,9 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     if (isNearMemoryLimit && !memoryWarnFiredRef.current) {
       memoryWarnFiredRef.current = true;
       showToast({
-        message: '⚠️ Large capture — consider exporting soon',
+        message: 'Large number of frames captured. Tap Done soon to avoid running out of memory. Your data is safe.',
         type: 'info',
-        durationMs: 4000,
+        durationMs: 5000,
       });
     }
   }, [isNearMemoryLimit, showToast]);
@@ -300,7 +319,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   // ── Error handling ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (status === 'ERROR' && error) {
-      showToast({ message: `Error: ${error}`, type: 'error' });
+      showToast({ message: `Something went wrong: ${error}. Your data is safe — go back and try again.`, type: 'error', durationMs: 6_000 });
       playAudioCue('error');
     }
   }, [status, error, showToast, playAudioCue]);
@@ -421,6 +440,13 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           </TouchableOpacity>
         )}
       </View>
+
+      {/* Pre-scan calibration wizard (shown on mount, before capture begins) */}
+      <CalibrationWizard
+        visible={showCalibration}
+        onComplete={handleCalibrationComplete}
+        onDismiss={handleCalibrationSkip}
+      />
     </View>
   );
 }

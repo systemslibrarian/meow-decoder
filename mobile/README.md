@@ -12,7 +12,7 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 
 **No network. No cloud. No traces.**
 
-> **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard, Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge, safe-to-share diagnostics export), Export SHA-256 + filename copy, Request QR scanner, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. Video import hook is present but feature-flagged OFF (hidden from release UI). 274/274 tests, strict TypeScript, zero network permissions.
+> **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard (5-step preflight: camera, QR visibility, light, brightness, thermal), Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge, safe-to-share diagnostics export), one-tap sanitized debug bundle export on Export screen, Export SHA-256 + filename copy, Request QR scanner, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. Video import hook is present but feature-flagged OFF (hidden from release UI). 274/274 tests, strict TypeScript, zero network permissions.
 >
 > **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 274/274 tests, strict TypeScript.
 >
@@ -109,7 +109,10 @@ npx react-native run-android
 4. **Load the request** in the app — tap "Load JSON File" on the Home screen, or
    enter the session UUID and frame count manually.
 
-5. **Point your camera** at the QR on screen:
+5. **Point your camera** at the QR on screen. The app shows a **Calibration Wizard**
+   first — a quick 5-step preflight that verifies camera permission, QR readability,
+   light conditions, screen brightness, and device temperature. You can skip it if
+   conditions are clearly good.
    - **Single-frame modes**: app captures the QR and immediately completes.
    - **Fountain animated GIF**: hold steady until the progress bar reaches 100%.
 
@@ -118,12 +121,17 @@ npx react-native run-android
    any data is written to disk. Transfer `meow_capture_<session_id>.json`
    back to the desktop via USB.
 
-7. **Decrypt** — paste the captured JSON into the web demo's decrypt tab, or use the CLI:
+7. **Debug bundle** (optional) — from the Export screen, tap **Export Debug Bundle**
+   to generate a sanitized diagnostics file. This contains only metadata (app version,
+   device info, capture stats, error history) — no payloads, passwords, or sensitive
+   content. Safe to share for troubleshooting.
+
+8. **Decrypt** — paste the captured JSON into the web demo's decrypt tab, or use the CLI:
    ```bash
    meow-decode-gif -i meow_capture_<session_id>.json -p "password"
    ```
 
-8. **Multi-device merge (optional)** — if multiple phones captured the same transfer:
+9. **Multi-device merge (optional)** — if multiple phones captured the same transfer:
    ```bash
    # Merge two captures for maximum frame coverage before decoding
    python -m meow_decoder.merge \
@@ -309,6 +317,9 @@ npm run lint
 # Auto-format
 npm run format
 
+# Bump version across all sources (package.json, config.ts, Info.plist)
+npm run bump-version 3.3.0
+
 # iOS — install CocoaPods then launch
 npm run pod-install
 npx react-native run-ios
@@ -334,7 +345,8 @@ mobile/
 │   │   ├── requestValidator.ts # Zod .strict() schema + safeValidateRequest
 │   │   ├── qrDecoder.ts        # Prefix-based format detection, payload parsing
 │   │   ├── frameCollector.ts   # Dedup, fountain threshold tracking
-│   │   └── jsonExporter.ts     # RNFS write, chunked export, QR fallback chunks
+│   │   ├── jsonExporter.ts     # RNFS write, chunked export, QR fallback chunks
+│   │   └── debugBundleExporter.ts # Sanitized debug bundle (no payloads/passwords)
 │   ├── hooks/
 │   │   ├── useCapture.ts           # useReducer state machine (IDLE→AWAITING_GIF→CAPTURING→PAUSED→COMPLETE)
 │   │   ├── useQRScanner.ts         # VisionCamera v4 useCodeScanner (MLKit / AVFoundation); adaptive FPS
@@ -346,7 +358,11 @@ mobile/
 │   │   ├── CameraPreview.tsx       # AnimatedCamera, pinch zoom, exposure bias, torch, privacy overlay
 │   │   ├── ProgressHUD.tsx         # SVG arc ring with fountain-threshold indicator
 │   │   ├── FrameOverlay.tsx        # Scan corners, status badges (AWAITING/CAPTURING/PAUSED/COMPLETE), reduce-motion-aware scan line
-│   │   ├── StabilityIndicator.tsx  # Shake magnitude bar
+│   │   ├── CatWhiskerHUD.tsx        # Whisker-style motion feedback
+│   │   ├── CaptureCoachPanel.tsx    # Live coaching hints (distance, brightness, shake)
+│   │   ├── CalibrationWizard.tsx    # 5-step preflight (camera, QR, light, brightness, thermal)
+│   │   ├── DiagnosticsPanel.tsx     # Hidden dev diagnostics (long-press version badge)
+│   │   ├── StabilityIndicator.tsx   # Shake magnitude bar
 │   │   └── CatToast.tsx            # Queued slide-up toasts with accessibilityLiveRegion
 │   ├── screens/
 │   │   ├── SplashScreen.tsx        # Cat-eye animation; respects Reduce Motion system preference

@@ -172,7 +172,7 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
     scanTestTimer.current = setTimeout(() => {
       if (!scanTestPassed) {
         setIsScanTestActive(false);
-        updateStep(1, 'warn', 'No QR detected — check sender screen and distance, then try again.');
+        updateStep(1, 'warn', 'No QR code detected. Make sure the animated code is visible on the sender screen, move closer, and tap Retry.');
       }
     }, STEP_TIMEOUT_MS);
 
@@ -193,17 +193,15 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
     },
   });
 
-  // ── Step 2: Ambient light — simple heuristic (auto-pass after 1 s) ──────────
+  // ── Step 2: Ambient light — advisory with clear guidance ────────────────
 
   useEffect(() => {
     if (!visible || currentStep !== 2) return;
-    updateStep(2, 'checking', 'Evaluating ambient light…');
+    updateStep(2, 'checking', 'Checking lighting conditions…');
 
-    // We don't have a direct lux API; we advise and auto-pass after a beat.
-    // A camera-based heuristic could read exposureBias but that requires the
-    // camera to be running outside the wizard scope — keep it simple here.
+    // We don't have a direct lux API; advise and auto-pass after a beat.
     const t = setTimeout(() => {
-      updateStep(2, 'pass', 'Reminder noted ✓  Ensure room is well-lit for best results.');
+      updateStep(2, 'pass', 'Good — make sure the room is well-lit and there is no glare on the sender screen.');
       setCurrentStep(3);
     }, 1800);
     return () => clearTimeout(t);
@@ -237,6 +235,20 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
       useNativeDriver: false,
     }).start();
   }, [updateStep, progressAnim]);
+
+  // ── Retry QR scan (step 1) — resets scan test and restarts the timer ──────
+  const retryQrScan = useCallback(() => {
+    setScanTestPassed(false);
+    setIsScanTestActive(true);
+    updateStep(1, 'checking', 'Retrying — point camera at the sender screen…');
+    if (scanTestTimer.current) clearTimeout(scanTestTimer.current);
+    scanTestTimer.current = setTimeout(() => {
+      if (!scanTestPassed) {
+        setIsScanTestActive(false);
+        updateStep(1, 'warn', 'Still no QR code detected. Check sender screen distance and brightness, then tap Retry again.');
+      }
+    }, STEP_TIMEOUT_MS);
+  }, [updateStep, scanTestPassed]);
 
   // ── Animate progress bar ─────────────────────────────────────────────────────
 
@@ -375,6 +387,19 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
 
           {/* Action buttons */}
           <View style={styles.actionRow} accessibilityLiveRegion="polite">
+            {/* Retry button for QR scan step (step 1) when it warned/failed */}
+            {currentStep === 1 && (steps[1]?.state === 'warn' || steps[1]?.state === 'fail') && (
+              <TouchableOpacity
+                style={styles.actionBtn}
+                onPress={retryQrScan}
+                accessibilityRole="button"
+                accessibilityLabel="Retry QR scan test"
+                accessibilityHint="Restarts the QR detection test from the camera"
+              >
+                <Text style={styles.actionBtnText}>↺ Retry QR Scan</Text>
+              </TouchableOpacity>
+            )}
+
             {currentStep === 3 && steps[3]?.state === 'pending' && (
               <TouchableOpacity
                 style={styles.actionBtn}

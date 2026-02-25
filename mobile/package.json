@@ -11,7 +11,8 @@
     "lint": "eslint 'src/**/*.{ts,tsx}' --max-warnings 0",
     "type-check": "tsc --noEmit",
     "format": "prettier --write 'src/**/*.{ts,tsx}'",
-    "pod-install": "cd ios && pod install && cd .."
+    "pod-install": "cd ios && pod install && cd ..",
+    "bump-version": "bash scripts/bump-version.sh"
   },
   "dependencies": {
     "@react-navigation/native": "^6.1.9",

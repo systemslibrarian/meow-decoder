@@ -60,10 +60,10 @@ export function formatPercent(fraction: number, capAt100 = true): string {
 export function recoverabilityLabel(captured: number, expected: number): string {
   if (expected === 0) return 'Waiting...';
   const ratio = captured / expected;
-  if (ratio >= 1.5) return 'Fountain complete ✓';
-  if (ratio >= 1.0) return 'Likely recoverable ✓';
-  if (ratio >= 0.67) return 'Possibly recoverable';
-  return 'Need more frames...';
+  if (ratio >= 1.5) return 'Transfer complete — all data captured';
+  if (ratio >= 1.0) return 'Likely recoverable — good capture';
+  if (ratio >= 0.67) return 'Possibly recoverable — try decoding';
+  return 'Insufficient frames — may not decode';
 }
 
 // ── File Size ─────────────────────────────────────────────────────────────────
@@ -133,38 +133,38 @@ export function recoveryConfidenceLabel(captured: number, expected: number): {
 } {
   if (expected === 0) return {
     label: 'Waiting…',
-    sublabel: 'Point camera at the code on screen',
+    sublabel: 'Point camera at the animated QR code on screen',
     safeToStop: false,
     color: 'dim',
   };
   const ratio = captured / expected;
   if (ratio >= 1.5) return {
-    label: 'Transfer complete ✓',
-    sublabel: 'You have everything — tap Done whenever you\'re ready',
+    label: 'Transfer complete',
+    sublabel: 'You have all the data needed — tap Done whenever ready',
     safeToStop: true,
     color: 'gold',
   };
   if (ratio >= 1.2) return {
-    label: 'Almost there',
-    sublabel: 'Safe to stop now — a few more seconds for best results',
+    label: 'Strong recovery confidence',
+    sublabel: 'Safe to stop now — a few more seconds gives best results',
     safeToStop: true,
     color: 'success',
   };
   if (ratio >= 1.0) return {
     label: 'Good progress',
-    sublabel: 'Keep scanning — building safety margin',
+    sublabel: 'Keep scanning — building safety margin for reliable recovery',
     safeToStop: false,
     color: 'success',
   };
   if (ratio >= 0.67) return {
     label: 'Getting there',
-    sublabel: `About ${Math.ceil(expected - captured)} more frames needed`,
+    sublabel: `About ${Math.ceil(expected - captured)} more frames needed for reliable recovery`,
     safeToStop: false,
     color: 'warning',
   };
   return {
     label: 'Keep scanning',
-    sublabel: `Need at least ${Math.ceil(expected * 0.67 - captured)} more frames`,
+    sublabel: `Need at least ${Math.ceil(expected * 0.67 - captured)} more frames before recovery is possible`,
     safeToStop: false,
     color: 'danger',
   };

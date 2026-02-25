@@ -147,7 +147,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
       <Text style={styles.sublabel}>{confidence.sublabel}</Text>
       {confidence.safeToStop && (
         <View style={styles.safeToStopPill}>
-          <Text style={styles.safeToStopText}>✓ Safe to stop</Text>
+          <Text style={styles.safeToStopText}>✓ Safe to stop — tap Done</Text>
         </View>
       )}
 
