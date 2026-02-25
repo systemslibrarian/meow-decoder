@@ -23,6 +23,7 @@ import {
   useEffect,
 } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import { MMKV } from 'react-native-mmkv';
 import type {
   CaptureRequest,
   CapturedFrame,
@@ -31,6 +32,35 @@ import type {
   CaptureProgress,
 } from '../types/capture';
 import { FOUNTAIN_OVERHEAD, MIN_RECOVERABLE_RATIO } from '../constants/config';
+
+// ── MMKV Checkpoint Storage ─────────────────────────────────────────────────────────
+// SECURITY NOTE: Only frame INDICES are persisted — never QR payload strings.
+// This allows HomeScreen to surface a "resume" hint after an unexpected kill
+// without writing any sensitive capture data to device storage.
+const checkpointStorage = new MMKV({ id: 'meow_capture_checkpoint' });
+const CHECKPOINT_KEY = 'active_session';
+
+export type SessionCheckpoint = {
+  session_id: string;
+  frame_indices: number[];
+  saved_at: number;  // Unix ms for staleness check
+};
+
+/** Read the last persisted checkpoint (indices only) — safe to call from any screen. */
+export function readCaptureCheckpoint(): SessionCheckpoint | null {
+  const raw = checkpointStorage.getString(CHECKPOINT_KEY);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as SessionCheckpoint;
+  } catch {
+    return null;
+  }
+}
+
+/** Clear the checkpoint — call when the user explicitly dismisses the resume hint. */
+export function clearCaptureCheckpoint(): void {
+  checkpointStorage.delete(CHECKPOINT_KEY);
+}
 
 // ── State & Actions ───────────────────────────────────────────────────────────
 
@@ -122,6 +152,14 @@ function captureReducer(state: State, action: Action): State {
       return { ...state, status: 'TIMED_OUT' };
 
     case 'CANCEL':
+      // SECURITY NOTE: JS `String` values are immutable and GC-managed.
+      // Frame payload strings held in `state.frames` cannot be zero-filled
+      // in-process (no raw heap access in Hermes/V8). Security relies on:
+      //   • GC releasing all Map references on the next collection cycle
+      //   • No persistence — frame data was never written to disk
+      //   • OS-level memory reclaim (Hermes does not mmap frame strings)
+      //   • FLAG_SECURE / privacy overlay blocking exfiltration via UI
+      // This is architecturally equivalent to Signal's in-process string model.
       return {
         ...initialState,
         status: 'IDLE',
@@ -131,7 +169,8 @@ function captureReducer(state: State, action: Action): State {
       return { ...state, status: 'ERROR', error: action.payload };
 
     case 'RESET':
-      // Full reset — clears all frame data from memory
+      // Full reset — clears all frame data from memory.
+      // See CANCEL case for zeroization constraints and security rationale.
       return { ...initialState };
 
     default:
@@ -153,6 +192,8 @@ export interface UseCaptureReturn {
   resume: () => void;
   markExporting: () => void;
   buildResponse: (reason?: 'complete' | 'timeout' | 'manual') => CaptureResponse | null;
+  /** Read the last persisted checkpoint (indices only, never payload data) */
+  getCheckpoint: () => SessionCheckpoint | null;
 }
 
 export function useCapture(): UseCaptureReturn {
@@ -170,6 +211,41 @@ export function useCapture(): UseCaptureReturn {
       }
     }
   }, [state.frames.size, state.status, state.request]);
+
+  // ── MMKV checkpoint ───────────────────────────────────────────────────────
+  // Debounced write every ~5 frames — persists only frame indices, never
+  // QR payload strings. Allows HomeScreen to surface a resume hint after kill.
+  const checkpointDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (state.status !== 'CAPTURING' || !state.request) return;
+    if (checkpointDebounceRef.current) clearTimeout(checkpointDebounceRef.current);
+    checkpointDebounceRef.current = setTimeout(() => {
+      checkpointDebounceRef.current = null;
+      const checkpoint: SessionCheckpoint = {
+        session_id: state.request!.session_id,
+        frame_indices: Array.from(state.frames.keys()),
+        saved_at: Date.now(),
+      };
+      checkpointStorage.set(CHECKPOINT_KEY, JSON.stringify(checkpoint));
+    }, 200);
+    return () => {
+      if (checkpointDebounceRef.current) {
+        clearTimeout(checkpointDebounceRef.current);
+        checkpointDebounceRef.current = null;
+      }
+    };
+  }, [state.frames.size, state.status, state.request]);
+
+  // Clear checkpoint when session reaches a terminal/idle state
+  useEffect(() => {
+    if (
+      state.status === 'COMPLETE' ||
+      state.status === 'TIMED_OUT' ||
+      state.status === 'IDLE'
+    ) {
+      checkpointStorage.delete(CHECKPOINT_KEY);
+    }
+  }, [state.status]);
 
   // ── Session timeout management ────────────────────────────────────────────
   useEffect(() => {
@@ -277,6 +353,16 @@ export function useCapture(): UseCaptureReturn {
       })()
     : null;
 
+  const getCheckpoint = useCallback((): SessionCheckpoint | null => {
+    const raw = checkpointStorage.getString(CHECKPOINT_KEY);
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw) as SessionCheckpoint;
+    } catch {
+      return null;
+    }
+  }, []);
+
   return {
     state,
     progress,
@@ -289,5 +375,6 @@ export function useCapture(): UseCaptureReturn {
     resume,
     markExporting,
     buildResponse,
+    getCheckpoint,
   };
 }

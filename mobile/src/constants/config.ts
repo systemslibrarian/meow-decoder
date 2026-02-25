@@ -97,7 +97,7 @@ export type MilestoneThreshold = typeof MILESTONE_THRESHOLDS[number];
 
 // ── App Version ───────────────────────────────────────────────────────────────
 
-export const APP_VERSION = '1.0.0' as const;
+export const APP_VERSION = '3.1.0' as const;
 export const PROTOCOL_VERSION = '1' as const;
 
 // ── Stall Detection ───────────────────────────────────────────────────────────

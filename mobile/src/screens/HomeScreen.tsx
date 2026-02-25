@@ -35,17 +35,30 @@ import type { CaptureRequest } from '../types/capture';
 import type { HomeScreenProps } from '../types/navigation';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { DEFAULT_TIMEOUT_SECONDS } from '../constants/config';
+import {
+  readCaptureCheckpoint,
+  clearCaptureCheckpoint,
+  type SessionCheckpoint,
+} from '../hooks/useCapture';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [interruptedSession, setInterruptedSession] = useState<SessionCheckpoint | null>(null);
 
-  // Clear stale error whenever user returns to this screen
+  // Clear stale error and surface any interrupted session on focus
   useFocusEffect(
     useCallback(() => {
       setError(null);
+      const cp = readCaptureCheckpoint();
+      if (cp && Date.now() - cp.saved_at < 30 * 60 * 1000) {
+        setInterruptedSession(cp);
+      } else {
+        clearCaptureCheckpoint();
+        setInterruptedSession(null);
+      }
     }, []),
   );
 
@@ -136,6 +149,29 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         {/* Header */}
         <Text style={styles.title}>🐱 meow-decoder</Text>
         <Text style={styles.subtitle}>Optical QR Capture</Text>
+
+        {/* Interrupted session resume banner */}
+        {interruptedSession && (
+          <View
+            style={styles.resumeBanner}
+            accessibilityLiveRegion="polite"
+            accessibilityLabel={`Interrupted session — ${interruptedSession.frame_indices.length} frames collected`}
+          >
+            <Text style={styles.resumeText}>
+              ⚡ Interrupted session — {interruptedSession.frame_indices.length} frames collected
+            </Text>
+            <TouchableOpacity
+              onPress={() => {
+                clearCaptureCheckpoint();
+                setInterruptedSession(null);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss interrupted session notice"
+            >
+              <Text style={styles.dismissText}>Dismiss</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* Error banner */}
         {error && (
@@ -363,5 +399,26 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     textAlign: 'center',
     lineHeight: Typography.xs * 1.6,
+  },
+  resumeBanner: {
+    backgroundColor: 'rgba(255,200,50,0.15)',
+    borderRadius: Radius.md,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.catGold,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  resumeText: {
+    color: Colors.catGold,
+    fontSize: Typography.sm,
+    flex: 1,
+  },
+  dismissText: {
+    color: Colors.textTertiary,
+    fontSize: Typography.sm,
+    marginLeft: Spacing.sm,
   },
 });

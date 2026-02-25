@@ -77,8 +77,24 @@ declare module 'react-native-svg' {
     r?: number | string;
   }
 
+  interface EllipseProps extends CommonSvgProps {
+    cx?: number | string;
+    cy?: number | string;
+    rx?: number | string;
+    ry?: number | string;
+  }
+
+  interface LineProps extends CommonSvgProps {
+    x1?: number | string;
+    y1?: number | string;
+    x2?: number | string;
+    y2?: number | string;
+  }
+
   const Svg: React.ComponentType<SvgProps>;
   const Circle: React.ComponentType<CircleProps>;
+  const Ellipse: React.ComponentType<EllipseProps>;
+  const Line: React.ComponentType<LineProps>;
   const G: React.ComponentType<CommonSvgProps>;
   const Path: React.ComponentType<CommonSvgProps & { d?: string }>;
   const Rect: React.ComponentType<CommonSvgProps & { x?: number | string; y?: number | string; width?: number | string; height?: number | string; rx?: number | string }>;
@@ -87,7 +103,7 @@ declare module 'react-native-svg' {
   const Stop: React.ComponentType<CommonSvgProps & { offset?: string; stopColor?: string }>;
 
   export default Svg;
-  export { Svg, Circle, G, Path, Rect, Defs, LinearGradient, Stop };
+  export { Svg, Circle, Ellipse, Line, G, Path, Rect, Defs, LinearGradient, Stop };
 }
 
 // ── @react-native-clipboard/clipboard ────────────────────────────────────────

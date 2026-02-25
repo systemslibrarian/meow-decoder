@@ -13,6 +13,8 @@ const Svg = ({ children, ...props }: React.PropsWithChildren<object>) =>
   React.createElement(View, props as object, children);
 
 const Circle = (props: object) => React.createElement(View, props);
+const Ellipse = (props: object) => React.createElement(View, props);
+const Line = (props: object) => React.createElement(View, props);
 const G = ({ children, ...props }: React.PropsWithChildren<object>) =>
   React.createElement(View, props as object, children);
 const Path = (props: object) => React.createElement(View, props);
@@ -27,12 +29,16 @@ const Stop = (props: object) => React.createElement(View, props);
 
 // Animated variants — same stubs are fine for test rendering
 const AnimatedCircle = Circle;
+const AnimatedLine = Line;
+const AnimatedEllipse = Ellipse;
 const AnimatedPath = Path;
 
 export default Svg;
 export {
   Svg,
   Circle,
+  Ellipse,
+  Line,
   G,
   Path,
   Rect,
@@ -41,5 +47,7 @@ export {
   LinearGradient,
   Stop,
   AnimatedCircle,
+  AnimatedLine,
+  AnimatedEllipse,
   AnimatedPath,
 };

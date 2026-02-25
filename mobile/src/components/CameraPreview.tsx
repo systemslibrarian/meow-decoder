@@ -10,7 +10,7 @@
  *  - Camera stays inactive during IDLE/COMPLETE/EXPORTING to conserve battery
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -50,6 +50,11 @@ interface CameraPreviewProps {
   showTorchToggle?: boolean;
   /** When true renders a solid privacy overlay (iOS task-switcher defense) */
   isBackgrounding?: boolean;
+  /**
+   * Mutable ref that CaptureScreen can use to imperatively nudge exposure bias.
+   * Assigned on mount; callers invoke ref.current(+0.5) to brighten.
+   */
+  onAutoRecoveryRef?: React.MutableRefObject<((delta: number) => void) | null>;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -59,6 +64,7 @@ export const CameraPreview = React.memo(function CameraPreview({
   status,
   showTorchToggle = true,
   isBackgrounding = false,
+  onAutoRecoveryRef,
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -85,8 +91,6 @@ export const CameraPreview = React.memo(function CameraPreview({
     zoom: zoomSV.value,
   }));
 
-  const isActive = status === 'AWAITING_GIF' || status === 'CAPTURING';
-
   const toggleTorch = useCallback(() => setTorch((p) => (p === 'off' ? 'on' : 'off')), []);
   const openSettings = useCallback(() => void Linking.openSettings(), []);
 
@@ -97,7 +101,27 @@ export const CameraPreview = React.memo(function CameraPreview({
     });
   }, []);
 
-  // ── Permission denied ─────────────────────────────────────────────────────
+  // Wire the imperative auto-recovery ref so CaptureScreen can nudge exposure
+  // without needing a full prop re-render cycle through the state machine.
+  useEffect(() => {
+    if (onAutoRecoveryRef) {
+      onAutoRecoveryRef.current = nudgeExposure;
+      return () => { onAutoRecoveryRef.current = null; };
+    }
+    return undefined;
+  }, [onAutoRecoveryRef, nudgeExposure]);
+
+  // PAUSED: camera stays warm to avoid 500–1500 ms cold-start on Resume.
+  // Security: codeScanner has its own `!enabled` guard (useQRScanner) that
+  // prevents any frame dispatch while status === 'PAUSED'. isActive only
+  // controls the hardware device — not the scanning pipeline.
+  const isActive =
+    status !== 'IDLE' &&
+    status !== 'COMPLETE' &&
+    status !== 'EXPORTING' &&
+    !isBackgrounding;
+
+  // ── Permission denied ──────────────────────────────────────────────────────
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
@@ -140,7 +164,7 @@ export const CameraPreview = React.memo(function CameraPreview({
         <AnimatedCamera
           style={StyleSheet.absoluteFill}
           device={device}
-          isActive={isActive && !isBackgrounding}
+          isActive={isActive}
           codeScanner={codeScanner}
           fps={adaptiveFPS}
           pixelFormat="yuv"

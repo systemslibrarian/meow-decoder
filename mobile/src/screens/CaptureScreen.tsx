@@ -30,6 +30,7 @@ import { CameraPreview } from '../components/CameraPreview';
 import { ProgressHUD } from '../components/ProgressHUD';
 import { FrameOverlay } from '../components/FrameOverlay';
 import { StabilityIndicator } from '../components/StabilityIndicator';
+import { CatWhiskerHUD } from '../components/CatWhiskerHUD';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useSecureScreen } from '../hooks/useSecureScreen';
 import { useStallDetector } from '../hooks/useStallDetector';
@@ -163,18 +164,45 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     }
   };
 
-  // ── Stall detection ─────────────────────────────────────────────────────────
+  // ── Stall detection + graduated auto-recovery ───────────────────────────────────
+  // Imperative ref wired to CameraPreview.nudgeExposure for stall auto-recovery.
+  const autoRecoveryRef = useRef<((delta: number) => void) | null>(null);
+  // Count consecutive stalls in the current capture session.
+  const stallCountRef = useRef(0);
+
   useStallDetector({
     frameCount: capturedCount,
     active: status === 'CAPTURING',
     onStall: () => {
-      showToast({
-        message: '😿 No new frames — try moving camera slightly',
-        type: 'info',
-        durationMs: 4_000,
-      });
+      stallCountRef.current += 1;
+      if (stallCountRef.current === 1) {
+        showToast({
+          message: '😿 No new frames — try moving camera slightly',
+          type: 'info',
+          durationMs: 4_000,
+        });
+      } else if (stallCountRef.current === 2) {
+        // Auto-nudge exposure up half a stop and inform user
+        autoRecoveryRef.current?.(0.5);
+        showToast({
+          message: '🌙 Auto-brightened — if glare, tap ☀️−',
+          type: 'info',
+          durationMs: 4_000,
+        });
+      } else {
+        showToast({
+          message: '💡 Try torch or move 10 cm closer',
+          type: 'info',
+          durationMs: 6_000,
+        });
+      }
     },
   });
+
+  // Reset stall counter whenever frames start flowing again
+  useEffect(() => {
+    stallCountRef.current = 0;
+  }, [capturedCount]);
 
   // ── Purr haptic pulse — gentle tactile feedback per captured frame ──────────
   const lastPurrTimeRef = useRef(0);
@@ -239,13 +267,18 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         codeScanner={codeScanner}
         status={status}
         isBackgrounding={isBackgrounding}
+        onAutoRecoveryRef={autoRecoveryRef}
       />
 
       {/* Scan region + status badges */}
       <FrameOverlay status={status} qrDetected={status === 'CAPTURING'} />
 
-      {/* Stability warning */}
+      {/* Stability warning pill + animated cat whisker HUD */}
       <StabilityIndicator magnitude={shakeMagnitude} visible={!isStable && status === 'CAPTURING'} />
+      <CatWhiskerHUD
+        shakeMagnitude={shakeMagnitude}
+        visible={status === 'CAPTURING' || status === 'PAUSED'}
+      />
 
       {/* Status bar at top */}
       <View style={styles.statusBar}>
