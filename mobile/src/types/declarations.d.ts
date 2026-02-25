@@ -44,3 +44,58 @@ declare module 'react-native-biometrics' {
     deleteKeys(): Promise<{ keysDeleted: boolean }>;
   }
 }
+
+// ── react-native-svg ──────────────────────────────────────────────────────────
+// Minimal stubs for the SVG primitives used in ProgressHUD.
+// The real package ships full TypeScript definitions; these stubs
+// only need to satisfy `tsc --noEmit` before `npm install` is run.
+declare module 'react-native-svg' {
+  import type React from 'react';
+  import type { ViewProps } from 'react-native';
+
+  interface CommonSvgProps extends ViewProps {
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number | string;
+    strokeLinecap?: 'butt' | 'round' | 'square';
+    strokeDasharray?: number | string;
+    strokeDashoffset?: number | string;
+    transform?: string;
+    opacity?: number | string;
+    [key: string]: unknown;
+  }
+
+  interface SvgProps extends CommonSvgProps {
+    width?: number | string;
+    height?: number | string;
+    viewBox?: string;
+  }
+
+  interface CircleProps extends CommonSvgProps {
+    cx?: number | string;
+    cy?: number | string;
+    r?: number | string;
+  }
+
+  const Svg: React.ComponentType<SvgProps>;
+  const Circle: React.ComponentType<CircleProps>;
+  const G: React.ComponentType<CommonSvgProps>;
+  const Path: React.ComponentType<CommonSvgProps & { d?: string }>;
+  const Rect: React.ComponentType<CommonSvgProps & { x?: number | string; y?: number | string; width?: number | string; height?: number | string; rx?: number | string }>;
+  const Defs: React.ComponentType<CommonSvgProps>;
+  const LinearGradient: React.ComponentType<CommonSvgProps & { id?: string; x1?: string; x2?: string; y1?: string; y2?: string }>;
+  const Stop: React.ComponentType<CommonSvgProps & { offset?: string; stopColor?: string }>;
+
+  export default Svg;
+  export { Svg, Circle, G, Path, Rect, Defs, LinearGradient, Stop };
+}
+
+// ── @react-native-clipboard/clipboard ────────────────────────────────────────
+declare module '@react-native-clipboard/clipboard' {
+  const Clipboard: {
+    setString(content: string): void;
+    getString(): Promise<string>;
+    hasString(): Promise<boolean>;
+  };
+  export default Clipboard;
+}

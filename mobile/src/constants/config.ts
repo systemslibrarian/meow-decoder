@@ -99,3 +99,29 @@ export type MilestoneThreshold = typeof MILESTONE_THRESHOLDS[number];
 
 export const APP_VERSION = '1.0.0' as const;
 export const PROTOCOL_VERSION = '1' as const;
+
+// ── Stall Detection ───────────────────────────────────────────────────────────
+
+/**
+ * Milliseconds without a new frame before we surface a "stalled" hint to the
+ * user during an active CAPTURING session.
+ */
+export const STALL_DETECT_MS = 5_000 as const;
+
+// ── Clipboard Auto-Wipe ───────────────────────────────────────────────────────
+
+/**
+ * Milliseconds after copying the ADB command before we automatically clear
+ * the clipboard. 45 s gives the user time to switch apps and paste while
+ * minimising the forensic window.
+ */
+export const CLIPBOARD_WIPE_DELAY_MS = 45_000 as const;
+
+// ── Capture Haptics ───────────────────────────────────────────────────────────
+
+/**
+ * Interval (ms) between "purr" haptic pulses emitted during active scanning
+ * whenever a fresh frame was just decoded. Gives tactile confirmation that
+ * the GIF is still being read without hammering the vibration motor.
+ */
+export const PURR_HAPTIC_INTERVAL_MS = 300 as const;

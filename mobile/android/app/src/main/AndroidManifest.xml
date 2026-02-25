@@ -58,6 +58,16 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+
+            <!-- Deep-link URL scheme: meow://capture?session_id=...&expected_frames=... -->
+            <!-- android:autoVerify="false" ensures no App Link verification is attempted -->
+            <!-- (this app never runs a domain verification server; it is intentionally offline) -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="meow" />
+            </intent-filter>
         </activity>
     </application>
 

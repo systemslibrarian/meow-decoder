@@ -8,7 +8,7 @@
  * After successful export, shows ADB pull instructions.
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import {
   ActivityIndicator,
   Share,
 } from 'react-native';
+import Clipboard from '@react-native-clipboard/clipboard';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import QRCode from 'react-native-qrcode-svg';
@@ -30,6 +31,7 @@ import type { ExportScreenProps } from '../types/navigation';
 import { useCatToast } from '../components/CatToast';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { formatPercent, formatFileSize } from '../utils/formatters';
+import { CLIPBOARD_WIPE_DELAY_MS } from '../constants/config';
 
 const HAPTIC_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSettings: false };
 const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true });
@@ -46,6 +48,9 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   // true until the user explicitly taps "Confirm & Export"
   const [awaitingConfirm, setAwaitingConfirm] = useState(true);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  // Clipboard auto-wipe: true while an ADB command is pending clear
+  const [clipboardActive, setClipboardActive] = useState(false);
+  const clipboardWipeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // QR fallback state
   const [qrMode, setQrMode] = useState(false);
@@ -77,6 +82,34 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       setBiometricAvailable(false);
     });
   }, []);
+
+  // ── Clipboard auto-wipe ────────────────────────────────────────────────────
+  // Clear the wipe timer on unmount to avoid setting state on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (clipboardWipeTimerRef.current !== null) {
+        clearTimeout(clipboardWipeTimerRef.current);
+      }
+    };
+  }, []);
+
+  const handleCopyAdbCommand = useCallback(() => {
+    if (!exportResult) return;
+    const adbCmd = `adb pull /sdcard/Download/meow-capture-${response.session_id.slice(0, 8)}*.json ./\nmeow-decoder decode --input meow-capture-*.json`;
+    Clipboard.setString(adbCmd);
+    ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+    setClipboardActive(true);
+    showToast({ message: '📋 Command copied — auto-clears in 45 s', type: 'info', durationMs: 3_000 });
+    // Cancel any existing timer before starting a new one
+    if (clipboardWipeTimerRef.current !== null) {
+      clearTimeout(clipboardWipeTimerRef.current);
+    }
+    clipboardWipeTimerRef.current = setTimeout(() => {
+      Clipboard.setString('');
+      setClipboardActive(false);
+      clipboardWipeTimerRef.current = null;
+    }, CLIPBOARD_WIPE_DELAY_MS);
+  }, [exportResult, response.session_id, showToast]);
 
   // ── Biometric-gated export handler ─────────────────────────────────────────
   const handleExport = useCallback(async () => {
@@ -313,16 +346,26 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
                 <Text style={styles.adbCode}>
                   {`adb pull /sdcard/Download/meow-capture-${response.session_id.slice(0, 8)}*.json ./\nmeow-decoder decode --input meow-capture-*.json`}
                 </Text>
+                <TouchableOpacity
+                  style={styles.copyButton}
+                  onPress={handleCopyAdbCommand}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy ADB command to clipboard"
+                >
+                  <Text style={styles.copyButtonText}>
+                    {clipboardActive ? '✅ Copied — clears in 45 s' : '📋 Copy ADB command'}
+                  </Text>
+                </TouchableOpacity>
               </View>
 
-              {/* iOS share */}
+              {/* iOS share — promoted to primary on iOS */}
               {Platform.OS === 'ios' && (
                 <TouchableOpacity
-                  style={styles.secondaryButton}
+                  style={styles.primaryButton}
                   onPress={shareFile}
                 >
-                  <Text style={styles.secondaryButtonText}>
-                    Share via Files app →
+                  <Text style={styles.primaryButtonText}>
+                    📂 Share via Files app
                   </Text>
                 </TouchableOpacity>
               )}
@@ -484,6 +527,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     lineHeight: Typography.xs * 1.8,
+  },
+  copyButton: {
+    marginTop: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    paddingHorizontal: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.catOrange,
+    borderRadius: Radius.sm,
+    alignSelf: 'flex-start',
+  },
+  copyButtonText: {
+    color: Colors.catOrange,
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
   },
   primaryButton: {
     backgroundColor: Colors.catOrange,

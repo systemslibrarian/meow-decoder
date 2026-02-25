@@ -30,7 +30,8 @@
     "react-native-sensors": "^7.3.6",
     "react-native-biometrics": "^3.0.1",
     "react-native-vision-camera": "^4.0.0",
-    "react-svg": "^15.1.1",
+    "react-native-svg": "^15.8.0",
+    "@react-native-clipboard/clipboard": "^1.14.1",
     "zod": "^3.22.4",
     "uuid": "^9.0.1"
   },
@@ -65,7 +66,7 @@
       "@testing-library/jest-native/extend-expect"
     ],
     "transformIgnorePatterns": [
-      "node_modules/(?!(react-native|@react-native|react-native-vision-camera|react-native-reanimated|react-native-biometrics|react-native-mmkv|react-native-sensors)/)"
+      "node_modules/(?!(react-native|@react-native|react-native-vision-camera|react-native-reanimated|react-native-biometrics|react-native-mmkv|react-native-sensors|react-native-svg|@react-native-clipboard)/)"
     ],
     "moduleNameMapper": {
       "react-native-vision-camera": "<rootDir>/__mocks__/react-native-vision-camera.ts",
@@ -75,7 +76,9 @@
       "react-native-document-picker": "<rootDir>/__mocks__/react-native-document-picker.ts",
       "react-native-mmkv": "<rootDir>/__mocks__/react-native-mmkv.ts",
       "react-native-haptic-feedback": "<rootDir>/__mocks__/react-native-haptic-feedback.ts",
-      "react-native-qrcode-svg": "<rootDir>/__mocks__/react-native-qrcode-svg.ts"
+      "react-native-qrcode-svg": "<rootDir>/__mocks__/react-native-qrcode-svg.ts",
+      "react-native-svg": "<rootDir>/__mocks__/react-native-svg.ts",
+      "@react-native-clipboard/clipboard": "<rootDir>/__mocks__/@react-native-clipboard/clipboard.ts"
     }
   }
 }

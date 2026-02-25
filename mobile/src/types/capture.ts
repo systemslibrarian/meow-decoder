@@ -22,6 +22,7 @@ export type CaptureState =
   | 'LOADING_REQUEST'
   | 'AWAITING_GIF'
   | 'CAPTURING'
+  | 'PAUSED'
   | 'COMPLETE'
   | 'EXPORTING'
   | 'TIMED_OUT'

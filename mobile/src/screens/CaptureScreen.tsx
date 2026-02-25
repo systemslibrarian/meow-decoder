@@ -30,8 +30,10 @@ import { FrameOverlay } from '../components/FrameOverlay';
 import { StabilityIndicator } from '../components/StabilityIndicator';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useSecureScreen } from '../hooks/useSecureScreen';
+import { useStallDetector } from '../hooks/useStallDetector';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { formatCountdown } from '../utils/formatters';
+import { PURR_HAPTIC_INTERVAL_MS } from '../constants/config';
 import type { CaptureScreenProps } from '../types/navigation';
 
 const HAPTIC_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSettings: false };
@@ -51,6 +53,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     error,
     elapsedMs,
     remainingMs,
+    capturedCount,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,
@@ -58,6 +61,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     loadRequest,
     stop,
     cancel,
+    pause,
+    resume,
     markExporting,
     buildResponse,
     codeScanner,
@@ -112,11 +117,53 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     navigation.goBack();
   };
 
+  // Panic wipe — long-press cancel for 3 s: RESET + navigate Home immediately.
+  // Provides a quick escape for high-pressure situations (activist / journalist use).
+  const handlePanicWipe = () => {
+    ReactNativeHapticFeedback.trigger('notificationError', HAPTIC_OPTIONS);
+    cancel(); // dispatches RESET internally
+    navigation.replace('Home');
+  };
+
   // Handle manual stop (with haptic)
   const handleStop = () => {
     ReactNativeHapticFeedback.trigger('impactHeavy', HAPTIC_OPTIONS);
     stop();
   };
+
+  // Handle pause / resume toggle
+  const handlePauseResume = () => {
+    ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+    if (status === 'CAPTURING') {
+      pause();
+    } else if (status === 'PAUSED') {
+      resume();
+    }
+  };
+
+  // ── Stall detection ─────────────────────────────────────────────────────────
+  useStallDetector({
+    frameCount: capturedCount,
+    active: status === 'CAPTURING',
+    onStall: () => {
+      showToast({
+        message: '😿 No new frames — try moving camera slightly',
+        type: 'info',
+        durationMs: 4_000,
+      });
+    },
+  });
+
+  // ── Purr haptic pulse — gentle tactile feedback per captured frame ──────────
+  const lastPurrTimeRef = useRef(0);
+  useEffect(() => {
+    if (status !== 'CAPTURING') return;
+    const now = Date.now();
+    if (now - lastPurrTimeRef.current >= PURR_HAPTIC_INTERVAL_MS) {
+      lastPurrTimeRef.current = now;
+      ReactNativeHapticFeedback.trigger('selection', HAPTIC_OPTIONS);
+    }
+  }, [capturedCount, status]);
 
   // ── Milestone toasts + haptics ─────────────────────────────────────────────
   const firedMilestonesRef = useRef(new Set<number>());
@@ -199,7 +246,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       </View>
 
       {/* Progress HUD (shown once capturing starts) */}
-      {progress && (status === 'CAPTURING' || status === 'AWAITING_GIF') && (
+      {progress && (status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') && (
         <ProgressHUD
           progress={progress}
           status={status}
@@ -221,13 +268,29 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         <TouchableOpacity
           style={styles.cancelButton}
           onPress={handleCancel}
+          onLongPress={handlePanicWipe}
+          delayLongPress={3000}
           accessibilityRole="button"
-          accessibilityLabel="Cancel capture"
+          accessibilityLabel="Cancel capture. Hold for 3 seconds to panic-wipe."
+          accessibilityHint="Hold 3 seconds to immediately clear all data and return home"
         >
           <Text style={styles.buttonText}>✕ Cancel</Text>
         </TouchableOpacity>
 
-        {(status === 'CAPTURING' || status === 'AWAITING_GIF') && (
+        {(status === 'CAPTURING' || status === 'PAUSED') && (
+          <TouchableOpacity
+            style={styles.pauseButton}
+            onPress={handlePauseResume}
+            accessibilityRole="button"
+            accessibilityLabel={status === 'PAUSED' ? 'Resume capture' : 'Pause capture'}
+          >
+            <Text style={styles.buttonText}>
+              {status === 'PAUSED' ? '▶️ Resume' : '⏸ Pause'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {(status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') && (
           <TouchableOpacity
             style={[
               styles.stopButton,
@@ -253,6 +316,7 @@ function statusLabel(status: string): string {
   switch (status) {
     case 'AWAITING_GIF': return '🔍 Point at animated QR code...';
     case 'CAPTURING': return '😼 Catching frames...';
+    case 'PAUSED': return '⏸ Paused — tap Resume to continue';
     case 'TIMED_OUT': return "⏰ Time's up! Exporting...";
     case 'COMPLETE': return '✅ Done! Preparing export...';
     default: return '';
@@ -317,6 +381,12 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: 'rgba(255,59,48,0.85)',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.full,
+  },
+  pauseButton: {
+    backgroundColor: 'rgba(90,120,200,0.85)',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderRadius: Radius.full,

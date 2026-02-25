@@ -33,7 +33,7 @@ import {
 } from 'react-native-vision-camera';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
-import { CAMERA_FPS } from '../constants/config';
+import { useAdaptiveFPS } from '../hooks/useAdaptiveFPS';
 
 // Animated Camera lets us drive the `zoom` prop from a shared value
 // on the UI thread — no JS-thread round-trip per gesture event.
@@ -62,6 +62,7 @@ export const CameraPreview = React.memo(function CameraPreview({
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  const adaptiveFPS = useAdaptiveFPS(device);
   const [torch, setTorch] = useState<'off' | 'on'>('off');
   const [exposureBias, setExposureBias] = useState(0);
 
@@ -141,7 +142,7 @@ export const CameraPreview = React.memo(function CameraPreview({
           device={device}
           isActive={isActive && !isBackgrounding}
           codeScanner={codeScanner}
-          fps={CAMERA_FPS}
+          fps={adaptiveFPS}
           pixelFormat="yuv"
           torch={torch}
           enableZoomGesture={false}  // handled via GestureDetector above

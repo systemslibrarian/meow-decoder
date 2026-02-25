@@ -2,23 +2,33 @@
  * ProgressHUD.tsx — Real-time capture progress overlay.
  *
  * Displays:
- *  - Animated circular arc progress ring
- *  - Frame count (captured / expected)
+ *  - Animated circular arc progress ring (SVG strokeDashoffset)
+ *  - Frame count (captured / expected) centred inside the ring
  *  - Recoverability label
  *  - Elapsed time and ETA
  *
- * Uses react-native-reanimated for smooth arc animation without
- * driving the JS thread on every frame.
+ * The arc is driven by react-native-reanimated useAnimatedProps so the
+ * stroke animation runs on the UI thread without JS-thread involvement.
+ *
+ * Ring geometry:
+ *   viewBox = 128×128, ring centre = (64, 64)
+ *   radius  = 56 → circumference ≈ 351.86 px
+ *   strokeDashoffset maps [0, 1] progress → [CIRCUMFERENCE, 0]
+ *   Transform rotate(-90) starts the arc at the 12 o'clock position.
  */
 
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Animated, {
-  useAnimatedStyle,
+  useAnimatedProps,
   useSharedValue,
   withTiming,
   Easing,
 } from 'react-native-reanimated';
+import Svg, { Circle } from 'react-native-svg';
+
+// Must be created at module level — not inside the component.
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 import type { CaptureProgress } from '../types/capture';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
@@ -38,12 +48,12 @@ interface ProgressHUDProps {
   elapsedMs: number;
 }
 
-// ── Constants ─────────────────────────────────────────────────────────────────
+// ── Ring geometry constants ───────────────────────────────────────────────────
 
-const HUD_SIZE = 120;
-
-/** Total width of the animated progress track in logical pixels */
-const TRACK_WIDTH = HUD_SIZE;
+const SVG_SIZE = 128;
+const RING_RADIUS = 56;
+const STROKE_WIDTH = 8;
+const CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS; // ≈ 351.86
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -63,10 +73,9 @@ export const ProgressHUD = React.memo(function ProgressHUD({
     });
   }, [progress.percentRecoverable, fillFraction]);
 
-  // Animate fill bar width — `number` is always a valid ViewStyle prop
-  // (unlike SVG strokeDashoffset which is not in DefaultStyle).
-  const animatedFillStyle = useAnimatedStyle(() => ({
-    width: fillFraction.value * TRACK_WIDTH,
+  // Drive strokeDashoffset on the UI thread via animatedProps
+  const animatedArcProps = useAnimatedProps<{ strokeDashoffset: number }>(() => ({
+    strokeDashoffset: CIRCUMFERENCE * (1 - fillFraction.value),
   }));
 
   const ringColor = progressColor(progress.percentRecoverable);
@@ -78,39 +87,62 @@ export const ProgressHUD = React.memo(function ProgressHUD({
     status === 'CAPTURING' || status === 'AWAITING_GIF';
 
   return (
-    <View style={styles.container} accessibilityLabel="Capture progress">
-      {/* Frame counter */}
-      <View style={styles.counterRow}>
-        <Text style={[styles.countText, { color: ringColor }]}>
-          {progress.captured}
-        </Text>
-        <Text style={styles.expectedText}>/{progress.expected}</Text>
+    <View
+      style={styles.container}
+      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent`}
+      accessibilityRole="progressbar"
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.percentRecoverable) }}
+    >
+      {/* ── SVG progress ring ──────────────────────────────────────── */}
+      <View style={styles.ringWrapper}>
+        <Svg
+          width={SVG_SIZE}
+          height={SVG_SIZE}
+          viewBox={`0 0 ${SVG_SIZE} ${SVG_SIZE}`}
+          style={styles.svg}
+        >
+          {/* Background track */}
+          <Circle
+            cx={SVG_SIZE / 2}
+            cy={SVG_SIZE / 2}
+            r={RING_RADIUS}
+            stroke={Colors.surfaceBorder}
+            strokeWidth={STROKE_WIDTH}
+            fill="none"
+          />
+          {/* Progress arc — starts at 12 o'clock via rotate(-90, 64, 64) */}
+          <AnimatedCircle
+            cx={SVG_SIZE / 2}
+            cy={SVG_SIZE / 2}
+            r={RING_RADIUS}
+            stroke={ringColor}
+            strokeWidth={STROKE_WIDTH}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={CIRCUMFERENCE}
+            animatedProps={animatedArcProps}
+            transform={`rotate(-90, ${SVG_SIZE / 2}, ${SVG_SIZE / 2})`}
+          />
+        </Svg>
+
+        {/* ── Centred frame count overlay ──────────────────────────── */}
+        <View style={styles.centreOverlay} pointerEvents="none">
+          <Text style={[styles.frameCount, { color: ringColor }]}>
+            {formatFrameCount(progress.captured, progress.expected)}
+          </Text>
+          <Text style={styles.recovLabel}>{recovLabel}</Text>
+        </View>
       </View>
 
-      {/* Animated linear progress bar */}
-      <View style={styles.track}>
-        <Animated.View
-          style={[
-            styles.fill,
-            animatedFillStyle,
-            { backgroundColor: ringColor },
-          ]}
-        />
-      </View>
-
-      {/* Labels */}
-      <View style={styles.labels}>
-        <Text style={[styles.statusLabel, { color: ringColor }]}>
-          {recovLabel}
-        </Text>
-        <Text style={styles.timeLabel}>
-          {isActiveCapture ? formatElapsed(elapsedMs) : ''}
-          {isActiveCapture && eta ? `  ${eta}` : ''}
-        </Text>
-        <Text style={styles.frameLabel}>
-          {formatFrameCount(progress.captured, progress.expected)} frames
-        </Text>
-      </View>
+      {/* ── Footer row: elapsed + ETA ───────────────────────────────── */}
+      {isActiveCapture && (
+        <View style={styles.footer}>
+          <Text style={styles.timerText}>{formatElapsed(elapsedMs)}</Text>
+          {eta !== null && (
+            <Text style={styles.etaText}>ETA {eta}</Text>
+          )}
+        </View>
+      )}
     </View>
   );
 });
@@ -129,49 +161,41 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     ...Shadows.medium,
   },
-  counterRow: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    marginBottom: Spacing.sm,
-  },
-  countText: {
-    fontSize: Typography.xl,
-    fontWeight: Typography.bold,
-    color: Colors.textPrimary,
-  },
-  expectedText: {
-    fontSize: Typography.md,
-    fontWeight: Typography.regular,
-    color: Colors.textSecondary,
-  },
-  track: {
-    width: TRACK_WIDTH,
-    height: 8,
-    backgroundColor: Colors.backgroundTertiary,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: Spacing.sm,
-  },
-  fill: {
-    height: 8,
-    borderRadius: 4,
-    // width is driven by Reanimated animatedFillStyle
-  },
-  labels: {
+  ringWrapper: {
+    width: SVG_SIZE,
+    height: SVG_SIZE,
     alignItems: 'center',
-    gap: Spacing.xxs,
+    justifyContent: 'center',
   },
-  statusLabel: {
-    fontSize: Typography.sm,
-    fontWeight: Typography.semibold,
-    color: Colors.success,
+  svg: {
+    position: 'absolute',
   },
-  timeLabel: {
-    fontSize: Typography.xs,
+  centreOverlay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  frameCount: {
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    textAlign: 'center',
+  },
+  recovLabel: {
     color: Colors.textSecondary,
-  },
-  frameLabel: {
     fontSize: Typography.xs,
-    color: Colors.textTertiary,
+    textAlign: 'center',
+    marginTop: 2,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    marginTop: Spacing.sm,
+  },
+  timerText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+  },
+  etaText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
   },
 });

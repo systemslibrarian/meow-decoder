@@ -17,6 +17,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MMKV } from 'react-native-mmkv';
 import { CatToastProvider } from './components/CatToast';
 import { AppNavigator } from './navigation/AppNavigator';
+import { linking } from './navigation/linking';
 import { Colors } from './constants/theme';
 
 // Override the default DarkTheme to match the meow-decoder palette precisely.
@@ -54,7 +55,7 @@ export default function App(): React.ReactElement {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
       <CatToastProvider>
-        <NavigationContainer theme={MeowDarkTheme}>
+        <NavigationContainer theme={MeowDarkTheme} linking={linking}>
           <AppNavigator
             initialRoute={initialRoute}
             hasCompletedOnboarding={hasCompletedOnboarding}

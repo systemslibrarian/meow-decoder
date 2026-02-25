@@ -23,6 +23,8 @@ export interface SessionManagerReturn {
   error: string | null;
   elapsedMs: number;
   remainingMs: number | null;
+  /** Raw count of captured frames (for stall detection) */
+  capturedCount: number;
   // Stability
   isStable: boolean;
   shakeMagnitude: number;
@@ -34,6 +36,8 @@ export interface SessionManagerReturn {
   loadRequest: (req: CaptureRequest) => void;
   stop: () => void;
   cancel: () => void;
+  pause: () => void;
+  resume: () => void;
   markExporting: () => void;
   buildResponse: () => CaptureResponse | null;
   // Code scanner for Camera component (VisionCamera v4 native API)
@@ -51,6 +55,8 @@ export function useSessionManager(): SessionManagerReturn {
     onGifDetected,
     stop,
     cancel,
+    pause,
+    resume,
     markExporting,
     buildResponse,
   } = useCapture();
@@ -65,6 +71,7 @@ export function useSessionManager(): SessionManagerReturn {
       : {}),
     onFrame: onFrameScanned,
     onGifDetected,
+    // Disable scanner when paused so the UI thread isn't processing frames.
     enabled: state.status === 'AWAITING_GIF' || state.status === 'CAPTURING',
   });
 
@@ -143,6 +150,7 @@ export function useSessionManager(): SessionManagerReturn {
     error: state.error,
     elapsedMs,
     remainingMs,
+    capturedCount: state.frames.size,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,
@@ -150,6 +158,8 @@ export function useSessionManager(): SessionManagerReturn {
     loadRequest,
     stop,
     cancel,
+    pause,
+    resume,
     markExporting,
     buildResponse: buildResponseWrapper,
     codeScanner,

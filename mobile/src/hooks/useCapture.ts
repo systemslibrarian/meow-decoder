@@ -48,6 +48,8 @@ type Action =
   | { type: 'GIF_DETECTED' }
   | { type: 'FRAME_CAPTURED'; payload: CapturedFrame }
   | { type: 'CAPTURE_COMPLETE' }
+  | { type: 'PAUSE' }
+  | { type: 'RESUME' }
   | { type: 'START_EXPORT' }
   | { type: 'TIMEOUT' }
   | { type: 'CANCEL' }
@@ -81,7 +83,7 @@ function captureReducer(state: State, action: Action): State {
       return { ...state, status: 'CAPTURING', startedAt: Date.now() };
 
     case 'FRAME_CAPTURED': {
-      // Only collect frames during active capture
+      // Only collect frames during active capture (not when paused)
       if (state.status !== 'CAPTURING' && state.status !== 'AWAITING_GIF') return state;
       const next = new Map(state.frames);
       // Dedup: only store first occurrence of each index
@@ -99,9 +101,18 @@ function captureReducer(state: State, action: Action): State {
     case 'CAPTURE_COMPLETE':
       if (
         state.status !== 'CAPTURING' &&
-        state.status !== 'TIMED_OUT'
+        state.status !== 'TIMED_OUT' &&
+        state.status !== 'PAUSED'
       ) return state;
       return { ...state, status: 'COMPLETE' };
+
+    case 'PAUSE':
+      if (state.status !== 'CAPTURING') return state;
+      return { ...state, status: 'PAUSED' };
+
+    case 'RESUME':
+      if (state.status !== 'PAUSED') return state;
+      return { ...state, status: 'CAPTURING' };
 
     case 'START_EXPORT':
       return { ...state, status: 'EXPORTING' };
@@ -138,6 +149,8 @@ export interface UseCaptureReturn {
   onGifDetected: () => void;
   stop: () => void;
   cancel: () => void;
+  pause: () => void;
+  resume: () => void;
   markExporting: () => void;
   buildResponse: (reason?: 'complete' | 'timeout' | 'manual') => CaptureResponse | null;
 }
@@ -213,6 +226,14 @@ export function useCapture(): UseCaptureReturn {
     dispatch({ type: 'CANCEL' });
   }, []);
 
+  const pause = useCallback(() => {
+    dispatch({ type: 'PAUSE' });
+  }, []);
+
+  const resume = useCallback(() => {
+    dispatch({ type: 'RESUME' });
+  }, []);
+
   const markExporting = useCallback(() => {
     dispatch({ type: 'START_EXPORT' });
   }, []);
@@ -264,6 +285,8 @@ export function useCapture(): UseCaptureReturn {
     onGifDetected,
     stop,
     cancel,
+    pause,
+    resume,
     markExporting,
     buildResponse,
   };
