@@ -113,7 +113,14 @@ impl<T: Zeroize> SecureBox<T> {
             return Err(SecureAllocError::ZeroSize);
         }
 
-        let page_size = unsafe { libc::sysconf(libc::_SC_PAGESIZE) as usize };
+        let page_size_raw = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
+        if page_size_raw <= 0 {
+            // sysconf returned -1 (error) or 0 (invalid).  Casting -1 to
+            // usize would silently produce usize::MAX and cause allocation
+            // arithmetic to wrap.  Fail-closed instead.
+            return Err(SecureAllocError::MmapFailed(0));
+        }
+        let page_size = page_size_raw as usize;
         // Round data up to page boundary
         let data_pages = data_size.div_ceil(page_size);
         let data_region_size = data_pages * page_size;

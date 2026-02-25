@@ -343,7 +343,18 @@ def encode_file(
     # (for testing/offline scenarios). Unsigned manifests are a security risk.
     manifest_sig_chunks: List[bytes] = []
     _signing_policy = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
+    _production_mode = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+    _test_mode = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
     if _signing_policy == "off":
+        # FIX: Refuse to disable signing in production mode.  An attacker with
+        # env-var control (shared hosting, container escape) could silently
+        # strip ML-DSA authentication.  Only allow in test mode.
+        if _production_mode and not _test_mode:
+            raise RuntimeError(
+                "MEOW_MANIFEST_SIGNING=off is FORBIDDEN in production mode. "
+                "Manifest signing is mandatory for tamper protection. "
+                "Set MEOW_TEST_MODE=1 or MEOW_PRODUCTION_MODE=0 to disable."
+            )
         import sys as _sys
 
         print(

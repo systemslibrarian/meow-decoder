@@ -145,9 +145,16 @@ def decode_gif(
                             "deadman_triggered": True,
                         }
             except Exception as e:
-                if verbose:
-                    print(f"⚠️  Dead-man's switch check failed: {e}")
-                # Continue with normal decoding
+                # FIX: Fail-closed — if dead-man switch state exists but check
+                # fails (corrupted JSON, permission error, etc.), do NOT fall
+                # through to normal decoding.  An attacker who corrupts the
+                # state file could otherwise bypass the decoy mechanism.
+                raise RuntimeError(
+                    f"Dead-man's switch check failed (fail-closed): {e}. "
+                    "Cannot safely decode — the dead-man state file exists but "
+                    "could not be evaluated. Remove the .deadman.json file "
+                    "manually if you are sure the switch should be inactive."
+                ) from e
     except ImportError:
         pass  # Dead-man's switch module not available
 
@@ -588,6 +595,14 @@ def decode_gif(
 
     _signing_mode = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
     _disabled_modes = {"0", "false", "no", "off", "disabled"}
+    _decode_production_mode = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+    _decode_test_mode = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
+    if _signing_mode in _disabled_modes and _decode_production_mode and not _decode_test_mode:
+        raise RuntimeError(
+            "MEOW_MANIFEST_SIGNING=off is FORBIDDEN in production mode. "
+            "Signature verification is mandatory for tamper protection. "
+            "Set MEOW_TEST_MODE=1 or MEOW_PRODUCTION_MODE=0 to disable."
+        )
     _signing_enabled = _signing_mode not in _disabled_modes
 
     droplets_processed = 0

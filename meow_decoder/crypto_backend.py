@@ -641,12 +641,18 @@ class HandleBackend:
         This method is ONLY for test tooling and encrypted-at-rest
         serialization.  Production code MUST NOT call this — use
         handle-based AEAD/HMAC instead.
+
+        FIX: Gate on PRODUCTION_MODE alone — MEOW_TEST_MODE can no longer
+        bypass the production guard.  This prevents an env-var attacker
+        from setting both MEOW_PRODUCTION_MODE=1 and MEOW_TEST_MODE=1
+        to extract raw key bytes.
         """
-        if _PRODUCTION_MODE and not _TEST_MODE:
+        if _PRODUCTION_MODE:
             raise RuntimeError(
                 "export_key() is PRODUCTION-FORBIDDEN. "
                 "Use handle-based AEAD/HMAC operations instead. "
-                "Set MEOW_TEST_MODE=1 or MEOW_PRODUCTION_MODE=0 to use in tests."
+                "Set MEOW_PRODUCTION_MODE=0 to use in tests (MEOW_TEST_MODE "
+                "alone is no longer sufficient)."
             )
         return self._rs.handle_export_key(handle_id)
 

@@ -547,12 +547,13 @@ pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; HMAC_SIZE] {
     use hmac::Mac;
     type HmacSha256 = Hmac<Sha256>;
     // SAFETY: HMAC-SHA256 accepts any key length — InvalidLength is unreachable.
-    // Using unwrap_or_else to avoid panic! codegen in release builds.
+    // If somehow reached, abort rather than returning a forgeable all-zero MAC.
     let mut mac = match <HmacSha256 as Mac>::new_from_slice(key) {
         Ok(m) => m,
         Err(_) => {
-            // Unreachable for HMAC-SHA256, but fail-closed: return zeros
-            return [0u8; HMAC_SIZE];
+            // Unreachable for HMAC-SHA256.  Abort to prevent an all-zero MAC
+            // from being used as an authentication tag (forgery risk).
+            unreachable!("HMAC-SHA256 new_from_slice cannot fail for any key length");
         }
     };
     mac.update(data);

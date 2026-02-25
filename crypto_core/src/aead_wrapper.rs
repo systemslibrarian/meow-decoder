@@ -372,6 +372,13 @@ impl AeadWrapper {
     ///
     /// # Returns
     /// Ciphertext with authentication tag
+    /// Encrypt plaintext with a caller-provided nonce.
+    ///
+    /// # Warning
+    /// This method bypasses the `NonceManager` counter.
+    /// Callers are responsible for ensuring nonce uniqueness.
+    /// Prefer `encrypt()` for production use.
+    #[doc(hidden)]
     pub fn encrypt_raw(
         &self,
         nonce: &[u8; NONCE_SIZE],
@@ -381,18 +388,12 @@ impl AeadWrapper {
         self.aes_gcm_encrypt(nonce, plaintext, aad)
     }
 
-    /// Decrypt ciphertext with a provided nonce (for testing only)
+    /// Decrypt ciphertext with a caller-provided nonce.
     ///
     /// # Warning
-    /// This method is intended for testing purposes only.
-    ///
-    /// # Arguments
-    /// * `nonce` - The 12-byte nonce used during encryption
-    /// * `ciphertext_with_tag` - Encrypted data with auth tag
-    /// * `aad` - Additional authenticated data
-    ///
-    /// # Returns
-    /// Decrypted plaintext bytes
+    /// This method bypasses the `NonceManager`.
+    /// Prefer `decrypt()` for production use.
+    #[doc(hidden)]
     pub fn decrypt_raw(
         &self,
         nonce: &[u8; NONCE_SIZE],
