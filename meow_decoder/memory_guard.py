@@ -653,13 +653,15 @@ class GuardedBuffer:
 
     def __del__(self):
         """Safety net: ensure cleanup on GC."""
-        if not self._closed:
+        if not getattr(self, "_closed", True):
             try:
                 self.close()
             except Exception:
                 pass
 
     def __repr__(self) -> str:
+        if getattr(self, "_closed", None) is None:
+            return "<GuardedBuffer uninitialized>"
         status = "closed" if self._closed else ("locked" if self._mlocked else "unlocked")
         return f"<GuardedBuffer size={self._size} status={status}>"
 

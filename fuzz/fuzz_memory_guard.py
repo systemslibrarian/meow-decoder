@@ -94,10 +94,16 @@ def fuzz_guarded_buffer_invalid_sizes(data: bytes):
     if len(data) < 4:
         return
 
+    # Cap random size to 256 KiB to prevent OOM under libFuzzer's 2 GiB RSS limit.
+    # The fuzz harness runs many sub-functions per input, each allocating mmap'd
+    # regions with guard pages, so uncapped 32-bit sizes exhaust memory quickly.
+    raw_size = struct.unpack(">I", data[:4])[0]
+    capped_size = raw_size % (256 * 1024)  # 0 .. 262143
+
     sizes_to_test = [
         0,  # Zero (should raise ValueError)
         -1,  # Negative (should raise ValueError)
-        struct.unpack(">I", data[:4])[0],  # Random 32-bit size
+        capped_size,  # Random capped size
     ]
 
     for size in sizes_to_test:
