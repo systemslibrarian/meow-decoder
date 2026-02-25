@@ -358,7 +358,9 @@ def encode_file(
             # Signing requires a real ML-DSA backend. Fail closed if not available.
             _has_mldsa_backend = bool(
                 # type: ignore[attr-defined]
-                _ms._RUST_MLDSA_AVAILABLE or _ms._MLDSA_PURE_AVAILABLE or _ms._OQS_SIG_AVAILABLE
+                _ms._RUST_MLDSA_AVAILABLE
+                or _ms._MLDSA_PURE_AVAILABLE
+                or _ms._OQS_SIG_AVAILABLE
             )
 
             if not _has_mldsa_backend:
@@ -383,7 +385,7 @@ def encode_file(
             _chunk_size = 900
             _total_parts = (len(_blob) + _chunk_size - 1) // _chunk_size
             for _part_idx in range(_total_parts):
-                _chunk = _blob[_part_idx * _chunk_size: (_part_idx + 1) * _chunk_size]
+                _chunk = _blob[_part_idx * _chunk_size : (_part_idx + 1) * _chunk_size]
                 _payload = (
                     MANIFEST_SIG_CHUNK_MAGIC
                     + bytes([MANIFEST_SIG_VERSION, _total_parts, _part_idx])

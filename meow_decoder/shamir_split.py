@@ -168,8 +168,8 @@ class ShamirShare:
         if len(raw) < header_len + data_len + 32:
             raise ValueError("Share data truncated")
 
-        data = raw[header_len: header_len + data_len]
-        checksum = raw[header_len + data_len: header_len + data_len + 32]
+        data = raw[header_len : header_len + data_len]
+        checksum = raw[header_len + data_len : header_len + data_len + 32]
 
         # Verify checksum
         import hashlib
@@ -346,7 +346,9 @@ def shamir_combine(shares: List[ShamirShare], threshold: int = None) -> bytes:
         except ZeroDivisionError as exc:
             # Should not reach here after the duplicate-ID check above, but
             # treat as invalid input rather than an internal error.
-            raise ValueError(f"Invalid share combination (zero denominator at byte {byte_idx})") from exc
+            raise ValueError(
+                f"Invalid share combination (zero denominator at byte {byte_idx})"
+            ) from exc
         result.append(secret_byte)
 
     return bytes(result)

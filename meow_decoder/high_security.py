@@ -276,7 +276,7 @@ def secure_wipe_memory() -> None:
     try:
         junk = bytearray(100 * 1024 * 1024)  # 100 MB
         for i in range(0, len(junk), 4096):
-            junk[i: i + 4096] = secrets.token_bytes(4096)
+            junk[i : i + 4096] = secrets.token_bytes(4096)
         del junk
     except MemoryError:
         pass

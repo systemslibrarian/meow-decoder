@@ -437,7 +437,9 @@ class TestKeyDerivationTiming:
 class TestDuressTimingEqualization:
     """Test duress path timing equalization."""
 
-    @pytest.mark.xfail(reason="Timing tests are flaky in CI due to VM resource contention", strict=False)
+    @pytest.mark.xfail(
+        reason="Timing tests are flaky in CI due to VM resource contention", strict=False
+    )
     def test_duress_detection_constant_time(self):
         """
         Verify that duress password detection doesn't leak via timing.

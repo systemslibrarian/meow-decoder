@@ -36,7 +36,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 # ── Types (mirrors mobile/src/types/capture.ts CaptureResponse) ───────────────
 
 CaptureResponse = dict[str, Any]
@@ -75,9 +74,7 @@ def merge_capture_dicts(responses: list[CaptureResponse]) -> CaptureResponse:
     # Validate session_id consistency
     session_ids = {r.get("session_id") for r in responses}
     if len(session_ids) > 1:
-        raise ValueError(
-            f"Cannot merge captures from different sessions: {session_ids!r}"
-        )
+        raise ValueError(f"Cannot merge captures from different sessions: {session_ids!r}")
     session_id: str = next(iter(session_ids)) or ""
 
     # Use the first response as the base; it carries all session-level metadata

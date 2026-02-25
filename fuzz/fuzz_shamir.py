@@ -132,7 +132,7 @@ def fuzz_polynomial_evaluation(data: bytes):
 
     # Use first byte as evaluation point, rest as coefficients
     x = data[0]
-    coeffs = list(data[1: min(len(data), 256)])
+    coeffs = list(data[1 : min(len(data), 256)])
 
     if not coeffs:
         return

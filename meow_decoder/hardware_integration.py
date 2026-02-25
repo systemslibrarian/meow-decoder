@@ -535,14 +535,14 @@ class HardwareSecurityProvider:
 
             # Unpack sealed blob
             offset = 0
-            pub_len = struct.unpack(">I", sealed_blob[offset: offset + 4])[0]
+            pub_len = struct.unpack(">I", sealed_blob[offset : offset + 4])[0]
             offset += 4
-            pub_bytes = sealed_blob[offset: offset + pub_len]
+            pub_bytes = sealed_blob[offset : offset + pub_len]
             offset += pub_len
 
-            priv_len = struct.unpack(">I", sealed_blob[offset: offset + 4])[0]
+            priv_len = struct.unpack(">I", sealed_blob[offset : offset + 4])[0]
             offset += 4
-            priv_bytes = sealed_blob[offset: offset + priv_len]
+            priv_bytes = sealed_blob[offset : offset + priv_len]
             offset += priv_len
 
             pcrs = list(sealed_blob[offset:])

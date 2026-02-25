@@ -468,8 +468,8 @@ def unpack_payload(
     if 14 + data_len + 32 > len(raw):
         return b"", False
 
-    payload = raw[14: 14 + data_len]
-    stored_mac = raw[14 + data_len: 14 + data_len + 32]
+    payload = raw[14 : 14 + data_len]
+    stored_mac = raw[14 + data_len : 14 + data_len + 32]
 
     # Verify HMAC
     header = raw[:14]
@@ -599,32 +599,32 @@ def distribute_payload(
     if config.enable_primary and primary_cap > 0:
         chunk = remaining[: min(primary_cap, len(remaining))]
         channels["primary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_comment and comment_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(comment_cap, len(remaining))]
         channels["comment"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_secondary and secondary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(secondary_cap, len(remaining))]
         channels["secondary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_temporal and temporal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(temporal_cap, len(remaining))]
         channels["temporal"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_disposal and disposal_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(disposal_cap, len(remaining))]
         channels["disposal"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if config.enable_tertiary and tertiary_cap > 0 and len(remaining) > 0:
         chunk = remaining[: min(tertiary_cap, len(remaining))]
         channels["tertiary"] = chunk
-        remaining = remaining[len(chunk):]
+        remaining = remaining[len(chunk) :]
 
     if len(remaining) > 0:
         logger.warning("Could not fit %d bytes into any channel", len(remaining))
@@ -2598,7 +2598,7 @@ class MultiLayerStegoEncoder:
 
                 remaining = len(primary_bits) - offset
                 n_bits = min(remaining, frame_capacity)
-                frame_bits = primary_bits[offset: offset + n_bits] if n_bits > 0 else []
+                frame_bits = primary_bits[offset : offset + n_bits] if n_bits > 0 else []
 
                 if frame_bits:
                     stego_frame = self.primary.embed_frame(frame, i, frame_bits)
@@ -3267,7 +3267,7 @@ def _rs_analysis(frame: np.ndarray) -> Dict[str, Any]:
 
     for y in range(0, h - 1, group_size):
         for x in range(0, w - group_size, group_size):
-            group = gray[y, x: x + group_size].astype(np.int16)
+            group = gray[y, x : x + group_size].astype(np.int16)
             if len(group) < group_size:
                 continue
 
