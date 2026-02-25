@@ -96,12 +96,14 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   return (
     <View
       style={styles.container}
-      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent. ${confidence.label}. ${confidence.sublabel}`}
+      accessible={true}
+      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent. ${confidence.label}. ${confidence.sublabel}${confidence.safeToStop ? '. Safe to stop now.' : ''}`}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.percentRecoverable) }}
+      accessibilityLiveRegion="polite"
     >
       {/* ── SVG progress ring ──────────────────────────────────────── */}
-      <View style={styles.ringWrapper}>
+      <View style={styles.ringWrapper} importantForAccessibility="no-hide-descendants">
         <Svg
           width={SVG_SIZE}
           height={SVG_SIZE}

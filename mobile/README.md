@@ -1,12 +1,20 @@
 # Meow Capture — A secure offline QR capture companion app for air-gapped file transfer
 
+<!-- Demo: Replace with actual screen recording GIF once created -->
+<!-- ![Meow Capture Demo](docs/demo-capture.gif) -->
+<!-- To record: adb shell screenrecord /sdcard/demo.mp4 && ffmpeg -i demo.mp4 -vf "fps=10,scale=320:-1" demo.gif -->
+
+[![License](https://img.shields.io/badge/license-CC%20BY--NC--SA%204.0-blue.svg)](../LICENSE)
+[![React Native](https://img.shields.io/badge/React%20Native-0.73.4-61DAFB.svg)](https://reactnative.dev/)
+[![Security](https://img.shields.io/badge/security-air--gapped-brightgreen.svg)](#security-model)
+
 Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans animated QR code GIFs from any screen using your phone camera and exports the captured frame data as a structured JSON file for desktop decryption.
 
 **No network. No cloud. No traces.**
 
-> **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard, Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge), Export SHA-256 + filename copy, Request QR scanner, video import hook, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. 267/267 tests, strict TypeScript, zero network permissions.
+> **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard, Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge, safe-to-share diagnostics export), Export SHA-256 + filename copy, Request QR scanner, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. Video import hook is present but feature-flagged OFF (hidden from release UI). 274/274 tests, strict TypeScript, zero network permissions.
 >
-> **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 267/267 tests, strict TypeScript.
+> **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 274/274 tests, strict TypeScript.
 >
 > **v3 (2026)** — Major UX hardening. SVG arc progress ring with fountain-threshold indicator. Adaptive frame-rate scanning (60 Hz → 10 Hz back-off). Stall detector toasts when no new frames arrive for 4 s. Pause / resume capture mid-session. Panic wipe via 3-second long-press cancel. Clipboard auto-wipe after export. Universal-link / deep-link support (`meow://capture?…`). VoiceOver improvements on StabilityIndicator.
 >
@@ -257,7 +265,7 @@ The `INTERNET` permission is deliberately absent from `AndroidManifest.xml` — 
 | **Foreground recovery** | On returning from background the app navigates to Home — the wiped session cannot be resumed |
 | **Panic wipe** | 3-second long-press on Cancel triggers immediate `RESET` + navigation to Home — no confirmation needed |
 | **Android back guard** | Hardware back during CAPTURING / AWAITING_GIF / PAUSED triggers a confirmation alert before discarding frames |
-| **Clipboard wipe** | Export JSON string is removed from the clipboard 30 s after sharing |
+| **Clipboard wipe** | Export JSON string is removed from the clipboard 45 s after sharing |
 | **Explicit export only** | `ExportScreen` shows a confirmation card; no auto-export on mount |
 | **Input validation** | Every capture request validated with Zod `.strict()` schema; extra fields and malformed UUIDs rejected |
 | **No decryption on device** | Frame data stored as opaque base64 strings; all crypto operations happen on the desktop |
@@ -289,7 +297,7 @@ The capture screen exposes live controls for real-world scanning conditions:
 # Install JS dependencies
 npm install
 
-# Run Jest unit tests (267 tests)
+# Run Jest unit tests (274 tests)
 npm test
 
 # TypeScript strict type check (zero errors)
@@ -433,4 +441,4 @@ This means you can expect successful decryption even with ~33% frame loss due to
 
 ## License
 
-MIT — see [../LICENSE](../LICENSE)
+CC BY-NC-SA 4.0 — see [../LICENSE](../LICENSE)

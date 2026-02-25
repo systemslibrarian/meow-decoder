@@ -278,13 +278,18 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
     }
   };
 
+  const passedCount = steps.filter(s => s.state === 'pass').length;
+  const progressPercent = Math.round((passedCount / steps.length) * 100);
+
   return (
     <Modal visible={visible} transparent animationType="slide" statusBarTranslucent>
       <View style={styles.overlay}>
-        <View style={styles.sheet}>
+        <View style={styles.sheet} accessibilityViewIsModal>
           {/* Title bar */}
           <View style={styles.titleRow}>
-            <Text style={styles.title}>Capture Preflight</Text>
+            <Text style={styles.title} accessibilityRole="header">
+              Capture Preflight
+            </Text>
             <TouchableOpacity
               onPress={onDismiss}
               hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -296,30 +301,64 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
           </View>
 
           {/* Progress bar */}
-          <View style={styles.progressTrack}>
+          <View
+            style={styles.progressTrack}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel="Calibration progress"
+            accessibilityValue={{
+              min: 0,
+              max: 100,
+              now: progressPercent,
+              text: `${passedCount} of ${steps.length} steps complete`,
+            }}
+          >
             <Animated.View
               style={[styles.progressFill, { width: progressWidth }]}
             />
           </View>
 
-          {/* Steps */}
-          {steps.map(step => (
-            <View key={step.id} style={styles.stepRow}>
-              <Text style={[styles.stepIcon, { color: stateColor(step.state) }]}>
-                {stateIcon(step.state)}
-              </Text>
-              <View style={styles.stepContent}>
-                <Text style={[styles.stepTitle, { color: stateColor(step.state) }]}>
-                  {step.title}
+          {/* Steps — ordered for VoiceOver left-to-right / top-to-bottom */}
+          {steps.map((step, index) => {
+            const statusLabel =
+              step.state === 'pass'
+                ? 'passed'
+                : step.state === 'warn'
+                  ? 'warning'
+                  : step.state === 'fail'
+                    ? 'failed'
+                    : step.state === 'checking'
+                      ? 'checking'
+                      : 'pending';
+            const detailText = step.detail ?? step.description;
+            return (
+              <View
+                key={step.id}
+                style={styles.stepRow}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={`Step ${index + 1} of ${steps.length}: ${step.title.replace(/[^\w\s]/g, '').trim()}, ${statusLabel}. ${detailText}`}
+                accessibilityLiveRegion="polite"
+              >
+                <Text
+                  style={[styles.stepIcon, { color: stateColor(step.state) }]}
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  {stateIcon(step.state)}
                 </Text>
-                {step.detail ? (
-                  <Text style={styles.stepDetail}>{step.detail}</Text>
-                ) : (
-                  <Text style={styles.stepDesc}>{step.description}</Text>
-                )}
+                <View style={styles.stepContent} importantForAccessibility="no-hide-descendants">
+                  <Text style={[styles.stepTitle, { color: stateColor(step.state) }]}>
+                    {step.title}
+                  </Text>
+                  {step.detail ? (
+                    <Text style={styles.stepDetail}>{step.detail}</Text>
+                  ) : (
+                    <Text style={styles.stepDesc}>{step.description}</Text>
+                  )}
+                </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
 
           {/* Step 1 camera mini-preview */}
           {isScanTestActive && device && (
@@ -335,12 +374,14 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
           )}
 
           {/* Action buttons */}
-          <View style={styles.actionRow}>
+          <View style={styles.actionRow} accessibilityLiveRegion="polite">
             {currentStep === 3 && steps[3]?.state === 'pending' && (
               <TouchableOpacity
                 style={styles.actionBtn}
                 onPress={confirmBrightness}
                 accessibilityRole="button"
+                accessibilityLabel="Confirm sender screen is at maximum brightness"
+                accessibilityHint="Marks the brightness step as complete"
               >
                 <Text style={styles.actionBtnText}>✓ Screen is at max brightness</Text>
               </TouchableOpacity>
@@ -351,6 +392,8 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
                 style={styles.actionBtn}
                 onPress={confirmThermal}
                 accessibilityRole="button"
+                accessibilityLabel="Confirm device is cool enough"
+                accessibilityHint="Marks the thermal step as complete"
               >
                 <Text style={styles.actionBtnText}>✓ Device is cool enough</Text>
               </TouchableOpacity>
@@ -362,6 +405,7 @@ export const CalibrationWizard: React.FC<CalibrationWizardProps> = ({
                 onPress={onComplete}
                 accessibilityRole="button"
                 accessibilityLabel="All checks passed. Start capture."
+                accessibilityHint="Closes the wizard and begins QR code capture"
               >
                 <Text style={styles.startBtnText}>🐱 Start Capture</Text>
               </TouchableOpacity>

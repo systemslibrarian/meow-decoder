@@ -60,6 +60,11 @@ interface CameraPreviewProps {
    * can read the current value without prop-drilling through the full state machine.
    */
   onExposureBiasChange?: (bias: number) => void;
+  /**
+   * Called whenever the torch state changes so parent components (e.g. useLowLightDetector)
+   * can track whether the flashlight is currently active.
+   */
+  onTorchChange?: (on: boolean) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -71,6 +76,7 @@ export const CameraPreview = React.memo(function CameraPreview({
   isBackgrounding = false,
   onAutoRecoveryRef,
   onExposureBiasChange,
+  onTorchChange,
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -97,7 +103,11 @@ export const CameraPreview = React.memo(function CameraPreview({
     zoom: zoomSV.value,
   }));
 
-  const toggleTorch = useCallback(() => setTorch((p) => (p === 'off' ? 'on' : 'off')), []);
+  const toggleTorch = useCallback(() => setTorch((p) => {
+    const next = p === 'off' ? 'on' : 'off';
+    onTorchChange?.(next === 'on');
+    return next;
+  }), [onTorchChange]);
   const openSettings = useCallback(() => void Linking.openSettings(), []);
 
   const nudgeExposure = useCallback((delta: number) => {
@@ -133,8 +143,8 @@ export const CameraPreview = React.memo(function CameraPreview({
   if (!hasPermission) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.permissionIcon}>📷</Text>
-        <Text style={styles.permissionTitle}>Camera access needed</Text>
+        <Text style={styles.permissionIcon} importantForAccessibility="no">📷</Text>
+        <Text style={styles.permissionTitle} accessibilityRole="header">Camera access needed</Text>
         <Text style={styles.permissionBody}>
           meow-decoder uses the camera to scan animated QR codes. No images
           are stored or transmitted.
@@ -156,8 +166,8 @@ export const CameraPreview = React.memo(function CameraPreview({
   // ── No camera device ──────────────────────────────────────────────────────
   if (!device) {
     return (
-      <View style={styles.centered}>
-        <Text style={styles.permissionTitle}>No camera available</Text>
+      <View style={styles.centered} accessible={true} accessibilityRole="alert" accessibilityLabel="No camera available. This device does not have a usable back camera.">
+        <Text style={styles.permissionTitle} accessibilityRole="header">No camera available</Text>
         <Text style={styles.permissionBody}>
           This device does not have a usable back camera.
         </Text>
@@ -189,7 +199,9 @@ export const CameraPreview = React.memo(function CameraPreview({
         {isBackgrounding && (
           <View
             style={styles.privacyOverlay}
-            accessibilityLabel="Screen content hidden"
+            accessible={true}
+            accessibilityRole="alert"
+            accessibilityLabel="Screen content hidden for privacy"
           >
             <Text style={styles.privacyIcon}>🐱</Text>
           </View>
@@ -322,7 +334,9 @@ const styles = StyleSheet.create({
   },
   exposureBtn: {
     padding: Spacing.xs,
-    minWidth: 36,
+    minWidth: 44,
+    minHeight: 44,
+    justifyContent: 'center',
     alignItems: 'center',
   },
   exposureText: {

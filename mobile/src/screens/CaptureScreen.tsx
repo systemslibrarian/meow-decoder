@@ -36,6 +36,9 @@ import { CaptureCoachPanel } from '../components/CaptureCoachPanel';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useSecureScreen } from '../hooks/useSecureScreen';
 import { useStallDetector } from '../hooks/useStallDetector';
+import { useLowLightDetector } from '../hooks/useLowLightDetector';
+import { useAudioCues } from '../hooks/useAudioCues';
+import { useCameraHealthCheck } from '../hooks/useCameraHealthCheck';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { formatCountdown } from '../utils/formatters';
 import { PURR_HAPTIC_INTERVAL_MS } from '../constants/config';
@@ -48,6 +51,7 @@ const HAPTIC_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSetting
 export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const { request } = route.params;
   const { showToast } = useCatToast();
+  const { play: playAudioCue } = useAudioCues();
 
   // ── Security: privacy overlay + FLAG_SECURE (Android via MainActivity.kt) ──
   const { isBackgrounding } = useSecureScreen();
@@ -181,21 +185,21 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       stallCountRef.current += 1;
       if (stallCountRef.current === 1) {
         showToast({
-          message: '😿 No new frames — try moving camera slightly',
+          message: '😿 No new frames detected — try moving the camera closer or adjusting the angle',
           type: 'info',
-          durationMs: 4_000,
+          durationMs: 5_000,
         });
       } else if (stallCountRef.current === 2) {
         // Auto-nudge exposure up half a stop and inform user
         autoRecoveryRef.current?.(0.5);
         showToast({
-          message: '🌙 Auto-brightened — if glare, tap ☀️−',
+          message: '🌙 Adjusting brightness — if there\'s glare, tap the ☀️− button',
           type: 'info',
-          durationMs: 4_000,
+          durationMs: 5_000,
         });
       } else {
         showToast({
-          message: '💡 Try torch or move 10 cm closer',
+          message: '💡 Still stuck? Try turning on the flashlight or moving about 10 cm closer to the screen',
           type: 'info',
           durationMs: 6_000,
         });
@@ -212,6 +216,27 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   // ── Exposure bias tracking for CaptureCoachPanel ───────────────────────────
   const [exposureBias, setExposureBias] = useState(0);
   const handleExposureBiasChange = useRef((bias: number) => setExposureBias(bias)).current;
+
+  // ── Torch state tracking (for low-light detector) ─────────────────────────
+  const [torchOn, setTorchOn] = useState(false);
+  const handleTorchChange = useRef((on: boolean) => setTorchOn(on)).current;
+
+  // ── Proactive low-light auto-nudge (F2) ────────────────────────────────────
+  useLowLightDetector({
+    decodeRate,
+    exposureBias,
+    torchOn,
+    active: status === 'CAPTURING',
+    showHint: (message: string) => showToast({ message, type: 'info', durationMs: 4_000 }),
+    nudgeExposure: (delta: number) => autoRecoveryRef.current?.(delta),
+  });
+
+  // ── Camera health self-test (F7) ──────────────────────────────────────────
+  useCameraHealthCheck({
+    status,
+    capturedCount,
+    showHint: (message: string) => showToast({ message, type: 'info', durationMs: 6_000 }),
+  });
 
   // ── Purr haptic pulse — gentle tactile feedback per captured frame ──────────
   const lastPurrTimeRef = useRef(0);
@@ -233,15 +258,17 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     // Graduated haptic: light ticks for progress, success pop for completion
     if (lastMilestone === 1.0) {
       ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
+      playAudioCue('complete');
     } else {
       ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+      playAudioCue('milestone');
     }
 
     const TOASTS: Record<number, { message: string; type: 'milestone' | 'success' }> = {
-      0.25: { message: 'Purrfect progress! 25% 🐱', type: 'milestone' },
+      0.25: { message: '25% captured — keep going! 🐱', type: 'milestone' },
       0.5: { message: 'Halfway there! 🐾', type: 'milestone' },
-      0.75: { message: 'Almost there! 75% 😼', type: 'milestone' },
-      1.0: { message: 'Paws up! Fountain frames captured 😸', type: 'success' },
+      0.75: { message: '75% done — almost there! 😼', type: 'milestone' },
+      1.0: { message: 'All frames captured — safe to stop! 😸', type: 'success' },
     };
 
     const toast = TOASTS[lastMilestone];
@@ -274,8 +301,9 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   useEffect(() => {
     if (status === 'ERROR' && error) {
       showToast({ message: `Error: ${error}`, type: 'error' });
+      playAudioCue('error');
     }
-  }, [status, error, showToast]);
+  }, [status, error, showToast, playAudioCue]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -287,6 +315,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         isBackgrounding={isBackgrounding}
         onAutoRecoveryRef={autoRecoveryRef}
         onExposureBiasChange={handleExposureBiasChange}
+        onTorchChange={handleTorchChange}
       />
 
       {/* Scan region + status badges */}
@@ -400,11 +429,11 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
 
 function statusLabel(status: string): string {
   switch (status) {
-    case 'AWAITING_GIF': return '🔍 Point at animated QR code...';
-    case 'CAPTURING': return '😼 Catching frames...';
+    case 'AWAITING_GIF': return '🔍 Point camera at the code on screen';
+    case 'CAPTURING': return '😼 Scanning — hold steady';
     case 'PAUSED': return '⏸ Paused — tap Resume to continue';
-    case 'TIMED_OUT': return "⏰ Time's up! Exporting...";
-    case 'COMPLETE': return '✅ Done! Preparing export...';
+    case 'TIMED_OUT': return '⏰ Time\'s up — preparing your file...';
+    case 'COMPLETE': return '✅ All captured! Preparing your file...';
     default: return '';
   }
 }

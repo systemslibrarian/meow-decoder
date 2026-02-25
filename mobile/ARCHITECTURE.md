@@ -55,8 +55,11 @@ ciphertext visible on the air-gapped screen.
 
 ## Future Mode: WebSocket Bridge (Optional / Advanced)
 
-> **Status:** Not yet implemented. Bridge server and protocol are designed but
-> not wired into the mobile app. See `bridge/` for reference implementations.
+> **Status:** Not implemented in the mobile app. Bridge server and protocol are
+> designed but not wired. See `bridge/` for reference implementations.
+> **The local JSON export flow above is the primary and only active mode.**
+> All release UI entry points use the JSON export path.
+> The bridge mode is documented here for future development reference only.
 
 For real-time streaming without USB, a future mode will support a local
 WebSocket bridge between the phone and a workstation on the same LAN or USB.
@@ -288,9 +291,9 @@ AppNavigator (native-stack)
 ├── OnboardingScreen
 ├── HomeScreen
 │   ├── CalibrationWizard        ← 5-step preflight (permissions, QR test, light, brightness, thermal)
-│   ├── DiagnosticsPanel         ← hidden long-press panel (JS lag, heap, FPS, thermal heuristic)
+│   ├── DiagnosticsPanel         ← hidden long-press panel (JS lag, heap, FPS, thermal heuristic, safe-to-share export)
 │   ├── RequestQR modal          ← Camera + useCodeScanner to scan request from sender screen
-│   └── [import video button]    ← useVideoImport (feature-flagged, TurboModule stub)
+│   └── [video import button]    ← useVideoImport (feature-flagged OFF — hidden from release UI)
 ├── CaptureScreen
 │   ├── CameraPreview            ← pinch zoom, exposure nudge, shake detection
 │   ├── CatWhiskerHUD            ← animated progress ring (Reanimated 3)
@@ -308,7 +311,7 @@ AppNavigator (native-stack)
 | `useSessionManager` | Fountain-decode state machine; exposes `decodeRate`, `duplicateRate` |
 | `useCapture` | `useReducer`-based capture state + MMKV checkpoint (indices only) |
 | `useSecurityMode` | MMKV-backed strict/convenience toggle |
-| `useVideoImport` | TurboModule bridge stub for local video frame extraction (feature-flagged off) |
+| `useVideoImport` | TurboModule bridge stub for local video frame extraction (feature-flagged OFF in release) |
 
 ### New components in v3.2
 

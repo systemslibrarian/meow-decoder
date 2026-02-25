@@ -326,3 +326,31 @@ Outputs land in `android/app/build/outputs/apk/<flavor>/release/`.
 - [ ] Keystore + provisioning profiles stored in Password Manager + offline backup
 - [ ] `npx tsc --noEmit` and `npx jest` pass on the release commit
 - [ ] Git tag created: `git tag -a v3.x.x -m "Release v3.x.x" && git push --tags`
+
+---
+
+## GitHub Release Workflow
+
+After building and signing the release artifacts:
+
+```bash
+# 1. Tag the release
+git tag -a v3.2.1 -m "Release v3.2.1"
+git push --tags
+
+# 2. Compute SHA-256 checksums
+sha256sum android/app/build/outputs/apk/secure/release/*.apk > checksums.txt
+sha256sum android/app/build/outputs/bundle/secureRelease/*.aab >> checksums.txt
+
+# 3. Create GitHub release using the template
+gh release create v3.2.1 \
+  --title "Meow Capture v3.2.1" \
+  --notes-file .github/RELEASE_TEMPLATE.md \
+  android/app/build/outputs/apk/secure/release/app-secure-release.apk \
+  android/app/build/outputs/bundle/secureRelease/app-secure-release.aab \
+  checksums.txt
+
+# 4. Edit the release to fill in SHA-256 values from checksums.txt
+```
+
+The release template is at `.github/RELEASE_TEMPLATE.md`. Fill in the `{VERSION}` and `<sha256>` placeholders before publishing.

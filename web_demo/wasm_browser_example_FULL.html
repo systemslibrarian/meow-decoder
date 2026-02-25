@@ -1977,7 +1977,7 @@
                 }
 
             } catch (err) {
-                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${escapeHtml(err.message)}</span>`;
                 log(`❌ QR scan error: ${err.message}`);
             }
 
@@ -2084,7 +2084,7 @@
                 }
 
             } catch (err) {
-                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${err.message}</span>`;
+                statusEl.innerHTML = `<span style="color: #f44336;">❌ Error: ${escapeHtml(err.message)}</span>`;
                 log(`❌ [${targetFieldId}] QR scan error: ${err.message}`);
             }
 
@@ -2860,7 +2860,7 @@
 
             } catch (err) {
                 statusEl.className = 'status error';
-                statusEl.innerHTML = `❌ Failed to load WASM: ${err.message}<br><small>Run <code>make build-wasm</code> and serve via HTTP server</small>`;
+                statusEl.innerHTML = `❌ Failed to load WASM: ${escapeHtml(err.message)}<br><small>Run <code>make build-wasm</code> and serve via HTTP server</small>`;
                 log(`ERROR: ${err.message}`);
             }
         }
@@ -3462,7 +3462,7 @@
                                 if (decResult.success) {
                                     const plaintext = decoder.decode(decResult.data);
                                     resultBox.className = 'result-box';
-                                    resultBox.innerHTML = `<h3>✨ Secret Extracted</h3><div class='message'>${plaintext}</div>`;
+                                    resultBox.innerHTML = `<h3>✨ Secret Extracted</h3><div class='message'>${escapeHtml(plaintext)}</div>`;
                                     resultBox.classList.remove('hidden');
                                     log('🔍 [Stego] Secret decrypted successfully');
                                 } else {
@@ -3475,7 +3475,7 @@
                                 // Demo mode - base64 decode
                                 const plaintext = decodeURIComponent(escape(atob(payload.substring(5))));
                                 resultBox.className = 'result-box';
-                                resultBox.innerHTML = `<h3>✨ Secret Extracted (Demo Mode)</h3><div class='message'>${plaintext}</div><p style="color:#ff9800; font-size:0.85em;">⚠️ This was not encrypted - demo mode only</p>`;
+                                resultBox.innerHTML = `<h3>✨ Secret Extracted (Demo Mode)</h3><div class='message'>${escapeHtml(plaintext)}</div><p style="color:#ff9800; font-size:0.85em;">⚠️ This was not encrypted - demo mode only</p>`;
                                 resultBox.classList.remove('hidden');
                                 log('🔍 [Stego] Demo payload extracted');
                             } else {
@@ -3483,7 +3483,7 @@
                             }
                         } catch (err) {
                             resultBox.className = 'result-box error';
-                            resultBox.innerHTML = `<h3>❌ Extraction Failed</h3><div class='message'>${err.message}</div>`;
+                            resultBox.innerHTML = `<h3>❌ Extraction Failed</h3><div class='message'>${escapeHtml(err.message)}</div>`;
                             resultBox.classList.remove('hidden');
                             log('❌ [Stego] ' + err.message);
                         }
@@ -3493,7 +3493,7 @@
                 reader.readAsDataURL(fileInput.files[0]);
             } catch (err) {
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Error</h3><div class='message'>${err.message}</div>`;
+                resultBox.innerHTML = `<h3>❌ Error</h3><div class='message'>${escapeHtml(err.message)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('❌ [Stego] Error: ' + err.message);
             }
@@ -3724,11 +3724,11 @@
             const infoEl = document.getElementById('catStoredInfo');
             if (!infoEl) return;
             try {
-                const stored = localStorage.getItem('meow_cat_binary');
-                const ts = localStorage.getItem('meow_cat_binary_ts');
+                const stored = sessionStorage.getItem('meow_cat_binary');
+                const ts = sessionStorage.getItem('meow_cat_binary_ts');
                 if (stored) {
                     const when = ts ? new Date(parseInt(ts, 10)).toLocaleString() : 'unknown time';
-                    infoEl.innerHTML = `📋 Stored original: ${stored.length} bits (${when}) — <a href="#" onclick="event.preventDefault(); document.getElementById('catBinaryInput').value = localStorage.getItem('meow_cat_binary') || ''; this.textContent='Loaded!';" style="color:#00ff88; text-decoration:underline;">Load into field</a>`;
+                    infoEl.innerHTML = `📋 Stored original: ${stored.length} bits (${when}) — <a href="#" onclick="event.preventDefault(); document.getElementById('catBinaryInput').value = sessionStorage.getItem('meow_cat_binary') || ''; this.textContent='Loaded!';" style="color:#00ff88; text-decoration:underline;">Load into field</a>`;
                 } else {
                     infoEl.textContent = 'Stored original: none (transmit to save)';
                 }
@@ -3829,9 +3829,9 @@
                 const payloadResult = await buildCatBinaryPayload(message, password);
                 catBinaryData = payloadResult.binary;
                 try {
-                    localStorage.setItem('meow_cat_binary', catBinaryData);
-                    localStorage.setItem('meow_cat_binary_ts', String(Date.now()));
-                    localStorage.setItem('meow_cat_speed_ms', String(speed));
+                    sessionStorage.setItem('meow_cat_binary', catBinaryData);
+                    sessionStorage.setItem('meow_cat_binary_ts', String(Date.now()));
+                    sessionStorage.setItem('meow_cat_speed_ms', String(speed));
                 } catch (_) {
                     // Ignore storage errors (private mode, quota, etc.).
                 }
@@ -3988,7 +3988,7 @@
                 catBlinkInterval = requestAnimationFrame(transmitFrame);
 
             } catch (err) {
-                resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${err.message}</span>`;
+                resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${escapeHtml(err.message)}</span>`;
                 log('❌ [Cat Mode] Error: ' + err.message);
             }
         };
@@ -4840,7 +4840,7 @@
 
                 compareHtml = '';
                 try {
-                    const original = localStorage.getItem('meow_cat_binary');
+                    const original = sessionStorage.getItem('meow_cat_binary');
                     if (original) {
                         const cmp = compareBinary(original, binary);
                         const drift = cmp.lengthB - cmp.lengthA;
@@ -5610,7 +5610,7 @@
                 resultBox.classList.remove('hidden');
             } catch (err) {
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Self-Test Error</h3><div class='message'>${err.message}</div>`;
+                resultBox.innerHTML = `<h3>❌ Self-Test Error</h3><div class='message'>${escapeHtml(err.message)}</div>`;
                 resultBox.classList.remove('hidden');
             }
         };
@@ -5934,17 +5934,17 @@
 
                 if (fileName) {
                     resultBox.className = 'result-box';
-                    resultBox.innerHTML = `<h3>✅ File Decrypted</h3><div class="message">${fileName} (${decResult.data.length} bytes)</div>`;
+                    resultBox.innerHTML = `<h3>✅ File Decrypted</h3><div class="message">${escapeHtml(fileName)} (${decResult.data.length} bytes)</div>`;
                 } else {
                     const text = decoder.decode(decResult.data);
                     resultBox.className = 'result-box';
-                    resultBox.innerHTML = `<h3>✨ Decrypted Message</h3><div class="message">${text}</div>`;
+                    resultBox.innerHTML = `<h3>✨ Decrypted Message</h3><div class="message">${escapeHtml(text)}</div>`;
                 }
                 resultBox.classList.remove('hidden');
                 log('✅ [Animated] Decrypted successfully');
             } catch (err) {
                 resultBox.className = 'result-box error';
-                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class="message">${err.message}</div>`;
+                resultBox.innerHTML = `<h3>❌ Decryption Failed</h3><div class="message">${escapeHtml(err.message)}</div>`;
                 resultBox.classList.remove('hidden');
                 log('❌ [Animated] Decrypt error: ' + err.message);
             }
@@ -6302,10 +6302,10 @@
                 transitions: (catDiagnostics.transitions || []).slice(0, 100),
                 per_frame: perFrameData,
                 storage: {
-                    binary_present: !!localStorage.getItem('meow_cat_binary'),
-                    binary_length: (localStorage.getItem('meow_cat_binary') || '').length,
-                    timestamp: localStorage.getItem('meow_cat_binary_ts'),
-                    speed: localStorage.getItem('meow_cat_speed_ms')
+                    binary_present: !!sessionStorage.getItem('meow_cat_binary'),
+                    binary_length: (sessionStorage.getItem('meow_cat_binary') || '').length,
+                    timestamp: sessionStorage.getItem('meow_cat_binary_ts'),
+                    speed: sessionStorage.getItem('meow_cat_speed_ms')
                 },
                 log_excerpt: document.getElementById('log') ?
                     document.getElementById('log').textContent.split('\n')
@@ -6434,11 +6434,11 @@
                 document.getElementById('fsMyPublicKey').value = publicKeyB64;
                 document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair generated! Share your public key above.</span>';
 
-                // WARNING: Secret key stored in localStorage as base64.
+                // WARNING: Secret key stored in sessionStorage as base64.
                 // This is NOT encrypted — acceptable for a demo/prototype but
                 // production deployments should use IndexedDB with SubtleCrypto
                 // wrapping (AES-GCM keyed by a user passphrase or WebAuthn).
-                localStorage.setItem('meow_fs_keypair', JSON.stringify({
+                sessionStorage.setItem('meow_fs_keypair', JSON.stringify({
                     secret: bytesToBase64(fsKeyPair.secret),
                     public: publicKeyB64,
                     _warning: 'Secret key stored unencrypted — demo only'
@@ -6505,7 +6505,7 @@
                     document.getElementById('fsMyPublicKey').value = data.public;
                     document.getElementById('fsKeyStatus').innerHTML = '<span style="color: #00ff88;">✅ Key pair imported!</span>';
 
-                    localStorage.setItem('meow_fs_keypair', JSON.stringify({
+                    sessionStorage.setItem('meow_fs_keypair', JSON.stringify({
                         secret: data.secret,
                         public: data.public
                     }));
@@ -6521,7 +6521,7 @@
 
         // Load saved key pair on init
         function loadFsKeyPair() {
-            const saved = localStorage.getItem('meow_fs_keypair');
+            const saved = sessionStorage.getItem('meow_fs_keypair');
             if (saved) {
                 try {
                     const data = JSON.parse(saved);
@@ -6697,7 +6697,7 @@
                 document.getElementById('pqX25519PublicKey').value = bytesToBase64(pqKeyPair.x25519Public);
                 document.getElementById('pqMlkemPublicKey').value = bytesToBase64(pqKeyPair.mlkemPublic);
 
-                // WARNING: Secret keys stored in localStorage as base64.
+                // WARNING: Secret keys stored in sessionStorage as base64.
                 // This is NOT encrypted — acceptable for a demo/prototype but
                 // production deployments should use IndexedDB with SubtleCrypto
                 // wrapping (AES-GCM keyed by a user passphrase or WebAuthn).
@@ -6709,7 +6709,7 @@
                     created: new Date().toISOString(),
                     _warning: 'Secret keys stored unencrypted — demo only'
                 };
-                localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
+                sessionStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
 
                 log('✅ [PQ] Post-quantum key pair generated and saved!');
                 log(`   X25519 public: ${keyData.x25519Public.substring(0, 20)}...`);
@@ -6781,8 +6781,8 @@
                 document.getElementById('pqX25519PublicKey').value = keyData.x25519Public;
                 document.getElementById('pqMlkemPublicKey').value = keyData.mlkemPublic;
 
-                // Save to localStorage
-                localStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
+                // Save to sessionStorage
+                sessionStorage.setItem('meow_pq_keypair', JSON.stringify(keyData));
 
                 log('📂 [PQ] Key pair imported successfully');
 
@@ -6977,7 +6977,7 @@
         // Load saved PQ key pair on startup
         function loadSavedPqKeyPair() {
             try {
-                const saved = localStorage.getItem('meow_pq_keypair');
+                const saved = sessionStorage.getItem('meow_pq_keypair');
                 if (saved) {
                     const keyData = JSON.parse(saved);
                     pqKeyPair = {
@@ -7512,11 +7512,11 @@
                     log('🚨🚨🚨 [Duress] PANIC PASSWORD DETECTED! 🚨🚨🚨');
                     log('   Showing decoy message, wiping stored keys...');
 
-                    // Wipe stored keys from localStorage
+                    // Wipe stored keys from sessionStorage
                     const wipedKeys = [];
-                    ['meow_fs_keypair', 'meow_pq_keypair', 'meow_duress'].forEach(k => {
-                        if (localStorage.getItem(k)) {
-                            localStorage.removeItem(k);
+                    ['meow_fs_keypair', 'meow_pq_keypair', 'meow_duress', 'meow_cat_binary', 'meow_cat_binary_ts', 'meow_cat_speed_ms', 'meow_cat_encryption_mode'].forEach(k => {
+                        if (sessionStorage.getItem(k)) {
+                            sessionStorage.removeItem(k);
                             wipedKeys.push(k);
                         }
                     });
@@ -7544,7 +7544,7 @@
                                 <p style="color: #888; font-size: 0.85em;">In a real scenario, the attacker would only see the decoy message above. This box is shown for demo purposes only.</p>
                                 <ul style="color: #ccc; font-size: 0.85em; padding-left: 20px;">
                                     <li>✅ Decoy message was shown (looks like real content)</li>
-                                    <li>✅ ${wipedKeys.length > 0 ? wipedKeys.length + ' stored keys wiped from localStorage' : 'No stored keys to wipe'}</li>
+                                    <li>✅ ${wipedKeys.length > 0 ? wipedKeys.length + ' stored keys wiped from sessionStorage' : 'No stored keys to wipe'}</li>
                                     <li>✅ Real secret remains protected (needs real password)</li>
                                 </ul>
                             </div>
@@ -7623,13 +7623,13 @@
             const hashBuffer = await window.crypto.subtle.digest('SHA-256', data);
             const hashArray = Array.from(new Uint8Array(hashBuffer));
             const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-            localStorage.setItem('meow_duress', JSON.stringify({
+            sessionStorage.setItem('meow_duress', JSON.stringify({
                 hash: passwordHash,
                 version: 2,
                 decoy: decoyMessage,
                 set: new Date().toISOString()
             }));
-            log('🚨 [Duress] Panic password saved to localStorage');
+            log('🚨 [Duress] Panic password saved to sessionStorage');
         };
 
         window.testDuressPassword = function() {
@@ -7638,7 +7638,7 @@
 
         // Check for duress on any decrypt operation
         async function checkDuress(password) {
-            const saved = localStorage.getItem('meow_duress');
+            const saved = sessionStorage.getItem('meow_duress');
             if (!saved) return null;
 
             const data = JSON.parse(saved);
@@ -7652,9 +7652,7 @@
             if (testHash === data.hash) {
                 // PANIC! Wipe everything
                 log('🚨🚨🚨 DURESS MODE TRIGGERED 🚨🚨🚨');
-                localStorage.removeItem('meow_fs_keypair');
-                localStorage.removeItem('meow_duress');
-                // Could wipe more here
+                ['meow_fs_keypair', 'meow_pq_keypair', 'meow_duress', 'meow_cat_binary', 'meow_cat_binary_ts', 'meow_cat_speed_ms', 'meow_cat_encryption_mode'].forEach(k => sessionStorage.removeItem(k));
 
                 return data.decoy;
             }

@@ -1,9 +1,9 @@
 /**
  * 🐱 Cat Mode Protocol Implementation
- * 
+ *
  * Packet format for reliable optical data transmission via blinking cat eyes.
  * Implements CRC32 integrity checking, session management, and packet sequencing.
- * 
+ *
  * Packet Structure (17 bytes minimum + payload):
  * ┌──────────────────────────────────────────────────────────────────┐
  * │ Byte 0-1   │ Magic Number (0xCAFE - "cat face")                 │
@@ -14,19 +14,19 @@
  * │ Byte 11-14 │ CRC32 (covers version + session + seq + len + payload) │
  * │ Byte 15... │ Payload (0-1024 bytes)                              │
  * └──────────────────────────────────────────────────────────────────┘
- * 
+ *
  * Security Properties:
  * - PROTO-001: Magic number prevents false sync
  * - PROTO-002: CRC32 detects bit errors (burst up to 32 bits)
  * - PROTO-003: Session ID prevents signal injection
  * - PROTO-004: Sequence numbers detect packet loss
  * - PROTO-005: Payload length validated before CRC check
- * 
+ *
  * Usage:
  *   // Encode
  *   const session = CatProtocol.generateSessionId();
  *   const packets = CatProtocol.encodeMessage("Hello, World!", session);
- *   
+ *
  *   // Decode
  *   const decoder = new CatProtocolDecoder();
  *   for (const packetBytes of receivedPackets) {
@@ -35,7 +35,7 @@
  *           console.log('Message:', result.message);
  *       }
  *   }
- * 
+ *
  * @author Meow Decoder Team
  * @version 2.0
  * @date 2026-02-13
@@ -183,40 +183,40 @@ function encodePacket(payload, sessionId, sequenceNum) {
     if (payload.length > MAX_PAYLOAD_SIZE) {
         throw new Error(`Payload too large: ${payload.length} > ${MAX_PAYLOAD_SIZE}`);
     }
-    
+
     const packetSize = HEADER_SIZE + payload.length;
     const packet = new Uint8Array(packetSize);
-    
+
     let offset = 0;
-    
+
     // Magic number (2 bytes)
     writeUint16LE(packet, offset, MAGIC_NUMBER);
     offset += 2;
-    
+
     // Protocol version (1 byte)
     packet[offset++] = PROTOCOL_VERSION;
-    
+
     // Session ID (4 bytes)
     writeUint32LE(packet, offset, sessionId);
     offset += 4;
-    
+
     // Sequence number (2 bytes)
     writeUint16LE(packet, offset, sequenceNum);
     offset += 2;
-    
+
     // Payload length (2 bytes)
     writeUint16LE(packet, offset, payload.length);
     offset += 2;
     // offset = 11
-    
+
     // Skip CRC slot (4 bytes) — filled after payload is written
     offset += 4;
     // offset = 15
-    
+
     // Payload (starts at byte 15, after the full header)
     packet.set(payload, offset);
     offset += payload.length;
-    
+
     // Compute CRC32 over version + session + seq + len + payload
     // (excludes magic number for better error detection)
     // Build CRC buffer to match decoder's verification format exactly
@@ -227,10 +227,10 @@ function encodePacket(payload, sessionId, sequenceNum) {
     writeUint16LE(crcData, 7, payload.length);
     crcData.set(payload instanceof Uint8Array ? payload : new Uint8Array(payload), 9);
     const crcValue = crc32(crcData);
-    
+
     // Insert CRC at position 11 (after len, before payload)
     writeUint32LE(packet, 11, crcValue);
-    
+
     return packet;
 }
 
@@ -243,33 +243,33 @@ function encodePacket(payload, sessionId, sequenceNum) {
  */
 function encodeMessage(message, sessionId = null, maxPayloadPerPacket = 256) {
     // Convert string to bytes if needed
-    const messageBytes = typeof message === 'string' 
+    const messageBytes = typeof message === 'string'
         ? new TextEncoder().encode(message)
         : message;
-    
+
     // Generate session ID if not provided
     if (sessionId === null) {
         sessionId = generateSessionId();
     }
-    
+
     // Split into packets
     const packets = [];
     let sequenceNum = 0;
-    
+
     for (let offset = 0; offset < messageBytes.length; offset += maxPayloadPerPacket) {
         const end = Math.min(offset + maxPayloadPerPacket, messageBytes.length);
         const payload = messageBytes.slice(offset, end);
-        
+
         const packet = encodePacket(payload, sessionId, sequenceNum);
         packets.push(packet);
-        
+
         sequenceNum++;
-        
+
         if (sequenceNum > MAX_PACKETS) {
             throw new Error('Message too large: exceeds max packet count');
         }
     }
-    
+
     return packets;
 }
 
@@ -279,11 +279,11 @@ function encodeMessage(message, sessionId = null, maxPayloadPerPacket = 256) {
 
 /**
  * Decode and validate a single packet.
- * 
+ *
  * Security hardening: All checks are coalesced to avoid timing side-channels.
  * CRC is always computed regardless of earlier validation failures.
  * Error responses use a generic message to prevent information leakage.
- * 
+ *
  * @param {Uint8Array} packetBytes - Raw packet bytes
  * @returns {object} Decoded packet or error
  */
@@ -295,42 +295,42 @@ function decodePacket(packetBytes) {
             error: 'packet_invalid'
         };
     }
-    
+
     let offset = 0;
-    
+
     // Parse all header fields unconditionally
     const magic = readUint16LE(packetBytes, offset);
     offset += 2;
-    
+
     const version = packetBytes[offset++];
-    
+
     const sessionId = readUint32LE(packetBytes, offset);
     offset += 4;
-    
+
     const sequenceNum = readUint16LE(packetBytes, offset);
     offset += 2;
-    
+
     const payloadLen = readUint16LE(packetBytes, offset);
     offset += 2;
-    
+
     const crcExpected = readUint32LE(packetBytes, offset);
     offset += 4;
-    
+
     // Validate all fields without early return
     let valid = true;
     valid = valid && constantTimeEqual32(magic, MAGIC_NUMBER);
     valid = valid && (version === PROTOCOL_VERSION);
     valid = valid && (payloadLen <= MAX_PAYLOAD_SIZE);
-    
+
     // Validate total packet size
     const expectedSize = HEADER_SIZE + payloadLen;
     valid = valid && (packetBytes.length === expectedSize);
-    
+
     // Always compute CRC, even if other checks failed (prevents timing oracle).
     // Use clamped payload length to avoid OOB reads on malformed packets.
     const safePayloadLen = Math.min(payloadLen, Math.max(0, packetBytes.length - HEADER_SIZE), MAX_PAYLOAD_SIZE);
     const payload = packetBytes.slice(offset, offset + safePayloadLen);
-    
+
     const crcData = new Uint8Array(1 + 4 + 2 + 2 + safePayloadLen);
     crcData[0] = version;
     writeUint32LE(crcData, 1, sessionId);
@@ -339,17 +339,17 @@ function decodePacket(packetBytes) {
     if (safePayloadLen > 0) {
         crcData.set(payload, 9);
     }
-    
+
     const crcComputed = crc32(crcData);
     valid = valid && constantTimeEqual32(crcComputed, crcExpected);
-    
+
     if (!valid) {
         return {
             valid: false,
             error: 'packet_invalid'
         };
     }
-    
+
     // Success!
     return {
         valid: true,
@@ -368,7 +368,7 @@ class CatProtocolDecoder {
     constructor() {
         this.reset();
     }
-    
+
     /**
      * Reset decoder state.
      */
@@ -382,20 +382,20 @@ class CatProtocolDecoder {
             packets_rejected: 0
         };
     }
-    
+
     /**
      * Process a single packet.
-     * 
+     *
      * Security hardening: Error responses use generic messages to prevent
      * side-channel enumeration of failure modes.
-     * 
+     *
      * @param {Uint8Array} packetBytes
      * @returns {object} Processing result
      */
     processPacket(packetBytes) {
         this.stats.packets_received++;
         const decoded = decodePacket(packetBytes);
-        
+
         // Invalid packet (CRC, magic, version, size — all coalesced)
         if (!decoded.valid) {
             this.stats.packets_rejected++;
@@ -404,7 +404,7 @@ class CatProtocolDecoder {
                 error: 'packet_rejected'
             };
         }
-        
+
         // Session locking
         if (this.lockedSessionId === null) {
             // First valid packet locks session
@@ -417,7 +417,7 @@ class CatProtocolDecoder {
                 error: 'packet_rejected'
             };
         }
-        
+
         // Check for duplicate
         if (this.receivedPackets.has(decoded.sequenceNum)) {
             this.stats.packets_rejected++;
@@ -426,22 +426,22 @@ class CatProtocolDecoder {
                 error: 'packet_rejected'
             };
         }
-        
+
         // Store packet
         this.receivedPackets.set(decoded.sequenceNum, decoded.payload);
         this.stats.packets_accepted++;
-        
+
         // Check if complete (all sequence numbers from 0 to max received)
         const maxSeq = Math.max(...this.receivedPackets.keys());
         const isComplete = this.receivedPackets.size === (maxSeq + 1);
-        
+
         if (isComplete) {
             // Reconstruct message
             const payloads = [];
             for (let i = 0; i <= maxSeq; i++) {
                 payloads.push(this.receivedPackets.get(i));
             }
-            
+
             // Concatenate
             const totalLength = payloads.reduce((sum, p) => sum + p.length, 0);
             const message = new Uint8Array(totalLength);
@@ -450,7 +450,7 @@ class CatProtocolDecoder {
                 message.set(payload, offset);
                 offset += payload.length;
             }
-            
+
             return {
                 accepted: true,
                 complete: true,
@@ -460,7 +460,7 @@ class CatProtocolDecoder {
                 stats: { ...this.stats }
             };
         }
-        
+
         // Not complete yet
         return {
             accepted: true,
@@ -472,14 +472,14 @@ class CatProtocolDecoder {
             }
         };
     }
-    
+
     /**
      * Get current statistics.
      */
     getStats() {
         return { ...this.stats };
     }
-    
+
     /**
      * Get locked session ID (or null).
      */
@@ -498,16 +498,16 @@ const CatProtocol = {
     PROTOCOL_VERSION,
     HEADER_SIZE,
     MAX_PAYLOAD_SIZE,
-    
+
     // Functions
     generateSessionId,
     encodePacket,
     encodeMessage,
     decodePacket,
-    
+
     // Classes
     Decoder: CatProtocolDecoder,
-    
+
     // Utilities
     crc32,
     verifyCrc32,
@@ -516,7 +516,6 @@ const CatProtocol = {
 
 // Export for module usage
 if (typeof module !== 'undefined' && module.exports) {
-    constantTimeEqual32,
     module.exports = CatProtocol;
 }
 

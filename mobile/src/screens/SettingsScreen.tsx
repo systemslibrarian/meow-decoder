@@ -5,11 +5,12 @@
  * No network calls; no analytics; no telemetry.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
+  Switch,
   StyleSheet,
   ScrollView,
   Platform,
@@ -18,6 +19,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SecurityMode, useSecurityMode } from '../hooks/useSecurityMode';
+import { isSoundEnabled, setSoundEnabled } from '../hooks/useAudioCues';
+import { Typography } from '../constants/theme';
+import { APP_VERSION } from '../constants/config';
 import type { SettingsScreenProps } from '../types/navigation';
 
 // ── Colours (duplicated from theme rather than adding a dep here) ─────────────
@@ -98,6 +102,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { mode, setMode } = useSecurityMode();
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
 
   const handleSelectMode = useCallback(
     (next: SecurityMode) => {
@@ -129,7 +134,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
         showsVerticalScrollIndicator={false}
       >
         {/* Section title */}
-        <Text style={styles.sectionLabel}>SECURITY MODE</Text>
+        <Text style={styles.sectionLabel} accessibilityRole="header">SECURITY MODE</Text>
         <Text style={styles.sectionDescription}>
           Controls what happens when the app backgrounds, whether sessions
           persist, and clipboard behaviour. Cryptographic strength is{' '}
@@ -198,7 +203,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
 
         {/* Security disclaimer */}
         <View style={styles.disclaimerCard}>
-          <Text style={styles.disclaimerTitle}>🔐 What never changes</Text>
+          <Text style={styles.disclaimerTitle} accessibilityRole="header">🔐 What never changes</Text>
           <Text style={styles.disclaimerBody}>
             Regardless of the mode you choose:{'\n'}
             {'  · '}AES-256-GCM encryption with Argon2id key derivation{'\n'}
@@ -210,8 +215,42 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
           </Text>
         </View>
 
+        {/* Sound settings */}
+        <Text style={styles.sectionLabel} accessibilityRole="header">AUDIO</Text>
+        <View style={styles.soundRow}>
+          <View style={styles.soundLabelRow}>
+            <Text
+              style={styles.soundLabel}
+              maxFontSizeMultiplier={1.4}
+            >
+              Sound effects
+            </Text>
+            <Text
+              style={styles.soundDescription}
+              maxFontSizeMultiplier={1.4}
+            >
+              Play subtle audio cues at capture milestones (25%, 50%, 75%, done).
+              Helpful for eyes-free or headphone operation.
+            </Text>
+          </View>
+          <Switch
+            value={soundOn}
+            onValueChange={(v) => {
+              setSoundOn(v);
+              setSoundEnabled(v);
+            }}
+            trackColor={{ false: colors.border, true: colors.catGoldMuted }}
+            thumbColor={soundOn ? colors.catGold : '#ccc'}
+            accessibilityRole="switch"
+            accessibilityLabel="Sound effects"
+            accessibilityState={{ checked: soundOn }}
+            accessibilityHint="Toggle audio feedback during capture milestones"
+            style={styles.soundSwitch}
+          />
+        </View>
+
         {/* Version */}
-        <Text style={styles.versionText}>Meow Capture v3.2.0</Text>
+        <Text style={styles.versionText}>Meow Capture v{APP_VERSION}</Text>
       </ScrollView>
     </View>
   );
@@ -359,6 +398,36 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     textAlign: 'center',
     opacity: 0.5,
+  },
+  // Sound toggle
+  soundRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.card,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 24,
+    gap: 12,
+  },
+  soundLabelRow: {
+    flex: 1,
+  },
+  soundLabel: {
+    fontSize: Typography.md,
+    fontWeight: '600',
+    color: colors.textPrimary,
+    marginBottom: 4,
+  },
+  soundDescription: {
+    fontSize: Typography.sm,
+    color: colors.textSecondary,
+    lineHeight: Typography.sm * 1.4,
+  },
+  soundSwitch: {
+    // Ensure the switch doesn't get squeezed when dynamic type scales up labels
+    flexShrink: 0,
   },
 });
 

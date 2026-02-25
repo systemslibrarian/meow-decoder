@@ -56,6 +56,8 @@ export const StabilityIndicator = React.memo(function StabilityIndicator({
     <Animated.View
       style={[styles.container, animatedStyle]}
       pointerEvents="none"
+      accessible={true}
+      accessibilityRole="alert"
       accessibilityLabel={`Device unstable — ${message}`}
       accessibilityLiveRegion="assertive"
       // Hide from screen readers when invisible so the element is only
@@ -63,7 +65,7 @@ export const StabilityIndicator = React.memo(function StabilityIndicator({
       accessibilityElementsHidden={!visible}
       importantForAccessibility={visible ? 'auto' : 'no-hide-descendants'}
     >
-      <View style={styles.pill}>
+      <View style={styles.pill} importantForAccessibility="no-hide-descendants">
         <Text style={styles.icon}>{icon}</Text>
         <Text style={styles.text}>{message}</Text>
       </View>

@@ -20,6 +20,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { NativeModules } from 'react-native';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import { Platform } from 'react-native';
@@ -50,6 +51,22 @@ export interface UseVideoImportReturn {
   importError: string | null;
   /** Clears the last import error */
   clearError: () => void;
+  /** True when the native TurboModule bridge is linked and available */
+  isNativeBridgeAvailable: boolean;
+}
+
+// ── Native bridge availability check ──────────────────────────────────────────
+
+/**
+ * Returns true when the native MeowVideoExtractor TurboModule is linked.
+ * When true, importFromVideo() will use native frame extraction.
+ * When false, HomeScreen should show a graceful "coming soon" modal instead
+ * of invoking the import flow at all.
+ *
+ * SECURITY: No side effects — only checks NativeModules registry.
+ */
+export function isNativeBridgeAvailable(): boolean {
+  return NativeModules.MeowVideoExtractor != null;
 }
 
 // ── Frame extractor stub ──────────────────────────────────────────────────────
@@ -62,20 +79,21 @@ export interface UseVideoImportReturn {
  *
  * The module should return `Promise<VideoFramePayload[]>`.
  *
- * Until the native module is wired up this throws `NotImplementedError` so
- * the HomeScreen can display a clear "native bridge required" message rather
+ * Until the native module is wired up this throws a sentinel error so
+ * the HomeScreen can display a clear "coming soon" modal rather
  * than silently failing.
  */
 async function extractQRFramesFromVideo(
   _uri: string,
 ): Promise<VideoFramePayload[]> {
+  if (isNativeBridgeAvailable()) {
+    // Native bridge is linked — call the TurboModule
+    return NativeModules.MeowVideoExtractor.extractQRFrames(_uri, { intervalMs: 50 });
+  }
   // TODO: Replace with TurboModule call when native bridge is implemented.
   // Android: com.meowdecoder.videoextractor.VideoFrameExtractorModule
   // iOS:     MeowVideoExtractorModule.swift
-  throw new Error(
-    'Video frame extraction requires the native MeowVideoExtractor bridge. ' +
-    'See useVideoImport.ts for implementation guidance.',
-  );
+  throw new Error('VIDEO_IMPORT_NOT_AVAILABLE');
 }
 
 // ── Supported MIME types ──────────────────────────────────────────────────────
@@ -155,5 +173,11 @@ export function useVideoImport(
     }
   }, [onFramesExtracted]);
 
-  return { importFromVideo, isImporting, importError, clearError };
+  return {
+    importFromVideo,
+    isImporting,
+    importError,
+    clearError,
+    isNativeBridgeAvailable: isNativeBridgeAvailable(),
+  };
 }

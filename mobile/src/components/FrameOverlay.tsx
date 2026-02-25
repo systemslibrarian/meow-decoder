@@ -123,7 +123,13 @@ export const FrameOverlay = React.memo(function FrameOverlay({
       </View>
       <View style={styles.shadeBottom}>
         {/* Status badge below scan box */}
-        <View style={[styles.badge, { backgroundColor: badgeBg(status, qrDetected) }]}>
+        <View
+          style={[styles.badge, { backgroundColor: badgeBg(status, qrDetected) }]}
+          accessible={true}
+          accessibilityRole="text"
+          accessibilityLabel={badgeLabelA11y(status, qrDetected)}
+          accessibilityLiveRegion="polite"
+        >
           <Text style={styles.badgeText}>{badgeLabel(status, qrDetected)}</Text>
         </View>
       </View>
@@ -141,6 +147,19 @@ function badgeLabel(status: CaptureState, qrDetected: boolean): string {
     case 'PAUSED': return '⏸ Paused';
     case 'COMPLETE': return '✅ Capture complete';
     case 'TIMED_OUT': return '⏰ Timed out';
+    default: return '';
+  }
+}
+
+/** Plain-text version of badge label for screen readers (no emoji) */
+function badgeLabelA11y(status: CaptureState, qrDetected: boolean): string {
+  switch (status) {
+    case 'AWAITING_GIF': return 'Searching for QR code';
+    case 'CAPTURING':
+      return qrDetected ? 'Capturing frames' : 'Waiting for next frame';
+    case 'PAUSED': return 'Capture paused';
+    case 'COMPLETE': return 'Capture complete';
+    case 'TIMED_OUT': return 'Capture timed out';
     default: return '';
   }
 }

@@ -48,7 +48,7 @@ import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import type { CaptureRequest } from '../types/capture';
 import type { HomeScreenProps } from '../types/navigation';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
-import { DEFAULT_TIMEOUT_SECONDS, FEATURE_FLAGS } from '../constants/config';
+import { DEFAULT_TIMEOUT_SECONDS, FEATURE_FLAGS, APP_VERSION } from '../constants/config';
 import meowLogo from '../assets/meow-decoder-logo.png';
 import {
   readCaptureCheckpoint,
@@ -74,21 +74,25 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const { hasPermission } = useCameraPermission();
   const device = useCameraDevice('back');
 
-  // ── Video import hook ─────────────────────────────────────────────────────
+  // ── Video import hook (feature-flagged; only initialised when enabled) ───────
   const [showVideoImportInfo, setShowVideoImportInfo] = useState(false);
 
-  const { importFromVideo, isImporting, importError, clearError: clearImportError, isNativeBridgeAvailable } =
-    useVideoImport((frames) => {
-      // When the native bridge is wired, frames flow directly to a new session.
-      // For now, show a success message with the count.
-      ReactNativeHapticFeedback.trigger('notificationSuccess', {
-        enableVibrateFallback: true,
-        ignoreAndroidSystemSettings: false,
-      });
-      setError(null);
-      // TODO: Create a CaptureRequest from the extracted frames and navigate.
-      // For now, this path is blocked by the native bridge check.
-    });
+  // When VIDEO_IMPORT is disabled (default), provide no-op stubs so the rest of
+  // the component doesn't need conditional branches.  The useVideoImport hook and
+  // its native-module dependencies are only exercised when the flag is on.
+  const videoImportEnabled = FEATURE_FLAGS.VIDEO_IMPORT;
+  const videoImportHook = videoImportEnabled
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    ? useVideoImport((_frames) => {
+        ReactNativeHapticFeedback.trigger('notificationSuccess', {
+          enableVibrateFallback: true,
+          ignoreAndroidSystemSettings: false,
+        });
+        setError(null);
+      })
+    : { importFromVideo: () => Promise.resolve(), isImporting: false, importError: null, clearError: () => {}, isNativeBridgeAvailable: false };
+
+  const { importFromVideo, isImporting, importError, clearError: clearImportError, isNativeBridgeAvailable } = videoImportHook;
 
   /**
    * Graceful gating: if the native bridge is not linked, show a friendly
@@ -278,10 +282,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             if (versionLongPressTimer.current) clearTimeout(versionLongPressTimer.current);
           }}
           accessibilityRole="text"
-          accessibilityLabel="Version 3.2.0. Long-press for diagnostics."
+          accessibilityLabel={`Version ${APP_VERSION}. Long-press for diagnostics.`}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-          <Text style={styles.versionBadge}>v3.2.0</Text>
+          <Text style={styles.versionBadge}>v{APP_VERSION}</Text>
         </TouchableOpacity>
 
         <DiagnosticsPanel

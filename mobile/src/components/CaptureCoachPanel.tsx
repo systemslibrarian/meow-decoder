@@ -63,7 +63,7 @@ function deriveHints(
   if (decodeRate < 0.1) {
     hints.push({
       icon: '🔍',
-      text: 'No signal — point at the animated QR',
+      text: 'No QR detected — aim camera at the animated code on screen',
       severity: 'crit',
     });
     return hints; // nothing else is meaningful without any signal
@@ -73,13 +73,13 @@ function deriveHints(
   if (shakeMagnitude > SHAKE_THRESHOLD_MS2 * 1.5) {
     hints.push({
       icon: '📵',
-      text: 'Hold very still — phone is shaking',
+      text: 'Too much movement — rest phone on a surface or hold with both hands',
       severity: 'crit',
     });
   } else if (shakeMagnitude > SHAKE_THRESHOLD_MS2) {
     hints.push({
       icon: '✋',
-      text: 'Hold steady for better scan rate',
+      text: 'Hold steady — less movement means faster scanning',
       severity: 'warn',
     });
   }
@@ -88,30 +88,29 @@ function deriveHints(
   if (exposureBias <= -1.5) {
     hints.push({
       icon: '☀️',
-      text: 'Very dark — increase screen brightness or tap ☀️+',
+      text: 'Too dark — turn up screen brightness on the other device',
       severity: 'crit',
     });
   } else if (exposureBias <= -0.5) {
     hints.push({
       icon: '🌤',
-      text: 'Slightly dark — try increasing screen brightness',
+      text: 'A bit dim — try increasing the other screen\'s brightness',
       severity: 'info',
     });
   }
 
   // ── High duplicate rate ───────────────────────────────────────────────────
   // ≥ 80% duplicates means the GIF is cycling but the phone isn't advancing.
-  // Either too far away (QR too small) or PWM flicker is causing missed frames.
   if (duplicateRate >= 0.8 && decodeRate < 2.0) {
     hints.push({
       icon: '📏',
-      text: 'Too many duplicates — move 5 cm closer or tilt screen slightly',
+      text: 'Seeing same frames — move closer to the screen',
       severity: 'warn',
     });
   } else if (duplicateRate >= 0.8) {
     hints.push({
       icon: '🔄',
-      text: 'High duplicate rate — try lowering display refresh (PWM flicker)',
+      text: 'Lots of repeat frames — tilt phone slightly to reduce glare',
       severity: 'info',
     });
   }
@@ -121,19 +120,19 @@ function deriveHints(
     if (safeToStop) {
       hints.push({
         icon: '😸',
-        text: 'Purrfect — safe to stop now!',
+        text: 'All done! You can tap Done to finish.',
         severity: 'ok',
       });
     } else if (decodeRate >= 3.0) {
       hints.push({
         icon: '🐾',
-        text: `${decodeRate.toFixed(1)} fps — excellent signal, keep going`,
+        text: 'Great signal — keep holding steady',
         severity: 'ok',
       });
     } else {
       hints.push({
         icon: '📡',
-        text: `${decodeRate.toFixed(1)} fps — receiving — keep camera steady`,
+        text: 'Receiving data — keep camera pointed at the screen',
         severity: 'info',
       });
     }
@@ -145,10 +144,10 @@ function deriveHints(
 // ── Severity → colour map ─────────────────────────────────────────────────────
 
 const SEVERITY_COLORS: Record<Hint['severity'], string> = {
-  crit: 'rgba(255,59,48,0.85)',
-  warn: 'rgba(255,159,10,0.85)',
-  info: 'rgba(10,132,255,0.75)',
-  ok:   'rgba(52,199,89,0.75)',
+  crit: 'rgba(200,40,30,0.95)',
+  warn: 'rgba(180,110,0,0.95)',
+  info: 'rgba(0,60,180,0.95)',
+  ok:   'rgba(20,130,50,0.95)',
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -168,8 +167,11 @@ export const CaptureCoachPanel = React.memo(function CaptureCoachPanel({
   return (
     <View
       style={styles.container}
+      accessible={true}
+      accessibilityRole="text"
       accessibilityLabel={hints.map((h) => h.text).join('. ')}
       accessibilityLiveRegion="polite"
+      importantForAccessibility="yes"
     >
       {hints.map((hint, idx) => (
         <View
@@ -179,6 +181,7 @@ export const CaptureCoachPanel = React.memo(function CaptureCoachPanel({
             { backgroundColor: SEVERITY_COLORS[hint.severity] },
             idx === 0 && styles.pillPrimary,
           ]}
+          importantForAccessibility="no"
         >
           <Text style={[styles.pillText, idx === 0 && styles.pillTextPrimary]}>
             {hint.icon}  {hint.text}

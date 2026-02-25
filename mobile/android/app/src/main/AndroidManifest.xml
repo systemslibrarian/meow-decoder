@@ -24,6 +24,11 @@
     <!-- Vibration for haptic feedback on successful scan milestones -->
     <uses-permission android:name="android.permission.VIBRATE" />
 
+    <!-- Biometric authentication for export gate (Face/Fingerprint/Device credential) -->
+    <!-- react-native-biometrics may declare this via manifest merger, but we
+         list it explicitly for audit clarity and documentation. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+
     <!-- Camera hardware feature declaration -->
     <uses-feature
         android:name="android.hardware.camera"

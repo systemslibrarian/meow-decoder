@@ -36,6 +36,7 @@ export const CaptureRequestSchema = z
       .max(10_000, { message: 'expected_frames must not exceed 10,000' }),
     timeout_seconds: z
       .number({ invalid_type_error: 'timeout_seconds must be a number' })
+      .int({ message: 'timeout_seconds must be an integer' })
       .positive({ message: 'timeout_seconds must be positive' })
       .max(MAX_TIMEOUT_SECONDS, {
         message: `timeout_seconds must not exceed ${MAX_TIMEOUT_SECONDS}`,

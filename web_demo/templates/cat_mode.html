@@ -517,7 +517,7 @@ async function catModeEncode() {
 
         // Store encryption mode for decoding
         try {
-            localStorage.setItem('meow_cat_encryption_mode', 'server');
+            sessionStorage.setItem('meow_cat_encryption_mode', 'server');
         } catch (e) {}
 
         document.getElementById('catQrBtn').disabled = false;
@@ -537,8 +537,8 @@ async function catModeEncode() {
 
     try {
         // Store un-whitened binary for comparison with decoded output
-        localStorage.setItem('meow_cat_binary', rawBinary);
-        localStorage.setItem('meow_cat_speed_ms', String(speed));
+        sessionStorage.setItem('meow_cat_binary', rawBinary);
+        sessionStorage.setItem('meow_cat_speed_ms', String(speed));
     } catch (e) {}
 
     // Start video recording
@@ -742,8 +742,8 @@ function copyBinary() {
 
 function loadSavedBinary() {
     try {
-        const binary = localStorage.getItem('meow_cat_binary');
-        const speed = localStorage.getItem('meow_cat_speed_ms');
+        const binary = sessionStorage.getItem('meow_cat_binary');
+        const speed = sessionStorage.getItem('meow_cat_speed_ms');
 
         if (binary) {
             document.getElementById('binaryInput').value = binary;
@@ -753,7 +753,7 @@ function loadSavedBinary() {
             alert('No saved binary pattern found');
         }
     } catch (e) {
-        alert('localStorage not available');
+        alert('sessionStorage not available');
     }
 }
 

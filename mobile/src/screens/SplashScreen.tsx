@@ -1,12 +1,13 @@
 /**
  * SplashScreen.tsx — Animated intro screen.
  *
- * Displays the app logo with a cat-eye opening animation, version number,
- * and transitions automatically to Home (or Onboarding on first launch).
+ * Displays the branded yarn-ball + QR app icon with a cat-eye opening
+ * animation, version number, and transitions automatically to Home
+ * (or Onboarding on first launch).
  */
 
 import React, { useEffect } from 'react';
-import { View, Text, Image, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, useColorScheme } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,12 +19,15 @@ import Animated, {
 } from 'react-native-reanimated';
 import { Colors, Typography, Spacing } from '../constants/theme';
 import { APP_VERSION } from '../constants/config';
+import { AppIcon } from '../components/AppIcon';
 import type { SplashScreenProps } from '../types/navigation';
-import meowLogo from '../assets/meow-decoder-logo.png';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function SplashScreen({ navigation }: SplashScreenProps) {
+  const colorScheme = useColorScheme();
+  const iconVariant = colorScheme === 'light' ? 'light' : 'dark';
+
   // Eye opening: scaleY starts at 0.05 (closed) → 1 (open)
   const eyeScale = useSharedValue(0.05);
   const logoOpacity = useSharedValue(0);
@@ -71,9 +75,9 @@ export function SplashScreen({ navigation }: SplashScreenProps) {
   }));
 
   return (
-    <View style={styles.container}>
+    <View style={styles.container} accessible accessibilityLabel="Meow Decoder splash screen">
       <Animated.View style={[styles.logoContainer, logoStyle]}>
-        <Image source={meowLogo} style={styles.logoImage} resizeMode="contain" />
+        <AppIcon size={160} variant={iconVariant} />
       </Animated.View>
       <Animated.View style={[styles.textGroup, textStyle]}>
         <Text style={styles.title}>meow-decoder</Text>
@@ -96,10 +100,6 @@ const styles = StyleSheet.create({
   logoContainer: {
     marginBottom: Spacing.xl,
     alignItems: 'center',
-  },
-  logoImage: {
-    width: 160,
-    height: 126,
   },
   textGroup: {
     alignItems: 'center',

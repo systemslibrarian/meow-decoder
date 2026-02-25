@@ -132,39 +132,39 @@ export function recoveryConfidenceLabel(captured: number, expected: number): {
   color: 'success' | 'gold' | 'warning' | 'danger' | 'dim';
 } {
   if (expected === 0) return {
-    label: 'Waiting for frames…',
-    sublabel: 'Point camera at the animated QR',
+    label: 'Waiting…',
+    sublabel: 'Point camera at the code on screen',
     safeToStop: false,
     color: 'dim',
   };
   const ratio = captured / expected;
   if (ratio >= 1.5) return {
-    label: 'Fountain complete ✓',
-    sublabel: 'Safe to stop — full redundancy reached',
+    label: 'Transfer complete ✓',
+    sublabel: 'You have everything — tap Done whenever you\'re ready',
     safeToStop: true,
     color: 'gold',
   };
   if (ratio >= 1.2) return {
-    label: 'Strong confidence',
-    sublabel: '~10 more seconds for full safety margin',
+    label: 'Almost there',
+    sublabel: 'Safe to stop now — a few more seconds for best results',
     safeToStop: true,
     color: 'success',
   };
   if (ratio >= 1.0) return {
-    label: 'Likely recoverable',
-    sublabel: 'Keep scanning for a safer margin',
+    label: 'Good progress',
+    sublabel: 'Keep scanning — building safety margin',
     safeToStop: false,
     color: 'success',
   };
   if (ratio >= 0.67) return {
-    label: 'Possibly recoverable',
-    sublabel: `Need ~${Math.ceil((expected - captured))} more frames`,
+    label: 'Getting there',
+    sublabel: `About ${Math.ceil(expected - captured)} more frames needed`,
     safeToStop: false,
     color: 'warning',
   };
   return {
-    label: 'Need more frames',
-    sublabel: `${Math.ceil(expected * 0.67 - captured)} minimum frames remaining`,
+    label: 'Keep scanning',
+    sublabel: `Need at least ${Math.ceil(expected * 0.67 - captured)} more frames`,
     safeToStop: false,
     color: 'danger',
   };

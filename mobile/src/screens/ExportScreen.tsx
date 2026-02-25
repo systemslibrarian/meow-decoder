@@ -743,6 +743,9 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   qrControls: {
+    flexDirection: 'row',
+    gap: Spacing.md,
+  },
   qrChecksumText: {
     color: Colors.textTertiary,
     fontSize: Typography.xs ?? 10,
@@ -776,9 +779,6 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs ?? 10,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     textAlign: 'center',
-  },
-    flexDirection: 'row',
-    gap: Spacing.md,
   },
   qrNavButton: {
     paddingHorizontal: Spacing.xl,

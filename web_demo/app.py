@@ -5,6 +5,7 @@ Simple Flask web interface for encoding and decoding files with Cat Mode support
 
 import json
 import base64
+import logging
 from meow_decoder.crypto_backend import get_handle_backend
 from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
 from meow_decoder.config import EncodingConfig, DecodingConfig
@@ -20,6 +21,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
 from flask import Flask, render_template, request, redirect, url_for, send_file, flash
+
+logger = logging.getLogger(__name__)
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -45,9 +48,10 @@ ALLOWED_GIF_EXTENSIONS = {"gif"}
 
 # Token to file mapping (in-memory, resets on server restart)
 download_tokens = {}
+MAX_DOWNLOAD_TOKENS = 1000
 
 
-def cleanup_old_files(max_age_minutes=30):
+def cleanup_old_files(max_age_minutes=5):
     """Remove files older than max_age_minutes from instance/ directories."""
     cutoff = time.time() - (max_age_minutes * 60)
 
@@ -70,6 +74,16 @@ def cleanup_old_files(max_age_minutes=30):
     for t in stale_tokens:
         download_tokens.pop(t, None)
 
+    # Hard cap: evict oldest tokens if over limit (WD-11)
+    if len(download_tokens) > MAX_DOWNLOAD_TOKENS:
+        sorted_tokens = sorted(
+            download_tokens.items(),
+            key=lambda x: x[1].get("created", datetime.min),
+        )
+        excess = len(download_tokens) - MAX_DOWNLOAD_TOKENS
+        for t, _ in sorted_tokens[:excess]:
+            download_tokens.pop(t, None)
+
 
 def allowed_file(filename, allowed_set):
     """Check if file extension is allowed."""
@@ -84,10 +98,29 @@ def get_request_dir(base_dir):
     return request_dir
 
 
+@app.after_request
+def set_security_headers(response):
+    """Set security headers on every response (WD-04)."""
+    response.headers['Content-Security-Policy'] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data: blob:; "
+        "connect-src 'self'; "
+        "worker-src 'self' blob:; "
+        "frame-ancestors 'none';"
+    )
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Permissions-Policy'] = 'camera=(), microphone=()'
+    return response
+
+
 @app.before_request
 def before_request():
     """Cleanup old files before each request."""
-    cleanup_old_files(max_age_minutes=30)
+    cleanup_old_files(max_age_minutes=5)
 
 
 @app.route("/")
@@ -191,7 +224,8 @@ def encode_page():
                 )
 
             except Exception as e:
-                flash(f"Encoding failed: {str(e)}", "error")
+                logger.exception("Encoding failed")
+                flash("Encoding failed. Please check your input and try again.", "error")
                 shutil.rmtree(request_dir, ignore_errors=True)
                 shutil.rmtree(output_dir, ignore_errors=True)
                 return redirect(request.url)
@@ -222,7 +256,8 @@ def encode_page():
             )
 
         except Exception as e:
-            flash(f"Unexpected error: {str(e)}", "error")
+            logger.exception("Unexpected error in encode")
+            flash("An unexpected error occurred. Please try again.", "error")
             return redirect(request.url)
 
     # GET request - show form
@@ -280,7 +315,8 @@ def cat_mode_download_video():
             {"Content-Type": "application/json"},
         )
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500
+        logger.exception("Cat mode video download failed")
+        return json.dumps({"error": "Video processing failed"}), 500
 
 
 @app.route("/cat-mode-video/<token>/<filename>")
@@ -288,10 +324,16 @@ def cat_mode_video_download(token, filename):
     """Serve a saved cat mode video for download."""
     from flask import send_file
 
+    # WD-10: Validate token is hex (matches secrets.token_hex(16) format)
+    if not token or not all(c in '0123456789abcdef' for c in token):
+        return "Invalid token", 400
     filename = secure_filename(filename)
     if not filename:
         return "Invalid filename", 400
     filepath = os.path.join(UPLOADS_DIR, f"{token}_{filename}")
+    # Defence-in-depth: ensure resolved path is under UPLOADS_DIR
+    if not os.path.realpath(filepath).startswith(str(UPLOADS_DIR.resolve())):
+        return "Invalid path", 400
     if not os.path.exists(filepath):
         return "Video not found or expired", 404
     return send_file(filepath, mimetype="video/webm", as_attachment=True, download_name=filename)
@@ -360,10 +402,8 @@ def cat_mode_decode_video():
                 os.unlink(avi_path)
 
     except Exception as e:
-        import traceback
-
-        traceback.print_exc()
-        return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}
+        logger.exception("Cat mode video decode failed")
+        return json.dumps({"error": "Video decode failed"}), 500, {"Content-Type": "application/json"}
 
 
 def _decode_cat_video(video_path):
@@ -1028,7 +1068,8 @@ def cat_mode_encrypt_server():
         )
 
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500, {"Content-Type": "application/json"}
+        logger.exception("Cat mode server encrypt failed")
+        return json.dumps({"error": "Encryption failed"}), 500, {"Content-Type": "application/json"}
 
 
 @app.route("/decode-cat-binary", methods=["POST"])
@@ -1089,11 +1130,13 @@ def decode_cat_binary():
             return render_template("cat_mode.html", decoded_message=decoded_message)
 
         except Exception as e:
-            flash(f"❌ Decryption failed: {str(e)}", "error")
+            logger.exception("Cat mode decryption failed")
+            flash("Decryption failed. Please check your password and try again.", "error")
             return redirect(url_for("cat_mode_page"))
 
     except Exception as e:
-        flash(f"Decoding error: {str(e)}", "error")
+        logger.exception("Cat binary decoding error")
+        flash("Decoding error. Please check your input.", "error")
 
     return redirect(url_for("cat_mode_page"))
 
@@ -1170,7 +1213,8 @@ def schrodinger_page():
             return redirect(url_for("download_file", token=token))
 
         except Exception as e:
-            flash(f"Encoding error: {str(e)}", "error")
+            logger.exception("Schrödinger encoding error")
+            flash("Encoding error. Please check your input and try again.", "error")
             return redirect(request.url)
 
     return render_template("schrodinger.html")
@@ -1374,11 +1418,17 @@ def download_file(token):
         file_path, as_attachment=True, download_name=filename, mimetype="application/octet-stream"
     )
 
-    # Schedule cleanup after download (remove token)
-    # Note: Actual file cleanup happens in before_request based on age
+    # Schedule cleanup after download — immediately purge files (WD-14)
     @response.call_on_close
     def cleanup():
         download_tokens.pop(token, None)
+        try:
+            if file_path.exists():
+                file_path.unlink(missing_ok=True)
+            if file_path.parent not in (OUTPUTS_DIR, UPLOADS_DIR):
+                shutil.rmtree(file_path.parent, ignore_errors=True)
+        except OSError:
+            pass
 
     return response
 
@@ -1415,4 +1465,6 @@ if __name__ == "__main__":
         print("   ffmpeg:    ⚠️  NOT FOUND — Cat Mode video upload/decode will be unreliable!")
         print("              Install with: sudo apt-get install -y ffmpeg")
     print()
-    app.run(debug=True, host="0.0.0.0", port=5000, use_reloader=False)
+    debug = os.environ.get("FLASK_DEBUG", "0") == "1"
+    host = os.environ.get("FLASK_HOST", "127.0.0.1")
+    app.run(debug=debug, host=host, port=5000, use_reloader=False)

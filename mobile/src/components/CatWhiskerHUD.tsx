@@ -148,9 +148,8 @@ export const CatWhiskerHUD = React.memo(function CatWhiskerHUD({
     <View
       style={styles.container}
       pointerEvents="none"
-      // Accessibility: describable for screen readers even though this
-      // is purely decorative — it duplicates StabilityIndicator semantics.
-      accessibilityLabel="Stability indicator"
+      // Decorative element — screen readers should skip it entirely.
+      // StabilityIndicator provides the semantic a11y equivalent.
       accessibilityElementsHidden={true}
       importantForAccessibility="no-hide-descendants"
     >
