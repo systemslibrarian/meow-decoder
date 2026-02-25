@@ -133,12 +133,12 @@
 
 ## 7. Fitness for Air-Gapped Optical Exfiltration
 
-This is the decisive category for the stated threat model: *display innocuous looping cat APNG on screen → record short video with phone → sneakernet video → fountain decode.*
+This is the decisive category for the stated threat model: *display innocuous looping cat APNG on screen → scan directly with the [Meow Capture app](../mobile/README.md) (recommended) or record short video with phone → sneakernet → fountain decode.*
 
 | Capability | **Meow-Decoder** | **StegX** | **Signal** |
 |------------|-------------------|-----------|------------|
 | **Display on air-gapped screen** | Yes — looping cat animation indistinguishable from screensaver | Possible (static image) but suspicious if left on screen | N/A (requires network) |
-| **Phone video capture** | Purpose-built: fountain codes tolerate 33%+ frame loss, QR codes at 600×600px | Not designed for this — would need manual photo + alignment | Impossible (no stego) |
+| **Phone video capture** | Purpose-built: fountain codes tolerate 33%+ frame loss, QR codes at 600×600px. **[Meow Capture app](../mobile/README.md)** (iOS/Android, zero network permissions) for dedicated on-device scanning — no video recording required. | Not designed for this — would need manual photo + alignment | Impossible (no stego) |
 | **Fountain coding** | Luby Transform rateless codes: decode from ANY ~67% of frames | None — total-loss-or-total-recovery | N/A |
 | **Frame loss tolerance** | 33% loss at 1.5× redundancy; 50% at 2.0× | 0% tolerance (single image) | N/A |
 | **Cover story plausibility** | "I have a cat GIF on my screensaver" — **universal excuse** | "I have a PNG open on my screen" — weak cover | N/A |
@@ -192,7 +192,7 @@ This is the decisive category for the stated threat model: *display innocuous lo
 
 2. **StegX is functional but poorly suited** — you could embed data in a static PNG, display it on screen, and photograph it. But: (a) no QR encoding means you'd need to OCR or manually transcribe the recovered image, (b) zero frame-loss tolerance means any camera blur or partial occlusion loses everything, (c) a static PNG displayed prominently on an air-gapped workstation is a weaker cover story than a looping cat animation, and (d) no deniability features if caught.
 
-3. **Meow-Decoder is engineered end-to-end for this exact scenario** — the entire pipeline from encryption → STC embedding → cat animation → fountain QR frames → phone camera → video decode is a single integrated system. No other tool addresses the "display on screen → record with phone → decode elsewhere" workflow.
+3. **Meow-Decoder is engineered end-to-end for this exact scenario** — the entire pipeline from encryption → STC embedding → cat animation → fountain QR frames → phone camera → video decode (or direct scan via the **[Meow Capture app](../mobile/README.md)**) is a single integrated system. No other tool addresses the "display on screen → record with phone → decode elsewhere" workflow.
 
 ### Gaps and caveats
 
@@ -204,7 +204,7 @@ This is the decisive category for the stated threat model: *display innocuous lo
 
 ### Bottom line
 
-> In the **air-gap optical exfiltration** scenario (display innocuous looping cat APNG → record short video with phone → sneakernet decode), Meow-Decoder provides the strongest end-to-end capability of any available tool. It uniquely combines animated carriers (plausible cover), fountain coding (loss tolerance), STC-based minimal-distortion embedding, multi-channel defense-in-depth, strong authenticated encryption with Argon2id + PQ hybrid, and cryptographic deniability via Schrödinger + duress wipe.
+> In the **air-gap optical exfiltration** scenario (display innocuous looping cat APNG → scan directly with the **[Meow Capture app](../mobile/README.md)** or record short video with phone → sneakernet decode), Meow-Decoder provides the strongest end-to-end capability of any available tool. It uniquely combines animated carriers (plausible cover), fountain coding (loss tolerance), STC-based minimal-distortion embedding, multi-channel defense-in-depth, strong authenticated encryption with Argon2id + PQ hybrid, and cryptographic deniability via Schrödinger + duress wipe.
 >
 > StegX is a capable static-image stego tool with published evasion benchmarks but cannot support animation, lossy capture, or coercion resistance. Signal is entirely inapplicable (requires network, no stego).
 >

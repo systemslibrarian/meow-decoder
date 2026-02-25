@@ -34,6 +34,7 @@
 | `meow_decoder.logo_eyes` | Imported by encode |
 | `meow_decoder.metadata_obfuscation` | Imported by crypto (length padding) |
 | `meow_decoder.mobile_bridge` | Imported by decode_gif |
+| `meow_decoder.merge` | Multi-device capture merge CLI (`python -m meow_decoder.merge`) |
 | `meow_decoder.pq_hybrid` | Post-quantum — imported by encode, decode_gif |
 | `meow_decoder.progress` | Imported by encode, decode_gif |
 | `meow_decoder.qr_code` | QR generation — imported by encode, decode_gif |

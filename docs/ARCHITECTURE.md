@@ -13,6 +13,68 @@ Meow Decoder is an optical air-gap file transfer system that combines:
 - **Error Correction** (Luby Transform fountain codes — Python + JavaScript)
 - **Visual Encoding** (QR codes in GIF animations)
 - **Optical Transfer** (screen → camera with 33% frame loss tolerance)
+- **Mobile Capture** ([Meow Capture](../mobile/README.md) — iOS/Android companion app for on-device scanning and export)
+
+---
+
+## 📱 **Mobile Companion App — Meow Capture**
+
+[**Meow Capture**](../mobile/README.md) is a secure offline QR capture companion app for air-gapped file transfer. It is the recommended way to use a phone as the receiving device.
+
+```
+┌────────────────────────────────────────────────────────┐
+│             MEOW CAPTURE (React Native)                │
+│         A secure offline QR capture companion app      │
+│              for air-gapped file transfer              │
+└────────────────────────────────────────────────────────┘
+
+ Camera (VisionCamera v4)
+        │  MLKit / AVFoundation QR decode (on-device)
+        ▼
+ useQRScanner hook  ─── dedup + fountain droplet parse
+        │
+        ▼
+ useSessionManager  ─── fountain auto-complete at 1.5× threshold
+        │
+        ▼
+ CaptureScreen
+  ├── ProgressHUD        ─── confidence tier + safeToStop pill
+  ├── CaptureCoachPanel  ─── decode-rate / shake / exposure hints
+  └── CameraPreview      ─── pinch zoom, exposure nudge
+
+        │  User taps "Confirm & Export"
+        ▼
+ Biometric gate (Face ID / fingerprint)
+        │
+        ▼
+ jsonExporter  ─── chunked JSON → Downloads/ + SHA-256
+        │
+        ▼
+ ExportScreen  ─── SHA-256 display, ADB pull cmd, filename copy
+```
+
+**Security invariants enforced by the app:**
+- No `INTERNET` permission (enforced by Android OS / iOS sandbox)
+- Frame payload strings wiped from JS heap on `AppState` background/inactive
+- Panic wipe via 3-second long-press (zeroes all session state)
+- `FLAG_SECURE` + iOS snapshot overlay (no screenshots / task-switcher leak)
+- Biometric export gate before any file write
+
+**Integration with CLI pipeline:**
+```bash
+# Desktop → generate request
+meow-encode -i secret.pdf -o secret.gif -p "password" --output-request request.json
+
+# Phone → scan GIF, export → Downloads/meow-capture-<id>.json
+
+# Desktop → retrieve + decode
+adb pull /sdcard/Download/meow-capture-<id>.json ./
+meow-decode-gif -i meow-capture-<id>.json -p "password"
+
+# Multi-device → merge first
+python -m meow_decoder.merge --input capture-a.json capture-b.json --output merged.json
+meow-decode-gif -i merged.json -p "password"
+```
 
 ---
 
@@ -190,6 +252,7 @@ OUTPUT FILE (secret.pdf)
 │  │  • decode_gif.py (CLI decoder + --tamper-report)│            │
 │  │  • decode_webcam.py (webcam capture)           │            │
 │  │  • meow_dashboard.py (GUI)                     │            │
+│  │  • Meow Capture (iOS/Android companion app)    │            │
 │  └─────────────────────────────────────────────────┘            │
 │                                                                   │
 │  ┌─────────────────────────────────────────────────┐            │
@@ -197,7 +260,8 @@ OUTPUT FILE (secret.pdf)
 │  │                                                 │            │
 │  │  • canonical_aad.py (deterministic AAD)        │            │
 │  │  • tamper_report.py (frame MAC timeline)       │            │
-│  │  • mobile/bridge/protocol.py (phone bridge)    │            │
+│  │  • merge.py (multi-device capture merge CLI)   │            │
+│  │  • mobile/bridge/protocol.py (CLI phone bridge)│            │
 │  └─────────────────────────────────────────────────┘            │
 │                                                                   │
 └───────────────────────────────────────────────────────────────────┘

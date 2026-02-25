@@ -14,6 +14,7 @@ import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { CaptureScreen } from '../screens/CaptureScreen';
 import { ExportScreen } from '../screens/ExportScreen';
+import { SettingsScreen } from '../screens/SettingsScreen';
 import { Colors } from '../constants/theme';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -69,6 +70,15 @@ export function AppNavigator({
         component={ExportScreen}
         options={{
           gestureEnabled: false,
+          animation: 'slide_from_right',
+        }}
+      />
+
+      <Stack.Screen
+        name="Settings"
+        component={SettingsScreen}
+        options={{
+          gestureEnabled: true,
           animation: 'slide_from_right',
         }}
       />

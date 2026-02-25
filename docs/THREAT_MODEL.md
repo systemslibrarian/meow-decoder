@@ -62,6 +62,7 @@ This section is the **authoritative threat model** for the v1.0 internally-revie
 - **Encoder:** trusted to generate keys, nonces, and manifest format.
 - **Decoder:** trusted to enforce auth‑then‑output.
 - **Optical channel:** fully untrusted.
+- **Capture device (phone):** partially trusted — [Meow Capture app](../mobile/README.md) (iOS/Android) enforces the zero-network invariant (`INTERNET` permission never granted) and wipes frame buffers on background; raw video recording on an uncontrolled device is outside this model.
 - **User environment:** assumed uncompromised OS and storage.
 
 ### Non‑Goals

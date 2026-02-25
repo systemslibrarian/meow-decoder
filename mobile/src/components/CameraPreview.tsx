@@ -55,6 +55,11 @@ interface CameraPreviewProps {
    * Assigned on mount; callers invoke ref.current(+0.5) to brighten.
    */
   onAutoRecoveryRef?: React.MutableRefObject<((delta: number) => void) | null>;
+  /**
+   * Called whenever exposureBias changes so parent components (e.g. CaptureCoachPanel)
+   * can read the current value without prop-drilling through the full state machine.
+   */
+  onExposureBiasChange?: (bias: number) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -65,6 +70,7 @@ export const CameraPreview = React.memo(function CameraPreview({
   showTorchToggle = true,
   isBackgrounding = false,
   onAutoRecoveryRef,
+  onExposureBiasChange,
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -97,9 +103,11 @@ export const CameraPreview = React.memo(function CameraPreview({
   const nudgeExposure = useCallback((delta: number) => {
     setExposureBias((v) => {
       const next = v + delta;
-      return Math.round(Math.max(-2, Math.min(2, next)) * 2) / 2; // snap to 0.5 steps
+      const snapped = Math.round(Math.max(-2, Math.min(2, next)) * 2) / 2;
+      onExposureBiasChange?.(snapped);
+      return snapped;
     });
-  }, []);
+  }, [onExposureBiasChange]);
 
   // Wire the imperative auto-recovery ref so CaptureScreen can nudge exposure
   // without needing a full prop re-render cycle through the state machine.

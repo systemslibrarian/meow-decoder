@@ -110,7 +110,30 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       clipboardWipeTimerRef.current = null;
     }, CLIPBOARD_WIPE_DELAY_MS);
   }, [exportResult, response.session_id, showToast]);
+  const handleCopyFilename = useCallback((index: number = 0) => {
+    const name = exportResult?.filenames[index] ?? exportResult?.filenames[0];
+    if (!name) return;
+    Clipboard.setString(name);
+    ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+    showToast({ message: '📋 Filename copied', type: 'info', durationMs: 2_000 });
+    if (clipboardWipeTimerRef.current !== null) clearTimeout(clipboardWipeTimerRef.current);
+    clipboardWipeTimerRef.current = setTimeout(() => {
+      Clipboard.setString('');
+      clipboardWipeTimerRef.current = null;
+    }, CLIPBOARD_WIPE_DELAY_MS);
+  }, [exportResult, showToast]);
 
+  const handleCopySha256 = useCallback(() => {
+    if (!exportResult?.sha256) return;
+    Clipboard.setString(exportResult.sha256);
+    ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+    showToast({ message: '🔑 SHA-256 copied', type: 'info', durationMs: 2_000 });
+    if (clipboardWipeTimerRef.current !== null) clearTimeout(clipboardWipeTimerRef.current);
+    clipboardWipeTimerRef.current = setTimeout(() => {
+      Clipboard.setString('');
+      clipboardWipeTimerRef.current = null;
+    }, CLIPBOARD_WIPE_DELAY_MS);
+  }, [exportResult, showToast]);
   // ── Biometric-gated export handler ─────────────────────────────────────────
   const handleExport = useCallback(async () => {
     // Gate with biometrics when a sensor is enrolled; fall through if not
@@ -331,14 +354,47 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
           {exportResult && (
             <>
               {exportResult.paths.map((path, i) => (
-                <Text key={i} style={styles.pathText} numberOfLines={2}>
-                  📄 {path.split('/').pop()}
-                </Text>
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => handleCopyFilename(i)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Copy filename ${exportResult.filenames[i] ?? path.split('/').pop()}`}
+                >
+                  <Text style={styles.pathText} numberOfLines={2}>
+                    📄 {exportResult.filenames[i] ?? path.split('/').pop()}
+                    {'  '}
+                    <Text style={styles.copyHint}>(tap to copy name)</Text>
+                  </Text>
+                </TouchableOpacity>
               ))}
               <Text style={styles.sizeText}>
                 {formatFileSize(exportResult.totalBytes)}
                 {exportResult.chunkCount > 1 && ` (${exportResult.chunkCount} files)`}
               </Text>
+
+              {/* SHA-256 integrity row */}
+              {exportResult.sha256 ? (
+                <TouchableOpacity
+                  style={styles.sha256Row}
+                  onPress={handleCopySha256}
+                  accessibilityRole="button"
+                  accessibilityLabel="Copy SHA-256 hash for desktop verification"
+                >
+                  <Text style={styles.sha256Label}>SHA-256</Text>
+                  <Text style={styles.sha256Hash} numberOfLines={1}>
+                    {exportResult.sha256.slice(0, 16)}…{exportResult.sha256.slice(-8)}
+                  </Text>
+                  <Text style={styles.sha256CopyHint}>Copy  📋</Text>
+                </TouchableOpacity>
+              ) : null}
+
+              {/* Desktop verify helper */}
+              <View style={styles.verifyHintBox}>
+                <Text style={styles.verifyHintTitle}>Verify on desktop (optional):</Text>
+                <Text style={styles.verifyHintCode}>
+                  {`sha256sum ${exportResult.filenames[0] ?? 'meow-capture.json'}`}
+                </Text>
+              </View>
 
               {/* ADB instructions */}
               <View style={styles.adbBox}>
@@ -501,10 +557,62 @@ const styles = StyleSheet.create({
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
     marginBottom: Spacing.xs,
   },
+  copyHint: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs ?? 10,
+    fontFamily: undefined,
+  },
   sizeText: {
     color: Colors.textTertiary,
     fontSize: Typography.xs,
     marginBottom: Spacing.md,
+  },
+  sha256Row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(96,200,140,0.07)',
+    borderRadius: 6,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    marginBottom: Spacing.sm,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(96,200,140,0.18)',
+  },
+  sha256Label: {
+    color: '#60c88c',
+    fontSize: Typography.xs ?? 10,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    width: 56,
+  },
+  sha256Hash: {
+    flex: 1,
+    color: '#a0d4b8',
+    fontSize: Typography.xs ?? 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+  },
+  sha256CopyHint: {
+    color: '#60c88c',
+    fontSize: Typography.xs ?? 10,
+  },
+  verifyHintBox: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 6,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+    borderLeftWidth: 2,
+    borderLeftColor: 'rgba(96,200,140,0.3)',
+  },
+  verifyHintTitle: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs ?? 10,
+    marginBottom: 3,
+  },
+  verifyHintCode: {
+    color: Colors.catOrangeLight,
+    fontSize: Typography.xs ?? 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   errorText: {
     color: Colors.danger,

@@ -27,6 +27,8 @@ type Action =
   | { type: 'GIF_DETECTED' }
   | { type: 'FRAME_CAPTURED'; payload: CapturedFrame }
   | { type: 'CAPTURE_COMPLETE' }
+  | { type: 'PAUSE' }
+  | { type: 'RESUME' }
   | { type: 'START_EXPORT' }
   | { type: 'TIMEOUT' }
   | { type: 'CANCEL' }
@@ -57,8 +59,14 @@ function captureReducer(state: State, action: Action): State {
       return { ...state, status, startedAt, frames: next };
     }
     case 'CAPTURE_COMPLETE':
-      if (state.status !== 'CAPTURING' && state.status !== 'TIMED_OUT') return state;
+      if (state.status !== 'CAPTURING' && state.status !== 'TIMED_OUT' && state.status !== 'PAUSED') return state;
       return { ...state, status: 'COMPLETE' };
+    case 'PAUSE':
+      if (state.status !== 'CAPTURING') return state;
+      return { ...state, status: 'PAUSED' };
+    case 'RESUME':
+      if (state.status !== 'PAUSED') return state;
+      return { ...state, status: 'CAPTURING' };
     case 'START_EXPORT':
       return { ...state, status: 'EXPORTING' };
     case 'TIMEOUT':
@@ -214,6 +222,66 @@ describe('captureReducer', () => {
       const awaiting: State = { ...initialState, status: 'AWAITING_GIF' };
       const state = captureReducer(awaiting, { type: 'TIMEOUT' });
       expect(state.status).toBe('AWAITING_GIF');
+    });
+  });
+
+  describe('PAUSE / RESUME', () => {
+    it('transitions CAPTURING → PAUSED', () => {
+      const capturing: State = { ...initialState, status: 'CAPTURING', request: mockRequest };
+      const state = captureReducer(capturing, { type: 'PAUSE' });
+      expect(state.status).toBe('PAUSED');
+    });
+
+    it('transitions PAUSED → CAPTURING (resume)', () => {
+      const paused: State = { ...initialState, status: 'PAUSED', request: mockRequest };
+      const state = captureReducer(paused, { type: 'RESUME' });
+      expect(state.status).toBe('CAPTURING');
+    });
+
+    it('ignores PAUSE when not CAPTURING', () => {
+      const awaiting: State = { ...initialState, status: 'AWAITING_GIF' };
+      const state = captureReducer(awaiting, { type: 'PAUSE' });
+      expect(state.status).toBe('AWAITING_GIF');
+    });
+
+    it('ignores RESUME when not PAUSED', () => {
+      const capturing: State = { ...initialState, status: 'CAPTURING' };
+      const state = captureReducer(capturing, { type: 'RESUME' });
+      expect(state.status).toBe('CAPTURING');
+    });
+
+    it('preserves frames across PAUSE → RESUME cycle', () => {
+      let state: State = { ...initialState, status: 'CAPTURING', request: mockRequest };
+      state = captureReducer(state, { type: 'FRAME_CAPTURED', payload: mockFrame(0) });
+      state = captureReducer(state, { type: 'FRAME_CAPTURED', payload: mockFrame(1) });
+      expect(state.frames.size).toBe(2);
+      state = captureReducer(state, { type: 'PAUSE' });
+      expect(state.frames.size).toBe(2); // frames survive pause
+      state = captureReducer(state, { type: 'RESUME' });
+      expect(state.status).toBe('CAPTURING');
+      expect(state.frames.size).toBe(2); // frames survive resume
+    });
+
+    it('PAUSED → CAPTURE_COMPLETE (user stops while paused)', () => {
+      const paused: State = { ...initialState, status: 'PAUSED', request: mockRequest };
+      const state = captureReducer(paused, { type: 'CAPTURE_COMPLETE' });
+      expect(state.status).toBe('COMPLETE');
+    });
+
+    it('ignores FRAME_CAPTURED while PAUSED', () => {
+      const paused: State = {
+        ...initialState,
+        status: 'PAUSED',
+        request: mockRequest,
+        frames: new Map([[0, mockFrame(0)]]),
+      };
+      const state = captureReducer(paused, {
+        type: 'FRAME_CAPTURED',
+        payload: mockFrame(1),
+      });
+      // Frame must NOT be stored; status stays PAUSED
+      expect(state.frames.size).toBe(1);
+      expect(state.status).toBe('PAUSED');
     });
   });
 

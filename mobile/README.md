@@ -1,9 +1,11 @@
-# Meow Capture — React Native Mobile Companion App
+# Meow Capture — A secure offline QR capture companion app for air-gapped file transfer
 
 Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans animated QR code GIFs from any screen using your phone camera and exports the captured frame data as a structured JSON file for desktop decryption.
 
 **No network. No cloud. No traces.**
 
+> **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard, Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge), Export SHA-256 + filename copy, Request QR scanner, video import hook, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. 267/267 tests, strict TypeScript, zero network permissions.
+>
 > **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 267/267 tests, strict TypeScript.
 >
 > **v3 (2026)** — Major UX hardening. SVG arc progress ring with fountain-threshold indicator. Adaptive frame-rate scanning (60 Hz → 10 Hz back-off). Stall detector toasts when no new frames arrive for 4 s. Pause / resume capture mid-session. Panic wipe via 3-second long-press cancel. Clipboard auto-wipe after export. Universal-link / deep-link support (`meow://capture?…`). VoiceOver improvements on StabilityIndicator.
@@ -112,6 +114,19 @@ npx react-native run-android
    ```bash
    meow-decode-gif -i meow_capture_<session_id>.json -p "password"
    ```
+
+8. **Multi-device merge (optional)** — if multiple phones captured the same transfer:
+   ```bash
+   # Merge two captures for maximum frame coverage before decoding
+   python -m meow_decoder.merge \
+       --input capture-phone-a.json capture-phone-b.json \
+       --output merged.json
+
+   # Then decode the merged file
+   meow-decode-gif -i merged.json -p "password"
+   ```
+   The merge tool deduplicates frame indices and recalculates the coverage ratio.
+   All inputs must share the same `session_id`; mismatched sessions are rejected.
 
 ---
 

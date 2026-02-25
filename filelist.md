@@ -764,6 +764,37 @@ meow-encode --help | grep shamir
 | `tamper_detection.py` | Integrity protection |
 | `memory_guard.py` | Memory locking |
 | `schrodinger_encode.py` | Dual-secret deniability |
+| `merge.py` | Multi-device capture merge CLI |
+| `mobile/` | Meow Capture iOS/Android companion app |
+
+---
+
+## 22. Meow Capture — Mobile Companion App ⭐ NEW
+
+**Files Required:**
+- `mobile/src/screens/CaptureScreen.tsx` — Live QR scanning with VisionCamera
+- `mobile/src/screens/HomeScreen.tsx` — Session management, diagnostics
+- `mobile/src/screens/ExportScreen.tsx` — SHA-256 display, filename copy
+- `mobile/src/screens/SettingsScreen.tsx` — Strict / Convenience security mode picker
+- `mobile/src/components/CaptureCoachPanel.tsx` — Live capture quality hints
+- `mobile/src/components/CalibrationWizard.tsx` — 5-step preflight wizard
+- `mobile/src/components/DiagnosticsPanel.tsx` — JS-thread lag + thermal metrics
+- `mobile/src/hooks/useSecurityMode.ts` — MMKV-backed security mode
+- `mobile/src/navigation/AppNavigator.tsx` — React Navigation stack
+- `mobile/src/services/jsonExporter.ts` — Capture-to-JSON export with SHA-256
+- `meow_decoder/merge.py` — Multi-device capture merge Python CLI
+
+**Key Features:**
+- Zero network permissions (`android.permission.INTERNET` never granted)
+- Fountain-code-aware deduplication (tracks `decodeRate` / `duplicateRate`)
+- FLAG_SECURE, biometric gate, panic-wipe, memory wipe on background
+- Exports signed JSON consumable by `meow-decode-gif` or `meow_decoder.merge`
+- Multi-device merge: `python -m meow_decoder.merge --input a.json b.json --output merged.json`
+
+**Security Effect:** Air-gap enforcement — no data path exists between capture device and network
+
+**Tests:**
+- `mobile/__tests__/` (≥95% coverage)
 
 ---
 

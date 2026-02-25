@@ -40,6 +40,29 @@ Thank you for joining the **clowder**! Contributors to Meow Decoder are affectio
 - New features (discuss first — cats don't like surprises!)
 - Test coverage improvements (more safety nets for nine lives)
 
+### 📱 Mobile App Contributions (Meow Capture)
+The [Meow Capture](mobile/README.md) companion app (React Native, iOS + Android) is in `mobile/`. Contributions welcome:
+- Bug reports: include React Native version, iOS/Android version, device model
+- New features: security-impacting changes require the same crypto review as Python/Rust fixes
+- Tests: `jest` suite is in `mobile/src/__tests__/`; maintain ≥95% coverage
+- No network permission may be added to the `secure` build flavor under any circumstances
+
+Mobile development setup:
+```bash
+cd mobile
+npm install
+# iOS
+cd ios && pod install && cd ..
+npx react-native run-ios
+# Android
+npx react-native run-android
+# Tests
+npx jest --coverage
+npx tsc --noEmit
+```
+
+See [mobile/ARCHITECTURE.md](mobile/ARCHITECTURE.md) and [mobile/RELEASE.md](mobile/RELEASE.md) for guidance.
+
 ---
 
 ## 🛠️ Development Setup

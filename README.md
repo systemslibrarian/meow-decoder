@@ -68,7 +68,25 @@
 
 **📜 Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
 
-**Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing. A production-ready React Native companion app for iOS/Android is available in [`mobile/`](mobile/README.md) for the optical capture side — 267 passing tests, Vision Camera v4, no network permissions, chunked JSON export.
+**Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing.
+
+## 📱 Mobile Companion App
+
+[**Meow Capture**](mobile/README.md) — *A secure offline QR capture companion app for air-gapped file transfer.*
+
+A production-quality React Native companion app for iOS and Android is available in [`mobile/`](mobile/README.md). It handles the optical capture side of the pipeline with zero network permissions.
+
+| Feature | Detail |
+|---------|--------|
+| Scanner | VisionCamera v4 (MLKit / AVFoundation) |
+| Security mode | Strict (wipe on background) or Convenience |
+| Export | Biometric-gated JSON → Downloads, ADB pull, SHA-256 verify |
+| Live coaching | Decode rate, duplicate rate, shake, exposure bias hints |
+| Preflight | Calibration Wizard (5-step camera readiness check) |
+| Diagnostics | Hidden long-press panel — JS lag, heap, thermal, FPS |
+| Import | Scan Request QR from sender screen — no JSON file needed |
+| Multi-device | `meow-decoder merge` CLI combines two-phone captures |
+| Tests | 267 passing, ≥95 % coverage, zero network permissions |
 
 ---
 
@@ -378,9 +396,9 @@ Meow Decoder intentionally **does not require a mobile app**.
 
 ---
 
-## 🙏 Inspired By
+## �️ Other Projects
 
-Meow Decoder builds on ideas from these pioneering projects:
+Similar projects discovered after development began:
 
 | Project | Description | What We Learned |
 |---------|-------------|-----------------|
@@ -391,7 +409,7 @@ Meow Decoder builds on ideas from these pioneering projects:
 
 ### How Meow Decoder Differs
 
-While inspired by these projects, Meow Decoder adds critical security features:
+Compared to these projects, Meow Decoder adds critical security features:
 
 - 🔐 **Authenticated Encryption** — AES-256-GCM with HMAC (not just encoding)
 - 🔮 **Post-Quantum Ready** — ML-KEM-768 (default) / ML-KEM-1024 (paranoid) PQXDH hybrid cryptography

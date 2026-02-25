@@ -112,3 +112,73 @@ export function estimateETA(
   const etaMs = remaining / ratePerMs;
   return `~${formatElapsed(etaMs)} left`;
 }
+
+// ── Recovery Confidence ───────────────────────────────────────────────────────
+
+/**
+ * Returns a tiered recovery confidence label with action guidance.
+ *
+ * Ratios are based on LT fountain code theory:
+ *  ≥ 1.5× → fountain complete, safe to stop (0% failure risk)
+ *  ≥ 1.2× → strong confidence (rare failure under clean conditions)
+ *  ≥ 1.0× → likely recoverable (1–5% failure risk)
+ *  ≥ 0.67× → marginal (may decode with retries)
+ *  < 0.67× → insufficient
+ */
+export function recoveryConfidenceLabel(captured: number, expected: number): {
+  label: string;
+  sublabel: string;
+  safeToStop: boolean;
+  color: 'success' | 'gold' | 'warning' | 'danger' | 'dim';
+} {
+  if (expected === 0) return {
+    label: 'Waiting for frames…',
+    sublabel: 'Point camera at the animated QR',
+    safeToStop: false,
+    color: 'dim',
+  };
+  const ratio = captured / expected;
+  if (ratio >= 1.5) return {
+    label: 'Fountain complete ✓',
+    sublabel: 'Safe to stop — full redundancy reached',
+    safeToStop: true,
+    color: 'gold',
+  };
+  if (ratio >= 1.2) return {
+    label: 'Strong confidence',
+    sublabel: '~10 more seconds for full safety margin',
+    safeToStop: true,
+    color: 'success',
+  };
+  if (ratio >= 1.0) return {
+    label: 'Likely recoverable',
+    sublabel: 'Keep scanning for a safer margin',
+    safeToStop: false,
+    color: 'success',
+  };
+  if (ratio >= 0.67) return {
+    label: 'Possibly recoverable',
+    sublabel: `Need ~${Math.ceil((expected - captured))} more frames`,
+    safeToStop: false,
+    color: 'warning',
+  };
+  return {
+    label: 'Need more frames',
+    sublabel: `${Math.ceil(expected * 0.67 - captured)} minimum frames remaining`,
+    safeToStop: false,
+    color: 'danger',
+  };
+}
+
+/**
+ * Formats live decode-rate statistics for the capture feedback panel.
+ *
+ * @param freshPerSec - New unique droplets received per second
+ * @param duplicateRate - Fraction of all scans that were duplicates (0–1)
+ */
+export function decodeRateDisplay(freshPerSec: number, duplicateRate: number): string {
+  const fps = freshPerSec.toFixed(1);
+  const dupPct = Math.round(duplicateRate * 100);
+  if (freshPerSec < 0.1) return '— fps (no signal)';
+  return `${fps} fps · ${dupPct}% dup`;
+}

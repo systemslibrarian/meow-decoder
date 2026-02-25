@@ -13,7 +13,7 @@
  * leaves the camera frame. Non-meow-protocol QR codes are dropped immediately.
  */
 
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useState, useEffect } from 'react';
 import { useCodeScanner, type CodeScanner } from 'react-native-vision-camera';
 import type { CapturedFrame } from '../types/capture';
 import { parseQRPayload } from '../services/qrDecoder';
@@ -39,6 +39,10 @@ export interface UseQRScannerOptions {
 export interface UseQRScannerReturn {
   /** Pass directly to <Camera codeScanner={...} /> */
   codeScanner: CodeScanner;
+  /** Fresh unique droplets decoded per second (rolling 3-second window) */
+  decodeRate: number;
+  /** Fraction of all QR scans that were duplicates in the rolling window (0–1) */
+  duplicateRate: number;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -54,6 +58,37 @@ export function useQRScanner({
   const recentCodesRef = useRef<Array<{ value: string; time: number }>>([]);
   const gifDetectedRef = useRef<boolean>(false);
 
+  // ── Decode-rate tracking ─────────────────────────────────────────────────
+  // Ring buffers: timestamps of all QR callbacks vs fresh (non-dup) frames.
+  // Updated inside the hot scan callback; rates computed in a 1 Hz interval.
+  const freshTimestampsRef = useRef<number[]>([]);
+  const allScanTimestampsRef = useRef<number[]>([]);
+  const [decodeRate, setDecodeRate] = useState(0);
+  const [duplicateRate, setDuplicateRate] = useState(0);
+
+  const RATE_WINDOW_MS = 3000; // rolling window for rate calculation
+
+  useEffect(() => {
+    if (!enabled) {
+      setDecodeRate(0);
+      setDuplicateRate(0);
+      return;
+    }
+    const interval = setInterval(() => {
+      const now = Date.now();
+      const cutoff = now - RATE_WINDOW_MS;
+      const fresh = freshTimestampsRef.current.filter((t) => t >= cutoff);
+      const all = allScanTimestampsRef.current.filter((t) => t >= cutoff);
+      // Prune
+      freshTimestampsRef.current = fresh;
+      allScanTimestampsRef.current = all;
+      setDecodeRate(fresh.length / (RATE_WINDOW_MS / 1000));
+      setDuplicateRate(all.length > 0 ? 1 - fresh.length / all.length : 0);
+    }, 1000);
+    return () => clearInterval(interval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled]);
+
   const codeScanner = useCodeScanner({
     codeTypes: ['qr'],
 
@@ -65,12 +100,13 @@ export function useQRScanner({
         if (!qrData || qrData.length === 0) return;
 
         const now = Date.now();
-
         // ── Dedup: skip identical payload within the dedup window ───────────
         if (
           qrData === lastScannedRef.current &&
           now - lastTimestampRef.current < QR_DEDUP_INTERVAL_MS
         ) {
+          // Still counts as a scan for duplicate-rate — same frame seen again
+          allScanTimestampsRef.current.push(now);
           return;
         }
 
@@ -92,6 +128,10 @@ export function useQRScanner({
           qrData.startsWith('{');            // JSON bridge / CLI session mode
 
         if (!isMeow) return;
+
+        // Only count meow QR events toward duplicate-rate tracking so that
+        // accidentally-scanned non-meow codes don't inflate the metric.
+        allScanTimestampsRef.current.push(now);
 
         // ── GIF auto-detection heuristic ─────────────────────────────────────
         if (!gifDetectedRef.current) {
@@ -127,6 +167,9 @@ export function useQRScanner({
         const payload = parseQRPayload(qrData, sessionId);
         if (!payload) return;
 
+        // Count this as a fresh decoded frame for rate tracking
+        freshTimestampsRef.current.push(now);
+
         onFrame({
           index: payload.index,
           data: payload.data,
@@ -138,5 +181,5 @@ export function useQRScanner({
     ),
   });
 
-  return { codeScanner };
+  return { codeScanner, decodeRate, duplicateRate };
 }

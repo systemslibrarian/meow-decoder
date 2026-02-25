@@ -138,10 +138,14 @@ export interface QRFramePayload {
 export interface ExportResult {
   /** Absolute path(s) of the written JSON file(s) */
   paths: string[];
+  /** Filename(s) without directory component */
+  filenames: string[];
   /** Total bytes written */
   totalBytes: number;
   /** Number of chunks (1 for single-file export) */
   chunkCount: number;
   /** ISO 8601 timestamp of export */
   exportedAt: string;
+  /** SHA-256 hex digest of the primary exported file (for desktop verification) */
+  sha256: string;
 }

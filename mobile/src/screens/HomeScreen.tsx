@@ -1,18 +1,23 @@
 /**
  * HomeScreen.tsx — Main landing screen.
  *
- * Two entry paths:
+ * Four entry paths:
  *   1. Load a capture request JSON file (from Downloads via file picker)
  *   2. Manual entry — user types session ID and expected frame count
+ *   3. Scan Request QR — desktop shows a QR encoding the CaptureRequest;
+ *      phone scans it and auto-loads the session (no file picker needed)
+ *   4. Import video/GIF — pick a previously recorded .mp4/.gif from local
+ *      storage and extract QR frames via the native extraction bridge
  *
- * Validates the loaded JSON with Zod before allowing navigation to
+ * Validates all loaded JSON with Zod before allowing navigation to
  * CaptureScreen, showing clear field-level errors on failure.
  */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   StyleSheet,
   TouchableOpacity,
   TextInput,
@@ -21,7 +26,14 @@ import {
   Platform,
   ActivityIndicator,
   KeyboardAvoidingView,
+  Modal,
 } from 'react-native';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useCodeScanner,
+} from 'react-native-vision-camera';
 import { useFocusEffect } from '@react-navigation/native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import DocumentPicker from 'react-native-document-picker';
@@ -31,10 +43,13 @@ import {
   validateRequestFromString,
   firstErrorMessage,
 } from '../services/requestValidator';
+import { useVideoImport } from '../hooks/useVideoImport';
+import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import type { CaptureRequest } from '../types/capture';
 import type { HomeScreenProps } from '../types/navigation';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { DEFAULT_TIMEOUT_SECONDS } from '../constants/config';
+import meowLogo from '../assets/meow-decoder-logo.png';
 import {
   readCaptureCheckpoint,
   clearCaptureCheckpoint,
@@ -48,10 +63,76 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const [interruptedSession, setInterruptedSession] = useState<SessionCheckpoint | null>(null);
 
+  // ── Request QR scanner state ──────────────────────────────────────────────
+  const [scanningRequest, setScanningRequest] = useState(false);
+  const qrHandledRef = useRef(false); // prevent double-fire in the modal
+
+  // ── Diagnostics panel ─────────────────────────────────────────────────────
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
+  const versionLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { hasPermission } = useCameraPermission();
+  const device = useCameraDevice('back');
+
+  // ── Video import hook ─────────────────────────────────────────────────────
+  const { importFromVideo, isImporting, importError, clearError: clearImportError } =
+    useVideoImport((_frames) => {
+      // Video import is informational for now — the native bridge stub surfaces
+      // a clear error message; when wired, frames would flow to a new session.
+      setError('Video import requires the native extraction bridge (see useVideoImport.ts)');
+    });
+
+  // Fold video import error into the shared error banner
+  React.useEffect(() => {
+    if (importError) setError(importError);
+  }, [importError]);
+
+  // ── Request QR code scanner ───────────────────────────────────────────────
+  const requestCodeScanner = useCodeScanner({
+    codeTypes: ['qr'],
+    onCodeScanned: useCallback(
+      (codes) => {
+        if (!scanningRequest || qrHandledRef.current) return;
+        const value = codes[0]?.value;
+        if (!value) return;
+        // Accept both raw JSON and URI-encoded meow-request:// links
+        let json = value;
+        if (value.startsWith('meow-request://')) {
+          try { json = decodeURIComponent(value.slice('meow-request://'.length)); }
+          catch { return; }
+        }
+        try {
+          const request = validateRequestFromString(json);
+          qrHandledRef.current = true;
+          setScanningRequest(false);
+          ReactNativeHapticFeedback.trigger('notificationSuccess', {
+            enableVibrateFallback: true,
+            ignoreAndroidSystemSettings: false,
+          });
+          navigateToCapture(request);
+        } catch {
+          // Not a valid request QR — keep scanning silently
+        }
+      },
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [scanningRequest],
+    ),
+  });
+
+  const openRequestQrScanner = useCallback(() => {
+    if (!hasPermission) {
+      setError('Camera permission required. Grant it in Settings.');
+      return;
+    }
+    qrHandledRef.current = false;
+    setScanningRequest(true);
+  }, [hasPermission]);
+
   // Clear stale error and surface any interrupted session on focus
   useFocusEffect(
     useCallback(() => {
       setError(null);
+      clearImportError();
       const cp = readCaptureCheckpoint();
       if (cp && Date.now() - cp.saved_at < 30 * 60 * 1000) {
         setInterruptedSession(cp);
@@ -59,7 +140,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         clearCaptureCheckpoint();
         setInterruptedSession(null);
       }
-    }, []),
+    }, [clearImportError]),
   );
 
   // Manual entry state
@@ -147,31 +228,93 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       >
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
-        <Text style={styles.title}>🐱 meow-decoder</Text>
-        <Text style={styles.subtitle}>Optical QR Capture</Text>
-
-        {/* Interrupted session resume banner */}
-        {interruptedSession && (
-          <View
-            style={styles.resumeBanner}
-            accessibilityLiveRegion="polite"
-            accessibilityLabel={`Interrupted session — ${interruptedSession.frame_indices.length} frames collected`}
-          >
-            <Text style={styles.resumeText}>
-              ⚡ Interrupted session — {interruptedSession.frame_indices.length} frames collected
-            </Text>
-            <TouchableOpacity
-              onPress={() => {
-                clearCaptureCheckpoint();
-                setInterruptedSession(null);
-              }}
-              accessibilityRole="button"
-              accessibilityLabel="Dismiss interrupted session notice"
-            >
-              <Text style={styles.dismissText}>Dismiss</Text>
-            </TouchableOpacity>
+        <View style={styles.headerRow}>
+          <Image source={meowLogo} style={styles.headerLogo} resizeMode="contain" />
+          <View style={styles.headerTitleBlock}>
+            <Text style={styles.title}>Meow Capture</Text>
+            <Text style={styles.subtitle}>Secure QR Capture · Air-Gap Transfer</Text>
           </View>
-        )}
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Settings')}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            accessibilityRole="button"
+            accessibilityLabel="Open Settings"
+            style={styles.settingsGear}
+          >
+            <Text style={styles.settingsGearText}>⚙️</Text>
+          </TouchableOpacity>
+        </View>
+        {/* Version badge — long-press 1.5 s to open diagnostics */}
+        <TouchableOpacity
+          onPressIn={() => {
+            versionLongPressTimer.current = setTimeout(() => setShowDiagnostics(true), 1500);
+          }}
+          onPressOut={() => {
+            if (versionLongPressTimer.current) clearTimeout(versionLongPressTimer.current);
+          }}
+          accessibilityRole="text"
+          accessibilityLabel="Version 3.2.0. Long-press for diagnostics."
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <Text style={styles.versionBadge}>v3.2.0</Text>
+        </TouchableOpacity>
+
+        <DiagnosticsPanel
+          visible={showDiagnostics}
+          onDismiss={() => setShowDiagnostics(false)}
+          {...(interruptedSession?.session_id !== undefined ? { sessionId: interruptedSession.session_id } : {})}
+          framesCaptured={interruptedSession?.frame_indices.length ?? 0}
+        />
+
+        {/* Interrupted session resume banner (enriched) */}
+        {interruptedSession && (() => {
+          const ageMs = Date.now() - interruptedSession.saved_at;
+          const ageMins = Math.round(ageMs / 60_000);
+          const shortId = interruptedSession.session_id.slice(0, 8);
+          const frameCount = interruptedSession.frame_indices.length;
+          return (
+            <View
+              style={styles.resumeBanner}
+              accessibilityLiveRegion="polite"
+              accessibilityLabel={`Interrupted session ${shortId} — ${frameCount} frame indices, ${ageMins} minutes ago`}
+            >
+              <Text style={styles.resumeTitle}>⚡ Interrupted session found</Text>
+              <Text style={styles.resumeDetail}>
+                ID …{shortId} · {frameCount} frame{frameCount !== 1 ? 's' : ''} · {ageMins < 1 ? 'just now' : `${ageMins}m ago`}
+              </Text>
+              <Text style={styles.resumeSecurityNote}>
+                Frame payloads were not saved — only indices are kept on disk as a security invariant.
+                Start a fresh session with the same request to recapture.
+              </Text>
+              <View style={styles.resumeActions}>
+                <TouchableOpacity
+                  style={styles.resumeRestartBtn}
+                  onPress={() => {
+                    clearCaptureCheckpoint();
+                    setInterruptedSession(null);
+                    ReactNativeHapticFeedback.trigger('impactLight', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss — I understand, start fresh"
+                >
+                  <Text style={styles.resumeRestartText}>↺ Start fresh</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.resumeWipeBtn}
+                  onPress={() => {
+                    clearCaptureCheckpoint();
+                    setInterruptedSession(null);
+                    ReactNativeHapticFeedback.trigger('notificationError', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+                  }}
+                  accessibilityRole="button"
+                  accessibilityLabel="Discard and wipe session record"
+                >
+                  <Text style={styles.resumeWipeText}>✕ Discard & wipe</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Error banner */}
         {error && (
@@ -203,7 +346,72 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <Text style={styles.primaryButtonText}>📂 Load JSON File</Text>
             )}
           </TouchableOpacity>
+
+          {/* ── Scan Request QR (item 5) ── */}
+          <View style={styles.altButtonRow}>
+            <TouchableOpacity
+              style={styles.altButton}
+              onPress={openRequestQrScanner}
+              accessibilityRole="button"
+              accessibilityLabel="Scan a capture-request QR code shown on the desktop"
+            >
+              <Text style={styles.altButtonText}>📷 Scan Request QR</Text>
+            </TouchableOpacity>
+
+            {/* ── Import Video / GIF (item 7) ── */}
+            <TouchableOpacity
+              style={styles.altButton}
+              onPress={importFromVideo}
+              disabled={isImporting}
+              accessibilityRole="button"
+              accessibilityLabel="Import a previously recorded video or GIF file"
+            >
+              {isImporting ? (
+                <ActivityIndicator color={Colors.catOrange} size="small" />
+              ) : (
+                <Text style={styles.altButtonText}>🎞 Import Video</Text>
+              )}
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* ── Request QR scanner modal (item 5) ── */}
+        <Modal
+          visible={scanningRequest}
+          animationType="slide"
+          onRequestClose={() => setScanningRequest(false)}
+          statusBarTranslucent
+        >
+          <View style={styles.qrModalContainer}>
+            <Text style={styles.qrModalTitle}>📷 Scan Capture Request</Text>
+            <Text style={styles.qrModalSubtitle}>
+              Point at the QR code displayed by{' '}
+              <Text style={styles.code}>meow-encode --show-request-qr</Text>
+            </Text>
+
+            {device ? (
+              <Camera
+                style={styles.qrCamera}
+                device={device}
+                isActive={scanningRequest}
+                codeScanner={requestCodeScanner}
+              />
+            ) : (
+              <View style={styles.qrCameraPlaceholder}>
+                <Text style={styles.qrCameraPlaceholderText}>Camera unavailable</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.qrCancelButton}
+              onPress={() => setScanningRequest(false)}
+              accessibilityRole="button"
+              accessibilityLabel="Cancel QR scan"
+            >
+              <Text style={styles.qrCancelText}>✕ Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Modal>
 
         {/* Divider */}
         <View style={styles.divider}>
@@ -314,13 +522,38 @@ const styles = StyleSheet.create({
     color: Colors.catOrange,
     fontSize: Typography.xxl,
     fontWeight: Typography.heavy,
-    textAlign: 'center',
-    marginTop: Spacing.xl,
+    textAlign: 'left',
   },
   subtitle: {
     color: Colors.textSecondary,
-    fontSize: Typography.md,
-    textAlign: 'center',
+    fontSize: Typography.sm,
+    textAlign: 'left',
+    marginTop: 2,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: Spacing.xl,
+    marginBottom: Spacing.xs,
+  },
+  headerLogo: {
+    width: 44,
+    height: 35,
+    marginRight: Spacing.sm,
+  },
+  headerTitleBlock: {
+    flex: 1,
+  },
+  settingsGear: {
+    paddingLeft: 8,
+  },
+  settingsGearText: {
+    fontSize: 22,
+  },
+  versionBadge: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs ?? 10,
+    opacity: 0.5,
     marginBottom: Spacing.xl,
   },
   errorBanner: {
@@ -401,24 +634,129 @@ const styles = StyleSheet.create({
     lineHeight: Typography.xs * 1.6,
   },
   resumeBanner: {
-    backgroundColor: 'rgba(255,200,50,0.15)',
-    borderRadius: Radius.md,
+    backgroundColor: 'rgba(255,200,50,0.12)',
+    borderRadius: Radius.lg,
     borderLeftWidth: 3,
     borderLeftColor: Colors.catGold,
     padding: Spacing.md,
     marginBottom: Spacing.md,
+  },
+  resumeTitle: {
+    color: Colors.catGold,
+    fontSize: Typography.md,
+    fontWeight: Typography.semibold,
+    marginBottom: Spacing.xxs,
+  },
+  resumeDetail: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: Spacing.xs,
+  },
+  resumeSecurityNote: {
+    color: Colors.textTertiary,
+    fontSize: Typography.xs,
+    lineHeight: Typography.xs * 1.5,
+    marginBottom: Spacing.sm,
+  },
+  resumeActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    gap: Spacing.sm,
+  },
+  resumeRestartBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255,200,50,0.18)',
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.xs,
     alignItems: 'center',
   },
-  resumeText: {
+  resumeRestartText: {
     color: Colors.catGold,
     fontSize: Typography.sm,
-    flex: 1,
+    fontWeight: Typography.semibold,
   },
-  dismissText: {
-    color: Colors.textTertiary,
+  resumeWipeBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255,59,48,0.15)',
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+  },
+  resumeWipeText: {
+    color: Colors.danger,
     fontSize: Typography.sm,
-    marginLeft: Spacing.sm,
+    fontWeight: Typography.semibold,
+  },
+  // ── Alt entry-path buttons (QR scan + video import) ──────────────────────
+  altButtonRow: {
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  altButton: {
+    flex: 1,
+    backgroundColor: Colors.backgroundTertiary,
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: Colors.surfaceBorder,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  altButtonText: {
+    color: Colors.catOrange,
+    fontSize: Typography.sm,
+    fontWeight: Typography.semibold,
+  },
+  // ── Request QR scanner modal ──────────────────────────────────────────────
+  qrModalContainer: {
+    flex: 1,
+    backgroundColor: Colors.background,
+    alignItems: 'center',
+    paddingTop: Platform.OS === 'ios' ? 64 : 48,
+    paddingHorizontal: Spacing.lg,
+  },
+  qrModalTitle: {
+    color: Colors.textPrimary,
+    fontSize: Typography.xl,
+    fontWeight: Typography.bold,
+    marginBottom: Spacing.xs,
+  },
+  qrModalSubtitle: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+    lineHeight: Typography.sm * 1.5,
+  },
+  qrCamera: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: Radius.lg,
+    overflow: 'hidden',
+    marginBottom: Spacing.xl,
+  },
+  qrCameraPlaceholder: {
+    width: '100%',
+    aspectRatio: 1,
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: Radius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Spacing.xl,
+  },
+  qrCameraPlaceholderText: {
+    color: Colors.textTertiary,
+    fontSize: Typography.md,
+  },
+  qrCancelButton: {
+    backgroundColor: 'rgba(255,59,48,0.85)',
+    paddingHorizontal: Spacing.xxxl,
+    paddingVertical: Spacing.md,
+    borderRadius: Radius.full,
+  },
+  qrCancelText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.md,
+    fontWeight: Typography.bold,
   },
 });

@@ -10,6 +10,35 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Meow Capture v3.2 — Mobile Companion App Polish (2026-02-25) 📱
+
+*A secure offline QR capture companion app for air-gapped file transfer.*
+
+#### New Components
+- **`CaptureCoachPanel`** — live coaching hints derived from decode rate, duplicate rate, shake magnitude, and exposure bias; priority-ranked severity colours (red/orange/blue/green)
+- **`CalibrationWizard`** — 5-step preflight modal: camera permission, live QR readability test, ambient light advisory, sender screen brightness confirm, thermal headroom confirm
+- **`DiagnosticsPanel`** — hidden long-press panel (1.5 s on version badge); JS-thread lag via rAF delta, heap estimate, thermal heuristic, decode rate / duplicate rate / shake / exposure rows
+- **`SettingsScreen`** — Strict vs Convenience security mode toggle backed by MMKV; full implications table; crypto invariants unchanged in both modes
+
+#### New Hooks
+- **`useSecurityMode`** — MMKV-backed `'strict' | 'convenience'` toggle; readable synchronously outside React via `getSecurityMode()`
+
+#### Updated Screens
+- **`HomeScreen`** — title rebranded to "Meow Capture"; ⚙️ gear navigates to Settings; version badge with 1.5 s long-press activates DiagnosticsPanel
+- **`ExportScreen`** — SHA-256 abbreviated display (tap to copy full hash), filename tap-to-copy, `sha256sum <file>` desktop verify helper
+
+#### Python CLI
+- **`meow_decoder/merge.py`** — `python -m meow_decoder.merge` merges two or more Meow Capture JSON files; deduplicates frames by index, validates matching `session_id`, recalculates coverage ratio
+
+#### Navigation
+- `Settings` route added to `AppNavigator` (native stack, slide-from-right)
+
+#### Accessibility
+- `AccessibilityInfo.announceForAccessibility` on 75% and 100% fountain-complete milestones
+- `onExposureBiasChange` prop on `CameraPreview` feeds live exposure state up to `CaptureScreen` → `CaptureCoachPanel`
+
+---
+
 ### Features & Improvements — 2026-02-24 🐾
 
 #### Mobile Companion App — Production-Ready React Native (feat: `448e738`)

@@ -21,6 +21,8 @@ export type RootStackParamList = {
   Onboarding: undefined;
   /** Main home screen: load request or start manual session */
   Home: undefined;
+  /** App settings: security mode, display preferences */
+  Settings: undefined;
   /** Live camera capture screen */
   Capture: {
     /** The validated capture request loaded from JSON file or manual entry */
@@ -40,6 +42,7 @@ export type RootStackParamList = {
 export type SplashScreenProps = NativeStackScreenProps<RootStackParamList, 'Splash'>;
 export type OnboardingScreenProps = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 export type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
+export type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 export type CaptureScreenProps = NativeStackScreenProps<RootStackParamList, 'Capture'>;
 export type ExportScreenProps = NativeStackScreenProps<RootStackParamList, 'Export'>;
 

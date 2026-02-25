@@ -32,7 +32,7 @@
 
 ### Operational Security
 - Users understand that the phone/camera is untrusted and performs no decryption.
-- Users follow safe capture workflows (no cloud auto-upload of raw recordings).
+- Users follow safe capture workflows (no cloud auto-upload of raw recordings). The **[Meow Capture app](../mobile/README.md)** enforces this automatically: `INTERNET` permission is never granted, frame buffers are wiped on background, and no cloud services are enabled.
 
 ---
 

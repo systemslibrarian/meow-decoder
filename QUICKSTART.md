@@ -2,7 +2,7 @@
 
 **Goal:** See Meow Decoder work in 5 minutes — the cat is ready to pounce!
 **What you'll do:** Encode → Capture → Decode
-**Equipment needed:** Computer + phone camera (the cat cam 📹)
+**Equipment needed:** Computer + phone (the cat cam 📹) — use **[Meow Capture](mobile/README.md)** (React Native app, iOS/Android) for the fastest capture experience
 
 ---
 
@@ -29,7 +29,10 @@ The web demo includes **8 encryption modes**:
 - 🚨 **Duress** — Panic password that wipes keys
 
 **NEW: Frame Loss Tolerance** 🎯
-Multi-frame QR codes (large payloads) now use JavaScript fountain codes! Scan with your phone camera and the decoder automatically collects droplets, showing real-time progress: "Collected 8/10 droplets, 73% decoded". No need to scan perfectly—works even if you miss 1 in 3 frames.
+Multi-frame QR codes (large payloads) use JavaScript fountain codes. Scan with your phone camera and the decoder automatically collects droplets, showing real-time progress: "Collected 8/10 droplets, 73% decoded". No need to scan perfectly—works even if you miss 1 in 3 frames.
+
+**NEW: Meow Capture App** 📱
+For dedicated phone scanning, use the **[Meow Capture](mobile/README.md)** companion app (React Native, iOS + Android). It handles the full capture pipeline on-device: adaptive QR scanning, live decode-rate coaching, fountain-code auto-complete, biometric-gated JSON export, and panic wipe. No network permissions. [See mobile/README.md](mobile/README.md).
 
 **Security Note:** Select **"Paranoid" security level** (512 MiB, 20 iter) to match CLI security for life-critical data.
 
@@ -404,7 +407,8 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 - **Post-quantum:** Production-ready ML-KEM-768 (default) / ML-KEM-1024 (paranoid) PQXDH hybrid encryption
 - **Self-test:** Run `meow-encode --self-test` to verify backend, roundtrip, and fountain codec
 - **Tamper report:** Use `meow-decode-gif --tamper-report` for a frame-by-frame MAC verification timeline
-- **Mobile bridge:** Phone-to-CLI scanning via `--mobile-bridge` flag ([architecture](mobile/ARCHITECTURE.md))
+- **Mobile capture app:** [Meow Capture](mobile/README.md) — dedicated iOS/Android app (React Native, zero network permissions) for on-device QR scanning and biometric-gated JSON export
+- **Mobile bridge CLI:** Programmatic phone-to-CLI streaming via `--mobile-bridge` flag ([architecture](mobile/ARCHITECTURE.md))
 - **Hardware keys:** YubiKey, HSM, TPM support via `--yubikey`, `--hsm-slot`, `--tpm-seal`
 
 ---
@@ -415,7 +419,7 @@ meow-decode-gif -i cats.gif -o recovered.txt -p "pass"
 A: Practical limit ~50 MB (QR codes become unwieldy above this). For larger files, split into chunks.
 
 **Q: Is the phone recording secure?**
-A: Yes! The recording is encrypted garbage without the password. Safe to transfer via email/cloud.
+A: Yes! The recording is encrypted garbage without the password. Safe to transfer via email/cloud. Alternatively, use the **[Meow Capture](mobile/README.md)** app to scan and export directly — no video recording needed, zero network permissions, biometric export gate.
 
 **Q: Do I need internet?**
 A: No! Everything works offline. Perfect for air-gapped environments.

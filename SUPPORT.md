@@ -4,8 +4,9 @@
 
 - **Questions / help:** Open a GitHub Discussion or Issue (choose "Question") — the clowder is here to help! 🐱
 - **Hairball reports (bugs):** Use the bug report template and include:
-  - OS, Python version
-  - The exact command you ran
+  - OS, Python version (for CLI/Python issues)
+  - React Native version, iOS/Android version, device model (for Meow Capture mobile app issues)
+  - The exact command you ran (or the screen/action in the app)
   - The full fur ball (error output — paste as text)
   - A minimal repro (smallest file/QR that coughs up the hairball)
 - **Feature requests:** [Add to the Litter Box](https://github.com/systemslibrarian/meow-decoder/issues) — describe what new trick the cat should learn! 📦

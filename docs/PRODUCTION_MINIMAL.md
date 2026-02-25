@@ -64,7 +64,8 @@ The following features exist in the codebase but are quarantined in
 - Dead-man's switch
 - Alternative PQ providers
 - Debug/verbose encode variants
-- Mobile bridge protocols
+- Mobile bridge protocols (`meow_decoder.mobile_bridge`)
+- Capture merge CLI (`meow_decoder.merge`) — safe to use standalone, but not auto-imported by production encode/decode
 - Clowder multi-device streaming
 
 These features MUST NOT be imported by production code without explicit user opt-in.

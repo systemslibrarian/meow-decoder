@@ -37,7 +37,8 @@ import {
   formatFrameCount,
   formatElapsed,
   estimateETA,
-  recoverabilityLabel,
+  recoveryConfidenceLabel,
+  decodeRateDisplay,
 } from '../utils/formatters';
 
 // ── Props ─────────────────────────────────────────────────────────────────────
@@ -46,6 +47,10 @@ interface ProgressHUDProps {
   progress: CaptureProgress;
   status: CaptureState;
   elapsedMs: number;
+  /** Fresh decoded droplets per second (from useQRScanner) */
+  decodeRate?: number;
+  /** Duplicate scan fraction 0–1 (from useQRScanner) */
+  duplicateRate?: number;
 }
 
 // ── Ring geometry constants ───────────────────────────────────────────────────
@@ -61,6 +66,8 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   progress,
   status,
   elapsedMs,
+  decodeRate,
+  duplicateRate,
 }: ProgressHUDProps) {
   // Animate the fill fraction (0–1, capped at 1 for display)
   const fillFraction = useSharedValue(0);
@@ -81,7 +88,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   const ringColor = progressColor(progress.percentRecoverable);
 
   const eta = estimateETA(progress.captured, progress.expected, elapsedMs);
-  const recovLabel = recoverabilityLabel(progress.captured, progress.expected);
+  const confidence = recoveryConfidenceLabel(progress.captured, progress.expected);
 
   const isActiveCapture =
     status === 'CAPTURING' || status === 'AWAITING_GIF';
@@ -89,7 +96,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   return (
     <View
       style={styles.container}
-      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent`}
+      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent. ${confidence.label}. ${confidence.sublabel}`}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.percentRecoverable) }}
     >
@@ -130,9 +137,24 @@ export const ProgressHUD = React.memo(function ProgressHUD({
           <Text style={[styles.frameCount, { color: ringColor }]}>
             {formatFrameCount(progress.captured, progress.expected)}
           </Text>
-          <Text style={styles.recovLabel}>{recovLabel}</Text>
+          <Text style={styles.recovLabel}>{confidence.label}</Text>
         </View>
       </View>
+
+      {/* ── Confidence sublabel + safe-to-stop pill ─────────────────── */}
+      <Text style={styles.sublabel}>{confidence.sublabel}</Text>
+      {confidence.safeToStop && (
+        <View style={styles.safeToStopPill}>
+          <Text style={styles.safeToStopText}>✓ Safe to stop</Text>
+        </View>
+      )}
+
+      {/* ── Decode rate row (shown once signal established) ─────────── */}
+      {decodeRate !== undefined && duplicateRate !== undefined && decodeRate > 0 && (
+        <Text style={styles.decodeRateText}>
+          {decodeRateDisplay(decodeRate, duplicateRate)}
+        </Text>
+      )}
 
       {/* ── Footer row: elapsed + ETA ───────────────────────────────── */}
       {isActiveCapture && (
@@ -184,6 +206,34 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     textAlign: 'center',
     marginTop: 2,
+  },
+  sublabel: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs,
+    textAlign: 'center',
+    marginTop: Spacing.xs,
+    maxWidth: 200,
+  },
+  safeToStopPill: {
+    marginTop: Spacing.xs,
+    backgroundColor: 'rgba(52,199,89,0.18)',
+    borderRadius: Radius.full,
+    borderWidth: 1,
+    borderColor: 'rgba(52,199,89,0.5)',
+    paddingHorizontal: Spacing.md,
+    paddingVertical: 2,
+  },
+  safeToStopText: {
+    color: '#34C759',
+    fontSize: Typography.xs,
+    fontWeight: Typography.semibold,
+  },
+  decodeRateText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs,
+    fontFamily: 'monospace' as const,
+    marginTop: Spacing.xs,
+    opacity: 0.75,
   },
   footer: {
     flexDirection: 'row',

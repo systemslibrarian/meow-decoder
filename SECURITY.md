@@ -163,6 +163,7 @@ We recognize security researchers who responsibly disclose vulnerabilities:
 - ✅ Secure input (secure_keyboard.py, secure_input.py)
 - ✅ Shamir splitting (shamir_split.py)
 - ✅ Adversarial carrier noise (adversarial_carrier.py)
+- ✅ **Meow Capture mobile app** (`mobile/`) — zero-network capture companion; `INTERNET` permission absence, FLAG_SECURE, biometric gate, panic-wipe, memory wipe on background, and per-export SHA-256 verification
 
 **Tier 4 — Protocol & Data Handling:**
 - ✅ Protocol parsing, manifest handling, frame verification

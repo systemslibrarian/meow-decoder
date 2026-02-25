@@ -172,11 +172,53 @@ If you want, I can add:
 
 ---
 
-## 📲 Mobile Bridge (React Native Scanner)
+## 📲 Mobile Capture
 
-*Let the outdoor cat bring the frames home — phone-to-CLI scanning via JSON protocol.*
+### Meow Capture App (Recommended — iOS + Android)
 
-The mobile bridge connects phone-based QR scanning directly to the CLI decoder.
+**[Meow Capture](../mobile/README.md)** is a secure offline QR capture companion app for air-gapped file transfer. It handles the entire capture pipeline on-device.
+
+**Workflow:**
+
+1. Run `meow-encode` on the desktop to produce the GIF and a `request.json`:
+   ```bash
+   meow-encode -i secret.pdf -o secret.gif -p "password" --output-request request.json
+   ```
+2. Open Meow Capture on the phone → **Load JSON File** (or **Scan Request QR** shown on desktop).
+3. Point the camera at the looping GIF. The app tracks fountain-code progress in real time.
+4. At ≥1.5× threshold the app shows **✓ Safe to stop**. Tap **Confirm & Export**.
+5. Biometric confirmation writes the capture JSON to `Downloads/`.
+6. Retrieve via USB:
+   ```bash
+   adb pull /sdcard/Download/meow-capture-<session_id>.json ./
+   meow-decode-gif -i meow-capture-<session_id>.json -p "password"
+   ```
+
+**Multi-device merge** — combine two phone captures for maximum coverage:
+```bash
+python -m meow_decoder.merge \
+    --input capture-a.json capture-b.json \
+    --output merged.json
+meow-decode-gif -i merged.json -p "password"
+```
+
+Key security properties:
+- No `INTERNET` permission declared (OS-enforced zero network access)
+- Frame payload strings wiped from JS memory on any background/inactive transition
+- Biometric gate (Face ID / fingerprint) required before export writes to disk
+- `FLAG_SECURE` + iOS snapshot overlay blocks screenshots and task-switcher preview
+- Panic wipe: 3-second long-press on Capture HUD zeroes all session state
+
+> **Strict vs Convenience mode:** tap ⚙️ in the app → Settings to choose between
+> aggressive wipe-on-background (Strict, default) or checkpoint-persist (Convenience).
+
+---
+
+## 📲 Mobile Bridge CLI (Programmatic / Advanced)
+
+*For scripting or CI — streams raw QR payloads from a phone directly to the CLI decoder.*
+
+The mobile bridge connects phone-based QR scanning directly to the CLI decoder over JSON.
 
 ### File mode (import from mobile app export)
 

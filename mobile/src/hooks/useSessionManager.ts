@@ -11,7 +11,7 @@ import type { CaptureRequest, CaptureResponse, CaptureProgress } from '../types/
 import { useCapture } from './useCapture';
 import { useQRScanner } from './useQRScanner';
 import { useStabilityMonitor } from './useStabilityMonitor';
-import { MILESTONE_THRESHOLDS, FOUNTAIN_OVERHEAD } from '../constants/config';
+import { MILESTONE_THRESHOLDS, FOUNTAIN_OVERHEAD, MEMORY_WARN_FRAME_COUNT } from '../constants/config';
 import type { MilestoneThreshold } from '../constants/config';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -25,6 +25,10 @@ export interface SessionManagerReturn {
   remainingMs: number | null;
   /** Raw count of captured frames (for stall detection) */
   capturedCount: number;
+  /** Fresh decoded droplets per second (rolling 3 s window) */
+  decodeRate: number;
+  /** Fraction of all QR scans that were duplicates (0–1) */
+  duplicateRate: number;
   // Stability
   isStable: boolean;
   shakeMagnitude: number;
@@ -63,7 +67,7 @@ export function useSessionManager(): SessionManagerReturn {
 
   const { isStable, shakeMagnitude } = useStabilityMonitor();
 
-  const { codeScanner } = useQRScanner({
+  const { codeScanner, decodeRate, duplicateRate } = useQRScanner({
     // exactOptionalPropertyTypes: only pass sessionId when it is a string,
     // never pass the property as `undefined` (that would fail the strict check).
     ...(state.request?.session_id !== undefined
@@ -78,9 +82,15 @@ export function useSessionManager(): SessionManagerReturn {
   // ── Elapsed time ticker ───────────────────────────────────────────────────
   const [elapsedMs, setElapsedMs] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Timestamp of the most recent CAPTURING period start (null when not capturing).
+  // Resets on every transition TO CAPTURING so remainingMs mirrors the timeout
+  // timer in useCapture, which also resets to the full timeout on each resume.
+  const [captureRestartedAt, setCaptureRestartedAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (state.status === 'CAPTURING' && state.startedAt !== null) {
+      // Record when this CAPTURING burst began (fresh on every resume).
+      setCaptureRestartedAt(Date.now());
       tickRef.current = setInterval(() => {
         setElapsedMs(Date.now() - (state.startedAt ?? Date.now()));
       }, 1_000);
@@ -89,6 +99,10 @@ export function useSessionManager(): SessionManagerReturn {
         clearInterval(tickRef.current);
         tickRef.current = null;
       }
+      // Always reset the restart anchor when not CAPTURING so the next
+      // CAPTURING entry (first start or resume) gets a fresh timestamp.
+      // This mirrors the setTimeout reset in useCapture on every CAPTURING entry.
+      setCaptureRestartedAt(null);
       if (state.status === 'IDLE' || state.status === 'AWAITING_GIF') {
         setElapsedMs(0);
       }
@@ -99,12 +113,18 @@ export function useSessionManager(): SessionManagerReturn {
   }, [state.status, state.startedAt]);
 
   // ── Remaining time ─────────────────────────────────────────────────────────
-  const remainingMs = state.request?.timeout_seconds
-    ? Math.max(0, state.request.timeout_seconds * 1_000 - elapsedMs)
-    : null;
+  // Use captureRestartedAt (not startedAt) as the countdown reference so that
+  // a pause + resume correctly resets the countdown to the full timeout_seconds,
+  // matching the setTimeout reset in useCapture on every CAPTURING entry.
+  const remainingMs =
+    state.request?.timeout_seconds != null && captureRestartedAt !== null
+      ? Math.max(0, state.request.timeout_seconds * 1_000 - (Date.now() - captureRestartedAt))
+      : state.request?.timeout_seconds != null
+        ? Math.max(0, state.request.timeout_seconds * 1_000 - elapsedMs)
+        : null;
 
   // ── Memory pressure detection ──────────────────────────────────────────────
-  const isNearMemoryLimit = state.frames.size >= 800;
+  const isNearMemoryLimit = state.frames.size >= MEMORY_WARN_FRAME_COUNT;
 
   // ── Milestone tracking ─────────────────────────────────────────────────────
   const [lastMilestone, setLastMilestone] = useState<MilestoneThreshold | null>(null);
@@ -151,6 +171,8 @@ export function useSessionManager(): SessionManagerReturn {
     elapsedMs,
     remainingMs,
     capturedCount: state.frames.size,
+    decodeRate,
+    duplicateRate,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,

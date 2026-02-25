@@ -13,7 +13,7 @@
  *             on CANCEL → Home
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -23,6 +23,7 @@ import {
   Platform,
   BackHandler,
   Alert,
+  AccessibilityInfo,
 } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useCatToast } from '../components/CatToast';
@@ -31,6 +32,7 @@ import { ProgressHUD } from '../components/ProgressHUD';
 import { FrameOverlay } from '../components/FrameOverlay';
 import { StabilityIndicator } from '../components/StabilityIndicator';
 import { CatWhiskerHUD } from '../components/CatWhiskerHUD';
+import { CaptureCoachPanel } from '../components/CaptureCoachPanel';
 import { useSessionManager } from '../hooks/useSessionManager';
 import { useSecureScreen } from '../hooks/useSecureScreen';
 import { useStallDetector } from '../hooks/useStallDetector';
@@ -57,6 +59,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     elapsedMs,
     remainingMs,
     capturedCount,
+    decodeRate,
+    duplicateRate,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,
@@ -199,10 +203,15 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     },
   });
 
+  // Stall reset also resets coach exposure bias tracking
   // Reset stall counter whenever frames start flowing again
   useEffect(() => {
     stallCountRef.current = 0;
   }, [capturedCount]);
+
+  // ── Exposure bias tracking for CaptureCoachPanel ───────────────────────────
+  const [exposureBias, setExposureBias] = useState(0);
+  const handleExposureBiasChange = useRef((bias: number) => setExposureBias(bias)).current;
 
   // ── Purr haptic pulse — gentle tactile feedback per captured frame ──────────
   const lastPurrTimeRef = useRef(0);
@@ -237,6 +246,15 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
 
     const toast = TOASTS[lastMilestone];
     if (toast) showToast(toast);
+
+    // ── VoiceOver/TalkBack accessibility announcement ─────────────────────
+    // Announce milestone and safe-to-stop in a format screen-reader users can act on.
+    const pct = Math.round(lastMilestone * 100);
+    const safeToStop = lastMilestone >= 1.0;
+    const a11yMsg = safeToStop
+      ? `Capture ${pct} percent. Fountain complete. Safe to stop now.`
+      : `Capture ${pct} percent.`;
+    AccessibilityInfo.announceForAccessibility(a11yMsg);
   }, [lastMilestone, showToast]);
 
   // ── Memory pressure warning ────────────────────────────────────────────────
@@ -268,6 +286,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         status={status}
         isBackgrounding={isBackgrounding}
         onAutoRecoveryRef={autoRecoveryRef}
+        onExposureBiasChange={handleExposureBiasChange}
       />
 
       {/* Scan region + status badges */}
@@ -278,6 +297,16 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       <CatWhiskerHUD
         shakeMagnitude={shakeMagnitude}
         visible={status === 'CAPTURING' || status === 'PAUSED'}
+      />
+
+      {/* Live coaching hints — distance, brightness, duplicate rate, decode rate */}
+      <CaptureCoachPanel
+        decodeRate={decodeRate}
+        duplicateRate={duplicateRate}
+        shakeMagnitude={shakeMagnitude}
+        exposureBias={exposureBias}
+        safeToStop={progress?.isFountainComplete ?? false}
+        visible={status === 'CAPTURING' || status === 'AWAITING_GIF'}
       />
 
       {/* Status bar at top */}
@@ -306,6 +335,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           progress={progress}
           status={status}
           elapsedMs={elapsedMs}
+          decodeRate={decodeRate}
+          duplicateRate={duplicateRate}
         />
       )}
 

@@ -241,6 +241,80 @@ Benefits for this app: ~30% faster startup, lower peak memory during fountain-de
 
 ---
 
+## Android Build Flavors (no-network vs bridge)
+
+Meow Capture ships two Android product flavors that share all JS/RN code but differ only in declared Android permissions.
+
+| Flavor | Permissions | Use case |
+|--------|-------------|----------|
+| `secure` | Camera, Vibrate, Biometrics, Read/Write Storage | **Default** — zero internet; air-gap policy enforced by OS |
+| `bridge` | + INTERNET (local LAN only) | USB/Wi-Fi bridge mode (meow-bridge CLI) |
+
+### Flavor configuration in `android/app/build.gradle`
+
+```groovy
+android {
+    flavorDimensions "network"
+
+    productFlavors {
+        secure {
+            dimension "network"
+            applicationIdSuffix ""
+            versionNameSuffix "-secure"
+            // No INTERNET permission — manifest merger removes it
+        }
+        bridge {
+            dimension "network"
+            applicationIdSuffix ".bridge"
+            versionNameSuffix "-bridge"
+            // AndroidManifest.xml in src/bridge/ adds INTERNET
+        }
+    }
+}
+```
+
+### Flavor-specific manifests
+
+`android/app/src/secure/AndroidManifest.xml` — explicitly removes INTERNET:
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+          xmlns:tools="http://schemas.android.com/tools">
+    <!-- Remove any INTERNET permission that might be inherited from dependencies -->
+    <uses-permission android:name="android.permission.INTERNET"
+                     tools:node="remove"/>
+</manifest>
+```
+
+`android/app/src/bridge/AndroidManifest.xml` — restricts INTERNET to loopback in description:
+```xml
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Note: bridge flavor only connects to 127.0.0.1 / LAN addresses.
+         No external network calls are made by app code. -->
+</manifest>
+```
+
+### Building flavored APKs
+
+```bash
+# Secure flavor (recommended for distribution)
+cd android && ./gradlew assembleSecureRelease
+
+# Bridge flavor
+cd android && ./gradlew assembleBridgeRelease
+
+# Both at once
+cd android && ./gradlew assembleRelease
+```
+
+Outputs land in `android/app/build/outputs/apk/<flavor>/release/`.
+
+> **Security note:** The `secure` flavor is the recommended distribution artifact.
+> The `bridge` flavor is intended for developers running the `meow-bridge` CLI on
+> the same LAN — not for production air-gap operations.
+
+---
+
 ## Checklist before upload
 
 - [ ] `APP_VERSION` bumped in `src/constants/config.ts`

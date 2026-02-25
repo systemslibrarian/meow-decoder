@@ -259,7 +259,46 @@ workstation).
 
 ---
 
-## Directory Layout
+## React Native App Component Tree (v3.2)
+
+```
+AppNavigator (native-stack)
+├── SplashScreen
+├── OnboardingScreen
+├── HomeScreen
+│   ├── CalibrationWizard        ← 5-step preflight (permissions, QR test, light, brightness, thermal)
+│   ├── DiagnosticsPanel         ← hidden long-press panel (JS lag, heap, FPS, thermal heuristic)
+│   ├── RequestQR modal          ← Camera + useCodeScanner to scan request from sender screen
+│   └── [import video button]    ← useVideoImport (TurboModule stub)
+├── CaptureScreen
+│   ├── CameraPreview            ← pinch zoom, exposure nudge, shake detection
+│   ├── CatWhiskerHUD            ← animated progress ring (Reanimated 3)
+│   ├── ProgressHUD              ← confidence label, safeToStop pill, decode-rate row
+│   └── CaptureCoachPanel        ← live coaching hints (shake / light / decode rate)
+├── ExportScreen                 ← biometric gate, SHA-256 verify, ADB + filename copy
+└── SettingsScreen               ← Strict / Convenience security mode toggle (MMKV-backed)
+```
+
+### Key hooks (v3.2)
+
+| Hook | Purpose |
+|------|---------|
+| `useQRScanner` | ML-Kit/AVFoundation code scanner + decode-rate / duplicate-rate ring buffers |
+| `useSessionManager` | Fountain-decode state machine; exposes `decodeRate`, `duplicateRate` |
+| `useCapture` | `useReducer`-based capture state + MMKV checkpoint (indices only) |
+| `useSecurityMode` | MMKV-backed strict/convenience toggle |
+| `useVideoImport` | TurboModule bridge stub for local video frame extraction |
+
+### New components in v3.2
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `CaptureCoachPanel` | `components/CaptureCoachPanel.tsx` | Priority-ranked live hints derived from decode rate, duplicate rate, shake, exposure |
+| `CalibrationWizard` | `components/CalibrationWizard.tsx` | Modal preflight checklist with live QR scan test |
+| `DiagnosticsPanel` | `components/DiagnosticsPanel.tsx` | Hidden long-press overlay: JS lag via rAF, heap, thermal, FPS |
+| `SettingsScreen` | `screens/SettingsScreen.tsx` | Strict vs Convenience security mode with full implications table |
+
+---
 
 ```
 mobile/

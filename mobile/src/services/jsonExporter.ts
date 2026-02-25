@@ -99,9 +99,13 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
 
   return {
     paths: exportedPaths,
+    filenames: exportedPaths.map((p) => p.split('/').pop() ?? p),
     totalBytes: totalWrittenBytes,
     chunkCount: exportedPaths.length,
     exportedAt: new Date().toISOString(),
+    // SHA-256 of the primary file — computed by RNFS so it hashes the bytes actually on disk.
+    // Falls back to empty string if the hash call fails (permissions edge-case on iOS).
+    sha256: await RNFS.hash(exportedPaths[0] ?? '', 'sha256').catch(() => ''),
   };
 }
 
@@ -141,7 +145,11 @@ export function buildQRExportChunks(
 ): string[] {
   const fullJson = JSON.stringify(response);
   const chunks: string[] = [];
-  const totalChunks = Math.ceil(fullJson.length / maxChunkBytes);
+  // Use Buffer.byteLength for accurate UTF-8 byte count (matches export size
+  // calculation in exportResponse). For ASCII-only payloads this equals
+  // .length, but it's correct for any session_id or filename containing
+  // multi-byte characters.
+  const totalChunks = Math.ceil(Buffer.byteLength(fullJson, 'utf8') / maxChunkBytes);
 
   for (let i = 0; i < totalChunks; i++) {
     const slice = fullJson.slice(i * maxChunkBytes, (i + 1) * maxChunkBytes);

@@ -106,6 +106,13 @@ declare module 'react-native-svg' {
   export { Svg, Circle, Ellipse, Line, G, Path, Rect, Defs, LinearGradient, Stop };
 }
 
+// ── Image assets ─────────────────────────────────────────────────────────────
+declare module '*.png' {
+  import { ImageSourcePropType } from 'react-native';
+  const value: ImageSourcePropType;
+  export default value;
+}
+
 // ── @react-native-clipboard/clipboard ────────────────────────────────────────
 declare module '@react-native-clipboard/clipboard' {
   const Clipboard: {

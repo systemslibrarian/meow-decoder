@@ -6,7 +6,7 @@
  */
 
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -19,6 +19,7 @@ import Animated, {
 import { Colors, Typography, Spacing } from '../constants/theme';
 import { APP_VERSION } from '../constants/config';
 import type { SplashScreenProps } from '../types/navigation';
+import meowLogo from '../assets/meow-decoder-logo.png';
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
@@ -71,7 +72,9 @@ export function SplashScreen({ navigation }: SplashScreenProps) {
 
   return (
     <View style={styles.container}>
-      <Animated.Text style={[styles.logo, logoStyle]}>🐱</Animated.Text>
+      <Animated.View style={[styles.logoContainer, logoStyle]}>
+        <Image source={meowLogo} style={styles.logoImage} resizeMode="contain" />
+      </Animated.View>
       <Animated.View style={[styles.textGroup, textStyle]}>
         <Text style={styles.title}>meow-decoder</Text>
         <Text style={styles.subtitle}>Optical air-gap capture</Text>
@@ -90,9 +93,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  logo: {
-    fontSize: 96,
+  logoContainer: {
     marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  logoImage: {
+    width: 160,
+    height: 126,
   },
   textGroup: {
     alignItems: 'center',
