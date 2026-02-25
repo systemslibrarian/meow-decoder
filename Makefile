@@ -153,18 +153,21 @@ formal-lean:
 
 formal-lean-sorry:
 	@echo "🔷 Checking for unapproved sorry in Lean files..."
-	@SORRY_COUNT=$$(grep -rn 'sorry' formal/lean/ --include='*.lean' \
+	@# NOTE: grep -n output has format "file:N:content"; use ':[[:blank:]]*--'
+	@# instead of '^[[:blank:]]*--' to correctly skip line/block-comment lines.
+	@# The -i flag makes the approved-word filters case-insensitive.
+	@SORRY_COUNT=$$(grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
 		--exclude-dir='.lake' --exclude-dir='lake-packages' \
-		| grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
-		| grep -v -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
+		| grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
+		| grep -v -i -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
 		  -e 'sorry tag' -e 'approved sorry' -e 'sorry for' \
 		| wc -l); \
 	if [ "$$SORRY_COUNT" -gt 0 ]; then \
 		echo "❌ Found $$SORRY_COUNT unapproved sorry statement(s):"; \
-		grep -rn 'sorry' formal/lean/ --include='*.lean' \
+		grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
 			--exclude-dir='.lake' --exclude-dir='lake-packages' \
-			| grep -v -e 'AXIOM:' -e 'APPROVED:' -e '^\s*--' -e '^\s*/--' \
-			| grep -v -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
+			| grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
+			| grep -v -i -e '`sorry`' -e 'sorry instance' -e 'sorry statement' \
 			  -e 'sorry tag' -e 'approved sorry' -e 'sorry for'; \
 		exit 1; \
 	else \
