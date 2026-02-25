@@ -133,7 +133,8 @@ jobs:
           # Verify installation succeeded. This must not have a || fallback;
           # if it fails, the ProVerif job should fail rather than run silently
           # without a working tool and report false success.
-          proverif -version
+          # Note: ProVerif 2.05 does not support -version; use -help instead.
+          proverif -help 2>&1 | head -5
 
       - name: Run ProVerif Analysis
         id: proverif

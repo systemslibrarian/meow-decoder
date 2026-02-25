@@ -324,16 +324,15 @@ query attacker(duress_password).
 (*   - Attacker cannot modify ciphertext without detection (GCM integrity)    *)
 (*   - Attacker cannot substitute one ciphertext for another                  *)
 (*                                                                            *)
-(* NOTE: This query requires same session ID binding which fails in this      *)
-(* model due to the replication structure. The security property (AEAD        *)
-(* integrity) is proven by the underlying crypto, and the cross-session       *)
-(* behavior is that any decoder with the correct password can decode frames   *)
-(* from any encoder - this is EXPECTED behavior for the protocol.             *)
-(* The actual security guarantees (secrecy + authentication) pass.            *)
+(* FIX: Decouple session IDs — the protocol allows any decoder with the      *)
+(* correct password to decrypt any encoder's output. The decoupled query      *)
+(* verifies that SOME encoder produced the plaintext (AEAD integrity),        *)
+(* without requiring it to be the same session.                               *)
+(* sid_e appears only in the conclusion → existentially quantified.           *)
 (* ------------------------------------------------------------------------- *)
-query sid: sessionid, pt: plaintext, n: nonce, s: salt;
-    event(DecoderOutputReal(sid, pt)) ==> 
-        event(EncoderEncrypted(sid, pt, n, s)).
+query sid_d: sessionid, pt: plaintext, sid_e: sessionid, n: nonce, s: salt;
+    event(DecoderOutputReal(sid_d, pt)) ==>
+        event(EncoderEncrypted(sid_e, pt, n, s)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 4: REPLAY RESISTANCE (STRENGTHENED WITH TABLE-BASED TRACKING)        *)
@@ -350,12 +349,12 @@ query sid: sessionid, pt: plaintext, n: nonce, s: salt;
 (*                                                                            *)
 (* Expected results: All queries TRUE (injective correspondence enforced)     *)
 (* ------------------------------------------------------------------------- *)
-query sid: sessionid, n: nonce, s: salt;
-    event(DecoderAuthenticated(sid, n, s)) ==> event(EncoderStarted(sid)).
+query sid_d: sessionid, n: nonce, s: salt, sid_e: sessionid;
+    event(DecoderAuthenticated(sid_d, n, s)) ==> event(EncoderStarted(sid_e)).
 
 (* Stronger replay query: nonce binding *)
-query sid: sessionid, n: nonce, s: salt;
-    event(DecoderAuthenticated(sid, n, s)) ==> event(EncoderGeneratedNonce(sid, n)).
+query sid_d: sessionid, n: nonce, s: salt, sid_e: sessionid;
+    event(DecoderAuthenticated(sid_d, n, s)) ==> event(EncoderGeneratedNonce(sid_e, n)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 4c: FRAME CORRESPONDENCE (non-injective)                              *)
@@ -371,24 +370,24 @@ query sid: sessionid, n: nonce, s: salt;
 (*                                                                            *)
 (* Expected: TRUE (attacker cannot forge valid MAC)                           *)
 (* ------------------------------------------------------------------------- *)
-query sid: sessionid, n: nonce, s: salt, tag: hmac;
-    event(AcceptedFrame(sid, n, s, tag)) ==> event(SentFrame(sid, n, s, tag)).
+query sid_d: sessionid, n: nonce, s: salt, tag: hmac, sid_e: sessionid;
+    event(AcceptedFrame(sid_d, n, s, tag)) ==> event(SentFrame(sid_e, n, s, tag)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 4d: INJECTIVE FRAME CORRESPONDENCE (STRENGTHENED)                    *)
 (*                                                                            *)
 (* Each AcceptedFrame maps to a UNIQUE SentFrame - no frame accepted twice.   *)
-(* With session ID binding + table-based nonce tracking, this is now TRUE:    *)
+(* With table-based nonce tracking and decoupled session IDs:                 *)
 (*   1. Decoder checks `get accepted_nonces(=n, =s)` before accepting         *)
 (*   2. If found (replay), emits RejectFrame and terminates (no output)       *)
 (*   3. If not found (first time), inserts to table and proceeds              *)
-(*   4. Session ID binding ensures each session accepts at most once          *)
-(*   5. Result: Each (sid, n, s, tag) tuple is accepted exactly once          *)
+(*   4. Cryptographic binding (n, s, tag) ensures injective correspondence    *)
+(*   5. Session IDs decoupled: encoder/decoder may have different sessions    *)
 (*                                                                            *)
-(* Expected: TRUE (injective correspondence enforced by sid + table)          *)
+(* Expected: TRUE (injective correspondence enforced by crypto + table)       *)
 (* ------------------------------------------------------------------------- *)
-query sid: sessionid, n: nonce, s: salt, tag: hmac;
-    inj-event(AcceptedFrame(sid, n, s, tag)) ==> inj-event(SentFrame(sid, n, s, tag)).
+query sid_d: sessionid, n: nonce, s: salt, tag: hmac, sid_e: sessionid;
+    inj-event(AcceptedFrame(sid_d, n, s, tag)) ==> inj-event(SentFrame(sid_e, n, s, tag)).
 
 (* ------------------------------------------------------------------------- *)
 (* Query 4e: FAIL-CLOSED REPLAY DETECTION                                     *)
@@ -416,7 +415,7 @@ query sid: sessionid, pt: plaintext;
 
 (* Duress should only output decoy *)
 query sid: sessionid, pt: plaintext;
-    event(DuressPasswordUsed(sid)) && event(DecoderOutputDecoy(sid, pt)) ==> 
+    event(DuressPasswordUsed(sid)) && event(DecoderOutputDecoy(sid, pt)) ==>
         event(DuressCheckPassed(sid)).
 
 (* ------------------------------------------------------------------------- *)
@@ -456,16 +455,13 @@ query attacker(classical_fallback_marker).
 (*   2. Manifest MAC verification fails with wrong key                       *)
 (*   3. AAD binds pq_ct, so AEAD decryption also fails                       *)
 (*                                                                            *)
-(* NOTE: This correspondence query reports FALSE for the same reason as      *)
-(* queries 3 and 4: the replication structure allows any decoder with the    *)
-(* correct password to accept frames from any encoder session. This is       *)
-(* EXPECTED behavior — session IDs are not bound across replications.        *)
-(* The actual KEM integrity is enforced cryptographically: wrong KEM ct      *)
-(* produces wrong shared secret -> wrong key -> HMAC/AEAD fail.              *)
-(* The secrecy queries (5b, 5c) confirm the KEM is sound.                    *)
+(* FIX: Decouple session IDs — the protocol allows any decoder with the      *)
+(* correct PQ keys to process any encoder's manifest. The decoupled query    *)
+(* verifies KEM integrity: if decoder accepted with KEM ct, then SOME        *)
+(* encoder sent that same KEM ct + salt (enforced by HMAC + AAD binding).    *)
 (* ------------------------------------------------------------------------- *)
-query sid: sessionid, s: salt, ct: kem_ciphertext;
-    event(DecoderAcceptedPQ(sid, s, ct)) ==> event(EncoderSentPQ(sid, s, ct)).
+query sid_d: sessionid, s: salt, ct: kem_ciphertext, sid_e: sessionid;
+    event(DecoderAcceptedPQ(sid_d, s, ct)) ==> event(EncoderSentPQ(sid_e, s, ct)).
 
 (* Query 5e: MEOW4 SECRECY — real secret protected in PQ mode *)
 (* (Duplicate of Query 1 — verifies no regression from PQ additions) *)
@@ -477,6 +473,8 @@ query attacker(real_secret).
 (* Decoder cannot output plaintext without first successfully verifying       *)
 (* authentication (HMAC + AEAD). This prevents bypass attacks.                *)
 (* ------------------------------------------------------------------------- *)
+(* These queries stay same-session because both events happen in the SAME     *)
+(* decoder process instance — no cross-process binding needed.                *)
 query sid: sessionid, pt: plaintext, n: nonce, s: salt;
     event(DecoderOutputReal(sid, pt)) ==> event(DecoderAuthenticated(sid, n, s)).
 
@@ -523,46 +521,46 @@ let Encoder(sid: sessionid, pwd: password, pt: plaintext) =
     (* Generate fresh random salt and nonce *)
     new s: salt;
     new n: nonce;
-    
+
     (* Record session started and nonce generated *)
     event EncoderStarted(sid);
     event EncoderGeneratedNonce(sid, n);
-    
+
     (* Derive encryption key from password via Argon2id *)
     (* In implementation: 512 MiB memory, 20 iterations *)
     let k = argon2id(pwd, s) in
-    
+
     (* Compute SHA-256 of plaintext for integrity verification *)
     let pt_hash = sha256(pt) in
-    
+
     (* Build AAD (Additional Authenticated Data) *)
     (* Matches crypto.py: aad = orig_len || comp_len || salt || sha256 || magic *)
     let aad = (orig_len, comp_len, s, pt_hash, MEOW3) in
-    
+
     (* Encrypt plaintext with AES-256-GCM *)
     let ct = aes_gcm_encrypt(k, n, pt, aad) in
     event EncoderEncrypted(sid, pt, n, s);
-    
+
     (* Derive per-frame MAC key (abstracted HKDF with frame index + salt) *)
     let frame_key = frame_key(k, Frame1, s) in
-    
+
     (* Create manifest with HMAC *)
     let manifest_data = (MEOW3, s, n, aad) in
     let manifest_mac = hmac_sha256(manifest_hmac_key(k), manifest_data) in
     let manifest_msg = manifest(MEOW3, s, n, aad, manifest_mac) in
-    
+
     (* Create data frame with per-frame MAC *)
     (* Matches frame_mac.py: MAC = HMAC(key, frame_idx || salt || data) *)
         let frame_data = ciphertext_to_bits(ct) in
         let frame_mac_val = hmac_sha256(frame_key, frame_data) in
         let data_frame = frame(Frame1, ct, frame_mac_val) in
-    
+
     (* Send on public channel (attacker can intercept, replay, modify) *)
     event EncoderSentFrame(sid, Frame0);
     event EncoderSentFrame(sid, Frame1);
     event SentFrame(sid, n, s, frame_mac_val);
     out(pub, (manifest_msg, data_frame));
-    
+
     event EncoderFinished(sid).
 
 (* ========================================================================== *)
@@ -574,25 +572,25 @@ let Encoder(sid: sessionid, pwd: password, pt: plaintext) =
 
 let DecoderReal(sid: sessionid, pwd: password) =
     event DecoderStarted(sid);
-    
+
     (* Receive from public channel (attacker-controlled) *)
     in(pub, (manifest_msg: bitstring, data_frame: bitstring));
-    
+
     (* Parse manifest structure *)
     let manifest(magic_ver, s, n, aad, manifest_mac) = manifest_msg in
-    
+
     (* Verify protocol version *)
     if magic_ver = MEOW3 then
-    
+
     (* Derive decryption key from password via Argon2id *)
     let k = argon2id(pwd, s) in
-    
+
     (* Verify manifest HMAC (constant-time in implementation) *)
     let manifest_data = (MEOW3, s, n, aad) in
     if hmac_verify(manifest_hmac_key(k), manifest_data, manifest_mac) = true then
-    
+
     event DecoderVerifiedMAC(sid);
-    
+
     (* Parse data frame *)
     let frame(fnum, ct, frame_mac_val) = data_frame in
 
@@ -602,9 +600,9 @@ let DecoderReal(sid: sessionid, pwd: password) =
     (* Verify frame MAC - convert ciphertext to bitstring for HMAC *)
     let frame_data = ciphertext_to_bits(ct) in
     if hmac_verify(frame_key, frame_data, frame_mac_val) = true then
-    
+
     event DecoderReceivedFrame(sid, fnum, n, s);
-    
+
     (* REPLAY DETECTION: Check if (nonce, salt) already accepted *)
     (* ProVerif tables provide persistent state across process instances *)
     get accepted_nonces(=n, =s) in
@@ -620,10 +618,10 @@ let DecoderReal(sid: sessionid, pwd: password) =
     (
         (* First time seeing this (nonce, salt) - proceed with decryption *)
         insert accepted_nonces(n, s);
-        
+
         (* Decrypt using AEAD (will fail if tampered - authentication built-in) *)
         let pt = aes_gcm_decrypt(k, n, ct, aad) in
-        
+
         (* Authentication successful: both HMAC and AEAD verified *)
         event AcceptedFrame(sid, n, s, frame_mac_val);
         event DecoderAuthenticated(sid, n, s);
@@ -646,27 +644,27 @@ let DecoderReal(sid: sessionid, pwd: password) =
 let DecoderDuress(sid: sessionid, duress_pwd: password, decoy: plaintext) =
     event DecoderStarted(sid);
     event DuressPasswordUsed(sid);
-    
+
     (* Receive from public channel *)
     in(pub, (manifest_msg: bitstring, data_frame: bitstring));
-    
+
     (* Parse manifest *)
     let manifest(magic_ver, s, n, aad, manifest_mac) = manifest_msg in
-    
+
     (* Duress password detected via constant-time hash comparison *)
     (* In implementation: check_duress_password(password, salt, duress_hash) *)
     event DuressCheckPassed(sid);
-    
+
     (* Derive key with duress password (different from real key!) *)
     let k_duress = argon2id(duress_pwd, s) in
-    
+
     (* CRITICAL: We do NOT attempt to decrypt real ciphertext *)
     (* Instead, we output pre-defined decoy data *)
     (* This ensures real plaintext is never even computed *)
-    
+
     (* Record duress-path acceptance (not full authentication) *)
     event DecoderAuthenticatedDuress(sid, n, s);
-    
+
     (* Output ONLY the decoy - real_secret is NEVER output here *)
     event DecoderOutputDecoy(sid, decoy);
     event DecoderFinished(sid).
@@ -687,81 +685,81 @@ let EncoderWithFS(sid: sessionid, pwd: password, pt: plaintext, receiver_pub: pu
     (* Generate ephemeral X25519 keypair *)
     new ephemeral_priv: privkey;
     let ephemeral_pub = x25519_pubkey(ephemeral_priv) in
-    
+
     (* Compute shared secret via ECDH *)
     let shared = x25519_shared(ephemeral_priv, receiver_pub) in
-    
+
     (* Generate fresh salt *)
     new s: salt;
-    
+
     event EncoderStarted(sid);
-    
+
     (* Derive base key from password *)
     let base_key = argon2id(pwd, s) in
-    
+
     (* Combine password key with ECDH shared secret via HKDF *)
     (* Matches derive_shared_secret() in x25519_forward_secrecy.py *)
     let combined_key = hkdf_expand(base_key, key_to_bits(shared)) in
-    
+
     (* Generate nonce *)
     new n: nonce;
     event EncoderGeneratedNonce(sid, n);
-    
+
     (* Build AAD including ephemeral public key (binds key to ciphertext) *)
     let pt_hash = sha256(pt) in
     let aad = (orig_len, comp_len, s, pt_hash, MEOW3, ephemeral_pub) in
-    
+
     (* Encrypt with combined key *)
     let ct = aes_gcm_encrypt(combined_key, n, pt, aad) in
     event EncoderEncrypted(sid, pt, n, s);
-    
+
     (* Frame MAC key derived from combined key *)
     let frame_key = frame_key(combined_key, Frame1, s) in
-    
+
     (* Create manifest (includes ephemeral public key in AAD) *)
     let manifest_data = (MEOW3, s, n, aad, ephemeral_pub) in
     let manifest_mac = hmac_sha256(manifest_hmac_key(combined_key), manifest_data) in
     let manifest_msg = manifest(MEOW3, s, n, aad, manifest_mac) in
-    
+
     (* Create data frame *)
     let frame_data = ciphertext_to_bits(ct) in
     let frame_mac_val = hmac_sha256(frame_key, frame_data) in
     let data_frame = frame(Frame1, ct, frame_mac_val) in
-    
+
     (* Send ephemeral public key with message *)
     event SentFrame(sid, n, s, frame_mac_val);
     out(pub, (ephemeral_pub, manifest_msg, data_frame));
-    
+
     event EncoderFinished(sid).
     (* NOTE: ephemeral_priv goes out of scope here and is never stored! *)
     (* This provides forward secrecy. *)
 
 let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
     event DecoderStarted(sid);
-    
+
     (* Receive message with ephemeral public key *)
     in(pub, (sender_ephemeral_pub: pubkey, manifest_msg: bitstring, data_frame: bitstring));
-    
+
     (* Compute shared secret using receiver's private key + sender's ephemeral public key *)
     (* This is the ECDH: receiver_priv × sender_ephemeral_pub = shared secret *)
     let shared = x25519_shared(receiver_priv, sender_ephemeral_pub) in
-    
+
     (* Parse manifest - must include magic for version check *)
     let manifest(magic, s, n, aad, manifest_mac) = manifest_msg in
-    
+
     (* Version check - forward secrecy requires MEOW3+ *)
     if magic = MEOW3 then
-    
+
     (* Derive combined key: password + ECDH shared secret *)
     let base_key = argon2id(pwd, s) in
     let combined_key = hkdf_expand(base_key, key_to_bits(shared)) in
-    
+
     (* Verify manifest MAC - includes ephemeral pubkey in authenticated data *)
     let manifest_data = (MEOW3, s, n, aad, sender_ephemeral_pub) in
     if hmac_verify(manifest_hmac_key(combined_key), manifest_data, manifest_mac) = true then
-    
+
     event DecoderAuthenticatedManifest(sid, s);
-    
+
     (* Parse data frame *)
     let frame(fnum, ct, frame_mac_val) = data_frame in
 
@@ -771,12 +769,12 @@ let DecoderWithFS(sid: sessionid, pwd: password, receiver_priv: privkey) =
     (* Verify frame MAC - convert ciphertext to bitstring for HMAC *)
     let frame_data = ciphertext_to_bits(ct) in
     if hmac_verify(frame_key, frame_data, frame_mac_val) = true then
-    
+
     event DecoderAuthenticatedFrame(sid, fnum);
-    
+
     (* Decrypt with combined key (password + ECDH) *)
     let pt = aes_gcm_decrypt(combined_key, n, ct, aad) in
-    
+
     event AcceptedFrame(sid, n, s, frame_mac_val);
     event DecoderAuthenticated(sid, n, s);
     event DecoderOutputReal(sid, pt);

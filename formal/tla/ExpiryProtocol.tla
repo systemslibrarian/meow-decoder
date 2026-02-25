@@ -80,11 +80,12 @@ CreateMessage ==
 TickTime ==
     /\ currentTime < MaxTime
     /\ currentTime' = currentTime + 1
-    \* Decoder clock advances with bounded skew
+    \* Decoder clock advances with bounded skew, clamped to [0, MaxTime]
     /\ \E skew \in -ClockSkewBound..ClockSkewBound :
-        /\ decoderClock' = IF currentTime + 1 + skew > 0
-                           THEN currentTime + 1 + skew
-                           ELSE 0
+        LET raw == currentTime + 1 + skew
+        IN decoderClock' = IF raw < 0 THEN 0
+                           ELSE IF raw > MaxTime THEN MaxTime
+                           ELSE raw
     /\ UNCHANGED <<messages, decodeAttempts, zeroizedKeys>>
 
 \* Attempt to decode a message (fail-closed on expiry)

@@ -40,6 +40,17 @@ RUN curl -sL -o /tmp/maude.zip \
 # Maude needs MAUDE_LIB to find its prelude files
 ENV MAUDE_LIB=/usr/local/share/maude
 
+# Tamarin's Haskell runtime requires a UTF-8 locale to read .spthy files
+# containing non-ASCII characters (em dashes, math symbols in comments).
+# Without this, hGetContents raises "invalid argument (cannot decode byte
+# sequence starting from ...)" on UTF-8 multi-byte characters.
+RUN apt-get update && apt-get install -y --no-install-recommends locales \
+    && sed -i 's/# en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+ENV LANG=en_US.UTF-8
+ENV LC_ALL=en_US.UTF-8
+
 # Install Tamarin from official GitHub release binary
 # Using v1.10.0 — latest stable (1.8.1 never existed; went 1.8.0 → 1.10.0)
 RUN curl -sL -o /tmp/tamarin.tar.gz \

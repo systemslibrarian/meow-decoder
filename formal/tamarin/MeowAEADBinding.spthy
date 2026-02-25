@@ -31,7 +31,7 @@ begin
  *
  * The decryption equation fires if and only if all four operands are
  * identical to those used at encryption time.  Modifying ANY field
- * (including any AAD component) causes aead_dec to remain unreduced —
+ * (including any AAD component) causes aead_dec to remain unreduced --
  * the adversary obtains a syntactic term, not the plaintext.
  */
 functions: aead_enc/4, aead_dec/4
@@ -73,7 +73,7 @@ rule Encrypt:
 rule Decrypt_Honest:
   /*
    * Honest decoder: uses the exact same (key, nonce, aad) as encryption.
-   * Succeeds unconditionally — the equation fires.
+   * Succeeds unconditionally -- the equation fires.
    */
   [ !CT(ct, ~key, nonce, aad, mode), !HonestKey(~key) ]
   --[ Decrypted(ct, aad, mode, ~key),
@@ -83,13 +83,17 @@ rule Decrypt_Honest:
 
 rule Decrypt_AAD_Tamper:
   /*
-   * Adversary supplies a modified AAD (bad_aad ≠ aad).
-   * aead_dec(ct, k, n, bad_aad) does NOT reduce — the equation
+   * Adversary supplies a modified AAD (bad_aad != aad).
+   * aead_dec(ct, k, n, bad_aad) does NOT reduce -- the equation
    * requires the 4th argument to match the encryption AAD exactly.
    * We model this as: adversary obtains the unreduced term, not m.
+   *
+   * The Neq action + restriction ensures bad_aad != aad, preventing
+   * the adversary from using this rule with the correct AAD to learn
+   * the plaintext and then exploiting that knowledge in other traces.
    */
   [ !CT(ct, ~key, nonce, aad, mode), !HonestKey(~key), In(bad_aad) ]
-  --[ TamperedDecrypt(ct, bad_aad, aad) ]->
+  --[ TamperedDecrypt(ct, bad_aad, aad), Neq(bad_aad, aad) ]->
   [ Out(aead_dec(ct, ~key, nonce, bad_aad)) ]
 
 rule Decrypt_Key_Tamper:
@@ -100,6 +104,16 @@ rule Decrypt_Key_Tamper:
   [ !CT(ct, ~key, nonce, aad, mode), In(bad_key) ]
   --[ KeyTamperedDecrypt(ct, bad_key) ]->
   [ Out(aead_dec(ct, bad_key, nonce, aad)) ]
+
+/* ============================================================
+ * Restrictions
+ * ============================================================ */
+
+/* Neq restriction: enforces that two terms are not equal.
+ * Used in Decrypt_AAD_Tamper to model the fact that the adversary
+ * is supplying a DIFFERENT AAD than the one used at encryption time. */
+restriction Neq:
+  "All x y #i. Neq(x, y) @ #i ==> not(x = y)"
 
 /* ============================================================
  * Security Lemmas
@@ -117,10 +131,9 @@ lemma aead_binding:
      TamperedDecrypt(ct, bad_aad, aad) @ #i &
      not(bad_aad = aad)
    ==>
-     /* The adversary never learns the plaintext ~m encrypted in ct.
-      * aead_dec(ct, k, n, bad_aad) is syntactically stuck — not ~m. */
-     not(Ex m #j. Encrypted(ct, m, aad, <$mode>, <$k>, <$n>) @ #j
-                & K(m) @ #i)"
+     not(Ex m mode_v key_v nonce_v #j.
+           Encrypted(ct, m, aad, mode_v, key_v, nonce_v) @ #j
+         & K(m) @ #i)"
 
 /*
  * AEAD-SECRECY:
@@ -131,8 +144,8 @@ lemma aead_secrecy:
   "All ct aad mode key #i.
      Decrypted(ct, aad, mode, key) @ #i
    ==>
-     not(Ex m #j #k.
-           Encrypted(ct, m, aad, mode, key, <$n>) @ #j
+     not(Ex m nonce_v #j #k.
+           Encrypted(ct, m, aad, mode, key, nonce_v) @ #j
          & K(m) @ #k
          & #k < #j)"
 
@@ -144,14 +157,13 @@ lemma aead_secrecy:
  * aead_dec to remain unreduced.
  */
 lemma mode_byte_binding:
-  "All ct bad_aad aad mode_enc #enc #tamper.
-     Encrypted(ct, <$m>, aad, mode_enc, <$key>, <$n>) @ #enc &
+  "All ct m_v bad_aad aad mode_enc key_v nonce_v #enc #tamper.
+     Encrypted(ct, m_v, aad, mode_enc, key_v, nonce_v) @ #enc &
      TamperedDecrypt(ct, bad_aad, aad) @ #tamper &
      not(bad_aad = aad)
    ==>
-     /* Adversary cannot claim decryption succeeded with bad_aad */
-     not(Ex #k. K(aead_dec(ct, <$key>, <$n>, bad_aad)) @ #k
-              & aead_dec(ct, <$key>, <$n>, bad_aad) = <$m>)"
+     not(Ex #k. K(aead_dec(ct, key_v, nonce_v, bad_aad)) @ #k
+              & aead_dec(ct, key_v, nonce_v, bad_aad) = m_v)"
 
 /*
  * NONCE-UNIQ:
@@ -166,7 +178,7 @@ lemma nonce_uniqueness:
 
 /*
  * EXECUTABILITY:
- * Sanity check — the protocol can complete a full encrypt/decrypt cycle.
+ * Sanity check -- the protocol can complete a full encrypt/decrypt cycle.
  * Tamarin prover uses this to confirm the model is not vacuously secure.
  */
 lemma executability_encrypt_decrypt:
