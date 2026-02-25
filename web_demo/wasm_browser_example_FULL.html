@@ -991,9 +991,9 @@
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">1</span>
                 <h2>😺 Cat Mode: Optical Data Transmission</h2>
-                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! Green eyes = 1, dark = 0. After transmission, copy the binary pattern to decode below.</p>
+                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! Each eye carries a separate bit — left eye and right eye blink independently for 2× speed. Green = 1, dark = 0.</p>
                 <p style="color:#888; font-size:0.85em; margin:10px 0 15px 0; padding:8px; background:rgba(0,204,255,0.1); border-radius:6px; border-left:3px solid #00ccff;">
-                    💡 <b>Note:</b> The green flashing in the eye regions during transmission is intentional — that's the binary data being transmitted! Each blink is one bit: green = 1, dark = 0.
+                    💡 <b>Note:</b> The green flashing in the eye regions during transmission is intentional — that's the binary data being transmitted! Left eye = even bits, right eye = odd bits. 2 bits per blink interval.
                 </p>
                 <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
                     <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
@@ -2843,9 +2843,8 @@
                 document.querySelectorAll('button').forEach(btn => btn.disabled = false);
                 enableStegoButtons();
 
-                const workerStatus = useWorker && workerReady ? '(off-thread)' : '(main thread)';
                 statusEl.className = 'status ready';
-                statusEl.textContent = `✅ Ready! ${workerStatus}`;
+                statusEl.textContent = '✅ Ready';
 
                 log('🐱 Meow Decoder WASM initialized');
                 log(`📦 Crypto: AES-256-GCM + Argon2id ${workerStatus}`);
@@ -3635,7 +3634,15 @@
         }
 
         // Draw with green pixels on or off (EYES ONLY)
+        // Legacy single-bit mode (both eyes same state)
         function drawWithGreenBlink(showGreen) {
+            drawWithDualEyeBlink(showGreen, showGreen);
+        }
+
+        // Dual-eye independent blink: left and right eyes carry separate bits
+        // showLeftGreen=true means left eye is green (bit=1), false means dark (bit=0)
+        // showRightGreen=true means right eye is green (bit=1), false means dark (bit=0)
+        function drawWithDualEyeBlink(showLeftGreen, showRightGreen) {
             const catCanvas = document.getElementById('catCanvas');
             const catCtx = catCanvas.getContext('2d');
 
@@ -3650,29 +3657,35 @@
             const data = imgData.data;
             const width = catOriginalImageData.width;
 
-            // Use auto-detected eye regions or scan all pixels
-            function isInEyeRegion(x, y) {
-                if (!catEyeRegions) return true; // no regions = scan everything
+            // Determine which eye a pixel belongs to
+            // Returns 'left', 'right', or null
+            function getEyeSide(x, y) {
+                if (!catEyeRegions) {
+                    // No regions detected — split image in half
+                    return x < width / 2 ? 'left' : 'right';
+                }
                 const L = catEyeRegions.left;
-                if (L && x >= L[0] && x <= L[2] && y >= L[1] && y <= L[3]) return true;
+                if (L && x >= L[0] && x <= L[2] && y >= L[1] && y <= L[3]) return 'left';
                 const R = catEyeRegions.right;
-                if (R && x >= R[0] && x <= R[2] && y >= R[1] && y <= R[3]) return true;
-                return false;
+                if (R && x >= R[0] && x <= R[2] && y >= R[1] && y <= R[3]) return 'right';
+                return null;
             }
 
-            // Process each pixel - find green pixels IN EYE REGIONS and toggle
+            // Process each pixel - find green pixels IN EYE REGIONS and toggle independently
             for (let i = 0; i < data.length; i += 4) {
                 const pixelIndex = i / 4;
                 const x = pixelIndex % width;
                 const y = Math.floor(pixelIndex / width);
 
-                if (!isInEyeRegion(x, y)) continue;
+                const side = getEyeSide(x, y);
+                if (side === null) continue;
 
                 const r = data[i];
                 const g = data[i + 1];
                 const a = data[i + 3];
 
                 if (g > 100 && g > r * 1.3 && a > 100) {
+                    const showGreen = side === 'left' ? showLeftGreen : showRightGreen;
                     if (!showGreen) {
                         data[i] = 0;
                         data[i + 1] = 0;
@@ -3847,8 +3860,66 @@
                     log('🔐 [Cat Mode] Encrypted with WASM');
                 }
 
-                log(`📡 [Cat Mode] Transmitting ${catBinaryData.length} bits at ${speed}ms per bit`);
-                const totalDuration = (catBinaryData.length * speed / 1000).toFixed(1);
+                // ============================================================
+                // DUAL-EYE FRAMING
+                // Header (lead-in + preamble + sync + optional mode byte) is
+                // ALWAYS single-eye (both eyes blink the same state) so the
+                // decoder's preamble/sync detection works on the combined
+                // green channel unchanged.
+                // If dual-eye is enabled, a 0xFE mode byte is appended after
+                // the sync word, and the payload is interleaved: even bits →
+                // left eye, odd bits → right eye. This doubles throughput.
+                // ============================================================
+                const dualEyeEnabled = !!(catEyeRegions && catEyeRegions.left && catEyeRegions.right);
+
+                // Save dual-eye flag for decoder self-test comparison
+                try { sessionStorage.setItem('meow_cat_dual_eye', dualEyeEnabled ? '1' : '0'); } catch (_) {}
+
+                // Split binary into header and payload
+                const headerLen = 8 + payloadResult.preambleBits + payloadResult.syncBits;
+                let headerBinary = catBinaryData.substring(0, headerLen);
+                let payloadBinary = catBinaryData.substring(headerLen);
+
+                if (dualEyeEnabled) {
+                    // Append dual-eye mode marker (0xFD = 11111101) after sync word.
+                    // 0xFD is chosen to avoid collision with CatProtocol magic
+                    // (0xCAFE LE = 0xFE 0xCA), since packets always start with 0xFE.
+                    // This byte is transmitted single-eye so the combined-channel
+                    // NRZ decoder reads it reliably.
+                    headerBinary += '11111101';
+                    // Pad payload to even length for clean interleaving
+                    if (payloadBinary.length % 2 !== 0) {
+                        payloadBinary += '0';
+                    }
+                }
+
+                // Build transmission schedule: {left, right} per interval
+                const catTransmitSchedule = [];
+
+                // Phase 1: Header — single-eye (both eyes blink same state)
+                for (let i = 0; i < headerBinary.length; i++) {
+                    catTransmitSchedule.push({ left: headerBinary[i], right: headerBinary[i] });
+                }
+
+                // Phase 2: Payload — dual-eye interleaved or single-eye
+                if (dualEyeEnabled) {
+                    for (let i = 0; i < payloadBinary.length; i += 2) {
+                        catTransmitSchedule.push({
+                            left: payloadBinary[i] || '0',
+                            right: payloadBinary[i + 1] || '0'
+                        });
+                    }
+                } else {
+                    for (let i = 0; i < payloadBinary.length; i++) {
+                        catTransmitSchedule.push({ left: payloadBinary[i], right: payloadBinary[i] });
+                    }
+                }
+
+                const effectiveIntervals = catTransmitSchedule.length;
+                const totalInfoBits = headerBinary.length + payloadBinary.length;
+                log(`📡 [Cat Mode] Transmitting: header=${headerBinary.length}bits + payload=${payloadBinary.length}bits (${totalInfoBits} total)`);
+                log(`📡 [Cat Mode] ${effectiveIntervals} intervals at ${speed}ms each${dualEyeEnabled ? ' — dual-eye 2× payload speed' : ''}`);
+                const totalDuration = (effectiveIntervals * speed / 1000).toFixed(1);
                 log(`📡 [Cat Mode] Estimated duration: ${totalDuration}s`);
 
                 // Show UI
@@ -3916,22 +3987,22 @@
                 // Key design: advance bits BEFORE drawing, and increment
                 // bitStartTime by speed (not set to timestamp) to prevent
                 // cumulative drift from frame timing quantization.
-                let bitIndex = 0;
+                // intervalIndex indexes into catTransmitSchedule[].
+                // Each entry has {left, right} bits for the two eyes.
+                let intervalIndex = 0;
                 let bitStartTime = null;
 
                 function transmitFrame(timestamp) {
                     // Initialize start time on first frame
                     if (bitStartTime === null) bitStartTime = timestamp;
 
-                    // Advance to next bit(s) when 'speed' ms have elapsed
-                    // Using while loop handles very-low-fps edge case
-                    // Using += speed (not = timestamp) prevents drift
-                    while (bitIndex < catBinaryData.length && timestamp - bitStartTime >= speed) {
+                    // Advance to next interval(s) when 'speed' ms have elapsed
+                    while (intervalIndex < effectiveIntervals && timestamp - bitStartTime >= speed) {
                         bitStartTime += speed;
-                        bitIndex++;
+                        intervalIndex++;
                     }
 
-                    if (!catTransmitting || bitIndex >= catBinaryData.length) {
+                    if (!catTransmitting || intervalIndex >= effectiveIntervals) {
                         // Transmission complete — stop recorder, show download
                         if (catMediaRecorder && catMediaRecorder.state === 'recording') {
                             catMediaRecorder.stop();
@@ -3947,7 +4018,7 @@
                         resultEl.innerHTML = `
                             <div style="background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,204,255,0.1) 100%); border: 2px solid #00ff88; border-radius: 10px; padding: 20px; margin-top: 15px;">
                                 <h3 style="color:#00ff88; margin:0 0 10px 0;">✅ Transmission Complete!</h3>
-                                <p style="color:#888; font-size:0.9em; margin:0 0 5px 0;">📡 ${catBinaryData.length} bits transmitted at ${speed}ms/bit (${(catBinaryData.length * speed / 1000).toFixed(1)}s)</p>
+                                <p style="color:#888; font-size:0.9em; margin:0 0 5px 0;">📡 ${totalInfoBits} bits in ${effectiveIntervals} intervals at ${speed}ms each (${totalDuration}s)${dualEyeEnabled ? ' — dual-eye 2×' : ''}</p>
                                 ${downloadBtnHtml}
                                 <textarea id="catEncodedBinary" readonly style="width:100%; height:70px; background:#1a1a2e; border:1px solid #00ccff; color:#00ff88; font-family:monospace; font-size:0.75em; padding:8px; margin:10px 0; resize:vertical;">${catBinaryData}</textarea>
                                 <button onclick="navigator.clipboard.writeText(document.getElementById('catEncodedBinary').value).then(() => { this.textContent='✅ Copied!'; setTimeout(() => this.textContent='📋 Copy Binary', 1000); })" style="background: linear-gradient(135deg, #00ccff 0%, #0088ff 100%); border:none; margin-right:10px;">📋 Copy Binary</button>
@@ -3969,15 +4040,15 @@
                         return;
                     }
 
-                    // Draw current bit state on EVERY frame (ensures captureStream consistency)
-                    const bit = catBinaryData[bitIndex];
-                    drawWithGreenBlink(bit === '1');
+                    // Draw current bit state from transmission schedule
+                    const interval = catTransmitSchedule[intervalIndex];
+                    drawWithDualEyeBlink(interval.left === '1', interval.right === '1');
 
-                    // Update progress every 10 bits to avoid DOM thrashing
-                    if (bitIndex % 10 === 0) {
-                        const progress = ((bitIndex) / catBinaryData.length * 100).toFixed(1);
+                    // Update progress every 10 intervals to avoid DOM thrashing
+                    if (intervalIndex % 10 === 0) {
+                        const progress = ((intervalIndex) / effectiveIntervals * 100).toFixed(1);
                         progressBar.style.width = progress + '%';
-                        progressText.textContent = `Transmitting bit ${bitIndex} of ${catBinaryData.length} (${progress}%)`;
+                        progressText.textContent = `Transmitting interval ${intervalIndex} of ${effectiveIntervals} (${progress}%)`;
                     }
 
                     catBlinkInterval = requestAnimationFrame(transmitFrame);
@@ -4460,10 +4531,16 @@
                     // Task 5.2.3: Use confidence-weighted analysis with Gaussian mask
                     const weightedResult = analyzeFrameGreenWeighted(imgData, catRoiState);
                     const greenLevel = weightedResult.greenLevel;
+
+                    // Dual-eye: also analyze left/right halves independently
+                    const dualEyeResult = analyzeFrameGreenDualEye(imgData);
+
                     frameSamples.push({
                         frame: i,
                         time: targetTime,
                         greenLevel,
+                        leftGreenLevel: dualEyeResult.leftGreenLevel,
+                        rightGreenLevel: dualEyeResult.rightGreenLevel,
                         confidence: weightedResult.confidence,
                         roiShrink: weightedResult.roiShrinkFactor
                     });
@@ -4560,8 +4637,23 @@
                 // Initial threshold in normalized space (will be updated by adaptive threshold)
                 // Always use auto-threshold logic for video decode since manual
                 // threshold values are meaningless after normalization
-                threshold = 40; // 40% of normalized 0-100 range
-                log(`📹 [Cat Video] Initial threshold: ${threshold.toFixed(2)} (40% of normalized range)`);
+                //
+                // GLOBAL BIMODAL ANALYSIS: Compute histogram on ALL frames first
+                // to get a robust initial threshold. The sliding-window adaptive
+                // threshold (100 frames) struggles because runs of same-bits fill
+                // the window with one mode, causing unimodal misdetection.
+                // ============================================================
+                const globalHistData = computeHistogram(greenLevels, 50, 0, 100);
+                const globalPeaks = findPeaks(globalHistData.bins);
+                if (globalPeaks.length >= 2) {
+                    // Sort by height, use two tallest peaks
+                    const sortedGP = globalPeaks.slice().sort((a, b) => b.height - a.height);
+                    threshold = findValley(globalHistData.bins, sortedGP[0], sortedGP[1]);
+                    log(`📹 [Cat Video] Global bimodal threshold: ${threshold.toFixed(2)} (peaks at ${sortedGP[0].value.toFixed(1)} and ${sortedGP[1].value.toFixed(1)})`);
+                } else {
+                    threshold = 40; // 40% of normalized 0-100 range
+                    log(`📹 [Cat Video] Initial threshold: ${threshold.toFixed(2)} (40% of normalized range, no global bimodal peaks)`);
+                }
                 if (!autoThreshold) {
                     log(`📹 [Cat Video] Note: Manual threshold overridden — normalized signal requires adaptive thresholding`);
                 }
@@ -4609,9 +4701,20 @@
                     // 1. Update adaptive threshold with current frame (Task 2.1)
                     const adaptiveResult = adaptiveThreshold.update(sample.greenLevel, sample.time * 1000);
                     if (adaptiveResult.calibrated) {
-                        threshold = adaptiveResult.threshold;
                         const diag = adaptiveResult.diagnostics;
-                        log(`🎯 [Adaptive] Recalibrated #${diag.calibrationCount}: threshold=${threshold.toFixed(3)}, type=${diag.distributionType}, confidence=${diag.confidence.toFixed(2)}, peaks=${diag.peakCount}`);
+                        // Only accept adaptive recalibration if it detected bimodal
+                        // distribution with reasonable confidence. Unimodal/uniform
+                        // recalibrations cause threshold to jump wildly when the
+                        // 100-frame window happens to contain mostly ON or OFF bits.
+                        if (diag.distributionType === 'bimodal' && diag.confidence >= 0.3) {
+                            threshold = adaptiveResult.threshold;
+                            log(`🎯 [Adaptive] Recalibrated #${diag.calibrationCount}: threshold=${threshold.toFixed(3)}, type=${diag.distributionType}, confidence=${diag.confidence.toFixed(2)}, peaks=${diag.peakCount}`);
+                        } else {
+                            // Log but don't override threshold
+                            if (diag.calibrationCount <= 5 || diag.calibrationCount % 10 === 0) {
+                                log(`🎯 [Adaptive] Skipped #${diag.calibrationCount}: type=${diag.distributionType}, confidence=${diag.confidence.toFixed(2)} (keeping threshold=${threshold.toFixed(3)})`);
+                            }
+                        }
                     }
 
                     // 2. Apply hysteresis using adaptive threshold (Task 2.2)
@@ -4669,8 +4772,8 @@
                 // Store quality metrics (Task 3.3)
                 catDiagnostics.quality = {
                     ...metrics,
-                    confidence_avg: metrics.frames_confident > 0 ? (metrics.confidence_percent / 100).toFixed(2) : 0,
-                    overall_score: metrics.confidence_percent.toFixed(1)
+                    confidence_avg: metrics.frames_confident > 0 ? (parseFloat(metrics.confidence_percent) / 100).toFixed(2) : 0,
+                    overall_score: metrics.confidence_percent
                 };
 
                 // Find state transitions with consecutive sample gating
@@ -4816,12 +4919,100 @@
 
                 binary = nrzResult.binary;
 
-                log(`✅ [NRZ] Decoded ${binary.length} bits (${nrzResult.stats.uncertainBits} uncertain = ${nrzResult.stats.uncertainPercent.toFixed(1)}%)`);
+                // ============================================================
+                // DUAL-EYE DETECTION & DECODE
+                //
+                // The first byte after the sync word is checked for the dual-
+                // eye mode marker (0xFE = 11111110). If found, the payload
+                // was transmitted with left/right eyes carrying independent
+                // bits (2× throughput). We re-decode the payload portion
+                // using the left and right green channels independently.
+                // ============================================================
+                let isDualEyeDecode = false;
+                const modeByteCandidate = binary.substring(0, 8);
+
+                if (modeByteCandidate === '11111101') {
+                    log(`👁️👁️ [Dual-Eye] Mode marker 0xFD detected — switching to dual-eye decode`);
+                    isDualEyeDecode = true;
+
+                    // The mode byte (8 bits) was sent single-eye at 1 bit per interval.
+                    // The payload starts 8 bit-durations after the sync word.
+                    // nrzResult.stats.bitPeriod is in ms; convert to seconds
+                    const bitDur = (nrzResult.stats.bitPeriod / 1000) || (blinkSpeedMs / 1000);
+                    const payloadStartTime = nrzResult.t0 + 8 * bitDur;
+
+                    // Normalize left and right green channels independently
+                    const leftLevels = frameSamples.map(s => s.leftGreenLevel);
+                    const rightLevels = frameSamples.map(s => s.rightGreenLevel);
+
+                    function normalizeChannel(levels) {
+                        const min = Math.min(...levels);
+                        const max = Math.max(...levels);
+                        const range = max - min;
+                        if (range < 0.001) return levels.map(() => 50); // No variation
+                        return levels.map(v => ((v - min) / range) * 100);
+                    }
+
+                    const normLeft = normalizeChannel(leftLevels);
+                    const normRight = normalizeChannel(rightLevels);
+
+                    // Compute thresholds for each channel using global bimodal analysis
+                    function channelThreshold(normLevels) {
+                        const hist = computeHistogram(normLevels, 50, 0, 100);
+                        const peaks = findPeaks(hist.bins);
+                        if (peaks.length >= 2) {
+                            const sorted = peaks.slice().sort((a, b) => b.height - a.height);
+                            return findValley(hist.bins, sorted[0], sorted[1]);
+                        }
+                        return 50; // Default midpoint
+                    }
+
+                    const leftThreshold = channelThreshold(normLeft);
+                    const rightThreshold = channelThreshold(normRight);
+                    log(`👁️ [Dual-Eye] Left threshold: ${leftThreshold.toFixed(2)}, Right threshold: ${rightThreshold.toFixed(2)}`);
+
+                    // Sample left and right channels at bit-duration intervals
+                    // starting from payloadStartTime. Each interval produces
+                    // 2 bits: left eye = even bit, right eye = odd bit.
+                    const dualBits = [];
+                    let sampleTime = payloadStartTime + bitDur / 2; // Sample at center of each interval
+                    let searchStart = 0; // Optimization: frames are chronological
+
+                    while (sampleTime < frameSamples[frameSamples.length - 1].time) {
+                        // Find the frame sample closest to this time (linear scan from last position)
+                        let bestIdx = searchStart;
+                        let bestDist = Math.abs(frameSamples[searchStart].time - sampleTime);
+                        for (let j = searchStart + 1; j < frameSamples.length; j++) {
+                            const dist = Math.abs(frameSamples[j].time - sampleTime);
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestIdx = j;
+                            } else if (frameSamples[j].time > sampleTime + bitDur) {
+                                break; // Past this interval, stop searching
+                            }
+                        }
+                        searchStart = Math.max(0, bestIdx - 1); // Next search starts nearby
+
+                        const leftBit = normLeft[bestIdx] >= leftThreshold ? '1' : '0';
+                        const rightBit = normRight[bestIdx] >= rightThreshold ? '1' : '0';
+                        dualBits.push(leftBit);
+                        dualBits.push(rightBit);
+
+                        sampleTime += bitDur;
+                    }
+
+                    binary = dualBits.join('');
+                    log(`👁️👁️ [Dual-Eye] Decoded ${dualBits.length} bits (${dualBits.length / 2} intervals) from dual channels`);
+                    log(`📹 [Dual-Eye] First 80 payload bits: ${binary.substring(0, 80)}`);
+                }
+
+                log(`✅ [NRZ] Decoded ${binary.length} bits${isDualEyeDecode ? ' (dual-eye)' : ''} (${nrzResult.stats.uncertainBits} uncertain = ${nrzResult.stats.uncertainPercent.toFixed(1)}%)`);
                 log(`📹 [Cat Video] First 80 bits: ${binary.substring(0, 80)}`);
                 log(`📹 [Cat Video] Last 40 bits: ${binary.substring(Math.max(0, binary.length - 40))}`);
 
                 catDiagnostics.decode = {
-                    type: 'nrz',
+                    type: isDualEyeDecode ? 'nrz-dual-eye' : 'nrz',
+                    dualEye: isDualEyeDecode,
                     t0: nrzResult.t0,
                     syncConfidence: nrzResult.syncConfidence,
                     syncBits: nrzResult.syncBits || 16,
@@ -5439,6 +5630,73 @@
                 roiShrinkFactor: shrink,
                 cellCount: cellAvgs.length,
                 topCellWeights: topCells.map(c => c.weight.toFixed(2))
+            };
+        }
+
+        // ============================================================
+        // DUAL-EYE GREEN ANALYSIS
+        //
+        // Splits the frame into left and right halves and computes
+        // independent green levels using the same top-N cell algorithm
+        // as analyzeFrameGreen. This lets the decoder extract two
+        // independent bit channels from a dual-eye cat mode video.
+        // ============================================================
+        function analyzeFrameGreenDualEye(imgData) {
+            const data = imgData.data;
+            const width = imgData.width;
+            const height = imgData.height;
+            const midX = Math.floor(width / 2);
+
+            // Helper: compute top-N green level for a half of the frame
+            function halfGreen(xStart, xEnd) {
+                const cellSize = 20;
+                const halfW = xEnd - xStart;
+                const cols = Math.max(1, Math.floor(halfW / cellSize));
+                const rows = Math.max(1, Math.floor(height / cellSize));
+                const cellCount = cols * rows;
+                const cellSum = new Float32Array(cellCount);
+                const cellPix = new Uint32Array(cellCount);
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const pixelIndex = i / 4;
+                    const x = pixelIndex % width;
+                    if (x < xStart || x >= xEnd) continue;
+                    const y = Math.floor(pixelIndex / width);
+
+                    const r = data[i];
+                    const g = data[i + 1];
+                    const b = data[i + 2];
+                    const greenness = g - Math.max(r, b);
+                    if (greenness <= 0) continue;
+
+                    const cx = Math.min(cols - 1, Math.floor((x - xStart) / cellSize));
+                    const cy = Math.min(rows - 1, Math.floor(y / cellSize));
+                    const idx = cy * cols + cx;
+                    cellSum[idx] += greenness;
+                    cellPix[idx] += 1;
+                }
+
+                const topN = 4; // Fewer top cells per half (smaller area)
+                const top = [];
+                for (let i = 0; i < cellCount; i++) {
+                    if (cellPix[i] === 0) continue;
+                    const avg = cellSum[i] / cellPix[i];
+                    if (top.length < topN) {
+                        top.push(avg);
+                        top.sort((a, b) => a - b);
+                    } else if (avg > top[0]) {
+                        top[0] = avg;
+                        top.sort((a, b) => a - b);
+                    }
+                }
+
+                if (!top.length) return 0;
+                return top.reduce((a, b) => a + b, 0) / top.length;
+            }
+
+            return {
+                leftGreenLevel: halfGreen(0, midX),
+                rightGreenLevel: halfGreen(midX, width)
             };
         }
 
