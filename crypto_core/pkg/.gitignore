@@ -1,0 +1,8 @@
+# Allow WASM build artifacts to be committed for GitHub Pages deployment
+# Only ignore build intermediates
+!crypto_core.js
+!crypto_core_bg.wasm
+!crypto_core.d.ts
+!crypto_core_bg.wasm.d.ts
+!package.json
+!README.md

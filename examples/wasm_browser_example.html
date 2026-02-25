@@ -417,13 +417,12 @@
     <!-- MODE SELECTION -->
     <div class="mode-tabs">
         <div class="mode-tab active" onclick="switchMode('standard')">🔐 Standard</div>
-        <div class="mode-tab" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</div>
-        <div class="mode-tab" onclick="switchMode('postQuantum')">🔮 Post-Quantum</div>
         <div class="mode-tab" onclick="switchMode('schrodinger')">🐱 Schrödinger</div>
         <div class="mode-tab" onclick="switchMode('stego')">🖼️ Stego</div>
+        <div class="mode-tab" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</div>
+        <div class="mode-tab" onclick="switchMode('postQuantum')">🔮 Post-Quantum</div>
         <div class="mode-tab" onclick="switchMode('webcam')">📹 Webcam</div>
         <div class="mode-tab" onclick="switchMode('duress')">🚨 Duress</div>
-        <div class="mode-tab" onclick="switchMode('animated')">🎬 Animated</div>
     </div>
 
     <!-- GLOBAL SECURITY LEVEL (applies to all modes) -->
@@ -2418,7 +2417,7 @@
                 const workerPromise = initCryptoWorker();
 
                 // Load WASM first - this is critical
-                const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
+                const wasmModule = await import('./crypto_core.js');
                 await wasmModule.default();
                 wasm = wasmModule;
 

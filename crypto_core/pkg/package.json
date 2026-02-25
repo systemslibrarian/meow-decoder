@@ -1,0 +1,33 @@
+{
+  "name": "crypto_core",
+  "type": "module",
+  "collaborators": [
+    "Meow Decoder Team"
+  ],
+  "description": "Formally verified cryptographic primitives for Meow-Encode with HSM, YubiKey, TPM support",
+  "version": "1.0.0",
+  "license": "CC-BY-NC-SA-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/meow-decoder"
+  },
+  "files": [
+    "crypto_core_bg.wasm",
+    "crypto_core.js",
+    "crypto_core.d.ts"
+  ],
+  "main": "crypto_core.js",
+  "types": "crypto_core.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ],
+  "keywords": [
+    "cryptography",
+    "aead",
+    "verified",
+    "security",
+    "hsm",
+    "yubikey",
+    "tpm"
+  ]
+}
