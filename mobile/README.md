@@ -4,7 +4,11 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 
 **No network. No cloud. No traces.**
 
-> **v2 (2026)** — Production-hardened release. Native VisionCamera v4 scanner, biometric export gate, FLAG_SECURE screenshot blocking, pinch-to-zoom + exposure control, haptic feedback, dynamic type, and full strict TypeScript coverage. 267/267 tests pass.
+> **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 267/267 tests, strict TypeScript.
+>
+> **v3 (2026)** — Major UX hardening. SVG arc progress ring with fountain-threshold indicator. Adaptive frame-rate scanning (60 Hz → 10 Hz back-off). Stall detector toasts when no new frames arrive for 4 s. Pause / resume capture mid-session. Panic wipe via 3-second long-press cancel. Clipboard auto-wipe after export. Universal-link / deep-link support (`meow://capture?…`). VoiceOver improvements on StabilityIndicator.
+>
+> **v2 (2026)** — Production-hardened release. Native VisionCamera v4 scanner, biometric export gate, FLAG_SECURE screenshot blocking, pinch-to-zoom + exposure control, haptic feedback, dynamic type, and full strict TypeScript coverage.
 
 ---
 
@@ -236,6 +240,9 @@ The `INTERNET` permission is deliberately absent from `AndroidManifest.xml` — 
 | **Biometric export gate** | `react-native-biometrics` prompts Face ID / fingerprint / PIN before writing any data to disk |
 | **Memory wipe on background** | `AppState` listener dispatches `RESET` (clears all frames from React state) on background or inactive |
 | **Foreground recovery** | On returning from background the app navigates to Home — the wiped session cannot be resumed |
+| **Panic wipe** | 3-second long-press on Cancel triggers immediate `RESET` + navigation to Home — no confirmation needed |
+| **Android back guard** | Hardware back during CAPTURING / AWAITING_GIF / PAUSED triggers a confirmation alert before discarding frames |
+| **Clipboard wipe** | Export JSON string is removed from the clipboard 30 s after sharing |
 | **Explicit export only** | `ExportScreen` shows a confirmation card; no auto-export on mount |
 | **Input validation** | Every capture request validated with Zod `.strict()` schema; extra fields and malformed UUIDs rejected |
 | **No decryption on device** | Frame data stored as opaque base64 strings; all crypto operations happen on the desktop |
@@ -244,7 +251,7 @@ The `INTERNET` permission is deliberately absent from `AndroidManifest.xml` — 
 
 ---
 
-## Camera Controls (v2)
+## Camera Controls
 
 The capture screen exposes live controls for real-world scanning conditions:
 
@@ -253,7 +260,11 @@ The capture screen exposes live controls for real-world scanning conditions:
 | **Pinch to zoom** | Standard two-finger pinch | Move further from screen; range 1× – 6× (capped to preserve decode quality) |
 | **Exposure − / +** | Tap ☀️− or ☀️+ buttons | −2 … +2 in 0.5 steps; reduce glare from bright screens or boost dim displays |
 | **Torch** | Tap 💡 button | Illuminates surroundings in low light (hardware torch required) |
+| **Pause / Resume** | Tap ⏸ / ▶️ button during CAPTURING | Freeze scanning without losing captured frames; resumes from same state |
+| **Stop** | Tap ⏹ button | Finalises early — exports whatever frames have been collected |
+| **Panic wipe** | Long-press Cancel for 3 s | Instantly wipes all captured frames and navigates Home — for high-pressure situations |
 | **Stability indicator** | Automatic | Accelerometer warns when device motion may cause motion blur |
+| **Stall detector** | Automatic | Toasts after 4 s with no new frames — prompts you to adjust camera position |
 
 ---
 
@@ -302,22 +313,23 @@ mobile/
 │   │   ├── frameCollector.ts   # Dedup, fountain threshold tracking
 │   │   └── jsonExporter.ts     # RNFS write, chunked export, QR fallback chunks
 │   ├── hooks/
-│   │   ├── useCapture.ts           # useReducer state machine (IDLE→AWAITING_GIF→CAPTURING→COMPLETE)
-│   │   ├── useQRScanner.ts         # VisionCamera v4 useCodeScanner (MLKit / AVFoundation)
+│   │   ├── useCapture.ts           # useReducer state machine (IDLE→AWAITING_GIF→CAPTURING→PAUSED→COMPLETE)
+│   │   ├── useQRScanner.ts         # VisionCamera v4 useCodeScanner (MLKit / AVFoundation); adaptive FPS
 │   │   ├── useStabilityMonitor.ts  # Accelerometer-based shake detection
+│   │   ├── useStallDetector.ts     # Detects 4 s+ periods with no new frames; fires toast callback
 │   │   ├── useSessionManager.ts    # Orchestrates capture + scanner + stability
 │   │   └── useSecureScreen.ts      # isBackgrounding flag for iOS privacy overlay
 │   ├── components/
 │   │   ├── CameraPreview.tsx       # AnimatedCamera, pinch zoom, exposure bias, torch, privacy overlay
-│   │   ├── ProgressHUD.tsx         # Animated ring with fountain threshold indicator
-│   │   ├── FrameOverlay.tsx        # Scan corners, status badges
+│   │   ├── ProgressHUD.tsx         # SVG arc ring with fountain-threshold indicator
+│   │   ├── FrameOverlay.tsx        # Scan corners, status badges (AWAITING/CAPTURING/PAUSED/COMPLETE), reduce-motion-aware scan line
 │   │   ├── StabilityIndicator.tsx  # Shake magnitude bar
-│   │   └── CatToast.tsx            # Queued slide-up toasts with cat personality
+│   │   └── CatToast.tsx            # Queued slide-up toasts with accessibilityLiveRegion
 │   ├── screens/
-│   │   ├── SplashScreen.tsx
-│   │   ├── OnboardingScreen.tsx
-│   │   ├── HomeScreen.tsx          # Load capture request (file picker or manual entry)
-│   │   ├── CaptureScreen.tsx       # Live camera, haptics, milestone toasts, foreground recovery
+│   │   ├── SplashScreen.tsx        # Cat-eye animation; respects Reduce Motion system preference
+│   │   ├── OnboardingScreen.tsx    # First-run camera permission with Settings recovery on denial
+│   │   ├── HomeScreen.tsx          # Load capture request (file picker or manual entry); KeyboardAvoidingView
+│   │   ├── CaptureScreen.tsx       # Live camera, haptics, pause/resume, panic wipe, Android back guard
 │   │   └── ExportScreen.tsx        # Biometric-gated confirm → JSON export or QR fallback
 │   ├── navigation/
 │   │   └── AppNavigator.tsx        # NativeStack; gesture disabled on CaptureScreen
@@ -338,8 +350,10 @@ mobile/
 | Symptom | Likely cause | Fix |
 |---------|-------------|-----|
 | Blank camera preview | Permission denied | Settings → Apps → MeowCapture → Permissions → Camera |
+| "Open Settings" button shown on Onboarding | Camera permission denied at OS level | Tap it — leads directly to the app's permission page |
 | Frames not incrementing | Camera too far | Move 20–40 cm from screen |
 | Low frame count warning | Motion blur | Use stability indicator; hold phone still |
+| "No new frames" toast | Stall detected | Shift camera position slightly or adjust exposure |
 | App completes instantly (0 frames shown) | expected_frames=0 in request JSON | Set expected_frames to the frame count from the demo log |
 | Single-frame mode never auto-completes | expected_frames > 1 | Set expected_frames: 1 for static MEOW:/FS:/etc. QR codes |
 | Export silently fails | Downloads folder full | Free storage and retry |
@@ -349,6 +363,7 @@ mobile/
 | Biometric prompt never shows | No biometric enrolled on device | Falls back to unguarded export button automatically |
 | Export button not visible | Still on confirm card | Tap **Confirm & Export** (or **Export to Downloads** if no biometrics) |
 | Glare making QR unreadable | Bright laptop screen | Tap ☀️− to reduce exposure bias; tilt phone slightly off-axis |
+| Android back button dismisses capture | Expected — guarded | A confirmation dialog appears before frames are discarded |
 
 ### ADB extract (Android)
 
@@ -396,6 +411,8 @@ This means you can expect successful decryption even with ~33% frame loss due to
 | `zod` | ^3.22.4 | Strict capture-request schema validation |
 
 **Removed in v2:** `vision-camera-code-scanner` (abandoned, used a fragile worklet `require()` hack, broken on Android 14+ / iOS 17+) and `react-native-worklets-core` (no longer needed for QR scanning).
+
+**Added in v3:** `@react-navigation/native` deep-link support (universal links `meow://capture?…`). No new runtime dependencies — v3 features are built from existing packages (`react-native-reanimated` SVG arc, `react-native-haptic-feedback`, built-in `BackHandler`/`Linking` APIs).
 
 ---
 
