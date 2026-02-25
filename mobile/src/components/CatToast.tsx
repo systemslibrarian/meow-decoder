@@ -130,6 +130,9 @@ export function CatToastProvider({
         <Animated.View
           style={[styles.toastContainer, animatedStyle]}
           pointerEvents="none"
+          accessibilityLiveRegion="assertive"
+          accessibilityLabel={currentToast.message}
+          accessible={true}
         >
           <View style={[styles.toast, toastStyle]}>
             <Text style={styles.toastText}>{currentToast.message}</Text>

@@ -6,7 +6,7 @@
  * directly to HomeScreen.
  */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
   ScrollView,
   TouchableOpacity,
   SafeAreaView,
+  Linking,
 } from 'react-native';
 import { useCameraPermission } from 'react-native-vision-camera';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
@@ -28,11 +29,16 @@ const FIRST_LAUNCH_KEY = 'has_completed_onboarding';
 
 export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
   const { requestPermission } = useCameraPermission();
+  const [permissionDenied, setPermissionDenied] = useState(false);
 
   const handleGrant = useCallback(async () => {
-    await requestPermission();
-    storage.set(FIRST_LAUNCH_KEY, true);
-    navigation.replace('Home');
+    const granted = await requestPermission();
+    if (granted) {
+      storage.set(FIRST_LAUNCH_KEY, true);
+      navigation.replace('Home');
+    } else {
+      setPermissionDenied(true);
+    }
   }, [requestPermission, navigation]);
 
   const handleSkip = useCallback(() => {
@@ -91,6 +97,21 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
         >
           <Text style={styles.primaryButtonText}>Allow Camera  →</Text>
         </TouchableOpacity>
+        {permissionDenied && (
+          <>
+            <Text style={styles.deniedText}>
+              Camera access was denied. To use meow-decoder, enable it in Settings.
+            </Text>
+            <TouchableOpacity
+              style={[styles.primaryButton, styles.settingsButton]}
+              onPress={() => Linking.openSettings()}
+              accessibilityRole="button"
+              accessibilityLabel="Open Settings to enable camera access"
+            >
+              <Text style={styles.primaryButtonText}>⚙️ Open Settings</Text>
+            </TouchableOpacity>
+          </>
+        )}
         <TouchableOpacity onPress={handleSkip} accessibilityRole="button">
           <Text style={styles.skipText}>Skip for now</Text>
         </TouchableOpacity>
@@ -227,5 +248,18 @@ const styles = StyleSheet.create({
   skipText: {
     color: Colors.textTertiary,
     fontSize: Typography.sm,
+  },
+  deniedText: {
+    color: Colors.danger,
+    fontSize: Typography.sm,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+    lineHeight: Typography.sm * 1.5,
+  },
+  settingsButton: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.catOrange,
+    marginBottom: Spacing.md,
   },
 });

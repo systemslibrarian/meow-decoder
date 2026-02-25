@@ -21,6 +21,8 @@ import {
   TouchableOpacity,
   AppState,
   Platform,
+  BackHandler,
+  Alert,
 } from 'react-native';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useCatToast } from '../components/CatToast';
@@ -116,6 +118,26 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     cancel();
     navigation.goBack();
   };
+
+  // Android hardware back button — confirm before discarding active capture
+  useEffect(() => {
+    const onBack = () => {
+      if (status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') {
+        Alert.alert(
+          'Discard capture?',
+          'All captured frames will be lost.',
+          [
+            { text: 'Stay', style: 'cancel' },
+            { text: 'Discard', style: 'destructive', onPress: handleCancel },
+          ],
+        );
+        return true; // consume back event
+      }
+      return false;
+    };
+    const sub = BackHandler.addEventListener('hardwareBackPress', onBack);
+    return () => sub.remove();
+  }, [status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Panic wipe — long-press cancel for 3 s: RESET + navigate Home immediately.
   // Provides a quick escape for high-pressure situations (activist / journalist use).

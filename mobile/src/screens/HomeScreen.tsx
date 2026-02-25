@@ -20,7 +20,10 @@ import {
   SafeAreaView,
   Platform,
   ActivityIndicator,
+  KeyboardAvoidingView,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import DocumentPicker from 'react-native-document-picker';
 import RNFS from 'react-native-fs';
 import { z } from 'zod';
@@ -38,6 +41,13 @@ import { DEFAULT_TIMEOUT_SECONDS } from '../constants/config';
 export function HomeScreen({ navigation }: HomeScreenProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Clear stale error whenever user returns to this screen
+  useFocusEffect(
+    useCallback(() => {
+      setError(null);
+    }, []),
+  );
 
   // Manual entry state
   const [manualMode, setManualMode] = useState(false);
@@ -72,6 +82,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       );
 
       const request = validateRequestFromString(content);
+      ReactNativeHapticFeedback.trigger('notificationSuccess', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
       navigateToCapture(request);
     } catch (err) {
       if (DocumentPicker.isCancel(err)) {
@@ -117,14 +128,22 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <Text style={styles.title}>🐱 meow-decoder</Text>
         <Text style={styles.subtitle}>Optical QR Capture</Text>
 
         {/* Error banner */}
         {error && (
-          <View style={styles.errorBanner}>
+          <View
+            style={styles.errorBanner}
+            accessibilityLiveRegion="assertive"
+            accessibilityLabel={error}
+          >
             <Text style={styles.errorText}>🙀 {error}</Text>
           </View>
         )}
@@ -208,8 +227,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             No data is transmitted over the network.
           </Text>
         </View>
-      </ScrollView>
-    </SafeAreaView>
+      </ScrollView>      </KeyboardAvoidingView>    </SafeAreaView>
   );
 }
 
@@ -254,6 +272,7 @@ const inputStyles = StyleSheet.create({
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
+  flex: { flex: 1 },
   scroll: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
   title: {
     color: Colors.catOrange,

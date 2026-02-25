@@ -16,6 +16,7 @@ import Animated, {
   withRepeat,
   withSequence,
   Easing,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
@@ -40,6 +41,7 @@ export const FrameOverlay = React.memo(function FrameOverlay({
 }: FrameOverlayProps) {
   const borderOpacity = useSharedValue(0.8);
   const scanLineY = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
 
   const borderColor =
     status === 'CAPTURING' && qrDetected
@@ -52,7 +54,7 @@ export const FrameOverlay = React.memo(function FrameOverlay({
 
   // Pulse when waiting for a QR code
   useEffect(() => {
-    if (status === 'AWAITING_GIF') {
+    if (status === 'AWAITING_GIF' && !reducedMotion) {
       borderOpacity.value = withRepeat(
         withSequence(
           withTiming(0.4, { duration: 800, easing: Easing.inOut(Easing.ease) }),
@@ -64,11 +66,11 @@ export const FrameOverlay = React.memo(function FrameOverlay({
     } else {
       borderOpacity.value = withTiming(1, { duration: 200 });
     }
-  }, [status, borderOpacity]);
+  }, [status, borderOpacity, reducedMotion]);
 
   // Scan-line animation during CAPTURING
   useEffect(() => {
-    if (status === 'CAPTURING') {
+    if (status === 'CAPTURING' && !reducedMotion) {
       scanLineY.value = 0;
       scanLineY.value = withRepeat(
         withTiming(SCAN_BOX_SIZE, {
@@ -81,7 +83,7 @@ export const FrameOverlay = React.memo(function FrameOverlay({
     } else {
       scanLineY.value = 0;
     }
-  }, [status, scanLineY]);
+  }, [status, scanLineY, reducedMotion]);
 
   const borderAnimStyle = useAnimatedStyle(() => ({
     opacity: borderOpacity.value,
@@ -136,6 +138,7 @@ function badgeLabel(status: CaptureState, qrDetected: boolean): string {
     case 'AWAITING_GIF': return '🔍 Searching for QR code...';
     case 'CAPTURING':
       return qrDetected ? '📡 Capturing...' : '⏳ Waiting for next frame...';
+    case 'PAUSED': return '⏸ Paused';
     case 'COMPLETE': return '✅ Capture complete';
     case 'TIMED_OUT': return '⏰ Timed out';
     default: return '';
@@ -145,6 +148,7 @@ function badgeLabel(status: CaptureState, qrDetected: boolean): string {
 function badgeBg(status: CaptureState, qrDetected: boolean): string {
   if (status === 'TIMED_OUT') return 'rgba(255,159,10,0.85)';
   if (status === 'COMPLETE') return 'rgba(52,199,89,0.85)';
+  if (status === 'PAUSED') return 'rgba(90,120,200,0.85)';
   if (status === 'CAPTURING' && qrDetected) return 'rgba(52,199,89,0.75)';
   return 'rgba(0,0,0,0.65)';
 }

@@ -14,6 +14,7 @@ import Animated, {
   withSequence,
   withDelay,
   Easing,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import { Colors, Typography, Spacing } from '../constants/theme';
 import { APP_VERSION } from '../constants/config';
@@ -26,15 +27,22 @@ export function SplashScreen({ navigation }: SplashScreenProps) {
   const eyeScale = useSharedValue(0.05);
   const logoOpacity = useSharedValue(0);
   const textOpacity = useSharedValue(0);
+  const reducedMotion = useReducedMotion();
 
   const navigateNext = () => {
-    // Check if user has seen onboarding (stored in MMKV or AsyncStorage)
-    // For simplicity we always go to Home here; OnboardingScreen is shown
-    // via the navigator's initial route logic in App.tsx.
     navigation.replace('Home');
   };
 
   useEffect(() => {
+    if (reducedMotion) {
+      // Skip all animation — instantly visible, shorter wait
+      logoOpacity.value = 1;
+      eyeScale.value = 1;
+      textOpacity.value = 1;
+      const timer = setTimeout(navigateNext, 600);
+      return () => clearTimeout(timer);
+    }
+
     // Sequence: logo appears → eye opens → text fades in → navigate
     logoOpacity.value = withTiming(1, { duration: 300 });
 
