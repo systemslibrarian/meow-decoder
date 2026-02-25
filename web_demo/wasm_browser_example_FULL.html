@@ -3796,10 +3796,9 @@
             const payloadBits = packetsBinary.length;
             const shortMessage = payloadBits < 200; // ~25 bytes
 
-            // Preamble: Use 16-bit for short messages, 32-bit for longer ones
-            const preamble = shortMessage
-                ? '1010101010101010' // 16 bits (1.6s @ 100ms)
-                : '10101010101010101010101010101010'; // 32 bits (3.2s @ 100ms)
+            // Preamble: 16 bits for all messages (enough for calibration,
+            // keeps header short so transmission feels consistent)
+            const preamble = '1010101010101010'; // 16 bits
 
             // Sync word: Use 8-bit for short messages, 16-bit for longer ones
             const syncWord = shortMessage
@@ -3863,15 +3862,19 @@
 
                 // ============================================================
                 // DUAL-EYE FRAMING
-                // Header (lead-in + preamble + sync + optional mode byte) is
-                // ALWAYS single-eye (both eyes blink the same state) so the
-                // decoder's preamble/sync detection works on the combined
-                // green channel unchanged.
-                // If dual-eye is enabled, a 0xFE mode byte is appended after
-                // the sync word, and the payload is interleaved: even bits →
-                // left eye, odd bits → right eye. This doubles throughput.
+                // Header (lead-in + preamble + sync + mode byte) is ALWAYS
+                // single-eye (both eyes blink the same state) so the decoder's
+                // preamble/sync detection works on the combined green channel.
+                // A 0xFD mode byte is appended after the sync word, and the
+                // payload is interleaved: even bits → left eye, odd bits →
+                // right eye. This doubles throughput.
+                //
+                // drawWithDualEyeBlink() handles the pixel split:
+                //   - If catEyeRegions detected: uses precise bounding boxes
+                //   - Otherwise: splits image at width/2 (always works)
                 // ============================================================
-                const dualEyeEnabled = !!(catEyeRegions && catEyeRegions.left && catEyeRegions.right);
+                const dualEyeEnabled = true; // Always use dual-eye for 2× speed
+                log(`👁️👁️ [Cat Mode] Dual-eye enabled (eye regions: ${catEyeRegions ? 'detected' : 'midpoint split'})`);
 
                 // Save dual-eye flag for decoder self-test comparison
                 try { sessionStorage.setItem('meow_cat_dual_eye', dualEyeEnabled ? '1' : '0'); } catch (_) {}
@@ -3895,6 +3898,9 @@
                 }
 
                 // Build transmission schedule: {left, right} per interval
+                // All intervals use the same duration (speed ms) for
+                // consistent decoder timing. Header sends 1 bit per
+                // interval, payload sends 2 bits per interval.
                 const catTransmitSchedule = [];
 
                 // Phase 1: Header — single-eye (both eyes blink same state)
@@ -3902,7 +3908,7 @@
                     catTransmitSchedule.push({ left: headerBinary[i], right: headerBinary[i] });
                 }
 
-                // Phase 2: Payload — dual-eye interleaved or single-eye
+                // Phase 2: Payload — dual-eye interleaved (2 bits per interval)
                 if (dualEyeEnabled) {
                     for (let i = 0; i < payloadBinary.length; i += 2) {
                         catTransmitSchedule.push({
@@ -3919,7 +3925,7 @@
                 const effectiveIntervals = catTransmitSchedule.length;
                 const totalInfoBits = headerBinary.length + payloadBinary.length;
                 log(`📡 [Cat Mode] Transmitting: header=${headerBinary.length}bits + payload=${payloadBinary.length}bits (${totalInfoBits} total)`);
-                log(`📡 [Cat Mode] ${effectiveIntervals} intervals at ${speed}ms each${dualEyeEnabled ? ' — dual-eye 2× payload speed' : ''}`);
+                log(`📡 [Cat Mode] ${effectiveIntervals} intervals at ${speed}ms each — dual-eye 2× payload speed`);
                 const totalDuration = (effectiveIntervals * speed / 1000).toFixed(1);
                 log(`📡 [Cat Mode] Estimated duration: ${totalDuration}s`);
 
@@ -3976,20 +3982,18 @@
                     log(`⚠️ [Cat Mode] Could not start recording: ${recErr.message}`);
                 }
 
-                // TIME-BASED encoding: hold each bit for exactly 'speed' ms
+                // TIME-BASED encoding: hold each interval for exactly 'speed' ms
                 // using rAF timestamps. This works at ANY display refresh rate
                 // (60Hz, 120Hz, 37Hz throttled, etc.) because we measure
                 // elapsed wall-clock time, not frame counts.
-                log(`📡 [Cat Mode] Using time-based encoding: ${speed}ms per bit`);
+                log(`📡 [Cat Mode] Using time-based encoding: ${speed}ms per interval`);
 
                 // Transmit binary through eye blinks using requestAnimationFrame
-                // Each bit is held for exactly 'speed' milliseconds using
+                // Each interval is held for exactly 'speed' milliseconds using
                 // timestamp comparison — works at ANY display refresh rate.
-                // Key design: advance bits BEFORE drawing, and increment
+                // Key design: advance intervals BEFORE drawing, and increment
                 // bitStartTime by speed (not set to timestamp) to prevent
                 // cumulative drift from frame timing quantization.
-                // intervalIndex indexes into catTransmitSchedule[].
-                // Each entry has {left, right} bits for the two eyes.
                 let intervalIndex = 0;
                 let bitStartTime = null;
 
@@ -4056,7 +4060,26 @@
                 }
 
                 resultEl.innerHTML = '<span style="color:#00ccff">📡 Transmitting encrypted message...</span>';
-                catBlinkInterval = requestAnimationFrame(transmitFrame);
+
+                // Draw the first interval immediately so there's no visual
+                // gap between clicking "Start" and the first eye blink.
+                // Then warm up rAF timing for 2 frames before starting the
+                // real transmission — avoids the initial timestamp jump that
+                // causes the while-loop to skip multiple intervals at once.
+                const firstInterval = catTransmitSchedule[0];
+                drawWithDualEyeBlink(firstInterval.left === '1', firstInterval.right === '1');
+
+                let warmupCount = 0;
+                function warmupRaf(ts) {
+                    warmupCount++;
+                    if (warmupCount < 3) {
+                        requestAnimationFrame(warmupRaf);
+                    } else {
+                        // Start real transmission with fresh timestamp
+                        catBlinkInterval = requestAnimationFrame(transmitFrame);
+                    }
+                }
+                requestAnimationFrame(warmupRaf);
 
             } catch (err) {
                 resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${escapeHtml(err.message)}</span>`;

@@ -74,17 +74,6 @@ export function decode_data(encoded: Uint8Array, password: string): WasmResult;
 export function decrypt(ciphertext: Uint8Array, key: Uint8Array, nonce: Uint8Array, aad?: Uint8Array | null): WasmResult;
 
 /**
- * Hybrid decryption: X25519 + ML-KEM-1024 + AES-256-GCM
- *
- * Input:
- * - encrypted: x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
- * - x25519_secret: Recipient's X25519 secret key (32 bytes)
- * - mlkem_secret: Recipient's ML-KEM secret key (3168 bytes)
- * - password: Password used during encryption
- */
-export function decrypt_hybrid_pq(encrypted: Uint8Array, x25519_secret: Uint8Array, mlkem_secret: Uint8Array, password: string): WasmResult;
-
-/**
  * Decrypt with forward secrecy using X25519
  *
  * # Arguments
@@ -149,22 +138,6 @@ export function encode_data(data: Uint8Array, password: string, block_size?: num
 export function encrypt(plaintext: Uint8Array, key: Uint8Array, nonce: Uint8Array, aad?: Uint8Array | null): WasmResult;
 
 /**
- * Hybrid encryption: X25519 + ML-KEM-1024 + AES-256-GCM
- *
- * Provides security if EITHER classical OR post-quantum crypto holds.
- *
- * Input:
- * - plaintext: Data to encrypt
- * - x25519_recipient_public: Recipient's X25519 public key (32 bytes)
- * - mlkem_recipient_public: Recipient's ML-KEM public key (1568 bytes)
- * - password: Optional additional password
- *
- * Output:
- * x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
- */
-export function encrypt_hybrid_pq(plaintext: Uint8Array, x25519_recipient_public: Uint8Array, mlkem_recipient_public: Uint8Array, password: string): WasmResult;
-
-/**
  * Encrypt with forward secrecy using X25519 ephemeral key exchange
  *
  * # Arguments
@@ -206,36 +179,6 @@ export function hmac(key: Uint8Array, data: Uint8Array): Uint8Array;
  * Initialize the WASM module (call once on page load)
  */
 export function init(): void;
-
-/**
- * Decapsulate using ML-KEM-1024 secret key
- *
- * Input: secret_key (3168 bytes), ciphertext (1568 bytes)
- * Returns: shared_secret (32 bytes)
- */
-export function mlkem_decapsulate(secret_key: Uint8Array, ciphertext: Uint8Array): WasmResult;
-
-/**
- * Encapsulate using ML-KEM-1024 public key
- *
- * Input: public_key (1568 bytes)
- * Returns: ciphertext (1568 bytes) || shared_secret (32 bytes)
- */
-export function mlkem_encapsulate(public_key: Uint8Array): WasmResult;
-
-/**
- * Generate ML-KEM-1024 key pair for post-quantum encryption
- *
- * Returns: secret_key || public_key (3168 + 1568 = 4736 bytes)
- *
- * ML-KEM-1024 provides NIST Level 5 security against quantum computers.
- */
-export function mlkem_generate_keypair(): WasmResult;
-
-/**
- * Get ML-KEM key sizes for JavaScript
- */
-export function mlkem_key_sizes(): WasmResult;
 
 /**
  * Check if post-quantum features are available
@@ -292,12 +235,10 @@ export interface InitOutput {
     readonly constant_time_compare: (a: number, b: number, c: number, d: number) => number;
     readonly decode_data: (a: number, b: number, c: number, d: number) => number;
     readonly decrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-    readonly decrypt_hybrid_pq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly decrypt_with_forward_secrecy: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly derive_key: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly encode_data: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly encrypt: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-    readonly encrypt_hybrid_pq: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly encrypt_with_forward_secrecy: (a: number, b: number, c: number, d: number, e: number, f: number) => number;
     readonly generate_nonce: () => number;
     readonly generate_salt: () => number;
@@ -305,10 +246,6 @@ export interface InitOutput {
     readonly hkdf: (a: number, b: number, c: number, d: number, e: number, f: number, g: number) => number;
     readonly hmac: (a: number, b: number, c: number, d: number) => any;
     readonly init: () => void;
-    readonly mlkem_decapsulate: (a: number, b: number, c: number, d: number) => number;
-    readonly mlkem_encapsulate: (a: number, b: number) => number;
-    readonly mlkem_generate_keypair: () => number;
-    readonly mlkem_key_sizes: () => number;
     readonly pq_available: () => number;
     readonly random: (a: number) => number;
     readonly secure_clear: (a: number, b: number, c: any) => void;

@@ -93,9 +93,7 @@ function buildCatBinaryPayload(payloadBytes) {
     const shortMessage = payloadBits < 200;
 
     const leadIn = '00000000';
-    const preamble = shortMessage
-        ? '1010101010101010'
-        : '10101010101010101010101010101010';
+    const preamble = '1010101010101010'; // 16 bits always
     const syncWord = shortMessage
         ? '10101010'
         : '1010101010101010';
