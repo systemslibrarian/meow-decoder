@@ -128,13 +128,43 @@ export async function exportExists(path: string): Promise<boolean> {
   return RNFS.exists(path);
 }
 
-// ── QR Fallback Export ────────────────────────────────────────────────────────
+// ── QR Fallback Export (Hardened) ──────────────────────────────────────────────
+
+/**
+ * Simple SHA-256-like checksum using a fast non-cryptographic hash.
+ * Uses a lightweight DJB2a + FNV-1a hybrid to produce a 16-char hex digest.
+ * This is NOT for security — only for detecting transmission/scanning errors
+ * during QR optical transfer reassembly.
+ *
+ * For a production-grade implementation, replace with SubtleCrypto SHA-256
+ * when available in the RN runtime.
+ */
+function checksumHex(input: string): string {
+  let h1 = 0x811c9dc5 >>> 0; // FNV offset basis
+  let h2 = 5381 >>> 0;       // DJB2 offset basis
+  for (let i = 0; i < input.length; i++) {
+    const c = input.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 0x01000193) >>> 0; // FNV-1a
+    h2 = (Math.imul(h2, 33) + c) >>> 0;        // DJB2a
+  }
+  return (h1.toString(16).padStart(8, '0') + h2.toString(16).padStart(8, '0'));
+}
 
 /**
  * Splits the capture response JSON into QR-displayable chunks for the
  * reverse-optical export fallback (phone screen → air-gapped machine camera).
  *
- * Each chunk is a self-contained JSON string with metadata for reassembly.
+ * Each chunk is a self-contained JSON string with metadata for reassembly,
+ * including:
+ *   - Per-chunk checksum for scanning error detection
+ *   - Full-payload checksum in every chunk for reassembly verification
+ *   - Total byte length for completeness check
+ *
+ * The receiver should:
+ *   1. Verify each chunk_checksum matches checksumHex(data)
+ *   2. After collecting all chunks, concatenate data fields in chunk_index order
+ *   3. Verify the concatenated result's checksum matches payload_checksum
+ *   4. Verify the concatenated result's byte length matches payload_bytes
  *
  * @param maxChunkBytes Max bytes per QR code (default from config)
  * @returns Array of strings, each displayable as a single QR code
@@ -145,23 +175,76 @@ export function buildQRExportChunks(
 ): string[] {
   const fullJson = JSON.stringify(response);
   const chunks: string[] = [];
+  const payloadChecksum = checksumHex(fullJson);
+  const payloadBytes = Buffer.byteLength(fullJson, 'utf8');
   // Use Buffer.byteLength for accurate UTF-8 byte count (matches export size
   // calculation in exportResponse). For ASCII-only payloads this equals
   // .length, but it's correct for any session_id or filename containing
   // multi-byte characters.
-  const totalChunks = Math.ceil(Buffer.byteLength(fullJson, 'utf8') / maxChunkBytes);
+  const totalChunks = Math.ceil(payloadBytes / maxChunkBytes);
 
   for (let i = 0; i < totalChunks; i++) {
     const slice = fullJson.slice(i * maxChunkBytes, (i + 1) * maxChunkBytes);
+    const chunkChecksum = checksumHex(slice);
     const envelope = JSON.stringify({
       meow_qr_chunk: true,
+      version: 2,
       session_id: response.session_id,
       chunk_index: i + 1,
       total_chunks: totalChunks,
+      chunk_checksum: chunkChecksum,
+      payload_checksum: payloadChecksum,
+      payload_bytes: payloadBytes,
       data: slice,
     });
     chunks.push(envelope);
   }
 
   return chunks;
+}
+
+/**
+ * Verifies reassembled QR export chunks.
+ *
+ * @returns Object with `valid` boolean and optional `error` string
+ */
+export function verifyQRExportReassembly(
+  chunks: Array<{ chunk_index: number; total_chunks: number; chunk_checksum: string; payload_checksum: string; payload_bytes: number; data: string }>,
+): { valid: boolean; error?: string; reassembled?: string } {
+  if (chunks.length === 0) {
+    return { valid: false, error: 'No chunks provided' };
+  }
+
+  const expected = chunks[0]!.total_chunks;
+  if (chunks.length !== expected) {
+    return { valid: false, error: `Expected ${expected} chunks, got ${chunks.length}` };
+  }
+
+  // Sort by chunk_index
+  const sorted = [...chunks].sort((a, b) => a.chunk_index - b.chunk_index);
+
+  // Verify per-chunk checksums
+  for (const chunk of sorted) {
+    const computed = checksumHex(chunk.data);
+    if (computed !== chunk.chunk_checksum) {
+      return { valid: false, error: `Chunk ${chunk.chunk_index} checksum mismatch (expected ${chunk.chunk_checksum}, got ${computed})` };
+    }
+  }
+
+  // Reassemble and verify payload checksum
+  const reassembled = sorted.map(c => c.data).join('');
+  const computedPayloadChecksum = checksumHex(reassembled);
+  const expectedPayloadChecksum = sorted[0]!.payload_checksum;
+
+  if (computedPayloadChecksum !== expectedPayloadChecksum) {
+    return { valid: false, error: `Payload checksum mismatch (expected ${expectedPayloadChecksum}, got ${computedPayloadChecksum})` };
+  }
+
+  const computedBytes = Buffer.byteLength(reassembled, 'utf8');
+  const expectedBytes = sorted[0]!.payload_bytes;
+  if (computedBytes !== expectedBytes) {
+    return { valid: false, error: `Payload byte length mismatch (expected ${expectedBytes}, got ${computedBytes})` };
+  }
+
+  return { valid: true, reassembled };
 }

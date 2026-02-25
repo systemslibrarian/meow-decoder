@@ -202,11 +202,11 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
           </Text>
 
           {/* Summary card */}
-          <View style={styles.card}>
+          <View style={styles.card} accessibilityRole="summary">
             <Row label="Frames captured" value={`${captured} / ${expected}`} />
             <Row label="Coverage" value={pct} />
             <Row label="Frames missed" value={String(response.frames_missed)} />
-            <View style={styles.statusRow}>
+            <View style={styles.statusRow} accessible={true} accessibilityLabel={`Recovery estimate: ${recoveryStatus.label}`}>
               <Text style={styles.rowLabel}>Recovery estimate</Text>
               <Text style={[styles.statusValue, { color: recoveryStatus.color }]}>
                 {recoveryStatus.label}
@@ -265,15 +265,25 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   // ── QR Mode ────────────────────────────────────────────────────────────────
   if (qrMode && qrChunks.length > 0) {
     const currentChunk = qrChunks[currentQrIndex] ?? '';
+    // Parse envelope to show chunk-level checksum info
+    let chunkMeta: { chunk_checksum?: string; payload_checksum?: string; total_chunks?: number } = {};
+    try { chunkMeta = JSON.parse(currentChunk); } catch { /* ignore */ }
+    const isLastChunk = currentQrIndex === qrChunks.length - 1;
+
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.qrContainer}>
-          <Text style={styles.qrTitle}>
+          <Text style={styles.qrTitle} accessibilityRole="header">
             QR Export — {currentQrIndex + 1} / {qrChunks.length}
           </Text>
           <Text style={styles.qrSubtitle}>
             Scan each QR code with the air-gapped machine
           </Text>
+          {chunkMeta.chunk_checksum && (
+            <Text style={styles.qrChecksumText}>
+              Chunk checksum: {chunkMeta.chunk_checksum}
+            </Text>
+          )}
           <View style={styles.qrBox}>
             <QRCode
               value={currentChunk}
@@ -282,11 +292,23 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
               backgroundColor="#fff"
             />
           </View>
+          {isLastChunk && chunkMeta.payload_checksum && (
+            <View style={styles.qrVerifyBox}>
+              <Text style={styles.qrVerifyTitle}>Reassembly verification</Text>
+              <Text style={styles.qrVerifyText}>
+                After scanning all {chunkMeta.total_chunks} chunks, verify the
+                concatenated payload checksum:
+              </Text>
+              <Text style={styles.qrVerifyHash}>{chunkMeta.payload_checksum}</Text>
+            </View>
+          )}
           <View style={styles.qrControls}>
             {currentQrIndex > 0 && (
               <TouchableOpacity
                 style={styles.qrNavButton}
                 onPress={() => setCurrentQrIndex((i) => i - 1)}
+                accessibilityRole="button"
+                accessibilityLabel={`Previous QR code, ${currentQrIndex} of ${qrChunks.length}`}
               >
                 <Text style={styles.qrNavText}>← Previous</Text>
               </TouchableOpacity>
@@ -295,6 +317,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
               <TouchableOpacity
                 style={[styles.qrNavButton, styles.qrNavPrimary]}
                 onPress={() => setCurrentQrIndex((i) => i + 1)}
+                accessibilityRole="button"
+                accessibilityLabel={`Next QR code, ${currentQrIndex + 2} of ${qrChunks.length}`}
               >
                 <Text style={styles.qrNavText}>Next →</Text>
               </TouchableOpacity>
@@ -302,6 +326,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
               <TouchableOpacity
                 style={[styles.qrNavButton, styles.qrNavPrimary]}
                 onPress={() => setQrMode(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Done with QR export"
               >
                 <Text style={styles.qrNavText}>Done ✓</Text>
               </TouchableOpacity>
@@ -419,6 +445,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={shareFile}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share capture file via iOS Files app"
                 >
                   <Text style={styles.primaryButtonText}>
                     📂 Share via Files app
@@ -432,6 +460,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
             <TouchableOpacity
               style={styles.primaryButton}
               onPress={handleExport}
+              accessibilityRole="button"
+              accessibilityLabel="Retry export"
             >
               <Text style={styles.primaryButtonText}>Retry Export</Text>
             </TouchableOpacity>
@@ -448,6 +478,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
           <TouchableOpacity
             style={styles.secondaryButton}
             onPress={startQrFallback}
+            accessibilityRole="button"
+            accessibilityLabel={`Show capture data as ${qrChunkCount} QR codes for optical transfer`}
           >
             <Text style={styles.secondaryButtonText}>
               📲 Show as QR codes ({qrChunkCount} screens)
@@ -459,6 +491,8 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
         <TouchableOpacity
           style={styles.ghostButton}
           onPress={() => navigation.navigate('Home')}
+          accessibilityRole="button"
+          accessibilityLabel="Start a new capture session"
         >
           <Text style={styles.ghostButtonText}>← New capture</Text>
         </TouchableOpacity>
@@ -471,7 +505,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <View style={styles.row}>
+    <View style={styles.row} accessible={true} accessibilityLabel={`${label}: ${value}`}>
       <Text style={styles.rowLabel}>{label}</Text>
       <Text style={styles.rowValue}>{value}</Text>
     </View>
@@ -709,6 +743,40 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   qrControls: {
+  qrChecksumText: {
+    color: Colors.textTertiary,
+    fontSize: Typography.xs ?? 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    marginBottom: Spacing.sm,
+  },
+  qrVerifyBox: {
+    backgroundColor: 'rgba(96,200,140,0.07)',
+    borderRadius: 8,
+    padding: Spacing.sm,
+    marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: 'rgba(96,200,140,0.18)',
+    width: '100%',
+    maxWidth: 320,
+  },
+  qrVerifyTitle: {
+    color: '#60c88c',
+    fontSize: Typography.xs ?? 10,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  qrVerifyText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs ?? 10,
+    lineHeight: (Typography.xs ?? 10) * 1.5,
+    marginBottom: 4,
+  },
+  qrVerifyHash: {
+    color: '#a0d4b8',
+    fontSize: Typography.xs ?? 10,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    textAlign: 'center',
+  },
     flexDirection: 'row',
     gap: Spacing.md,
   },

@@ -95,6 +95,19 @@ export const QR_EXPORT_CHUNK_BYTES = 2048 as const;
 export const MILESTONE_THRESHOLDS = [0.25, 0.5, 0.75, 1.0] as const;
 export type MilestoneThreshold = typeof MILESTONE_THRESHOLDS[number];
 
+// ── Feature Flags ─────────────────────────────────────────────────────────
+
+/**
+ * Feature flags for incomplete or experimental features.
+ * Set to `false` to hide the UI entry-point entirely.
+ * When `true`, the feature is shown but may fall back to a "coming soon" modal
+ * if the native bridge (TurboModule) is not linked in the current build.
+ */
+export const FEATURE_FLAGS = {
+  /** Video/GIF import via native frame extraction bridge (TurboModule stub) */
+  VIDEO_IMPORT: false,
+} as const;
+
 // ── App Version ───────────────────────────────────────────────────────────────
 
 export const APP_VERSION = '3.2.0' as const;
@@ -125,3 +138,18 @@ export const CLIPBOARD_WIPE_DELAY_MS = 45_000 as const;
  * the GIF is still being read without hammering the vibration motor.
  */
 export const PURR_HAPTIC_INTERVAL_MS = 300 as const;
+
+// ── Low-Light Detection ───────────────────────────────────────────────────────
+
+/**
+ * QR decode rate (frames/second) below which the low-light auto-nudge kicks in.
+ * A rate below 1 fps usually means poor visibility, glare, or out-of-focus.
+ */
+export const LOW_LIGHT_RATE_THRESHOLD = 1.0 as const;
+
+/**
+ * Milliseconds the decode rate must stay below LOW_LIGHT_RATE_THRESHOLD before
+ * the first coaching hint fires. Prevents false positives during brief pauses.
+ */
+export const LOW_LIGHT_DETECT_DELAY_MS = 2_000 as const;
+

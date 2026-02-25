@@ -1,12 +1,65 @@
-# 📱 Mobile Bridge Architecture
+# 📱 Mobile App Architecture
 
 > **Principle:** The phone is a **dumb scanner** — it captures QR frames and
-> streams raw bytes to the CLI over a local channel.  **Zero crypto runs on the
+> exports them as JSON for USB/ADB retrieval.  **Zero crypto runs on the
 > device.**
 
 ---
 
-## Overview
+## Current Mode: Local JSON Export (v3.2)
+
+The mobile app's primary (and currently only active) workflow is fully offline
+JSON export. No network, no bridge server, no WebSocket.
+
+```
+┌──────────────┐        USB / ADB pull           ┌──────────────────┐
+│  Mobile App  │  ──────────────────────────────► │  Desktop CLI     │
+│  (React      │  meow-capture-*.json (Downloads) │  (Python)        │
+│   Native)    │                                   │                  │
+│              │                                   │  → decode_gif()  │
+└──────┬───────┘                                   └────────┬─────────┘
+       │                                                    │
+   Camera +                                           Fountain decode
+   QR scan                                            + AES-256-GCM
+   (on device)                                        (on workstation)
+```
+
+### Local Export Data Flow
+
+1. **Phone** opens camera → detects animated GIF displayed on air-gapped screen.
+2. Each frame is decoded to raw QR bytes on-device (using `react-native-vision-camera`).
+3. Frames are collected in memory by `useCapture` (indices + base64 payloads).
+4. User taps **Export** → biometric gate (if available) → JSON written to Downloads.
+5. User retrieves file via **USB/ADB** (`adb pull`) or **iOS Files/AirDrop**.
+6. Desktop CLI reassembles fountain-coded stream → decrypt → verify.
+
+### Fallback: QR Reverse-Optical Export
+
+If USB is unavailable, ExportScreen can display the captured JSON as a series
+of QR codes for the desktop to scan back (reverse optical transfer).
+
+### Security Boundaries (Local Mode)
+
+| Boundary | Trust | Notes |
+|----------|-------|-------|
+| Phone ↔ air-gapped screen | Optical | Camera captures QR codes off screen |
+| Phone → Desktop (USB) | Physical transfer | JSON file, no live connection |
+| Phone storage | Untrusted | Phone never sees plaintext, keys, or passwords |
+| Clipboard | Time-limited | ADB commands auto-wiped after 45 s |
+
+**Key invariant:** The phone *never* receives the password, derived key, or
+plaintext.  If the phone is compromised, the attacker gains only the same
+ciphertext visible on the air-gapped screen.
+
+---
+
+## Future Mode: WebSocket Bridge (Optional / Advanced)
+
+> **Status:** Not yet implemented. Bridge server and protocol are designed but
+> not wired into the mobile app. See `bridge/` for reference implementations.
+
+For real-time streaming without USB, a future mode will support a local
+WebSocket bridge between the phone and a workstation on the same LAN or USB.
 
 ```
 ┌──────────────┐          JSON / WebSocket           ┌──────────────────┐
@@ -21,41 +74,9 @@
    (on device)                                           (on workstation)
 ```
 
-### Data Flow
-
-1. **Phone** opens camera → detects animated GIF displayed on air-gapped screen.
-2. Each frame is decoded to raw QR bytes on-device (using the phone camera's
-   built-in QR engine or `react-native-vision-camera`).
-3. Raw QR bytes are wrapped in a thin JSON envelope and sent to the
-   **meow-bridge** CLI server over:
-   - **Wi-Fi** — WebSocket on `ws://localhost:9999` (phone and workstation on
-     same LAN), or
-   - **USB** — ADB port-forward / Lightning relay piping stdin.
-4. The CLI reassembles frames into the fountain-coded stream and runs the
-   standard `decode_gif()` pipeline (Argon2id → AES-GCM → decompress →
-   verify SHA-256).
-5. CLI streams progress / status messages back to the phone for UI feedback.
-
-### Security Boundaries
-
-| Boundary | Trust | Notes |
-|----------|-------|-------|
-| Phone ↔ air-gapped screen | Optical | Camera captures QR codes off screen |
-| Phone ↔ CLI (LAN/USB) | Local transport | No secrets traverse this channel — only raw QR bytes |
-| CLI workstation | Trusted | All crypto, key derivation, decryption happen here |
-| Phone storage | Untrusted | Phone never sees plaintext, keys, or passwords |
-
-**Key invariant:** The phone *never* receives the password, derived key, or
-plaintext.  If the phone is compromised, the attacker gains only the same
-ciphertext visible on the air-gapped screen.
-
----
-
-## Wire Protocol (JSON-over-WebSocket)
+### Wire Protocol (JSON-over-WebSocket)
 
 All messages are UTF-8 JSON, one message per WebSocket frame.
-
-### Phone → CLI Messages
 
 #### `scan_start`
 Sent once when the user begins scanning.
@@ -97,9 +118,9 @@ Sent when the user stops scanning (or all frames received).
 }
 ```
 
-### CLI → Phone Messages
+#### CLI → Phone Messages
 
-#### `ack`
+##### `ack`
 Sent after each `frame` is received and validated.
 
 ```json
@@ -111,7 +132,7 @@ Sent after each `frame` is received and validated.
 }
 ```
 
-#### `progress`
+##### `progress`
 Sent periodically during decoding to update the phone UI.
 
 ```json
@@ -125,7 +146,7 @@ Sent periodically during decoding to update the phone UI.
 }
 ```
 
-#### `result`
+##### `result`
 Sent when decoding completes or fails.
 
 ```json
@@ -139,7 +160,7 @@ Sent when decoding completes or fails.
 }
 ```
 
-#### `error`
+##### `error`
 Sent on fatal errors.
 
 ```json
@@ -150,7 +171,7 @@ Sent on fatal errors.
 }
 ```
 
-### Error Codes
+#### Error Codes
 
 | Code | Meaning |
 |------|---------|
@@ -162,9 +183,9 @@ Sent on fatal errors.
 
 ---
 
-## CLI Bridge Server (`meow-bridge`)
+### CLI Bridge Server (`meow-bridge`)
 
-### Usage
+#### Usage
 
 ```bash
 # Start bridge server (waits for phone connection)
@@ -174,7 +195,7 @@ meow-bridge --output secret.pdf --password "hunter2" --port 9999
 meow-bridge --output secret.pdf -p "hunter2" --verbose --tamper-report
 ```
 
-### Implementation Notes
+#### Implementation Notes
 
 The bridge server is intentionally minimal:
 
@@ -189,9 +210,9 @@ The server does **not** persist frames to disk (to minimize attack surface).
 
 ---
 
-## React Native Scanner Component
+### React Native Scanner Component (Bridge Mode)
 
-### Dependencies
+#### Dependencies
 
 ```json
 {
@@ -200,7 +221,7 @@ The server does **not** persist frames to disk (to minimize attack surface).
 }
 ```
 
-### Minimal Component API
+#### Minimal Component API
 
 ```tsx
 <MeowScanner
@@ -211,7 +232,7 @@ The server does **not** persist frames to disk (to minimize attack surface).
 />
 ```
 
-### Component Responsibilities
+#### Component Responsibilities
 
 1. Request camera permission
 2. Open camera with QR code detection enabled
@@ -220,7 +241,7 @@ The server does **not** persist frames to disk (to minimize attack surface).
 5. Display progress from `progress` messages
 6. Show result when `result` message arrives
 
-### What the Component Does NOT Do
+#### What the Component Does NOT Do
 
 - **No crypto** — no key derivation, no decryption
 - **No password handling** — password is entered on the CLI side
@@ -229,9 +250,9 @@ The server does **not** persist frames to disk (to minimize attack surface).
 
 ---
 
-## Transport Options
+### Transport Options (Bridge Mode)
 
-### Option A: Wi-Fi (Default)
+#### Option A: Wi-Fi (Default)
 
 Phone and workstation on same LAN. Phone connects to
 `ws://<workstation-ip>:9999`.
@@ -239,7 +260,7 @@ Phone and workstation on same LAN. Phone connects to
 **Pros:** Wireless, easy setup.
 **Cons:** Requires same network; mDNS/Bonjour can simplify discovery.
 
-### Option B: USB (Higher Security)
+#### Option B: USB (Higher Security)
 
 Use ADB (Android) or a Lightning relay (iOS) to forward a local port:
 
@@ -269,7 +290,7 @@ AppNavigator (native-stack)
 │   ├── CalibrationWizard        ← 5-step preflight (permissions, QR test, light, brightness, thermal)
 │   ├── DiagnosticsPanel         ← hidden long-press panel (JS lag, heap, FPS, thermal heuristic)
 │   ├── RequestQR modal          ← Camera + useCodeScanner to scan request from sender screen
-│   └── [import video button]    ← useVideoImport (TurboModule stub)
+│   └── [import video button]    ← useVideoImport (feature-flagged, TurboModule stub)
 ├── CaptureScreen
 │   ├── CameraPreview            ← pinch zoom, exposure nudge, shake detection
 │   ├── CatWhiskerHUD            ← animated progress ring (Reanimated 3)
@@ -287,7 +308,7 @@ AppNavigator (native-stack)
 | `useSessionManager` | Fountain-decode state machine; exposes `decodeRate`, `duplicateRate` |
 | `useCapture` | `useReducer`-based capture state + MMKV checkpoint (indices only) |
 | `useSecurityMode` | MMKV-backed strict/convenience toggle |
-| `useVideoImport` | TurboModule bridge stub for local video frame extraction |
+| `useVideoImport` | TurboModule bridge stub for local video frame extraction (feature-flagged off) |
 
 ### New components in v3.2
 
@@ -338,3 +359,61 @@ mobile/
 3. **Multi-device fan-out** — multiple phones scan different portions
    (clowder mode)
 4. **Flutter / native alternatives** — port scanner to non-RN frameworks
+
+---
+
+## React Native New Architecture Readiness (Fabric + TurboModules)
+
+### Current State (RN 0.73.4, Old Architecture)
+
+The app currently uses the **Old Architecture** (Paper renderer + Bridge modules).
+Migration to the New Architecture (`newArchEnabled=true`) is tracked below.
+
+### How to Enable
+
+**Android** — `android/gradle.properties`:
+```properties
+newArchEnabled=true
+```
+
+**iOS** — `ios/Podfile` post-install:
+```ruby
+:fabric_enabled => true
+```
+
+### Dependency Compatibility Matrix
+
+| Dependency | New Arch Ready | Notes |
+|------------|:--------------:|-------|
+| `react-native-vision-camera` v4 | ✅ | Native Fabric renderer since v3 |
+| `react-native-reanimated` v3 | ✅ | Full TurboModule + Fabric support |
+| `react-native-gesture-handler` v2 | ✅ | Fabric-aware since 2.12 |
+| `react-native-mmkv` | ✅ | Pure JSI, no Bridge dependency |
+| `react-native-biometrics` | ⚠️ | Works but not yet a TurboModule — Bridge interop layer handles it |
+| `react-native-haptic-feedback` | ⚠️ | Bridge interop; consider `expo-haptics` TurboModule alternative |
+| `react-native-sensors` | ❌ | **Not New Arch compatible** — needs replacement with `expo-sensors` or a custom TurboModule |
+| `react-native-sound` | ⚠️ | Bridge interop; consider `expo-av` TurboModule alternative |
+| `react-native-svg` | ✅ | Fabric support since 15.0 |
+| `react-native-document-picker` | ⚠️ | Bridge interop — works under compatibility layer |
+| `react-native-fs` | ⚠️ | Bridge interop — consider `expo-file-system` for native TurboModule |
+| `react-native-safe-area-context` | ✅ | Full Fabric support |
+
+### Migration Steps
+
+1. **Enable `newArchEnabled=true`** in Android gradle.properties
+2. **Test all screens** — Paper→Fabric renderer change can cause layout shifts
+3. **Replace `react-native-sensors`** — highest-priority blocker:
+   - Option A: `expo-sensors` (TurboModule, drop-in replacement)
+   - Option B: Custom JSI accelerometer module (minimal surface area)
+4. **Verify Bridge interop** — modules marked ⚠️ should work via the interop layer
+   but may have minor timing differences
+5. **Performance benchmark** — measure camera pipeline latency before/after:
+   - Frame decode rate should stay ≥ 15 fps at 30 fps camera
+   - Gesture response (pinch zoom) should be < 16ms
+
+### Risk Assessment
+
+- **Low risk**: Vision Camera, Reanimated, Gesture Handler — already Fabric-native
+- **Medium risk**: MMKV (JSI adapter change), Biometrics, Sound (interop layer)
+- **High risk**: `react-native-sensors` — must be replaced before enabling New Arch
+- **Estimated effort**: 2-3 days for a developer familiar with the codebase

@@ -48,7 +48,7 @@ import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import type { CaptureRequest } from '../types/capture';
 import type { HomeScreenProps } from '../types/navigation';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
-import { DEFAULT_TIMEOUT_SECONDS } from '../constants/config';
+import { DEFAULT_TIMEOUT_SECONDS, FEATURE_FLAGS } from '../constants/config';
 import meowLogo from '../assets/meow-decoder-logo.png';
 import {
   readCaptureCheckpoint,
@@ -75,12 +75,32 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const device = useCameraDevice('back');
 
   // ── Video import hook ─────────────────────────────────────────────────────
-  const { importFromVideo, isImporting, importError, clearError: clearImportError } =
-    useVideoImport((_frames) => {
-      // Video import is informational for now — the native bridge stub surfaces
-      // a clear error message; when wired, frames would flow to a new session.
-      setError('Video import requires the native extraction bridge (see useVideoImport.ts)');
+  const [showVideoImportInfo, setShowVideoImportInfo] = useState(false);
+
+  const { importFromVideo, isImporting, importError, clearError: clearImportError, isNativeBridgeAvailable } =
+    useVideoImport((frames) => {
+      // When the native bridge is wired, frames flow directly to a new session.
+      // For now, show a success message with the count.
+      ReactNativeHapticFeedback.trigger('notificationSuccess', {
+        enableVibrateFallback: true,
+        ignoreAndroidSystemSettings: false,
+      });
+      setError(null);
+      // TODO: Create a CaptureRequest from the extracted frames and navigate.
+      // For now, this path is blocked by the native bridge check.
     });
+
+  /**
+   * Graceful gating: if the native bridge is not linked, show a friendly
+   * "Coming Soon" modal with a manual workaround instead of an opaque error.
+   */
+  const handleVideoImport = useCallback(() => {
+    if (!isNativeBridgeAvailable) {
+      setShowVideoImportInfo(true);
+      return;
+    }
+    importFromVideo();
+  }, [isNativeBridgeAvailable, importFromVideo]);
 
   // Fold video import error into the shared error banner
   React.useEffect(() => {
@@ -229,9 +249,14 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={styles.headerRow}>
-          <Image source={meowLogo} style={styles.headerLogo} resizeMode="contain" />
+          <Image
+            source={meowLogo}
+            style={styles.headerLogo}
+            resizeMode="contain"
+            accessible={false}
+          />
           <View style={styles.headerTitleBlock}>
-            <Text style={styles.title}>Meow Capture</Text>
+            <Text style={styles.title} accessibilityRole="header">Meow Capture</Text>
             <Text style={styles.subtitle}>Secure QR Capture · Air-Gap Transfer</Text>
           </View>
           <TouchableOpacity
@@ -263,7 +288,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           visible={showDiagnostics}
           onDismiss={() => setShowDiagnostics(false)}
           {...(interruptedSession?.session_id !== undefined ? { sessionId: interruptedSession.session_id } : {})}
-          framesCaptured={interruptedSession?.frame_indices.length ?? 0}
+          framesCaptured={interruptedSession?.frame_count ?? 0}
         />
 
         {/* Interrupted session resume banner (enriched) */}
@@ -271,7 +296,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           const ageMs = Date.now() - interruptedSession.saved_at;
           const ageMins = Math.round(ageMs / 60_000);
           const shortId = interruptedSession.session_id.slice(0, 8);
-          const frameCount = interruptedSession.frame_indices.length;
+          const frameCount = interruptedSession.frame_count;
           return (
             <View
               style={styles.resumeBanner}
@@ -284,9 +309,27 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               </Text>
               <Text style={styles.resumeSecurityNote}>
                 Frame payloads were not saved — only indices are kept on disk as a security invariant.
-                Start a fresh session with the same request to recapture.
+                {interruptedSession.request
+                  ? ' The original capture request is available — tap Re-open to start a fresh capture with the same session parameters.'
+                  : ' Start a fresh session with the same request to recapture.'}
               </Text>
               <View style={styles.resumeActions}>
+                {interruptedSession.request && (
+                  <TouchableOpacity
+                    style={styles.resumeReopenBtn}
+                    onPress={() => {
+                      const req = interruptedSession.request!;
+                      clearCaptureCheckpoint();
+                      setInterruptedSession(null);
+                      ReactNativeHapticFeedback.trigger('impactMedium', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
+                      navigateToCapture(req);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Re-open the interrupted session with the same capture request"
+                  >
+                    <Text style={styles.resumeReopenText}>▶ Re-open session</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
                   style={styles.resumeRestartBtn}
                   onPress={() => {
@@ -329,7 +372,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
 
         {/* Load from file */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Load Capture Request</Text>
+          <Text style={styles.cardTitle} accessibilityRole="header">Load Capture Request</Text>
           <Text style={styles.cardBody}>
             Select the JSON file generated by{' '}
             <Text style={styles.code}>meow-decoder encode</Text>
@@ -339,6 +382,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             onPress={loadFromFile}
             disabled={loading}
             accessibilityRole="button"
+            accessibilityLabel="Load JSON capture request file"
+            accessibilityHint="Opens file picker to select a JSON capture request"
           >
             {loading ? (
               <ActivityIndicator color={Colors.textPrimary} />
@@ -358,20 +403,23 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               <Text style={styles.altButtonText}>📷 Scan Request QR</Text>
             </TouchableOpacity>
 
-            {/* ── Import Video / GIF (item 7) ── */}
-            <TouchableOpacity
-              style={styles.altButton}
-              onPress={importFromVideo}
-              disabled={isImporting}
-              accessibilityRole="button"
-              accessibilityLabel="Import a previously recorded video or GIF file"
-            >
-              {isImporting ? (
-                <ActivityIndicator color={Colors.catOrange} size="small" />
-              ) : (
-                <Text style={styles.altButtonText}>🎞 Import Video</Text>
-              )}
-            </TouchableOpacity>
+            {/* ── Import Video / GIF — hidden when feature flag is off ── */}
+            {FEATURE_FLAGS.VIDEO_IMPORT && (
+              <TouchableOpacity
+                style={styles.altButton}
+                onPress={handleVideoImport}
+                disabled={isImporting}
+                accessibilityRole="button"
+                accessibilityLabel="Import a previously recorded video or GIF file"
+                accessibilityHint="Opens a file picker to select a video or animated GIF"
+              >
+                {isImporting ? (
+                  <ActivityIndicator color={Colors.catOrange} size="small" />
+                ) : (
+                  <Text style={styles.altButtonText}>🎞 Import Video</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
@@ -381,9 +429,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           animationType="slide"
           onRequestClose={() => setScanningRequest(false)}
           statusBarTranslucent
+          accessibilityViewIsModal
         >
           <View style={styles.qrModalContainer}>
-            <Text style={styles.qrModalTitle}>📷 Scan Capture Request</Text>
+            <Text style={styles.qrModalTitle} accessibilityRole="header">📷 Scan Capture Request</Text>
             <Text style={styles.qrModalSubtitle}>
               Point at the QR code displayed by{' '}
               <Text style={styles.code}>meow-encode --show-request-qr</Text>
@@ -413,6 +462,39 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           </View>
         </Modal>
 
+        {/* ── Video Import Info modal (F1 — graceful fallback) ── */}
+        <Modal
+          visible={showVideoImportInfo}
+          animationType="fade"
+          transparent
+          onRequestClose={() => setShowVideoImportInfo(false)}
+          accessibilityViewIsModal
+        >
+          <View style={styles.videoInfoOverlay}>
+            <View style={styles.videoInfoCard}>
+              <Text style={styles.videoInfoTitle} accessibilityRole="header">
+                🎞 Video Import — Coming Soon
+              </Text>
+              <Text style={styles.videoInfoBody}>
+                Direct video import requires a native bridge module that is not yet linked in this build.
+              </Text>
+              <Text style={[styles.videoInfoBody, { marginTop: Spacing.sm }]}>
+                <Text style={{ fontWeight: Typography.bold as any }}>Workaround:</Text> Record the animated GIF
+                on your phone screen, then use the <Text style={styles.code}>Scan Request QR</Text> button to capture
+                frames live from the camera — the fountain codes tolerate up to 33% frame loss.
+              </Text>
+              <TouchableOpacity
+                style={styles.videoInfoDismiss}
+                onPress={() => setShowVideoImportInfo(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Dismiss video import info"
+              >
+                <Text style={styles.videoInfoDismissText}>Got it</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </Modal>
+
         {/* Divider */}
         <View style={styles.divider}>
           <View style={styles.dividerLine} />
@@ -424,6 +506,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         <TouchableOpacity
           style={styles.manualToggle}
           onPress={() => setManualMode((v) => !v)}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: manualMode }}
+          accessibilityLabel={manualMode ? 'Hide manual entry form' : 'Show manual entry form'}
         >
           <Text style={styles.manualToggleText}>
             {manualMode ? '▲ Hide manual entry' : '▼ Enter session details'}
@@ -458,6 +543,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               style={styles.primaryButton}
               onPress={startManual}
               accessibilityRole="button"
+              accessibilityLabel="Start capture with manual session details"
             >
               <Text style={styles.primaryButtonText}>🐾 Start Capture</Text>
             </TouchableOpacity>
@@ -483,10 +569,11 @@ function LabelledInput({
 }: { label: string } & React.ComponentProps<typeof TextInput>) {
   return (
     <View style={inputStyles.container}>
-      <Text style={inputStyles.label}>{label}</Text>
+      <Text style={inputStyles.label} accessibilityRole="text">{label}</Text>
       <TextInput
         style={inputStyles.input}
         placeholderTextColor={Colors.textDisabled}
+        accessibilityLabel={label}
         {...props}
       />
     </View>
@@ -662,6 +749,21 @@ const styles = StyleSheet.create({
   resumeActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
+    flexWrap: 'wrap',
+  },
+  resumeReopenBtn: {
+    flex: 2,
+    backgroundColor: Colors.catOrange,
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.xs,
+    alignItems: 'center',
+    minWidth: '100%',
+    marginBottom: Spacing.xxs,
+  },
+  resumeReopenText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.sm,
+    fontWeight: Typography.bold,
   },
   resumeRestartBtn: {
     flex: 1,
@@ -755,6 +857,48 @@ const styles = StyleSheet.create({
     borderRadius: Radius.full,
   },
   qrCancelText: {
+    color: Colors.textPrimary,
+    fontSize: Typography.md,
+    fontWeight: Typography.bold,
+  },
+  // ── Video Import Info modal (F1) ──────────────────────────────────────────
+  videoInfoOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+  },
+  videoInfoCard: {
+    backgroundColor: Colors.backgroundSecondary,
+    borderRadius: Radius.lg,
+    padding: Spacing.xl,
+    width: '100%',
+    maxWidth: 380,
+    ...Shadows.subtle,
+  },
+  videoInfoTitle: {
+    color: Colors.catOrange,
+    fontSize: Typography.lg,
+    fontWeight: Typography.bold,
+    marginBottom: Spacing.md,
+    textAlign: 'center',
+  },
+  videoInfoBody: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+    lineHeight: Typography.sm * 1.5,
+  },
+  videoInfoDismiss: {
+    backgroundColor: Colors.catOrange,
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+    marginTop: Spacing.lg,
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  videoInfoDismissText: {
     color: Colors.textPrimary,
     fontSize: Typography.md,
     fontWeight: Typography.bold,

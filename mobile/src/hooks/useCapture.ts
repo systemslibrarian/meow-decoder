@@ -42,8 +42,17 @@ const CHECKPOINT_KEY = 'active_session';
 
 export type SessionCheckpoint = {
   session_id: string;
-  frame_indices: number[];
+  frame_count: number;
   saved_at: number;  // Unix ms for staleness check
+  /** Original capture request metadata (no secrets, no payload data).
+   *  Stored so the resume banner can offer to re-open the same session
+   *  without requiring the user to re-load the JSON file. */
+  request?: {
+    action: 'capture';
+    session_id: string;
+    expected_frames: number;
+    timeout_seconds: number;
+  };
 };
 
 /** Read the last persisted checkpoint (indices only) — safe to call from any screen. */
@@ -151,26 +160,24 @@ function captureReducer(state: State, action: Action): State {
       if (state.status !== 'CAPTURING') return state;
       return { ...state, status: 'TIMED_OUT' };
 
-    case 'CANCEL':
-      // SECURITY NOTE: JS `String` values are immutable and GC-managed.
-      // Frame payload strings held in `state.frames` cannot be zero-filled
-      // in-process (no raw heap access in Hermes/V8). Security relies on:
-      //   • GC releasing all Map references on the next collection cycle
-      //   • No persistence — frame data was never written to disk
-      //   • OS-level memory reclaim (Hermes does not mmap frame strings)
-      //   • FLAG_SECURE / privacy overlay blocking exfiltration via UI
-      // This is architecturally equivalent to Signal's in-process string model.
+    case 'CANCEL': {
+      // SECURITY: Best-effort dereference — frame payload strings are immutable
+      // in JS (no zero-fill possible). Explicit clear() drops Map references
+      // before GC, limiting the window for memory-scrape attacks.
+      state.frames.clear();
       return {
         ...initialState,
         status: 'IDLE',
       };
+    }
 
     case 'ERROR':
       return { ...state, status: 'ERROR', error: action.payload };
 
     case 'RESET':
       // Full reset — clears all frame data from memory.
-      // See CANCEL case for zeroization constraints and security rationale.
+      // Best-effort dereference: clear Map to drop references before GC.
+      state.frames.clear();
       return { ...initialState };
 
     default:
@@ -223,8 +230,14 @@ export function useCapture(): UseCaptureReturn {
       checkpointDebounceRef.current = null;
       const checkpoint: SessionCheckpoint = {
         session_id: state.request!.session_id,
-        frame_indices: Array.from(state.frames.keys()),
+        frame_count: state.frames.size,
         saved_at: Date.now(),
+        request: {
+          action: state.request!.action,
+          session_id: state.request!.session_id,
+          expected_frames: state.request!.expected_frames,
+          timeout_seconds: state.request!.timeout_seconds,
+        },
       };
       checkpointStorage.set(CHECKPOINT_KEY, JSON.stringify(checkpoint));
     }, 200);
@@ -248,11 +261,19 @@ export function useCapture(): UseCaptureReturn {
   }, [state.status]);
 
   // ── Session timeout management ────────────────────────────────────────────
+  // Uses a hard deadline based on startedAt so pause/resume cycles cannot
+  // extend the session beyond the original timeout_seconds window.
   useEffect(() => {
-    if (state.status === 'CAPTURING' && state.request?.timeout_seconds) {
+    if (state.status === 'CAPTURING' && state.request?.timeout_seconds && state.startedAt) {
+      const deadline = state.startedAt + state.request.timeout_seconds * 1_000;
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) {
+        dispatch({ type: 'TIMEOUT' });
+        return;
+      }
       timeoutRef.current = setTimeout(() => {
         dispatch({ type: 'TIMEOUT' });
-      }, state.request.timeout_seconds * 1_000);
+      }, remaining);
     }
     return () => {
       if (timeoutRef.current !== null) {
@@ -260,7 +281,7 @@ export function useCapture(): UseCaptureReturn {
         timeoutRef.current = null;
       }
     };
-  }, [state.status, state.request]);
+  }, [state.status, state.request, state.startedAt]);
 
   // ── Security: clear frames when app goes to background ───────────────────
   useEffect(() => {

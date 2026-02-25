@@ -5,10 +5,16 @@
 
   SECURITY NOTES:
   - NSCameraUsageDescription: Required, explains why camera access is needed.
+  - NSFaceIDUsageDescription: Required for biometric export gate on Face ID devices.
   - NO NSMicrophoneUsageDescription: Microphone access is never requested.
   - NO NSLocationWhenInUseUsageDescription: Location is never accessed.
   - NO NSPhotoLibraryUsageDescription: Photo library is never accessed.
   - No App Transport Security exceptions — no HTTP/network access at all.
+
+  iOS LIMITATION: Unlike Android's FLAG_SECURE, iOS does not offer a reliable
+  API to block screenshots or screen recording at the app level. The app uses
+  an app-backgrounding overlay (useSecureScreen) for partial mitigation, but
+  users should be aware that iOS screen recording can capture displayed QR data.
 
   The app operates in a no-network, no-microphone, camera-only mode per the air-gap
   security model. All captured data stays on device until explicitly exported to Files.
@@ -31,7 +37,7 @@
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.0</string>
+    <string>3.2.0</string>
     <key>CFBundleSignature</key>
     <string>????</string>
     <key>CFBundleVersion</key>
@@ -40,6 +46,10 @@
     <!-- Camera permission — required for QR scanning -->
     <key>NSCameraUsageDescription</key>
     <string>Meow Capture uses the camera to scan animated QR codes from an air-gapped computer. No images are stored or transmitted.</string>
+
+    <!-- Face ID — used as a biometric gate before exporting captured data to device storage -->
+    <key>NSFaceIDUsageDescription</key>
+    <string>Meow Capture uses Face ID to confirm export of captured data to device storage. Your biometric data never leaves the device.</string>
 
     <!-- Supported orientations — lock to portrait for stable scanning posture -->
     <key>UISupportedInterfaceOrientations</key>
