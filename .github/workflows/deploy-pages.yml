@@ -56,6 +56,8 @@ jobs:
       - name: Prepare Pages site
         run: |
           mkdir -p _site
+          # Copy root index.html
+          cp index.html _site/
           # Copy web demo and examples
           cp -r examples/ _site/examples/
           cp -r web_demo/ _site/web_demo/
