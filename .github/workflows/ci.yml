@@ -152,7 +152,7 @@ jobs:
             --cov=meow_decoder \
             --cov-config=.coveragerc \
             --cov-report=term-missing \
-            --cov-fail-under=70 \
+            --cov-fail-under=80 \
             -q --no-header \
             tests/test_adversarial.py \
             tests/test_asymmetric_rekey.py \
@@ -287,7 +287,7 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    continue-on-error: true  # Allow CI to proceed even if this gate fails
+    continue-on-error: true # Allow CI to proceed even if this gate fails
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -340,10 +340,10 @@ jobs:
   cat-mode-error-test:
     name: "Gate 3: Cat Mode Error Tests"
     needs: cat-mode-golden-test
-    if: always()  # Run even if Gate 2 fails
+    if: always() # Run even if Gate 2 fails
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    continue-on-error: true  # Allow CI to proceed even if this gate fails
+    continue-on-error: true # Allow CI to proceed even if this gate fails
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -421,10 +421,10 @@ jobs:
   cat-mode-cross-browser:
     name: "Gate 4: Cross-Browser Tests"
     needs: cat-mode-golden-test
-    if: always()  # Run even if Gate 2 fails
+    if: always() # Run even if Gate 2 fails
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    continue-on-error: true  # Allow CI to proceed even if this gate fails
+    continue-on-error: true # Allow CI to proceed even if this gate fails
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -519,7 +519,7 @@ jobs:
           pytest tests/ -m "security or crypto or adversarial" \
             --override-ini="addopts=" \
             --cov --cov-config=.coveragerc-security \
-            --cov-fail-under=80 \
+            --cov-fail-under=85 \
             --cov-report=term-missing \
             -q --no-header
 

@@ -17,20 +17,23 @@ Invariants are verified through:
 4. **Code review** - Manual verification
 5. **Formal proofs** (where available) - Machine-checked mathematical proofs
 
-### Formal Verification Status (v1.2 — post audit fixes F-01 through F-10)
+### Formal Verification Status (v1.3 — post audit re-assessment 2026-02-25)
 
-> Last audited: 2026-02-24 — branch `main` (`3289c0a`).  All rows marked ✅
-> are CI-gated on every push and pull-request that touches the relevant source
-> (see `.github/workflows/formal-verification.yml`).
+> Last audited: 2026-02-25 — branch `main`.
+> Rows marked ✅ are CI-gated with real tool invocation on every push/PR.
+> Rows marked ⚠️ STRUCTURAL have proof blocks present in source but are
+> NOT machine-checked by Z3 in CI — only structural regression tracking
+> (proof fn / spec fn counts). Run Verus locally for full Z3 verification.
+> See `formal/Dockerfile.verus` for details.
 
 | Property set | Tool | CI-gated? | Artefact |
 |---|---|---|---|
-| Guard-page memory safety — POSIX (GB-001–GB-008) | Verus | ✅ | `verus_guarded_buffer.rs` |
-| Guard-page memory safety — Windows VirtualProtect (WG-001–WG-007) | Verus | ✅ | `verus_windows_guard.rs` |
-| AEAD nonce uniqueness, auth-gated plaintext, key zeroization, no-bypass (AEAD-001–004) | Verus | ✅ | `aead_wrapper.rs` |
-| AEAD INT-CTXT, AAD binding, fail-closed, ratchet independence (AEAD-005–012) | Verus | ✅ | `aead_wrapper.rs` ⚠️ abstract (see note) |
-| KDF parameter security, HKDF domain separation (KDF-001–004) | Verus | ✅ | `verus_kdf_proofs.rs` |
-| Shamir reconstruction constant-time (CT-001–004) | Verus | ✅ | `verus_kdf_proofs.rs` |
+| Guard-page memory safety — POSIX (GB-001–GB-008) | Verus | ⚠️ STRUCTURAL | `verus_guarded_buffer.rs` |
+| Guard-page memory safety — Windows VirtualProtect (WG-001–WG-007) | Verus | ⚠️ STRUCTURAL | `verus_windows_guard.rs` |
+| AEAD nonce uniqueness, auth-gated plaintext, key zeroization, no-bypass (AEAD-001–004) | Verus | ⚠️ STRUCTURAL | `aead_wrapper.rs` |
+| AEAD INT-CTXT, AAD binding, fail-closed, ratchet independence (AEAD-005–012) | Verus | ⚠️ STRUCTURAL | `aead_wrapper.rs` ⚠️ abstract (see note) |
+| KDF parameter security, HKDF domain separation (KDF-001–004) | Verus | ⚠️ STRUCTURAL | `verus_kdf_proofs.rs` |
+| Shamir reconstruction constant-time (CT-001–004) | Verus | ⚠️ STRUCTURAL | `verus_kdf_proofs.rs` |
 | Protocol state machine (auth-then-output, replay, duress) | TLA+ | ✅ | `MeowEncode.tla`, `MeowFountain.tla`, `MeowStreaming.tla` |
 | Ratchet index monotonicity, skip-key DoS, key uniqueness | TLA+ | ✅ | `MeowRatchet.tla` |
 | Constant-time execution model (jitter-tolerant ≤1 · Jitter) | TLA+ | ✅ | `TimingEqualizer.tla` |
@@ -56,12 +59,17 @@ Invariants are verified through:
 | Shamir threshold security (field axiom) | Lean 4 | ✅ | `ShamirSecretSharing.lean` (1 approved axiom) |
 | HKDF domain separation (10 theorems) | Lean 4 | ✅ | `DomainSeparation.lean` |
 
+> **Note on Verus (⚠️ STRUCTURAL rows):** The CI job `formal-verification.yml` → `verus`
+> performs grep-based regression tracking of `proof fn` / `spec fn` declarations — it does
+> NOT invoke the Verus/Z3 SMT solver. The `verus!{}` blocks in source are syntactically
+> present but are only machine-checked when run locally with the Verus toolchain.
+> To run full Z3 verification: `cargo install verus && cd crypto_core && verus src/aead_wrapper.rs`
+>
 > **Note on AEAD-005–012:** The Verus lemmas are *abstract* — preconditions directly
 > subsume postconditions.  They verify the spec is internally consistent but do not
 > check that the `aes-gcm` crate implementation satisfies INT-CTXT.  True
 > implementation-level INT-CTXT proof requires a GF(2¹²⁸) GHASH model in Verus
 > (open research; documented as approved limitation RL-1 in `formal-10x-audit.md`).
-
 ---
 
 ## Critical Invariants

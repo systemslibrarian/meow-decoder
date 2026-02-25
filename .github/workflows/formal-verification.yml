@@ -715,7 +715,7 @@ jobs:
           retention-days: 30
 
   verus:
-    name: Verus Implementation Proofs (Docker)
+    name: Verus Structural Regression Check (NOT Z3)
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -726,26 +726,24 @@ jobs:
       - name: Build Verus Docker image
         run: docker build -f formal/Dockerfile.verus -t meow-verus .
 
-      - name: Run Verus proofs
+      - name: Run Verus structural regression check
         run: |
           echo "============================================"
-          echo "🟢 Verus Implementation Proofs (Docker)"
+          echo "🔍 Verus Structural Regression Check"
+          echo "   (counts proof fn / spec fn — does NOT invoke Z3)"
           echo "============================================"
           docker run --rm meow-verus 2>&1 | tee verus_output.txt
 
-          if grep -q "verification results:: verified:" verus_output.txt; then
-            VERIFIED=$(grep "verification results" verus_output.txt | grep -oP 'verified: \K\d+')
-            ERRORS=$(grep "verification results" verus_output.txt | grep -oP 'errors: \K\d+')
-            echo "Verified: $VERIFIED  Errors: $ERRORS"
-            if [ "$ERRORS" -gt 0 ]; then
-              echo "❌ Verus found $ERRORS verification errors"
+          if grep -q "structural inventory:: proof_spec_fn_count:" verus_output.txt; then
+            COUNT=$(grep "structural inventory" verus_output.txt | grep -oP 'proof_spec_fn_count: \K\d+')
+            echo "Proof/spec fn declarations found: $COUNT"
+            if [ "$COUNT" -lt 1 ]; then
+              echo "❌ Regression: Verus proof blocks appear to have been deleted"
               exit 1
             fi
-            echo "✅ Verus: all $VERIFIED properties verified"
+            echo "✅ Structural regression check passed ($COUNT declarations)"
           else
-            echo "❌ Could not parse Verus output — Verus may have failed to run or output format changed"
-            echo "   Treating as a verification failure (fail-closed). Check the verus-results artifact."
-            echo "   To investigate: docker run --rm meow-verus 2>&1"
+            echo "❌ Could not parse structural check output"
             exit 1
           fi
 

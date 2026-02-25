@@ -1,12 +1,12 @@
 # 🔬 Meow Decoder Fuzzing
 
-This directory contains fuzzing harnesses for Meow Decoder, using [AFL++](https://aflplus.plus/) via Python bindings ([atheris](https://github.com/google/atheris)).
+This directory contains **21 Python Atheris fuzzing harnesses** + 1 AFL++ target for Meow Decoder, using [AFL++](https://aflplus.plus/) via Python bindings ([atheris](https://github.com/google/atheris)).
 
 Fuzzing helps identify edge cases, parsing errors, and potential crashes that standard unit tests might miss.
 
 ## Test Coverage
 
-The fuzzing infrastructure includes **1362 lines of comprehensive tests** (`tests/test_fuzz_targets.py`) with **95%+ code coverage**:
+The fuzzing infrastructure includes **1448 lines of comprehensive tests** (`tests/test_fuzz_targets.py`) with **95%+ code coverage**:
 
 | Test Class | Tests | Description |
 |------------|-------|-------------|
@@ -34,6 +34,9 @@ The fuzzing infrastructure includes **1362 lines of comprehensive tests** (`test
 | `fuzz_mouse_gesture.py` | NEW (10 fuzz functions) |
 | `fuzz_tamper_detection.py` | NEW (10 fuzz functions) |
 | `fuzz_adversarial_stego.py` | NEW (10 fuzz functions, differential) |
+| `fuzz_x25519_fs.py` | NEW (4 fuzz functions, DH key agreement) |
+| `fuzz_timelock_expiry.py` | NEW (5 fuzz functions, time-lock + expiry) |
+| `fuzz_forensic_cleanup.py` | NEW (2 fuzz functions, artifact cleanup) |
 | `seed_corpus.py` | 100% |
 | `afl_fuzz_manifest.py` | 100% |
 
@@ -115,6 +118,30 @@ Differential fuzzing of adversarial carrier noise generators. Verifies sensor/te
 python3 fuzz/fuzz_adversarial_stego.py -runs=100000
 ```
 
+### 8. Fuzz X25519 Forward Secrecy
+
+Tests X25519 key agreement, ephemeral key derivation, HKDF domain separation, and shared-secret computation with malformed keys.
+
+```bash
+python3 fuzz/fuzz_x25519_fs.py -runs=100000
+```
+
+### 9. Fuzz Time-Lock Duress & Content Expiry
+
+Tests time-lock puzzle construction, duress trigger timing, content expiry enforcement, and edge cases (zero TTL, overflow timestamps).
+
+```bash
+python3 fuzz/fuzz_timelock_expiry.py -runs=100000
+```
+
+### 10. Fuzz Forensic Cleanup
+
+Tests artifact cleanup routines to ensure no sensitive data persists after file/memory wipe operations.
+
+```bash
+python3 fuzz/fuzz_forensic_cleanup.py -runs=100000
+```
+
 ## Corpus Generation
 
 The `seed_corpus.py` script generates valid seed inputs to help the fuzzer start from a good state.
@@ -165,15 +192,16 @@ also covered by **real `verus!{}` proofs** in `crypto_core/src/verus_guarded_buf
 | Underflow → lower guard fault | edge-case allocations | GB-003 `lemma_underflow_hits_lower_guard` |
 | Zeroize-on-drop | double-free harness | GB-007 `lemma_zeroize_erases_data` |
 
-The Verus proofs provide **machine-checked mathematical guarantees** that complement
-the probabilistic coverage from fuzzing.
+The Verus specification annotations provide **structural regression tracking** that
+complements the probabilistic coverage from fuzzing. Note: the CI job performs
+grep-based structural checks, not Z3/SMT verification (see `SECURITY_INVARIANTS.md` v1.3).
 
 ## Findings
 
+- **2026-02-25**: Added 3 new fuzz targets closing audit gaps: X25519 forward secrecy (4 functions), time-lock duress + content expiry (5 functions), forensic cleanup (2 functions). All 3 added to `fuzz.yml` CI workflow. Total Python Atheris harnesses: **21** (+ 1 AFL++). Total fuzz targets across all languages: **31** (21 Python Atheris + 1 AFL++ + 9 Rust cargo-fuzz).
 - **2026-02-22**: Added 4 new fuzz targets: guard page memory safety (8 functions), mouse gesture auth (10 functions), tamper detection (10 functions), adversarial stego differential (10 functions). Added integration tests (`tests/test_fuzz_coverage_integration.py`, 38 tests). Added Tamarin Schrödinger deniability model (`formal/tamarin/MeowSchrodingerDeniability.spthy`, 10 lemmas). Updated `SECURITY_INVARIANTS.md` with INV-033 through INV-037.
 - **2026-01-28**: Comprehensive test suite added (85 tests, 821 lines)
 - **2026-01-25**: AFL++ integration and seed corpus generation
-- *Add new findings here.*
 
 ## CI Integration
 

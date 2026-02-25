@@ -183,6 +183,27 @@ jobs:
           timeout ${DURATION}s python fuzz/fuzz_pq_hybrid.py || RC=$?
           RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
 
+      # ── Audit-fix: X25519 forward secrecy key agreement ──
+      - name: Fuzz X25519 forward secrecy
+        run: |
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
+          timeout ${DURATION}s python fuzz/fuzz_x25519_fs.py || RC=$?
+          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+
+      # ── Audit-fix: time-lock duress + content expiry ──
+      - name: Fuzz time-lock duress & content expiry
+        run: |
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
+          timeout ${DURATION}s python fuzz/fuzz_timelock_expiry.py || RC=$?
+          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+
+      # ── Audit-fix: forensic cleanup module ──
+      - name: Fuzz forensic cleanup
+        run: |
+          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
+          timeout ${DURATION}s python fuzz/fuzz_forensic_cleanup.py || RC=$?
+          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+
       # ── Crash gate (MUST fail the build on any crash) ───────────────────
       - name: Check for crashes
         run: |

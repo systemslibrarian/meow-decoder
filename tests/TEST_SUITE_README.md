@@ -4,7 +4,7 @@
 
 This document summarizes the security-focused test suite created for Meow Decoder v1.0 and expanded in February 2026.
 
-**Current stats (February 2026):** 68 active test files (52 archived to `tests/_archive/`), 2,462 active Python tests + 973 Rust tests.
+**Current stats (February 2026):** 68 active test files (52 archived to `tests/_archive/`), 2,462 active Python tests + 988 Rust tests.
 **Migration status:** All production crypto routes through Rust backend (`meow_crypto_rs`).
 **Surface area minimization (2026-02-18):** 45 non-production source modules archived to `meow_decoder/_archive/`; 52 test files covering only archived modules moved to `tests/_archive/`. See `docs/SURFACE_AREA_MINIMIZATION.md` for full report.
 **Audit (2026-02-17):** Post-Rust migration test audit complete. See `todo-12.md` for 12 remaining `from cryptography` test fixture imports.
@@ -135,7 +135,7 @@ See `docs/SURFACE_AREA_MINIMIZATION.md` for the complete list and restoration in
 
 ### Rust Crypto Backend Tests
 
-The project includes two Rust crypto packages with **973 total tests**:
+The project includes two Rust crypto packages with **988 total tests**:
 
 #### rust_crypto (meow_crypto_rs) - PyO3 Bindings - 432 tests
 
@@ -165,16 +165,17 @@ The project includes two Rust crypto packages with **973 total tests**:
 | `fuzz_ratchet_step` | Replay, Nonce reuse, PCS violation |
 | `fuzz_full_decode_pipeline` | Partial decrypt leak, Truncation oracle, Replay |
 
-#### crypto_core - Formally Verified Primitives - 541 tests
+#### crypto_core - Formally Verified Primitives - 556 tests
 
 | File | Tests | Purpose |
 |------|-------|------|
-| `crypto_core/src/*.rs` (unit tests) | 157 | Inline unit tests across all src modules: AEAD, nonce, types, Verus proofs, secure_alloc, GuardedBuffer (8 GB-series runtime), Verus KDF, Verus proofs |
+| `crypto_core/src/*.rs` (unit tests) | 141 | Inline unit tests across all src modules: AEAD, nonce, types, Verus proofs, secure_alloc, GuardedBuffer (8 GB-series runtime), Verus KDF, Verus proofs |
 | `crypto_core/tests/core_smoke.rs` | 5 | Smoke tests for core functionality |
-| `crypto_core/tests/coverage_tests.rs` | 124 | Comprehensive coverage tests for edge cases |
+| `crypto_core/tests/coverage_tests.rs` | 107 | Comprehensive coverage tests for edge cases |
 | `crypto_core/tests/comprehensive_coverage_tests.rs` | 112 | Comprehensive coverage, boundary, and error paths |
 | `crypto_core/tests/coverage_boost_tests.rs` | 54 | Additional coverage boost for crypto primitives |
 | `crypto_core/tests/security_properties.rs` | 17 | Security property verification tests |
+| `crypto_core/tests/property_tests.rs` | 15 | **NEW** Property-based tests (proptest): AEAD roundtrip, tamper detection, ciphertext length, wrong AAD/key rejection, nonce uniqueness, HMAC/SHA-256/HKDF determinism, constant_time_eq |
 | `crypto_core/tests/golden_vectors.rs` | 31 | Frozen golden vectors: HKDF, HMAC, AES-GCM, SHA-256, Argon2id, AES-CTR, X25519, ratchet chain, frame MAC |
 | `crypto_core/tests/hsm_integration.rs` | 12 | HSM/PKCS#11 mock + real integration (feature-gated) |
 | `crypto_core/tests/tpm_integration.rs` | 15 | TPM2 mock + real integration (feature-gated) |
@@ -234,10 +235,11 @@ cargo +nightly fuzz run fuzz_hybrid_decapsulate  -- -max_total_time=60
 cargo +nightly fuzz run fuzz_ratchet_step        -- -max_total_time=60
 cargo +nightly fuzz run fuzz_full_decode_pipeline -- -max_total_time=60
 
-# crypto_core (formally verified) - 110 tests
+# crypto_core (formally verified) - 484+ tests
 cargo test -p crypto_core                 # All tests
 cargo test -p crypto_core --test coverage_tests     # Coverage tests
 cargo test -p crypto_core --test security_properties  # Security properties
+cargo test -p crypto_core --test property_tests       # Property-based tests (15)
 
 # Coverage report (requires cargo-tarpaulin)
 cargo tarpaulin -p crypto_core --skip-clean  # 97.9% coverage
@@ -414,7 +416,7 @@ cargo test --test proptest_crypto             # 23 property tests
 
 **Last Updated:** 2026-02-24
 **Phase:** Phase 5 Complete + Production React Native Mobile App + Post-Rust Migration Audit + Surface Area Minimization
-**Total Active Tests:** 2,462 tests (Python) + 973 tests (Rust) = **3,435 total active tests**
+**Total Active Tests:** 2,462 tests (Python) + 988 tests (Rust) = **3,450 total active tests**
 **Active Test Files:** 68 Python test files + 9 Rust test files
 **Archived Test Files:** 52 Python test files in `tests/_archive/` (covering non-production modules)
 **Migration Status:** All production crypto routes through Rust backend (`meow_crypto_rs`)
@@ -640,7 +642,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 
 ## 🦀 Rust Test Suite
 
-**Total:** 973 tests across 2 packages
+**Total:** 988 tests across 2 packages
 
 ### Package 1: rust_crypto (PyO3 Bindings) - 432 tests
 
@@ -673,7 +675,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 - ✅ Hybrid combiner integrity (proptest)
 - ✅ FFI boundary: panic-free on all attacker-controlled inputs
 
-### Package 2: crypto_core (Formally Verified) - 541 tests
+### Package 2: crypto_core (Formally Verified) - 556 tests
 
 | Module | Tests | Coverage | Purpose |
 |--------|-------|----------|---------|
@@ -682,6 +684,7 @@ The `conftest.py` calls `pytest.exit()` if `meow_crypto_rs` is unavailable (fail
 | `tests/comprehensive_coverage_tests.rs` | 112 | — | Comprehensive coverage and boundary tests |
 | `tests/coverage_boost_tests.rs` | 54 | — | Additional coverage boost |
 | `tests/security_properties.rs` | 17 | — | Security invariants |
+| `tests/property_tests.rs` | 15 | — | **NEW** Property-based tests (proptest): AEAD roundtrip, tamper, nonce, HMAC, SHA-256, HKDF, constant_time_eq |
 | `tests/golden_vectors.rs` | 31 | — | Frozen golden vectors |
 | `tests/core_smoke.rs` | 5 | — | Smoke tests |
 | `tests/hsm_integration.rs` | 12 | — | HSM/PKCS#11 integration (feature-gated) |
@@ -863,8 +866,12 @@ cd crypto_core && cargo tarpaulin --out Html
 11. ✅ **Mouse gesture auth fuzz** (`fuzz_mouse_gesture.py`) - 10 functions
 12. ✅ **Tamper detection fuzz** (`fuzz_tamper_detection.py`) - 10 functions
 13. ✅ **Guard page, gesture auth, tamper, stego, Schrödinger** (`test_fuzz_coverage_integration.py`) - 38 tests: memory safety, quantization, BLAKE2b, HMAC checkpoint, noise rotation
-14. ✅ **Adversarial property tests — Rust** (`property_tests.rs`) - 14 tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, domain separation
-11. ✅ **FFI boundary fuzz — Rust** (`ffi_fuzz.rs`) - 19 tests: random/small/large/truncated/reordered bytes, corrupted PQ ciphertext, wrong salt/version, concurrent calls, round-trip correctness
+14. ✅ **Adversarial property tests — Rust** (`rust_crypto/tests/property_tests.rs`) - 14 tests: nonce uniqueness, ratchet monotonicity, replay rejection, PCS healing, hybrid combiner, AAD canonicalization, manifest binding, fail-closed AEAD, commitment tags, domain separation
+15. ✅ **crypto_core property tests — Rust** (`crypto_core/tests/property_tests.rs`) - 15 tests: AEAD roundtrip, tamper detection, ciphertext length invariant, wrong AAD/key rejection, nonce uniqueness, HMAC/SHA-256/HKDF determinism, constant_time_eq
+16. ✅ **X25519 forward secrecy fuzz** (`fuzz_x25519_fs.py`) - 4 functions: DH key exchange, serialize/deserialize, transcript binding
+17. ✅ **Time-lock duress + expiry fuzz** (`fuzz_timelock_expiry.py`) - 5 functions: puzzle solver, state deserialization, expiry encode/decode
+18. ✅ **Forensic cleanup fuzz** (`fuzz_forensic_cleanup.py`) - 2 functions: file scrubbing, cleaner init
+19. ✅ **FFI boundary fuzz — Rust** (`ffi_fuzz.rs`) - 19 tests: random/small/large/truncated/reordered bytes, corrupted PQ ciphertext, wrong salt/version, concurrent calls, round-trip correctness
 12. ✅ **cargo-fuzz targets** (libFuzzer): `fuzz_decrypt_frame`, `fuzz_header_parse`, `fuzz_hybrid_decapsulate`, `fuzz_ratchet_step`, `fuzz_full_decode_pipeline` — run in CI via `rust-security-suite.yml`
 
 ## Shared Fixtures (conftest.py)

@@ -1,50 +1,59 @@
-# Formal Verification Docker Image — Verus Structural Analysis
+# Verus Structural Regression Tracker (NOT Z3 Verification)
 # Used by `make formal-verus-docker` for CI environments.
 #
-# The CMD performs grep-based structural analysis of the Verus proof blocks
-# (proof fn / spec fn declarations) without invoking the Verus binary itself.
-# Full Z3/Verus verification requires verus-cargo locally; see ARCHITECTURE.md.
+# ⚠️ THIS DOES NOT INVOKE THE VERUS/Z3 TOOLCHAIN.
+# It counts proof fn / spec fn declarations to detect regressions
+# (e.g., accidental deletion of proof blocks).
+#
+# Full Z3/Verus verification must be run locally:
+#   cargo install verus && cd crypto_core && verus src/aead_wrapper.rs
+# See ARCHITECTURE.md for setup instructions.
 
 FROM debian:bookworm-slim
 
-# grep is already present in bookworm-slim; install ca-certificates for reproducibility
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /crypto_core
 
-# Copy only the Rust crypto_core crate
 COPY crypto_core/ /crypto_core/
 COPY Cargo.toml /Cargo.toml
 
-CMD ["sh", "-c", "echo '=== Verus Verification ===' && \
-    echo 'Checking verus_proofs.rs (runtime checks - no verus blocks)...' && \
-    echo '✅ verus_proofs.rs: 0 verus blocks (runtime-only module)' && \
+CMD ["sh", "-c", "\
+    echo '=== Verus Structural Regression Check ===' && \
+    echo '⚠️  This is a STRUCTURAL check only — counts proof fn / spec fn declarations.' && \
+    echo '    It does NOT invoke Z3/Verus. Properties are NOT machine-checked here.' && \
     echo '' && \
-    echo 'Checking aead_wrapper.rs verus blocks...' && \
-    grep -c 'proof fn' src/aead_wrapper.rs || echo 0 && \
-    PROOF_COUNT=$(grep -c 'proof fn' src/aead_wrapper.rs || echo 0) && \
-    echo \"Found $PROOF_COUNT proof functions in aead_wrapper.rs\" && \
+    echo 'Checking aead_wrapper.rs...' && \
+    PROOF_COUNT=$(grep -c 'proof fn' src/aead_wrapper.rs 2>/dev/null || echo 0) && \
+    echo \"  proof fn count: $PROOF_COUNT\" && \
     echo '' && \
     echo 'Checking verus_guarded_buffer.rs...' && \
-    grep -c 'proof fn\\|spec fn' src/verus_guarded_buffer.rs || echo 0 && \
-    GB_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_guarded_buffer.rs || echo 0) && \
-    echo \"Found $GB_COUNT spec/proof functions in verus_guarded_buffer.rs\" && \
+    GB_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_guarded_buffer.rs 2>/dev/null || echo 0) && \
+    echo \"  proof/spec fn count: $GB_COUNT\" && \
     echo '' && \
     echo 'Checking verus_kdf_proofs.rs...' && \
-    grep -c 'proof fn\\|spec fn' src/verus_kdf_proofs.rs || echo 0 && \
-    KDF_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_kdf_proofs.rs || echo 0) && \
-    echo \"Found $KDF_COUNT spec/proof functions in verus_kdf_proofs.rs\" && \
+    KDF_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_kdf_proofs.rs 2>/dev/null || echo 0) && \
+    echo \"  proof/spec fn count: $KDF_COUNT\" && \
     echo '' && \
     echo 'Checking verus_windows_guard.rs...' && \
-    grep -c 'proof fn\\|spec fn' src/verus_windows_guard.rs || echo 0 && \
-    WG_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_windows_guard.rs || echo 0) && \
-    echo \"Found $WG_COUNT spec/proof functions in verus_windows_guard.rs\" && \
+    WG_COUNT=$(grep -c 'proof fn\\|spec fn' src/verus_windows_guard.rs 2>/dev/null || echo 0) && \
+    echo \"  proof/spec fn count: $WG_COUNT\" && \
+    echo '' && \
+    echo 'Checking verus_proofs.rs (runtime checks — no verus blocks expected)...' && \
+    VP_COUNT=$(grep -c 'verus!' src/verus_proofs.rs 2>/dev/null || echo 0) && \
+    echo \"  verus! blocks: $VP_COUNT (expected 0 — runtime-only module)\" && \
     echo '' && \
     TOTAL=$((PROOF_COUNT + GB_COUNT + KDF_COUNT + WG_COUNT)) && \
-    echo \"verification results:: verified: $TOTAL, errors: 0\" && \
+    echo \"structural inventory:: proof_spec_fn_count: $TOTAL\" && \
     echo '' && \
-    echo '✅ Verus structural verification complete' && \
-    echo 'Note: Full Z3 verification requires verus-cargo or verus --compile-exec' && \
-    echo 'The verus! blocks are syntactically valid and CI-tracked for regression.'"]
+    if [ \"$TOTAL\" -lt 1 ]; then \
+      echo '❌ REGRESSION: No proof/spec fn declarations found. Were Verus blocks deleted?' && \
+      exit 1; \
+    fi && \
+    echo \"✅ Structural regression check passed ($TOTAL proof/spec fn declarations present)\" && \
+    echo '' && \
+    echo 'NOTE: These declarations are NOT Z3-verified in CI.' && \
+    echo 'Run verus locally to machine-check properties. See ARCHITECTURE.md.' \
+    "]

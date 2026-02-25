@@ -120,7 +120,41 @@ jobs:
           echo "coverage=$COVERAGE" >> $GITHUB_OUTPUT
           echo "rust_crypto coverage: $COVERAGE%"
 
-      - name: Generate coverage badge
+      # ── Coverage threshold enforcement ─────────────────────────────────
+      - name: Enforce coverage thresholds
+        run: |
+          CORE="${{ steps.tarpaulin.outputs.coverage }}"
+          RC="${{ steps.tarpaulin_rust_crypto.outputs.coverage }}"
+          THRESHOLD=70
+
+          echo "============================================"
+          echo "📊 Rust Coverage Threshold Enforcement"
+          echo "   Minimum required: ${THRESHOLD}%"
+          echo "============================================"
+          echo "  crypto_core:  ${CORE:-N/A}%"
+          echo "  rust_crypto:  ${RC:-N/A}%"
+          echo ""
+
+          FAILED=0
+          if [ -n "$CORE" ]; then
+            if (( $(echo "$CORE < $THRESHOLD" | bc -l) )); then
+              echo "❌ crypto_core coverage ${CORE}% is below ${THRESHOLD}%"
+              FAILED=1
+            fi
+          fi
+          if [ -n "$RC" ]; then
+            if (( $(echo "$RC < $THRESHOLD" | bc -l) )); then
+              echo "❌ rust_crypto coverage ${RC}% is below ${THRESHOLD}%"
+              FAILED=1
+            fi
+          fi
+
+          if [ "$FAILED" -eq 1 ]; then
+            echo ""
+            echo "Coverage threshold not met. Add tests to increase coverage."
+            exit 1
+          fi
+          echo "✅ All Rust crates meet ${THRESHOLD}% coverage threshold"
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           COVERAGE_CORE="${{ steps.tarpaulin.outputs.coverage }}"

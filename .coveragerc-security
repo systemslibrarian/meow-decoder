@@ -23,6 +23,13 @@ include =
     meow_decoder/metadata_obfuscation.py
     meow_decoder/ratchet.py
     meow_decoder/pq_hybrid.py
+    meow_decoder/x25519_forward_secrecy.py
+    meow_decoder/memory_guard.py
+    meow_decoder/secure_temp.py
+    meow_decoder/schrodinger_encode.py
+    meow_decoder/quantum_mixer.py
+    meow_decoder/master_ratchet.py
+    meow_decoder/manifest_signing.py
 
 branch = true
 
@@ -35,6 +42,13 @@ include =
     meow_decoder/metadata_obfuscation.py
     meow_decoder/ratchet.py
     meow_decoder/pq_hybrid.py
+    meow_decoder/x25519_forward_secrecy.py
+    meow_decoder/memory_guard.py
+    meow_decoder/secure_temp.py
+    meow_decoder/schrodinger_encode.py
+    meow_decoder/quantum_mixer.py
+    meow_decoder/master_ratchet.py
+    meow_decoder/manifest_signing.py
 
 exclude_also =
     pragma: no cover
