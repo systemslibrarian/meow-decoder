@@ -1965,6 +1965,10 @@
                         document.getElementById('encryptedPayload').value = qrData;
                         statusEl.innerHTML = '<span style="color: #00ff88;">✅ QR code scanned successfully! Enter password below to decrypt.</span>';
                         log('✅ Valid MEOW payload extracted from QR code');
+                    } else if (qrData.startsWith('FOUNTAIN:')) {
+                        document.getElementById('encryptedPayload').value = qrData;
+                        statusEl.innerHTML = '<span style="color: #f44336;">⚠️ This is one frame of an animated multi-frame QR code. You cannot decrypt a single frame — use the 📹 Webcam tab to scan the full animated GIF instead.</span>';
+                        log('⚠️ FOUNTAIN: frame detected — animated QR requires webcam scanner for full reconstruction');
                     } else {
                         document.getElementById('encryptedPayload').value = qrData;
                         statusEl.innerHTML = '<span style="color: #ff9800;">⚠️ QR code found but not a MEOW payload. Data pasted anyway.</span>';
@@ -3084,6 +3088,14 @@
 
             try {
                 // Validate and parse payload
+                if (payload.startsWith('FOUNTAIN:')) {
+                    throw new Error(
+                        'This is one frame from a multi-frame animated QR (fountain code). ' +
+                        'You need all frames to reconstruct the message. ' +
+                        'Please use the 📹 Webcam tab to scan the full animated GIF, ' +
+                        'or paste the complete MEOW: payload if you have it.'
+                    );
+                }
                 if (!payload.startsWith('MEOW:')) {
                     throw new Error('Invalid payload format (must start with MEOW:)');
                 }
