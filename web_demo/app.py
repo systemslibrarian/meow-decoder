@@ -438,18 +438,27 @@ def _decode_cat_video(video_path):
     fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    if total_frames < 30:
-        cap.release()
-        raise ValueError(f"Video too short ({total_frames} frames). Need at least 30 frames.")
+    # WebM files from MediaRecorder often have invalid frame count/fps.
+    # Handle this by reading frames until EOF if count is unreliable.
+    if fps <= 0 or fps > 1000:
+        fps = 30.0  # Default to 30 fps
+    if total_frames <= 0 or total_frames > 1000000:
+        total_frames = 100000  # Read until EOF, capped for safety
 
-    # Step 1: Detect eye regions from first frame
+    # Step 1: Detect eye regions from a frame with visible green eyes.
+    # The first frame may be during the dark lead-in (eyes OFF), so scan
+    # multiple frames to find one where green eyes are actually visible.
+    left_box, right_box = None, None
     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-    ret, first_frame = cap.read()
-    if not ret:
-        cap.release()
-        raise ValueError("Could not read first frame")
+    scan_limit = min(total_frames, 200)  # Scan up to 200 frames
+    for scan_i in range(scan_limit):
+        ret, frame = cap.read()
+        if not ret:
+            break
+        left_box, right_box = _detect_eye_regions_cv(frame)
+        if left_box is not None and right_box is not None:
+            break
 
-    left_box, right_box = _detect_eye_regions_cv(first_frame)
     if left_box is None or right_box is None:
         cap.release()
         raise ValueError(
@@ -472,7 +481,7 @@ def _decode_cat_video(video_path):
 
     n_frames = len(left_intensities)
     if n_frames < 30:
-        raise ValueError(f"Only {n_frames} readable frames. Need at least 30.")
+        raise ValueError(f"Video too short ({n_frames} readable frames). Need at least 30.")
 
     left_arr = np.array(left_intensities)
     right_arr = np.array(right_intensities)

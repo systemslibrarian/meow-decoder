@@ -126,7 +126,7 @@
         <!-- Canvas + buttons together at top -->
         <div style="text-align: center; margin-bottom: 15px;">
             <!-- Hidden background video (CatVideo.mp4) drawn onto canvas each frame -->
-            <video id="catBgVideo" autoplay muted loop playsinline
+            <video id="catBgVideo" preload="auto" muted playsinline
                    style="display:none; position:absolute; pointer-events:none;"
                    crossorigin="anonymous">
                 <source src="/assets/CatVideo.mp4" type="video/mp4">
@@ -595,6 +595,20 @@ async function catModeEncode() {
         catBlinkInterval = requestAnimationFrame(transmitFrame);
     }
 
+    // Sync video playback to run exactly once for the full transmission duration
+    if (catBgVideo && catBgVideo.readyState >= 1) {
+        const transmissionDuration = totalFrames * speed / 1000; // seconds
+        catBgVideo.currentTime = 0;
+        if (catBgVideo.duration && catBgVideo.duration > 0) {
+            catBgVideo.playbackRate = Math.min(
+                catBgVideo.duration / transmissionDuration,
+                16  // browsers cap playbackRate at 16
+            );
+        }
+        catBgVideo.play().catch(e => console.warn('Video play failed:', e));
+    }
+
+    // Kick off the transmission loop
     catBlinkInterval = requestAnimationFrame(transmitFrame);
 }
 
@@ -603,6 +617,12 @@ function catModeStop() {
     if (catBlinkInterval) {
         cancelAnimationFrame(catBlinkInterval);
         catBlinkInterval = null;
+    }
+
+    // Pause background video (transmission done — no looping)
+    if (catBgVideo) {
+        catBgVideo.pause();
+        catBgVideo.playbackRate = 1.0; // reset rate for next run
     }
 
     // Stop video recording

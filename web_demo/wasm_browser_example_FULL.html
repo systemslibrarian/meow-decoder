@@ -4955,7 +4955,82 @@
                 canvas.width = canvasWidth;
                 canvas.height = canvasHeight;
 
-                const duration = video.duration;
+                // ============================================================
+                // DURATION DETECTION for WebM from MediaRecorder
+                // MediaRecorder-produced WebM files typically lack duration
+                // metadata in the container header. The browser reports
+                // video.duration === Infinity for such files. We detect this
+                // and use a seek-to-end trick to discover the real duration.
+                // ============================================================
+                let duration = video.duration;
+                if (!isFinite(duration) || isNaN(duration) || duration <= 0) {
+                    log('📹 [Cat Video] Duration unknown (WebM from MediaRecorder?) — detecting...');
+                    progressText.textContent = 'Detecting video duration...';
+
+                    // Trick: seek to a very large time; browser clamps to actual end
+                    await new Promise((resolve) => {
+                        const onSeeked = () => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        };
+                        video.addEventListener('seeked', onSeeked);
+                        video.currentTime = 1e10;
+                        // Timeout safety: if seeked never fires (edge case), resolve after 5s
+                        setTimeout(() => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        }, 5000);
+                    });
+
+                    duration = video.currentTime;
+
+                    if (!isFinite(duration) || duration <= 0) {
+                        // Fallback: binary search for the actual end of the video
+                        let low = 0, high = 300; // max 5 minutes
+                        for (let attempt = 0; attempt < 25; attempt++) {
+                            const mid = (low + high) / 2;
+                            const beforeSeek = video.currentTime;
+                            await new Promise((resolve) => {
+                                const onSeeked = () => {
+                                    video.removeEventListener('seeked', onSeeked);
+                                    resolve();
+                                };
+                                video.addEventListener('seeked', onSeeked);
+                                video.currentTime = mid;
+                                setTimeout(() => {
+                                    video.removeEventListener('seeked', onSeeked);
+                                    resolve();
+                                }, 2000);
+                            });
+                            if (video.currentTime < mid * 0.95) {
+                                high = mid; // overshot — real end is lower
+                            } else {
+                                low = mid; // didn't overshoot
+                            }
+                        }
+                        duration = video.currentTime;
+                    }
+
+                    // Reset to start for analysis
+                    await new Promise((resolve) => {
+                        const onSeeked = () => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        };
+                        video.addEventListener('seeked', onSeeked);
+                        video.currentTime = 0;
+                        setTimeout(() => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        }, 2000);
+                    });
+
+                    if (!isFinite(duration) || duration <= 0) {
+                        throw new Error('Could not determine video duration. The WebM file may be corrupt or empty.');
+                    }
+
+                    log(`📹 [Cat Video] Detected duration: ${duration.toFixed(2)}s`);
+                }
 
                 log(`📹 [Cat Video] Video: ${vw}x${vh}, ${duration.toFixed(2)}s`);
                 progressText.textContent = 'Playing video to capture frames...';
@@ -4974,11 +5049,23 @@
                 // Calculate step size: at least 5 samples per blink bit,
                 // capped at ~30 fps equivalent for efficiency
                 const sampleInterval = Math.min(1 / 30, blinkSpeedMs / (5 * 1000));
-                const totalPositions = Math.ceil(duration / sampleInterval) + 1;
+                let totalPositions = Math.ceil(duration / sampleInterval) + 1;
+
+                // Safety cap: never exceed 50,000 positions (prevents infinite loops
+                // from corrupt duration values or edge cases)
+                const MAX_POSITIONS = 50000;
+                if (!isFinite(totalPositions) || totalPositions > MAX_POSITIONS) {
+                    log(`⚠️ [Cat Video] Capping totalPositions from ${totalPositions} to ${MAX_POSITIONS}`);
+                    totalPositions = MAX_POSITIONS;
+                }
+
                 log(`📹 [Cat Video] Seek-based extraction: ${totalPositions} positions at ${(sampleInterval * 1000).toFixed(1)}ms intervals`);
 
                 video.pause();
                 const extractionStart = performance.now();
+
+                let lastActualTime = -1;
+                let stallCount = 0;
 
                 for (let i = 0; i < totalPositions; i++) {
                     if (catVideoAnalysisCancelled) throw new Error('Analysis cancelled');
@@ -4996,7 +5083,24 @@
                             video.removeEventListener('seeked', onSeeked);
                             resolve();
                         }
+                        // Timeout safety: if seeked never fires, resolve after 3s
+                        setTimeout(() => {
+                            video.removeEventListener('seeked', onSeeked);
+                            resolve();
+                        }, 3000);
                     });
+
+                    // Detect stall: if video.currentTime stops advancing, we've reached the real end
+                    if (Math.abs(video.currentTime - lastActualTime) < 0.001 && i > 0) {
+                        stallCount++;
+                        if (stallCount >= 3) {
+                            log(`📹 [Cat Video] Video ended at frame ${i} (t=${video.currentTime.toFixed(3)}s) — seek stalled`);
+                            break;
+                        }
+                    } else {
+                        stallCount = 0;
+                    }
+                    lastActualTime = video.currentTime;
 
                     ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
                     const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
