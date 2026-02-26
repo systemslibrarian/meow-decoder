@@ -96,6 +96,7 @@ jobs:
       - name: Run mutmut on security-critical modules
         env:
           MEOW_TEST_MODE: "1"
+          MEOW_PRODUCTION_MODE: "0" # Required alongside MEOW_TEST_MODE to allow export_key() in tests
         run: |
           # Run mutation testing focused on crypto modules
           mutmut run \

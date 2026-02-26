@@ -49,6 +49,7 @@ env:
   RUST_BACKTRACE: 1
   # Use fast Argon2id params in all test runs
   MEOW_TEST_MODE: "1"
+  MEOW_PRODUCTION_MODE: "0" # Required alongside MEOW_TEST_MODE to allow export_key() in tests
   # Proptest case count (overridable via workflow_dispatch)
   PROPTEST_CASES: ${{ github.event.inputs.proptest_cases || '1024' }}
 

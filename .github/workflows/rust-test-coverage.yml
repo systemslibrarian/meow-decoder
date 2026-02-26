@@ -155,6 +155,8 @@ jobs:
             exit 1
           fi
           echo "✅ All Rust crates meet ${THRESHOLD}% coverage threshold"
+
+      - name: Generate coverage badge
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         run: |
           COVERAGE_CORE="${{ steps.tarpaulin.outputs.coverage }}"

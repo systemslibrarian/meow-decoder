@@ -106,15 +106,15 @@ def fuzz_encoder_decoder_roundtrip(data: bytes):
 
     master_key = data[:32]
     payload_len_hint = data[32] % 200 + 1
-    payload = data[33 : 33 + payload_len_hint]
+    payload = data[33: 33 + payload_len_hint]
     if not payload:
         return
 
     try:
         config = MultiLayerConfig(
-            lsb_depth=1,
-            use_timing_channel=False,  # Keep fast
-            use_palette_channel=False,
+            lsb_bits=1,
+            enable_secondary=False,  # Keep fast
+            enable_tertiary=False,
         )
     except Exception:
         return
@@ -183,7 +183,7 @@ def fuzz_decode_corrupt_gif(data: bytes):
     stego_bytes = data[32:]
 
     try:
-        config = MultiLayerConfig(lsb_depth=1)
+        config = MultiLayerConfig(lsb_bits=1)
         decoder = MultiLayerStegoDecoder(config, master_key)
         decoder.decode(stego_bytes)
     except Exception as e:
@@ -224,7 +224,7 @@ def fuzz_validate_stego(data: bytes):
     gif_bytes = data[32:]
 
     try:
-        config = MultiLayerConfig(lsb_depth=1)
+        config = MultiLayerConfig(lsb_bits=1)
         validate_stego(gif_bytes, config, master_key)
     except Exception as e:
         msg = str(e).lower()
@@ -255,7 +255,7 @@ def fuzz_walk_uniqueness(data: bytes):
     channel = data[36] % 3
 
     try:
-        config = MultiLayerConfig(lsb_depth=1)
+        config = MultiLayerConfig(lsb_bits=1)
         encoder = MultiLayerStegoEncoder(config, master_key)
         # Derive walk directly if method is accessible
         if hasattr(encoder, "_derive_walk_indices"):

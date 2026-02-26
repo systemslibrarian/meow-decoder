@@ -16,6 +16,7 @@ permissions:
 # ─── Shared environment ──────────────────────────────────────────────────────
 env:
   MEOW_TEST_MODE: "1"
+  MEOW_PRODUCTION_MODE: "0" # Required alongside MEOW_TEST_MODE to allow export_key() in tests
   MEOW_CRYPTO_BACKEND: "rust"
   RUST_BACKEND_REQUIRED: "1" # Phase 5: Fail closed if Rust backend unavailable
   PIP_DISABLE_PIP_VERSION_CHECK: "1"

@@ -70,6 +70,7 @@ jobs:
           pytest tests/test_crypto_backend.py -v
         env:
           MEOW_TEST_MODE: "1"
+          MEOW_PRODUCTION_MODE: "0" # Required alongside MEOW_TEST_MODE to allow export_key() in tests
 
       - name: Upload wheel
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
