@@ -19,9 +19,11 @@ import sys
 import subprocess
 import urllib.request
 import urllib.parse
+from pathlib import Path
 
 SERVER = "http://localhost:5000"
-CAT_IMAGE = "/workspaces/meow-decoder/web_demo/static/MeowDecoderDemo.png"
+_REPO_ROOT = Path(__file__).parent
+CAT_IMAGE = str(_REPO_ROOT / "web_demo" / "static" / "MeowDecoderDemo.png")
 
 # ── Whitening (must match JS and server Python exactly) ──
 
@@ -240,7 +242,7 @@ def decode_video(video_path):
     The _decode_cat_video function reads fresh from disk each time.
     """
     # Import the decode function from the server
-    sys.path.insert(0, "/workspaces/meow-decoder/web_demo")
+    _web_demo_dir = str(_REPO_ROOT / "web_demo")
     # We need to import and call the actual decode function
     # to prove it reads from the video file (not from memory)
 
@@ -251,8 +253,8 @@ def decode_video(video_path):
     decode_script = f"""
 import sys, json, os
 os.environ["MEOW_TEST_MODE"] = "1"
-sys.path.insert(0, "/workspaces/meow-decoder/web_demo")
-sys.path.insert(0, "/workspaces/meow-decoder")
+sys.path.insert(0, {_web_demo_dir!r})
+sys.path.insert(0, {str(_REPO_ROOT)!r})
 
 # Force fresh import - no module caching
 if "app" in sys.modules:
@@ -267,7 +269,7 @@ print(json.dumps(result))
         capture_output=True,
         text=True,
         timeout=120,
-        cwd="/workspaces/meow-decoder/web_demo",
+        cwd=_web_demo_dir,
     )
     if proc.returncode != 0:
         raise RuntimeError(f"Decode subprocess failed: {proc.stderr[-500:]}")
@@ -305,7 +307,7 @@ def decrypt_binary(binary_str, password):
     os.environ["MEOW_TEST_MODE"] = "1"
 
     # Import after setting env var
-    sys.path.insert(0, "/workspaces/meow-decoder")
+    sys.path.insert(0, str(_REPO_ROOT))
     from meow_decoder.crypto import decrypt_to_raw
 
     try:
