@@ -246,7 +246,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
             <Text style={styles.cardTitle}>Export to device storage</Text>
             <Text style={styles.cardBody}>
               Writes the capture JSON to your Downloads folder for USB/ADB retrieval.
-              {biometricAvailable ? '\nBiometric confirmation will be required.' : ''}
+              {biometricAvailable ? '\nBiometric confirmation will be required.' : null}
             </Text>
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: recoveryStatus.color }]}

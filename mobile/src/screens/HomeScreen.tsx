@@ -309,7 +309,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             >
               <Text style={styles.resumeTitle}>⚡ Interrupted session found</Text>
               <Text style={styles.resumeDetail}>
-                ID …{shortId} · {frameCount} frame{frameCount !== 1 ? 's' : ''} · {ageMins < 1 ? 'just now' : `${ageMins}m ago`}
+                ID …{shortId} · {frameCount} frame{frameCount !== 1 ? 's' : null} · {ageMins < 1 ? 'just now' : `${ageMins}m ago`}
               </Text>
               <Text style={styles.resumeSecurityNote}>
                 Frame payloads were not saved — only indices are kept on disk as a security invariant.
