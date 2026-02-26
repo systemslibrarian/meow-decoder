@@ -123,7 +123,7 @@ fi
 # Python tests
 info "Python: pytest security tests"
 if command -v pytest >/dev/null 2>&1; then
-  if (cd "$ROOT_DIR" && MEOW_TEST_MODE=1 pytest tests/ -m "security or crypto or adversarial" \
+  if (cd "$ROOT_DIR" && MEOW_TEST_MODE=1 MEOW_PRODUCTION_MODE=0 pytest tests/ -m "security or crypto or adversarial" \
       --override-ini="addopts=" -q --no-header --tb=short 2>/dev/null); then
     pass "Python security tests"
   else
