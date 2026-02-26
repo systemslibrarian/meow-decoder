@@ -8680,11 +8680,16 @@
                             statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: scanning ${frames.length} frames...</span>`;
                             if (!jsQR) await loadJsQR();
                             if (!jsQR) throw new Error('jsQR not available');
+
+                            // Collect both DURESS-N/total: chunks and FOUNTAIN: droplets
+                            const duressChunks = {};  // index → chunk string
+                            let duressTotal = null;
                             const seenSeeds = new Set();
                             let fdec = null, fp = null;
+
                             for (let fi = 0; fi < frames.length; fi++) {
-                                if (fi % 10 === 0) {
-                                    statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${seenSeeds.size} droplets...</span>`;
+                                if (fi % 5 === 0) {
+                                    statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${Object.keys(duressChunks).length} chunks / ${seenSeeds.size} droplets...</span>`;
                                     await new Promise(r => setTimeout(r, 0));
                                 }
                                 const fd = frames[fi];
@@ -8694,7 +8699,29 @@
                                     for (let i = 0; i < bin.length; i += 4) { const g = 0.299*bin[i]+0.587*bin[i+1]+0.114*bin[i+2]; bin[i]=bin[i+1]=bin[i+2]=g<128?0:255; }
                                     qr = jsQR(bin, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
                                 }
-                                if (qr && qr.data.startsWith('FOUNTAIN:')) {
+                                if (!qr) continue;
+
+                                // ── DURESS-N/total: chunked reassembly ──
+                                const duressMatch = qr.data.match(/^DURESS-(\d+)\/(\d+):(.*)$/s);
+                                if (duressMatch) {
+                                    const idx = parseInt(duressMatch[1]) - 1; // 0-based
+                                    duressTotal = parseInt(duressMatch[2]);
+                                    duressChunks[idx] = duressMatch[3];
+                                    if (Object.keys(duressChunks).length === duressTotal) {
+                                        // All chunks collected — reassemble
+                                        let b64 = '';
+                                        for (let c = 0; c < duressTotal; c++) b64 += duressChunks[c];
+                                        const payload = 'DURESS:' + b64;
+                                        document.getElementById('duressEncryptedPayload').value = payload;
+                                        statusEl.innerHTML = `<span style="color: #00ff88;">✅ Duress payload reassembled! (${duressTotal} frames) Enter password to decrypt.</span>`;
+                                        log(`✅ [Duress] Chunked GIF reassembled: ${duressTotal} frames → ${payload.length} chars`);
+                                        input.value = ''; return;
+                                    }
+                                    continue;
+                                }
+
+                                // ── FOUNTAIN: droplets ──
+                                if (qr.data.startsWith('FOUNTAIN:')) {
                                     const p = qr.data.split(':');
                                     if (p.length >= 5) {
                                         const k=parseInt(p[1]),bs=parseInt(p[2]),len=parseInt(p[3]);
@@ -8714,7 +8741,14 @@
                                     }
                                 }
                             }
-                            statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: ${seenSeeds.size} droplets, need ~${fp?fp.k:'?'}. Try the 📹 Webcam tab.</span>`;
+
+                            // Partial result
+                            if (duressTotal !== null) {
+                                const got = Object.keys(duressChunks).length;
+                                statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${got}/${duressTotal} chunks. Try the 📹 Webcam tab.</span>`;
+                            } else {
+                                statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: ${seenSeeds.size} droplets, need ~${fp?fp.k:'?'}. Try the 📹 Webcam tab.</span>`;
+                            }
                             input.value = ''; return;
                         }
                     } catch (gifErr) {
