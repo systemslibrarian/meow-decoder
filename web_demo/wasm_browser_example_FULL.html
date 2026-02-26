@@ -159,10 +159,9 @@
             align-items: center;
         }
         #qrcode, #schrodingerQrcode {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            display: block;
+            text-align: center;
+            width: 100%;
         }
         #qrcode canvas, #qrcode img, #schrodingerQrcode canvas, #schrodingerQrcode img {
             max-width: 100%;
@@ -2979,10 +2978,16 @@
                     const frameCanvases = [];
                     const useQRCodeLib = QRCode && typeof QRCode.toCanvas === 'function';
 
+                    // Outer wrapper — fills qrcode div, centers everything
+                    const wrapper = document.createElement('div');
+                    wrapper.style.cssText = 'display:block; text-align:center; width:100%;';
+
                     // Create frame container
                     const container = document.createElement('div');
                     container.id = 'animatedQrContainer';
-                    container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
+                    container.style.cssText = 'position:relative; width:300px; height:300px; display:inline-block; vertical-align:top;';
+
+                    wrapper.appendChild(container);
 
                     for (let i = 0; i < numDroplets; i++) {
                         const droplet = fountainEncoder.generateDroplet(i);
@@ -3016,24 +3021,36 @@
                     // Add info box
                     const infoEl = document.createElement('div');
                     infoEl.id = 'fountainInfo';
-                    infoEl.style.cssText = 'text-align: center; margin-top: 5px; color: #888; font-size: 0.85em;';
-                    infoEl.innerHTML = `⛲ <strong>Fountain Coded</strong> - ${kBlocks} blocks, ${numDroplets} droplets`;
+                    infoEl.style.cssText = 'display:block; text-align:center; margin-top:8px; color:#888; font-size:0.85em;';
+                    infoEl.innerHTML = `⛲ <strong>Fountain Coded</strong> &mdash; ${kBlocks} blocks, ${numDroplets} droplets`;
 
                     // Add frame counter
                     const counterEl = document.createElement('div');
                     counterEl.id = 'frameCounter';
-                    counterEl.style.cssText = 'text-align: center; margin-top: 2px; color: #00ccff; font-weight: bold;';
+                    counterEl.style.cssText = 'display:block; text-align:center; margin-top:4px; color:#00ccff; font-weight:bold; font-size:1em;';
                     counterEl.textContent = `Frame 1 / ${numDroplets}`;
 
-                    document.getElementById('qrcode').appendChild(container);
-                    document.getElementById('qrcode').appendChild(infoEl);
-                    document.getElementById('qrcode').appendChild(counterEl);
+                    wrapper.appendChild(infoEl);
+                    wrapper.appendChild(counterEl);
+                    document.getElementById('qrcode').appendChild(wrapper);
 
                     // Store frames globally for GIF download
                     window.fountainFrameCanvases = frameCanvases;
                     window.fountainFrameDelayMs = 500;
-                    const gifBtn = document.getElementById('downloadGifBtn');
-                    if (gifBtn) gifBtn.style.display = 'inline-block';
+
+                    // Inject download GIF button next to existing buttons
+                    let gifBtn = document.getElementById('downloadGifBtn');
+                    if (!gifBtn) {
+                        gifBtn = document.createElement('button');
+                        gifBtn.id = 'downloadGifBtn';
+                        gifBtn.className = 'secondary copy-btn';
+                        gifBtn.textContent = '🎞️ Download Animated GIF';
+                        gifBtn.onclick = window.downloadFountainGif;
+                        const btnRow = document.querySelector('#qrSection > div[style*="text-align: center"]');
+                        if (btnRow) btnRow.insertBefore(gifBtn, btnRow.children[1]);
+                    } else {
+                        gifBtn.style.display = 'inline-block';
+                    }
 
                     // Animate frames
                     let currentFrame = 0;
