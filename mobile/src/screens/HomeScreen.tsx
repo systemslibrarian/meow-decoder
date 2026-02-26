@@ -49,7 +49,7 @@ import type { CaptureRequest } from '../types/capture';
 import type { HomeScreenProps } from '../types/navigation';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { DEFAULT_TIMEOUT_SECONDS, FEATURE_FLAGS, APP_VERSION } from '../constants/config';
-import meowLogo from '../assets/meow-decoder-logo.png';
+import meowLogo from '../assets/meow-decoder-logo-notagline.png';
 import {
   readCaptureCheckpoint,
   clearCaptureCheckpoint,
@@ -650,8 +650,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   headerLogo: {
-    width: 110,
-    height: 88,
+    width: 160,
+    height: 160,
     marginBottom: Spacing.sm,
   },
   headerTitleBlock: {

@@ -78,11 +78,18 @@ export function useAdaptiveFPS(device: CameraDevice | undefined): number {
 
   // ProMotion: use 60 fps on capable devices if iOS 16+ or Android 12+ signal
   // frame rates >30. Vision Camera exposes this via device.formats.
+  // Guard against null/empty formats — some Android emulators expose device
+  // objects but have EncoderProfiles with null VideoProfile entries, causing
+  // NullPointerException if VisionCamera tries to query codec capabilities.
   if (device && Platform.OS === 'ios') {
-    const supports60 = device.formats.some(
-      (f) => f.maxFps !== undefined && f.maxFps >= 60,
-    );
-    if (supports60) return FPS_PROMO;
+    try {
+      const supports60 = Array.isArray(device.formats) && device.formats.some(
+        (f) => f != null && f.maxFps !== undefined && f.maxFps >= 60,
+      );
+      if (supports60) return FPS_PROMO;
+    } catch {
+      // Format query failed — fall through to FPS_NORMAL
+    }
   }
 
   return FPS_NORMAL;

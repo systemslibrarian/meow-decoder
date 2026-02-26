@@ -2,6 +2,7 @@
  * App.tsx — Root application component.
  *
  * Wraps the navigator with:
+ *  - ErrorBoundary (prevents crash-to-OS on JavascriptException)
  *  - NavigationContainer (React Navigation)
  *  - CatToastProvider (global toast context)
  *  - StatusBar configuration
@@ -16,6 +17,7 @@ import { NavigationContainer, DarkTheme } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { MMKV } from 'react-native-mmkv';
 import { CatToastProvider } from './components/CatToast';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { AppNavigator } from './navigation/AppNavigator';
 import { linking } from './navigation/linking';
 import { Colors } from './constants/theme';
@@ -52,16 +54,18 @@ export default function App(): React.ReactElement {
   const hasCompletedOnboarding = storage.getBoolean(FIRST_LAUNCH_KEY) ?? false;
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
-      <CatToastProvider>
-        <NavigationContainer theme={MeowDarkTheme} linking={linking}>
-          <AppNavigator
-            initialRoute={initialRoute}
-            hasCompletedOnboarding={hasCompletedOnboarding}
-          />
-        </NavigationContainer>
-      </CatToastProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <StatusBar barStyle="light-content" backgroundColor={Colors.background} />
+        <CatToastProvider>
+          <NavigationContainer theme={MeowDarkTheme} linking={linking}>
+            <AppNavigator
+              initialRoute={initialRoute}
+              hasCompletedOnboarding={hasCompletedOnboarding}
+            />
+          </NavigationContainer>
+        </CatToastProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

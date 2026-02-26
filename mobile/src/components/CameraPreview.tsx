@@ -83,6 +83,9 @@ export const CameraPreview = React.memo(function CameraPreview({
   const adaptiveFPS = useAdaptiveFPS(device);
   const [torch, setTorch] = useState<'off' | 'on'>('off');
   const [exposureBias, setExposureBias] = useState(0);
+  // Track native camera errors (e.g. EncoderProfiles NullPointerException on
+  // some Android emulators/devices). Show a friendly fallback instead of crashing.
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   // ── Pinch-to-zoom ─────────────────────────────────────────────────────────
   const zoomSV = useSharedValue(device?.neutralZoom ?? 1);
@@ -179,21 +182,42 @@ export const CameraPreview = React.memo(function CameraPreview({
     <GestureDetector gesture={pinchGesture}>
       <View style={styles.fill}>
         {/* ── Camera feed ─────────────────────────────────────────────────── */}
-        <AnimatedCamera
-          style={StyleSheet.absoluteFill}
-          device={device}
-          isActive={isActive}
-          codeScanner={codeScanner}
-          fps={adaptiveFPS}
-          pixelFormat="yuv"
-          torch={torch}
-          enableZoomGesture={false}  // handled via GestureDetector above
-          audio={false}              // microphone permission must NOT be requested
-          // Exposure bias: compensates for bright laptop screens (glare)
-          // or dim environments. Range: device.minExposure … device.maxExposure
-          exposure={exposureBias}
-          animatedProps={animatedCameraProps}
-        />
+        {cameraError ? (
+          /* Friendly fallback when the camera hardware/driver fails at startup.
+           * Common on Android emulators: EncoderProfiles$VideoProfile.getCodec()
+           * returns null for missing codec profiles, causing a NullPointerException
+           * inside VisionCamera's native layer. Showing this instead of crashing. */
+          <View style={[StyleSheet.absoluteFill, styles.centered]} accessible accessibilityRole="alert">
+            <Text style={styles.permissionIcon} importantForAccessibility="no">📷</Text>
+            <Text style={styles.permissionTitle} accessibilityRole="header">Camera unavailable</Text>
+            <Text style={styles.permissionBody}>
+              The camera could not start on this device.
+              {__DEV__ ? ` (${cameraError})` : ' Try on a physical device.'}
+            </Text>
+          </View>
+        ) : (
+          <AnimatedCamera
+            style={StyleSheet.absoluteFill}
+            device={device}
+            isActive={isActive}
+            codeScanner={codeScanner}
+            fps={adaptiveFPS}
+            pixelFormat="yuv"
+            torch={torch}
+            enableZoomGesture={false}  // handled via GestureDetector above
+            audio={false}              // microphone permission must NOT be requested
+            // Exposure bias: compensates for bright laptop screens (glare)
+            // or dim environments. Range: device.minExposure … device.maxExposure
+            exposure={exposureBias}
+            animatedProps={animatedCameraProps}
+            onError={(e) => {
+              // Catch native camera errors (EncoderProfiles NPE, etc.) so the
+              // JS thread does not crash — surface a recoverable UI instead.
+              if (__DEV__) { console.warn('[CameraPreview] Native camera error:', e); }
+              setCameraError(e.message);
+            }}
+          />
+        )}
 
         {/* ── Privacy overlay (iOS task-switcher snapshot defense) ───────── */}
         {isBackgrounding && (

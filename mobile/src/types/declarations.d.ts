@@ -122,3 +122,10 @@ declare module '@react-native-clipboard/clipboard' {
   };
   export default Clipboard;
 }
+
+// ── React Native runtime globals ──────────────────────────────────────────────
+// __DEV__ is injected by Metro / Hermes at bundle time to indicate whether the
+// app is running in development mode. TypeScript needs an ambient declaration
+// since the tsconfig overrides `types` to ["node", "jest"] (dropping the
+// built-in @tsconfig/react-native declaration of this global).
+declare const __DEV__: boolean;
