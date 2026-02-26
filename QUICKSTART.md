@@ -2,7 +2,9 @@
 
 **Goal:** See Meow Decoder work in 5 minutes — the cat is ready to pounce!
 **What you'll do:** Encode → Capture → Decode
-**Equipment needed:** Computer + phone (the cat cam 📹) — use **[Meow Capture](mobile/README.md)** (React Native app, iOS/Android) for the fastest capture experience
+**Equipment needed:** Computer + phone (the cat cam 📹) — use **[Meow Capture](mobile/README.md)** for the fastest capture experience
+
+> 📥 **Get the app:** [Download Meow Capture v3.2.2 for Android (APK)](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) · iOS & store listings coming soon
 
 ---
 

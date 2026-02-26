@@ -21,6 +21,8 @@ Meow Decoder is an optical air-gap file transfer system that combines:
 
 [**Meow Capture**](../mobile/README.md) is a secure offline QR capture companion app for air-gapped file transfer. It is the recommended way to use a phone as the receiving device.
 
+> 📥 **Download:** [Meow Capture v3.2.2 APK (Android)](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) — sideload on Android, iOS & store listings coming soon.
+
 ```
 ┌────────────────────────────────────────────────────────┐
 │             MEOW CAPTURE (React Native)                │

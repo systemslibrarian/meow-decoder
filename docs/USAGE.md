@@ -2,6 +2,18 @@
 
 *Everything you need to encode, transmit, and decode secrets through the air gap. The cat handles the hard parts — you just point the camera.*
 
+## 📱 Meow Capture — Mobile App
+
+The fastest way to scan QR codes from your screen is the **Meow Capture** companion app:
+
+- **Android:** [Download v3.2.2 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) — sideload (allow unknown apps in Settings → Apps → Special app access)
+- **iOS:** Coming soon
+- **Google Play / App Store:** Both listings coming soon
+
+Install the APK, grant camera permission, and point it at your screen — the app handles QR scanning, fountain decoding, and JSON export entirely on-device with no network access.
+
+---
+
 This project moves data through **animated QR-code GIFs**.
 
 At a high level:

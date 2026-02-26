@@ -12,6 +12,43 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 
 **No network. No cloud. No traces.**
 
+---
+
+## 📥 Download & Install
+
+### Android — Available Now
+
+| Version | Download | Notes |
+|---------|----------|-------|
+| **v3.2.2** (latest) | [⬇ Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) | Bug fixes: capture init + camera guard |
+| v3.2.0 | [Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk) | — |
+
+**Sideload instructions:**
+
+1. On your Android device: **Settings → Apps → Special app access → Install unknown apps** → allow your browser.
+2. Tap the download link above on your phone.
+3. Open the downloaded `.apk` and tap **Install**.
+4. Launch **Meow Capture** and grant camera permission when prompted.
+5. On your desktop, run `meow-encode` (or open the web demo) and display the QR code on screen.
+6. In the app, tap **Scan Request QR** or **Import Capture Request (JSON)** to begin.
+
+> **Google Play Store listing coming soon** — sideloading is the only install method for now.
+
+### iOS — Coming Soon
+
+The iOS version is in active development. **Apple App Store listing coming soon.**
+iOS users can scan QR codes today via the [web demo](../examples/wasm_browser_example.html) in Safari.
+
+### App Store Roadmap
+
+| Platform | Status |
+|----------|--------|
+| Android sideload | ✅ Available — see download links above |
+| Google Play Store | 🔜 Coming soon |
+| iOS (App Store) | 🔜 Coming soon |
+
+---
+
 > **v3.2 (2026)** — Capture Quality Coach, Calibration Wizard (5-step preflight: camera, QR visibility, light, brightness, thermal), Settings screen (Strict / Convenience security mode), Diagnostics Panel (long-press version badge, safe-to-share diagnostics export), one-tap sanitized debug bundle export on Export screen, Export SHA-256 + filename copy, Request QR scanner, enriched session resume banner, decode-rate / duplicate-rate live metrics, VoiceOver milestone announcements, and `meow_decoder.merge` multi-device capture merge CLI. Video import hook is present but feature-flagged OFF (hidden from release UI). 274/274 tests, strict TypeScript, zero network permissions.
 >
 > **v3.1 (2026)** — Full accessibility + polish pass. Respects Reduce Motion system preference (SplashScreen, FrameOverlay, CatToast). VoiceOver/TalkBack announces toasts (`accessibilityLiveRegion`). `KeyboardAvoidingView` on Home; error banners announced; haptics on file load; stale errors cleared on re-focus. OnboardingScreen shows "Open Settings" recovery when camera permission is denied. Android hardware back button prompts confirmation before discarding an active capture session. 274/274 tests, strict TypeScript.

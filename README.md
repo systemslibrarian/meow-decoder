@@ -70,11 +70,38 @@
 
 **Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing.
 
-## 📱 Mobile Companion App
+## 📱 Mobile Companion App — Download Now
 
 [**Meow Capture**](mobile/README.md) — *A secure offline QR capture companion app for air-gapped file transfer.*
 
-A production-quality React Native companion app for iOS and Android is available in [`mobile/`](mobile/README.md). It handles the optical capture side of the pipeline with zero network permissions.
+Point your phone at the animated QR code on your screen and let Meow Capture handle the rest — no network, no cloud, no traces.
+
+### 📥 Install on Android (sideload — free)
+
+> **Google Play Store listing coming soon.**
+
+1. On your Android phone, go to **Settings → Apps → Special app access → Install unknown apps** and allow your browser.
+2. Open this link on your phone and tap **Download**:
+
+   **[⬇ Download Meow Capture v3.2.2 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk)**
+
+3. Open the downloaded `.apk` file and tap **Install**.
+4. Launch **Meow Capture** — grant camera permission when prompted.
+
+> **Previous release:** [v3.2.0 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk)
+
+### 🍎 iOS — Coming Soon
+
+The iOS version is under active development. **Apple App Store listing coming soon.**
+In the meantime, iOS users can [scan QR codes via the web demo](examples/wasm_browser_example.html) in Safari.
+
+### 🏪 App Store Availability
+
+| Platform | Status |
+|----------|--------|
+| Android (sideload) | ✅ Available now — [download APK above](#-install-on-android-sideload--free) |
+| Google Play Store | 🔜 Coming soon |
+| iOS App Store | 🔜 Coming soon |
 
 | Feature | Detail |
 |---------|--------|
