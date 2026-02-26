@@ -173,13 +173,12 @@
                 <div class="form-group">
                     <label for="catBlinkSpeed">⚡ Blink Speed:</label>
                     <select id="catBlinkSpeed">
-                        <option value="200">Slow (200ms) — best for phone camera</option>
-                        <option value="150">Moderate (150ms) — reliable with jitter</option>
-                        <option value="100" selected>Medium (100ms) — recommended</option>
-                        <option value="83">Fast (83ms) — direct video download only</option>
-                        <option value="50">Very Fast (50ms) — direct download only</option>
+                        <option value="200">Slow (200ms) — works with any phone camera</option>
+                        <option value="150">Moderate (150ms) — works with phone camera</option>
+                        <option value="100" selected>Medium (100ms) — works with phone camera (60fps)</option>
+                        <option value="83">Fast (83ms) — video download/share only, not phone recording</option>
                     </select>
-                    <small>Each frame transmits 2 bits (one per eye). Use Slow/Moderate for phone camera recording, Medium+ for video download.</small>
+                    <small>📱 <strong>Phone recording:</strong> Use Slow or Moderate (200ms/150ms) for best results. 💾 <strong>Video download:</strong> Any speed works — the recorded video preserves exact timing for anyone to decode.</small>
                 </div>
             </div>
         </div>
@@ -201,8 +200,27 @@
 
     <!-- STEP 3: Decode -->
     <div class="cat-step">
-        <h3><span class="step-number">3</span>🔓 Decode Binary Pattern</h3>
-        <p style="margin: 15px 0; color: #666;">Paste the binary pattern from transmission (or upload a recorded video) and decrypt with the password.</p>
+        <h3><span class="step-number">3</span>🔓 Decode</h3>
+
+        <!-- Transfer method guidance -->
+        <div style="display: flex; gap: 12px; margin-bottom: 18px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 220px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 8px; padding: 12px;">
+                <strong>📱 Phone Records Screen</strong>
+                <ul style="margin: 6px 0 0 16px; font-size: 0.88em; color: #333; line-height: 1.7;">
+                    <li>Use <strong>Slow (200ms)</strong> or <strong>Moderate (150ms)</strong></li>
+                    <li>Point phone camera at the cat animation</li>
+                    <li>Upload the phone-recorded video below</li>
+                </ul>
+            </div>
+            <div style="flex: 1; min-width: 220px; background: #e3f2fd; border: 1px solid #90caf9; border-radius: 8px; padding: 12px;">
+                <strong>💾 Download &amp; Share Video</strong>
+                <ul style="margin: 6px 0 0 16px; font-size: 0.88em; color: #333; line-height: 1.7;">
+                    <li>Any speed works (video preserves exact timing)</li>
+                    <li>Click <strong>⬇️ Download Video</strong> after encoding</li>
+                    <li>Send the .webm file — recipient uploads it here</li>
+                </ul>
+            </div>
+        </div>
 
         <!-- Video Upload Section -->
         <div class="form-group" style="border: 2px dashed #ccc; border-radius: 10px; padding: 20px; text-align: center; margin-bottom: 20px; background: #fafafa;">
@@ -210,7 +228,7 @@
             <input type="file" id="videoUpload" accept="video/webm,video/mp4,video/*"
                    style="margin: 10px auto; display: block;"
                    onchange="handleVideoUpload(this)">
-            <small style="color: #888;">Upload a Cat Mode video — binary pattern will be extracted automatically from the eye blinks</small>
+            <small style="color: #888;">Upload a Cat Mode video — blink speed is detected automatically, binary pattern fills in below</small>
             <div id="videoUploadStatus" style="display: none; margin-top: 10px; padding: 10px; border-radius: 6px;"></div>
             <div id="videoPreviewContainer" style="display: none; margin-top: 15px;">
                 <video id="videoPreview" style="max-width: 100%; border-radius: 8px; border: 1px solid #ddd;" controls></video>
@@ -232,17 +250,6 @@
                     <input type="checkbox" id="showDecodePassword" onchange="document.getElementById('decodePassword').type = this.checked ? 'text' : 'password'">
                     <label for="showDecodePassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
                 </div>
-            </div>
-
-            <div class="form-group">
-                <label for="blinkSpeed">⚡ Blink Speed Used:</label>
-                <select name="blink_speed" id="blinkSpeed">
-                    <option value="200">Slow (200ms)</option>
-                    <option value="150">Moderate (150ms)</option>
-                    <option value="100" selected>Medium (100ms)</option>
-                    <option value="83">Fast (83ms)</option>
-                    <option value="50">Very Fast (50ms)</option>
-                </select>
             </div>
 
             <button type="submit" class="btn">🔍 Decode Binary</button>
@@ -698,7 +705,6 @@ function loadSavedBinary() {
 
         if (binary) {
             document.getElementById('binaryInput').value = binary;
-            if (speed) document.getElementById('blinkSpeed').value = speed;
             alert(`✅ Loaded saved binary (${binary.length} bits, server encryption)`);
         } else {
             alert('No saved binary pattern found');

@@ -1015,12 +1015,11 @@
 
                         <label for="catBlinkSpeed">⚡ Blink Speed:</label>
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
-                            <option value="500">Slow (500ms)</option>
-                            <option value="200" selected>Medium (200ms)</option>
-                            <option value="100">Fast (100ms)</option>
-                            <option value="50">Very Fast (50ms)</option>
+                            <option value="500">Slow (500ms) — works with any phone camera</option>
+                            <option value="200" selected>Medium (200ms) — works with phone camera</option>
+                            <option value="100">Fast (100ms) — phone 60fps or video download</option>
                         </select>
-                        <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
+                        <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">📱 Phone recording: use 500ms or 200ms &nbsp;·&nbsp; 💾 Video download: any speed works</p>
 
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
@@ -1071,7 +1070,6 @@
                             <option value="500">Slow (500ms)</option>
                             <option value="200" selected>Medium (200ms)</option>
                             <option value="100">Fast (100ms)</option>
-                            <option value="50">Very Fast (50ms)</option>
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: 0 0 10px 0;">Must match the speed used during encoding</p>
 
