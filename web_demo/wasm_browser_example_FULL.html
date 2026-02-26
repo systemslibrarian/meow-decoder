@@ -3256,7 +3256,7 @@
                     showResult(true, `File decrypted: <a href="${url}" download="${escapeHtml(decodedFileName)}">${escapeHtml(decodedFileName)}</a> (${decResult.data.length} bytes) — click to download`);
                     log(`✅ File ready: ${decodedFileName}`);
                 } else {
-                    showResult(true, plaintext);
+                    showResult(true, escapeHtml(plaintext));
                 }
 
             } catch (err) {
@@ -3291,11 +3291,11 @@
             if (success) {
                 box.className = 'result-box';
                 title.textContent = '✨ Decrypted Message';
-                msg.textContent = message;
+                msg.innerHTML = message; // may contain download link HTML
             } else {
                 box.className = 'result-box error';
                 title.textContent = '❌ Decryption Failed';
-                msg.textContent = message;
+                msg.textContent = message; // plain text, no HTML injection risk
             }
 
             section.scrollIntoView({ behavior: 'smooth', block: 'center' });
