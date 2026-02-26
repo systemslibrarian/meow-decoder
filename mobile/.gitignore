@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+
+# Android build artifacts
+android/build/
+android/app/build/
+android/.gradle/
+android/local.properties
+
+# Keystores — NEVER commit these; back them up offline
+android/app/debug.keystore
+android/app/release.keystore
+
+# iOS build artifacts
+ios/build/
+ios/Pods/
+ios/DerivedData/
+*.xcworkspace/
+
+# Metro bundler cache
+.metro-health-check*
+
+# React Native
+.react-native-cache/
+
+# Jest
+coverage/
+
+# TypeScript
+*.tsbuildinfo

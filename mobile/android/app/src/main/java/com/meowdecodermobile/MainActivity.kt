@@ -24,7 +24,7 @@ class MainActivity : ReactActivity() {
   }
 
   /** Returns the name of the main component registered from JavaScript. */
-  override fun getMainComponentName(): String = "MeowDecoderMobile"
+  override fun getMainComponentName(): String = "MeowCapture"
 
   /** Returns the instance of the [ReactActivityDelegate]. */
   override fun createReactActivityDelegate(): ReactActivityDelegate =
