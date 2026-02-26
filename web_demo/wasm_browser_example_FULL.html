@@ -1775,7 +1775,8 @@
             if (QRCode) return QRCode;
 
             const cdnUrls = [
-                'qrcode.min.js',
+                'static/qrcode.min.js',
+                '../examples/qrcode.min.js',
                 'https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js',
                 'https://unpkg.com/qrcode@1.5.3/build/qrcode.min.js',
                 'https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js'
@@ -8557,6 +8558,59 @@
 
             try {
                 const file = input.files[0];
+
+                // ── Animated GIF path: fountain-decode all frames ────────────────────
+                const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+                if (isGif) {
+                    try {
+                        const ab = await file.arrayBuffer();
+                        const { frames } = parseGifFrames(ab);
+                        if (frames.length > 1) {
+                            statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: scanning ${frames.length} frames...</span>`;
+                            if (!jsQR) await loadJsQR();
+                            if (!jsQR) throw new Error('jsQR not available');
+                            const seenSeeds = new Set();
+                            let fdec = null, fp = null;
+                            for (let fi = 0; fi < frames.length; fi++) {
+                                if (fi % 10 === 0) {
+                                    statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${seenSeeds.size} droplets...</span>`;
+                                    await new Promise(r => setTimeout(r, 0));
+                                }
+                                const fd = frames[fi];
+                                let qr = jsQR(fd.data, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
+                                if (!qr) {
+                                    const bin = new Uint8ClampedArray(fd.data);
+                                    for (let i = 0; i < bin.length; i += 4) { const g = 0.299*bin[i]+0.587*bin[i+1]+0.114*bin[i+2]; bin[i]=bin[i+1]=bin[i+2]=g<128?0:255; }
+                                    qr = jsQR(bin, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
+                                }
+                                if (qr && qr.data.startsWith('FOUNTAIN:')) {
+                                    const p = qr.data.split(':');
+                                    if (p.length >= 5) {
+                                        const k=parseInt(p[1]),bs=parseInt(p[2]),len=parseInt(p[3]);
+                                        if (!fdec) { fdec=new FountainDecoder(k,bs,len); fp={k,bs,len}; }
+                                        const drop = Droplet.unpack(base64ToBytes(p[4]), fp.bs);
+                                        if (!seenSeeds.has(drop.seed)) {
+                                            seenSeeds.add(drop.seed);
+                                            if (fdec.addDroplet(drop)) {
+                                                const payload = new TextDecoder().decode(fdec.getData(fp.len));
+                                                document.getElementById('duressEncryptedPayload').value = payload;
+                                                const label = payload.startsWith('DURESS:') ? '✅ Duress payload decoded!' : '✅ Payload decoded!';
+                                                statusEl.innerHTML = `<span style="color: #00ff88;">${label} ${seenSeeds.size} droplets from ${frames.length} frames. Enter password to decrypt.</span>`;
+                                                log(`✅ [Duress] Fountain decoded: ${seenSeeds.size}/${fp.k} droplets`);
+                                                input.value = ''; return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: ${seenSeeds.size} droplets, need ~${fp?fp.k:'?'}. Try the 📹 Webcam tab.</span>`;
+                            input.value = ''; return;
+                        }
+                    } catch (gifErr) {
+                        log(`⚠️ GIF parse failed: ${gifErr.message} — falling back to single-frame`);
+                    }
+                }
+                // ──────────────────────────────────────────────────────────────────
                 const reader = new FileReader();
                 const imageData = await new Promise((resolve, reject) => {
                     reader.onload = (e) => resolve(e.target.result);
