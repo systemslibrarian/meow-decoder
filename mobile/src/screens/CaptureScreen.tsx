@@ -87,16 +87,12 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
   // omitted for now to keep strict noUnusedLocals clean.
 
-  // ── Load request only after calibration wizard completes ─────────────────
-  useEffect(() => {
-    if (calibrationCompleteRef.current) {
-      loadRequest(request);
-    }
-  }, [request, loadRequest]);
-
   const handleCalibrationComplete = () => {
     calibrationCompleteRef.current = true;
     setShowCalibration(false);
+    // Call loadRequest directly — the ref is stable (useCallback []), so a
+    // useEffect on [request, loadRequest] would only fire on mount (before
+    // calibration finishes) and never again, meaning loadRequest would never run.
     loadRequest(request);
   };
 
