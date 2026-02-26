@@ -1249,7 +1249,7 @@
             <div style="font-size: 2em; margin-bottom: 10px;">📸</div>
             <p style="color: #00ccff; margin: 0 0 10px 0;"><strong>Upload QR Code Image</strong></p>
             <p style="color: #888; font-size: 0.85em; margin: 0 0 15px 0;">Take a photo of the QR code on your phone and upload it here</p>
-            <input type="file" id="qrUpload" accept="image/*" style="display: none;" onchange="scanUploadedQR(this)">
+            <input type="file" id="qrUpload" accept="image/*,.gif" style="display: none;" onchange="scanUploadedQR(this)">
             <button class="secondary" onclick="document.getElementById('qrUpload').click()">📤 Choose Image / Take Photo</button>
             <div id="scanStatus" style="margin-top: 10px; font-size: 0.9em;"></div>
             <canvas id="scanCanvas" style="display: none;"></canvas>
@@ -1876,6 +1876,78 @@
 
             const file = input.files[0];
             statusEl.innerHTML = '<span style="color: #ff9800;">⏳ Scanning QR code...</span>';
+
+            // ── Animated GIF path: extract all frames, fountain-decode ──────────
+            const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+            if (isGif) {
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const { frames, width, height } = parseGifFrames(arrayBuffer);
+                    if (frames.length > 1) {
+                        statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF detected — scanning ${frames.length} frames...</span>`;
+                        log(`🎞️ Animated GIF: ${frames.length} frames (${width}×${height})`);
+                        if (!jsQR) await loadJsQR();
+                        if (!jsQR) throw new Error('jsQR library not available');
+
+                        const collectedSeeds = new Set();
+                        let gifDecoder = null;
+                        let gifParams = null;
+
+                        for (let fi = 0; fi < frames.length; fi++) {
+                            if (fi % 10 === 0) {
+                                statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${collectedSeeds.size} droplets collected...</span>`;
+                                await new Promise(r => setTimeout(r, 0)); // yield UI
+                            }
+                            const frameData = frames[fi];
+                            let qrResult = null;
+                            // Try normal scan first
+                            qrResult = jsQR(frameData.data, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' });
+                            if (!qrResult) {
+                                // Try binarized
+                                const bin = new Uint8ClampedArray(frameData.data);
+                                for (let i = 0; i < bin.length; i += 4) {
+                                    const g = 0.299*bin[i] + 0.587*bin[i+1] + 0.114*bin[i+2];
+                                    bin[i] = bin[i+1] = bin[i+2] = g < 128 ? 0 : 255;
+                                }
+                                qrResult = jsQR(bin, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' });
+                            }
+                            if (qrResult && qrResult.data.startsWith('FOUNTAIN:')) {
+                                const parts = qrResult.data.split(':');
+                                if (parts.length >= 5) {
+                                    const k = parseInt(parts[1]), bs = parseInt(parts[2]), len = parseInt(parts[3]);
+                                    if (!gifDecoder) {
+                                        gifDecoder = new FountainDecoder(k, bs, len);
+                                        gifParams = { k, bs, len };
+                                        log(`⛲ Fountain params: k=${k} blocks, blockSize=${bs}, length=${len}`);
+                                    }
+                                    const droplet = Droplet.unpack(base64ToBytes(parts[4]), gifParams.bs);
+                                    if (!collectedSeeds.has(droplet.seed)) {
+                                        collectedSeeds.add(droplet.seed);
+                                        if (gifDecoder.addDroplet(droplet)) {
+                                            const payload = new TextDecoder().decode(gifDecoder.getData(gifParams.len));
+                                            if (payload.startsWith('MEOW:')) {
+                                                document.getElementById('encryptedPayload').value = payload;
+                                                statusEl.innerHTML = `<span style="color: #00ff88;">✅ Animated GIF decoded! ${collectedSeeds.size} droplets from ${frames.length} frames. Enter password to decrypt.</span>`;
+                                                log(`✅ Fountain decoded: ${collectedSeeds.size}/${gifParams.k} droplets → ${payload.length}-char MEOW payload`);
+                                                input.value = '';
+                                                return;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        const needed = gifParams ? gifParams.k : '?';
+                        statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${collectedSeeds.size} droplets, need ~${needed}. Try the 📹 Webcam tab for live scanning.</span>`;
+                        log(`❌ Fountain incomplete: ${collectedSeeds.size} droplets, need ${needed}`);
+                        input.value = '';
+                        return;
+                    }
+                } catch (gifErr) {
+                    log(`⚠️ GIF frame parse failed: ${gifErr.message} — falling back to single-frame scan`);
+                }
+            }
+            // ────────────────────────────────────────────────────────────────────
 
             try {
                 // Read and display image
@@ -3373,7 +3445,127 @@
             return out;
         }
 
-        // Generic copy to clipboard helper
+        // ---- GIF89a frame parser (for animated GIF upload decoding) ----
+        function parseGifFrames(arrayBuffer) {
+            const d = new Uint8Array(arrayBuffer);
+            let pos = 6; // skip "GIF89a"
+            const logicalW = d[pos] | (d[pos+1]<<8);
+            const logicalH = d[pos+2] | (d[pos+3]<<8);
+            pos += 4;
+            const packed = d[pos++];
+            const hasGCT = (packed >> 7) & 1;
+            const gctSize = packed & 0x7;
+            pos += 2; // bg color index, pixel aspect ratio
+            let globalPalette = null;
+            if (hasGCT) {
+                const n = 2 << gctSize;
+                globalPalette = [];
+                for (let i = 0; i < n; i++) { globalPalette.push([d[pos],d[pos+1],d[pos+2]]); pos += 3; }
+            }
+            const frames = [];
+            // Shared canvas to handle disposal modes
+            const canvas = document.createElement('canvas');
+            canvas.width = logicalW; canvas.height = logicalH;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, logicalW, logicalH);
+
+            let transparentIdx = -1;
+            while (pos < d.length) {
+                const block = d[pos++];
+                if (block === 0x3B) break;
+                if (block === 0x21) {
+                    const label = d[pos++];
+                    if (label === 0xF9) { // Graphic Control Extension
+                        pos++; // block size (always 4)
+                        const gceFlags = d[pos++];
+                        pos += 2; // delay
+                        transparentIdx = (gceFlags & 1) ? d[pos] : -1;
+                        pos++; pos++; // transparent index, block terminator
+                    } else {
+                        // Skip other extensions
+                        let sz; do { sz = d[pos++]; pos += sz; } while (sz !== 0);
+                    }
+                } else if (block === 0x2C) { // Image Descriptor
+                    const left = d[pos]|(d[pos+1]<<8), top = d[pos+2]|(d[pos+3]<<8);
+                    const fw = d[pos+4]|(d[pos+5]<<8), fh = d[pos+6]|(d[pos+7]<<8);
+                    pos += 8;
+                    const imgPacked = d[pos++];
+                    const hasLCT = (imgPacked>>7)&1;
+                    const lctSize = imgPacked&0x7;
+                    let palette = globalPalette;
+                    if (hasLCT) {
+                        const n = 2 << lctSize;
+                        palette = [];
+                        for (let i = 0; i < n; i++) { palette.push([d[pos],d[pos+1],d[pos+2]]); pos += 3; }
+                    }
+                    const minCodeSize = d[pos++];
+                    const lzwData = [];
+                    let sz; do { sz = d[pos++]; for (let i=0;i<sz;i++) lzwData.push(d[pos++]); } while (sz !== 0);
+                    const pixels = gifLzwDecode(new Uint8Array(lzwData), minCodeSize, fw * fh);
+                    // Draw frame onto shared canvas
+                    const frameImg = ctx.createImageData(fw, fh);
+                    const r = frameImg.data;
+                    for (let py = 0; py < fh; py++) {
+                        for (let px = 0; px < fw; px++) {
+                            const ci = pixels[py*fw+px];
+                            const gi = (py*fw+px)*4;
+                            if (ci === transparentIdx) { r[gi]=r[gi+1]=r[gi+2]=255; r[gi+3]=255; continue; }
+                            const c = (palette && palette[ci]) || [0,0,0];
+                            r[gi]=c[0]; r[gi+1]=c[1]; r[gi+2]=c[2]; r[gi+3]=255;
+                        }
+                    }
+                    ctx.putImageData(frameImg, left, top);
+                    // Snapshot full logical canvas as this frame
+                    frames.push(ctx.getImageData(0, 0, logicalW, logicalH));
+                }
+            }
+            return { frames, width: logicalW, height: logicalH };
+        }
+
+        function gifLzwDecode(data, minCodeSize, numPixels) {
+            const clearCode = 1 << minCodeSize;
+            const eofCode = clearCode + 1;
+            const table = [];
+            const initTable = () => {
+                table.length = 0;
+                for (let i = 0; i < clearCode; i++) table.push([i]);
+                table.push(null); table.push(null); // clearCode, eofCode
+            };
+            initTable();
+            let codeSize = minCodeSize + 1;
+            let bitPos = 0;
+            const readCode = () => {
+                let code = 0;
+                for (let i = 0; i < codeSize; i++) {
+                    code |= ((data[bitPos>>3] >> (bitPos&7)) & 1) << i; bitPos++;
+                }
+                return code;
+            };
+            const out = [];
+            let code = readCode();
+            while (code === clearCode) { initTable(); codeSize = minCodeSize+1; code = readCode(); }
+            let entry = table[code] || [code & (clearCode-1)];
+            out.push(...entry);
+            let prev = code;
+            while (out.length < numPixels) {
+                code = readCode();
+                if (code === eofCode) break;
+                if (code === clearCode) { initTable(); codeSize=minCodeSize+1; prev=null; continue; }
+                const prevEntry = table[prev] || [];
+                if (code < table.length && table[code] !== null) {
+                    entry = table[code];
+                } else {
+                    entry = [...prevEntry, (prevEntry[0] !== undefined ? prevEntry[0] : 0)];
+                }
+                out.push(...entry);
+                if (prevEntry.length > 0) {
+                    table.push([...prevEntry, entry[0]]);
+                    if (table.length > (1<<codeSize) && codeSize < 12) codeSize++;
+                }
+                prev = code;
+            }
+            return out;
+        }
         window.copyToClipboard = function(text, label) {
             if (!text) { alert('Nothing to copy'); return; }
             navigator.clipboard.writeText(text).then(() => {
