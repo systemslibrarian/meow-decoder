@@ -188,10 +188,66 @@ def decrypt_binary(decoded_binary: str, password: str):
 
 # ─── TEST RUNNER ─────────────────────────────────────────────────────────────
 
-def run_test(speed_ms: int, message: str, password: str, test_id: str) -> dict:
-    """Full pipeline for one test case. Returns result dict."""
-    from app import _decode_cat_video
+# Inline decode script — runs in a COMPLETELY SEPARATE Python process.
+# It has NO access to payload_hex, expected_binary, or any encryption result.
+# Only inputs: video file path (on disk) and nothing else.
+# This simulates a real user uploading the video on a different machine.
+_DECODE_SUBPROCESS_SCRIPT = """\
+import sys, json, os
+os.environ["MEOW_TEST_MODE"] = "1"
+sys.path.insert(0, "/workspaces/meow-decoder")
+sys.path.insert(0, "/workspaces/meow-decoder/web_demo")
+# Force fresh import — no module-level caching from parent process
+for mod in list(sys.modules.keys()):
+    if "app" in mod or "meow" in mod:
+        del sys.modules[mod]
+from app import _decode_cat_video
+result = _decode_cat_video(sys.argv[1])
+print(json.dumps(result))
+"""
 
+
+def decode_video_isolated(vpath: str) -> dict:
+    """
+    Decode a video in a FRESH subprocess that knows NOTHING about how the
+    video was created — only the file path on disk.
+    This is the same situation as a real user uploading the video.
+    """
+    import subprocess as _sp
+    import json as _json
+    import shutil
+
+    python = shutil.which("python3") or sys.executable
+    # Use the venv python if available
+    venv_py = "/workspaces/meow-decoder/.venv/bin/python"
+    if os.path.exists(venv_py):
+        python = venv_py
+
+    proc = _sp.run(
+        [python, "-c", _DECODE_SUBPROCESS_SCRIPT, vpath],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={**os.environ, "MEOW_TEST_MODE": "1"},
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(
+            f"Decoder subprocess exited {proc.returncode}:\n{proc.stderr[-800:]}"
+        )
+    return _json.loads(proc.stdout.strip())
+
+
+def run_test(speed_ms: int, message: str, password: str, test_id: str) -> dict:
+    """
+    Full pipeline for one test case.
+
+    ISOLATION GUARANTEE:
+      Steps 1-3 (encrypt + generate video) happen in THIS process.
+      Step 4 (decode video) runs in a FRESH subprocess that only receives
+        the path to the .avi file — it has no access to payload_hex,
+        expected_binary, or any encryption state.
+      Step 5-6 (decrypt + compare) happen in THIS process.
+    """
     t0 = time.monotonic()
 
     # Step 1: Encrypt
@@ -202,7 +258,7 @@ def run_test(speed_ms: int, message: str, password: str, test_id: str) -> dict:
     tx_binary, raw_binary = build_transmission(payload_hex)
     assert raw_binary == expected_binary
 
-    # Step 3: Generate video
+    # Step 3: Generate video — write to temp file, then FORGET payload_hex
     with tempfile.NamedTemporaryFile(suffix=".avi", delete=False) as tmp:
         vpath = tmp.name
 
@@ -210,8 +266,10 @@ def run_test(speed_ms: int, message: str, password: str, test_id: str) -> dict:
         n_frames = generate_video(tx_binary, vpath, speed_ms)
         file_kb = os.path.getsize(vpath) // 1024
 
-        # Step 4: Decode video
-        result = _decode_cat_video(vpath)
+        # Step 4: ISOLATED decode — subprocess only knows vpath
+        # payload_hex / expected_binary / tx_binary are NOT passed in
+        del tx_binary, raw_binary  # Explicitly remove from scope — cannot leak
+        result = decode_video_isolated(vpath)
     finally:
         os.unlink(vpath)
 
@@ -268,6 +326,12 @@ if __name__ == "__main__":
     print("  CAT MODE PROOF  —  encode → video → decode → decrypt → verify")
     print(f"  MEOW_TEST_MODE={os.environ.get('MEOW_TEST_MODE','0')}")
     print(f"  Testing {len(TESTS)} speeds with 1 message each")
+    print()
+    print("  *** DECODE RUNS IN A FRESH SUBPROCESS ***")
+    print("  The decoder process only receives the .avi file path.")
+    print("  It has ZERO access to payload_hex, expected bits, or")
+    print("  any encryption state from this process — same isolation")
+    print("  as a real user uploading a video on a different machine.")
     print("=" * 70)
 
     total_t0 = time.monotonic()
