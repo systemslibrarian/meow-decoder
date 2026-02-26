@@ -866,6 +866,7 @@
 
             <div style="text-align: center;">
                 <button class="secondary copy-btn" onclick="downloadDuressQR()">💾 Save QR Image</button>
+                <button id="downloadDuressGifBtn" class="secondary copy-btn" style="display:none;" onclick="downloadDuressGif()">🎞️ Download Animated GIF</button>
                 <button class="secondary copy-btn" onclick="copyDuressPayload()">📋 Copy Encrypted Data</button>
             </div>
 
@@ -8073,6 +8074,9 @@
 
                 // Generate QR code
                 document.getElementById('duressQrcode').innerHTML = '';
+                window.duressFrameCanvases = null;
+                const _gifBtnD = document.getElementById('downloadDuressGifBtn');
+                if (_gifBtnD) _gifBtnD.style.display = 'none';
                 if (!QRCode) await loadQRCode();
 
                 if (payload.length > 2500) {
@@ -8116,6 +8120,11 @@
                         frames[cur].style.display = 'block';
                         counter.textContent = `Frame ${cur + 1} / ${chunks.length}`;
                     }, 500);
+
+                    // Store frames for GIF download
+                    window.duressFrameCanvases = frames;
+                    const gifBtn = document.getElementById('downloadDuressGifBtn');
+                    if (gifBtn) gifBtn.style.display = '';
 
                     log(`   🎞️ Animated QR: ${chunks.length} frames`);
                 } else if (QRCode && typeof QRCode.toCanvas === 'function') {
@@ -8320,6 +8329,30 @@
             link.download = 'meow-duress-qr.png';
             link.href = canvas.toDataURL();
             link.click();
+        };
+
+        window.downloadDuressGif = async function() {
+            const frames = window.duressFrameCanvases;
+            if (!frames || frames.length === 0) { alert('No animated duress QR to download'); return; }
+            const btn = document.getElementById('downloadDuressGifBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Encoding GIF…'; }
+            log(`🎞️ Encoding ${frames.length}-frame duress animated GIF…`);
+            try {
+                const gifBytes = await encodeAnimatedGif(frames, 500);
+                const blob = new Blob([gifBytes], { type: 'image/gif' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = 'meow-duress-animated-qr.gif';
+                link.href = url;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                log(`✅ Duress animated GIF downloaded (${Math.round(gifBytes.length / 1024)} KB, ${frames.length} frames)`);
+            } catch (err) {
+                log(`❌ GIF encoding failed: ${err.message}`);
+                alert('GIF encoding failed: ' + err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '🎞️ Download Animated GIF'; }
+            }
         };
 
         window.copyDuressPayload = function() {
