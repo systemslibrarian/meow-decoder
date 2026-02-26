@@ -1889,7 +1889,7 @@
                 try {
                     const { frames, width, height } = await extractGifFrames(file);
                     if (frames.length > 1) {
-                        statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF detected — scanning ${frames.length} frames...</span>`;
+                        statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: ${frames.length} frames extracted — scanning QR codes...</span>`;
                         log(`🎞️ Animated GIF: ${frames.length} frames (${width}×${height})`);
                         if (!jsQR) await loadJsQR();
                         if (!jsQR) throw new Error('jsQR library not available');
@@ -1897,26 +1897,39 @@
                         const collectedSeeds = new Set();
                         let gifDecoder = null;
                         let gifParams = null;
+                        let qrHits = 0;
+
+                        const upscaleFrame = (fd) => {
+                            const sc = document.createElement('canvas');
+                            sc.width = fd.width * 2; sc.height = fd.height * 2;
+                            const sctx = sc.getContext('2d');
+                            sctx.imageSmoothingEnabled = false;
+                            const tmp = document.createElement('canvas');
+                            tmp.width = fd.width; tmp.height = fd.height;
+                            tmp.getContext('2d').putImageData(fd, 0, 0);
+                            sctx.drawImage(tmp, 0, 0, sc.width, sc.height);
+                            return sctx.getImageData(0, 0, sc.width, sc.height);
+                        };
+                        const binarize = (imgData) => {
+                            const b = new Uint8ClampedArray(imgData.data);
+                            for (let i = 0; i < b.length; i += 4) { const g = 0.299*b[i]+0.587*b[i+1]+0.114*b[i+2]; b[i]=b[i+1]=b[i+2]=g<128?0:255; b[i+3]=255; }
+                            return new ImageData(b, imgData.width, imgData.height);
+                        };
 
                         for (let fi = 0; fi < frames.length; fi++) {
-                            if (fi % 10 === 0) {
-                                statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${collectedSeeds.size} droplets collected...</span>`;
+                            if (fi % 5 === 0) {
+                                statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${collectedSeeds.size} droplets (${qrHits} QR reads)...</span>`;
                                 await new Promise(r => setTimeout(r, 0)); // yield UI
                             }
                             const frameData = frames[fi];
-                            let qrResult = null;
-                            // Try normal scan first
-                            qrResult = jsQR(frameData.data, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' });
-                            if (!qrResult) {
-                                // Try binarized
-                                const bin = new Uint8ClampedArray(frameData.data);
-                                for (let i = 0; i < bin.length; i += 4) {
-                                    const g = 0.299*bin[i] + 0.587*bin[i+1] + 0.114*bin[i+2];
-                                    bin[i] = bin[i+1] = bin[i+2] = g < 128 ? 0 : 255;
-                                }
-                                qrResult = jsQR(bin, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' });
-                            }
-                            if (qrResult && qrResult.data.startsWith('FOUNTAIN:')) {
+                            const up = upscaleFrame(frameData);
+                            const qrResult = jsQR(frameData.data, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' })
+                                || jsQR(up.data, up.width, up.height, { inversionAttempts: 'attemptBoth' })
+                                || jsQR(binarize(up).data, up.width, up.height, { inversionAttempts: 'attemptBoth' })
+                                || jsQR(binarize(frameData).data, frameData.width, frameData.height, { inversionAttempts: 'attemptBoth' });
+                            if (!qrResult) continue;
+                            qrHits++;
+                            if (qrResult.data.startsWith('FOUNTAIN:')) {
                                 const parts = qrResult.data.split(':');
                                 if (parts.length >= 5) {
                                     const k = parseInt(parts[1]), bs = parseInt(parts[2]), len = parseInt(parts[3]);
@@ -1943,8 +1956,8 @@
                             }
                         }
                         const needed = gifParams ? gifParams.k : '?';
-                        statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${collectedSeeds.size} droplets, need ~${needed}. Try the 📹 Webcam tab for live scanning.</span>`;
-                        log(`❌ Fountain incomplete: ${collectedSeeds.size} droplets, need ${needed}`);
+                        statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${collectedSeeds.size} droplets, need ~${needed}. (${qrHits} QR codes read from ${frames.length} frames${qrHits === 0 ? ' — QR decode failed' : ''}) Try the 📹 Webcam tab.</span>`;
+                        log(`❌ Fountain incomplete: ${collectedSeeds.size} droplets, need ${needed}, ${qrHits} QR reads`);
                         input.value = '';
                         return;
                     }
@@ -8091,7 +8104,7 @@
                     for (let i = 0; i < b64.length; i += chunkSize) chunks.push(b64.slice(i, i + chunkSize));
 
                     const container = document.createElement('div');
-                    container.style.cssText = 'position: relative; width: 300px; height: 300px; margin: 0 auto;';
+                    container.style.cssText = 'position: relative; width: 400px; height: 400px; margin: 0 auto;';
                     const frames = [];
 
                     for (let i = 0; i < chunks.length; i++) {
@@ -8099,9 +8112,9 @@
                         let canvas;
                         if (QRCode && typeof QRCode.toCanvas === 'function') {
                             canvas = document.createElement('canvas');
-                            await QRCode.toCanvas(canvas, fp, { width: 300, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
+                            await QRCode.toCanvas(canvas, fp, { width: 400, margin: 2, color: { dark: '#000000', light: '#ffffff' } });
                         } else {
-                            canvas = inlineQRToCanvas(fp, 300);
+                            canvas = inlineQRToCanvas(fp, 400);
                         }
                         if (canvas) {
                             canvas.style.cssText = `position: absolute; top: 0; left: 0; display: ${i === 0 ? 'block' : 'none'};`;
@@ -8677,7 +8690,7 @@
                         const { frames } = await extractGifFrames(file);
                         const width = frames[0]?.width, height = frames[0]?.height;
                         if (frames.length > 1) {
-                            statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: scanning ${frames.length} frames...</span>`;
+                            statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: ${frames.length} frames extracted — scanning QR codes...</span>`;
                             if (!jsQR) await loadJsQR();
                             if (!jsQR) throw new Error('jsQR not available');
 
@@ -8687,19 +8700,39 @@
                             const seenSeeds = new Set();
                             let fdec = null, fp = null;
 
+                            // Upscale helper: double frame size for better jsQR read rate
+                            const upscaleFrame = (fd) => {
+                                const sc = document.createElement('canvas');
+                                sc.width = fd.width * 2; sc.height = fd.height * 2;
+                                const sctx = sc.getContext('2d');
+                                sctx.imageSmoothingEnabled = false; // nearest-neighbour for sharp QR pixels
+                                const tmp = document.createElement('canvas');
+                                tmp.width = fd.width; tmp.height = fd.height;
+                                tmp.getContext('2d').putImageData(fd, 0, 0);
+                                sctx.drawImage(tmp, 0, 0, sc.width, sc.height);
+                                return sctx.getImageData(0, 0, sc.width, sc.height);
+                            };
+                            const binarize = (imgData) => {
+                                const b = new Uint8ClampedArray(imgData.data);
+                                for (let i = 0; i < b.length; i += 4) { const g = 0.299*b[i]+0.587*b[i+1]+0.114*b[i+2]; b[i]=b[i+1]=b[i+2]=g<128?0:255; b[i+3]=255; }
+                                return new ImageData(b, imgData.width, imgData.height);
+                            };
+
+                            let qrReadCount = 0;
                             for (let fi = 0; fi < frames.length; fi++) {
                                 if (fi % 5 === 0) {
-                                    statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${Object.keys(duressChunks).length} chunks / ${seenSeeds.size} droplets...</span>`;
+                                    statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Frame ${fi+1}/${frames.length}: ${Object.keys(duressChunks).length} chunks / ${seenSeeds.size} droplets (${qrReadCount} QR reads)...</span>`;
                                     await new Promise(r => setTimeout(r, 0));
                                 }
                                 const fd = frames[fi];
-                                let qr = jsQR(fd.data, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
-                                if (!qr) {
-                                    const bin = new Uint8ClampedArray(fd.data);
-                                    for (let i = 0; i < bin.length; i += 4) { const g = 0.299*bin[i]+0.587*bin[i+1]+0.114*bin[i+2]; bin[i]=bin[i+1]=bin[i+2]=g<128?0:255; }
-                                    qr = jsQR(bin, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
-                                }
+                                // Try 4 strategies in order: original → upscale → bin+upscale → bin only
+                                const up = upscaleFrame(fd);
+                                let qr = jsQR(fd.data, fd.width, fd.height, { inversionAttempts: 'attemptBoth' })
+                                    || jsQR(up.data, up.width, up.height, { inversionAttempts: 'attemptBoth' })
+                                    || jsQR(binarize(up).data, up.width, up.height, { inversionAttempts: 'attemptBoth' })
+                                    || jsQR(binarize(fd).data, fd.width, fd.height, { inversionAttempts: 'attemptBoth' });
                                 if (!qr) continue;
+                                qrReadCount++;
 
                                 // ── DURESS-N/total: chunked reassembly ──
                                 const duressMatch = qr.data.match(/^DURESS-(\d+)\/(\d+):(.*)$/s);
@@ -8745,9 +8778,9 @@
                             // Partial result
                             if (duressTotal !== null) {
                                 const got = Object.keys(duressChunks).length;
-                                statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${got}/${duressTotal} chunks. Try the 📹 Webcam tab.</span>`;
+                                statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: got ${got}/${duressTotal} chunks (${qrReadCount} QR codes read from ${frames.length} frames). Try the 📹 Webcam tab.</span>`;
                             } else {
-                                statusEl.innerHTML = `<span style="color: #f44336;">❌ Incomplete: ${seenSeeds.size} droplets, need ~${fp?fp.k:'?'}. Try the 📹 Webcam tab.</span>`;
+                                statusEl.innerHTML = `<span style="color: #f44336;">❌ No payload found. ${qrReadCount} QR codes read from ${frames.length} frames — ${qrReadCount === 0 ? 'QR decode failed (try Webcam tab)' : 'unexpected content'}. Droplets: ${seenSeeds.size}.</span>`;
                             }
                             input.value = ''; return;
                         }
