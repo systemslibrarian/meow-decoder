@@ -20,7 +20,7 @@ import secrets
 from pathlib import Path
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, send_file, flash
+from flask import Flask, render_template, request, redirect, url_for, send_file, send_from_directory, flash
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +30,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 app = Flask(__name__)
 app.secret_key = os.urandom(24)  # For flash messages
+
+
+@app.route('/assets/<path:filename>')
+def serve_asset(filename):
+    """Serve files from the top-level assets/ directory."""
+    assets_dir = Path(__file__).parent.parent / 'assets'
+    return send_from_directory(assets_dir, filename)
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB limit (iPhone HD video + uncompressed test videos)
 
 # Directories

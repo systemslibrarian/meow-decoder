@@ -125,6 +125,12 @@
 
         <!-- Canvas + buttons together at top -->
         <div style="text-align: center; margin-bottom: 15px;">
+            <!-- Hidden background video (CatVideo.mp4) drawn onto canvas each frame -->
+            <video id="catBgVideo" autoplay muted loop playsinline
+                   style="display:none; position:absolute; pointer-events:none;"
+                   crossorigin="anonymous">
+                <source src="/assets/CatVideo.mp4" type="video/mp4">
+            </video>
             <canvas id="catCanvas" width="743" height="417"></canvas>
 
             <div class="action-buttons" style="margin-top: 10px;">
@@ -283,13 +289,8 @@
 {% block extra_js %}
 <script>
 let catCanvas, catCtx;
-let catImage = new Image();
-let catOriginalImageData = null;
+let catBgVideo = null;   // Background video element (CatVideo.mp4)
 let catEyeRegions = null;
-let catFrameOn = null;   // Pre-rendered: both eyes green (11)
-let catFrameOff = null;  // Pre-rendered: both eyes dark (00)
-let catFrame01 = null;   // Pre-rendered: left dark, right green (01)
-let catFrame10 = null;   // Pre-rendered: left green, right dark (10)
 let catBinaryData = '';
 let catTransmitting = false;
 let catBlinkInterval = null;
@@ -299,131 +300,61 @@ let recordedChunks = [];
 let videoBlob = null;
 
 document.addEventListener('DOMContentLoaded', async () => {
-    catCanvas = document.getElementById('catCanvas');
-    catCtx = catCanvas.getContext('2d');
+    catBgVideo = document.getElementById('catBgVideo');
 
-    catImage.crossOrigin = 'anonymous';
-    catImage.onload = async () => {
+    catBgVideo.addEventListener('loadeddata', async () => {
+        console.log('🎬 Cat video loaded, detecting eyes...');
         await initCatCanvas();
-        console.log('🐱 Cat image loaded');
-    };
+    });
 
-    catImage.src = '{{ url_for("static", filename="MeowDecoderDemo.png") }}';
-    catImage.onerror = () => {
-        console.warn('Failed to load cat image');
+    catBgVideo.addEventListener('error', () => {
+        console.warn('Failed to load CatVideo.mp4 — using placeholder');
         catCtx.fillStyle = '#333';
         catCtx.fillRect(0, 0, 743, 417);
         catCtx.fillStyle = '#00ccff';
         catCtx.font = '48px Arial';
         catCtx.textAlign = 'center';
         catCtx.fillText('😺', 371, 208);
-    };
-});
+    });
 
-async function initCatCanvas() {
-    if (!catImage || !catImage.naturalWidth) return;
+    // Trigger load (the element already has autoplay but we want the event)
+    catBgVideo.load()   catCtx.fillText('😺', 371, 208);
+    });
+BgVideo || catBgVideo.readyState < 2) return;
 
-    catCtx.clearRect(0, 0, 743, 417);
-    catCtx.drawImage(catImage, 0, 0, 743, 417);
-    catOriginalImageData = catCtx.getImageData(0, 0, 743, 417);
-    catEyeRegions = autoDetectEyeRegions(catOriginalImageData);
+    // Snapshot first video frame for eye detection
+    catCtx.drawImage(catBgVideo, 0, 0, 743, 417);
+    const firstFrameData = catCtx.getImageData(0, 0, 743, 417);
+    catEyeRegions = autoDetectEyeRegions(firstFrameData);
 
     if (catEyeRegions) {
-        console.log('😺 Eyes detected: L(' + catEyeRegions.left.join(',') + ') R(' + catEyeRegions.right.join(',') + ')');
+        console.log('😺 Eyes detected from video: L(' + catEyeRegions.left.join(',') + ') R(' + catEyeRegions.right.join(',') + ')');
+    } else {
+        console.log('😺 No green eyes found in video — transmission overlays will use full-frame flash');
     }
 
-    // Pre-render both frames for instant switching during transmission
-    preRenderFrames();
-}
-
-function preRenderFrames() {
-    const src = catOriginalImageData.data;
-    const w = catOriginalImageData.width;
-    const h = catOriginalImageData.height;
-
-    if (!catEyeRegions) {
-        // Fallback: single-eye mode if regions not detected
-        catFrameOn = new ImageData(new Uint8ClampedArray(src), w, h);
-        const offData = new Uint8ClampedArray(src);
-        const maxY = Math.floor(h * 0.65);
-        for (let i = 0; i < offData.length; i += 4) {
-            const py = Math.floor((i / 4) / w);
-            if (py >= maxY) continue;
-            const r = offData[i], g = offData[i + 1], a = offData[i + 3];
-            if (g > 100 && g > r * 1.3 && a > 100) {
-                offData[i] = 0; offData[i + 1] = 0; offData[i + 2] = 0;
-            }
-        }
-        catFrameOff = new ImageData(offData, w, h);
-        catFrame01 = catFrameOn;  // fallback
-        catFrame10 = catFrameOff; // fallback
-        console.log('⚡ Pre-rendered 2 frames (single-eye fallback)');
-        return;
+    // Draw initial frame
+    drawWithGreenBlink(true, true
+// Draw eye overlay (green glow or dark mask) on top of the current canvas frame.
+function drawEyeOverlay(box, isOn) {
+    const [x1, y1, x2, y2] = box;
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
+    const rx = Math.max((x2 - x1) / 2, 6);
+    const ry = Math.max((y2 - y1) / 2, 6);
+    catCtx.save();
+    catCtx.beginPath();
+    catCtx.ellipse(cx, cy, rx, ry, 0, 0, Math.PI * 2);
+    if (isOn) {
+        catCtx.fillStyle = 'rgba(0,255,136,0.88)';
+        catCtx.shadowColor = '#00ff88';
+        catCtx.shadowBlur = 18;
+    } else {
+        catCtx.fillStyle = 'rgba(10,10,10,0.85)';
+        catCtx.shadowBlur = 0;
     }
-
-    // Helper: darken green pixels in a bounding box
-    function darkenEye(data, box) {
-        const [x1, y1, x2, y2] = box;
-        for (let y = y1; y <= y2 && y < h; y++) {
-            for (let x = x1; x <= x2 && x < w; x++) {
-                const i = (y * w + x) * 4;
-                const r = data[i], g = data[i + 1], a = data[i + 3];
-                if (g > 100 && g > r * 1.3 && a > 100) {
-                    data[i] = 0; data[i + 1] = 0; data[i + 2] = 0;
-                }
-            }
-        }
-    }
-
-    // Frame 11: both eyes green (original)
-    catFrameOn = new ImageData(new Uint8ClampedArray(src), w, h);
-
-    // Frame 00: both eyes dark
-    const d00 = new Uint8ClampedArray(src);
-    darkenEye(d00, catEyeRegions.left);
-    darkenEye(d00, catEyeRegions.right);
-    catFrameOff = new ImageData(d00, w, h);
-
-    // Frame 01: left dark, right green
-    const d01 = new Uint8ClampedArray(src);
-    darkenEye(d01, catEyeRegions.left);
-    catFrame01 = new ImageData(d01, w, h);
-
-    // Frame 10: left green, right dark
-    const d10 = new Uint8ClampedArray(src);
-    darkenEye(d10, catEyeRegions.right);
-    catFrame10 = new ImageData(d10, w, h);
-
-    console.log('⚡ Pre-rendered 4 blink frames (2-bit dual-eye mode)');
-}
-
-function autoDetectEyeRegions(imageData) {
-    const data = imageData.data;
-    const w = imageData.width, h = imageData.height;
-    const greenPixels = [];
-
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
-        if (g > 100 && g > r * 1.3 && a > 100) {
-            const idx = i / 4;
-            const px = idx % w, py = Math.floor(idx / w);
-            if (py < h * 0.65) greenPixels.push({ x: px, y: py });
-        }
-    }
-
-    if (greenPixels.length < 20) return null;
-
-    const xs = greenPixels.map(p => p.x);
-    const minX = Math.min(...xs), maxX = Math.max(...xs);
-    const midStart = Math.round(minX + (maxX - minX) * 0.35);
-    const midEnd = Math.round(minX + (maxX - minX) * 0.65);
-
-    const colCounts = {};
-    for (const p of greenPixels) {
-        if (p.x >= midStart && p.x <= midEnd) {
-            colCounts[p.x] = (colCounts[p.x] || 0) + 1;
-        }
-    }
+    catCtx.fill();
+    catCtx.restore(
 
     let splitX = Math.round((minX + maxX) / 2);
     let minCount = Infinity;
@@ -455,18 +386,18 @@ function autoDetectEyeRegions(imageData) {
 }
 
 function drawWithGreenBlink(leftOn, rightOn) {
-    if (!catOriginalImageData) return;
-
-    // 2-bit dual-eye frame swap
-    if (catFrameOn && catFrameOff && catFrame01 && catFrame10) {
-        if (leftOn && rightOn) catCtx.putImageData(catFrameOn, 0, 0);
-        else if (!leftOn && rightOn) catCtx.putImageData(catFrame01, 0, 0);
-        else if (leftOn && !rightOn) catCtx.putImageData(catFrame10, 0, 0);
-        else catCtx.putImageData(catFrameOff, 0, 0);
-        return;
+    // Draw current video frame as animated background
+    if (catBgVideo && catBgVideo.readyState >= 2) {
+        catCtx.drawImage(catBgVideo, 0, 0, 743, 417);
+    } else {
+        catCtx.fillStyle = '#1a1a1a';
+        catCtx.fillRect(0, 0, 743, 417);
     }
-
-    catCtx.putImageData(catOriginalImageData, 0, 0);
+    // Overlay eye state indicators on detected eye regions
+    if (catEyeRegions) {
+        drawEyeOverlay(catEyeRegions.left, leftOn);
+        drawEyeOverlay(catEyeRegions.right, rightOn);
+    }
 }
 
 async function catModeEncode() {
@@ -480,10 +411,10 @@ async function catModeEncode() {
     // Scroll canvas into view so user doesn't miss frames
     document.getElementById('catCanvas').scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-    if (!catOriginalImageData) {
+    if (!catBgVideo || catBgVideo.readyState < 2) {
         await initCatCanvas();
-        if (!catOriginalImageData) {
-            alert('Cat image not loaded yet. Please wait and try again.');
+        if (!catBgVideo || catBgVideo.readyState < 2) {
+            alert('Cat video not loaded yet. Please wait and try again.');
             return;
         }
     }
