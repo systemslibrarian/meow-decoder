@@ -1,122 +1,18 @@
 <!--
-  Adaptive icon foreground: yarn-ball with subtle QR finder pattern + cat ears.
-  Background: @color/ic_launcher_background (#0a0a0f ink-black, defined in colors.xml)
-
-  Design language:
-    - Cat ears (gold triangles) at top
-    - Yarn ball (wound-thread arcs) in centre
-    - Subtle QR finder-pattern squares in lower-right corner
-    - Trailing thread strand from ball
-
-  Safe-zone: The adaptive icon mask clips to 72×72 dp within a 108×108 canvas.
-  All visual elements are placed within the safe zone (x:18–90, y:18–90).
+  Adaptive icon foreground: uses the meow-decoder no-tagline logo PNG.
+  Background colour (#0a0a0f) is set in ic_launcher.xml / ic_launcher_background.
+  The bitmap is inset to stay within the adaptive icon safe zone (72×72 dp
+  within a 108×108 dp canvas — ~17% inset each side).
 -->
-<vector xmlns:android="http://schemas.android.com/apk/res/android"
-    android:width="108dp"
-    android:height="108dp"
-    android:viewportWidth="108"
-    android:viewportHeight="108">
-
-  <!-- Cat ears -->
-  <path
-      android:fillColor="#f5c842"
-      android:pathData="M38,32 L46,46 L30,46 Z" />
-  <path
-      android:fillColor="#f5c842"
-      android:pathData="M70,32 L78,46 L62,46 Z" />
-  <!-- Inner ear accents -->
-  <path
-      android:fillColor="#FF8C42"
-      android:fillAlpha="0.5"
-      android:pathData="M39.5,35 L44,43 L35,43 Z" />
-  <path
-      android:fillColor="#FF8C42"
-      android:fillAlpha="0.5"
-      android:pathData="M68.5,35 L73,43 L64,43 Z" />
-
-  <!-- Yarn ball base -->
-  <path
-      android:fillColor="#f5c842"
-      android:fillAlpha="0.25"
-      android:pathData="M54,58 m-20,0 a20,20 0 1,0 40,0 a20,20 0 1,0 -40,0" />
-
-  <!-- Thread arcs -->
-  <path
-      android:strokeColor="#f5c842"
-      android:strokeWidth="1.8"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M37,55 Q54,38 71,55" />
-  <path
-      android:strokeColor="#d4a800"
-      android:strokeWidth="1.4"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M39,63 Q54,46 69,63" />
-  <path
-      android:strokeColor="#f5c842"
-      android:strokeWidth="1.8"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M40,51 Q54,68 68,51" />
-  <path
-      android:strokeColor="#d4a800"
-      android:strokeWidth="1.4"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M42,67 Q54,51 66,67" />
-  <!-- Diagonal arcs -->
-  <path
-      android:strokeColor="#f5c842"
-      android:strokeWidth="1.4"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M40,48 Q60,58 43,72" />
-  <path
-      android:strokeColor="#d4a800"
-      android:strokeWidth="1.4"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M68,48 Q48,58 65,72" />
-
-  <!-- Trailing thread strand -->
-  <path
-      android:strokeColor="#f5c842"
-      android:strokeWidth="1.4"
-      android:strokeLineCap="round"
-      android:fillColor="@android:color/transparent"
-      android:pathData="M72,65 Q78,68 79,76 Q80,82 76,86" />
-
-  <!-- QR finder-pattern motif (lower-right, subtle) -->
-  <group android:alpha="0.45">
-    <!-- Outer finder square -->
-    <path
-        android:strokeColor="#f5c842"
-        android:strokeWidth="1.3"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M72,73 h12 v12 h-12 Z" />
-    <!-- Middle square -->
-    <path
-        android:strokeColor="#f5c842"
-        android:strokeWidth="0.8"
-        android:fillColor="@android:color/transparent"
-        android:pathData="M75,76 h6 v6 h-6 Z" />
-    <!-- Inner dot -->
-    <path
-        android:fillColor="#f5c842"
-        android:pathData="M77,78 h2 v2 h-2 Z" />
-    <!-- Small data modules -->
-    <path
-        android:fillColor="#f5c842"
-        android:pathData="M72,88 h2 v2 h-2 Z" />
-    <path
-        android:fillColor="#f5c842"
-        android:pathData="M76,88 h2 v2 h-2 Z" />
-    <path
-        android:fillColor="#f5c842"
-        android:pathData="M88,72 h2 v2 h-2 Z" />
-    <path
-        android:fillColor="#f5c842"
-        android:pathData="M88,76 h2 v2 h-2 Z" />
-  </group>
-</vector>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:top="14dp"
+        android:bottom="14dp"
+        android:left="14dp"
+        android:right="14dp">
+        <bitmap
+            android:src="@drawable/splash_logo"
+            android:gravity="center"
+            android:tileMode="disabled"/>
+    </item>
+</layer-list>

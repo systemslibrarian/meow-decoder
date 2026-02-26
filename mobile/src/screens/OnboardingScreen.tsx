@@ -21,7 +21,7 @@ import { useCameraPermission } from 'react-native-vision-camera';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { MMKV } from 'react-native-mmkv';
 import type { OnboardingScreenProps } from '../types/navigation';
-import meowLogo from '../assets/meow-decoder-logo.png';
+import meowLogo from '../assets/meow-decoder-logo-notagline.png';
 
 // MMKV instance — same id/key as App.tsx so both read the same value
 const storage = new MMKV({ id: 'meow_settings' });

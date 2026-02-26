@@ -75,13 +75,13 @@ export function SplashScreen({ navigation }: SplashScreenProps) {
   }));
 
   return (
-    <View style={styles.container} accessible accessibilityLabel="Meow Decoder splash screen">
+    <View style={styles.container} accessible accessibilityLabel="Meow Capture splash screen">
       <Animated.View style={[styles.logoContainer, logoStyle]}>
         <AppIcon size={160} variant={iconVariant} />
       </Animated.View>
       <Animated.View style={[styles.textGroup, textStyle]}>
-        <Text style={styles.title}>meow-decoder</Text>
-        <Text style={styles.subtitle}>Optical air-gap capture</Text>
+        <Text style={styles.title}>Meow Capture</Text>
+        <Text style={styles.subtitle}>Secure optical air-gap capture</Text>
         <Text style={styles.version}>v{APP_VERSION}</Text>
       </Animated.View>
     </View>

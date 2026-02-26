@@ -21,7 +21,7 @@
  * both modes. The difference is purely ergonomic.
  */
 
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { MMKV } from 'react-native-mmkv';
 
 // ── Storage ───────────────────────────────────────────────────────────────────
@@ -60,13 +60,14 @@ export interface UseSecurityModeReturn {
  * Uses a module-level re-render subscription so all consumers stay in sync.
  */
 export function useSecurityMode(): UseSecurityModeReturn {
-  // MMKV is synchronous, so we can read inline without useState.
-  // Force re-renders by using a MMKV listener — but to keep this zero-dep
-  // and simple we read at call time. Settings screen handles remount naturally.
-  const mode = getSecurityMode();
+  // useState initialises from MMKV synchronously so the first render is correct.
+  // State drives re-renders when setMode is called — without it, MMKV is updated
+  // but the component never re-renders and the UI stays stale.
+  const [mode, setModeState] = useState<SecurityMode>(() => getSecurityMode());
 
   const setMode = useCallback((next: SecurityMode) => {
     setSecurityModePersisted(next);
+    setModeState(next); // triggers re-render so selection cards update immediately
   }, []);
 
   return {

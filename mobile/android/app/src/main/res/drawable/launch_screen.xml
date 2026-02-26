@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash screen background shown while React Native bundle loads.
+  Dark background (#0a0a0f) with the no-tagline logo centered.
+  splash_logo.png must exist in this drawable folder (copy of meow-decoder-logo-notagline.png).
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <color android:color="#0a0a0f"/>
+    </item>
+    <item>
+        <bitmap
+            android:src="@drawable/splash_logo"
+            android:gravity="center"
+            android:tileMode="disabled"/>
+    </item>
+</layer-list>

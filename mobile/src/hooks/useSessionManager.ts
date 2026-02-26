@@ -82,15 +82,9 @@ export function useSessionManager(): SessionManagerReturn {
   // ── Elapsed time ticker ───────────────────────────────────────────────────
   const [elapsedMs, setElapsedMs] = useState(0);
   const tickRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  // Timestamp of the most recent CAPTURING period start (null when not capturing).
-  // Resets on every transition TO CAPTURING so remainingMs mirrors the timeout
-  // timer in useCapture, which also resets to the full timeout on each resume.
-  const [captureRestartedAt, setCaptureRestartedAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (state.status === 'CAPTURING' && state.startedAt !== null) {
-      // Record when this CAPTURING burst began (fresh on every resume).
-      setCaptureRestartedAt(Date.now());
       tickRef.current = setInterval(() => {
         setElapsedMs(Date.now() - (state.startedAt ?? Date.now()));
       }, 1_000);
@@ -99,10 +93,6 @@ export function useSessionManager(): SessionManagerReturn {
         clearInterval(tickRef.current);
         tickRef.current = null;
       }
-      // Always reset the restart anchor when not CAPTURING so the next
-      // CAPTURING entry (first start or resume) gets a fresh timestamp.
-      // This mirrors the setTimeout reset in useCapture on every CAPTURING entry.
-      setCaptureRestartedAt(null);
       if (state.status === 'IDLE' || state.status === 'AWAITING_GIF') {
         setElapsedMs(0);
       }
@@ -113,15 +103,13 @@ export function useSessionManager(): SessionManagerReturn {
   }, [state.status, state.startedAt]);
 
   // ── Remaining time ─────────────────────────────────────────────────────────
-  // Use captureRestartedAt (not startedAt) as the countdown reference so that
-  // a pause + resume correctly resets the countdown to the full timeout_seconds,
-  // matching the setTimeout reset in useCapture on every CAPTURING entry.
+  // Use state.startedAt as the reference — this matches the hard deadline in
+  // useCapture (deadline = startedAt + timeout_seconds * 1000). Paused time
+  // counts against the deadline, so the countdown is accurate at all times.
   const remainingMs =
-    state.request?.timeout_seconds != null && captureRestartedAt !== null
-      ? Math.max(0, state.request.timeout_seconds * 1_000 - (Date.now() - captureRestartedAt))
-      : state.request?.timeout_seconds != null
-        ? Math.max(0, state.request.timeout_seconds * 1_000 - elapsedMs)
-        : null;
+    state.request?.timeout_seconds != null && state.startedAt !== null
+      ? Math.max(0, state.request.timeout_seconds * 1_000 - (Date.now() - state.startedAt))
+      : null;
 
   // ── Memory pressure detection ──────────────────────────────────────────────
   const isNearMemoryLimit = state.frames.size >= MEMORY_WARN_FRAME_COUNT;

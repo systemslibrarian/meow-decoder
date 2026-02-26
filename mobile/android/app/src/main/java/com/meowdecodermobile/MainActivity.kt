@@ -10,6 +10,8 @@ import com.facebook.react.defaults.DefaultReactActivityDelegate
 class MainActivity : ReactActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
+    // Switch from SplashTheme (windowBackground logo) to AppTheme before React renders
+    setTheme(R.style.AppTheme)
     super.onCreate(savedInstanceState)
 
     // SECURITY: FLAG_SECURE prevents:

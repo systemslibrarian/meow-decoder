@@ -110,7 +110,7 @@ export const FEATURE_FLAGS = {
 
 // ── App Version ───────────────────────────────────────────────────────────────
 
-export const APP_VERSION = '3.2.1' as const;
+export const APP_VERSION = '3.2.2' as const;
 export const PROTOCOL_VERSION = '1' as const;
 
 // ── Stall Detection ───────────────────────────────────────────────────────────

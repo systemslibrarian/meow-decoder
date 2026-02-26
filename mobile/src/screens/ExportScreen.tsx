@@ -285,7 +285,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
                 'All captured frames will be permanently deleted. This cannot be undone.',
                 [
                   { text: 'Keep capture', style: 'cancel' },
-                  { text: 'Discard', style: 'destructive', onPress: () => navigation.navigate('Home') },
+                  { text: 'Discard', style: 'destructive', onPress: () => navigation.replace('Home') },
                 ],
               );
             }}
@@ -562,7 +562,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
         {/* New capture */}
         <TouchableOpacity
           style={styles.ghostButton}
-          onPress={() => navigation.navigate('Home')}
+          onPress={() => navigation.replace('Home')}
           accessibilityRole="button"
           accessibilityLabel="Start a new capture session"
         >
