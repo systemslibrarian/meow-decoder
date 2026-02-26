@@ -289,8 +289,9 @@ web_demo/
 ├── wsgi.py                     # PythonAnywhere WSGI file
 ├── start.sh                    # Startup script
 ├── README.md                   # This file
-├── test_all_modes.py           # Full test suite (20 tests)
-├── test_cat_mode.py            # Cat mode tests
+├── test_all_modes.py           # Full test suite — all 6 modes, 5 runs each
+├── test_cat_mode.py            # Cat mode integration test (primary demo verification)
+├── test_cat_e2e_speeds.py      # Cat eye-blink video E2E speed test (requires running Flask app)
 ├── static/                     # Static assets (WASM, JS, CSS)
 ├── templates/
 │   ├── base.html              # Base template with navigation
@@ -318,22 +319,116 @@ web_demo/
 
 ### Testing Locally
 
-```bash
-# Encode a test file
-cd web_demo
-echo "Hello, World!" > test.txt
+The web demo includes three automated test scripts located in `web_demo/`. Run them from the repository root with the virtual environment active:
 
+```bash
+cd /workspaces/meow-decoder
+source .venv/bin/activate
+```
+
+---
+
+#### `test_cat_mode.py` — Cat Mode Integration Test
+
+The **primary test** to verify the demo works end-to-end. Runs a full encode → stego embed → decode roundtrip using the real `demo_logo_eyes.gif` carrier asset. Use this first to confirm Cat Mode is functional.
+
+```bash
+python web_demo/test_cat_mode.py
+```
+
+What it tests:
+- Finds and loads the `assets/demo_logo_eyes.gif` carrier
+- Encodes a small text file with Cat Mode steganography (`stego_level=2`)
+- Writes output as APNG (not GIF — GIF palette quantization destroys LSB data)
+- Decodes the APNG and verifies the recovered content matches the original
+
+Expected output on success:
+```
+🐱 Testing Cat Mode Integration...
+✅ Cat carrier found: ...
+📝 Encoding with Cat Mode...
+✅ Encoding successful!
+🔍 Decoding Cat Mode output...
+✅ Decoding successful!
+✅ Content matches original!
+🎉 Cat Mode test PASSED!
+```
+
+---
+
+#### `test_all_modes.py` — Full Mode Test Suite
+
+Runs **5 trials each** of all supported encoding modes to confirm broad pipeline health. This is the most comprehensive test.
+
+```bash
+python web_demo/test_all_modes.py
+
+# Verbose output (shows per-trial timing and stats):
+python web_demo/test_all_modes.py --verbose
+```
+
+Modes covered:
+1. **Normal Mode** — Standard QR encoding
+2. **Cat Mode** — Steganographic encoding with cat carrier
+3. **Cat Mode Server API** — Binary encrypt/decrypt for eye-blink transmission
+4. **Duress Mode** — Panic password reveals decoy data
+5. **Forward Secrecy Mode** — X25519 ephemeral key exchange (MEOW3)
+6. **Schrödinger Mode** — Dual-secret quantum plausible deniability
+
+> Uses `MEOW_TEST_MODE=1` automatically (fast 32 MiB Argon2id) so it completes in seconds rather than minutes.
+
+---
+
+#### `test_cat_e2e_speeds.py` — Cat Eye-Blink E2E Speed Test
+
+This is the **real-world demo verification test**. It simulates the exact user flow where the cat's eyes blink out an encrypted message as a video, the browser is refreshed (no carryover state), the video is uploaded, and the password is entered to decode it. Use this to confirm the full demo pipeline works end-to-end, not just the encryption layer.
+
+It tests **5 blink speeds × 3 trials = 15 full roundtrips**:
+- POST `/cat-mode-encrypt-server` → get encrypted payload hex
+- Generates a synthetic eye-blink video (AVI/MJPEG) matching the JS canvas output
+- Simulates a browser refresh (new session, zero carryover state)
+- POST `/cat-mode-decode-video` → decode binary bits from the video
+- POST `/decode-cat-binary` with the password → verify full decryption succeeded
+
+Blink speeds tested: 200ms, 150ms, 100ms, 83ms, 50ms per bit
+
+**Why two terminals:** The Flask app must be running as a live server because the test makes real HTTP requests to it — it cannot be imported or mocked. `MEOW_TEST_MODE=1` is required on both to use fast Argon2id (32 MiB, 1 iteration) instead of production settings (512 MiB, 20 iterations), otherwise each of the 15 trials takes ~30 seconds just for key derivation.
+
+**Terminal 1 — start the Flask app:**
+```bash
+cd /workspaces/meow-decoder
+source .venv/bin/activate
+MEOW_TEST_MODE=1 python web_demo/app.py
+```
+
+Wait until you see `Running on http://127.0.0.1:5000`, then open a second terminal:
+
+**Terminal 2 — run the e2e test:**
+```bash
+cd /workspaces/meow-decoder
+source .venv/bin/activate
+MEOW_TEST_MODE=1 python web_demo/test_cat_e2e_speeds.py
+```
+
+> This test is only needed to verify the eye-blink video transmission feature works. For basic demo verification, `test_cat_mode.py` is sufficient.
+
+---
+
+#### Manual Browser Test
+
+```bash
 # Start Flask app
+cd web_demo
 python app.py
 
 # Visit http://localhost:5000 and:
-# 1. Upload test.txt
+# 1. Upload any file
 # 2. Select Cat Mode
 # 3. Set password "test123"
 # 4. Click Encode
-# 5. Download resulting GIF
+# 5. Download resulting APNG
 # 6. Go to Decode page
-# 7. Upload GIF, enter password "test123"
+# 7. Upload the APNG, enter password "test123"
 # 8. Verify recovered file matches original
 ```
 
