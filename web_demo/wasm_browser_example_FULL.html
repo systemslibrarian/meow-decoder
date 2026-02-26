@@ -1882,8 +1882,7 @@
             const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
             if (isGif) {
                 try {
-                    const arrayBuffer = await file.arrayBuffer();
-                    const { frames, width, height } = parseGifFrames(arrayBuffer);
+                    const { frames, width, height } = await extractGifFrames(file);
                     if (frames.length > 1) {
                         statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF detected — scanning ${frames.length} frames...</span>`;
                         log(`🎞️ Animated GIF: ${frames.length} frames (${width}×${height})`);
@@ -3446,7 +3445,39 @@
             return out;
         }
 
-        // ---- GIF89a frame parser (for animated GIF upload decoding) ----
+        // ---- GIF89a frame extractor ----
+        // Primary: ImageDecoder API (Chrome 94+). Fallback: binary LZW parser.
+        async function extractGifFrames(file) {
+            // Try ImageDecoder API first (most reliable, uses browser's own GIF decoder)
+            if (typeof ImageDecoder !== 'undefined') {
+                try {
+                    const dec = new ImageDecoder({ data: file.stream(), type: 'image/gif' });
+                    await dec.tracks.ready;
+                    const track = dec.tracks.selectedTrack;
+                    const frameCount = track.frameCount;
+                    if (frameCount < 1) throw new Error('no frames');
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    const frames = [];
+                    for (let i = 0; i < frameCount; i++) {
+                        const { image } = await dec.decode({ frameIndex: i });
+                        if (i === 0) { canvas.width = image.displayWidth; canvas.height = image.displayHeight; }
+                        ctx.drawImage(image, 0, 0);
+                        frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height));
+                        image.close();
+                    }
+                    dec.close();
+                    return { frames, width: canvas.width, height: canvas.height };
+                } catch (e) {
+                    log(`⚠️ ImageDecoder failed (${e.message}), using binary parser`);
+                }
+            }
+            // Fallback: binary GIF parser
+            const ab = await file.arrayBuffer();
+            return parseGifFrames(ab);
+        }
+
+        // ---- GIF89a binary frame parser (fallback) ----
         function parseGifFrames(arrayBuffer) {
             const d = new Uint8Array(arrayBuffer);
             let pos = 6; // skip "GIF89a"
@@ -3464,7 +3495,6 @@
                 for (let i = 0; i < n; i++) { globalPalette.push([d[pos],d[pos+1],d[pos+2]]); pos += 3; }
             }
             const frames = [];
-            // Shared canvas to handle disposal modes
             const canvas = document.createElement('canvas');
             canvas.width = logicalW; canvas.height = logicalH;
             const ctx = canvas.getContext('2d');
@@ -3476,17 +3506,16 @@
                 if (block === 0x3B) break;
                 if (block === 0x21) {
                     const label = d[pos++];
-                    if (label === 0xF9) { // Graphic Control Extension
-                        pos++; // block size (always 4)
+                    if (label === 0xF9) {
+                        pos++; // block size (4)
                         const gceFlags = d[pos++];
                         pos += 2; // delay
                         transparentIdx = (gceFlags & 1) ? d[pos] : -1;
                         pos++; pos++; // transparent index, block terminator
                     } else {
-                        // Skip other extensions
                         let sz; do { sz = d[pos++]; pos += sz; } while (sz !== 0);
                     }
-                } else if (block === 0x2C) { // Image Descriptor
+                } else if (block === 0x2C) {
                     const left = d[pos]|(d[pos+1]<<8), top = d[pos+2]|(d[pos+3]<<8);
                     const fw = d[pos+4]|(d[pos+5]<<8), fh = d[pos+6]|(d[pos+7]<<8);
                     pos += 8;
@@ -3500,70 +3529,115 @@
                         for (let i = 0; i < n; i++) { palette.push([d[pos],d[pos+1],d[pos+2]]); pos += 3; }
                     }
                     const minCodeSize = d[pos++];
-                    const lzwData = [];
-                    let sz; do { sz = d[pos++]; for (let i=0;i<sz;i++) lzwData.push(d[pos++]); } while (sz !== 0);
-                    const pixels = gifLzwDecode(new Uint8Array(lzwData), minCodeSize, fw * fh);
-                    // Draw frame onto shared canvas
+                    // collect sub-blocks
+                    const lzwChunks = [];
+                    let sz; do { sz = d[pos++]; lzwChunks.push(d.subarray(pos, pos+sz)); pos += sz; } while (sz !== 0);
+                    const totalLen = lzwChunks.reduce((a,c)=>a+c.length,0);
+                    const lzwData = new Uint8Array(totalLen);
+                    let off = 0; for (const c of lzwChunks) { lzwData.set(c, off); off += c.length; }
+                    const pixels = gifLzwDecode(lzwData, minCodeSize, fw * fh);
                     const frameImg = ctx.createImageData(fw, fh);
                     const r = frameImg.data;
-                    for (let py = 0; py < fh; py++) {
-                        for (let px = 0; px < fw; px++) {
-                            const ci = pixels[py*fw+px];
-                            const gi = (py*fw+px)*4;
-                            if (ci === transparentIdx) { r[gi]=r[gi+1]=r[gi+2]=255; r[gi+3]=255; continue; }
-                            const c = (palette && palette[ci]) || [0,0,0];
-                            r[gi]=c[0]; r[gi+1]=c[1]; r[gi+2]=c[2]; r[gi+3]=255;
-                        }
+                    for (let pi = 0; pi < fw * fh; pi++) {
+                        const ci = pixels[pi];
+                        const gi = pi * 4;
+                        if (ci === transparentIdx) { r[gi]=r[gi+1]=r[gi+2]=255; r[gi+3]=255; continue; }
+                        const c = (palette && palette[ci]) || [0,0,0];
+                        r[gi]=c[0]; r[gi+1]=c[1]; r[gi+2]=c[2]; r[gi+3]=255;
                     }
                     ctx.putImageData(frameImg, left, top);
-                    // Snapshot full logical canvas as this frame
                     frames.push(ctx.getImageData(0, 0, logicalW, logicalH));
                 }
             }
             return { frames, width: logicalW, height: logicalH };
         }
 
+        // ---- GIF LZW decoder using linked-prefix table (no large spreads) ----
         function gifLzwDecode(data, minCodeSize, numPixels) {
             const clearCode = 1 << minCodeSize;
             const eofCode = clearCode + 1;
-            const table = [];
+            const MAX = 4096;
+            // prefix[i] = parent code (-1 for base codes), suffix[i] = pixel value for this code
+            const suffix = new Uint8Array(MAX);
+            const prefix = new Int16Array(MAX).fill(-1);
+            let tableSize = 0;
+            let codeSize = minCodeSize + 1;
+
             const initTable = () => {
-                table.length = 0;
-                for (let i = 0; i < clearCode; i++) table.push([i]);
-                table.push(null); table.push(null); // clearCode, eofCode
+                tableSize = clearCode + 2; // 0..clearCode-1 = base, clearCode & +1 = reserved
+                codeSize = minCodeSize + 1;
+                for (let i = 0; i < clearCode; i++) { suffix[i] = i; prefix[i] = -1; }
             };
             initTable();
-            let codeSize = minCodeSize + 1;
+
+            const out = new Uint8Array(numPixels);
+            const stack = new Uint8Array(MAX); // temp decode buffer
+            let outPos = 0;
             let bitPos = 0;
+
             const readCode = () => {
                 let code = 0;
                 for (let i = 0; i < codeSize; i++) {
-                    code |= ((data[bitPos>>3] >> (bitPos&7)) & 1) << i; bitPos++;
+                    code |= ((data[bitPos >> 3] >> (bitPos & 7)) & 1) << i; bitPos++;
                 }
                 return code;
             };
-            const out = [];
+
+            // Follow prefix chain to root, emit pixels direct to out[] (stack-based, no spread)
+            const writeEntry = (code) => {
+                let sp = 0, c = code;
+                while (c !== -1 && c < tableSize) {
+                    stack[sp++] = suffix[c];
+                    c = (c >= clearCode + 2) ? prefix[c] : -1;
+                    if (sp >= MAX) break; // safety
+                }
+                while (sp > 0 && outPos < numPixels) out[outPos++] = stack[--sp];
+            };
+
+            // Walk to root of a code's chain, return its first (root) pixel
+            const firstPixel = (code) => {
+                let c = code;
+                while (c >= clearCode + 2 && prefix[c] !== -1) c = prefix[c];
+                return suffix[c];
+            };
+
+            // Skip all leading clear codes
             let code = readCode();
-            while (code === clearCode) { initTable(); codeSize = minCodeSize+1; code = readCode(); }
-            let entry = table[code] || [code & (clearCode-1)];
-            out.push(...entry);
-            let prev = code;
-            while (out.length < numPixels) {
+            while (code === clearCode) { initTable(); code = readCode(); }
+            if (code === eofCode) return out;
+            writeEntry(code);
+            let prevCode = code;
+
+            while (outPos < numPixels) {
                 code = readCode();
                 if (code === eofCode) break;
-                if (code === clearCode) { initTable(); codeSize=minCodeSize+1; prev=null; continue; }
-                const prevEntry = table[prev] || [];
-                if (code < table.length && table[code] !== null) {
-                    entry = table[code];
+                if (code === clearCode) {
+                    initTable();
+                    code = readCode(); if (code === eofCode) break;
+                    writeEntry(code); prevCode = code; continue;
+                }
+
+                const inTable = code < tableSize;
+                const fp = inTable ? firstPixel(code) : firstPixel(prevCode);
+
+                // Output pixels for this code
+                if (inTable) {
+                    writeEntry(code);
                 } else {
-                    entry = [...prevEntry, (prevEntry[0] !== undefined ? prevEntry[0] : 0)];
+                    // K+K+K case: code is exactly tableSize (not yet added)
+                    // output is prevCode's sequence + prevCode's first pixel
+                    writeEntry(prevCode);
+                    if (outPos < numPixels) out[outPos++] = fp;
                 }
-                out.push(...entry);
-                if (prevEntry.length > 0) {
-                    table.push([...prevEntry, entry[0]]);
-                    if (table.length >= (1<<codeSize) && codeSize < 12) codeSize++;
+
+                // Add new table entry
+                if (tableSize < MAX) {
+                    prefix[tableSize] = prevCode;
+                    suffix[tableSize] = fp;
+                    tableSize++;
+                    if (tableSize >= (1 << codeSize) && codeSize < 12) codeSize++;
                 }
-                prev = code;
+                prevCode = code;
             }
             return out;
         }
@@ -8563,8 +8637,8 @@
                 const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
                 if (isGif) {
                     try {
-                        const ab = await file.arrayBuffer();
-                        const { frames } = parseGifFrames(ab);
+                        const { frames } = await extractGifFrames(file);
+                        const width = frames[0]?.width, height = frames[0]?.height;
                         if (frames.length > 1) {
                             statusEl.innerHTML = `<span style="color: #ff9800;">⏳ Animated GIF: scanning ${frames.length} frames...</span>`;
                             if (!jsQR) await loadJsQR();
