@@ -88,8 +88,6 @@ Point your phone at the animated QR code on your screen and let Meow Capture han
 3. Open the downloaded `.apk` file and tap **Install**.
 4. Launch **Meow Capture** — grant camera permission when prompted.
 
-> **Previous release:** [v3.2.0 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk)
-
 ### 🍎 iOS — Coming Soon
 
 The iOS version is under active development. **Apple App Store listing coming soon.**
