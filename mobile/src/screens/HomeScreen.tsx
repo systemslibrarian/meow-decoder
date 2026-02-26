@@ -308,8 +308,10 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               accessibilityLabel={`Interrupted session ${shortId} — ${frameCount} frame indices, ${ageMins} minutes ago`}
             >
               <Text style={styles.resumeTitle}>⚡ Interrupted session found</Text>
+              {/* React Native on Android rejects null as a Text child in some
+               * RN builds — use an empty string for the singular case instead. */}
               <Text style={styles.resumeDetail}>
-                ID …{shortId} · {frameCount} frame{frameCount !== 1 ? 's' : null} · {ageMins < 1 ? 'just now' : `${ageMins}m ago`}
+                ID …{shortId} · {frameCount} frame{frameCount !== 1 ? 's' : ''} · {ageMins < 1 ? 'just now' : `${ageMins}m ago`}
               </Text>
               <Text style={styles.resumeSecurityNote}>
                 Frame payloads were not saved — only indices are kept on disk as a security invariant.
@@ -483,9 +485,13 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                 Direct video import requires a native bridge module that is not yet linked in this build.
               </Text>
               <Text style={[styles.videoInfoBody, { marginTop: Spacing.sm }]}>
-                <Text style={{ fontWeight: Typography.bold as any }}>Workaround:</Text> Record the animated GIF
-                on your phone screen, then use the <Text style={styles.code}>Scan Request QR</Text> button to capture
-                frames live from the camera — the fountain codes tolerate up to 33% frame loss.
+                {/* fontWeight must be a TextStyle weight string — cast through the
+                 * correct type instead of `as any` to avoid silencing type errors. */}
+                <Text style={{ fontWeight: Typography.bold as '700' }}>Workaround:</Text>
+                {' '}Record the animated GIF on your phone screen, then use the{' '}
+                <Text style={styles.code}>Scan Request QR</Text>
+                {' '}button to capture frames live from the camera — the fountain codes
+                tolerate up to 33% frame loss.
               </Text>
               <TouchableOpacity
                 style={styles.videoInfoDismiss}
@@ -561,7 +567,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             No data is transmitted over the network.
           </Text>
         </View>
-      </ScrollView>      </KeyboardAvoidingView>    </SafeAreaView>
+      </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
