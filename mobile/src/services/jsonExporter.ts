@@ -19,6 +19,24 @@ import { Platform } from 'react-native';
 import { MAX_EXPORT_CHUNK_BYTES } from '../constants/config';
 import type { CaptureResponse, ExportResult } from '../types/capture';
 
+/**
+ * Hermes-safe UTF-8 byte counter.
+ * Replaces Buffer.byteLength which is not available in all React Native /
+ * Hermes builds without an explicit polyfill. Handles BMP characters and
+ * surrogate pairs (emoji, CJK, etc.) correctly.
+ */
+function utf8ByteLength(str: string): number {
+  let len = 0;
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code < 0x80) { len += 1; }
+    else if (code < 0x800) { len += 2; }
+    else if (code >= 0xd800 && code <= 0xdbff) { len += 4; i++; } // surrogate pair → 4 bytes
+    else { len += 3; }
+  }
+  return len;
+}
+
 // ── Path Helpers ──────────────────────────────────────────────────────────────
 
 /**
@@ -58,9 +76,7 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
   const exportedPaths: string[] = [];
 
   const json = JSON.stringify(response, null, 2);
-  // Buffer.byteLength gives accurate UTF-8 byte count without DOM's TextEncoder.
-  // react-native-worklets-core brings Node globals; Buffer is available here.
-  const byteLength = Buffer.byteLength(json, 'utf8');
+  const byteLength = utf8ByteLength(json);
 
   let totalWrittenBytes = 0;
 
@@ -88,7 +104,7 @@ export async function exportResponse(response: CaptureResponse): Promise<ExportR
         frames_missed: response.frames_missed,
       };
       const chunkJson = JSON.stringify(chunk, null, 2);
-      const chunkByteLength = Buffer.byteLength(chunkJson, 'utf8');
+      const chunkByteLength = utf8ByteLength(chunkJson);
       const filename = `meow-capture-${sessionPrefix}-part${chunkIndex}-${timestamp}.json`;
       const path = `${directory}/${filename}`;
       await RNFS.writeFile(path, chunkJson, 'utf8');
@@ -176,11 +192,7 @@ export function buildQRExportChunks(
   const fullJson = JSON.stringify(response);
   const chunks: string[] = [];
   const payloadChecksum = checksumHex(fullJson);
-  const payloadBytes = Buffer.byteLength(fullJson, 'utf8');
-  // Use Buffer.byteLength for accurate UTF-8 byte count (matches export size
-  // calculation in exportResponse). For ASCII-only payloads this equals
-  // .length, but it's correct for any session_id or filename containing
-  // multi-byte characters.
+  const payloadBytes = utf8ByteLength(fullJson);
   const totalChunks = Math.ceil(payloadBytes / maxChunkBytes);
 
   for (let i = 0; i < totalChunks; i++) {
@@ -240,7 +252,7 @@ export function verifyQRExportReassembly(
     return { valid: false, error: `Payload checksum mismatch (expected ${expectedPayloadChecksum}, got ${computedPayloadChecksum})` };
   }
 
-  const computedBytes = Buffer.byteLength(reassembled, 'utf8');
+  const computedBytes = utf8ByteLength(reassembled);
   const expectedBytes = sorted[0]!.payload_bytes;
   if (computedBytes !== expectedBytes) {
     return { valid: false, error: `Payload byte length mismatch (expected ${expectedBytes}, got ${computedBytes})` };

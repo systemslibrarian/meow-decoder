@@ -71,26 +71,24 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [showDiagnostics, setShowDiagnostics] = useState(false);
   const versionLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const { hasPermission } = useCameraPermission();
+  const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
 
-  // ── Video import hook (feature-flagged; only initialised when enabled) ───────
+  // ── Video import hook ────────────────────────────────────────────────────────
   const [showVideoImportInfo, setShowVideoImportInfo] = useState(false);
 
-  // When VIDEO_IMPORT is disabled (default), provide no-op stubs so the rest of
-  // the component doesn't need conditional branches.  The useVideoImport hook and
-  // its native-module dependencies are only exercised when the flag is on.
-  const videoImportEnabled = FEATURE_FLAGS.VIDEO_IMPORT;
-  const videoImportHook = videoImportEnabled
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    ? useVideoImport((_frames) => {
-        ReactNativeHapticFeedback.trigger('notificationSuccess', {
-          enableVibrateFallback: true,
-          ignoreAndroidSystemSettings: false,
-        });
-        setError(null);
-      })
-    : { importFromVideo: () => Promise.resolve(), isImporting: false, importError: null, clearError: () => {}, isNativeBridgeAvailable: false };
+  // Always call unconditionally (React hooks rules requirement).
+  // When VIDEO_IMPORT is disabled, isNativeBridgeAvailable returns false and
+  // handleVideoImport shows the "coming soon" modal instead of invoking import.
+  const videoImportHook = useVideoImport(
+    useCallback((_frames: import('../hooks/useVideoImport').VideoFramePayload[]) => {
+      ReactNativeHapticFeedback.trigger('notificationSuccess', {
+        enableVibrateFallback: true,
+        ignoreAndroidSystemSettings: false,
+      });
+      setError(null);
+    }, []),
+  );
 
   const { importFromVideo, isImporting, importError, clearError: clearImportError, isNativeBridgeAvailable } = videoImportHook;
 
@@ -143,14 +141,20 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     ),
   });
 
-  const openRequestQrScanner = useCallback(() => {
-    if (!hasPermission) {
-      setError('Camera permission required. Grant it in Settings.');
+  const openRequestQrScanner = useCallback(async () => {
+    let permitted = hasPermission;
+    if (!permitted) {
+      // Request permission on-demand rather than silently failing — the user
+      // may not have gone through onboarding or may have denied then re-enabled.
+      permitted = await requestPermission();
+    }
+    if (!permitted) {
+      setError('Camera permission denied. Enable it in Settings → Apps → Meow Capture → Permissions.');
       return;
     }
     qrHandledRef.current = false;
     setScanningRequest(true);
-  }, [hasPermission]);
+  }, [hasPermission, requestPermission]);
 
   // Clear stale error and surface any interrupted session on focus
   useFocusEffect(
@@ -194,10 +198,20 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       const result = results[0];
       if (!result) return;
 
-      const content = await RNFS.readFile(
-        Platform.OS === 'android' ? result.uri : decodeURIComponent(result.uri),
-        'utf8',
-      );
+      // On Android, DocumentPicker returns content:// URIs which RNFS cannot
+      // read directly. Copy to a temp cache path first, read it, then clean up.
+      let readUri: string;
+      if (Platform.OS === 'android') {
+        const tmpPath = `${RNFS.CachesDirectoryPath}/meow_import_${Date.now()}.json`;
+        await RNFS.copyFile(result.uri, tmpPath);
+        readUri = tmpPath;
+      } else {
+        readUri = decodeURIComponent(result.uri);
+      }
+      const content = await RNFS.readFile(readUri, 'utf8');
+      if (Platform.OS === 'android') {
+        RNFS.unlink(readUri).catch(() => {}); // best-effort temp cleanup
+      }
 
       const request = validateRequestFromString(content);
       ReactNativeHapticFeedback.trigger('notificationSuccess', { enableVibrateFallback: true, ignoreAndroidSystemSettings: false });
@@ -253,16 +267,6 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={styles.headerRow}>
-          <Image
-            source={meowLogo}
-            style={styles.headerLogo}
-            resizeMode="contain"
-            accessible={false}
-          />
-          <View style={styles.headerTitleBlock}>
-            <Text style={styles.title} accessibilityRole="header">Meow Capture</Text>
-            <Text style={styles.subtitle}>Secure QR Capture · Air-Gap Transfer</Text>
-          </View>
           <TouchableOpacity
             onPress={() => navigation.navigate('Settings')}
             hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -272,6 +276,17 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           >
             <Text style={styles.settingsGearText}>⚙️</Text>
           </TouchableOpacity>
+          <Image
+            source={meowLogo}
+            style={styles.headerLogo}
+            resizeMode="contain"
+            accessible={false}
+          />
+          <View style={styles.headerTitleBlock}>
+            <Text style={styles.title} accessibilityRole="header">Meow Capture</Text>
+            <Text style={styles.domainText}>www.meowdecoder.com</Text>
+            <Text style={styles.subtitle}>Secure QR Capture · Air-Gap Transfer</Text>
+          </View>
         </View>
         {/* Version badge — long-press 1.5 s to open diagnostics */}
         <TouchableOpacity
@@ -630,21 +645,30 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   headerRow: {
-    flexDirection: 'row',
     alignItems: 'center',
     marginTop: Spacing.xl,
     marginBottom: Spacing.xs,
   },
   headerLogo: {
-    width: 44,
-    height: 35,
-    marginRight: Spacing.sm,
+    width: 110,
+    height: 88,
+    marginBottom: Spacing.sm,
   },
   headerTitleBlock: {
-    flex: 1,
+    alignItems: 'center',
+  },
+  domainText: {
+    color: Colors.accent ?? '#4A90E2',
+    fontSize: Typography.sm,
+    opacity: 0.85,
+    marginTop: 2,
+    marginBottom: 2,
   },
   settingsGear: {
-    paddingLeft: 8,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    padding: 4,
   },
   settingsGearText: {
     fontSize: 22,

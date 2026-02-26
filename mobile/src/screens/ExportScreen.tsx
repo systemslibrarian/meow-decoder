@@ -173,19 +173,19 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
     }
   }, [response, showToast, biometricAvailable]);
 
-  // Memoize chunk count — avoids re-serializing the full response on every render
-  const qrChunkCount = useMemo(
-    () => buildQRExportChunks(response).length,
+  // Precompute QR chunks once — used for both the count badge and the actual
+  // QR display so we never serialize the full response payload twice.
+  const precomputedQrChunks = useMemo(
+    () => buildQRExportChunks(response),
     [response],
   );
 
   // ── QR fallback ────────────────────────────────────────────────────────────
   const startQrFallback = useCallback(() => {
-    const chunks = buildQRExportChunks(response);
-    setQrChunks(chunks);
+    setQrChunks(precomputedQrChunks);
     setCurrentQrIndex(0);
     setQrMode(true);
-  }, [response]);
+  }, [precomputedQrChunks]);
 
   // ── iOS Share Sheet ────────────────────────────────────────────────────────
   const shareFile = useCallback(async () => {
@@ -272,7 +272,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
               accessibilityRole="button"
             >
               <Text style={styles.secondaryButtonText}>
-                📲 Show as QR codes ({qrChunkCount} screens)
+                📲 Show as QR codes ({precomputedQrChunks.length} screens)
               </Text>
             </TouchableOpacity>
           </View>
@@ -522,10 +522,10 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
             style={styles.secondaryButton}
             onPress={startQrFallback}
             accessibilityRole="button"
-            accessibilityLabel={`Show capture data as ${qrChunkCount} QR codes for optical transfer`}
+            accessibilityLabel={`Show capture data as ${precomputedQrChunks.length} QR codes for optical transfer`}
           >
             <Text style={styles.secondaryButtonText}>
-              📲 Show as QR codes ({qrChunkCount} screens)
+              📲 Show as QR codes ({precomputedQrChunks.length} screens)
             </Text>
           </TouchableOpacity>
         </View>
