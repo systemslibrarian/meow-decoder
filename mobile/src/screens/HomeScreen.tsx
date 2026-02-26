@@ -460,10 +460,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               barcodeModulePending ? (
                 <View style={styles.qrCameraPlaceholder}>
                   <Text style={styles.qrCameraPlaceholderText}>
-                    ⏳ Downloading barcode scanner…{'
-'}(requires Google Play Services){'
-
-'}Please wait a moment, then try again.
+                    {`⏳ Downloading barcode scanner…\n(requires Google Play Services)\n\nPlease wait a moment, then try again.`}
                   </Text>
                 </View>
               ) : (
