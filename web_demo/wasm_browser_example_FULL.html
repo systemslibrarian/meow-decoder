@@ -160,6 +160,7 @@
         }
         #qrcode, #schrodingerQrcode {
             display: flex;
+            flex-direction: column;
             justify-content: center;
             align-items: center;
         }
@@ -1229,6 +1230,7 @@
 
         <div style="text-align: center;">
             <button class="secondary copy-btn" onclick="downloadQR()">💾 Save QR Image</button>
+            <button id="downloadGifBtn" class="secondary copy-btn" style="display:none;" onclick="downloadFountainGif()">🎞️ Download Animated GIF</button>
             <button class="secondary copy-btn" onclick="copyPayload()">📋 Copy Encrypted Data</button>
         </div>
 
@@ -2946,6 +2948,9 @@
                 // Generate QR code (or animated GIF)
                 document.getElementById('qrcode').innerHTML = '';
                 if (window.animatedQrInterval) { clearInterval(window.animatedQrInterval); window.animatedQrInterval = null; }
+                window.fountainFrameCanvases = null;
+                const gifBtnReset = document.getElementById('downloadGifBtn');
+                if (gifBtnReset) gifBtnReset.style.display = 'none';
 
                 const needsMultiFrame = payload.length > 2500;
                 if (useAnimated && !needsMultiFrame) {
@@ -3023,6 +3028,12 @@
                     document.getElementById('qrcode').appendChild(container);
                     document.getElementById('qrcode').appendChild(infoEl);
                     document.getElementById('qrcode').appendChild(counterEl);
+
+                    // Store frames globally for GIF download
+                    window.fountainFrameCanvases = frameCanvases;
+                    window.fountainFrameDelayMs = 500;
+                    const gifBtn = document.getElementById('downloadGifBtn');
+                    if (gifBtn) gifBtn.style.display = 'inline-block';
 
                     // Animate frames
                     let currentFrame = 0;
@@ -3220,6 +3231,130 @@
             link.click();
             log('💾 QR image downloaded');
         };
+
+        // Download fountain-coded frames as animated GIF
+        window.downloadFountainGif = async function() {
+            const frames = window.fountainFrameCanvases;
+            if (!frames || frames.length === 0) { alert('No animated QR to download'); return; }
+            const btn = document.getElementById('downloadGifBtn');
+            if (btn) { btn.disabled = true; btn.textContent = '⏳ Encoding GIF…'; }
+            log(`🎞️ Encoding ${frames.length}-frame animated GIF…`);
+            try {
+                const gifBytes = await encodeAnimatedGif(frames, window.fountainFrameDelayMs || 500);
+                const blob = new Blob([gifBytes], { type: 'image/gif' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = 'meow-animated-qr.gif';
+                link.href = url;
+                link.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                log(`✅ Animated GIF downloaded (${Math.round(gifBytes.length / 1024)} KB, ${frames.length} frames)`);
+            } catch (err) {
+                log(`❌ GIF encoding failed: ${err.message}`);
+                alert('GIF encoding failed: ' + err.message);
+            } finally {
+                if (btn) { btn.disabled = false; btn.textContent = '🎞️ Download Animated GIF'; }
+            }
+        };
+
+        // ---- Minimal animated GIF89a encoder ----
+        async function encodeAnimatedGif(canvases, delayMs) {
+            const W = canvases[0].width;
+            const H = canvases[0].height;
+            const delay = Math.max(1, Math.round(delayMs / 10)); // centiseconds
+            const totalPixels = W * H;
+            const buf = [];
+            const u16 = n => { buf.push(n & 0xFF, (n >> 8) & 0xFF); };
+
+            // Header
+            buf.push(0x47,0x49,0x46,0x38,0x39,0x61); // GIF89a
+            u16(W); u16(H);
+            buf.push(0x80, 0, 0); // GCT flag, bg=0, aspect=0
+            buf.push(0xFF,0xFF,0xFF, 0x00,0x00,0x00); // white(0), black(1)
+
+            // Netscape loop extension
+            buf.push(0x21,0xFF,0x0B,
+                0x4E,0x45,0x54,0x53,0x43,0x41,0x50,0x45,0x32,0x2E,0x30, // NETSCAPE2.0
+                0x03,0x01,0x00,0x00,0x00); // loop forever
+
+            for (let fi = 0; fi < canvases.length; fi++) {
+                // Yield to keep UI responsive every 10 frames
+                if (fi % 10 === 0) await new Promise(r => setTimeout(r, 0));
+
+                const ctx = canvases[fi].getContext('2d');
+                const imgData = ctx.getImageData(0, 0, W, H).data;
+                const pixels = new Uint8Array(totalPixels);
+                for (let i = 0; i < totalPixels; i++) {
+                    const r = imgData[i*4], g = imgData[i*4+1], b = imgData[i*4+2];
+                    pixels[i] = (r + g + b) < 384 ? 1 : 0; // 0=white, 1=black
+                }
+
+                // Graphic Control Extension
+                buf.push(0x21,0xF9,0x04,0x00);
+                u16(delay);
+                buf.push(0x00,0x00);
+
+                // Image Descriptor
+                buf.push(0x2C);
+                u16(0); u16(0); u16(W); u16(H);
+                buf.push(0x00);
+
+                // LZW encode with min code size = 2
+                const lzwData = gifLzwEncode(pixels, 2);
+                buf.push(2);
+                for (let i = 0; i < lzwData.length; ) {
+                    const blk = Math.min(255, lzwData.length - i);
+                    buf.push(blk);
+                    for (let j = 0; j < blk; j++) buf.push(lzwData[i++]);
+                }
+                buf.push(0x00);
+            }
+            buf.push(0x3B); // trailer
+            return new Uint8Array(buf);
+        }
+
+        function gifLzwEncode(pixels, minCodeSize) {
+            const clearCode = 1 << minCodeSize;
+            const eofCode = clearCode + 1;
+            let codeSize = minCodeSize + 1;
+            let nextCode = eofCode + 1;
+            const MAX_CODE = 4096;
+
+            // Code table: key = prefix * 2 + pixel (2-color: pixel ∈ {0,1})
+            // Max key = (4095 * 2 + 1) = 8191 → table size = MAX_CODE * 2 = 8192
+            const table = new Int32Array(MAX_CODE * 2).fill(-1);
+            const initTable = () => { table.fill(-1); nextCode = eofCode + 1; codeSize = minCodeSize + 1; };
+
+            const out = []; let bitBuf = 0; let bitLen = 0;
+            const emit = code => {
+                bitBuf |= code << bitLen; bitLen += codeSize;
+                while (bitLen >= 8) { out.push(bitBuf & 0xFF); bitBuf >>>= 8; bitLen -= 8; }
+            };
+
+            emit(clearCode);
+            let prefix = pixels[0];
+            for (let i = 1; i < pixels.length; i++) {
+                const px = pixels[i];
+                const key = prefix * 2 + px;
+                const existing = table[key];
+                if (existing !== -1) {
+                    prefix = existing;
+                } else {
+                    emit(prefix);
+                    if (nextCode < MAX_CODE) {
+                        table[key] = nextCode++;
+                        if (nextCode > (1 << codeSize) && codeSize < 12) codeSize++;
+                    } else {
+                        emit(clearCode); initTable();
+                    }
+                    prefix = px;
+                }
+            }
+            emit(prefix);
+            emit(eofCode);
+            if (bitLen > 0) out.push(bitBuf & 0xFF);
+            return out;
+        }
 
         // Generic copy to clipboard helper
         window.copyToClipboard = function(text, label) {
