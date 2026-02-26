@@ -3560,7 +3560,7 @@
                 out.push(...entry);
                 if (prevEntry.length > 0) {
                     table.push([...prevEntry, entry[0]]);
-                    if (table.length > (1<<codeSize) && codeSize < 12) codeSize++;
+                    if (table.length >= (1<<codeSize) && codeSize < 12) codeSize++;
                 }
                 prev = code;
             }
