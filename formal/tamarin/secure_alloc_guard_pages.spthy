@@ -22,22 +22,22 @@ begin
 builtins: hashing, symmetric-encryption
 
 /*
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  * Functions
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  */
 
 functions:
     guard_page/0,           /* Inaccessible guard page marker */
-    alloc/2,                /* alloc(size, data) — allocate guarded buffer */
-    zero/1,                 /* zero(buf) — securely zeroize buffer */
-    mlock/1,                /* mlock(buf) — pin in RAM */
-    munlock/1,              /* munlock(buf) — unpin from RAM */
-    read_buf/2,             /* read_buf(buf, offset) — read from buffer */
-    write_buf/3,            /* write_buf(buf, offset, data) — write to buffer */
-    overflow_attempt/2,     /* overflow_attempt(buf, data) — out-of-bounds write */
-    underflow_attempt/2,    /* underflow_attempt(buf, data) — before-bounds write */
-    swap_page/1,            /* swap_page(buf) — page swapped to disk */
+    alloc/2,                /* alloc(size, data) -- allocate guarded buffer */
+    zero/1,                 /* zero(buf) -- securely zeroize buffer */
+    mlock/1,                /* mlock(buf) -- pin in RAM */
+    munlock/1,              /* munlock(buf) -- unpin from RAM */
+    read_buf/2,             /* read_buf(buf, offset) -- read from buffer */
+    write_buf/3,            /* write_buf(buf, offset, data) -- write to buffer */
+    overflow_attempt/2,     /* overflow_attempt(buf, data) -- out-of-bounds write */
+    underflow_attempt/2,    /* underflow_attempt(buf, data) -- before-bounds write */
+    swap_page/1,            /* swap_page(buf) -- page swapped to disk */
     freed_marker/0          /* Marks deallocated memory */
 
 equations:
@@ -45,9 +45,9 @@ equations:
     read_buf(write_buf(alloc(size, data), offset, newdata), offset) = newdata
 
 /*
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  * Rules
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  */
 
 /* Allocate a new guarded buffer with guard pages */
@@ -68,7 +68,7 @@ rule WriteBuffer:
       BufferContains(buf_id, ~new_secret) ]->
     [ !GuardedBuffer(buf_id, ~new_secret) ]
 
-/* Read from the buffer (within bounds) — returns data to reader */
+/* Read from the buffer (within bounds) -- returns data to reader */
 rule ReadBuffer:
     [ !GuardedBuffer(buf_id, data) ]
   --[ Read(buf_id, data) ]->
@@ -81,7 +81,7 @@ rule AttackerOverflow:
       In(evil_data) ]
   --[ OverflowBlocked(buf_id),
       GuardPageTriggered(buf_id, 'upper') ]->
-    [ /* Guard page traps — no state change, data protected */ ]
+    [ /* Guard page traps -- no state change, data protected */ ]
 
 /* Attacker attempts buffer underflow (write before lower guard page) */
 rule AttackerUnderflow:
@@ -90,7 +90,7 @@ rule AttackerUnderflow:
       In(evil_data) ]
   --[ UnderflowBlocked(buf_id),
       GuardPageTriggered(buf_id, 'lower') ]->
-    [ /* Guard page traps — no state change, data protected */ ]
+    [ /* Guard page traps -- no state change, data protected */ ]
 
 /* Secure deallocation: zeroize, unlock, free */
 rule DeallocGuardedBuffer:
@@ -108,16 +108,16 @@ rule AttackerReadAfterFree:
     [ FreedBuffer(buf_id)
       /* Attacker gets freed_marker, NOT the original secret */ ]
 
-/* Memory is locked — swap page attempt fails */
+/* Memory is locked -- swap page attempt fails */
 rule SwapAttemptBlocked:
     [ LockedBuffer(buf_id) ]
   --[ SwapBlocked(buf_id) ]->
     [ LockedBuffer(buf_id) ]
 
 /*
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  * Security Lemmas
- * ═══════════════════════════════════════════════════════════════════════════
+ * ===========================================================================
  */
 
 /* Lemma 1: Guard pages always exist for allocated buffers */

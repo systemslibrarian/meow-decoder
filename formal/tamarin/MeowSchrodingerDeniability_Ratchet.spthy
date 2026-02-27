@@ -147,12 +147,12 @@ rule CorruptEncoder:
  * RATCHET INTEGRATION LEMMAS (11-15)
  * =====================================================================
  * These lemmas model properties of the per-frame symmetric ratchet
- * (MSR v1.2, ratchet.py) layered on top of the Schrödinger dual-stream.
+ * (MSR v1.2, ratchet.py) layered on top of the Schroedinger dual-stream.
  *
  * Source linkage:
- *   meow_decoder/ratchet.py          → HKDF chain, domain constants
- *   meow_decoder/pq_hybrid.py        → PQ beacon KEM encapsulation
- *   meow_decoder/forward_secrecy.py  → X25519 ephemeral rekey
+ *   meow_decoder/ratchet.py          -> HKDF chain, domain constants
+ *   meow_decoder/pq_hybrid.py        -> PQ beacon KEM encapsulation
+ *   meow_decoder/forward_secrecy.py  -> X25519 ephemeral rekey
  * ===================================================================== */
 
 /*

@@ -23,20 +23,20 @@ builtins: symmetric-encryption, hashing, diffie-hellman
 
 functions:
   // Key derivation function (Argon2id abstraction)
-  kdf/3,           // kdf(password, salt, memory) → key
+  kdf/3,           // kdf(password, salt, memory) -> key
 
   // HMAC for manifest authentication
-  hmac/2,          // hmac(key, message) → tag
+  hmac/2,          // hmac(key, message) -> tag
 
   // Duress hash for quick check
-  duress_hash/2,   // duress_hash(password, salt) → hash
+  duress_hash/2,   // duress_hash(password, salt) -> hash
 
   // Frame MAC for per-frame authentication
-  frame_mac/3,     // frame_mac(master_key, frame_id, salt) → mac
+  frame_mac/3,     // frame_mac(master_key, frame_id, salt) -> mac
 
   // Fountain encode/decode (abstracted)
-  fountain_enc/2,  // fountain_enc(data, config) → droplets
-  fountain_dec/2,  // fountain_dec(droplets, config) → data
+  fountain_enc/2,  // fountain_enc(data, config) -> droplets
+  fountain_dec/2,  // fountain_dec(droplets, config) -> data
 
   // Pair projection
   fst/1, snd/1,
@@ -101,7 +101,7 @@ rule Encode_Real:
 //
 // The legitimate user provides the correct password out-of-band
 // (not via the adversary network).  We model this by having decode
-// rules consume the Transmission fact directly — the stored keys
+// rules consume the Transmission fact directly -- the stored keys
 // represent successful password verification.
 // ============================================================================
 

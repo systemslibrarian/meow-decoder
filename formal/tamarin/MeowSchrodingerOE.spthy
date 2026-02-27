@@ -1,9 +1,9 @@
 /*
  * MeowSchrodingerOE.spthy
  * =======================
- * Tamarin model: Schrödinger mode observational equivalence.
+ * Tamarin model: Schroedinger mode observational equivalence.
  *
- * The Schrödinger mode encodes two independent secrets under two different
+ * The Schroedinger mode encodes two independent secrets under two different
  * passwords.  The observable output (the GIF / encoded ciphertext) must be
  * indistinguishable to a passive adversary regardless of which password
  * they do NOT possess.
@@ -57,7 +57,7 @@ equations:
   aead_dec(k, n, aead_enc(k, n, pt)) = pt
 
 /* -------------------------------------------------------------------------
- * Schrödinger Encode
+ * Schroedinger Encode
  * -------------------------------------------------------------------------
  */
 
@@ -109,7 +109,7 @@ rule DecodeWithPasswordB:
  */
 
 /*
- * LEMMA 1 — Real payload confidentiality against password-B holder
+ * LEMMA 1 -- Real payload confidentiality against password-B holder
  *
  * An adversary who knows password_B (and therefore can decrypt wire_b)
  * learns nothing about payload_A.
@@ -123,7 +123,7 @@ lemma RealPayloadConfidentialityFromDecoyHolder:
   "
 
 /*
- * LEMMA 2 — Decoy payload confidentiality against password-A holder
+ * LEMMA 2 -- Decoy payload confidentiality against password-A holder
  *
  * Symmetric: holder of pw_a learns nothing about payload_b.
  */
@@ -135,7 +135,7 @@ lemma DecoyPayloadConfidentialityFromRealHolder:
   "
 
 /*
- * LEMMA 3 — Decode correctness (password A)
+ * LEMMA 3 -- Decode correctness (password A)
  *
  * Decoding with the real password always recovers the real payload.
  */
@@ -147,7 +147,7 @@ lemma DecodeCorrectnessA:
   "
 
 /*
- * LEMMA 4 — Decode correctness (password B)
+ * LEMMA 4 -- Decode correctness (password B)
  *
  * Decoding with the decoy password always recovers the decoy payload.
  */
@@ -159,7 +159,7 @@ lemma DecodeCorrectnessB:
   "
 
 /*
- * LEMMA 5 — No cross-contamination
+ * LEMMA 5 -- No cross-contamination
  *
  * Decoding with password_B never returns payload_A.
  * (Plausible deniability: decoy decode cannot reveal real secret.)
@@ -169,11 +169,11 @@ lemma NoCrossContamination:
     SchrodingerEncoded(encoder, pw_a, pw_b, payload_a, payload_b, wire_a, wire_b, noise) @ #t1 &
     DecodedDecoy(encoder, pw_b, payload_b, pt) @ #t2
     ==>
-    pt ≠ payload_a
+    not (pt = payload_a)
   "
 
 /*
- * LEMMA 6 — Executability
+ * LEMMA 6 -- Executability
  */
 lemma Executability:
   exists-trace

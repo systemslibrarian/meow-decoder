@@ -69,7 +69,7 @@ rule Disable_DeadMansSwitch:
   --[ Disabled(secret_id, current_tick) ]->
   [ State_Disabled(secret_id, secret) ]
 
-// Rule 4: Deadline passes → automatic trigger (decoy release)
+// Rule 4: Deadline passes -> automatic trigger (decoy release)
 rule Trigger_OnDeadline:
   [ State_Armed(secret_id, secret, deadline_time, renewal_period,
                 tick(current_time)),
@@ -181,45 +181,45 @@ end
  * ============================
  *
  * Expected Lemma Status:
- * ✓ coercion_resistance_before_deadline - PROVEN
+ * [ok] coercion_resistance_before_deadline - PROVEN
  *   Interpretation: Adversary cannot force plaintext decryption before deadline
  *   Security: Coercion resistance achieved (torture fails to retrieve secret)
  *
- * ✓ deadline_enforced - PROVEN
+ * [ok] deadline_enforced - PROVEN
  *   Interpretation: Trigger event only occurs after deadline passes
  *   Security: Time-lock puzzle prevents premature activation
  *
- * ✓ decoy_indistinguishability - PROVEN
+ * [ok] decoy_indistinguishability - PROVEN
  *   Interpretation: Decoy file is cryptographically indistinguishable from plaintext
  *   Security: Plausible deniability maintained (cannot prove real secret exists)
  *
- * ✓ renewal_prevents_trigger - PROVEN
+ * [ok] renewal_prevents_trigger - PROVEN
  *   Interpretation: Renewal action extends deadline, preventing trigger
  *   Security: Owner can always prevent accidental release by renewing
  *
- * ✓ disable_prevents_decoy - PROVEN
+ * [ok] disable_prevents_decoy - PROVEN
  *   Interpretation: Disable action prevents any decoy release
  *   Security: Owner has permanent safety override
  *
- * ✓ no_timeline_confusion - PROVEN
+ * [ok] no_timeline_confusion - PROVEN
  *   Interpretation: Single initialization per secret_id, no multiple timelines
  *   Security: Prevents clock-setting attacks or deadline ambiguity
  *
- * ✓ forward_secrecy_maintained - PROVEN
+ * [ok] forward_secrecy_maintained - PROVEN
  *   Interpretation: Secret from before trigger not revealed by trigger event
  *   Security: Compromise of decoy does not expose original secret
  *
- * ✓ decoy_determinism - PROVEN
- *   Interpretation: Decoy generation is deterministic (same secret → same decoy)
+ * [ok] decoy_determinism - PROVEN
+ *   Interpretation: Decoy generation is deterministic (same secret -> same decoy)
  *   Security: Adversary cannot forge alternative decoys
  *
- * ✓ model_executable - PROVEN
- *   Sanity check: Normal protocol flow (init → renew → decrypt) is possible
+ * [ok] model_executable - PROVEN
+ *   Sanity check: Normal protocol flow (init -> renew -> decrypt) is possible
  *   Verification: Model is not over-constrained
  *
  * SECURITY CONCLUSION
  * ===================
- * All lemmas proven → Dead-man's switch implementation is formally verified
+ * All lemmas proven -> Dead-man's switch implementation is formally verified
  * No coercion vector found in symbolic model
  * Plausible deniability maintained cryptographically
  *
@@ -232,10 +232,10 @@ end
  *
  * PRACTICAL IMPLICATIONS
  * ======================
- * ✓ Time-lock puzzle properties verified
- * ✓ Deadline enforcement mathematically sound
- * ✓ Coercion resistance achieved (within symbolic model)
- * ⚠ Implementation must match this protocol exactly (no deviations!)
- * ⚠ Side-channel mitigations needed in Python/Rust code
- * ⚠ Decoy generation must use cryptographically secure entropy
+ * [ok] Time-lock puzzle properties verified
+ * [ok] Deadline enforcement mathematically sound
+ * [ok] Coercion resistance achieved (within symbolic model)
+ * [!] Implementation must match this protocol exactly (no deviations!)
+ * [!] Side-channel mitigations needed in Python/Rust code
+ * [!] Decoy generation must use cryptographically secure entropy
  */

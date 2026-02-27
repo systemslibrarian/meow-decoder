@@ -1,7 +1,7 @@
 /*
  * MeowSchrodingerDeniability.spthy
  * =================================
- * Full Tamarin model: Schrödinger deniability game.
+ * Full Tamarin model: Schroedinger deniability game.
  *
  * Models the COMPLETE deniability game where an adversary (judge/coercer)
  * must distinguish between:
@@ -40,12 +40,12 @@ builtins: diffie-hellman, hashing, symmetric-encryption, xor
 
 functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
-  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) — AAD-bound         */
-  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) — AAD-bound         */
+  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) -- AAD-bound         */
+  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) -- AAD-bound         */
   h/1,            /* SHA-256(x)                                        */
-  blake2b/2,      /* BLAKE2b(key, msg) — used for Merkle               */
+  blake2b/2,      /* BLAKE2b(key, msg) -- used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
-  entropy_ok/1,   /* Entropy oracle: true iff input passes chi²/NIST   */
+  entropy_ok/1,   /* Entropy oracle: true iff input passes chi^2/NIST   */
   hmac/2,         /* HMAC-SHA256(key, msg)                             */
   commitment/2,   /* KDF-commitment: commitment(key, salt)             */
   verify_commit/3 /* verify_commit(tag, key, salt) = true iff valid    */
@@ -53,7 +53,7 @@ functions:
 /*
  * AEAD equation: decryption succeeds only when key, nonce, AND AAD match.
  * This models AES-256-GCM authenticated additional data binding per
- * crypto.py encrypt_file_bytes() — AAD includes salt, nonce, merkle root,
+ * crypto.py encrypt_file_bytes() -- AAD includes salt, nonce, merkle root,
  * orig_len, comp_len, sha256 hash, and magic bytes.
  */
 equations:
@@ -220,7 +220,7 @@ rule CorruptEncoder:
  * ===================================================================== */
 
 /*
- * LEMMA 1 — Deniability: Payload A secret from coerced password B holder
+ * LEMMA 1 -- Deniability: Payload A secret from coerced password B holder
  *
  * An adversary who obtains pw_b through coercion cannot learn payload_a.
  */
@@ -234,7 +234,7 @@ lemma Deniability_PayloadA_SecretFromB:
   "
 
 /*
- * LEMMA 2 — Deniability: Payload B secret from coerced password A holder
+ * LEMMA 2 -- Deniability: Payload B secret from coerced password A holder
  *
  * Symmetric to Lemma 1.
  */
@@ -248,7 +248,7 @@ lemma Deniability_PayloadB_SecretFromA:
   "
 
 /*
- * LEMMA 3 — Integrity: Decode correctness for stream A
+ * LEMMA 3 -- Integrity: Decode correctness for stream A
  */
 lemma Integrity_DecodeA:
   "All sid pw_a pt #t .
@@ -261,7 +261,7 @@ lemma Integrity_DecodeA:
   "
 
 /*
- * LEMMA 4 — Integrity: Decode correctness for stream B
+ * LEMMA 4 -- Integrity: Decode correctness for stream B
  */
 lemma Integrity_DecodeB:
   "All sid pw_b pt #t .
@@ -274,7 +274,7 @@ lemma Integrity_DecodeB:
   "
 
 /*
- * LEMMA 5 — No Cross-Leak: Decoding stream B never yields payload A
+ * LEMMA 5 -- No Cross-Leak: Decoding stream B never yields payload A
  */
 lemma NoCrossLeak_BtoA:
   "All sid pw_b pt #t .
@@ -288,7 +288,7 @@ lemma NoCrossLeak_BtoA:
   "
 
 /*
- * LEMMA 6 — No Cross-Leak: Decoding stream A never yields payload B
+ * LEMMA 6 -- No Cross-Leak: Decoding stream A never yields payload B
  */
 lemma NoCrossLeak_AtoB:
   "All sid pw_a pt #t .
@@ -302,7 +302,7 @@ lemma NoCrossLeak_AtoB:
   "
 
 /*
- * LEMMA 7 — Coercion Safety:
+ * LEMMA 7 -- Coercion Safety:
  * Even after coercion on password B, the adversary cannot distinguish
  * which payload was the "intended real" secret.  That is, given only pw_b
  * and the wire output, the adversary cannot determine payload_a.
@@ -319,7 +319,7 @@ lemma CoercionSafety:
   "
 
 /*
- * LEMMA 8 — KDF Commitment Binding:
+ * LEMMA 8 -- KDF Commitment Binding:
  * Two different password+salt pairs never produce the same commitment tag.
  * (Prevents invisible-salamanders at the KDF level.)
  */
@@ -331,7 +331,7 @@ lemma KDFCommitmentBinding:
   "
 
 /*
- * LEMMA 9 — Executability: a valid trace exists
+ * LEMMA 9 -- Executability: a valid trace exists
  */
 lemma Executability:
   exists-trace
@@ -341,9 +341,9 @@ lemma Executability:
   "
 
 /*
- * LEMMA 10 — Full Corruption Past-Deniability (negative):
+ * LEMMA 10 -- Full Corruption Past-Deniability (negative):
  * If the adversary fully corrupts (gets BOTH passwords), deniability
- * is lost.  This is a sanity check — the model correctly captures
+ * is lost.  This is a sanity check -- the model correctly captures
  * that full corruption breaks deniability.
  */
 lemma FullCorruptionBreaksDeniability:
@@ -360,13 +360,13 @@ lemma FullCorruptionBreaksDeniability:
  * RATCHET INTEGRATION LEMMAS (MSR v2.0)
  * =====================================================================
  * Model the per-frame symmetric ratchet and asymmetric rekey beacons
- * that provide forward secrecy for the Schrödinger frame stream.
+ * that provide forward secrecy for the Schroedinger frame stream.
  */
 
 /*
- * LEMMA 11 — Forward Secrecy per Frame (Ratchet Chain):
+ * LEMMA 11 -- Forward Secrecy per Frame (Ratchet Chain):
  * Compromising chain_key[N] does NOT reveal message_key[N-1].
- * The ratchet is one-way: HKDF(chain_key[N-1]) → chain_key[N] is
+ * The ratchet is one-way: HKDF(chain_key[N-1]) -> chain_key[N] is
  * irreversible, so past frame keys are safe.
  */
 lemma RatchetForwardSecrecy:
@@ -382,7 +382,7 @@ lemma RatchetForwardSecrecy:
   "
 
 /*
- * LEMMA 12 — PQ Beacon Mixing Independence:
+ * LEMMA 12 -- PQ Beacon Mixing Independence:
  * ML-KEM-1024 beacon entropy mixed into message keys is domain-separated
  * from classical X25519 beacon entropy. Compromising classical beacon
  * does not compromise PQ-mixed keys (and vice versa).
@@ -392,14 +392,14 @@ lemma PQBeaconDomainSeparation:
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1
     ==>
-    /* Domain separation: kdf(x, 'pq_beacon') ≠ kdf(x, 'classical_beacon') for all x */
+    /* Domain separation: kdf(x, 'pq_beacon') != kdf(x, 'classical_beacon') for all x */
     not(Ex x .
        kdf(x, 'pq_beacon_mix') = kdf(x, 'classical_beacon_mix'))
   "
 
 /*
- * LEMMA 13 — Multi-Session Unlinkability:
- * Two independent Schrödinger sessions with different passwords
+ * LEMMA 13 -- Multi-Session Unlinkability:
+ * Two independent Schroedinger sessions with different passwords
  * produce unlinkable wire outputs. An adversary observing both
  * sessions cannot determine if the same encoder produced them.
  */
@@ -421,7 +421,7 @@ lemma MultiSessionUnlinkability:
   "
 
 /*
- * LEMMA 14 — Asymmetric Rekey Post-Compromise Security:
+ * LEMMA 14 -- Asymmetric Rekey Post-Compromise Security:
  * After an asymmetric rekey (ECDH rotation), compromise of the
  * pre-rekey chain_key does NOT yield post-rekey keys, because the
  * new root depends on ECDH(ephemeral, receiver_static) which
@@ -441,7 +441,7 @@ lemma AsymRekeyPCS:
   "
 
 /*
- * LEMMA 15 — Header Encryption Confidentiality:
+ * LEMMA 15 -- Header Encryption Confidentiality:
  * Encrypted frame indices (XOR-masked with HKDF-derived masks)
  * prevent the adversary from learning frame ordering without
  * the chain key.

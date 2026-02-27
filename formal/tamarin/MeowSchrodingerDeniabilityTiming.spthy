@@ -1,7 +1,7 @@
 /*
  * MeowSchrodingerDeniabilityTiming.spthy
  * ========================================
- * Gap-7 fix: Tamarin model for the full Schrödinger deniability game
+ * Gap-7 fix: Tamarin model for the full Schroedinger deniability game
  * augmented with a TIMING-CHANNEL ADVERSARY.
  *
  * Motivation
@@ -44,7 +44,7 @@
  * -------------
  *   tamarin-prover --prove MeowSchrodingerDeniabilityTiming.spthy
  *
- * Run time: ≈45 s on a 4-core machine (5 lemmas, bounded search).
+ * Run time: ~45 s on a 4-core machine (5 lemmas, bounded search).
  *
  * Relationship to other models
  * ----------------------------
@@ -95,7 +95,7 @@ rule Create_Session:
   [ Session(~sid) ]
 
 /*
- * Schrödinger encode: produces two ciphertexts (one real, one decoy).
+ * Schroedinger encode: produces two ciphertexts (one real, one decoy).
  * The timing model focuses on the DECODE phase; encode is identical
  * to Core (produces no timing events -- it is a write-once operation).
  */
@@ -254,7 +254,7 @@ rule ConcurrentDecode:
  *
  * An adversary with all timing observations cannot prove payload_A is the
  * "real" one.  Formally: for every decoded session, it is consistent with
- * both (DecodedA, ¬DecodedB) and (DecodedB, ¬DecodedA) world-views.
+ * both (DecodedA, not DecodedB) and (DecodedB, not DecodedA) world-views.
  *
  * The proof holds because:
  *  - path_A and path_B emit ONE timing observation each (isomorphic).

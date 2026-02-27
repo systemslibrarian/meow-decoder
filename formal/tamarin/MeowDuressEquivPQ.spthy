@@ -1,5 +1,5 @@
 /*
- * Meow-Decoder Duress Mode Observational Equivalence — MEOW4/MEOW5 (Post-Quantum)
+ * Meow-Decoder Duress Mode Observational Equivalence -- MEOW4/MEOW5 (Post-Quantum)
  *
  * Extends MeowDuressEquiv.spthy with MEOW4/MEOW5 hybrid KEM:
  *   PRK = HMAC-SHA256(0x00*32, X25519_shared || ML-KEM_shared)
@@ -32,30 +32,30 @@ builtins: symmetric-encryption, hashing, diffie-hellman
 
 functions:
   // Key derivation (Argon2id)
-  kdf/3,                // kdf(password, salt, memory) → key
+  kdf/3,                // kdf(password, salt, memory) -> key
 
   // HMAC authentication
-  hmac/2,               // hmac(key, message)  → tag
+  hmac/2,               // hmac(key, message)  -> tag
 
   // Duress hash (fast pre-check)
-  duress_hash/2,        // duress_hash(password, salt) → hash
+  duress_hash/2,        // duress_hash(password, salt) -> hash
 
   // Per-frame MAC
-  frame_mac/3,          // frame_mac(master_key, frame_id, salt) → mac
+  frame_mac/3,          // frame_mac(master_key, frame_id, salt) -> mac
 
   // Fountain code abstraction
-  fountain_enc/2,       // fountain_enc(data, config) → droplets
-  fountain_dec/2,       // fountain_dec(droplets, config) → data
+  fountain_enc/2,       // fountain_enc(data, config) -> droplets
+  fountain_dec/2,       // fountain_dec(droplets, config) -> data
 
   // --- ML-KEM abstraction (ML-KEM-768 for MEOW5, ML-KEM-1024 for MEOW4) ---
-  kem_keygen_pk/1,      // kem_keygen_pk(sk) → pk
-  kem_encap_ct/2,       // kem_encap_ct(pk, coins)  → ciphertext
-  kem_encap_ss/2,       // kem_encap_ss(pk, coins)  → shared_secret
-  kem_decap/2,          // kem_decap(sk, ct)         → shared_secret
+  kem_keygen_pk/1,      // kem_keygen_pk(sk) -> pk
+  kem_encap_ct/2,       // kem_encap_ct(pk, coins)  -> ciphertext
+  kem_encap_ss/2,       // kem_encap_ss(pk, coins)  -> shared_secret
+  kem_decap/2,          // kem_decap(sk, ct)         -> shared_secret
 
   // --- Hybrid combiner ---
-  hkdf_hybrid/2,        // hkdf_hybrid(x25519_ss, kem_ss) → combined_ss
-  hkdf_expand/2,        // hkdf_expand(base_key, shared_bits) → final_key
+  hkdf_hybrid/2,        // hkdf_hybrid(x25519_ss, kem_ss) -> combined_ss
+  hkdf_expand/2,        // hkdf_expand(base_key, shared_bits) -> final_key
 
   // Projections & constants
   fst/1, snd/1,
@@ -72,7 +72,7 @@ equations:
       = kem_encap_ss(kem_keygen_pk(sk), coins)
 
 // ============================================================================
-// SHARED SETUP — MEOW4 (PQ Hybrid) SESSION
+// SHARED SETUP -- MEOW4 (PQ Hybrid) SESSION
 // ============================================================================
 
 rule Setup_PQ:
@@ -106,7 +106,7 @@ rule Setup_PQ:
     ]
 
 // ============================================================================
-// ENCODING — MEOW4 PQ HYBRID
+// ENCODING -- MEOW4 PQ HYBRID
 // ============================================================================
 
 rule Encode_PQ:
@@ -146,11 +146,11 @@ rule Encode_PQ:
                      kem_ct, eph_pk) ]
 
 // ============================================================================
-// DECODING — MEOW4 PQ TWO PATHS (diff() for OE)
+// DECODING -- MEOW4 PQ TWO PATHS (diff() for OE)
 //
 // The legitimate user provides the correct password out-of-band
 // (not via the adversary network).  We model this by having decode
-// rules consume TransmissionPQ directly — the stored keys represent
+// rules consume TransmissionPQ directly -- the stored keys represent
 // successful password verification.
 // ============================================================================
 
@@ -184,7 +184,7 @@ rule Decode_PQ_Duress:
 // ============================================================================
 
 // Failure 1: Wrong password (neither real nor duress)
-// Attacker provides a password attempt via the network — it will never
+// Attacker provides a password attempt via the network -- it will never
 // match the fresh real/duress passwords, so Neq is always satisfiable.
 rule Decode_PQ_WrongPassword:
     let

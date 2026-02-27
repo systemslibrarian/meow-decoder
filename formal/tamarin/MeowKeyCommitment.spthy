@@ -116,7 +116,7 @@ lemma CommitmentBinding:
  * receiver's verification will reject it.
  *
  * Formalised: the adversary cannot produce (ct2, com_tag') such that
- * com_tag' matches an auth_key-bound commitment for ct1 ≠ ct2.
+ * com_tag' matches an auth_key-bound commitment for ct1 != ct2.
  */
 lemma NoInvisibleSalamanders:
   "All receiver ct pt expected #t .

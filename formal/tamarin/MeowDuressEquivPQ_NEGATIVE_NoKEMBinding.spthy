@@ -99,7 +99,7 @@ rule Attacker_Substitute_KEM:
                      fake_kem_ct, eph_pk) ]
 
 // ============================================================================
-// DECODING — consumes TransmissionPQ directly
+// DECODING -- consumes TransmissionPQ directly
 // ============================================================================
 
 rule Decode_PQ_Real:

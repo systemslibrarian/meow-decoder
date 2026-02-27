@@ -12,7 +12,7 @@
  *
  *  2. Header Authentication:
  *     A forged or replayed header (wrong encrypted index) is always
- *     rejected by the receiver — the header mask is bound to the chain key.
+ *     rejected by the receiver -- the header mask is bound to the chain key.
  *
  * Header encryption:
  *   header_key = HKDF(root_key, salt, "header")
@@ -78,7 +78,7 @@ rule AdversaryForgeHeader:
  */
 
 /*
- * LEMMA 1 — Header Indistinguishability
+ * LEMMA 1 -- Header Indistinguishability
  *
  * An adversary who does not know the header key cannot determine the
  * plaintext frame index from the encrypted header.  Formalised as:
@@ -94,7 +94,7 @@ lemma HeaderIndistinguishability:
   "
 
 /*
- * LEMMA 2 — Header Authentication
+ * LEMMA 2 -- Header Authentication
  *
  * A forged header (one not produced by a legitimate ratchet step) will
  * be rejected by the receiver because it cannot produce a valid unmask.
@@ -114,10 +114,10 @@ lemma HeaderAuthentication:
   "
 
 /*
- * LEMMA 3 — Replay Rejection
+ * LEMMA 3 -- Replay Rejection
  *
  * Replaying an old encrypted header with an increased expected frame count
- * must fail — the receiver cannot unmask the replayed index to match the
+ * must fail -- the receiver cannot unmask the replayed index to match the
  * expected next frame.
  */
 lemma ReplayRejection:
@@ -130,7 +130,7 @@ lemma ReplayRejection:
   "
 
 /*
- * LEMMA 4 — Executability
+ * LEMMA 4 -- Executability
  */
 lemma Executability:
   exists-trace
