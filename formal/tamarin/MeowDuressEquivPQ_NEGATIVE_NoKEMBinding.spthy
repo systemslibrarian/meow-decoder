@@ -109,7 +109,7 @@ rule Decode_PQ_Real:
     , !DecoyDataPQ(session, decoy) ]
   --[ DecodedReal_PQ(session)
     , AcceptedKEMCt(session, kem_ct) ]->
-    [ Out( diff(real_secret, decoy) )
+    [ Out( real_secret )
     , DecodedStatePQ(session, 'real') ]
 
 rule Decode_PQ_Duress:
@@ -118,7 +118,7 @@ rule Decode_PQ_Duress:
                      kem_ct, eph_pk)
     , !DecoyDataPQ(session, decoy) ]
   --[ DuressTriggered_PQ(session) ]->
-    [ Out( diff(decoy, real_secret) )
+    [ Out( decoy )
     , DecodedStatePQ(session, 'duress') ]
 
 // ============================================================================
