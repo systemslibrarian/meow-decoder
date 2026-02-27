@@ -1015,11 +1015,12 @@
 
                         <label for="catBlinkSpeed">⚡ Blink Speed:</label>
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
-                            <option value="500">Slow (500ms) — works with any phone camera</option>
-                            <option value="200" selected>Medium (200ms) — works with phone camera</option>
-                            <option value="100">Fast (100ms) — phone 60fps or video download</option>
+                            <option value="500">Slow (500ms)</option>
+                            <option value="200" selected>Medium (200ms)</option>
+                            <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
                         </select>
-                        <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">📱 Phone recording: use 500ms or 200ms &nbsp;·&nbsp; 💾 Video download: any speed works</p>
+                        <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
 
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
@@ -1070,6 +1071,7 @@
                             <option value="500">Slow (500ms)</option>
                             <option value="200" selected>Medium (200ms)</option>
                             <option value="100">Fast (100ms)</option>
+                            <option value="50">Very Fast (50ms)</option>
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: 0 0 10px 0;">Must match the speed used during encoding</p>
 
@@ -1452,194 +1454,7 @@
     <script src="preamble-calibration.js"></script>
 
     <!-- CAT MODE NRZ DECODER - NRZ timing decoder (Task 1.2) -->
-    <!-- Inlined to guarantee availability regardless of external script load failures -->
-    <script>
-/**
- * NRZ Timing Decoder (Task 1.2 - Part 2)
- * Inlined into HTML to prevent "NRZDecoder is not defined" when external script fails to load.
- */
-(function() {
-const NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
-
-function findSyncWord(frames, bitPeriod, startSearchTime, maxSearchDuration, options) {
-    startSearchTime = startSearchTime || 0;
-    maxSearchDuration = maxSearchDuration || 5.0;
-    options = options || {};
-    const shortVideoMode = options.shortVideoMode || false;
-    const allowShortSync = options.allowShortSync !== false;
-    const syncPattern16 = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0];
-    const syncPattern8 = [1, 0, 1, 0, 1, 0, 1, 0];
-    const searchEndTime = startSearchTime + maxSearchDuration;
-    if (!shortVideoMode) {
-        const result16 = searchForPattern(frames, syncPattern16, bitPeriod, startSearchTime, searchEndTime);
-        if (result16 && result16.confidence >= 0.75) {
-            NRZ_DEBUG && console.log(`🔍 [Sync] Found 16-bit sync at t=${(result16.t0 * 1000).toFixed(1)}ms`);
-            return Object.assign({}, result16, { syncBits: 16 });
-        }
-    }
-    if (allowShortSync || shortVideoMode) {
-        const result8 = searchForPattern(frames, syncPattern8, bitPeriod, startSearchTime, searchEndTime);
-        if (result8 && result8.confidence >= 0.75) {
-            NRZ_DEBUG && console.log(`🔍 [Sync] Found 8-bit sync (fallback) at t=${(result8.t0 * 1000).toFixed(1)}ms`);
-            return Object.assign({}, result8, { syncBits: 8 });
-        }
-    }
-    return null;
-}
-
-function searchForPattern(frames, pattern, bitPeriod, startTime, endTime) {
-    const phaseStep = bitPeriod / 10;
-    let bestMatch = null;
-    let bestScore = 0;
-    for (let t0 = startTime; t0 < endTime; t0 += phaseStep) {
-        const samples = sampleBits(frames, t0, bitPeriod, pattern.length);
-        let matches = 0;
-        for (let i = 0; i < pattern.length; i++) { if (samples[i] === pattern[i]) matches++; }
-        const score = matches / pattern.length;
-        if (score > bestScore) { bestScore = score; bestMatch = { t0, confidence: score, samples }; }
-        if (score === 1.0) break;
-    }
-    return bestMatch;
-}
-
-function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime, options) {
-    startSearchTime = startSearchTime || 0;
-    options = options || {};
-    const shortVideoMode = options.shortVideoMode || false;
-    NRZ_DEBUG && console.log(`🔍 [Sync] Searching for sync word at t=${(startSearchTime * 1000).toFixed(1)}ms`);
-    const result = findSyncWord(frames, bitPeriod, startSearchTime, 5.0, { shortVideoMode, allowShortSync: true });
-    if (result) {
-        return { found: true, t0: result.t0, confidence: result.confidence, syncBits: result.syncBits, error: null, diagnostics: null };
-    }
-    const diagnostics = {
-        likely_causes: [
-            'Wrong ROI (not targeting cat eyes)',
-            'Lighting too uniform (no clear on/off distinction)',
-            'Timing drift (video frame drops or variable frame rate)',
-            'Bit rate mismatch (UI speed ≠ actual transmission speed)',
-            'Threshold too aggressive (filtering out real data)'
-        ],
-        suggestions: [
-            'Try "Auto" sensitivity to auto-detect threshold',
-            'Verify bit rate matches transmission (check original)',
-            'Check video quality - re-record at higher resolution if blurry',
-            'Ensure cat eyes are visible and in focus',
-            'Check live counters - confident frames should be >70%'
-        ],
-        current_state: {
-            threshold: threshold.toFixed(3),
-            bitPeriod: (bitPeriod * 1000).toFixed(1) + 'ms',
-            searchedFrames: frames.filter(function(f) { return f.time >= startSearchTime && f.time < startSearchTime + 5.0; }).length
-        }
-    };
-    return { found: false, t0: null, confidence: 0, error: 'no_sync_lock', diagnostics };
-}
-
-function sampleBits(frames, t0, bitPeriod, numBits, confidenceThreshold) {
-    confidenceThreshold = confidenceThreshold !== undefined ? confidenceThreshold : 0.15;
-    const bits = [];
-    let frameIdx = 0;
-    for (let i = 0; i < numBits; i++) {
-        const sampleTime = t0 + (i + 0.5) * bitPeriod;
-        while (frameIdx < frames.length - 1 && frames[frameIdx + 1].time < sampleTime) frameIdx++;
-        let nearestFrame = frames[frameIdx];
-        if (frameIdx < frames.length - 1) {
-            const dC = Math.abs(frames[frameIdx].time - sampleTime);
-            const dN = Math.abs(frames[frameIdx + 1].time - sampleTime);
-            if (dN < dC) { nearestFrame = frames[frameIdx + 1]; frameIdx++; }
-        }
-        if (nearestFrame.confidence !== undefined && nearestFrame.confidence < confidenceThreshold) bits.push('?');
-        else if (nearestFrame.state === 'on') bits.push(1);
-        else if (nearestFrame.state === 'off') bits.push(0);
-        else bits.push('?');
-    }
-    return bits;
-}
-
-function findNearestFrame(frames, targetTime) {
-    if (!frames.length) return null;
-    if (frames.length === 1) return frames[0];
-    let left = 0, right = frames.length - 1;
-    while (left < right - 1) {
-        const mid = Math.floor((left + right) / 2);
-        if (frames[mid].time < targetTime) left = mid; else right = mid;
-    }
-    return Math.abs(frames[left].time - targetTime) < Math.abs(frames[right].time - targetTime) ? frames[left] : frames[right];
-}
-
-function voteWithinBitWindow(frames, t0, bitPeriod, bitIndex, numSamples, confidenceThreshold) {
-    numSamples = numSamples || 5;
-    confidenceThreshold = confidenceThreshold !== undefined ? confidenceThreshold : 0.15;
-    const votes = [];
-    const bitStart = t0 + bitIndex * bitPeriod;
-    for (let i = 0; i < numSamples; i++) {
-        const sampleTime = bitStart + (i / (numSamples - 1)) * bitPeriod;
-        const frame = findNearestFrame(frames, sampleTime);
-        if (frame && frame.confidence >= confidenceThreshold) {
-            if (frame.state === 'on') votes.push(1);
-            else if (frame.state === 'off') votes.push(0);
-        }
-    }
-    if (!votes.length) return '?';
-    const ones = votes.filter(function(v) { return v === 1; }).length;
-    const zeros = votes.filter(function(v) { return v === 0; }).length;
-    if (ones > votes.length * 0.6) return 1;
-    if (zeros > votes.length * 0.6) return 0;
-    return '?';
-}
-
-function resolveUnknownBits(bits, frames, t0, bitPeriod, policy) {
-    policy = policy || 'vote';
-    if (policy === 'repeat') {
-        let lastKnown = 0;
-        return bits.map(function(b) { if (b === '?') return lastKnown; lastKnown = b; return b; });
-    } else {
-        return bits.map(function(b, i) {
-            if (b === '?') { const v = voteWithinBitWindow(frames, t0, bitPeriod, i, 5, 0.15); return v === '?' ? 0 : v; }
-            return b;
-        });
-    }
-}
-
-function decodeNRZ(frames, bitPeriod, threshold, startSearchTime, maxBits, options) {
-    startSearchTime = startSearchTime || 0;
-    maxBits = maxBits || 100000;
-    options = options || {};
-    const shortVideoMode = options.shortVideoMode || false;
-    const syncResult = findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime, { shortVideoMode });
-    if (!syncResult.found) {
-        return { success: false, binary: '', t0: null, error: syncResult.error, diagnostics: syncResult.diagnostics };
-    }
-    const syncBits = syncResult.syncBits || 16;
-    const t0 = syncResult.t0 + (syncBits * bitPeriod);
-    const lastFrameTime = frames[frames.length - 1].time;
-    const numBits = Math.min(maxBits, Math.floor((lastFrameTime - t0) / bitPeriod));
-    NRZ_DEBUG && console.log(`📡 [NRZ] Decoding ${numBits} bits at t=${(t0 * 1000).toFixed(1)}ms`);
-    const bits = sampleBits(frames, t0, bitPeriod, numBits, 0.15);
-    const uncertainCount = bits.filter(function(b) { return b === '?'; }).length;
-    const resolvedBits = resolveUnknownBits(bits, frames, t0, bitPeriod, 'vote');
-    return {
-        success: true,
-        binary: resolvedBits.join(''),
-        t0,
-        syncConfidence: syncResult.confidence,
-        syncBits,
-        shortVideoMode: shortVideoMode || syncBits === 8,
-        stats: {
-            totalBits: numBits,
-            uncertainBits: uncertainCount,
-            uncertainPercent: parseFloat((uncertainCount / numBits * 100).toFixed(1)),
-            bitPeriod: bitPeriod * 1000,
-            syncBits
-        }
-    };
-}
-
-if (typeof window !== 'undefined') {
-    window.NRZDecoder = { findSyncWord, findSyncWordWithFallback, searchForPattern, sampleBits, findNearestFrame, voteWithinBitWindow, resolveUnknownBits, decodeNRZ };
-}
-})();
-    </script>
+    <script src="nrz-decoder.js"></script>
 
     <!-- CAT MODE ADAPTIVE THRESHOLD - Sliding window threshold adaptation (Task 2.1) -->
     <script src="adaptive-threshold.js"></script>
@@ -2484,8 +2299,8 @@ if (typeof window !== 'undefined') {
                     ]
                 },
                 {
-                    patterns: ['sync word', 'sync not found', 'no sync detected', 'preamble not found'],
-                    title: '🔄 Sync Pattern Not Found',
+                    patterns: ['sync word', 'sync not found', 'sync pattern', 'no sync detected', 'preamble not found'],
+                    title: '📻 Sync Pattern Not Found',
                     message: 'Could not find the start of the message in the video.',
                     suggestions: [
                         'Make sure the cat\'s eyes are clearly visible and filling most of the frame',
@@ -5633,50 +5448,158 @@ if (typeof window !== 'undefined') {
                     }
                 }
 
-                // Task 5.2.1: Adaptive sync search start based on detected preamble
+                // ============================================================
+                // SYNC DETECTION FIX: Find end of alternating region
+                //
+                // The preamble (1010...) and sync word (1010...) use the
+                // SAME alternating pattern. The preamble detector absorbs
+                // both into one continuous alternating block, which caused
+                // the old sync word search to START AFTER the sync word
+                // had already ended, guaranteeing failure.
+                //
+                // New approach: NRZ-sample from the lead-in onwards and
+                // find where the alternating pattern BREAKS. That boundary
+                // is exactly where data begins (mode byte + payload).
+                // Fall back to NRZ sync search if this method fails.
+                // ============================================================
                 const leadInBits = 8;
-                let preambleBits;
+                const effectiveBitDuration = preambleResult.bitRate || bitDuration;
+                let nrzResult = null;
+
                 if (preambleResult.found && preambleResult.preamble) {
-                    // Use actual detected preamble end
-                    preambleBits = Math.round(preambleResult.preamble.duration / bitDuration);
-                } else if (shortVideoMode) {
-                    preambleBits = 16; // Short preamble assumption
-                } else {
-                    preambleBits = 32; // Full preamble
+                    // Scan from just before the detected preamble start
+                    // to find the precise bit-level end of the alternating region.
+                    const preambleStartFrame = preambleResult.preamble.start;
+                    const scanStartTime = Math.max(0, frameSamples[preambleStartFrame].time - effectiveBitDuration);
+                    const maxScanBits = Math.min(200, Math.floor(
+                        (frameSamples[frameSamples.length - 1].time - scanStartTime) / effectiveBitDuration
+                    ));
+
+                    const scannedBits = NRZDecoder.sampleBits(
+                        frameSamples, scanStartTime, effectiveBitDuration, maxScanBits, 0.15
+                    );
+                    const resolvedScan = NRZDecoder.resolveUnknownBits(
+                        scannedBits, frameSamples, scanStartTime, effectiveBitDuration, 'vote'
+                    );
+
+                    // Find where alternation breaks: two consecutive same-value bits
+                    // Skip initial non-alternating bits (lead-in zeros)
+                    let altStart = -1;
+                    for (let i = 1; i < resolvedScan.length; i++) {
+                        if (resolvedScan[i] !== resolvedScan[i - 1]) {
+                            altStart = i - 1; // First alternating bit
+                            break;
+                        }
+                    }
+
+                    let altEndIdx = -1;
+                    if (altStart >= 0) {
+                        // Now find where the alternation STOPS
+                        // When we find two consecutive same-value bits at (i-1, i),
+                        // the alternation ends at i-2. Position i-1 is the first
+                        // data bit (confirmed by position i having the same value).
+                        for (let i = altStart + 2; i < resolvedScan.length; i++) {
+                            if (resolvedScan[i] === resolvedScan[i - 1]) {
+                                altEndIdx = i - 1; // First data bit
+                                break;
+                            }
+                        }
+                    }
+
+                    if (altEndIdx >= 0) {
+                        const dataStartTime = scanStartTime + altEndIdx * effectiveBitDuration;
+                        const altLength = altEndIdx - (altStart >= 0 ? altStart : 0);
+                        log(`✅ [Sync] Alternating region detected: ${altLength} bits (start=${altStart}, end=${altEndIdx})`);
+                        log(`✅ [Sync] Data starts at t=${(dataStartTime * 1000).toFixed(1)}ms — bypassing sync word search`);
+
+                        // Sample data bits from the alternation boundary
+                        const lastFrameTime = frameSamples[frameSamples.length - 1].time;
+                        const availableDuration = lastFrameTime - dataStartTime;
+                        const numBits = Math.min(100000, Math.floor(availableDuration / effectiveBitDuration));
+
+                        const dataBits = NRZDecoder.sampleBits(
+                            frameSamples, dataStartTime, effectiveBitDuration, numBits, 0.15
+                        );
+                        const uncertainCount = dataBits.filter(b => b === '?').length;
+                        const resolvedData = NRZDecoder.resolveUnknownBits(
+                            dataBits, frameSamples, dataStartTime, effectiveBitDuration, 'vote'
+                        );
+
+                        nrzResult = {
+                            success: true,
+                            binary: resolvedData.join(''),
+                            t0: dataStartTime,
+                            syncConfidence: preambleResult.preamble.transitionRate || 0.9,
+                            syncBits: 0,
+                            shortVideoMode: shortVideoMode,
+                            stats: {
+                                totalBits: numBits,
+                                uncertainBits: uncertainCount,
+                                uncertainPercent: numBits > 0 ? (uncertainCount / numBits * 100) : 0,
+                                bitPeriod: effectiveBitDuration * 1000,
+                                syncBits: 0
+                            }
+                        };
+
+                        log(`📡 [NRZ] Decoded ${numBits} bits (${uncertainCount} uncertain = ${(numBits > 0 ? uncertainCount / numBits * 100 : 0).toFixed(1)}%)`);
+                    } else {
+                        log(`⚠️ [Sync] Could not find alternation boundary — falling back to NRZ sync search`);
+                    }
                 }
-                const syncStartTime = (leadInBits + preambleBits) * bitDuration;
 
-                log(`🔍 [NRZ] Starting sync word search at t=${(syncStartTime * 1000).toFixed(1)}ms (preamble=${preambleBits}bits${shortVideoMode ? ', short mode' : ''})`);
+                // Fallback: original NRZ sync word search (for when preamble-end
+                // detection fails or preamble was not found at all)
+                if (!nrzResult) {
+                    let preambleBits;
+                    if (preambleResult.found && preambleResult.preamble) {
+                        preambleBits = Math.round(preambleResult.preamble.duration / bitDuration);
+                    } else if (shortVideoMode) {
+                        preambleBits = 16;
+                    } else {
+                        preambleBits = 32;
+                    }
+                    // Search from lead-in start (not past preamble) to give
+                    // the sync pattern a chance to match within the alternating region
+                    const syncStartTime = leadInBits * effectiveBitDuration;
 
-                // Decode using NRZ timing (Task 5.2.1: with short video mode support)
-                const nrzResult = NRZDecoder.decodeNRZ(
-                    frameSamples,
-                    preambleResult.bitRate || bitDuration,
-                    threshold,
-                    syncStartTime,
-                    100000, // max bits
-                    { shortVideoMode }
-                );
+                    log(`🔍 [NRZ] Fallback sync word search at t=${(syncStartTime * 1000).toFixed(1)}ms`);
 
-                if (!nrzResult.success) {
+                    nrzResult = NRZDecoder.decodeNRZ(
+                        frameSamples,
+                        effectiveBitDuration,
+                        threshold,
+                        syncStartTime,
+                        100000,
+                        { shortVideoMode }
+                    );
+                }
+
+                if (!nrzResult || !nrzResult.success) {
                     // Show sync failure diagnostics
+                    const diagInfo = (nrzResult && nrzResult.diagnostics) || {
+                        likely_causes: ['Alternating preamble region not detected in video',
+                                        'Green signal too weak or inconsistent'],
+                        suggestions: ['Record closer to the screen',
+                                      'Ensure cat eyes are clearly visible',
+                                      'Try Auto sensitivity']
+                    };
                     const diagHtml = `
                         <div style="background: rgba(255,100,100,0.15); border: 2px solid #ff6464; border-radius: 8px; padding: 12px; margin: 10px 0;">
-                            <p style="color:#ff6464; margin:0; font-weight:bold;">❌ Sync Word Not Found</p>
+                            <p style="color:#ff6464; margin:0; font-weight:bold;">❌ Sync Pattern Not Found</p>
                             <p style="color:#ffaa44; font-size:0.85em; margin:8px 0 0 0;">
-                                Could not find sync word (0xAA55) in video. This usually means:
+                                Could not find the preamble/sync boundary in video. This usually means:
                             </p>
                             <ul style="color:#888; font-size:0.85em; margin:8px 0 0 0; padding-left:20px;">
-                                ${nrzResult.diagnostics.likely_causes.map(c => `<li>${c}</li>`).join('')}
+                                ${diagInfo.likely_causes.map(c => `<li>${c}</li>`).join('')}
                             </ul>
                             <p style="color:#00ff88; font-size:0.85em; margin:8px 0 0 0; font-weight:bold;">Try these fixes:</p>
                             <ul style="color:#888; font-size:0.85em; margin:8px 0 0 0; padding-left:20px;">
-                                ${nrzResult.diagnostics.suggestions.map(s => `<li>${s}</li>`).join('')}
+                                ${diagInfo.suggestions.map(s => `<li>${s}</li>`).join('')}
                             </ul>
                         </div>
                     `;
 
-                    throw new Error(`Sync word not found. ${diagHtml}`);
+                    throw new Error(`Sync pattern not found. ${diagHtml}`);
                 }
 
                 binary = nrzResult.binary;
@@ -6474,19 +6397,57 @@ if (typeof window !== 'undefined') {
             try {
                 // Remove start/end markers if present
                 let binary = binaryInput;
-                // Support both new format (dark lead-in + 16-bit marker) and
-                // legacy format (16-bit marker only or 8-bit marker).
-                // New format: 00000000 + 1010101010101010 + payload + 0101010101010101
-                let startIdx = binary.indexOf('1010101010101010');
-                if (startIdx !== -1) {
-                    binary = binary.substring(startIdx + 16);
-                } else {
-                    startIdx = binary.indexOf('11111111');
-                    if (startIdx !== -1) binary = binary.substring(startIdx + 8);
+                // Format: 00000000 + preamble(1010...) + sync(1010...) + data + endMarker(0101...)
+                // Preamble and sync word use the SAME alternating pattern.
+                // Instead of searching for a fixed sync word, find where
+                // the alternating pattern (1010...) ends — that's the data start.
+
+                // Step 1: Find the start of the alternating region
+                //         (skip any lead-in zeros or prefix)
+                let altStart = -1;
+                for (let i = 0; i < binary.length - 1; i++) {
+                    if (binary[i] !== binary[i + 1]) {
+                        // Check if this is sustained alternation (at least 8 bits)
+                        let isAlternating = true;
+                        for (let j = i + 1; j < Math.min(i + 8, binary.length - 1); j++) {
+                            if (binary[j] === binary[j + 1]) { isAlternating = false; break; }
+                        }
+                        if (isAlternating) { altStart = i; break; }
+                    }
                 }
+
+                // Step 2: Find where the alternating pattern STOPS
+                let dataStart = -1;
+                if (altStart >= 0) {
+                    for (let i = altStart + 1; i < binary.length - 1; i++) {
+                        if (binary[i] === binary[i + 1]) {
+                            dataStart = i; // First non-alternating position = data start
+                            break;
+                        }
+                    }
+                }
+
+                if (dataStart >= 0) {
+                    binary = binary.substring(dataStart);
+                    log(`🔍 [Cat Mode] Found alternation end at bit ${dataStart}, data: ${binary.length} bits`);
+                } else {
+                    // Fallback: try old method
+                    let startIdx = binary.indexOf('1010101010101010');
+                    if (startIdx !== -1) {
+                        binary = binary.substring(startIdx + 16);
+                    } else {
+                        startIdx = binary.indexOf('11111111');
+                        if (startIdx !== -1) binary = binary.substring(startIdx + 8);
+                    }
+                }
+
+                // Remove end marker
                 const endIdx16 = binary.lastIndexOf('0101010101010101');
-                if (endIdx16 !== -1) { binary = binary.substring(0, endIdx16); }
-                else if (binary.endsWith('00000000')) { binary = binary.substring(0, binary.length - 8); }
+                if (endIdx16 !== -1 && endIdx16 > binary.length / 2) {
+                    binary = binary.substring(0, endIdx16);
+                } else if (binary.endsWith('00000000')) {
+                    binary = binary.substring(0, binary.length - 8);
+                }
 
                 // Auto-pad to byte boundary (video drift compensation)
                 const origLen = binary.length;
@@ -6611,19 +6572,10 @@ if (typeof window !== 'undefined') {
 
             try {
                 const payloadResult = await buildCatBinaryPayload(message, password);
-                const bitDuration = speed / 1000;
-                const runs = buildRunsFromBinary(payloadResult.binary, bitDuration);
-                const syncResult = syncDecodeFromRuns(runs, bitDuration, '1010101010101010');
-                const binary = syncResult.binary;
 
-                if (binary !== payloadResult.binary) {
-                    resultBox.className = 'result-box error';
-                    resultBox.innerHTML = `<h3>❌ Self-Test Failed</h3><div class='message'>Sync decode mismatch (raw=${payloadResult.binary.length} bits, sync=${binary.length} bits)</div>`;
-                    resultBox.classList.remove('hidden');
-                    return;
-                }
-
-                document.getElementById('catBinaryInput').value = binary;
+                // Feed the raw binary to catModeDecode — it handles
+                // stripping preamble/sync/end markers internally.
+                document.getElementById('catBinaryInput').value = payloadResult.binary;
                 document.getElementById('catDecodePassword').value = password;
                 await window.catModeDecode();
 

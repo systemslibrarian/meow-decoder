@@ -80,7 +80,7 @@ function checkVideoDuration(durationSec, bitPeriodMs = 100) {
  * instead of requiring the full 32-bit preamble. This reduces overhead from 3.2s to
  * as little as 1.6s, critical for short (<5s) videos.
  *
- * @param {object[]} frames - Array of frames with {time, state, greenScore}
+ * @param {object[]} frames - Array of frames with {time, state, greenScore/greenLevel}
  * @param {number} minTransitionRate - Minimum transition rate (default 0.7 = 70%)
  * @param {number} minDuration - Minimum preamble duration in seconds (default 0.8s for adaptive)
  * @param {object} options - {earlyTermination: bool, minAlternations: number}
@@ -93,63 +93,99 @@ function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 0.8, opti
         return null;
     }
 
-    // Search for alternating pattern in early frames (first 40% of video for short videos)
-    const searchRange = Math.min(frames.length, Math.floor(frames.length * 0.4));
+    // ================================================================
+    // RUN-LEVEL ANALYSIS (fixes multi-frame-per-bit detection)
+    //
+    // Real video has multiple frames per bit (e.g. 5 frames at 50fps
+    // for 100ms bits). Frame-to-frame transition counting gives a low
+    // rate (~0.2) even for perfect alternation because adjacent frames
+    // within the same bit share the same state.
+    //
+    // Solution: group consecutive same-state frames into "runs" (each
+    // run ≈ one bit), then check if successive runs alternate state.
+    // This works for BOTH single-frame-per-bit AND multi-frame-per-bit.
+    // ================================================================
+    const runs = [];
+    let currentState = null;
+    let runStart = 0;
 
-    for (let start = 0; start < searchRange - 10; start++) {
-        // Count consecutive alternations from this starting point
+    for (let i = 0; i < frames.length; i++) {
+        const state = frames[i].state;
+        if (state === 'unknown') continue;
+        if (state !== currentState) {
+            if (currentState !== null) {
+                runs.push({ state: currentState, startIdx: runStart, endIdx: i - 1 });
+            }
+            currentState = state;
+            runStart = i;
+        }
+    }
+    if (currentState !== null) {
+        runs.push({ state: currentState, startIdx: runStart, endIdx: frames.length - 1 });
+    }
+
+    if (runs.length < 4) return null;
+
+    // Search first 40% of runs for an alternating block
+    const searchLimit = Math.min(runs.length, Math.ceil(runs.length * 0.4));
+
+    for (let startRun = 0; startRun < searchLimit; startRun++) {
+        let endRun = startRun;
         let alternations = 0;
-        let endIdx = start;
-        let consecutiveAlts = 0;
-        let maxConsecutiveAlts = 0;
 
-        for (let i = start + 1; i < Math.min(start + 100, searchRange); i++) {
-            if (frames[i].state !== frames[i - 1].state &&
-                frames[i].state !== 'unknown' &&
-                frames[i - 1].state !== 'unknown') {
+        for (let r = startRun + 1; r < runs.length; r++) {
+            if (runs[r].state !== runs[r - 1].state) {
                 alternations++;
-                consecutiveAlts++;
-                endIdx = i;
+                endRun = r;
             } else {
-                maxConsecutiveAlts = Math.max(maxConsecutiveAlts, consecutiveAlts);
-                consecutiveAlts = 0;
+                break; // Alternation broken
             }
 
-            // Early termination: if we have enough stable alternations, stop early
-            if (earlyTermination && consecutiveAlts >= minAlternations) {
-                const duration = frames[endIdx].time - frames[start].time;
+            // Early termination: enough alternating bits + duration
+            if (earlyTermination && alternations >= minAlternations) {
+                const startFrame = runs[startRun].startIdx;
+                const endFrame = runs[endRun].endIdx;
+                const duration = frames[endFrame].time - frames[startFrame].time;
                 if (duration >= minDuration) {
-                    const transitionRate = alternations / (endIdx - start);
-                    NRZ_DEBUG && console.log(`📡 [Preamble] Early termination at frames ${start}-${endIdx} (${consecutiveAlts} alternations, ${(transitionRate * 100).toFixed(1)}% rate, ${duration.toFixed(2)}s)`);
+                    const totalRuns = endRun - startRun + 1;
+                    const transitionRate = alternations / totalRuns;
+                    NRZ_DEBUG && console.log(`📡 [Preamble] Early termination: ${alternations} alternating runs (${totalRuns} total), ${duration.toFixed(2)}s`);
                     return {
-                        start,
-                        end: endIdx + 1,
+                        start: startFrame,
+                        end: endFrame + 1,
                         transitionRate,
                         duration,
                         earlyTerminated: true,
-                        confidence: consecutiveAlts >= 24 ? 'high' : 'medium'
+                        confidence: alternations >= 24 ? 'high' : 'medium'
                     };
                 }
             }
         }
 
-        // Full window check (original behavior)
-        maxConsecutiveAlts = Math.max(maxConsecutiveAlts, consecutiveAlts);
-        if (alternations > 0) {
-            const duration = frames[endIdx].time - frames[start].time;
-            const transitionRate = alternations / (endIdx - start);
+        // Full block check
+        if (alternations >= 4) {
+            const startFrame = runs[startRun].startIdx;
+            const endFrame = runs[endRun].endIdx;
+            const duration = frames[endFrame].time - frames[startFrame].time;
+            const totalRuns = endRun - startRun + 1;
+            const transitionRate = alternations / totalRuns;
 
             if (transitionRate >= minTransitionRate && duration >= minDuration) {
-                NRZ_DEBUG && console.log(`📡 [Preamble] Detected at frames ${start}-${endIdx} (${(transitionRate * 100).toFixed(1)}% transitions, ${duration.toFixed(2)}s)`);
+                NRZ_DEBUG && console.log(`📡 [Preamble] Detected: ${alternations} alternating runs, ${(transitionRate * 100).toFixed(1)}% rate, ${duration.toFixed(2)}s`);
                 return {
-                    start,
-                    end: endIdx + 1,
+                    start: startFrame,
+                    end: endFrame + 1,
                     transitionRate,
                     duration,
                     earlyTerminated: false,
-                    confidence: maxConsecutiveAlts >= 24 ? 'high' : (maxConsecutiveAlts >= 16 ? 'medium' : 'low')
+                    confidence: alternations >= 24 ? 'high' : (alternations >= 16 ? 'medium' : 'low')
                 };
             }
+        }
+
+        // Skip ahead — subblocks of a failed block won't be better
+        if (endRun > startRun) {
+            startRun = endRun;
         }
     }
 
@@ -172,14 +208,17 @@ function learnFromPreamble(frames, preambleRegion) {
     const preambleFrames = frames.slice(preambleRegion.start, preambleRegion.end);
 
     // Separate into on/off based on current state classification
+    // Accept both greenScore (tests) and greenLevel (video pipeline)
     const onScores = [];
     const offScores = [];
 
     for (const frame of preambleFrames) {
+        const score = frame.greenScore !== undefined ? frame.greenScore : (frame.greenLevel !== undefined ? frame.greenLevel : null);
+        if (score === null || score === undefined) continue;
         if (frame.state === 'on') {
-            onScores.push(frame.greenScore);
+            onScores.push(score);
         } else if (frame.state === 'off') {
-            offScores.push(frame.greenScore);
+            offScores.push(score);
         }
     }
 
@@ -210,9 +249,11 @@ function learnFromPreamble(frames, preambleRegion) {
         intervals.push(transitions[i] - transitions[i - 1]);
     }
 
-    // Bit rate = 2 × median transition interval (alternating pattern)
+    // In the alternating preamble 1010..., each bit occupies one full
+    // period and toggles state at the boundary. The interval between
+    // successive transitions IS the bit period (not half of it).
     const medianInterval = median(intervals);
-    const bitRate = medianInterval > 0 ? 2 * medianInterval : null;
+    const bitRate = medianInterval > 0 ? medianInterval : null;
 
     NRZ_DEBUG && console.log(`📊 [Preamble] Learned: on=${onMean.toFixed(3)}±${onStd.toFixed(3)}, off=${offMean.toFixed(3)}±${offStd.toFixed(3)}, threshold=${threshold.toFixed(3)}, bitRate=${bitRate ? (bitRate * 1000).toFixed(1) + 'ms' : 'N/A'}`);
 

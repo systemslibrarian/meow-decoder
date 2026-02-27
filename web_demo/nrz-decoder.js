@@ -356,7 +356,42 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
     }
 
     const syncBits = syncResult.syncBits || 16;
-    const t0 = syncResult.t0 + (syncBits * bitPeriod); // Skip sync word itself
+    let t0 = syncResult.t0 + (syncBits * bitPeriod); // Skip sync word itself
+
+    // ================================================================
+    // ALTERNATION STRIPPING (defense-in-depth)
+    //
+    // The preamble and sync word use the SAME alternating pattern
+    // (1010...). When the sync search matches within the preamble,
+    // t0 lands in the middle of the alternating region instead of at
+    // data start. Detect and skip any remaining alternating bits.
+    //
+    // When we find two consecutive same-value bits at position (i-1,i),
+    // the alternation region ends at i-2. Position i-1 is the first
+    // data bit (which happens to match the next alternation value),
+    // confirmed non-alternating by position i having the same value.
+    // ================================================================
+    const probeCount = Math.min(40, Math.floor((frames[frames.length - 1].time - t0) / bitPeriod));
+    if (probeCount > 4) {
+        const probeBits = sampleBits(frames, t0, bitPeriod, probeCount, 0.15);
+        const resolvedProbe = resolveUnknownBits(probeBits, frames, t0, bitPeriod, 'vote');
+        // Find where alternation stops: two consecutive same-value bits
+        let altEnd = 0;
+        for (let i = 1; i < resolvedProbe.length; i++) {
+            if (resolvedProbe[i] === resolvedProbe[i - 1]) {
+                // First same-value pair at (i-1, i). The alternation
+                // region is bits 0 to i-2. Bit i-1 is likely the first
+                // data bit (it coincidentally continues the alternation
+                // from i-2, but i confirms it's not alternation).
+                altEnd = Math.max(0, i - 1);
+                break;
+            }
+        }
+        if (altEnd > 0) {
+            NRZ_DEBUG && console.log(`📡 [NRZ] Stripping ${altEnd} leading alternating bits after sync word`);
+            t0 += altEnd * bitPeriod;
+        }
+    }
 
     // Calculate maximum bits to decode based on available video duration
     const lastFrameTime = frames[frames.length - 1].time;
