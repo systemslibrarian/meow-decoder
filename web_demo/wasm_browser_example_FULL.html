@@ -2349,6 +2349,17 @@
                         'Close other browser tabs to free up memory',
                         'Refresh the page and try again'
                     ]
+                },
+                {
+                    patterns: ['not loaded', 'is not defined', 'is not a function', 'is not a constructor'],
+                    title: '🔧 Script Loading Error',
+                    message: 'A required component failed to load. This usually means the page needs a fresh reload.',
+                    suggestions: [
+                        'Do a hard refresh: Ctrl+Shift+R (Windows/Linux) or Cmd+Shift+R (Mac)',
+                        'Clear your browser cache and reload the page',
+                        'Check your internet connection — some scripts may not have downloaded',
+                        'If the problem persists, the site may be updating — try again in a few minutes'
+                    ]
                 }
             ];
 
@@ -4902,6 +4913,41 @@
             liveCountersEl.style.display = 'block';
 
             try {
+                // ============================================================
+                // DEPENDENCY CHECK — fail fast with clear error if external
+                // scripts didn't load (e.g. 404, CDN cache, deploy in-progress)
+                // ============================================================
+                const requiredDeps = [
+                    { name: 'NRZDecoder', file: 'nrz-decoder.js' },
+                    { name: 'PreambleCalibration', file: 'preamble-calibration.js' },
+                    { name: 'AdaptiveThreshold', file: 'adaptive-threshold.js' },
+                    { name: 'AdaptiveHysteresis', file: 'hysteresis.js' }
+                ];
+                let missingDeps = requiredDeps.filter(d => typeof window[d.name] === 'undefined');
+
+                // Attempt dynamic reload if any scripts failed to load
+                if (missingDeps.length > 0) {
+                    log(`⚠️ [Cat Video] Missing dependencies: ${missingDeps.map(d => d.name).join(', ')} — attempting dynamic reload...`);
+                    for (const dep of missingDeps) {
+                        await new Promise((resolve) => {
+                            const s = document.createElement('script');
+                            s.src = dep.file + '?t=' + Date.now(); // Cache-bust
+                            s.onload = () => { log(`✅ [Cat Video] Dynamically loaded ${dep.file}`); resolve(); };
+                            s.onerror = () => { log(`❌ [Cat Video] Failed to load ${dep.file}`); resolve(); };
+                            document.head.appendChild(s);
+                        });
+                    }
+                    // Re-check after dynamic loading
+                    missingDeps = requiredDeps.filter(d => typeof window[d.name] === 'undefined');
+                }
+
+                if (missingDeps.length > 0) {
+                    throw new Error(
+                        `Required scripts not loaded: ${missingDeps.map(d => d.name + ' (' + d.file + ')').join(', ')}. ` +
+                        `Try a hard refresh (Ctrl+Shift+R / Cmd+Shift+R) to clear the browser cache.`
+                    );
+                }
+
                 const video = document.getElementById('catVideoPreview');
                 const canvas = document.getElementById('catVideoCanvas');
                 const ctx = canvas.getContext('2d');
