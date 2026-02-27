@@ -90,7 +90,7 @@ rule RatchetStep:
 /* Beacon rekey: inject fresh X25519 entropy to heal PCS */
 rule BeaconRekey:
   let beacon_ss = x25519(esk, rpk)
-      ck_new    = hkdf(ck <+> beacon_ss, salt, 'rekey')
+      ck_new    = hkdf(<ck, beacon_ss>, salt, 'rekey')
   in
   [ RatchetState($Sender, ck, salt, frame_idx),
     Fr(~esk),
@@ -103,7 +103,7 @@ rule BeaconRekey:
 /* Receiver recovers beacon shared secret */
 rule ReceiverBeaconRecover:
   let beacon_ss = x25519(rsk, epk)
-      ck_new    = hkdf(ck <+> beacon_ss, salt, 'rekey')
+      ck_new    = hkdf(<ck, beacon_ss>, salt, 'rekey')
   in
   [ !ReceiverSK($Receiver, rsk),
     In(<epk, frame_idx>),

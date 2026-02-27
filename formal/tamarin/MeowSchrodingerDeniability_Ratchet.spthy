@@ -35,12 +35,10 @@ functions:
   merkle/2,       /* merkle(left_hash, right_hash)                     */
   entropy_ok/1,   /* Entropy oracle                                    */
   hmac/2,         /* HMAC-SHA256(key, msg)                             */
-  commitment/2,   /* KDF-commitment: commitment(key, salt)             */
-  verify_commit/3 /* verify_commit(tag, key, salt) = true iff valid    */
+  commitment/2    /* KDF-commitment: commitment(key, salt)             */
 
 equations:
-  aead_dec(k, n, aead_enc(k, n, pt, aad), aad) = pt,
-  verify_commit(commitment(k, s), k, s) = true
+  aead_dec(k, n, aead_enc(k, n, pt, aad), aad) = pt
 
 /* --------------------------------------------------------------------
  * Restrictions

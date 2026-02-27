@@ -142,7 +142,7 @@ lemma CommitmentNonForgeability:
     AdversaryForgeAttempt(ct, com_tag, fake_auth_key) @ #t
     ==>
     /* Forged tag is valid only if adversary knows real auth_key */
-    (Ex sender auth_key mk enc_key pt nonce #t2 .
+    (Ex sender auth_key mk enc_key pt #t2 .
       CommitEncrypt(sender, mk, enc_key, auth_key, pt, ct, com_tag) @ #t2 &
       fake_auth_key = auth_key
     )

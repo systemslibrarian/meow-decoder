@@ -130,17 +130,17 @@ lemma decoy_indistinguishability:
 
 // LEMMA 4: Renewal Prevents Trigger
 lemma renewal_prevents_trigger:
-  "All secret_id secret deadline renewal_period #t1 #t2 #t3.
+  "All secret_id secret deadline renewal_period #t1 #t2.
     DeadManSwitchInit(secret_id, secret, deadline, renewal_period) @ #t1 &
     Renew(secret_id, 't1') @ #t2
-    ==> not(Trigger(secret_id, deadline) @ #t3)"
+    ==> not(Ex #t3. Trigger(secret_id, deadline) @ #t3)"
 
 // LEMMA 5: Disable Prevents Decoy Release
 lemma disable_prevents_decoy:
-  "All secret_id secret deadline ct #t1 #t2 #t3.
+  "All secret_id secret deadline ct #t1 #t2.
     DeadManSwitchInit(secret_id, secret, deadline, 'period') @ #t1 &
     Disabled(secret_id, 't2') @ #t2
-    ==> not(Trigger(secret_id, ct) @ #t3)"
+    ==> not(Ex #t3. Trigger(secret_id, ct) @ #t3)"
 
 // LEMMA 6: No Key Reuse Between Timelines
 lemma no_timeline_confusion:
