@@ -1,7 +1,7 @@
 /*
  * MeowKeyCommitment.spthy
  * =======================
- * Tamarin model: HMAC key commitment — prevention of invisible salamanders.
+ * Tamarin model: HMAC key commitment -- prevention of invisible salamanders.
  *
  * The invisible salamanders attack allows an adversary to construct a message
  * M2 such that AES-GCM-Decrypt(k1, ct) = M1 and AES-GCM-Decrypt(k2, ct) = M2
@@ -15,11 +15,11 @@
  *
  *  1. Commitment Binding:
  *     No adversary can produce two ciphertexts (ct1, ct2) that verify under
- *     the same commit_tag with different auth_keys — the commitment is binding.
+ *     the same commit_tag with different auth_keys -- the commitment is binding.
  *
  *  2. No Invisible Salamanders:
  *     If the receiver verifies the commit_tag, they receive a plaintext
- *     consistent with the sender's intent — no confusion attack is possible.
+ *     consistent with the sender's intent -- no confusion attack is possible.
  *
  *  3. Commitment Non-Forgeability:
  *     An adversary who does not know auth_key cannot produce a valid
@@ -92,7 +92,7 @@ rule AdversaryForgeCommit:
  */
 
 /*
- * LEMMA 1 — Commitment Binding
+ * LEMMA 1 -- Commitment Binding
  *
  * Two different ciphertexts cannot share the same commitment tag under
  * the same auth_key (assuming HMAC collision resistance).
@@ -101,15 +101,15 @@ rule AdversaryForgeCommit:
  * must be identical.
  */
 lemma CommitmentBinding:
-  "All sender ct1 ct2 mk auth_key pt1 com_tag #t1 #t2 .
-    CommitEncrypt(sender, mk, hkdf(mk, 'salt', 'enc'), auth_key, pt1, ct1, com_tag) @ #t1 &
-    CommitEncrypt(sender, mk, hkdf(mk, 'salt', 'enc'), auth_key, pt1, ct2, com_tag) @ #t2
+  "All sender ct1 ct2 mk enc_key auth_key pt1 com_tag #t1 #t2 .
+    CommitEncrypt(sender, mk, enc_key, auth_key, pt1, ct1, com_tag) @ #t1 &
+    CommitEncrypt(sender, mk, enc_key, auth_key, pt1, ct2, com_tag) @ #t2
     ==>
     ct1 = ct2
   "
 
 /*
- * LEMMA 2 — No Invisible Salamanders
+ * LEMMA 2 -- No Invisible Salamanders
  *
  * If an adversary provides a ct2 different from what the sender encrypted
  * but claims it has the same commit_tag under the same auth_key, the
@@ -123,8 +123,8 @@ lemma NoInvisibleSalamanders:
     CommitAccepted(receiver, ct, pt, expected) @ #t
     ==>
     /* The receiver only accepts frames whose ct matches the commit tag */
-    (Ex sender mk auth_key pt2 com_orig #t2 .
-      CommitEncrypt(sender, mk, hkdf(mk, 'salt', 'enc'), auth_key, pt2, ct, com_orig) @ #t2 &
+    (Ex sender mk enc_key auth_key pt2 com_orig #t2 .
+      CommitEncrypt(sender, mk, enc_key, auth_key, pt2, ct, com_orig) @ #t2 &
       com_orig = expected
     ) |
     /* OR the auth_key was compromised */
@@ -132,7 +132,7 @@ lemma NoInvisibleSalamanders:
   "
 
 /*
- * LEMMA 3 — Commitment Non-Forgeability
+ * LEMMA 3 -- Commitment Non-Forgeability
  *
  * An adversary who does not know auth_key cannot produce a valid
  * commit_tag for an arbitrary ciphertext.
@@ -142,14 +142,14 @@ lemma CommitmentNonForgeability:
     AdversaryForgeAttempt(ct, com_tag, fake_auth_key) @ #t
     ==>
     /* Forged tag is valid only if adversary knows real auth_key */
-    (Ex sender auth_key mk pt nonce #t2 .
-      CommitEncrypt(sender, mk, hkdf(mk, 'salt', 'enc'), auth_key, pt, ct, com_tag) @ #t2 &
+    (Ex sender auth_key mk enc_key pt nonce #t2 .
+      CommitEncrypt(sender, mk, enc_key, auth_key, pt, ct, com_tag) @ #t2 &
       fake_auth_key = auth_key
     )
   "
 
 /*
- * LEMMA 4 — Executability
+ * LEMMA 4 -- Executability
  */
 lemma Executability:
   exists-trace

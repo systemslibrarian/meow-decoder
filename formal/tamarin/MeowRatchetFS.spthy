@@ -19,7 +19,7 @@
  *     An adversary cannot force the receiver to cache more than MAX_SKIP_KEYS.
  *
  *  5. Key commitment binding:
- *     HMAC commitment tags prevent the invisible salamanders attack — a
+ *     HMAC commitment tags prevent the invisible salamanders attack -- a
  *     legitimate sender cannot construct two different plaintexts that both
  *     pass verification under the same commitment tag.
  *
@@ -49,7 +49,8 @@ functions:
   hmac/2,           /* HMAC(key, data) -> tag       */
   aes_gcm_enc/3,    /* AES-GCM-Enc(key, nonce, pt) -> ct */
   aes_gcm_dec/3,    /* AES-GCM-Dec(key, nonce, ct) -> pt */
-  commit/2          /* commitment(key, body) -> tag */
+  commit/2,         /* commitment(key, body) -> tag */
+  x25519/2          /* X25519 DH: x25519(sk, pk) -> shared_secret */
 
 equations:
   aes_gcm_dec(k, n, aes_gcm_enc(k, n, pt)) = pt
@@ -82,13 +83,13 @@ rule RatchetStep:
       FrameEncrypted($Sender, frame_idx, mk, ~frame_body, com_tag)
     ]->
   [ RatchetState($Sender, ck_next, salt, frame_idx+'1'),
-    /* Message key is consumed — do not persist beyond this rule */
+    /* Message key is consumed -- do not persist beyond this rule */
     !SentFrame($Sender, frame_idx, aes_gcm_enc(enc_key, ~nonce, ~frame_body), com_tag)
   ]
 
 /* Beacon rekey: inject fresh X25519 entropy to heal PCS */
 rule BeaconRekey:
-  let beacon_ss = 'x25519'(esk, rpk)
+  let beacon_ss = x25519(esk, rpk)
       ck_new    = hkdf(ck <+> beacon_ss, salt, 'rekey')
   in
   [ RatchetState($Sender, ck, salt, frame_idx),
@@ -96,12 +97,12 @@ rule BeaconRekey:
     !ReceiverPK($Receiver, rpk) ]
   --[ BeaconRekey($Sender, $Receiver, frame_idx, ck, ck_new) ]->
   [ RatchetState($Sender, ck_new, salt, frame_idx),
-    Out(<'x25519'(esk, 'g'), frame_idx>) /* Send ephemeral public key */
+    Out(<x25519(esk, 'g'), frame_idx>) /* Send ephemeral public key */
   ]
 
 /* Receiver recovers beacon shared secret */
 rule ReceiverBeaconRecover:
-  let beacon_ss = 'x25519'(rsk, epk)
+  let beacon_ss = x25519(rsk, epk)
       ck_new    = hkdf(ck <+> beacon_ss, salt, 'rekey')
   in
   [ !ReceiverSK($Receiver, rsk),
@@ -127,7 +128,7 @@ rule ReceiverStep:
 
 /* Adversary compromise rules */
 
-/* Expose chain key at step n — used to test FS */
+/* Expose chain key at step n -- used to test FS */
 rule CompromiseChainKey:
   [ RatchetState($Sender, ck, salt, n) ]
   --[ CompromisedChainKey($Sender, n, ck) ]->
@@ -148,7 +149,7 @@ rule RegisterReceiverPK:
  */
 
 /*
- * LEMMA 1 — Per-frame Forward Secrecy
+ * LEMMA 1 -- Per-frame Forward Secrecy
  *
  * If chain_key[n] is compromised, it reveals nothing about message_key[k]
  * for any k < n.  The adversary cannot derive previous message keys from
@@ -167,7 +168,7 @@ lemma PerFrameForwardSecrecy:
   "
 
 /*
- * LEMMA 2 — Post-Compromise Security via Beacon Rekey
+ * LEMMA 2 -- Post-Compromise Security via Beacon Rekey
  *
  * If a chain key at step n is compromised BUT a fresh beacon rekey occurs
  * subsequently at step m > n, frames at step k > m are secure.
@@ -188,7 +189,7 @@ lemma PostCompromiseSecurityViaBeacon:
   "
 
 /*
- * LEMMA 3 — Key Commitment Binding
+ * LEMMA 3 -- Key Commitment Binding
  *
  * The HMAC commitment tag with auth_key derived from MK prevents the
  * invisible salamanders attack: two different frame bodies cannot both
@@ -206,7 +207,7 @@ lemma KeyCommitmentBinding:
   "
 
 /*
- * LEMMA 4 — Chain Key Freshness
+ * LEMMA 4 -- Chain Key Freshness
  *
  * Each chain key step produces a chain key that is distinct from all prior
  * chain keys (one-wayness captured by HKDF function injectivity assumption).
@@ -220,7 +221,7 @@ lemma ChainKeyFreshness:
   "
 
 /*
- * LEMMA 5 — Executability
+ * LEMMA 5 -- Executability
  *
  * At least one complete ratchet execution (init + step + beacon + step)
  * is reachable so that the model is not vacuously true.

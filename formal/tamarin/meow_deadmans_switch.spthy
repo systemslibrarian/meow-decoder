@@ -1,18 +1,18 @@
 /*
  * Meow Decoder - Dead-Man's Switch Formal Model
- * 
+ *
  * Tamarin Protocol Model for Time-Lock Duress System
  * =====================================================
- * 
+ *
  * This model verifies security properties of the dead-man's switch mechanism:
  * - Time-lock puzzle prevents early decryption (coercion resistance)
  * - Deadline enforcement prevents bypass via fake renewals
  * - Plausible deniability maintained (decoy release unprovable)
  * - Forward secrecy persists across deadline transitions
- * 
+ *
  * Key Innovation: Models time as abstract ordering, deadline as absolute barrier
  * Security Goal: Prove adversary cannot force plaintext before deadline even with torture
- * 
+ *
  * Theory: Meow_DeadMansSwitch
  * Adversary: Dolev-Yao
  * Variables: Real secret, Duress password, Decoy, Time, Deadline
@@ -21,36 +21,25 @@
 theory Meow_DeadMansSwitch
 begin
 
-/* 
+/*
  * Signature/Constructors
  * ======================
  * Represents cryptographic operations and state transitions
  */
 
-// Public key signature
-functions: pk/1, sk/1
+functions:
+  pk/1, sk/1,
+  aes_gcm_encrypt/3, aes_gcm_decrypt/3,
+  hash/1,
+  tick/1, deadline/2,
+  state_armed/3,
+  state_triggered/2,
+  state_disabled/1,
+  safe_decoy/1,
+  msg_renew/1, msg_disable/1, msg_check/1, msg_release/0
 
-// Symmetric encryption (AES-256-GCM)
-functions: aes_gcm_encrypt/3, aes_gcm_decrypt/3
-
-// Cryptographic hash (SHA-256)
-functions: hash/1
-
-// Time representation: tick(t) = abstract time units
-// tick(0) < tick(1) < tick(2) ... < tick(deadline)
-functions: tick/1, deadline/2
-
-// State machine transitions
-functions: 
-  state_armed/3,       // (secret_id, deadline_time, renewal_period)
-  state_triggered/2,   // (secret_id, decoy_file)
-  state_disabled/1     // (secret_id)
-
-// Decoy generation: safe_decoy(real_secret) = plausible innocent file
-functions: safe_decoy/1
-
-// Message types
-functions: msg_renew/1, msg_disable/1, msg_check/1, msg_release/0
+equations:
+  aes_gcm_decrypt(k, n, aes_gcm_encrypt(k, n, pt)) = pt
 
 /*
  * Predicates / Rules
@@ -70,7 +59,7 @@ rule Renew_Deadline:
   [ State_Armed(secret_id, secret, old_deadline, renewal_period, current_tick),
     In(msg_renew(secret_id)) ]
   --[ Renew(secret_id, current_tick) ]->
-  [ State_Armed(secret_id, secret, old_deadline, renewal_period, 
+  [ State_Armed(secret_id, secret, old_deadline, renewal_period,
                 tick(deadline(old_deadline, renewal_period))) ]
 
 // Rule 3: Owner disables dead-man's switch (permanent disable)
@@ -82,7 +71,7 @@ rule Disable_DeadMansSwitch:
 
 // Rule 4: Deadline passes → automatic trigger (decoy release)
 rule Trigger_OnDeadline:
-  [ State_Armed(secret_id, secret, deadline_time, renewal_period, 
+  [ State_Armed(secret_id, secret, deadline_time, renewal_period,
                 tick(current_time)),
     In(msg_check(secret_id)) ]
   --[ DeadlineCheckAt(secret_id, current_time, deadline_time),
@@ -168,7 +157,7 @@ lemma forward_secrecy_maintained:
     Decrypt(secret_id, secret_before, 'normal', 't1') @ #t2 &
     Trigger(secret_id, deadline) @ #t3
     ==> // Secret before trigger is not revealed by trigger event
-        not(KU(secret_before) @ #t3)"
+        not(Ex #tk. KU(secret_before) @ #tk)"
 
 // LEMMA 8: Deterministic Decoy Generation
 lemma decoy_determinism:
@@ -190,7 +179,7 @@ end
 /*
  * VERIFICATION RESULT SUMMARY
  * ============================
- * 
+ *
  * Expected Lemma Status:
  * ✓ coercion_resistance_before_deadline - PROVEN
  *   Interpretation: Adversary cannot force plaintext decryption before deadline
@@ -227,20 +216,20 @@ end
  * ✓ model_executable - PROVEN
  *   Sanity check: Normal protocol flow (init → renew → decrypt) is possible
  *   Verification: Model is not over-constrained
- * 
+ *
  * SECURITY CONCLUSION
  * ===================
  * All lemmas proven → Dead-man's switch implementation is formally verified
  * No coercion vector found in symbolic model
  * Plausible deniability maintained cryptographically
- * 
+ *
  * CAVEATS (Known Limitations)
  * ============================
  * - Time abstraction: tick(n) is ordered but not quantified (symbolic only)
  * - Adversary strength: Dolev-Yao (full network control, but no side-channels)
  * - Decoy model: safe_decoy/1 is abstract (real implementation must verify entropy)
  * - Side-channels: This model does not address timing, power, or memory attacks
- * 
+ *
  * PRACTICAL IMPLICATIONS
  * ======================
  * ✓ Time-lock puzzle properties verified

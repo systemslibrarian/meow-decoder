@@ -1,11 +1,11 @@
 /*
  * MeowSchrodingerDeniability_Ratchet.spthy
  * ==========================================
- * SPLIT PART 2 of 2 — Ratchet integration lemmas (lemmas 11–15).
+ * SPLIT PART 2 of 2 -- Ratchet integration lemmas (lemmas 11-15).
  *
  * Extracted from MeowSchrodingerDeniability.spthy for CI scalability (RL-3).
  *
- * COMPANION: MeowSchrodingerDeniability_Core.spthy  (lemmas 1–10)
+ * COMPANION: MeowSchrodingerDeniability_Core.spthy  (lemmas 1-10)
  *
  * Lemmas verified here:
  *  11.  RatchetForwardSecrecy
@@ -28,10 +28,10 @@ builtins: diffie-hellman, hashing, symmetric-encryption, xor
 
 functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
-  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) — AAD-bound         */
-  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) — AAD-bound         */
+  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) -- AAD-bound         */
+  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) -- AAD-bound         */
   h/1,            /* SHA-256(x)                                        */
-  blake2b/2,      /* BLAKE2b(key, msg) — used for Merkle               */
+  blake2b/2,      /* BLAKE2b(key, msg) -- used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
   entropy_ok/1,   /* Entropy oracle                                    */
   hmac/2,         /* HMAC-SHA256(key, msg)                             */
@@ -53,7 +53,7 @@ restriction UniqueSession:
   "All sid #t1 #t2 . SessionCreated(sid) @ #t1 & SessionCreated(sid) @ #t2 ==> #t1 = #t2"
 
 /* =====================================================================
- * ENCODING PHASE (identical to Core — required for self-contained theory)
+ * ENCODING PHASE (identical to Core -- required for self-contained theory)
  * ===================================================================== */
 
 rule Create_Session:
@@ -144,7 +144,7 @@ rule CorruptEncoder:
   [ Out(pw_a), Out(pw_b) ]
 
 /* =====================================================================
- * RATCHET INTEGRATION LEMMAS (11–15)
+ * RATCHET INTEGRATION LEMMAS (11-15)
  * =====================================================================
  * These lemmas model properties of the per-frame symmetric ratchet
  * (MSR v1.2, ratchet.py) layered on top of the Schrödinger dual-stream.
@@ -156,7 +156,7 @@ rule CorruptEncoder:
  * ===================================================================== */
 
 /*
- * LEMMA 11 — Forward Secrecy per Frame (Ratchet Chain)
+ * LEMMA 11 -- Forward Secrecy per Frame (Ratchet Chain)
  * Compromising chain_key[N] does not reveal message_key[N-1].
  */
 lemma RatchetForwardSecrecy:
@@ -171,7 +171,7 @@ lemma RatchetForwardSecrecy:
   "
 
 /*
- * LEMMA 12 — PQ Beacon Domain Separation
+ * LEMMA 12 -- PQ Beacon Domain Separation
  * ML-KEM-1024 beacon entropy is domain-separated from X25519 beacon entropy.
  */
 lemma PQBeaconDomainSeparation:
@@ -184,7 +184,7 @@ lemma PQBeaconDomainSeparation:
   "
 
 /*
- * LEMMA 13 — Multi-Session Unlinkability
+ * LEMMA 13 -- Multi-Session Unlinkability
  * Independent sessions with different passwords produce unlinkable outputs.
  */
 lemma MultiSessionUnlinkability:
@@ -203,7 +203,7 @@ lemma MultiSessionUnlinkability:
   "
 
 /*
- * LEMMA 14 — Asymmetric Rekey Post-Compromise Security
+ * LEMMA 14 -- Asymmetric Rekey Post-Compromise Security
  * Compromise of the pre-rekey chain_key does not yield post-rekey keys.
  */
 lemma AsymRekeyPCS:
@@ -218,7 +218,7 @@ lemma AsymRekeyPCS:
   "
 
 /*
- * LEMMA 15 — Header Encryption Confidentiality
+ * LEMMA 15 -- Header Encryption Confidentiality
  * XOR-masked frame indices are not learnable from wire output alone.
  */
 lemma HeaderEncryptionConfidentiality:

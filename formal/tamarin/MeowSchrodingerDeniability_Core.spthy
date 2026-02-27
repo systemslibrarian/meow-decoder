@@ -1,14 +1,14 @@
 /*
  * MeowSchrodingerDeniability_Core.spthy
  * =======================================
- * SPLIT PART 1 of 2 — Core deniability game (lemmas 1–10).
+ * SPLIT PART 1 of 2 -- Core deniability game (lemmas 1-10).
  *
  * Extracted from MeowSchrodingerDeniability.spthy for CI scalability (RL-3):
  * the original 15-lemma --diff model risks timing out on 2-core GitHub Actions
  * runners.  Splitting into two 5-10 lemma files lets each half run in parallel
  * and complete well within the 30-minute per-model timeout.
  *
- * COMPANION: MeowSchrodingerDeniability_Ratchet.spthy  (lemmas 11–15)
+ * COMPANION: MeowSchrodingerDeniability_Ratchet.spthy  (lemmas 11-15)
  *
  * Lemmas verified here:
  *   1.  Deniability_PayloadA_SecretFromB
@@ -33,12 +33,12 @@ builtins: diffie-hellman, hashing, symmetric-encryption, xor
 
 functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
-  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) — AAD-bound         */
-  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) — AAD-bound         */
+  aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) -- AAD-bound         */
+  aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) -- AAD-bound         */
   h/1,            /* SHA-256(x)                                        */
-  blake2b/2,      /* BLAKE2b(key, msg) — used for Merkle               */
+  blake2b/2,      /* BLAKE2b(key, msg) -- used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
-  entropy_ok/1,   /* Entropy oracle: true iff input passes chi²/NIST   */
+  entropy_ok/1,   /* Entropy oracle: true iff input passes chi^2/NIST   */
   hmac/2,         /* HMAC-SHA256(key, msg)                             */
   commitment/2,   /* KDF-commitment: commitment(key, salt)             */
   verify_commit/3 /* verify_commit(tag, key, salt) = true iff valid    */
@@ -157,7 +157,7 @@ rule CorruptEncoder:
   [ Out(pw_a), Out(pw_b) ]
 
 /* =====================================================================
- * SECURITY LEMMAS (1–10)
+ * SECURITY LEMMAS (1-10)
  * ===================================================================== */
 
 lemma Deniability_PayloadA_SecretFromB:
