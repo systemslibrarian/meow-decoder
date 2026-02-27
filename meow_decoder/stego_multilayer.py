@@ -2846,12 +2846,20 @@ class MultiLayerStegoDecoder:
         """Extract payload from stego GIF.
 
         Args:
-            stego_path: Path to stego GIF
+            stego_path: Path to stego GIF (str or Path, not raw bytes)
             duress_key: Optional alternative key for duress/decoy extraction
 
         Returns:
             StegoExtractionResult with payload, channel info, and MAC status
+
+        Raises:
+            TypeError: If stego_path is bytes instead of a file path
         """
+        if isinstance(stego_path, (bytes, bytearray)):
+            raise TypeError(
+                "decode() expects a file path (str or Path), not raw bytes. "
+                "Write bytes to a file first, then pass the file path."
+            )
         stego_path = Path(stego_path)
 
         if not _IMAGEIO_AVAILABLE:

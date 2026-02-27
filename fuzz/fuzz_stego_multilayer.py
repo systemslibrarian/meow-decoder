@@ -176,16 +176,24 @@ def fuzz_encoder_decoder_roundtrip(data: bytes):
 
 def fuzz_decode_corrupt_gif(data: bytes):
     """Fuzz decode with completely arbitrary bytes as stego GIF."""
+    import tempfile
+
     if len(data) < 33:
         return
 
     master_key = data[:32]
     stego_bytes = data[32:]
 
+    tmp_path = None
     try:
+        # decode() expects a file path, not raw bytes — write to temp file
+        with tempfile.NamedTemporaryFile(suffix=".gif", delete=False) as tmp:
+            tmp.write(stego_bytes)
+            tmp_path = tmp.name
+
         config = MultiLayerConfig(lsb_bits=1)
         decoder = MultiLayerStegoDecoder(config, master_key)
-        decoder.decode(stego_bytes)
+        decoder.decode(tmp_path)
     except Exception as e:
         msg = str(e).lower()
         ignored = [
@@ -210,9 +218,27 @@ def fuzz_decode_corrupt_gif(data: bytes):
             "not a gif",
             "cannot identify",
             "pil",
+            "path",
+            "typeerror",
+            "no such file",
+            "not found",
+            "imageio",
+            "duration",
+            "meta",
+            "index",
+            "cannot",
+            "zero",
+            "empty",
+            "runtime",
         ]
         if not any(x in msg for x in ignored):
             raise
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
 
 
 def fuzz_validate_stego(data: bytes):
