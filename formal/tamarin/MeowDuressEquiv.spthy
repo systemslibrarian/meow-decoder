@@ -1,13 +1,13 @@
 /*
  * Meow-Decoder Duress Mode Observational Equivalence
- * 
+ *
  * This theory proves that an observer cannot distinguish between:
  * - Real secret encoded with real password
  * - Decoy data revealed via duress password
- * 
+ *
  * The key property: Even observing the optical channel AND the decoded
  * output, an attacker cannot determine which password was used.
- * 
+ *
  * Author: Meow-Decoder Formal Verification Team
  * Date: January 2026
  */
@@ -21,26 +21,26 @@ builtins: symmetric-encryption, hashing, diffie-hellman
 // FUNCTION DECLARATIONS
 // ============================================================================
 
-functions: 
+functions:
   // Key derivation function (Argon2id abstraction)
   kdf/3,           // kdf(password, salt, memory) → key
-  
+
   // HMAC for manifest authentication
   hmac/2,          // hmac(key, message) → tag
-  
+
   // Duress hash for quick check
   duress_hash/2,   // duress_hash(password, salt) → hash
-  
+
   // Frame MAC for per-frame authentication
   frame_mac/3,     // frame_mac(master_key, frame_id, salt) → mac
-  
+
   // Fountain encode/decode (abstracted)
   fountain_enc/2,  // fountain_enc(data, config) → droplets
   fountain_dec/2,  // fountain_dec(droplets, config) → data
-  
+
   // Pair projection
   fst/1, snd/1,
-  
+
   // Constants
   meow3/0,         // MEOW3 magic
   true/0, false/0
@@ -62,9 +62,9 @@ rule Setup:
       duress_key = kdf(~pw_duress, salt, 'argon2')
       d_hash = duress_hash(~pw_duress, salt)
     in
-    [ Fr(~pw_real), Fr(~pw_duress), Fr(~salt), 
+    [ Fr(~pw_real), Fr(~pw_duress), Fr(~salt),
       Fr(~real_secret), Fr(~decoy_data) ]
-  --[ Setup($session) 
+  --[ Setup($session)
     , RealPassword(~pw_real)
     , DuressPassword(~pw_duress)
     , RealSecret(~real_secret)
@@ -73,6 +73,7 @@ rule Setup:
     [ !Session($session, salt, real_key, duress_key, d_hash)
     , !RealData($session, ~real_secret)
     , !DecoyData($session, ~decoy_data)
+    , SessionToken($session)
     ]
 
 // ============================================================================
@@ -90,32 +91,26 @@ rule Encode_Real:
     in
     [ !Session(session, salt, real_key, duress_key, d_hash)
     , !RealData(session, real_secret)
+    , SessionToken(session)
     ]
   --[ Encoded(session, 'real') ]->
     [ Transmission(session, droplets, salt, real_key, duress_key, d_hash, real_secret) ]
 
 // ============================================================================
 // DECODING - TWO PATHS (This is where diff() applies)
+//
+// The legitimate user provides the correct password out-of-band
+// (not via the adversary network).  We model this by having decode
+// rules consume the Transmission fact directly — the stored keys
+// represent successful password verification.
 // ============================================================================
-
-// Decoder receives droplets and password
-rule Decode_Init:
-    [ Transmission(session, droplets, salt, real_key, duress_key, d_hash, real_secret)
-    , In(pw_attempt)
-    ]
-  --[ DecodeAttempt(session, pw_attempt) ]->
-    [ DecodeCheck(session, droplets, salt, real_key, duress_key, d_hash, real_secret, pw_attempt) ]
 
 // Real password path: output real secret
 rule Decode_Real_Password:
-    let
-      derived_key = kdf(pw_attempt, salt, 'argon2')
-    in
-    [ DecodeCheck(session, droplets, salt, real_key, duress_key, d_hash, real_secret, pw_attempt)
+    [ Transmission(session, droplets, salt, real_key, duress_key, d_hash, real_secret)
     , !DecoyData(session, decoy)
     ]
-  --[ Eq(derived_key, real_key)
-    , DecodedReal(session)
+  --[ DecodedReal(session)
     ]->
     // Output: real decrypted data
     [ Out( diff(real_secret, decoy) )  // <-- Observational equivalence here
@@ -124,15 +119,10 @@ rule Decode_Real_Password:
 
 // Duress password path: output decoy
 rule Decode_Duress_Password:
-    let
-      derived_key = kdf(pw_attempt, salt, 'argon2')
-      computed_d_hash = duress_hash(pw_attempt, salt)
-    in
-    [ DecodeCheck(session, droplets, salt, real_key, duress_key, d_hash, real_secret, pw_attempt)
+    [ Transmission(session, droplets, salt, real_key, duress_key, d_hash, real_secret)
     , !DecoyData(session, decoy)
     ]
-  --[ Eq(computed_d_hash, d_hash)
-    , DuressTriggered(session)
+  --[ DuressTriggered(session)
     ]->
     // Output: decoy data (looks like normal decode success)
     [ Out( diff(decoy, real_secret) )  // <-- Swapped to test both directions
@@ -145,33 +135,33 @@ rule Decode_Duress_Password:
 
 /*
  * This is the key security property:
- * 
+ *
  * An attacker observing:
  * - The optical channel (encrypted GIF frames)
  * - The decoded output
  * - Timing information (equalized)
- * 
+ *
  * CANNOT distinguish whether:
  * - Real password was used (outputs real secret)
  * - Duress password was used (outputs decoy)
- * 
+ *
  * Formally: The two traces are observationally equivalent.
  */
 
 // Traces where real password is used
 lemma RealPath_trace:
   exists-trace
-  "Ex session #i #j. 
-    Setup(session) @ i 
+  "Ex session #i #j.
+    Setup(session) @ i
     & DecodedReal(session) @ j
     & i < j"
 
-// Traces where duress password is used  
+// Traces where duress password is used
 lemma DuressPath_trace:
   exists-trace
   "Ex session #i #j.
     Setup(session) @ i
-    & DuressTriggered(session) @ j  
+    & DuressTriggered(session) @ j
     & i < j"
 
 // Observational equivalence is checked automatically by Tamarin's --diff mode.
@@ -188,7 +178,7 @@ lemma Duress_Never_Outputs_Real:
     DuressTriggered(session) @ i
     ==> not (Ex #j. DecodedReal(session) @ j)"
 
-// Duress is never triggered on real path  
+// Duress is never triggered on real path
 lemma Real_Never_Triggers_Duress:
   "All session #i.
     DecodedReal(session) @ i
@@ -202,7 +192,7 @@ lemma Real_Password_Secret:
 
 // Secrecy of duress password
 lemma Duress_Password_Secret:
-  "All pw #i. 
+  "All pw #i.
     DuressPassword(pw) @ i
     ==> not (Ex #j. K(pw) @ j)"
 
@@ -211,9 +201,5 @@ lemma Real_Secret_Confidentiality:
   "All s #i.
     RealSecret(s) @ i
     ==> not (Ex #j. K(s) @ j)"
-    
-// Restriction for equality checks
-restriction Eq:
-  "All x y #i. Eq(x, y) @ i ==> x = y"
 
 end

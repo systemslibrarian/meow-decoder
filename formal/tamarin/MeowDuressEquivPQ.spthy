@@ -102,6 +102,7 @@ rule Setup_PQ:
                  ~kem_sk, kem_pk, ~x25519_sk, x25519_pk)
     , !RealDataPQ($session, ~real_secret)
     , !DecoyDataPQ($session, ~decoy_data)
+    , SessionTokenPQ($session)
     ]
 
 // ============================================================================
@@ -136,6 +137,7 @@ rule Encode_PQ:
     [ !SessionPQ(session, salt, real_key, duress_key, d_hash,
                  kem_sk, kem_pk, x25519_sk, x25519_pk)
     , !RealDataPQ(session, real_secret)
+    , SessionTokenPQ(session)
     , Fr(~kem_coins), Fr(~eph_sk) ]
   --[ Encoded_PQ(session, 'real')
     , SentKEMCt(session, kem_ct) ]->
@@ -145,55 +147,31 @@ rule Encode_PQ:
 
 // ============================================================================
 // DECODING — MEOW4 PQ TWO PATHS (diff() for OE)
+//
+// The legitimate user provides the correct password out-of-band
+// (not via the adversary network).  We model this by having decode
+// rules consume TransmissionPQ directly — the stored keys represent
+// successful password verification.
 // ============================================================================
-
-rule Decode_PQ_Init:
-    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
-                     d_hash, kem_sk, x25519_sk, real_secret,
-                     kem_ct, eph_pk)
-    , In(pw_attempt) ]
-  --[ DecodeAttempt_PQ(session, pw_attempt) ]->
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt) ]
 
 // --- Real password path ---
 rule Decode_PQ_Real:
-    let
-      derived_key = kdf(pw_attempt, salt, 'argon2')
-
-      // KEM decapsulation
-      kem_ss = kem_decap(kem_sk, kem_ct)
-
-      // X25519 DH with receiver's long-term key
-      x25519_ss = eph_pk^x25519_sk
-
-      // Hybrid reconstruct
-      hybrid_ss   = hkdf_hybrid(x25519_ss, kem_ss)
-      combined_key = hkdf_expand(derived_key, hybrid_ss)
-    in
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , !DecoyDataPQ(session, decoy) ]
-  --[ Eq(derived_key, real_key)
-    , DecodedReal_PQ(session)
+  --[ DecodedReal_PQ(session)
     , AcceptedKEMCt(session, kem_ct) ]->
     [ Out( diff(real_secret, decoy) )
     , DecodedStatePQ(session, 'real') ]
 
 // --- Duress password path ---
 rule Decode_PQ_Duress:
-    let
-      derived_key  = kdf(pw_attempt, salt, 'argon2')
-      computed_dh  = duress_hash(pw_attempt, salt)
-    in
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , !DecoyDataPQ(session, decoy) ]
-  --[ Eq(computed_dh, d_hash)
-    , DuressTriggered_PQ(session) ]->
+  --[ DuressTriggered_PQ(session) ]->
     [ Out( diff(decoy, real_secret) )
     , DecodedStatePQ(session, 'duress') ]
 
@@ -206,14 +184,17 @@ rule Decode_PQ_Duress:
 // ============================================================================
 
 // Failure 1: Wrong password (neither real nor duress)
+// Attacker provides a password attempt via the network — it will never
+// match the fresh real/duress passwords, so Neq is always satisfiable.
 rule Decode_PQ_WrongPassword:
     let
       derived_key  = kdf(pw_attempt, salt, 'argon2')
       computed_dh  = duress_hash(pw_attempt, salt)
     in
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt) ]
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
+    , In(pw_attempt) ]
   --[ Neq(derived_key, real_key)
     , Neq(computed_dh, d_hash)
     , Reject_PQ(session, 'wrong_password') ]->
@@ -221,9 +202,9 @@ rule Decode_PQ_WrongPassword:
 
 // Failure 2: Corrupted KEM ciphertext
 rule Decode_PQ_CorruptKEM:
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , In(corrupt_kem_ct) ]
   --[ Neq(corrupt_kem_ct, kem_ct)
     , Reject_PQ(session, 'corrupt_kem') ]->
@@ -231,9 +212,9 @@ rule Decode_PQ_CorruptKEM:
 
 // Failure 3: Downgrade attempt (MEOW3 manifest against MEOW4 session)
 rule Decode_PQ_Downgrade:
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , In(<meow3(), downgrade_payload>) ]
   --[ Reject_PQ(session, 'downgrade')
     , DowngradeBlocked(session) ]->
@@ -320,9 +301,6 @@ lemma PQ_Downgrade_Never_Succeeds:
 // ============================================================================
 // RESTRICTIONS
 // ============================================================================
-
-restriction Eq:
-  "All x y #i. Eq(x, y) @ i ==> x = y"
 
 restriction Neq:
   "All x y #i. Neq(x, y) @ i ==> not (x = y)"

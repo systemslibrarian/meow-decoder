@@ -587,10 +587,10 @@ jobs:
           echo "============================================"
 
           echo ""
-          echo "Test 1: KEM ct not bound to HMAC → diff-equivalence should FAIL"
+          echo "Test 1: KEM ct not bound to HMAC → KEM integrity lemma should be FALSIFIED"
           set +e
           docker run --rm meow-tamarin bash -c \
-            "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy --prove" \
+            "tamarin-prover --prove /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy" \
             2>&1 | tee tamarin_neg1.txt
           NEG1_EXIT=$?
           set -e

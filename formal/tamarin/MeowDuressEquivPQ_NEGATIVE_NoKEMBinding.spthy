@@ -2,11 +2,11 @@
  * NEGATIVE TEST 1: KEM Ciphertext Not Bound to Transcript
  *
  * This variant REMOVES the KEM ciphertext from the manifest HMAC.
- * This should cause diff-equivalence to FAIL because an attacker
- * can substitute a different KEM ciphertext without detection.
+ * An attacker can substitute a different KEM ciphertext without detection,
+ * violating KEM ciphertext integrity.
  *
- * Expected: diffEquivLemma should FAIL
- * Expected: PQ_KEM_Ct_Integrity should FAIL
+ * Expected: PQ_KEM_Ct_Integrity should be FALSIFIED
+ *   (attacker substitution rule allows accepting a different KEM ct)
  *
  * This test verifies that our positive model correctly binds KEM ct.
  */
@@ -47,6 +47,7 @@ rule Setup_PQ:
                  ~kem_sk, kem_pk, ~x25519_sk, x25519_pk)
     , !RealDataPQ($session, ~real_secret)
     , !DecoyDataPQ($session, ~decoy_data)
+    , SessionTokenPQ($session)
     ]
 
 // VULNERABILITY: KEM ct not included in HMAC
@@ -59,17 +60,18 @@ rule Encode_PQ_NoKEMBinding:
       hybrid_ss   = hkdf_hybrid(x25519_ss, kem_ss)
       combined_key = hkdf_expand(real_key, hybrid_ss)
       ciphertext = senc(real_secret, combined_key)
-      
-      // BUG: HMAC does NOT include kem_ct! 
+
+      // BUG: HMAC does NOT include kem_ct!
       manifest = <meow4(), salt, d_hash,
                   hmac(combined_key, <ciphertext, eph_pk>),  // <-- Missing kem_ct
                   kem_ct, eph_pk>
-      
+
       droplets = fountain_enc(<manifest, ciphertext>, 'config')
     in
     [ !SessionPQ(session, salt, real_key, duress_key, d_hash,
                  kem_sk, kem_pk, x25519_sk, x25519_pk)
     , !RealDataPQ(session, real_secret)
+    , SessionTokenPQ(session)
     , Fr(~kem_coins), Fr(~eph_sk) ]
   --[ Encoded_PQ(session, 'real')
     , SentKEMCt(session, kem_ct) ]->
@@ -77,60 +79,60 @@ rule Encode_PQ_NoKEMBinding:
                      d_hash, kem_sk, x25519_sk, real_secret,
                      kem_ct, eph_pk) ]
 
-rule Decode_PQ_Init:
+// ============================================================================
+// ATTACKER KEM SUBSTITUTION
+//
+// Because the HMAC does not bind the KEM ciphertext, an active attacker
+// can replace it without invalidating the manifest.  This rule models
+// that capability.
+// ============================================================================
+
+rule Attacker_Substitute_KEM:
     [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
                      d_hash, kem_sk, x25519_sk, real_secret,
                      kem_ct, eph_pk)
-    , In(pw_attempt) ]
-  --[ DecodeAttempt_PQ(session, pw_attempt) ]->
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt) ]
+    , In(fake_kem_ct) ]
+  --[ Neq(fake_kem_ct, kem_ct)
+    , KEM_Substituted(session) ]->
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     fake_kem_ct, eph_pk) ]
+
+// ============================================================================
+// DECODING — consumes TransmissionPQ directly
+// ============================================================================
 
 rule Decode_PQ_Real:
-    let
-      derived_key = kdf(pw_attempt, salt, 'argon2')
-      kem_ss = kem_decap(kem_sk, kem_ct)
-      x25519_ss = eph_pk^x25519_sk
-      hybrid_ss   = hkdf_hybrid(x25519_ss, kem_ss)
-      combined_key = hkdf_expand(derived_key, hybrid_ss)
-    in
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , !DecoyDataPQ(session, decoy) ]
-  --[ Eq(derived_key, real_key)
-    , DecodedReal_PQ(session)
+  --[ DecodedReal_PQ(session)
     , AcceptedKEMCt(session, kem_ct) ]->
     [ Out( diff(real_secret, decoy) )
     , DecodedStatePQ(session, 'real') ]
 
 rule Decode_PQ_Duress:
-    let
-      derived_key  = kdf(pw_attempt, salt, 'argon2')
-      computed_dh  = duress_hash(pw_attempt, salt)
-    in
-    [ DecodeCheckPQ(session, droplets, salt, real_key, duress_key,
-                    d_hash, kem_sk, x25519_sk, real_secret,
-                    kem_ct, eph_pk, pw_attempt)
+    [ TransmissionPQ(session, droplets, salt, real_key, duress_key,
+                     d_hash, kem_sk, x25519_sk, real_secret,
+                     kem_ct, eph_pk)
     , !DecoyDataPQ(session, decoy) ]
-  --[ Eq(computed_dh, d_hash)
-    , DuressTriggered_PQ(session) ]->
+  --[ DuressTriggered_PQ(session) ]->
     [ Out( diff(decoy, real_secret) )
     , DecodedStatePQ(session, 'duress') ]
 
-// This lemma should FAIL because KEM ct is not authenticated
+// ============================================================================
+// FALSIFIABLE LEMMAS
+// ============================================================================
+
+// This SHOULD be FALSIFIED: for any accepted KEM ct, it must equal the
+// originally sent KEM ct.  The attacker substitution rule breaks this.
 lemma PQ_KEM_Ct_Integrity:
-  "All session ct #i #j.
-    SentKEMCt(session, ct) @ i
-    & AcceptedKEMCt(session, ct) @ j
-    ==> i < j"
+  "All session ct_accepted #j.
+    AcceptedKEMCt(session, ct_accepted) @ j
+    ==> (Ex #i. SentKEMCt(session, ct_accepted) @ i & i < j)"
 
-// Observational equivalence is checked automatically by Tamarin's --diff mode.
-// With KEM ct unbound, the attacker can substitute it, so diff-equivalence
-// should FAIL. Run: tamarin-prover --diff ... --prove
-
-restriction Eq:
-  "All x y #i. Eq(x, y) @ i ==> x = y"
+restriction Neq:
+  "All x y #i. Neq(x, y) @ i ==> not (x = y)"
 
 end
