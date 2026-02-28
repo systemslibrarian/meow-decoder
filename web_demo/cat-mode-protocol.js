@@ -419,12 +419,13 @@ class CatProtocolDecoder {
             };
         }
 
-        // Check for duplicate
+        // Check for duplicate — harmless with redundancy encoding.
+        // Don't count as rejected; it's a valid packet we already have.
         if (this.receivedPackets.has(decoded.sequenceNum)) {
-            this.stats.packets_rejected++;
             return {
                 accepted: false,
-                error: 'packet_rejected'
+                duplicate: true,
+                error: 'duplicate'
             };
         }
 

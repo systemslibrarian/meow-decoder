@@ -1021,6 +1021,11 @@
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
 
+                        <div style="margin-bottom: 15px;">
+                            <input type="checkbox" id="catRedundancy" checked>
+                            <label for="catRedundancy" style="display: inline; color: #888; font-size: 0.9em;">🛡️ Send 2× (gap-resilient) — doubles time but survives brief interruptions</label>
+                        </div>
+
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
 
@@ -4270,7 +4275,8 @@
             }
         }
 
-        async function buildCatBinaryPayload(message, password) {
+        async function buildCatBinaryPayload(message, password, redundancy) {
+            redundancy = redundancy || 1;
             let payload;
             let demoMode = false;
             if (wasm && wasm.generate_salt) {
@@ -4325,9 +4331,20 @@
                 ? '10101010'         // 8 bits = 0xAA
                 : '1010101010101010'; // 16 bits = 0xAA55
 
+            // Packet redundancy: repeat packetsBinary N times for gap resilience.
+            // Each copy carries its own CRC32, so the decoder independently
+            // validates each copy and accepts the first valid one per sequence.
+            // Corrupt copies (from frame gaps) fail CRC and are skipped.
+            let redundantPacketsBinary = packetsBinary;
+            if (redundancy > 1) {
+                for (let r = 1; r < redundancy; r++) {
+                    redundantPacketsBinary += packetsBinary;
+                }
+            }
+
             const endMarker = '0101010101010101';
 
-            const totalBinary = leadIn + preamble + syncWord + packetsBinary + endMarker;
+            const totalBinary = leadIn + preamble + syncWord + redundantPacketsBinary + endMarker;
 
             return {
                 binary: totalBinary,
@@ -4336,7 +4353,9 @@
                 packetCount: packets.length,
                 shortVideoMode: shortMessage,
                 preambleBits: preamble.length,
-                syncBits: syncWord.length
+                syncBits: syncWord.length,
+                redundancy: redundancy,
+                packetBitsPerCopy: packetsBinary.length
             };
         }
 
@@ -4356,7 +4375,10 @@
                 // Load cat image if needed
                 if (!catOriginalImageData) {
                     await initCatCanvas();
-                }
+                }redundancyEl = document.getElementById('catRedundancy');
+                const redundancy = (redundancyEl && redundancyEl.checked) ? 2 : 1;
+
+                const payloadResult = await buildCatBinaryPayload(message, password, redundancy
 
                 const payloadResult = await buildCatBinaryPayload(message, password);
                 catBinaryData = payloadResult.binary;
@@ -4374,6 +4396,9 @@
                     savedNote = '';
                 }
 
+                if (payloadResult.redundancy > 1) {
+                    log(`🛡️ [Cat Mode] Redundancy: ${payloadResult.redundancy}× (${payloadResult.packetBitsPerCopy} bits × ${payloadResult.redundancy} = ${payloadResult.packetBitsPerCopy * payloadResult.redundancy} total payload bits)`);
+                }
                 if (payloadResult.demoMode) {
                     log('⚠️ [Cat Mode] Demo mode (no encryption)');
                 } else {
@@ -4505,13 +4530,31 @@
                     log(`⚠️ [Cat Mode] Could not start recording: ${recErr.message}`);
                 }
 
-                // Warn user if tab loses visibility during encoding —
-                // browser will throttle timers and MediaRecorder may drop frames.
+                // PAUSE/RESUME encoding when tab visibility changes.
+                // When the tab is hidden, browsers throttle rAF and MediaRecorder
+                // may drop frames — creating unrecoverable data gaps in the video.
+                // Solution: freeze encoding progress AND pause the recorder so
+                // the video has no gap and no stale frames.
                 let catVisibilityLost = false;
+                let catEncodingPaused = false;
                 const visibilityHandler = () => {
                     if (document.hidden && catTransmitting) {
                         catVisibilityLost = true;
-                        log('⚠️ [Cat Mode] Tab went to background! Frames may be dropped. Keep this tab visible during encoding.');
+                        catEncodingPaused = true;
+                        // Pause MediaRecorder to avoid recording stale frames
+                        if (catMediaRecorder && catMediaRecorder.state === 'recording') {
+                            try { catMediaRecorder.pause(); } catch (_) {}
+                        }
+                        log('⏸️ [Cat Mode] Tab hidden — encoding PAUSED. Switch back to resume!');
+                    } else if (!document.hidden && catEncodingPaused && catTransmitting) {
+                        catEncodingPaused = false;
+                        // Reset timing anchor so no intervals are skipped
+                        bitStartTime = null;
+                        // Resume recorder
+                        if (catMediaRecorder && catMediaRecorder.state === 'paused') {
+                            try { catMediaRecorder.resume(); } catch (_) {}
+                        }
+                        log('▶️ [Cat Mode] Tab visible — encoding RESUMED from interval ' + intervalIndex);
                     }
                 };
                 document.addEventListener('visibilitychange', visibilityHandler);
@@ -4532,7 +4575,13 @@
                 let bitStartTime = null;
 
                 function transmitFrame(timestamp) {
-                    // Initialize start time on first frame
+                    // If tab is hidden, keep rAF alive but don't advance encoding
+                    if (catEncodingPaused) {
+                        catBlinkInterval = requestAnimationFrame(transmitFrame);
+                        return;
+                    }
+
+                    // Initialize start time on first frame (also resets after pause/resume)
                     if (bitStartTime === null) bitStartTime = timestamp;
 
                     // Advance to next interval(s) when 'speed' ms have elapsed
@@ -4552,8 +4601,8 @@
 
                         // Warn if tab was backgrounded during encoding
                         const visibilityWarning = catVisibilityLost ? `
-                            <p style="color:#ff6644; font-size:0.85em; margin:10px 0; padding:10px; background:rgba(255,102,68,0.1); border-left:3px solid #ff6644; border-radius:4px;">
-                                ⚠️ <strong>Warning:</strong> The browser tab was in the background during recording. The video may have dropped frames and could fail to decode. Please re-encode with the tab visible.
+                            <p style="color:#ff8844; font-size:0.85em; margin:10px 0; padding:10px; background:rgba(255,136,68,0.1); border-left:3px solid #ff8844; border-radius:4px;">
+                                ⏸️ <strong>Note:</strong> The tab was briefly hidden during encoding. Encoding was automatically paused and resumed — the video should be intact. If decode fails, try re-encoding with the tab always visible.
                             </p>
                         ` : '';
 
@@ -6160,7 +6209,10 @@
 
                     // Valid packet structure - now process through decoder
                     const processResult = packetDecoder.processPacket(remainingBytes);
-                    packetsProcessed++;
+                    packetsif (processResult.duplicate) {
+                        // Duplicate from redundancy encoding — expected, not an error
+                        log(`📦 [Cat Mode] Packet duplicate (redundant copy) — skipped`);
+                    } else Processed++;
 
                     // Track CRC results (Task 1.4)
                     if (processResult.accepted) {
@@ -6225,7 +6277,10 @@
                     threshold_final: finalDiag.threshold,
                     confident_frames: metrics.frames_confident,
                     confident_percent: metrics.confidence_percent,
-                    uncertain_frames: metrics.frames_uncertain,
+                    const gapInfo = (staleFrameRuns && staleFrameRuns.length > 0)
+                        ? ` Frame gap(s) detected in video — the recording was likely interrupted (tab hidden or app switch). Re-record with the tab always visible.`
+                        : ' Try adjusting threshold or re-recording.';
+                    throw new Error(`Incomplete message: ${stats.packets_accepted} packets accepted, ${stats.packets_rejected} rejected.${gapInfo}
                     hysteresis_margin: parseFloat(hysteresisDiag.margin) / 100 || 0.1
                 };
 
