@@ -2318,6 +2318,17 @@
                     ]
                 },
                 {
+                    patterns: ['frame gap', 'dropped frames', 'recording gap'],
+                    title: '🎬 Video Recording Has Missing Frames',
+                    message: 'The video is missing entire sections of frames, likely because the browser tab was minimized or in the background during recording.',
+                    suggestions: [
+                        '<strong>Keep the browser tab visible and in the foreground while encoding</strong>',
+                        'Don\'t switch to other tabs or apps during the cat animation',
+                        'Re-encode with the tab visible — the video should work perfectly',
+                        'Avoid screen lock or sleep during encoding'
+                    ]
+                },
+                {
                     patterns: ['crc', 'checksum', 'packet'],
                     title: '💾 Data Corruption Detected',
                     message: 'Some data was corrupted during transmission.',
@@ -4035,6 +4046,57 @@
             }
         }
 
+        // Auto-detect eye regions with relaxed thresholds for compressed video
+        // VP9/VP8 compression reduces green channel intensity, so we relax g>100 to g>50
+        function autoDetectEyeRegionsRelaxed(imageData) {
+            const data = imageData.data;
+            const w = imageData.width, h = imageData.height;
+            const greenPixels = [];
+            for (let i = 0; i < data.length; i += 4) {
+                const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                // Relaxed: g > 50 (was 100), g > r * 1.1 (was 1.3)
+                if (g > 50 && g > r * 1.1 && g > b && a > 50) {
+                    const idx = i / 4;
+                    const px = idx % w, py = Math.floor(idx / w);
+                    if (py < h * 0.65) greenPixels.push({ x: px, y: py });
+                }
+            }
+            if (greenPixels.length < 10) return null;
+            const xs = greenPixels.map(p => p.x);
+            const minX = Math.min(...xs), maxX = Math.max(...xs);
+            const midStart = Math.round(minX + (maxX - minX) * 0.35);
+            const midEnd = Math.round(minX + (maxX - minX) * 0.65);
+            const colCounts = {};
+            for (const p of greenPixels) {
+                if (p.x >= midStart && p.x <= midEnd) {
+                    colCounts[p.x] = (colCounts[p.x] || 0) + 1;
+                }
+            }
+            let splitX = Math.round((minX + maxX) / 2);
+            let minCount = Infinity;
+            for (let x = midStart; x <= midEnd; x++) {
+                const c = colCounts[x] || 0;
+                if (c < minCount) { minCount = c; splitX = x; }
+            }
+            const leftPx = greenPixels.filter(p => p.x < splitX);
+            const rightPx = greenPixels.filter(p => p.x >= splitX);
+            const pad = 5;
+            function boundingBox(pixels) {
+                if (pixels.length === 0) return null;
+                const bxs = pixels.map(p => p.x), bys = pixels.map(p => p.y);
+                return [
+                    Math.max(0, Math.min(...bxs) - pad),
+                    Math.max(0, Math.min(...bys) - pad),
+                    Math.min(w, Math.max(...bxs) + pad),
+                    Math.min(h, Math.max(...bys) + pad)
+                ];
+            }
+            const left = boundingBox(leftPx);
+            const right = boundingBox(rightPx);
+            if (!left && !right) return null;
+            return { left, right };
+        }
+
         // Auto-detect eye regions by finding green pixel clusters in the upper portion
         function autoDetectEyeRegions(imageData) {
             const data = imageData.data;
@@ -4424,7 +4486,7 @@
                     if (selectedMime) {
                         catMediaRecorder = new MediaRecorder(stream, {
                             mimeType: selectedMime,
-                            videoBitsPerSecond: 500000 // 500 kbps — small files
+                            videoBitsPerSecond: 2000000 // 2 Mbps — preserves dual-eye green channel fidelity
                         });
                         catMediaRecorder.ondataavailable = (e) => {
                             if (e.data.size > 0) catRecordedChunks.push(e.data);
@@ -4435,13 +4497,24 @@
                             log(`📹 [Cat Mode] Video recorded: ${sizeMB} MB (${selectedMime})`);
                         };
                         catMediaRecorder.start(100); // collect data every 100ms
-                        log(`📹 [Cat Mode] Recording canvas video (${selectedMime}, 500kbps)`);
+                        log(`📹 [Cat Mode] Recording canvas video (${selectedMime}, 2Mbps)`);
                     } else {
                         log('⚠️ [Cat Mode] MediaRecorder not supported — video download unavailable');
                     }
                 } catch (recErr) {
                     log(`⚠️ [Cat Mode] Could not start recording: ${recErr.message}`);
                 }
+
+                // Warn user if tab loses visibility during encoding —
+                // browser will throttle timers and MediaRecorder may drop frames.
+                let catVisibilityLost = false;
+                const visibilityHandler = () => {
+                    if (document.hidden && catTransmitting) {
+                        catVisibilityLost = true;
+                        log('⚠️ [Cat Mode] Tab went to background! Frames may be dropped. Keep this tab visible during encoding.');
+                    }
+                };
+                document.addEventListener('visibilitychange', visibilityHandler);
 
                 // TIME-BASED encoding: hold each interval for exactly 'speed' ms
                 // using rAF timestamps. This works at ANY display refresh rate
@@ -4473,7 +4546,16 @@
                         if (catMediaRecorder && catMediaRecorder.state === 'recording') {
                             catMediaRecorder.stop();
                         }
+                        // Clean up visibility change listener
+                        document.removeEventListener('visibilitychange', visibilityHandler);
                         catModeStop();
+
+                        // Warn if tab was backgrounded during encoding
+                        const visibilityWarning = catVisibilityLost ? `
+                            <p style="color:#ff6644; font-size:0.85em; margin:10px 0; padding:10px; background:rgba(255,102,68,0.1); border-left:3px solid #ff6644; border-radius:4px;">
+                                ⚠️ <strong>Warning:</strong> The browser tab was in the background during recording. The video may have dropped frames and could fail to decode. Please re-encode with the tab visible.
+                            </p>
+                        ` : '';
 
                         // Build download button HTML (will be enabled once blob is ready)
                         const downloadBtnHtml = catMediaRecorder ? `
@@ -4485,6 +4567,7 @@
                             <div style="background: linear-gradient(135deg, rgba(0,255,136,0.1) 0%, rgba(0,204,255,0.1) 100%); border: 2px solid #00ff88; border-radius: 10px; padding: 20px; margin-top: 15px;">
                                 <h3 style="color:#00ff88; margin:0 0 10px 0;">✅ Transmission Complete!</h3>
                                 <p style="color:#888; font-size:0.9em; margin:0 0 5px 0;">📡 ${totalInfoBits} bits in ${effectiveIntervals} intervals at ${speed}ms each (${totalDuration}s)${dualEyeEnabled ? ' — dual-eye 2×' : ''}</p>
+                                ${visibilityWarning}
                                 ${downloadBtnHtml}
                                 <textarea id="catEncodedBinary" readonly style="width:100%; height:70px; background:#1a1a2e; border:1px solid #00ccff; color:#00ff88; font-family:monospace; font-size:0.75em; padding:8px; margin:10px 0; resize:vertical;">${catBinaryData}</textarea>
                                 <button onclick="navigator.clipboard.writeText(document.getElementById('catEncodedBinary').value).then(() => { this.textContent='✅ Copied!'; setTimeout(() => this.textContent='📋 Copy Binary', 1000); })" style="background: linear-gradient(135deg, #00ccff 0%, #0088ff 100%); border:none; margin-right:10px;">📋 Copy Binary</button>
@@ -5111,8 +5194,42 @@
                 video.pause();
                 const extractionStart = performance.now();
 
+                // Detect eye regions from video frames for precise dual-eye analysis.
+                // Try several frames (first frame may have eyes OFF = no green pixels).
+                let videoEyeRegions = null;
+                try {
+                    // Scan a few time positions where eyes are likely ON
+                    // (preamble at ~2s, early data at ~10s, mid-video at ~20s)
+                    const eyeDetectTimes = [0, 2, 5, 10, 15, 20];
+                    for (const t of eyeDetectTimes) {
+                        if (t > duration) continue;
+                        video.currentTime = t;
+                        await new Promise(r => { video.onseeked = r; setTimeout(r, 1000); });
+                        await new Promise(resolve => requestAnimationFrame(resolve));
+                        ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
+                        const frameData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+                        videoEyeRegions = autoDetectEyeRegions(frameData);
+                        if (!videoEyeRegions) videoEyeRegions = autoDetectEyeRegionsRelaxed(frameData);
+                        if (videoEyeRegions) {
+                            log(`👁️ [Cat Video] Eye regions detected at t=${t}s: L(${videoEyeRegions.left?.join(',')}) R(${videoEyeRegions.right?.join(',')})`);
+                            break; // Found eye regions
+                        }
+                    }
+                    if (videoEyeRegions) {
+                        log(`👁️ [Cat Video] Using precision eye regions for dual-eye analysis`);
+                    } else {
+                        log(`⚠️ [Cat Video] No eye regions detected from first frame`);
+                    }
+                } catch (e) {
+                    log(`⚠️ [Cat Video] Eye detection failed: ${e.message}`);
+                }
+
                 let lastActualTime = -1;
                 let stallCount = 0;
+                // Track frame gaps caused by MediaRecorder dropping frames
+                let lastDistinctGreenSum = -1;
+                let staleRunStart = -1;
+                let staleFrameRuns = []; // [{startTime, endTime, count}]
 
                 for (let i = 0; i < totalPositions; i++) {
                     if (catVideoAnalysisCancelled) throw new Error('Analysis cancelled');
@@ -5120,10 +5237,18 @@
                     const targetTime = Math.min(i * sampleInterval, duration);
 
                     // Seek to position and wait for frame to be ready
-                    await new Promise((resolve, reject) => {
+                    // NOTE: video.onerror must NOT reject — WebM files from
+                    // MediaRecorder often have seeking issues near the end.
+                    // Instead, resolve and let the stall detector handle it.
+                    let seekOk = true;
+                    await new Promise((resolve) => {
                         const onSeeked = () => { video.removeEventListener('seeked', onSeeked); resolve(); };
                         video.addEventListener('seeked', onSeeked);
-                        video.onerror = () => reject(new Error('Video seek error'));
+                        video.onerror = () => {
+                            video.removeEventListener('seeked', onSeeked);
+                            seekOk = false;
+                            resolve(); // Non-fatal: continue with frames we have
+                        };
                         video.currentTime = targetTime;
                         // If already at this time (e.g. start), resolve immediately
                         if (Math.abs(video.currentTime - targetTime) < 0.001 && video.readyState >= 2) {
@@ -5137,6 +5262,12 @@
                         }, 3000);
                     });
 
+                    // If seek failed, skip this frame but don't crash
+                    if (!seekOk) {
+                        log(`⚠️ [Cat Video] Seek error at frame ${i} (t=${targetTime.toFixed(3)}s) — skipping`);
+                        continue;
+                    }
+
                     // Detect stall: if video.currentTime stops advancing, we've reached the real end
                     if (Math.abs(video.currentTime - lastActualTime) < 0.001 && i > 0) {
                         stallCount++;
@@ -5149,15 +5280,25 @@
                     }
                     lastActualTime = video.currentTime;
 
+                    // Wait for the browser compositor to render the seeked frame.
+                    // Without this, drawImage may capture a stale frame from the
+                    // previous seek. Note: VP9/WebM frame gaps (from MediaRecorder
+                    // dropping frames) will still cause repeated frames — detected
+                    // by the stale-frame tracker above.
+                    await new Promise(resolve => requestAnimationFrame(resolve));
+
                     ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
                     const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
-
-                    // Task 5.2.3: Use confidence-weighted analysis with Gaussian mask
-                    const weightedResult = analyzeFrameGreenWeighted(imgData, catRoiState);
                     const greenLevel = weightedResult.greenLevel;
 
-                    // Dual-eye: also analyze left/right halves independently
-                    const dualEyeResult = analyzeFrameGreenDualEye(imgData);
+                    // Dual-eye: analyze independently using eye bounding boxes (preferred)
+                    // or midX split (fallback)
+                    let dualEyeResult;
+                    if (videoEyeRegions && videoEyeRegions.left && videoEyeRegions.right) {
+                        dualEyeResult = analyzeFrameGreenEyeRegions(imgData, videoEyeRegions);
+                    } else {
+                        dualEyeResult = analyzeFrameGreenDualEye(imgData);
+                    }
 
                     frameSamples.push({
                         frame: i,
@@ -5168,6 +5309,31 @@
                         confidence: weightedResult.confidence,
                         roiShrink: weightedResult.roiShrinkFactor
                     });
+
+                    // Detect stale/duplicate frames: if green levels are EXACTLY
+                    // the same as previous frame, the VP9 decoder returned the
+                    // same keyframe (likely a frame gap in the recording).
+                    const greenSum = Math.round(
+                        (greenLevel + dualEyeResult.leftGreenLevel + dualEyeResult.rightGreenLevel) * 1000
+                    );
+                    if (greenSum === lastDistinctGreenSum && i > 0) {
+                        if (staleRunStart < 0) staleRunStart = i - 1;
+                    } else {
+                        if (staleRunStart >= 0 && (i - staleRunStart) >= 10) {
+                            const startT = staleRunStart * sampleInterval;
+                            const endT = (i - 1) * sampleInterval;
+                            staleFrameRuns.push({
+                                startFrame: staleRunStart,
+                                endFrame: i - 1,
+                                startTime: startT,
+                                endTime: endT,
+                                count: i - staleRunStart,
+                                durationMs: Math.round((endT - startT) * 1000)
+                            });
+                        }
+                        staleRunStart = -1;
+                    }
+                    lastDistinctGreenSum = greenSum;
 
                     // Update progress UI with time estimate
                     const progress = ((i / totalPositions) * 100).toFixed(1);
@@ -5195,6 +5361,30 @@
                 const actualFps = totalFrames / duration;
                 log(`📹 [Cat Video] Extracted ${totalFrames} frames (~${actualFps.toFixed(1)} samples/sec, ${(sampleInterval * 1000).toFixed(1)}ms step)`);
 
+                // Flush any in-progress stale run
+                if (staleRunStart >= 0 && (totalFrames - staleRunStart) >= 10) {
+                    const startT = staleRunStart * sampleInterval;
+                    const endT = (totalFrames - 1) * sampleInterval;
+                    staleFrameRuns.push({
+                        startFrame: staleRunStart,
+                        endFrame: totalFrames - 1,
+                        startTime: startT, endTime: endT,
+                        count: totalFrames - staleRunStart,
+                        durationMs: Math.round((endT - startT) * 1000)
+                    });
+                }
+
+                // Report frame gaps from MediaRecorder dropping frames
+                if (staleFrameRuns.length > 0) {
+                    const totalStaleSec = staleFrameRuns.reduce((sum, r) => sum + r.durationMs, 0) / 1000;
+                    log(`⚠️ [Cat Video] Detected ${staleFrameRuns.length} frame gap(s) — ${totalStaleSec.toFixed(1)}s of recording may be missing`);
+                    staleFrameRuns.forEach((r, idx) => {
+                        log(`  Gap ${idx + 1}: t=${r.startTime.toFixed(1)}s → ${r.endTime.toFixed(1)}s (${r.durationMs}ms, ${r.count} frames)`);
+                    });
+                    log(`💡 This usually happens when the browser tab was minimized or in the background during recording.`);
+                    log(`💡 Keep the browser tab visible and in the foreground while encoding.`);
+                }
+
                 // Store video metadata for diagnostics (Task 3.3)
                 catDiagnostics.video = {
                     filename: catVideoFile ? catVideoFile.name : 'unknown',
@@ -5204,7 +5394,9 @@
                     duration_sec: duration,
                     resolution: `${vw}x${vh}`,
                     canvas_resolution: `${canvasWidth}x${canvasHeight}`,
-                    sample_interval_ms: (sampleInterval * 1000).toFixed(1)
+                    sample_interval_ms: (sampleInterval * 1000).toFixed(1),
+                    frame_gaps: staleFrameRuns.length > 0 ? staleFrameRuns : null,
+                    frame_gap_total_ms: staleFrameRuns.reduce((sum, r) => sum + r.durationMs, 0)
                 };
 
                 catDiagnostics.frames = frameSamples.slice(0, 100); // First 100 frames for diagnostics
@@ -5478,13 +5670,26 @@
 
                 if (preambleResult.found) {
                     log(`✅ [Preamble] Auto-calibration successful${preambleResult.preamble && preambleResult.preamble.earlyTerminated ? ' (early termination)' : ''}`);
-                    // Use learned threshold if different from current
+                    // Use learned threshold if different from current, but ONLY
+                    // if the global bimodal threshold wasn't already reliable.
+                    // The preamble detector often returns a midpoint threshold (~50)
+                    // which is wrong when the global bimodal already found clear
+                    // on/off peaks (e.g., peaks at 3 and 95 → threshold=7).
+                    // Overriding the good global threshold with 48 causes the NRZ
+                    // sampler to misdetect the alternation boundary.
                     if (Math.abs(preambleResult.threshold - threshold) > 0.1) {
-                        log(`📊 [Preamble] Updating threshold: ${threshold.toFixed(2)} → ${preambleResult.threshold.toFixed(2)}`);
-                        threshold = preambleResult.threshold;
-
-                        // Re-classify frames with new threshold if preamble changed it significantly
-                        // (This is optional - only needed if preamble threshold is very different)
+                        const globalPeakSep = globalPeaks.length >= 2
+                            ? Math.abs(globalPeaks.slice().sort((a, b) => b.height - a.height)[0].value -
+                                       globalPeaks.slice().sort((a, b) => b.height - a.height)[1].value)
+                            : 0;
+                        if (globalPeakSep > 50) {
+                            // Global bimodal peaks are well-separated (>50 on 0-100 scale)
+                            // Keep the valley-based threshold, it's more reliable
+                            log(`📊 [Preamble] Keeping global bimodal threshold (${threshold.toFixed(2)}) — peaks well separated (${globalPeakSep.toFixed(1)}). Preamble suggested ${preambleResult.threshold.toFixed(2)}`);
+                        } else {
+                            log(`📊 [Preamble] Updating threshold: ${threshold.toFixed(2)} → ${preambleResult.threshold.toFixed(2)}`);
+                            threshold = preambleResult.threshold;
+                        }
                     }
                 } else {
                     log(`⚠️ [Preamble] Using fallback: UI speed + percentile threshold`);
@@ -5522,12 +5727,41 @@
                         (frameSamples[frameSamples.length - 1].time - scanStartTime) / effectiveBitDuration
                     ));
 
-                    const scannedBits = NRZDecoder.sampleBits(
-                        frameSamples, scanStartTime, effectiveBitDuration, maxScanBits, 0.15
-                    );
-                    const resolvedScan = NRZDecoder.resolveUnknownBits(
-                        scannedBits, frameSamples, scanStartTime, effectiveBitDuration, 'vote'
-                    );
+                    // ===========================================================
+                    // RAW GREEN LEVEL SAMPLING for sync detection
+                    //
+                    // The NRZDecoder.sampleBits + resolveUnknownBits path relies
+                    // on pre-classified frame.state, which can produce uncertain
+                    // (?) values at transition boundaries. Resolving ? by vote
+                    // destroys the alternating pattern when the vote is biased.
+                    //
+                    // Instead, sample the raw (normalized) green levels directly
+                    // at bit midpoints and threshold them with the reliable global
+                    // bimodal threshold. This gives clean 0/1 classification for
+                    // the preamble where the signal is strong and bimodal.
+                    // ===========================================================
+                    const resolvedScan = [];
+                    for (let i = 0; i < maxScanBits; i++) {
+                        const sampleTime = scanStartTime + (i + 0.5) * effectiveBitDuration;
+                        // Find nearest frame
+                        let bestIdx = 0;
+                        let bestDist = Infinity;
+                        for (let j = Math.max(0, bestIdx); j < frameSamples.length; j++) {
+                            const dist = Math.abs(frameSamples[j].time - sampleTime);
+                            if (dist < bestDist) {
+                                bestDist = dist;
+                                bestIdx = j;
+                            } else if (frameSamples[j].time > sampleTime + effectiveBitDuration) {
+                                break; // Past this bit window
+                            }
+                        }
+                        // Use the global bimodal threshold on normalized green level
+                        resolvedScan.push(frameSamples[bestIdx].greenLevel >= threshold ? 1 : 0);
+                    }
+
+                    // DEBUG: Log scan parameters and first bits
+                    log(`🔍 [Sync Debug] preambleStart=${preambleStartFrame}, scanStartTime=${(scanStartTime*1000).toFixed(1)}ms, bitDur=${(effectiveBitDuration*1000).toFixed(1)}ms, threshold=${threshold.toFixed(2)}`);
+                    log(`🔍 [Sync Debug] resolved[0:50] = ${resolvedScan.slice(0, 50).join('')}`);
 
                     // Find where alternation breaks: two consecutive same-value bits
                     // Skip initial non-alternating bits (lead-in zeros)
@@ -5564,13 +5798,27 @@
                         const availableDuration = lastFrameTime - dataStartTime;
                         const numBits = Math.min(100000, Math.floor(availableDuration / effectiveBitDuration));
 
-                        const dataBits = NRZDecoder.sampleBits(
-                            frameSamples, dataStartTime, effectiveBitDuration, numBits, 0.15
-                        );
-                        const uncertainCount = dataBits.filter(b => b === '?').length;
-                        const resolvedData = NRZDecoder.resolveUnknownBits(
-                            dataBits, frameSamples, dataStartTime, effectiveBitDuration, 'vote'
-                        );
+                        // Sample data bits using raw green levels + threshold
+                        // (same approach as sync scan — avoids state/vote bias)
+                        const resolvedData = [];
+                        let searchIdx = 0;
+                        for (let i = 0; i < numBits; i++) {
+                            const sampleTime = dataStartTime + (i + 0.5) * effectiveBitDuration;
+                            let bestIdx = searchIdx;
+                            let bestDist = Math.abs(frameSamples[searchIdx].time - sampleTime);
+                            for (let j = searchIdx + 1; j < frameSamples.length; j++) {
+                                const dist = Math.abs(frameSamples[j].time - sampleTime);
+                                if (dist < bestDist) {
+                                    bestDist = dist;
+                                    bestIdx = j;
+                                } else if (frameSamples[j].time > sampleTime + effectiveBitDuration) {
+                                    break;
+                                }
+                            }
+                            searchIdx = Math.max(0, bestIdx - 1);
+                            resolvedData.push(frameSamples[bestIdx].greenLevel >= threshold ? 1 : 0);
+                        }
+                        const uncertainCount = 0; // Direct threshold → no uncertain bits
 
                         nrzResult = {
                             success: true,
@@ -5689,19 +5937,47 @@
                     const normRight = normalizeChannel(rightLevels);
 
                     // Compute thresholds for each channel using global bimodal analysis
-                    function channelThreshold(normLevels) {
+                    function channelThreshold(normLevels, label) {
                         const hist = computeHistogram(normLevels, 50, 0, 100);
-                        const peaks = findPeaks(hist.bins);
+                        let peaks = findPeaks(hist.bins);
+
+                        // Edge-bin fix: findPeaks skips first/last bins.
+                        // If a large cluster sits at the histogram edge (common
+                        // after min/max normalization), add it as a synthetic peak.
+                        const maxCount = Math.max(...hist.bins.map(b => b.count));
+                        const minPeakH = maxCount * 0.05;
+                        const first = hist.bins[0];
+                        const last = hist.bins[hist.bins.length - 1];
+                        if (first && first.count >= minPeakH &&
+                            (hist.bins.length < 2 || first.count > hist.bins[1].count)) {
+                            peaks.push({ value: first.value, height: first.count, index: 0 });
+                        }
+                        if (last && last.count >= minPeakH &&
+                            (hist.bins.length < 2 || last.count > hist.bins[hist.bins.length - 2].count)) {
+                            peaks.push({ value: last.value, height: last.count, index: hist.bins.length - 1 });
+                        }
+
+                        log(`👁️ [ChThresh ${label}] ${peaks.length} peaks found`);
                         if (peaks.length >= 2) {
-                            const sorted = peaks.slice().sort((a, b) => b.height - a.height);
-                            return findValley(hist.bins, sorted[0], sorted[1]);
+                            const sortedP = peaks.slice().sort((a, b) => b.height - a.height);
+                            return findValley(hist.bins, sortedP[0], sortedP[1]);
                         }
                         return 50; // Default midpoint
                     }
 
-                    const leftThreshold = channelThreshold(normLeft);
-                    const rightThreshold = channelThreshold(normRight);
+                    const leftThreshold = channelThreshold(normLeft, 'L');
+                    const rightThreshold = channelThreshold(normRight, 'R');
                     log(`👁️ [Dual-Eye] Left threshold: ${leftThreshold.toFixed(2)}, Right threshold: ${rightThreshold.toFixed(2)}`);
+
+                    // Debug: Left/Right channel stats for dual-eye portion
+                    const payloadStartIdx = frameSamples.findIndex(s => s.time >= payloadStartTime);
+                    if (payloadStartIdx >= 0) {
+                        const leftPayload = normLeft.slice(payloadStartIdx);
+                        const rightPayload = normRight.slice(payloadStartIdx);
+                        const leftRaw = leftLevels.slice(payloadStartIdx);
+                        const rightRaw = rightLevels.slice(payloadStartIdx);
+                        log(`👁️ [Dual-Eye] Payload: ${leftPayload.length} frames from idx ${payloadStartIdx}, L_raw=[${Math.min(...leftRaw).toFixed(1)}..${Math.max(...leftRaw).toFixed(1)}] R_raw=[${Math.min(...rightRaw).toFixed(1)}..${Math.max(...rightRaw).toFixed(1)}]`);
+                    }
 
                     // Sample left and right channels at bit-duration intervals
                     // starting from payloadStartTime. Each interval produces
@@ -5837,6 +6113,9 @@
                 let crcFails = 0;
 
                 log(`📦 [Cat Mode] Processing ${bytes.length} bytes as packets...`);
+                // Debug: dump first 20 bytes in hex
+                const hexDump = Array.from(bytes.slice(0, Math.min(20, bytes.length))).map(b => b.toString(16).padStart(2, '0')).join(' ');
+                log(`📦 [Cat Mode] First ${Math.min(20, bytes.length)} bytes: ${hexDump}`);
 
                 // Process all packets in the byte array
                 while (currentOffset < bytes.length) {
@@ -5847,6 +6126,18 @@
                         // Not enough bytes for a complete packet header
                         log(`📦 [Cat Mode] ${remainingBytes.length} bytes remaining (too small for packet), stopping`);
                         break;
+                    }
+
+                    // Debug: parse header fields for diagnostics
+                    if (remainingBytes.length >= 15) {
+                        const dbgMagic = remainingBytes[0] | (remainingBytes[1] << 8);
+                        const dbgVer = remainingBytes[2];
+                        const dbgSessId = remainingBytes[3] | (remainingBytes[4] << 8) | (remainingBytes[5] << 16) | (remainingBytes[6] << 24);
+                        const dbgSeq = remainingBytes[7] | (remainingBytes[8] << 8);
+                        const dbgPayloadLen = remainingBytes[9] | (remainingBytes[10] << 8);
+                        const dbgCrcExpected = remainingBytes[11] | (remainingBytes[12] << 8) | (remainingBytes[13] << 16) | ((remainingBytes[14] << 24) >>> 0);
+                        log(`📦 [Cat Mode] Header@${currentOffset}: magic=0x${dbgMagic.toString(16).padStart(4,'0')} ver=${dbgVer} sess=0x${(dbgSessId>>>0).toString(16).padStart(8,'0')} seq=${dbgSeq} payloadLen=${dbgPayloadLen} crc=0x${(dbgCrcExpected>>>0).toString(16).padStart(8,'0')}`);
+                        log(`📦 [Cat Mode] Expected total packet size: ${15 + dbgPayloadLen}, available: ${remainingBytes.length}`);
                     }
 
                     const packetResult = CatProtocol.decodePacket(remainingBytes);
@@ -6437,6 +6728,50 @@
             };
         }
 
+        // ============================================================
+        // PRECISION DUAL-EYE ANALYSIS using detected eye bounding boxes
+        //
+        // Instead of naive midX split, measures greenness only within
+        // the known eye bounding boxes. This avoids contamination
+        // from cat body/background green and provides reliable
+        // per-eye readings even on compressed video.
+        // ============================================================
+        function analyzeFrameGreenEyeRegions(imgData, eyeRegions) {
+            const data = imgData.data;
+            const width = imgData.width;
+
+            function eyeGreen(bbox) {
+                if (!bbox) return 0;
+                const [x1, y1, x2, y2] = bbox;
+                let totalGreenness = 0;
+                let pixCount = 0;
+                let maxGreenness = 0;
+
+                for (let y = y1; y <= y2; y++) {
+                    for (let x = x1; x <= x2; x++) {
+                        const i = (y * width + x) * 4;
+                        if (i < 0 || i + 3 >= data.length) continue;
+                        const r = data[i], g = data[i + 1], b = data[i + 2];
+                        const greenness = g - Math.max(r, b);
+                        if (greenness > 0) {
+                            totalGreenness += greenness;
+                            pixCount++;
+                            if (greenness > maxGreenness) maxGreenness = greenness;
+                        }
+                    }
+                }
+
+                // Use average greenness within the eye region
+                // (more robust than top-N cells for small precise regions)
+                return pixCount > 0 ? totalGreenness / pixCount : 0;
+            }
+
+            return {
+                leftGreenLevel: eyeGreen(eyeRegions.left),
+                rightGreenLevel: eyeGreen(eyeRegions.right)
+            };
+        }
+
 
         window.catModeDecode = async function() {
             const binaryInput = document.getElementById('catBinaryInput').value.replace(/[^01]/g, '');
@@ -6562,6 +6897,14 @@
 
                     const stats = packetDecoder.getStats();
                     if (stats.packets_accepted === 0) {
+                        // Check if frame gaps in the video recording are the root cause
+                        const hasFrameGaps = catDiagnostics.video && catDiagnostics.video.frame_gap_total_ms > 500;
+                        if (hasFrameGaps) {
+                            const gapSec = (catDiagnostics.video.frame_gap_total_ms / 1000).toFixed(1);
+                            throw new Error(`All ${stats.packets_rejected} packet(s) failed CRC check — frame gap detected (${gapSec}s of dropped frames in recording). ` +
+                                `This video has missing sections where the browser didn\'t record frames. ` +
+                                `Please re-encode with the browser tab visible and in the foreground.`);
+                        }
                         throw new Error(`All ${stats.packets_rejected} packet(s) failed CRC check. Data may be corrupted.`);
                     }
 

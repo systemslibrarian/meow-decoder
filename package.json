@@ -30,6 +30,7 @@
   "devDependencies": {
     "@playwright/test": "^1.40.0",
     "canvas": "^2.11.2",
+    "jest": "^30.2.0",
     "selenium-webdriver": "^4.16.0"
   },
   "engines": {
