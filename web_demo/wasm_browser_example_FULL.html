@@ -1015,10 +1015,9 @@
 
                         <label for="catBlinkSpeed">⚡ Blink Speed:</label>
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
-                            <option value="500">Slow (500ms)</option>
-                            <option value="200" selected>Medium (200ms)</option>
-                            <option value="100">Fast (100ms)</option>
-                            <option value="50">Very Fast (50ms)</option>
+                            <option value="500">Slow (500ms) — most reliable</option>
+                            <option value="200" selected>Medium (200ms) — recommended</option>
+                            <option value="100">Fast (100ms) — needs steady camera</option>
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
 
@@ -1071,7 +1070,6 @@
                             <option value="500">Slow (500ms)</option>
                             <option value="200" selected>Medium (200ms)</option>
                             <option value="100">Fast (100ms)</option>
-                            <option value="50">Very Fast (50ms)</option>
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: 0 0 10px 0;">Must match the speed used during encoding</p>
 
@@ -4336,8 +4334,11 @@
                 const dualEyeEnabled = true; // Always use dual-eye for 2× speed
                 log(`👁️👁️ [Cat Mode] Dual-eye enabled (eye regions: ${catEyeRegions ? 'detected' : 'midpoint split'})`);
 
-                // Save dual-eye flag for decoder self-test comparison
-                try { sessionStorage.setItem('meow_cat_dual_eye', dualEyeEnabled ? '1' : '0'); } catch (_) {}
+                // Save dual-eye flag and header length for decoder self-test / video fallback comparison
+                try {
+                    sessionStorage.setItem('meow_cat_dual_eye', dualEyeEnabled ? '1' : '0');
+                    sessionStorage.setItem('meow_cat_header_len', String(headerLen));
+                } catch (_) {}
 
                 // Split binary into header and payload
                 const headerLen = 8 + payloadResult.preambleBits + payloadResult.syncBits;
@@ -5897,12 +5898,17 @@
                     // Advance offset by packet size (header + payload)
                     currentOffset += packetResult.packet_size;
 
-                    // Check if message is complete
+                    // Track completion — keep processing all remaining packets
+                    // in the buffer. The decoder's 'complete' flag fires after
+                    // each contiguous run (seq 0 alone looks complete), so we
+                    // must consume everything before using the final message.
                     if (processResult.complete) {
                         bytes = processResult.message;
-                        log(`📦 [Cat Mode] ✅ Message complete! Reconstructed ${bytes.length} bytes from ${packetsProcessed} packets (${crcPasses} pass, ${crcFails} fail)`);
-                        break;
                     }
+                }
+
+                if (packetsProcessed > 0 && bytes !== binaryToBytes(payload)) {
+                    log(`📦 [Cat Mode] ✅ Message complete! Reconstructed ${bytes.length} bytes from ${packetsProcessed} packets (${crcPasses} pass, ${crcFails} fail)`);
                 }
 
                 const stats = packetDecoder.getStats();
@@ -6504,8 +6510,66 @@
                     log(`🔧 [Cat Mode] Auto-padded: ${origLen} → ${binary.length} bits (+${binary.length - origLen})`);
                 }
 
-                const bytes = binaryToBytes(binary);
+                let bytes = binaryToBytes(binary);
                 log(`🔍 [Cat Mode] Decoding ${bytes.length} bytes`);
+
+                // ============================================================
+                // PACKET DECODING with CRC32
+                // The encoder wraps payload in CatProtocol packets (magic 0xCAFE).
+                // We must unwrap them before interpreting the payload format.
+                // ============================================================
+                if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xCA) {
+                    log(`📦 [Cat Mode] Detected CatProtocol packet framing, decoding packets...`);
+                    const packetDecoder = new CatProtocol.Decoder();
+                    let currentOffset = 0;
+                    let packetsProcessed = 0;
+                    let lastCompleteMessage = null;
+
+                    while (currentOffset < bytes.length) {
+                        const remainingBytes = bytes.slice(currentOffset);
+                        if (remainingBytes.length < 15) break;
+
+                        const packetResult = CatProtocol.decodePacket(remainingBytes);
+                        if (!packetResult.valid) {
+                            // Search for next magic number (0xCAFE LE: 0xFE 0xCA)
+                            let foundNext = false;
+                            for (let i = 1; i < Math.min(remainingBytes.length - 1, 100); i++) {
+                                if (remainingBytes[i] === 0xFE && remainingBytes[i + 1] === 0xCA) {
+                                    currentOffset += i;
+                                    foundNext = true;
+                                    break;
+                                }
+                            }
+                            if (!foundNext) break;
+                            continue;
+                        }
+
+                        const processResult = packetDecoder.processPacket(remainingBytes);
+                        packetsProcessed++;
+                        currentOffset += packetResult.packet_size;
+
+                        // Keep processing all packets — the decoder's 'complete'
+                        // signal fires after each contiguous run, but concatenated
+                        // buffers may contain more packets.
+                        if (processResult.complete) {
+                            lastCompleteMessage = processResult.message;
+                        }
+                    }
+
+                    if (packetsProcessed === 0) {
+                        throw new Error('No valid CatProtocol packets found in binary data.');
+                    }
+
+                    const stats = packetDecoder.getStats();
+                    if (stats.packets_accepted === 0) {
+                        throw new Error(`All ${stats.packets_rejected} packet(s) failed CRC check. Data may be corrupted.`);
+                    }
+
+                    if (lastCompleteMessage) {
+                        bytes = lastCompleteMessage;
+                        log(`📦 [Cat Mode] ✅ Message complete! Reconstructed ${bytes.length} bytes from ${packetsProcessed} packet(s)`);
+                    }
+                }
 
                 // Check if it's demo mode
                 const str = decoder.decode(bytes);

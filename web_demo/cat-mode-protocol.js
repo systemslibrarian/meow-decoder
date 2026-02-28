@@ -322,9 +322,9 @@ function decodePacket(packetBytes) {
     valid = valid && (version === PROTOCOL_VERSION);
     valid = valid && (payloadLen <= MAX_PAYLOAD_SIZE);
 
-    // Validate total packet size
+    // Validate total packet size (>= allows concatenated multi-packet buffers)
     const expectedSize = HEADER_SIZE + payloadLen;
-    valid = valid && (packetBytes.length === expectedSize);
+    valid = valid && (packetBytes.length >= expectedSize);
 
     // Always compute CRC, even if other checks failed (prevents timing oracle).
     // Use clamped payload length to avoid OOB reads on malformed packets.
@@ -356,7 +356,8 @@ function decodePacket(packetBytes) {
         version: version,
         sessionId: sessionId,
         sequenceNum: sequenceNum,
-        payload: payload
+        payload: payload,
+        packet_size: expectedSize
     };
 }
 

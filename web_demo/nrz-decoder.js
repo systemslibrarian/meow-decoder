@@ -17,7 +17,8 @@
  */
 
 // Set to true for verbose sync/decode logging
-const NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
+// Using var (not const) to allow safe redeclaration across multiple script files
+var NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
 
 /**
  * Find sync word in bit stream, with 8-bit fallback for short videos (Task 5.2.1)

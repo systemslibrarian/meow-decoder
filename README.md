@@ -53,6 +53,10 @@
    <a href="https://github.com/systemslibrarian/meow-decoder"><img src="https://badgen.net/badge/😿%20bugs/caused%20by%20tail/orange" alt="bugs caused by tail"></a>
 </p>
 
+<p align="center">
+  <a href="http://www.meowdecoder.com/">🌐 <strong>Live Demo → meowdecoder.com</strong></a>
+</p>
+
 ---
 
 ## ⚠️ Who This Is For (And Who It Isn't)

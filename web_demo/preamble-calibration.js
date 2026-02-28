@@ -17,7 +17,8 @@
  */
 
 // Debug flag — shared with nrz-decoder.js; enable via window.MEOW_DEBUG = true
-const NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
+// Using var (not const) to allow safe redeclaration across multiple script files
+var NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
 
 /**
  * Pre-check video duration before attempting decode (Task 5.2.1)
