@@ -1021,6 +1021,11 @@
                         </select>
                         <p style="color: #888; font-size: 0.8em; margin: -10px 0 10px 0;">Faster = shorter recording time but needs a good camera</p>
 
+                        <div style="margin-bottom: 10px;">
+                            <input type="checkbox" id="catDualEye">
+                            <label for="catDualEye" style="display: inline; color: #888; font-size: 0.9em;">👁️👁️ Dual-eye mode — 2× faster but less reliable on phone cameras</label>
+                        </div>
+
                         <div style="margin-bottom: 15px;">
                             <input type="checkbox" id="catRedundancy" checked>
                             <label for="catRedundancy" style="display: inline; color: #888; font-size: 0.9em;">🛡️ Send 2× (gap-resilient) — doubles time but survives brief interruptions</label>
@@ -4375,12 +4380,12 @@
                 // Load cat image if needed
                 if (!catOriginalImageData) {
                     await initCatCanvas();
-                }redundancyEl = document.getElementById('catRedundancy');
+                }
+
+                const redundancyEl = document.getElementById('catRedundancy');
                 const redundancy = (redundancyEl && redundancyEl.checked) ? 2 : 1;
 
-                const payloadResult = await buildCatBinaryPayload(message, password, redundancy
-
-                const payloadResult = await buildCatBinaryPayload(message, password);
+                const payloadResult = await buildCatBinaryPayload(message, password, redundancy);
                 catBinaryData = payloadResult.binary;
                 try {
                     sessionStorage.setItem('meow_cat_binary', catBinaryData);
@@ -4418,8 +4423,13 @@
                 //   - If catEyeRegions detected: uses precise bounding boxes
                 //   - Otherwise: splits image at width/2 (always works)
                 // ============================================================
-                const dualEyeEnabled = true; // Always use dual-eye for 2× speed
-                log(`👁️👁️ [Cat Mode] Dual-eye enabled (eye regions: ${catEyeRegions ? 'detected' : 'midpoint split'})`);
+                const dualEyeCheckbox = document.getElementById('catDualEye');
+                const dualEyeEnabled = dualEyeCheckbox ? dualEyeCheckbox.checked : false;
+                if (dualEyeEnabled) {
+                    log(`👁️👁️ [Cat Mode] Dual-eye enabled (eye regions: ${catEyeRegions ? 'detected' : 'midpoint split'})`);
+                } else {
+                    log(`👁️ [Cat Mode] Single-eye mode — both eyes blink together (most reliable)`);
+                }
 
                 // Save dual-eye flag and header length for decoder self-test / video fallback comparison
                 try {
@@ -6209,10 +6219,7 @@
 
                     // Valid packet structure - now process through decoder
                     const processResult = packetDecoder.processPacket(remainingBytes);
-                    packetsif (processResult.duplicate) {
-                        // Duplicate from redundancy encoding — expected, not an error
-                        log(`📦 [Cat Mode] Packet duplicate (redundant copy) — skipped`);
-                    } else Processed++;
+                    packetsProcessed++;
 
                     // Track CRC results (Task 1.4)
                     if (processResult.accepted) {
@@ -6220,6 +6227,9 @@
                         qualityMetrics.recordCRC(true);
                         const lockedSession = packetDecoder.getSessionId();
                         log(`📦 [Cat Mode] Packet accepted ✅${lockedSession ? ` (session 0x${lockedSession.toString(16).padStart(8, '0')})` : ''}`);
+                    } else if (processResult.duplicate) {
+                        // Duplicate from redundancy encoding — expected, not an error
+                        log(`📦 [Cat Mode] Packet duplicate (redundant copy) — skipped`);
                     } else {
                         // Packet rejected — generic error for security (no failure-type leak)
                         crcFails++;
@@ -6277,10 +6287,7 @@
                     threshold_final: finalDiag.threshold,
                     confident_frames: metrics.frames_confident,
                     confident_percent: metrics.confidence_percent,
-                    const gapInfo = (staleFrameRuns && staleFrameRuns.length > 0)
-                        ? ` Frame gap(s) detected in video — the recording was likely interrupted (tab hidden or app switch). Re-record with the tab always visible.`
-                        : ' Try adjusting threshold or re-recording.';
-                    throw new Error(`Incomplete message: ${stats.packets_accepted} packets accepted, ${stats.packets_rejected} rejected.${gapInfo}
+                    uncertain_frames: metrics.frames_uncertain,
                     hysteresis_margin: parseFloat(hysteresisDiag.margin) / 100 || 0.1
                 };
 
@@ -6289,7 +6296,10 @@
                 const isComplete = receivedKeys.length > 0 && receivedKeys.every((seq, idx) => seq === idx);
 
                 if (!isComplete || receivedKeys.length === 0) {
-                    throw new Error(`Incomplete message: ${stats.packets_accepted} packets accepted, ${stats.packets_rejected} rejected. Try adjusting threshold or re-recording.`);
+                    const gapInfo = (staleFrameRuns && staleFrameRuns.length > 0)
+                        ? ` Frame gap(s) detected in video — the recording was likely interrupted (tab hidden or app switch). Re-record with the tab always visible.`
+                        : ' Try adjusting threshold or re-recording.';
+                    throw new Error(`Incomplete message: ${stats.packets_accepted} packets accepted, ${stats.packets_rejected} rejected.${gapInfo}`);
                 }
 
                 // Populate manual decode input with extracted binary for copy/compare
