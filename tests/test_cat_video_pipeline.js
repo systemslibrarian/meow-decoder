@@ -163,7 +163,7 @@ async function main() {
     const BASE = `http://localhost:${PORT}`;
     let browser;
 
-    const SPEEDS = [500, 200, 100, 50];
+    const SPEEDS = [500, 200, 100];  // 50ms removed: below Nyquist at 30fps camera
     const TEST_MESSAGE = 'E2E Video Test!';
     const TEST_PASSWORD = 'video-test-pw-2024';
 
