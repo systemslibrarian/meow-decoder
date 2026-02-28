@@ -5280,15 +5280,9 @@
                     }
                     lastActualTime = video.currentTime;
 
-                    // Wait for the browser compositor to render the seeked frame.
-                    // Without this, drawImage may capture a stale frame from the
-                    // previous seek. Note: VP9/WebM frame gaps (from MediaRecorder
-                    // dropping frames) will still cause repeated frames — detected
-                    // by the stale-frame tracker above.
-                    await new Promise(resolve => requestAnimationFrame(resolve));
-
                     ctx.drawImage(video, 0, 0, canvasWidth, canvasHeight);
                     const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
+                    const weightedResult = analyzeFrameGreenWeighted(imgData, catRoiState);
                     const greenLevel = weightedResult.greenLevel;
 
                     // Dual-eye: analyze independently using eye bounding boxes (preferred)
