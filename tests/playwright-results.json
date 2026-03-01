@@ -25,7 +25,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -39,7 +39,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -53,7 +53,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -67,7 +67,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -81,7 +81,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -95,7 +95,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -109,7 +109,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       },
       {
         "outputDir": "/workspaces/meow-decoder/test-results",
@@ -123,7 +123,7 @@
         "testMatch": [
           "test_cross_browser.spec.js"
         ],
-        "timeout": 120000
+        "timeout": 60000
       }
     ],
     "quiet": false,
@@ -171,8 +171,8 @@
     }
   ],
   "stats": {
-    "startTime": "2026-02-28T18:37:49.085Z",
-    "duration": 382.88699999999994,
+    "startTime": "2026-02-28T22:06:37.254Z",
+    "duration": 136.99099999999987,
     "expected": 0,
     "skipped": 0,
     "unexpected": 0,
