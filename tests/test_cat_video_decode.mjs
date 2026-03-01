@@ -82,7 +82,12 @@ async function analyzeVideo(page, videoPath, password, blinkSpeed, timeoutMs = 1
 
     await page.fill('#catVideoPassword', password);
     await page.evaluate((spd) => {
-        document.getElementById('catVideoBlinkSpeed').value = String(spd);
+        const sel = document.getElementById('catVideoBlinkSpeed');
+        // Dynamically add option if removed from UI (tests may use speeds not exposed to users)
+        if (!Array.from(sel.options).some(o => o.value === String(spd))) {
+            sel.add(new Option(`${spd}ms`, String(spd)));
+        }
+        sel.value = String(spd);
         document.getElementById('catVideoThreshold').value = '0';
     }, blinkSpeed);
 
@@ -113,7 +118,12 @@ async function encodeThenRecord(page, message, password, speed, dualEye) {
     await page.fill('#catMessage', message);
     await page.fill('#catPassword', password);
     await page.evaluate(({ s, dual }) => {
-        document.getElementById('catBlinkSpeed').value = String(s);
+        const sel = document.getElementById('catBlinkSpeed');
+        // Dynamically add option if removed from UI (tests may use speeds not exposed to users)
+        if (!Array.from(sel.options).some(o => o.value === String(s))) {
+            sel.add(new Option(`${s}ms`, String(s)));
+        }
+        sel.value = String(s);
         const cb = document.getElementById('catDualEye');
         if (cb) cb.checked = dual;
         const rd = document.getElementById('catRedundancy');
