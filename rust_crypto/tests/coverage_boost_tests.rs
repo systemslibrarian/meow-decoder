@@ -12,14 +12,6 @@ fn fresh_key() -> HandleId {
     handle_import_key(&[0x42u8; 32]).expect("import key")
 }
 
-// Helper: create an HMAC key handle by deriving via HKDF
-fn fresh_hmac_key() -> HandleId {
-    let base = fresh_key();
-    let hmac_h = handle_derive_hkdf(base, b"salt", b"hmac-info", 32).expect("derive hkdf");
-    handle_drop(base).unwrap();
-    hmac_h
-}
-
 // =============================================================================
 // pure.rs coverage — aes_gcm_decrypt error paths (lines 229, 237)
 // =============================================================================
@@ -516,8 +508,8 @@ mod handles_coverage {
         let tag = handle_hmac_sha256_prefixed(h, b"PREFIX_", b"msg").expect("hmac");
         let ok = handle_hmac_sha256_prefixed_verify(h, b"PREFIX_", b"msg", &tag).expect("verify");
         assert!(ok);
-        let bad = handle_hmac_sha256_prefixed_verify(h, b"PREFIX_", b"msg", &[0u8; 32])
-            .expect("verify");
+        let bad =
+            handle_hmac_sha256_prefixed_verify(h, b"PREFIX_", b"msg", &[0u8; 32]).expect("verify");
         assert!(!bad);
         handle_drop(h).unwrap();
     }
@@ -857,10 +849,7 @@ mod handles_coverage {
     fn test_handle_invalid_operations() {
         let bad_id: HandleId = 9999999;
         assert!(!handle_exists(bad_id));
-        assert_eq!(
-            handle_drop(bad_id).err(),
-            Some(HandleError::InvalidHandle)
-        );
+        assert_eq!(handle_drop(bad_id).err(), Some(HandleError::InvalidHandle));
         assert_eq!(
             handle_aes_gcm_encrypt(bad_id, &[0u8; 12], b"d", None).err(),
             Some(HandleError::InvalidHandle)
@@ -1008,10 +997,8 @@ mod handles_coverage {
         let enc = fresh_key();
         let session_h = handle_session_new(enc, None).expect("session");
         // Encrypt first with the session handle
-        let ct =
-            handle_aes_gcm_encrypt(session_h, &[0u8; 12], b"hello", None).expect("enc");
-        let pt =
-            handle_aes_gcm_decrypt(session_h, &[0u8; 12], &ct, None).expect("dec");
+        let ct = handle_aes_gcm_encrypt(session_h, &[0u8; 12], b"hello", None).expect("enc");
+        let pt = handle_aes_gcm_decrypt(session_h, &[0u8; 12], &ct, None).expect("dec");
         assert_eq!(pt, b"hello");
         handle_drop(session_h).unwrap();
     }
@@ -1073,8 +1060,7 @@ mod handles_coverage {
         let root = fresh_key();
         let ratchet_h = handle_ratchet_new(root, b"salt", b"info").expect("ratchet");
         handle_drop(root).unwrap();
-        let derived =
-            handle_mix_hkdf(ratchet_h, b"extra", b"salt2", b"info2", 32).expect("mix");
+        let derived = handle_mix_hkdf(ratchet_h, b"extra", b"salt2", b"info2", 32).expect("mix");
         assert!(handle_exists(derived));
         handle_drop(derived).unwrap();
         handle_drop(ratchet_h).unwrap();

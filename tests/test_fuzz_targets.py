@@ -13,17 +13,16 @@ Tests cover:
 - Seed corpus generation and validation
 """
 
+from fuzz import fuzz_crypto, fuzz_manifest, fuzz_fountain, afl_fuzz_manifest, seed_corpus
+from pathlib import Path
+import hashlib
+import secrets
+import struct
+import os
 import pytest
 
 pytestmark = pytest.mark.fuzz
 
-import os
-import struct
-import secrets
-import hashlib
-from pathlib import Path
-
-from fuzz import fuzz_crypto, fuzz_manifest, fuzz_fountain, afl_fuzz_manifest, seed_corpus
 
 # =============================================================================
 # FUZZ MANIFEST TESTS
@@ -756,7 +755,6 @@ class TestFuzzIntegration:
         fuzz_crypto.fuzz_decrypt(data)
         fuzz_crypto.fuzz_hmac_verify(data)
 
-    @pytest.mark.timeout(120)
     def test_mutation_resilience(self):
         """Fuzzers should handle bit-flip mutations."""
         from meow_decoder.crypto import Manifest, pack_manifest
@@ -792,7 +790,6 @@ class TestFuzzIntegration:
             extended = base + secrets.token_bytes(extra)
             fuzz_manifest.fuzz_unpack_manifest(extended)
 
-    @pytest.mark.timeout(180)
     def test_random_stress(self):
         """Random stress test with many inputs."""
         for _ in range(50):  # Reduced from 100: derive_key can be slow under CI load

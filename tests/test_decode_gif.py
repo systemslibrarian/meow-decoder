@@ -3,19 +3,19 @@
 Uses stubs to avoid heavy QR/GIF dependencies.
 """
 
+from unittest.mock import patch
+from meow_decoder.fountain import Droplet, pack_droplet
+import meow_decoder.crypto as _crypto_mod
+from meow_decoder.crypto import Manifest, pack_manifest
+import meow_decoder.decode_gif as decode_mod
 from pathlib import Path
 import pytest
 from PIL import Image
 
 pytestmark = pytest.mark.security
 
-import meow_decoder.decode_gif as decode_mod
-from meow_decoder.crypto import Manifest, pack_manifest
-import meow_decoder.crypto as _crypto_mod
-from meow_decoder.fountain import Droplet, pack_droplet
 
 # Imports from merged file
-from unittest.mock import patch
 
 
 class _DummyGIFDecoder:
@@ -1565,7 +1565,8 @@ def test_main_receiver_privkey_success(tmp_path, monkeypatch):
             "elapsed_time": 0.1,
         },
     )
-    monkeypatch.setattr(decode_mod, "getpass", lambda *args, **kwargs: "")
+    # No monkeypatch needed - provide password explicitly for unencrypted key
+    # monkeypatch.setattr(decode_mod, "getpass", lambda *args, **kwargs: "")
 
     with patch(
         "sys.argv",
@@ -1580,6 +1581,8 @@ def test_main_receiver_privkey_success(tmp_path, monkeypatch):
             "--force",
             "--receiver-privkey",
             str(privkey_path),
+            "--receiver-privkey-password",
+            "",  # Empty password for unencrypted MEOW_X25519\x01 key
             "--verbose",
         ],
     ):

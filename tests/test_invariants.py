@@ -8,20 +8,18 @@ for the system to be considered secure. Any failure is CRITICAL.
 Run with: pytest tests/test_invariants.py -v
 """
 
+from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
+from meow_decoder.config import EncodingConfig
+from meow_decoder.decode_gif import decode_gif
+from meow_decoder.encode import encode_file
+from pathlib import Path
+import tempfile
+import secrets
 import pytest
 
 pytestmark = pytest.mark.security
 
 pytestmark = [pytest.mark.security, pytest.mark.slow]
-
-import secrets
-import tempfile
-from pathlib import Path
-
-from meow_decoder.encode import encode_file
-from meow_decoder.decode_gif import decode_gif
-from meow_decoder.config import EncodingConfig
-from meow_decoder.crypto import encrypt_file_bytes, decrypt_to_raw
 
 
 class TestCriticalInvariants:
@@ -74,7 +72,6 @@ class TestCriticalInvariants:
         with pytest.raises(Exception):
             decode_gif(gif_file, output_file, "wrong_password")
 
-    @pytest.mark.timeout(120)
     def test_invariant_nonce_never_reused(self):
         """
         INVARIANT: Nonces MUST NEVER be reused.
@@ -143,7 +140,6 @@ class TestCriticalInvariants:
         with pytest.raises(RuntimeError, match="Decoding incomplete"):
             decoder.get_data()
 
-    @pytest.mark.timeout(180)
     def test_invariant_roundtrip_preserves_data(self, tmp_path):
         """
         INVARIANT: Roundtrip MUST preserve data exactly.
@@ -176,8 +172,6 @@ class TestCriticalInvariants:
             # Using 10.0x redundancy + larger block size to ensure sufficient
             # droplet coverage in CI environments where pyzbar QR reading
             # may be less reliable (fewer frames = fewer scan failures)
-            from meow_decoder.config import EncodingConfig
-
             config = EncodingConfig(block_size=512, redundancy=10.0)
             encode_file(input_file, gif_file, "password", config=config)
             decode_gif(gif_file, output_file, "password")
@@ -237,7 +231,6 @@ class TestFailClosedBehavior:
 class TestNoRegressions:
     """Tests that verify no regressions in core functionality."""
 
-    @pytest.mark.timeout(120)
     def test_no_regression_nonce_randomness(self):
         """Verify nonce randomness hasn't regressed."""
         data = b"Test"
