@@ -3,14 +3,7 @@
 Target: 95%+ branch coverage
 """
 
-import os
-import secrets
-import tempfile
-
-import pytest
-
-pytestmark = pytest.mark.security
-
+from meow_decoder.crypto_backend import get_handle_backend
 from meow_decoder.x25519_forward_secrecy import (
     ForwardSecrecyKeys,
     generate_ephemeral_keypair,
@@ -22,7 +15,13 @@ from meow_decoder.x25519_forward_secrecy import (
     load_receiver_keypair,
     generate_receiver_keys_cli,
 )
-from meow_decoder.crypto_backend import get_handle_backend
+import os
+import secrets
+import tempfile
+
+import pytest
+
+pytestmark = pytest.mark.security
 
 
 class TestForwardSecrecyKeysDataclass:
@@ -206,6 +205,20 @@ class TestDeriveSharedSecret:
         )
 
         assert secret1 != secret2
+
+    def test_invalid_protocol_version_range(self):
+        sender_keys = generate_ephemeral_keypair()
+        receiver_private, receiver_public = generate_receiver_keypair()
+        salt = secrets.token_bytes(16)
+
+        with pytest.raises(ValueError, match="0..255"):
+            derive_shared_secret(
+                sender_keys.ephemeral_private,
+                receiver_public,
+                "password",
+                salt,
+                protocol_version=256,
+            )
 
     def test_derive_uses_handle_backend(self):
         """Verify derive_shared_secret uses handle-based operations."""

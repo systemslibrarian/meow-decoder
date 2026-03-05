@@ -102,6 +102,15 @@ def derive_shared_secret(
         raise ValueError(f"Receiver public key must be 32 bytes, got {len(receiver_public)}")
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
+    if protocol_version is not None:
+        if not isinstance(protocol_version, int):
+            raise TypeError("protocol_version must be an integer")
+        if not 0 <= protocol_version <= 0xFF:
+            raise ValueError("protocol_version must be in range 0..255")
+    if static_receiver_public is not None and len(static_receiver_public) != 32:
+        raise ValueError(
+            f"Static receiver public key must be 32 bytes, got {len(static_receiver_public)}"
+        )
 
     hb = get_handle_backend()
     backend = get_default_backend()
@@ -201,6 +210,15 @@ def derive_shared_secret_handle(
         raise ValueError(f"Receiver public key must be 32 bytes, got {len(receiver_public)}")
     if len(salt) != 16:
         raise ValueError("Salt must be 16 bytes")
+    if protocol_version is not None:
+        if not isinstance(protocol_version, int):
+            raise TypeError("protocol_version must be an integer")
+        if not 0 <= protocol_version <= 0xFF:
+            raise ValueError("protocol_version must be in range 0..255")
+    if static_receiver_public is not None and len(static_receiver_public) != 32:
+        raise ValueError(
+            f"Static receiver public key must be 32 bytes, got {len(static_receiver_public)}"
+        )
 
     hb = get_handle_backend()
     backend = get_default_backend()

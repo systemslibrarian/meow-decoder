@@ -29,13 +29,84 @@ jobs:
       actions: write # Required for deletion
 
     steps:
-      - name: Delete old workflow runs (dry-run first for safety)
-        uses: Mattraks/delete-workflow-runs@aa6f9271e9f8ce42cee05a044e8c8b0a59424ec8 # v2
+      - name: Delete old workflow runs
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          KEEP_MINIMUM_RUNS: ${{ github.event.inputs.keep_minimum_runs || '5' }}
+          RETAIN_DAYS: ${{ github.event.inputs.retain_days || '30' }}
+          EXCLUDE_WORKFLOW_NAME: Cleanup old workflow runs
         with:
-          token: ${{ github.token }}
-          repository: ${{ github.repository }}
-          retain_days: ${{ github.event.inputs.retain_days || 30 }} # ← Use input or default
-          keep_minimum_runs: ${{ github.event.inputs.keep_minimum_runs || 5 }}
-          delete_workflow_pattern: "" # empty = all workflows
-          exclude_workflow_names: "Cleanup old workflow runs" # self-exclude
-          verbose: true # Helps see what would be deleted
+          script: |
+            const keepMinimumRuns = Number.parseInt(process.env.KEEP_MINIMUM_RUNS || "5", 10);
+            const retainDays = Number.parseInt(process.env.RETAIN_DAYS || "30", 10);
+            const excludeWorkflowName = process.env.EXCLUDE_WORKFLOW_NAME || "";
+
+            if (!Number.isFinite(keepMinimumRuns) || keepMinimumRuns < 0) {
+              core.setFailed(`Invalid keep_minimum_runs: ${process.env.KEEP_MINIMUM_RUNS}`);
+              return;
+            }
+            if (!Number.isFinite(retainDays) || retainDays < 0) {
+              core.setFailed(`Invalid retain_days: ${process.env.RETAIN_DAYS}`);
+              return;
+            }
+
+            const now = Date.now();
+            const retentionMs = retainDays * 24 * 60 * 60 * 1000;
+            let page = 1;
+            let deleted = 0;
+            let considered = 0;
+            const seenPerWorkflow = new Map();
+
+            core.info(`Keeping ${keepMinimumRuns} run(s) per workflow; deleting runs older than ${retainDays} day(s).`);
+
+            while (true) {
+              const response = await github.rest.actions.listWorkflowRunsForRepo({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                per_page: 100,
+                page,
+              });
+
+              const runs = response.data.workflow_runs;
+              if (!runs || runs.length === 0) {
+                break;
+              }
+
+              for (const run of runs) {
+                considered += 1;
+
+                if (excludeWorkflowName && run.name === excludeWorkflowName) {
+                  continue;
+                }
+                if (run.status !== "completed") {
+                  continue;
+                }
+
+                const workflowKey = String(run.workflow_id);
+                const seen = seenPerWorkflow.get(workflowKey) || 0;
+                seenPerWorkflow.set(workflowKey, seen + 1);
+
+                // Always keep the most recent N runs for each workflow.
+                if (seen < keepMinimumRuns) {
+                  continue;
+                }
+
+                const createdAtMs = new Date(run.created_at).getTime();
+                const isOlderThanRetention = retainDays === 0 || (now - createdAtMs) > retentionMs;
+                if (!isOlderThanRetention) {
+                  continue;
+                }
+
+                await github.rest.actions.deleteWorkflowRun({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  run_id: run.id,
+                });
+                deleted += 1;
+                core.info(`Deleted run ${run.id} (${run.name || "unnamed"}) created ${run.created_at}`);
+              }
+
+              page += 1;
+            }
+
+            core.info(`Completed cleanup. Considered ${considered} runs; deleted ${deleted} run(s).`);
