@@ -30,7 +30,7 @@ jobs:
           sudo apt-get install -y build-essential pkg-config libssl-dev libpcsclite-dev libudev-dev
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@9e907b5e64f6b83e7804b09294d44122997950d6 # v4.32.3
+        uses: github/codeql-action/init@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.32.6
         with:
           languages: python, javascript, rust
 
@@ -40,4 +40,4 @@ jobs:
           cd rust_crypto && cargo build && cd ..
 
       - name: Analyze
-        uses: github/codeql-action/analyze@9e907b5e64f6b83e7804b09294d44122997950d6 # v4.32.3
+        uses: github/codeql-action/analyze@0d579ffd059c29b07949a3cce3983f0780820c98 # v4.32.6
