@@ -30,7 +30,7 @@ jobs:
           toolchain: stable
 
       - name: Cache Cargo dependencies
-        uses: Swatinem/rust-cache@779680da715d629ac1d338a641029a2f4372abb5 # v2.7.7
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.7.7
         with:
           workspaces: |
             rust_crypto
@@ -231,7 +231,7 @@ jobs:
           fi
 
       - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.3.1
+        uses: codecov/codecov-action@1af58845a975a7985b0beb0cbe6fbbb71a41dbad # v5.3.1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: ./crypto_core/lcov.info,./rust_crypto/lcov.info
