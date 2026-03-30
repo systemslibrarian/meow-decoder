@@ -86,7 +86,7 @@ hmac = { version = "0.12", optional = true }
 # Using 0.3.0-pre for latest API (breaking changes from 0.1.x)
 # `getrandom` feature enables system-RNG-based Generate/Encapsulate methods
 # avoiding rand_core version mismatches between ecosystem crates
-ml-kem = { version = "0.3.0-pre", optional = true, features = ["getrandom"] }
+ml-kem = { version = "0.3.0-rc.1", optional = true, features = ["getrandom"] }
 
 # Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
 # Using >=0.1.0-rc.5 to fix GHSA-h37v-hp6w-2pp8 (off-by-two in UseHint)
