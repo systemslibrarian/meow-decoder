@@ -25,7 +25,7 @@ aes-gcm = "0.10" # AES-256-GCM AEAD encryption
 aes = "0.8"      # AES block cipher (for CTR mode)
 ctr = "0.9"      # CTR mode for streaming encryption
 cipher = "0.4"   # Cipher traits
-hkdf = "0.12"    # HKDF key derivation (RFC 5869)
+hkdf = "0.13"    # HKDF key derivation (RFC 5869)
 hmac = "0.12"    # HMAC-SHA256 authentication
 sha2 = "0.10"    # SHA-256/SHA-512 hashing
 
