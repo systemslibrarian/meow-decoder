@@ -128,7 +128,7 @@ impl NonceGenerator {
     /// Panics if system RNG fails (should never happen on modern systems).
     pub fn new() -> Self {
         let mut session_id = [0u8; 4];
-        getrandom::getrandom(&mut session_id)
+        getrandom::fill(&mut session_id)
             .expect("System RNG failed - cannot generate secure nonces");
 
         Self {

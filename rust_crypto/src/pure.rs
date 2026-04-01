@@ -9,7 +9,7 @@ use aes_gcm::{
 };
 use argon2::{Algorithm, Argon2, Params, Version};
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac as HmacMac};
+use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac as HmacMac};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -276,7 +276,7 @@ pub fn aes_gcm_decrypt(
 /// Compute HMAC-SHA256.
 pub fn hmac_sha256(key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let mut mac =
-        <HmacSha256 as HmacMac>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
+        <HmacSha256 as HmacKeyInit>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
     mac.update(message);
     let result = mac.finalize();
     Ok(result.into_bytes().to_vec())
@@ -289,7 +289,7 @@ pub fn hmac_sha256_verify(
     expected_tag: &[u8],
 ) -> Result<bool, CryptoError> {
     let mut mac =
-        <HmacSha256 as HmacMac>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
+        <HmacSha256 as HmacKeyInit>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
     mac.update(message);
     let result = mac.finalize();
 

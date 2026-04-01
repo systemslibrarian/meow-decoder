@@ -138,7 +138,7 @@ impl NonceManager {
     pub fn new() -> Self {
         // Generate random prefix using system RNG
         let mut random_prefix = [0u8; 4];
-        getrandom::getrandom(&mut random_prefix).expect("Failed to get random bytes");
+        getrandom::fill(&mut random_prefix).expect("Failed to get random bytes");
 
         NonceManager {
             counter: AtomicU64::new(0),

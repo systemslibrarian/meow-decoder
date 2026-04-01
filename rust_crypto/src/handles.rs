@@ -19,7 +19,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use hkdf::Hkdf;
-use hmac::{Hmac, Mac as HmacMac};
+use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac as HmacMac};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
@@ -536,7 +536,7 @@ pub fn handle_hmac_sha256(key_handle: HandleId, message: &[u8]) -> Result<Vec<u8
             _ => return Err(HandleError::HandleTypeMismatch),
         };
 
-        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key_bytes).map_err(|_| {
+        let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(key_bytes).map_err(|_| {
             HandleError::InvalidKeyLength {
                 expected: 32,
                 got: 0,
@@ -591,7 +591,7 @@ pub fn handle_hmac_sha256_prefixed(
         hmac_key.extend_from_slice(prefix);
         hmac_key.extend_from_slice(key_bytes);
 
-        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(&hmac_key).map_err(|_| {
+        let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(&hmac_key).map_err(|_| {
             HandleError::InvalidKeyLength {
                 expected: 32,
                 got: hmac_key.len(),
@@ -774,7 +774,7 @@ pub fn handle_stream_encrypt(
         mac_input.extend_from_slice(&stream.nonce);
         mac_input.extend_from_slice(&ciphertext);
 
-        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(stream.mac_key.as_bytes())
+        let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(stream.mac_key.as_bytes())
             .map_err(|_| HandleError::EncryptionFailed)?;
         mac.update(&mac_input);
         let tag = mac.finalize().into_bytes().to_vec();
@@ -800,7 +800,7 @@ pub fn handle_stream_decrypt(
         mac_input.extend_from_slice(&stream.nonce);
         mac_input.extend_from_slice(ciphertext);
 
-        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(stream.mac_key.as_bytes())
+        let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(stream.mac_key.as_bytes())
             .map_err(|_| HandleError::DecryptionFailed)?;
         mac.update(&mac_input);
         let computed = mac.finalize().into_bytes();
@@ -1134,7 +1134,7 @@ pub fn handle_stream_hmac(stream_handle: HandleId, message: &[u8]) -> Result<Vec
             _ => return Err(HandleError::HandleTypeMismatch),
         };
 
-        let mut mac = <HmacSha256 as HmacMac>::new_from_slice(stream.mac_key.as_bytes())
+        let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(stream.mac_key.as_bytes())
             .map_err(|_| HandleError::EncryptionFailed)?;
         mac.update(message);
         Ok(mac.finalize().into_bytes().to_vec())
@@ -1245,7 +1245,8 @@ pub fn handle_pqxdh_encapsulate(
     // 2. ECDH
     let mut pub_bytes = [0u8; 32];
     pub_bytes.copy_from_slice(receiver_classical_pub);
-    let mut classical_shared = eph_private.exchange(&pub_bytes)
+    let mut classical_shared = eph_private
+        .exchange(&pub_bytes)
         .map_err(|_| HandleError::HandleTypeMismatch)?;
 
     // 3. Combine IKM
@@ -1255,7 +1256,7 @@ pub fn handle_pqxdh_encapsulate(
     }
 
     // 4. HMAC-Extract: PRK = HMAC-SHA256(extract_salt, combined_ikm)
-    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(extract_salt)
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(extract_salt)
         .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
     mac.update(&combined_ikm);
     let prk = mac.finalize().into_bytes();
@@ -1332,7 +1333,7 @@ pub fn handle_pqxdh_decapsulate(
     }
 
     // 3. HMAC-Extract
-    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(extract_salt)
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(extract_salt)
         .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
     mac.update(&combined_ikm);
     let prk = mac.finalize().into_bytes();

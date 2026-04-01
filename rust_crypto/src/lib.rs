@@ -49,7 +49,7 @@ use argon2::{Algorithm, Argon2, Params, Version};
 #[cfg(feature = "python")]
 use hkdf::Hkdf;
 #[cfg(feature = "python")]
-use hmac::{Hmac, Mac as HmacMac};
+use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac as HmacMac};
 #[cfg(feature = "python")]
 use sha2::{Digest, Sha256};
 #[cfg(feature = "python")]
@@ -350,7 +350,7 @@ type HmacSha256 = Hmac<Sha256>;
 #[cfg(feature = "python")]
 #[pyfunction]
 fn hmac_sha256<'py>(py: Python<'py>, key: &[u8], message: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
-    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(key)
         .map_err(|_| PyValueError::new_err("Invalid key length"))?;
     mac.update(message);
     let result = mac.finalize();
@@ -361,7 +361,7 @@ fn hmac_sha256<'py>(py: Python<'py>, key: &[u8], message: &[u8]) -> PyResult<Bou
 #[cfg(feature = "python")]
 #[pyfunction]
 fn hmac_sha256_verify(key: &[u8], message: &[u8], expected_tag: &[u8]) -> PyResult<bool> {
-    let mut mac = <HmacSha256 as HmacMac>::new_from_slice(key)
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(key)
         .map_err(|_| PyValueError::new_err("Invalid key length"))?;
     mac.update(message);
     let result = mac.finalize();

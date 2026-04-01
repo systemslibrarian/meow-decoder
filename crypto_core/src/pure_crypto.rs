@@ -544,11 +544,11 @@ impl X25519KeyPair {
 /// `new_from_slice` cannot fail for HMAC-SHA256.
 #[cfg(feature = "pure-crypto")]
 pub fn hmac_sha256(key: &[u8], data: &[u8]) -> [u8; HMAC_SIZE] {
-    use hmac::Mac;
+    use hmac::{digest::KeyInit, Mac};
     type HmacSha256 = Hmac<Sha256>;
     // SAFETY: HMAC-SHA256 accepts any key length — InvalidLength is unreachable.
     // If somehow reached, abort rather than returning a forgeable all-zero MAC.
-    let mut mac = match <HmacSha256 as Mac>::new_from_slice(key) {
+    let mut mac: HmacSha256 = match HmacSha256::new_from_slice(key) {
         Ok(m) => m,
         Err(_) => {
             // Unreachable for HMAC-SHA256.  Abort to prevent an all-zero MAC
@@ -724,12 +724,10 @@ pub mod pq {
 
             // Generate a random 32-byte seed using the system RNG
             let mut seed_bytes = [0u8; 32];
-            getrandom::getrandom(&mut seed_bytes).map_err(|_| {
-                CryptoError::KeyDerivationFailed("System RNG failed".into())
-            })?;
-            let seed = ml_dsa::Seed::try_from(&seed_bytes[..]).map_err(|_| {
-                CryptoError::KeyDerivationFailed("Invalid seed".into())
-            })?;
+            getrandom::getrandom(&mut seed_bytes)
+                .map_err(|_| CryptoError::KeyDerivationFailed("System RNG failed".into()))?;
+            let seed = ml_dsa::Seed::try_from(&seed_bytes[..])
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid seed".into()))?;
 
             // Derive signing key from seed (deterministic)
             let sk = SigningKey::<MlDsa65>::from_seed(&seed);
@@ -746,14 +744,14 @@ pub mod pq {
             use ml_dsa::Seed;
 
             if secret_key.len() != 32 {
-                return Err(CryptoError::KeyDerivationFailed(
-                    format!("Invalid ML-DSA-65 seed length: expected 32, got {}", secret_key.len()),
-                ));
+                return Err(CryptoError::KeyDerivationFailed(format!(
+                    "Invalid ML-DSA-65 seed length: expected 32, got {}",
+                    secret_key.len()
+                )));
             }
 
-            let seed = Seed::try_from(secret_key).map_err(|_| {
-                CryptoError::KeyDerivationFailed("Invalid seed".into())
-            })?;
+            let seed = Seed::try_from(secret_key)
+                .map_err(|_| CryptoError::KeyDerivationFailed("Invalid seed".into()))?;
             let sk = SigningKey::<MlDsa65>::from_seed(&seed);
             let sig = sk.sign(message);
             Ok(sig.encode().to_vec())
@@ -761,16 +759,20 @@ pub mod pq {
 
         /// Verify a ML-DSA-65 signature.
         /// `public_key` is the encoded verifying key, `signature` is the encoded signature.
-        pub fn mldsa65_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, CryptoError> {
+        pub fn mldsa65_verify(
+            public_key: &[u8],
+            message: &[u8],
+            signature: &[u8],
+        ) -> Result<bool, CryptoError> {
             use ml_dsa::signature::Verifier;
             use ml_dsa::{EncodedVerifyingKey, Signature as MlDsaSignature};
 
-            let vk_encoded: EncodedVerifyingKey<MlDsa65> =
-                public_key.try_into().map_err(|_| {
-                    CryptoError::KeyDerivationFailed(
-                        format!("Invalid ML-DSA-65 public key length: got {}", public_key.len()),
-                    )
-                })?;
+            let vk_encoded: EncodedVerifyingKey<MlDsa65> = public_key.try_into().map_err(|_| {
+                CryptoError::KeyDerivationFailed(format!(
+                    "Invalid ML-DSA-65 public key length: got {}",
+                    public_key.len()
+                ))
+            })?;
             let vk = VerifyingKey::<MlDsa65>::decode(&vk_encoded);
 
             let sig = MlDsaSignature::<MlDsa65>::try_from(signature).map_err(|_| {
@@ -951,7 +953,11 @@ pub mod pq {
     }
 
     /// Verify a ML-DSA-65 signature.
-    pub fn mldsa65_verify(public_key: &[u8], message: &[u8], signature: &[u8]) -> Result<bool, CryptoError> {
+    pub fn mldsa65_verify(
+        public_key: &[u8],
+        message: &[u8],
+        signature: &[u8],
+    ) -> Result<bool, CryptoError> {
         backend::mldsa65_verify(public_key, message, signature)
     }
 }
