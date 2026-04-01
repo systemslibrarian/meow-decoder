@@ -738,8 +738,8 @@ def decode_gif(
         if len(sig_blob) < 9 + pk_len + sig_len:
             raise ValueError("Truncated manifest signature blob")
 
-        public_key = sig_blob[9: 9 + pk_len]
-        signature_bytes = sig_blob[9 + pk_len: 9 + pk_len + sig_len]
+        public_key = sig_blob[9 : 9 + pk_len]
+        signature_bytes = sig_blob[9 + pk_len : 9 + pk_len + sig_len]
 
         from .manifest_signing import ManifestSignature, verify_manifest_signature
 

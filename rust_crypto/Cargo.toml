@@ -24,9 +24,9 @@ argon2 = "0.5"   # Argon2id KDF (password hashing)
 aes-gcm = "0.10" # AES-256-GCM AEAD encryption
 aes = "0.8"      # AES block cipher (for CTR mode)
 ctr = "0.9"      # CTR mode for streaming encryption
-cipher = "0.4"   # Cipher traits
+cipher = "0.5"   # Cipher traits
 hkdf = "0.12"    # HKDF key derivation (RFC 5869)
-hmac = "0.12"    # HMAC-SHA256 authentication
+hmac = "0.13"    # HMAC-SHA256 authentication
 sha2 = "0.11"    # SHA-256/SHA-512 hashing
 
 # X25519 key exchange
@@ -53,7 +53,7 @@ hex = "0.4"
 
 [dev-dependencies]
 criterion = "0.5"
-proptest = "1.4"
+proptest = "1.11"
 
 [features]
 default = []

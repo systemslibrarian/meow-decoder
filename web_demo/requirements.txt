@@ -2,10 +2,10 @@ Flask==3.1.3
 Pillow==12.1.1
 qrcode[pil]==8.2
 argon2-cffi==25.1.0
-cryptography==46.0.5
+cryptography==46.0.6
 pyzbar==0.1.9
 opencv-python==4.13.0.92
 numpy>=1.24.0
-Werkzeug==3.1.6
+Werkzeug==3.1.7
 # Note: imageio is NOT required (uses Pillow for GIF)
 # Note: No ffmpeg required (Python-only solution)

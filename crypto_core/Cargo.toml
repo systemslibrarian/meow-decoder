@@ -34,7 +34,7 @@ aes = { version = "0.8", optional = true }
 ctr = { version = "0.9", optional = true }
 
 # Cipher traits (BlockEncrypt etc.)
-cipher = { version = "0.4", optional = true }
+cipher = { version = "0.5", optional = true }
 
 # Secure memory zeroization
 zeroize = { version = "1.8", features = ["derive"] }
@@ -61,10 +61,10 @@ argon2 = { version = "0.5", optional = true }
 hkdf = { version = "0.12", optional = true }
 
 # SHA-2 family
-sha2 = { version = "0.10", optional = true }
+sha2 = { version = "0.11", optional = true }
 
 # HMAC
-hmac = { version = "0.12", optional = true }
+hmac = { version = "0.13", optional = true }
 
 # ============================================
 # EXPERIMENTAL: Post-Quantum Cryptography
@@ -86,7 +86,7 @@ hmac = { version = "0.12", optional = true }
 # Using 0.3.0-pre for latest API (breaking changes from 0.1.x)
 # `getrandom` feature enables system-RNG-based Generate/Encapsulate methods
 # avoiding rand_core version mismatches between ecosystem crates
-ml-kem = { version = "0.3.0-pre", optional = true, features = ["getrandom"] }
+ml-kem = { version = "0.3.0-rc.1", optional = true, features = ["getrandom"] }
 
 # Post-Quantum: ML-DSA / Dilithium (FIPS 204) - EXPERIMENTAL
 # Using >=0.1.0-rc.5 to fix GHSA-h37v-hp6w-2pp8 (off-by-two in UseHint)
@@ -173,10 +173,10 @@ winapi = { version = "0.3", features = [
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Property-based testing
-proptest = "1.4"
+proptest = "1.11"
 
 # Async test runtime (for hardware tests)
-tokio = { version = "1.0", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.50", features = ["rt-multi-thread", "macros"] }
 
 # Hex encoding for test vectors
 hex = "0.4"
