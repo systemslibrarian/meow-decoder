@@ -173,7 +173,7 @@ winapi = { version = "0.3", features = [
 criterion = { version = "0.5", features = ["html_reports"] }
 
 # Property-based testing
-proptest = "1.4"
+proptest = "1.11"
 
 # Async test runtime (for hardware tests)
 tokio = { version = "1.50", features = ["rt-multi-thread", "macros"] }

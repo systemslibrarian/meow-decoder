@@ -53,7 +53,7 @@ hex = "0.4"
 
 [dev-dependencies]
 criterion = "0.5"
-proptest = "1.4"
+proptest = "1.11"
 
 [features]
 default = []
