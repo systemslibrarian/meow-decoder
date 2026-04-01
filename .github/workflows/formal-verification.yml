@@ -568,7 +568,7 @@ jobs:
           echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
           echo "   Closes INV-004: previous models used 2-ary senc, missing AAD"
           echo "============================================"
-          docker run --rm meow-tamarin bash -c \
+          docker run --rm meow-tamarin sh -c \
             "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
             2>&1 | tee tamarin_aead.txt
           if grep -q "verified" tamarin_aead.txt; then
@@ -589,7 +589,7 @@ jobs:
           echo ""
           echo "Test 1: KEM ct not bound to HMAC → KEM integrity lemma should be FALSIFIED"
           set +e
-          docker run --rm meow-tamarin bash -c \
+          docker run --rm meow-tamarin sh -c \
             "tamarin-prover --prove /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy" \
             2>&1 | tee tamarin_neg1.txt
           NEG1_EXIT=$?
@@ -608,7 +608,7 @@ jobs:
           echo ""
           echo "Test 2: Non-uniform failure observables → PQ_Failure_Uniform_Observable should FAIL"
           set +e
-          docker run --rm meow-tamarin bash -c \
+          docker run --rm meow-tamarin sh -c \
             "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove" \
             2>&1 | tee tamarin_neg2.txt
           NEG2_EXIT=$?
@@ -648,7 +648,7 @@ jobs:
             echo ""
             echo "--- $DESC ---"
             set +e
-            timeout 1800 docker run --rm meow-tamarin bash -c \
+            timeout 1800 docker run --rm meow-tamarin sh -c \
               "tamarin-prover $EXTRA_FLAGS --prove /formal/tamarin/$MODEL" \
               2>&1 | tee "tamarin_ext_${MODEL%.spthy}.txt"
             EXIT=$?
@@ -692,7 +692,7 @@ jobs:
           # F-10: Gate the 3 remaining Tamarin models not covered by F-03
           run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"            nonblocking
           run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"                   nonblocking
-          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking "--diff"
+          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking
 
           if [ "$EXTENDED_FAILED" -gt 0 ]; then
             echo ""

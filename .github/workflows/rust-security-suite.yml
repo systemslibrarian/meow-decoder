@@ -177,7 +177,9 @@ jobs:
             corpus-${{ matrix.target }}-
 
       - name: Create corpus directory
-        run: mkdir -p rust_crypto/fuzz/corpus/${{ matrix.target }}
+        run: |
+          mkdir -p rust_crypto/fuzz/corpus/${{ matrix.target }}
+          rm -rf rust_crypto/fuzz/artifacts/${{ matrix.target }}
 
       - name: Seed corpus with known-interesting inputs
         run: |
@@ -282,7 +284,9 @@ jobs:
           key: ${{ runner.os }}-crypto-core-fuzz-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Create corpus directory
-        run: mkdir -p crypto_core/fuzz/corpus/${{ matrix.target }}
+        run: |
+          mkdir -p crypto_core/fuzz/corpus/${{ matrix.target }}
+          rm -rf crypto_core/fuzz/artifacts/${{ matrix.target }}
 
       - name: Seed corpus
         run: |
