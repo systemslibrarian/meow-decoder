@@ -551,7 +551,7 @@ dependencies = [
  "oqs",
  "proptest",
  "rand_core 0.6.4",
- "sha2",
+ "sha2 0.11.0",
  "subtle",
  "tokio",
  "tss-esapi",
@@ -758,6 +758,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8bf3682cdec91817be507e4aa104314898b95b84d74f3d43882210101a545b6"
 dependencies = [
  "block-buffer 0.11.0",
+ "const-oid 0.10.2",
  "crypto-common 0.2.0",
 ]
 
@@ -1297,7 +1298,7 @@ dependencies = [
  "pyo3",
  "rand 0.8.5",
  "rand_core 0.6.4",
- "sha2",
+ "sha2 0.11.0",
  "subtle",
  "x25519-dalek",
  "zeroize",
@@ -1555,7 +1556,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "sha2",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -1567,7 +1568,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "primeorder",
- "sha2",
+ "sha2 0.10.9",
 ]
 
 [[package]]
@@ -2085,7 +2086,7 @@ dependencies = [
  "pkcs1",
  "pkcs8 0.10.2",
  "rand_core 0.6.4",
- "sha2",
+ "sha2 0.10.9",
  "signature 2.2.0",
  "spki 0.7.3",
  "subtle",
@@ -2267,6 +2268,17 @@ dependencies = [
  "cfg-if",
  "cpufeatures 0.2.17",
  "digest 0.10.7",
+]
+
+[[package]]
+name = "sha2"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "446ba717509524cb3f22f17ecc096f10f4822d76ab5c0b9822c5f9c284e825f4"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+ "digest 0.11.0",
 ]
 
 [[package]]
@@ -3042,7 +3054,7 @@ dependencies = [
  "rsa",
  "secrecy 0.8.0",
  "sha1",
- "sha2",
+ "sha2 0.10.9",
  "signature 2.2.0",
  "subtle",
  "uuid",

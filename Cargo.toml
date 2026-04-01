@@ -15,7 +15,7 @@ aes-gcm = "0.10"
 argon2 = "0.5"
 hkdf = "0.12"
 hmac = "0.12"
-sha2 = "0.10"
+sha2 = "0.11"
 rand = "0.8"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 x25519-dalek = { version = "2.0", features = ["static_secrets"] }
