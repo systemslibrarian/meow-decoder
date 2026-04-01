@@ -66,6 +66,6 @@ WORKDIR /formal
 COPY formal/tamarin/ /formal/tamarin/
 
 # Default: run MEOW3 duress OE, then MEOW4/MEOW5 PQ duress OE
-CMD ["bash", "-c", \
+CMD ["sh", "-c", \
     "tamarin-prover --diff /formal/tamarin/MeowDuressEquiv.spthy --prove && \
      tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ.spthy --prove"]
