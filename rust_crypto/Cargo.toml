@@ -39,7 +39,7 @@ zeroize = { version = "1.8", features = ["derive"] }
 # Random number generation
 rand = "0.8"
 rand_core = "0.6"
-getrandom = { version = "0.2", features = ["std"] }
+getrandom = { version = "0.4", features = ["std"] }
 
 # Handle registry
 lazy_static = "1.4"
