@@ -64,7 +64,7 @@ hkdf = { version = "0.12", optional = true }
 sha2 = { version = "0.10", optional = true }
 
 # HMAC
-hmac = { version = "0.12", optional = true }
+hmac = { version = "0.13", optional = true }
 
 # ============================================
 # EXPERIMENTAL: Post-Quantum Cryptography
