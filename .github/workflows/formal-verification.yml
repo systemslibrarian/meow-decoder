@@ -692,7 +692,7 @@ jobs:
           # F-10: Gate the 3 remaining Tamarin models not covered by F-03
           run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"            nonblocking
           run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"                   nonblocking
-          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking "--diff"
+          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking
 
           if [ "$EXTENDED_FAILED" -gt 0 ]; then
             echo ""
