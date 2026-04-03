@@ -4,6 +4,14 @@
   <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="200"/>
 </p>
 
+---
+
+## ▶️ Demo
+
+https://www.meowdecoder.com
+
+---
+
 <p align="center">
   <b>Secure Air-Gapped Data Transfer via Animated QR Frames</b>
 </p>
@@ -137,13 +145,7 @@ All integrity and authenticity guarantees are enforced cryptographically.**
  Validation → Decryption → Output
 ```
 
----
 
-## ▶️ Demo
-
-https://www.meowdecoder.com
-
----
 
 ## 📦 Example Usage
 
