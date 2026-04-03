@@ -1,174 +1,88 @@
-# 🐾 Meow Decoder
+# 🐱 Meow Decoder
 
 <p align="center">
-  <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="200"/>
+  <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="600">
 </p>
+
+<p align="center">
+  <strong>Secure air-gapped data transfer via animated QR frames — with real cryptography, explicit threat modeling, and adversarial resilience.</strong>
+</p>
+
+<p align="center">
+  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and experimental deniability features.</em>
+</p>
+
+---
+
+## 🧠 At a Glance
+
+- AES-256-GCM + Argon2id (512 MiB, 20 iterations)  
+- Forward Secrecy (X25519, default)  
+- Post-Quantum Hybrid (ML-KEM-768 / 1024)  
+- Fountain Codes (~33% frame loss tolerance)  
+- Rust cryptographic core (constant-time, zeroize)  
+- Formal verification + fuzz testing  
+
+---
+
+## ⚠️ Who This Is For (And Who It Isn't)
+
+| ✅ This IS for you if... | ❌ This is NOT for you if... |
+|--------------------------|------------------------------|
+| You're a developer/researcher | You want a consumer mobile app |
+| You need air-gapped file transfer | You want one-tap phone scanning |
+| You understand command-line tools | You need plug-and-play simplicity |
+| You want to audit the crypto yourself | You need production enterprise support |
+
+**Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing.
+
+---
+
+## ⏱️ How It Works (60 Seconds)
+
+Sender → Encode → QR Frames → Camera → Decode → File restored
+
+The phone is just a dumb optical sensor. All crypto happens on trusted computers.
+
+---
+
+## ✨ Key Features
+
+- 🔒 AES-256-GCM authenticated encryption  
+- 🔑 Argon2id memory-hard key derivation  
+- 🛡️ Forward secrecy + post-quantum hybrid  
+- 📊 Fountain codes for resilience  
+- 🔐 Duress + deniability modes  
+- 🦀 Rust-backed cryptography  
 
 ---
 
 ## ▶️ Demo
 
-https://www.meowdecoder.com
+http://www.meowdecoder.com/
 
 ---
 
-<p align="center">
-  <b>Secure Air-Gapped Data Transfer via Animated QR Frames</b>
-</p>
-
-<p align="center">
-  <img src="https://img.shields.io/badge/status-active--development-orange"/>
-  <img src="https://img.shields.io/badge/security-AEAD%20%2B%20Argon2id-blue"/>
-  <img src="https://img.shields.io/badge/license-MIT-green"/>
-</p>
-
----
-
-## 🚀 Overview
-
-**Meow Decoder is a cryptographic system for transferring data across air gaps using animated QR code frames — where the camera is treated as an untrusted optical channel and all security guarantees are enforced at the endpoints.**
-
-> Designed with explicit threat modeling, AEAD encryption, and fail-closed parsing — not as a demo, but as a security-first protocol.
-
----
-
-## 🧠 Why This Matters
-
-Air-gapped environments are common in high-security systems, but data transfer across them is often:
-
-- Manual  
-- Error-prone  
-- Insecure (USB risks, human handling)  
-
-**Meow Decoder provides a structured, verifiable, and cryptographically sound method of transferring data across air gaps using only visual transmission.**
-
----
-
-## 🔑 Core Concept
-
-- Encrypt data locally
-- Split into structured frames
-- Encode frames as QR codes
-- Transmit visually
-- Reconstruct and verify securely
-
-**The camera is treated as hostile/untrusted.  
-All integrity and authenticity guarantees are enforced cryptographically.**
-
----
-
-## 🔐 Security Model
-
-### Threat Assumptions
-- Capture device may be compromised
-- Frames may be:
-  - Dropped
-  - Reordered
-  - Tampered with
-  - Observed
-
-### Security Guarantees
-
-- **Confidentiality** → AES-256-GCM  
-- **Integrity** → AEAD authentication tags  
-- **Replay Protection** → Frame sequencing  
-- **Tamper Detection** → Fail-closed decoding  
-- **Key Derivation** → Argon2id (memory-hard)  
-
----
-
-## 🧪 Cryptographic Design
-
-| Component        | Implementation            |
-|-----------------|--------------------------|
-| Encryption      | AES-256-GCM              |
-| Key Derivation  | Argon2id                 |
-| Encoding        | Binary → QR frames       |
-| Protocol        | Versioned byte spec      |
-| Parsing         | Fail-closed validation   |
-
----
-
-## ⚙️ How It Works
-
-### 1. Encode
-- Data encrypted using AEAD
-- Split into frames
-- Each frame includes:
-  - Sequence number
-  - Payload
-  - Authentication tag
-
-### 2. Transmit
-- Frames rendered as animated QR codes
-- Displayed sequentially
-
-### 3. Capture
-- Receiver scans frames via camera
-- Frames buffered and ordered
-
-### 4. Decode
-- Frames validated
-- Authentication verified
-- Data decrypted only if all checks pass
-
----
-
-## 🛡️ Design Principles
-
-- **Fail Closed** → reject on any inconsistency  
-- **Explicit Protocol** → byte-level specification  
-- **Untrusted Channel** → camera is not trusted  
-- **Deterministic Behavior** → no silent recovery  
-- **Security First** → always over convenience  
-
----
-
-## 📸 Architecture
-
-```
-[ Secure Sender ]
-        │
-        ▼
-  Encrypted Frames
-        │
-        ▼
-  QR Code Sequence
-        │
-        ▼
-[ Untrusted Camera ]
-        │
-        ▼
-[ Secure Receiver ]
-        │
-        ▼
- Validation → Decryption → Output
-```
-
-
-
-## 📦 Example Usage
+## 🚀 Quick Start
 
 ```bash
-meow encode --input secret.txt --output frames/
-meow decode --input frames/ --output recovered.txt
+pip install meow-decoder
+
+meow-encode -i secret.pdf -o secret.gif -p "password"
+meow-decode-gif -i captured.mp4 -o recovered.pdf -p "password"
 ```
 
 ---
 
-## ⚠️ Status
+## 🔐 Security Philosophy
 
-**Active Development — Security Hardening Phase**
-
----
-
-## 🙋‍♂️ Author
-
-Paul Clark  
-Systems Librarian · AI Builder · Security-Focused Engineer  
+- Fail closed  
+- Assume hostile capture channel  
+- No silent recovery  
+- Cryptography over convenience  
 
 ---
 
-## 📜 License
+## 📄 License
 
-MIT
+See LICENSE file.
