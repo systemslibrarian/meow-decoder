@@ -1,7 +1,7 @@
 # 🐾 Meow Decoder
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/systemslibrarian/meow-decoder/main/assets/logo.png" alt="Meow Decoder Logo" width="200"/>
+  <img src="assets/meow-decoder-logo.png" alt="Meow Decoder Logo" width="200"/>
 </p>
 
 <p align="center">
