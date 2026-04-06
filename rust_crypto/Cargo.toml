@@ -17,7 +17,7 @@ crypto_core = { path = "../crypto_core" }
 
 # PyO3 for Python bindings (upgrade to address RUSTSEC-2026-0013)
 # Made optional so cargo-tarpaulin can run without Python linking
-pyo3 = { version = "0.28.2", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.28.3", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
 argon2 = "0.5"   # Argon2id KDF (password hashing)
