@@ -93,10 +93,7 @@ pub fn check_windows_alloc_covers_guards(
 
 /// **WG-002** Runtime check: data pointer is exactly one guard page above the alloc base.
 pub fn check_windows_lower_guard(alloc_base: usize, data_ptr: usize, page_size: usize) -> bool {
-    page_size > 0
-        && alloc_base
-            .checked_add(page_size)
-            .map_or(false, |expected| data_ptr == expected)
+    page_size > 0 && alloc_base.checked_add(page_size) == Some(data_ptr)
 }
 
 /// **WG-003** Runtime check: data region ends exactly where the upper guard page begins.
@@ -107,20 +104,24 @@ pub fn check_windows_upper_guard(
     alloc_size: usize,
     page_size: usize,
 ) -> bool {
-    page_size > 0
-        && data_ptr
-            .checked_add(data_region_size)
-            .map_or(false, |data_end| {
-                alloc_base
-                    .checked_add(alloc_size)
-                    .and_then(|alloc_end| alloc_end.checked_sub(page_size))
-                    .map_or(false, |upper_guard_start| data_end == upper_guard_start)
-            })
+    if page_size == 0 {
+        return false;
+    }
+    let Some(data_end) = data_ptr.checked_add(data_region_size) else {
+        return false;
+    };
+    let Some(upper_guard_start) = alloc_base
+        .checked_add(alloc_size)
+        .and_then(|alloc_end| alloc_end.checked_sub(page_size))
+    else {
+        return false;
+    };
+    data_end == upper_guard_start
 }
 
 /// **WG-004** Runtime check: data pointer is page-aligned.
 pub fn check_windows_data_aligned(data_ptr: usize, page_size: usize) -> bool {
-    page_size > 0 && data_ptr % page_size == 0
+    page_size > 0 && data_ptr.is_multiple_of(page_size)
 }
 
 /// **WG-006** Runtime check: data region (rounded up) fits the requested size.
@@ -129,7 +130,7 @@ pub fn check_windows_data_fits(
     requested_size: usize,
     page_size: usize,
 ) -> bool {
-    page_size > 0 && data_region_size >= requested_size && data_region_size % page_size == 0
+    page_size > 0 && data_region_size >= requested_size && data_region_size.is_multiple_of(page_size)
 }
 
 /// **WG-007** Runtime check: all bytes in the slice are zero.
