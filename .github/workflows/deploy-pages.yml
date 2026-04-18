@@ -74,7 +74,7 @@ jobs:
           find _site -name "*.js" -o -name "*.wasm" -o -name "*.html" | head -30
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: _site
 
