@@ -1123,6 +1123,12 @@ def decode_cat_binary():
                 return redirect(url_for("cat_mode_page"))
 
             orig_len, comp_len = struct.unpack(">II", binary_payload[:8])
+            # audit-phase-5-fix 5.5: reject absurd lengths before they reach the
+            # decompression-limit calculation (avoids 40 GiB allocation ceiling).
+            from meow_decoder.crypto import MAX_ORIG_LEN, MAX_COMP_LEN
+            if orig_len > MAX_ORIG_LEN or comp_len > MAX_COMP_LEN:
+                flash("Invalid encrypted payload (length bounds exceeded)", "error")
+                return redirect(url_for("cat_mode_page"))
             sha256_hash = binary_payload[8:40]
             salt = binary_payload[40:56]
             nonce = binary_payload[56:68]

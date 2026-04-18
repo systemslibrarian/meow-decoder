@@ -16,6 +16,9 @@ Populated during audit phases; see `AUDIT-2026-04-18.md` for the full audit reco
 
 - **Finding 1.6 — README "Does Protect Against ... Quantum computers" overstates.** PQ is experimental and requires `--pq` flag. Add qualifier in README line 531 or track in Phase 14.
 - **Finding 4.5 — `random.choice` in `meow_decoder/high_security.py:446-447`.** Unused function `generate_innocuous_filename`. If ever exposed, switch to `secrets.choice`.
+- **Finding 6.1 — Decrypt error message embeds `{e}`** at `meow_decoder/crypto.py:1485,1492`. Minor content-channel; Argon2id runs first so timing is closed. Sanitize to constant string while keeping the PQ-downgrade branch as a distinct message.
+- **Finding 6.2 — `TpmContext::connect_tcti` panics on invalid TCTI parse** at `crypto_core/src/tpm.rs:328`. Internal callers pass hardcoded values, but `pub fn` exposes panic to external Rust users. Replace with `.map_err(|e| TpmError::CommunicationFailed(e.to_string()))?`.
+- **Finding 6.6 — `Auth::from_bytes(&a.auth).unwrap()`** at `crypto_core/src/tpm.rs:417`. Auth blob is caller-controlled; panic on out-of-range length. Replace with `TpmError::InvalidAuth`.
 - **Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.** Build-time only. Bump dev env to pip≥25 / wheel≥0.46.
 - **Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).** Jest transitive. Bump alongside root npm update.
 
