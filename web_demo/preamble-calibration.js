@@ -87,6 +87,25 @@ function checkVideoDuration(durationSec, bitPeriodMs = 100) {
  * @param {object} options - {earlyTermination: bool, minAlternations: number}
  * @returns {object|null} {start, end, transitionRate, duration, earlyTerminated, confidence}
  */
+// Pick the effective start of the alternating block.
+//
+// runs[startRun] is the "anchor" we first compared against — if its length is
+// much longer than the interior alternating runs (e.g. an 8-bit lead-in vs
+// 1-bit preamble bits), it is a constant pre-preamble region, not part of the
+// alternation itself. Excluding it makes the returned duration cover only the
+// true 1010... region, which is what downstream syncStartTime math expects.
+function pickAlternationStart(runs, startRun, endRun) {
+    if (endRun <= startRun + 1) return startRun;
+    const interior = [];
+    for (let i = startRun + 1; i <= endRun; i++) {
+        interior.push(runs[i].endIdx - runs[i].startIdx + 1);
+    }
+    interior.sort((a, b) => a - b);
+    const medianLen = interior[Math.floor(interior.length / 2)];
+    const anchorLen = runs[startRun].endIdx - runs[startRun].startIdx + 1;
+    return anchorLen > medianLen * 1.5 ? startRun + 1 : startRun;
+}
+
 function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 0.8, options = {}) {
     const { earlyTermination = true, minAlternations = 16 } = options;
 
@@ -133,42 +152,57 @@ function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 0.8, opti
     for (let startRun = 0; startRun < searchLimit; startRun++) {
         let endRun = startRun;
         let alternations = 0;
+        // Track interior run lengths to detect when we've slipped into data:
+        // alternating 1010... has uniform 1-bit runs; data has variable-length
+        // same-state bursts (e.g. 0xFE = 7 consecutive 1s in one run).
+        let minInteriorLen = Infinity;
 
         for (let r = startRun + 1; r < runs.length; r++) {
             if (runs[r].state !== runs[r - 1].state) {
+                const runLen = runs[r].endIdx - runs[r].startIdx + 1;
+                // Require each alternating run to be within 1.75× the shortest
+                // run seen so far. Once we have a few single-bit runs as the
+                // reference, a 2-bit or 7-bit data run will trip this and end
+                // the preamble region at the correct spot.
+                if (alternations >= 4 && runLen > minInteriorLen * 1.75) {
+                    break;
+                }
                 alternations++;
                 endRun = r;
+                if (runLen < minInteriorLen) minInteriorLen = runLen;
             } else {
                 break; // Alternation broken
             }
+        }
 
-            // Early termination: enough alternating bits + duration
-            if (earlyTermination && alternations >= minAlternations) {
-                const startFrame = runs[startRun].startIdx;
-                const endFrame = runs[endRun].endIdx;
-                const duration = frames[endFrame].time - frames[startFrame].time;
-                if (duration >= minDuration) {
-                    const totalRuns = endRun - startRun + 1;
-                    const transitionRate = alternations / totalRuns;
-                    NRZ_DEBUG && console.log(`📡 [Preamble] Early termination: ${alternations} alternating runs (${totalRuns} total), ${duration.toFixed(2)}s`);
-                    return {
-                        start: startFrame,
-                        end: endFrame + 1,
-                        transitionRate,
-                        duration,
-                        earlyTerminated: true,
-                        confidence: alternations >= 24 ? 'high' : 'medium'
-                    };
-                }
+        // After the inner loop, return the full extent of the alternating region.
+        if (alternations >= minAlternations) {
+            const effectiveStart = pickAlternationStart(runs, startRun, endRun);
+            const startFrame = runs[effectiveStart].startIdx;
+            const endFrame = runs[endRun].endIdx;
+            const duration = frames[endFrame].time - frames[startFrame].time;
+            if (duration >= minDuration) {
+                const totalRuns = endRun - effectiveStart + 1;
+                const transitionRate = alternations / totalRuns;
+                NRZ_DEBUG && console.log(`📡 [Preamble] Detected: ${alternations} alternating runs (${totalRuns} total), ${duration.toFixed(2)}s`);
+                return {
+                    start: startFrame,
+                    end: endFrame + 1,
+                    transitionRate,
+                    duration,
+                    earlyTerminated: earlyTermination,
+                    confidence: alternations >= 24 ? 'high' : 'medium'
+                };
             }
         }
 
         // Full block check
         if (alternations >= 4) {
-            const startFrame = runs[startRun].startIdx;
+            const effectiveStart = pickAlternationStart(runs, startRun, endRun);
+            const startFrame = runs[effectiveStart].startIdx;
             const endFrame = runs[endRun].endIdx;
             const duration = frames[endFrame].time - frames[startFrame].time;
-            const totalRuns = endRun - startRun + 1;
+            const totalRuns = endRun - effectiveStart + 1;
             const transitionRate = alternations / totalRuns;
 
             if (transitionRate >= minTransitionRate && duration >= minDuration) {
