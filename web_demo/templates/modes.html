@@ -298,11 +298,15 @@
 <div id="catModeMode" class="mode-content">
     <div class="mode-header">
         <h3>😻 Cat Mode (Flagship Feature)</h3>
-        <p>Photographic cat carrier images for plausible deniability. QR codes hidden in adorable cat photos!</p>
+        <p>Photographic cat carrier images for plausible deniability. The payload is still password-encrypted with AES-256-GCM + Argon2id before it is hidden in the cat imagery.</p>
     </div>
 
     <div class="info-box warning" style="background: #fff9e6; border-left-color: #ffd700;">
-        <strong>😻 Cat Mode:</strong> Cosmetic camouflage only. QR codes embedded in cat photos for aesthetic steganography.
+        <strong>😻 Cat Mode:</strong> Cosmetic camouflage only at the visual layer. The underlying payload is the normal password-based Meow ciphertext; Cat Mode just changes how it is displayed or embedded.
+    </div>
+
+    <div class="info-box" style="background: #eef8ff; border-left-color: #00a3d9;">
+        <strong>🔐 Transport + Encryption:</strong> Cat imagery changes the carrier or transport only. Encryption remains password-based AES-256-GCM + Argon2id unless you explicitly use a different mode elsewhere in the demo.
     </div>
 
     <div class="form-group">

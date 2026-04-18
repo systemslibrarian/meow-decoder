@@ -118,6 +118,10 @@
     <p style="margin-bottom: 25px; color: #666; line-height: 1.6;">
         Transmit encrypted messages through the cat's blinking eyes! <span style="color: #00ff88;">Green eyes = 1</span>, <span style="color: #666;">dark = 0</span>.
     </p>
+    <div class="info-box" style="margin-bottom: 20px; background: #eef8ff; border-left-color: #00a3d9;">
+        <strong>🔐 Transport + Encryption in this Cat Mode page:</strong> password-based <strong>AES-256-GCM</strong> with <strong>Argon2id</strong> key derivation, performed server-side with the production preset.
+        The blinking eyes are only the transport mechanism for the ciphertext. This route does <strong>not</strong> use forward secrecy or post-quantum mode.
+    </div>
 
     <!-- STEP 1: Encode & Transmit -->
     <div class="cat-step">
@@ -270,10 +274,11 @@
     <div class="info-box" style="margin-top: 30px; background: #e7f3ff; border-left-color: #2196f3;">
         <h4 style="margin-bottom: 10px;">📚 How Cat Mode Works</h4>
         <ul style="margin-left: 20px; line-height: 1.8;">
-            <li><strong>Encryption:</strong> Server-side Argon2id + AES-256-GCM (production security)</li>
+            <li><strong>Transport + Encryption:</strong> Server-side Argon2id key derivation + AES-256-GCM authenticated encryption, then optical bit transmission</li>
             <li><strong>Binary Encoding:</strong> Encrypted data converted to binary (0s and 1s)</li>
             <li><strong>Visual Transmission:</strong> Each bit displayed via eye color - green = 1, dark = 0</li>
             <li><strong>Video Recording:</strong> Automatically records transmission, downloadable for phone transfer</li>
+            <li><strong>Mode Scope:</strong> Password-only mode for compact transmissions; no forward secrecy or PQ on this page</li>
             <li><strong>Decoding:</strong> Extract binary from saved video, decrypt with password</li>
         </ul>
     </div>

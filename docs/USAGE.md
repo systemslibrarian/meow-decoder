@@ -316,6 +316,8 @@ meow-encode -i secret.pdf -o secret.gif --hardware-auto
 
 Cat Mode enables secure file transfer via animated blinking cat eyes displayed on screen and captured by phone camera. This provides a true air-gapped data channel with visual verification.
 
+**Encryption used by Cat Mode:** the blinking-eye channel transports the same password-based ciphertext used by the standard browser mode: **AES-256-GCM with Argon2id**. In the WASM demo, Cat Mode uses the currently selected security preset. It is a transport layer, not a separate cryptosystem, and it does **not** add forward secrecy or post-quantum encryption.
+
 ### Quick Start
 
 1. **Load the web demo** (`examples/wasm_browser_example.html`)
@@ -484,6 +486,8 @@ If auto-detection fails:
 
 ### Security Considerations for Cat Mode
 
+- ✅ **Same core crypto as standard mode:** AES-256-GCM + Argon2id protect the payload before transmission
+- ⚠️ **No extra FS/PQ on Cat Mode:** blinking eyes change transport, not the underlying encryption mode
 - ✅ **Air-gapped:** No network, Bluetooth, or NFC involved
 - ✅ **Visual verification:** You can see the data transfer happen
 - ✅ **Single-use transmission:** Each video is unique

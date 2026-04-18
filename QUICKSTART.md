@@ -30,6 +30,8 @@ The web demo includes **8 encryption modes**:
 - 📹 **Webcam** — Live QR scanner with **fountain code decoder** (tolerates 33% frame loss!)
 - 🚨 **Duress** — Panic password that wipes keys
 
+**Cat Mode note:** the Cat Mode tab is an optical transport for the normal password-based ciphertext. In the WASM demo it uses AES-256-GCM + Argon2id with the selected security preset; it does not add forward secrecy or post-quantum encryption.
+
 **NEW: Frame Loss Tolerance** 🎯
 Multi-frame QR codes (large payloads) use JavaScript fountain codes. Scan with your phone camera and the decoder automatically collects droplets, showing real-time progress: "Collected 8/10 droplets, 73% decoded". No need to scan perfectly—works even if you miss 1 in 3 frames.
 

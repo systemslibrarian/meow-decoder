@@ -295,7 +295,7 @@ The WASM demo includes **8 encryption modes**:
 | 🖼️ **Stego** | Visual steganography | Browser-limited carrier size |
 | 📹 **Webcam** | Live QR scanner | All payload types supported |
 | 🚨 **Duress** | Panic password wipe | Destroys localStorage keys |
-| 😺 **Cat Mode** | Blinking cat eyes encoding | Fun camouflage |
+| 😺 **Cat Mode** | Blinking cat eyes transport for AES-256-GCM + Argon2id ciphertext | Fun camouflage |
 
 See the [examples/](examples/) directory for full setup instructions.
 
@@ -304,7 +304,7 @@ See the [examples/](examples/) directory for full setup instructions.
 meow-encode -i secret.pdf -o meow.gif -p "password" --cat-mode
 ```
 
-⚠️ **WARNING:** Cat Mode is purely cosmetic camouflage for fun. It does NOT hide QR codes from steganalysis or forensic detection. Use `--stego-level 4` with custom carriers for serious steganography.
+⚠️ **WARNING:** Cat Mode is purely cosmetic camouflage for fun. It transports the normal password-based ciphertext and does NOT hide QR codes from steganalysis or forensic detection. Use `--stego-level 4` with custom carriers for serious steganography.
 -->
 
 ### 🌿 Green-Region Steganography (`--stego-green`)

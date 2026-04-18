@@ -1,12 +1,12 @@
 # 😻 Meow Decoder Web Demo
 
-A minimal Flask web interface for Meow Decoder featuring **Cat Mode** as a flagship demonstration of steganographic QR code camouflage.
+A minimal Flask web interface for Meow Decoder featuring **Cat Mode** as a flagship demonstration of steganographic QR code camouflage and optical ciphertext transport.
 
 ## Features
 
 - **🔒 Encode Files**: Upload any file (up to 8 MB) and convert to animated GIF
 - **🔓 Decode GIFs**: Recover original files from Meow Decoder GIFs
-- **😻 Cat Mode**: Flagship feature that camouflages QR codes in photographic cat images
+- **😻 Cat Mode**: Cat-image camouflage plus a separate blinking-eye transport for password-encrypted ciphertext
 - **⚠️ Duress Mode**: Dual-password plausible deniability
 - **📊 Fountain Codes**: Configurable redundancy for frame loss tolerance
 - **🔐 AES-256-GCM**: Military-grade encryption with Argon2id key derivation
@@ -169,7 +169,14 @@ To disable Schrödinger or Duress modes server-side, edit `templates/encode.html
 
 ## Cat Mode 😻
 
-Cat Mode is the **flagship feature** of this demo. When enabled:
+Cat Mode in this web demo has **two related presentations** built on the same core password-based encryption:
+
+1. **Cat carrier mode** hides QR codes in cat imagery for camouflage.
+2. **Blinking-eye mode** sends ciphertext optically as green/dark eye states.
+
+Both use **AES-256-GCM + Argon2id** for the payload first. The cat visuals change the transport or presentation layer; they do not replace the cryptography.
+
+For the carrier-image path:
 
 1. **Encoder** uses bundled cat carrier images (`assets/demo_logo_eyes.gif`)
 2. **QR codes** are embedded steganographically in photographic cat images
@@ -186,6 +193,13 @@ Cat Mode is the **flagship feature** of this demo. When enabled:
 - **Plausible Deniability**: QR codes look like cat photos at casual inspection
 - **Scanning**: Decoder auto-detects stego mode and extracts LSBs before QR scanning
 
+### Blinking-Eye Cat Mode
+
+- **Crypto**: AES-256-GCM + Argon2id before visual transmission
+- **Transport**: Eye color encodes ciphertext bits (green = 1, dark = 0)
+- **Server route**: The Flask Cat Mode page uses the production Argon2id preset and password-only mode
+- **Mode scope**: No forward secrecy or post-quantum mode on the blinking-eye route
+
 ### Technical Details
 
 - **Why APNG, not GIF?** GIF uses 256-color palette quantization which corrupts LSB-embedded data. APNG is lossless, preserving all embedded pixel values through save/load cycles.
@@ -195,6 +209,7 @@ Cat Mode is the **flagship feature** of this demo. When enabled:
 ### Limitations
 
 - Cat Mode is **cosmetic camouflage** (not forensic-proof steganography)
+- Blinking-eye Cat Mode changes transport only; it is not a separate encryption mode
 - Output is APNG format (`.png`), not GIF — some viewers may not animate APNG files
 - Best used for aesthetic purposes and casual plausible deniability
 
