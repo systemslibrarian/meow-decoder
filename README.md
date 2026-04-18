@@ -528,7 +528,7 @@ The phone is just a "dumb" optical sensor carrying photons. It never decrypts an
 | **Future password compromise** | Forward secrecy (X25519 ephemeral keys) |
 | **Coercion ("give me the password")** | Schrödinger mode (plausible deniability) |
 | **Dropped/corrupted frames** | Fountain codes (33% loss tolerance) — Python + JS implementation |
-| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-768 default / ML-KEM-1024 paranoid, with receiver PQ public key) |
+| **Quantum computers (future)** | Post-quantum crypto (ML-KEM-768 with `--pq` / ML-KEM-1024 with `--paranoid`) — opt-in; default is classical X25519 (MEOW3) |
 
 ### ❌ Does NOT Protect Against
 

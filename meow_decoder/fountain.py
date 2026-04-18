@@ -137,8 +137,16 @@ class FountainEncoder:
         self.k_blocks = k_blocks
         self.block_size = block_size
 
-        # Pad data to fit blocks
+        # audit-followup 9.1: defensive assertion; upstream manifest validation
+        # caps these to ≤1M blocks × ≤65535 bytes, so ~6.5e10 bytes is the
+        # absolute ceiling. This assert short-circuits any internal miscall.
+        if k_blocks <= 0 or block_size <= 0:
+            raise ValueError(f"fountain: invalid k_blocks={k_blocks} block_size={block_size}")
         total_size = k_blocks * block_size
+        if total_size > 10 * 1024 * 1024 * 1024:
+            raise ValueError(
+                f"fountain: total_size {total_size} exceeds 10 GiB sanity ceiling"
+            )
         self.data = data + b"\x00" * (total_size - len(data))
 
         # Split into blocks

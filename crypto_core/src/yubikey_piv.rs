@@ -384,6 +384,14 @@ impl YubiKeyProvider {
     }
 
     /// Decrypt data using PIV Key Management slot
+    ///
+    /// # Security
+    ///
+    /// audit-followup 7.1: RSA decryption is explicitly refused to avoid the
+    /// rsa-crate Marvin Attack (RUSTSEC-2023-0071) which is transitive via
+    /// yubikey 0.8. Production pipelines only use ECDH via ECC-P256/P384.
+    /// If RSA decrypt is ever needed, remove this guard only after the
+    /// upstream rsa crate ships a constant-time fix.
     pub fn decrypt(
         &mut self,
         slot: PivSlot,
@@ -398,6 +406,16 @@ impl YubiKeyProvider {
 
         let key_info = piv::metadata(&mut self.yubikey, slot_id)
             .map_err(|e| YubiKeyError::SlotEmpty(format!("{:?}", slot)))?;
+
+        // audit-followup 7.1: refuse RSA algorithms (Marvin Attack mitigation).
+        match key_info.algorithm {
+            AlgorithmId::Rsa1024 | AlgorithmId::Rsa2048 => {
+                return Err(YubiKeyError::NotSupported(
+                    "RSA decrypt refused (RUSTSEC-2023-0071 Marvin Attack); use ECDH".into(),
+                ));
+            }
+            _ => {}
+        }
 
         let plaintext =
             piv::decrypt_data(&mut self.yubikey, ciphertext, key_info.algorithm, slot_id)

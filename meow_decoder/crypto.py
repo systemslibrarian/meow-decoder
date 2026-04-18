@@ -1333,6 +1333,16 @@ def decrypt_to_raw(
         RuntimeError: If called in production mode
     """
     _legacy_guard("decrypt_to_raw")
+
+    # FIX-A2: AAD is mandatory — check BEFORE try-block so the precondition
+    # error propagates as ValueError instead of being rewrapped to the
+    # generic "Decryption failed" message by audit-followup 6.1.
+    if orig_len is None or comp_len is None or sha256 is None:
+        raise ValueError(
+            "AAD parameters (orig_len, comp_len, sha256) are required for decryption. "
+            "Files encrypted without AAD are no longer supported."
+        )
+
     try:
         # Optionally log via purr mode
         logger = None
@@ -1397,14 +1407,8 @@ def decrypt_to_raw(
                 key = derive_key(password, salt, keyfile)
 
         # Reconstruct AAD for verification (MT-1: canonical shared function)
-        # Must match exactly what was used during encryption
-        # FIX-A2: AAD is mandatory — silent bypass removed to prevent
-        # downgrade attacks that strip authenticated metadata.
-        if orig_len is None or comp_len is None or sha256 is None:
-            raise ValueError(
-                "AAD parameters (orig_len, comp_len, sha256) are required for decryption. "
-                "Files encrypted without AAD are no longer supported."
-            )
+        # Must match exactly what was used during encryption.
+        # FIX-A2 precondition check is now hoisted above the try-block.
         aad = build_canonical_aad(
             orig_len=orig_len,
             comp_len=comp_len,
@@ -1476,20 +1480,22 @@ def decrypt_to_raw(
         raw = b"".join(chunks)
 
         return raw
-    except Exception as e:
+    except Exception:
+        # audit-followup 6.1: do NOT embed the underlying exception text in the
+        # user-facing error message. It offers minor info-leak (e.g. distinguishing
+        # InvalidTag from zlib.error) while providing little diagnostic value beyond
+        # the constant wording below. The PQ-downgrade branch remains as a distinct
+        # message — that distinction is intentional and operator-facing.
         # FIX-D3: Distinguish PQ downgrade from wrong password.
-        # If PQ ciphertext was expected (ephemeral key present suggests FS mode
-        # but pq_ciphertext is None), warn about possible PQ downgrade attack.
-        err_msg = str(e)
         if ephemeral_public_key is not None and pq_ciphertext is None:
             raise RuntimeError(
-                f"Decryption failed: {err_msg}. "
-                "NOTE: Forward secrecy mode is active but no post-quantum ciphertext "
+                "Decryption failed (possible PQ downgrade). "
+                "Forward secrecy mode is active but no post-quantum ciphertext "
                 "was found. If this file was originally encrypted with PQ protection, "
-                "the pq_ciphertext field may have been stripped (PQ downgrade attack). "
+                "the pq_ciphertext field may have been stripped. "
                 "Verify the manifest integrity."
             )
-        raise RuntimeError(f"Decryption failed (wrong password/keyfile or tampered manifest?): {e}")
+        raise RuntimeError("Decryption failed (wrong password/keyfile or tampered manifest?)")
 
 
 def pack_manifest(m: Manifest) -> bytes:

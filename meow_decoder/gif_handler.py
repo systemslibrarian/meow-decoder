@@ -130,6 +130,12 @@ class GIFDecoder:
     GIF decoder for extracting frames from GIF animations.
     """
 
+    # audit-followup 10.3: defence-in-depth against crafted GIFs with absurd
+    # frame counts. 500 MB upload cap still applies upstream; this is a
+    # belt-and-suspenders check so even a 1-byte-per-frame crafted GIF can't
+    # allocate a 500M-entry list.
+    MAX_GIF_FRAMES = 100_000
+
     def __init__(self):
         """Initialize GIF decoder."""
         pass
@@ -150,6 +156,10 @@ class GIFDecoder:
             # GIF animations have multiple frames
             try:
                 while True:
+                    if len(frames) >= self.MAX_GIF_FRAMES:
+                        raise ValueError(
+                            f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})"
+                        )
                     # Copy current frame
                     frame = img.copy().convert("RGB")
                     frames.append(frame)
@@ -177,6 +187,10 @@ class GIFDecoder:
         with Image.open(io.BytesIO(gif_bytes)) as img:
             try:
                 while True:
+                    if len(frames) >= self.MAX_GIF_FRAMES:
+                        raise ValueError(
+                            f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})"
+                        )
                     frame = img.copy().convert("RGB")
                     frames.append(frame)
                     img.seek(img.tell() + 1)

@@ -39,6 +39,10 @@ Populated during audit phases; see `AUDIT-2026-04-18.md` for the full audit reco
 
 *(Populated as Phase 2–14 complete.)*
 
+## Pre-existing test failures (not caused by audit)
+
+- **`tests/test_cat_js_runner.py::TestCat5SpeedsJS::test_cat_5speeds_pipeline`** — Baseline failure confirmed by `git stash` test on main before any audit changes. JS-side signal pipeline produces 118 bytes when 104 expected, first byte mismatch `0xca` vs `0x3`. Root cause is in `test_cat_5speeds.js` or upstream JS encoder/decoder. Not blocked by audit work. Recommended owner: whoever last touched `ac7d026` ("simplify preamble to 16-bit").
+
 ## Tests to add
 
 *(Populated in Phase 13.)*
