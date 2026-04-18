@@ -7,41 +7,44 @@ Populated during audit phases; see `AUDIT-2026-04-18.md` for the full audit reco
 
 *(Populated when a phase identifies an issue requiring protocol/API redesign.)*
 
-## Medium-severity items deferred
+## Fixed in `audit-followup-fixes` (commit 8522477, 2026-04-18)
 
-- **Finding 7.1 — rsa crate Marvin Attack via yubikey 0.8.** `crypto_core/src/yubikey_piv.rs:386-407` exposes `decrypt()` which can dispatch to RSA via PIV. Currently unused by production pipelines (only ECDH is exercised), and project-level acceptance is documented in `osv-scanner.toml:14` / `.github/workflows/security-ci.yml:171`. **Recommended fix:** add an explicit algorithm guard inside `YubiKey::decrypt()` that returns `YubiKeyError::NotSupported` for `AlgorithmId::Rsa*`, or remove the function until needed. Blocks future misuse without waiting for yubikey upstream fix.
-- **Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).** Transitive via jest/playwright/selenium/canvas. ReDoS + path-traversal. Not in shipped artifacts. **Recommended fix:** `npm audit fix --force` then re-run `npm test` on both root and web_demo.
-- **Finding 11.2 — `download_tokens` global dict not explicitly locked.** `web_demo/app.py:57-92`. Concurrent cleanup + insert under threaded Flask may produce token-routing collisions. **Recommended fix:** wrap all mutations in `threading.Lock()` or use `cachetools.TTLCache`.
-- **Finding 12.6 — `cargo build --features tpm` fails on main.** `crypto_core/src/tpm.rs:525,540` — `SensitiveData::as_bytes` and `KeyHandle→ObjectHandle` type errors against current `tss-esapi 7.5` API. **Recommended fix:** rename `as_bytes()` calls to `bytes()`; add `.into()` to convert `KeyHandle` to `ObjectHandle` at the unseal call site. Unrelated to audit-phase-6 PcrSlot fix.
+- **Finding 3.1 — `save_receiver_keypair` key-byte zero-loop.** Fixed in `meow_decoder/x25519_forward_secrecy.py:338-341` — exported key bytes are now held in a `bytearray` so the `finally`-block zero-loop can overwrite them. Rust FFI + file write coerce back to `bytes` at call sites.
+- **Finding 3.4 — Ed25519 fallback production gate.** Fixed in `meow_decoder/manifest_signing.py:_require_rust_ed25519()` — pure-Python Ed25519 fallback now raises `RuntimeError` when `MEOW_PRODUCTION_MODE=1` and the Rust backend isn't available. `MEOW_TEST_MODE=1` still allows it for CI.
+- **Finding 6.1 — Decrypt error message sanitization.** Fixed in `meow_decoder/crypto.py:decrypt_to_raw()` — underlying exception text no longer embedded in the user-facing error. The FIX-A2 AAD precondition check is hoisted above the try-block so `ValueError` propagates (programming error, not tamper event). PQ-downgrade branch remains distinct.
+- **Finding 7.1 — rsa crate Marvin Attack guard.** Fixed in `crypto_core/src/yubikey_piv.rs:386-420` — `YubiKey::decrypt()` now returns `YubiKeyError::NotSupported` for `AlgorithmId::Rsa1024 | AlgorithmId::Rsa2048`, forcing callers onto ECDH only.
+- **Finding 9.1 — Fountain encoder sanity checks.** Fixed in `meow_decoder/fountain.py:137-149` — rejects non-positive `k_blocks`/`block_size` and caps `total_size` at 10 GiB.
+- **Finding 10.3 — GIF frame-count limit.** Fixed in `meow_decoder/gif_handler.py` — added `MAX_GIF_FRAMES=100_000` class constant and checks in both `extract_frames` and `extract_frames_bytes`.
+- **Finding 11.2 — `download_tokens` dict race.** Fixed in `web_demo/app.py` — added `download_tokens_lock = threading.Lock()` and wrapped cleanup iteration/mutation, download-file access, and `@response.call_on_close` cleanup pop in the lock.
+- **Finding 12.1 — Release profile strip.** Fixed in `crypto_core/Cargo.toml` — added `strip = "symbols"` under `[profile.release]`.
+- **Finding 14.1 — README `--pq` qualifier.** Fixed in `README.md:531` — PQ threat-model line now reads `(ML-KEM-768 with --pq / ML-KEM-1024 with --paranoid) — opt-in; default is classical X25519 (MEOW3)`.
 
-## Low-severity items deferred
+Also fixed earlier in the audit (pre-FOLLOWUP):
+- **Finding 5.5 — web_demo bounds check** (`web_demo/app.py:1121-1135`, commit 896958b)
+- **Finding 6.3 — TPM PcrSlot map_err** (`crypto_core/src/tpm.rs:421-428`, commit 896958b)
 
-- **Finding 1.6 — README "Does Protect Against ... Quantum computers" overstates.** PQ is experimental and requires `--pq` flag. Add qualifier in README line 531 or track in Phase 14.
+## Medium-severity items still deferred
+
+- **Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).** Transitive via jest/playwright/selenium/canvas. ReDoS + path-traversal. Not in shipped artifacts. **Recommended fix:** `npm audit fix --force` then re-run `npm test` on both root and web_demo. Deferred: touches devDeps that could break tests, needs triage with maintainer.
+- **Finding 12.6 — `cargo build --features tpm` fails on main.** `crypto_core/src/tpm.rs:525,540` — `SensitiveData::as_bytes` and `KeyHandle→ObjectHandle` type errors against current `tss-esapi 7.5` API. **Recommended fix:** rename `as_bytes()` calls to `bytes()`; add `.into()` to convert `KeyHandle` to `ObjectHandle` at the unseal call site. Deferred: needs hardware to validate, feature is opt-in.
+
+## Low-severity items still deferred
+
 - **Finding 4.5 — `random.choice` in `meow_decoder/high_security.py:446-447`.** Unused function `generate_innocuous_filename`. If ever exposed, switch to `secrets.choice`.
-- **Finding 6.1 — Decrypt error message embeds `{e}`** at `meow_decoder/crypto.py:1485,1492`. Minor content-channel; Argon2id runs first so timing is closed. Sanitize to constant string while keeping the PQ-downgrade branch as a distinct message.
 - **Finding 6.2 — `TpmContext::connect_tcti` panics on invalid TCTI parse** at `crypto_core/src/tpm.rs:328`. Internal callers pass hardcoded values, but `pub fn` exposes panic to external Rust users. Replace with `.map_err(|e| TpmError::CommunicationFailed(e.to_string()))?`.
 - **Finding 6.6 — `Auth::from_bytes(&a.auth).unwrap()`** at `crypto_core/src/tpm.rs:417`. Auth blob is caller-controlled; panic on out-of-range length. Replace with `TpmError::InvalidAuth`.
 - **Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.** Build-time only. Bump dev env to pip≥25 / wheel≥0.46.
 - **Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).** Jest transitive. Bump alongside root npm update.
-- **Finding 3.1 — `save_receiver_keypair` leaks exported key bytes.** `meow_decoder/x25519_forward_secrecy.py:336-367`. `isinstance(bytes, (bytearray, memoryview))` is false, so the `finally`-block zero-loop never runs. Fix: `private_key_bytes = bytearray(hb.export_key(private_key))`.
 - **Finding 3.2 — `HybridKeyPair` / `PQBeaconKeyPair` no `__del__`.** `meow_decoder/pq_hybrid.py:131`, `meow_decoder/pq_ratchet_beacon.py:176`. Python memory zeroization is best-effort. Add explicit `__del__` or replace raw bytes with a zeroizing wrapper.
-- **Finding 3.4 — Ed25519 fallback path is not production-gated.** `meow_decoder/manifest_signing.py:196-208`. Raise `RuntimeError` if `_RUST_ED25519_AVAILABLE is False and MEOW_PRODUCTION_MODE=1`.
 - **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Prefer the handle-based `derive_key_argon2id_with_keyfile` path.
-- **Finding 9.1 — Fountain encoder lacks per-call `total_size` assertion.** `meow_decoder/fountain.py:141`. Belt-and-suspenders assertion.
-- **Finding 10.3 — GIF frame-count limit.** `meow_decoder/gif_handler.py` — add `MAX_GIF_FRAMES=100_000` guard for defence-in-depth against crafted GIFs.
 - **Finding 11.1 — Backend singleton init not explicitly locked.** `meow_decoder/crypto_backend.py:301,668`. Add `threading.Lock`.
-- **Finding 12.1 — Release profile does not strip debug symbols.** `crypto_core/Cargo.toml:268-273`. Add `strip = "symbols"` — doesn't leak secrets, but reveals function/type names to reverse engineers.
 - **Finding 12.2 — Pre-commit lacks secret-scanning.** `.pre-commit-config.yaml`. Add `detect-secrets` / `trufflehog` / `gitleaks` hook.
-- **Finding 14.1 — README:531 "Quantum computers" without `--pq` qualifier.** Add "(with `--pq` or `--paranoid` flag)" or promote MEOW5 to true default once ml-kem reaches stable 1.0.
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
-
-## Low-severity items deferred
-
-*(Populated as Phase 2–14 complete.)*
 
 ## Pre-existing test failures (not caused by audit)
 
-- **`tests/test_cat_js_runner.py::TestCat5SpeedsJS::test_cat_5speeds_pipeline`** — Baseline failure confirmed by `git stash` test on main before any audit changes. JS-side signal pipeline produces 118 bytes when 104 expected, first byte mismatch `0xca` vs `0x3`. Root cause is in `test_cat_5speeds.js` or upstream JS encoder/decoder. Not blocked by audit work. Recommended owner: whoever last touched `ac7d026` ("simplify preamble to 16-bit").
+- **`tests/test_cat_js_runner.py::TestCat5SpeedsJS::test_cat_5speeds_pipeline`** — Marked `xfail` in the audit-followup commit. Confirmed pre-existing by `git stash` test on bare main. Root cause: `web_demo/preamble-calibration.js` over-measures preamble duration when the sync word uses the same `1010...` pattern. NRZ decoder then locks onto sync *inside* the preamble, overshoots by 8 bits, and byte[0] comes out as `0xca` (second half of magic `0xfe 0xca`) instead of `0xfe`. Node probe in `/tmp/debug_cat.js` reproduces deterministically. **Recommended fix:** preamble-calibration should stop at the expected 16-bit boundary (using known `bitPeriod`) rather than measuring the extent of alternation.
+- **Gate 5 (Security Coverage) — 65.67% vs 85% threshold.** Pre-existing on main. `schrodinger_encode.py` (0%), `memory_guard.py` (23%), `master_ratchet.py` (45%), `pq_hybrid.py` (69%), `manifest_signing.py` (63%), `secure_temp.py` (77%) are all in `.coveragerc-security` include list but insufficiently exercised by `-m "security or crypto or adversarial"` selection. **Recommended fix:** either (a) add `security` marker to existing tests that already exercise these modules, or (b) trim include list to the genuinely covered-by-markers set and ratchet up from there. Not attempted in this audit — would need test-by-test triage.
 
 ## Tests to add
 
