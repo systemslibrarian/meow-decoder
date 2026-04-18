@@ -271,6 +271,9 @@ opt-level = "s"
 lto = true
 codegen-units = 1
 panic = "abort"
+# audit-followup 12.1: strip debug symbols from shipped binaries so function
+# names and line numbers aren't exposed to reverse engineers.
+strip = "symbols"
 
 [profile.dev]
 # Keep debug assertions for security checks

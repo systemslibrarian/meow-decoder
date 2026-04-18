@@ -332,11 +332,13 @@ def save_receiver_keypair(
     with open(public_key_file, "wb") as f:
         f.write(public_key)
 
-    # Export private key bytes from handle (brief exposure for serialization)
+    # Export private key bytes from handle (brief exposure for serialization).
+    # audit-followup 3.1: coerce to bytearray so the finally-block zero-loop
+    # can actually overwrite the in-memory buffer (bytes is immutable).
     if isinstance(private_key, int):
-        private_key_bytes = hb.export_key(private_key)
+        private_key_bytes = bytearray(hb.export_key(private_key))
     else:
-        private_key_bytes = private_key
+        private_key_bytes = bytearray(private_key)
 
     # Save private key (optionally encrypted with AES-256-GCM via handle backend)
     _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"  # 12 bytes
@@ -353,13 +355,15 @@ def save_receiver_keypair(
                 32,
             )
             nonce = secrets.token_bytes(12)
-            encrypted = hb.aes_gcm_encrypt(storage_key_handle, nonce, private_key_bytes, None)
+            encrypted = hb.aes_gcm_encrypt(
+                storage_key_handle, nonce, bytes(private_key_bytes), None
+            )
             hb.drop(storage_key_handle)
             with open(private_key_file, "wb") as f:
                 f.write(_MAGIC_ENCRYPTED + salt + nonce + encrypted)
         else:
             with open(private_key_file, "wb") as f:
-                f.write(_MAGIC_PLAIN + private_key_bytes)
+                f.write(_MAGIC_PLAIN + bytes(private_key_bytes))
     finally:
         # Zero the exported private key bytes
         if isinstance(private_key_bytes, (bytearray, memoryview)):

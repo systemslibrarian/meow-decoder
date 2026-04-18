@@ -418,11 +418,13 @@ impl TpmProvider {
             .unwrap_or(Auth::default());
 
         // Build PCR policy digest
+        // audit-phase-6-fix 6.3: propagate InvalidPcr instead of panicking (matches
+        // the pattern in read_pcrs above).
         let pcr_slots: Vec<PcrSlot> = pcr_selection
             .pcrs()
             .iter()
-            .map(|&p| PcrSlot::try_from(p).unwrap())
-            .collect();
+            .map(|&p| PcrSlot::try_from(p).map_err(|_| TpmError::InvalidPcr(p)))
+            .collect::<Result<Vec<_>, _>>()?;
 
         let pcr_list = PcrSelectionListBuilder::new()
             .with_selection(HashingAlgorithm::Sha256, &pcr_slots)
