@@ -201,23 +201,24 @@ function decodePipeline(frameSamples, blinkSpeedMs) {
     );
     suppressLogs = false;
 
-    // Compute NRZ parameters
+    // Compute NRZ parameters. Preamble and sync word use the same 1010...
+    // pattern so the detector returns the combined alternating region. Start
+    // the sync search at the end of the lead-in (not past the preamble) so
+    // NRZ can lock onto the sync pattern within the alternating region.
     const leadInBits = 8;
-    let preambleBits;
-    if (preambleResult.found && preambleResult.preamble) {
-        preambleBits = Math.round(preambleResult.preamble.duration / bitDuration);
-    } else {
-        preambleBits = 32; // default for long messages
-    }
-    const syncStartTime = (leadInBits + preambleBits) * bitDuration;
+    const syncStartTime = leadInBits * bitDuration;
 
     const threshold = preambleResult.threshold || 50;
 
-    // NRZ decode — uses frame.state via sampleBits()
+    // NRZ decode — uses frame.state via sampleBits().
+    // Use the caller-specified bitDuration rather than the detected bitRate:
+    // at high fps the detected rate is quantized to sample intervals and drifts
+    // by a fraction of a millisecond per bit, which accumulates to sampling
+    // errors late in long packets.
     suppressLogs = true;
     const nrzResult = NRZDecoder.decodeNRZ(
         frameSamples,
-        preambleResult.bitRate || bitDuration,
+        bitDuration,
         threshold,
         syncStartTime,
         100000,
