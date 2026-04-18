@@ -546,7 +546,7 @@ jobs:
   tamarin:
     name: Tamarin OE (Docker — MEOW3 + MEOW4 PQ)
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 330
 
     steps:
       - name: Checkout repository

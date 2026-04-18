@@ -241,11 +241,7 @@ impl SaltRequirements {
     pub fn birthday_security_margin(num_encryptions_log2: u32) -> u32 {
         // P(collision) ≈ n²/2^129 for n samples from 2^128 space
         // Security margin = 129 - 2*log2(n)
-        if num_encryptions_log2 * 2 > 129 {
-            0
-        } else {
-            129 - 2 * num_encryptions_log2
-        }
+        129_u32.saturating_sub(num_encryptions_log2 * 2)
     }
 
     /// Check if salt meets requirements
