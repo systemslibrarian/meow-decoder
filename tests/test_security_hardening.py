@@ -14,6 +14,8 @@ import pytest
 import secrets
 from pathlib import Path
 
+pytestmark = pytest.mark.security
+
 
 def test_insecure_mldsa_stubs_disabled():
     """Verify ML-DSA insecure stubs are disabled outside test mode."""

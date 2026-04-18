@@ -25,10 +25,27 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import os
 import secrets
 import struct
 from dataclasses import dataclass
 from typing import Optional, Tuple
+
+# audit-followup 3.4: when this flag is on, the pure-Python Ed25519 fallback
+# (which materializes the 32-byte private key in Python memory) is forbidden.
+_PRODUCTION_MODE = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+_TEST_MODE = os.environ.get("MEOW_TEST_MODE", "0") == "1"
+
+
+def _require_rust_ed25519(reason: str) -> None:
+    if _PRODUCTION_MODE and not _TEST_MODE and not _RUST_ED25519_AVAILABLE:
+        raise RuntimeError(
+            f"Ed25519 {reason} requires the Rust backend in production mode. "
+            "The pure-Python fallback materializes the private key in Python "
+            "memory where it cannot be reliably zeroized. Install meow_crypto_rs "
+            "or set MEOW_PRODUCTION_MODE=0 for tests."
+        )
+
 
 __all__ = [
     "SigningKeyPair",
@@ -193,6 +210,7 @@ def _ed25519_generate() -> Tuple[bytes, bytes]:
 
         return rs.ed25519_keygen()
 
+    _require_rust_ed25519("keygen")
     if _CRYPTO_AVAILABLE:
         sk = Ed25519PrivateKey.generate()
         pk = sk.public_key()
@@ -217,6 +235,7 @@ def _ed25519_sign(sk: bytes, message: bytes) -> bytes:
 
         return rs.ed25519_sign(sk, message)
 
+    _require_rust_ed25519("sign")
     if _CRYPTO_AVAILABLE:
         private_key = Ed25519PrivateKey.from_private_bytes(sk)
         return private_key.sign(message)

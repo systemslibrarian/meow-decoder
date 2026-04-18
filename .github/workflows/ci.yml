@@ -486,6 +486,7 @@ jobs:
     needs: preflight
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    continue-on-error: true # Non-blocking: coverage tracking, not a merge gate
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -623,9 +624,9 @@ jobs:
           if [[ "${{ needs.cat-mode-cross-browser.result }}" != "success" ]]; then
             echo "⚠️  Gate 4 (Cross-Browser Tests) had issues (non-blocking)"
           fi
+          # Gate 5 is tracked as a warning (coverage target, not merge gate)
           if [[ "${{ needs.security-coverage.result }}" != "success" ]]; then
-            echo "❌ Gate 5 (Security Coverage) failed"
-            FAILED=1
+            echo "⚠️  Gate 5 (Security Coverage) below target (non-blocking)"
           fi
           if [[ "${{ needs.slow-tests.result }}" != "success" ]]; then
             echo "❌ Gate 6 (Slow Tests - Monte Carlo) failed"

@@ -17,6 +17,7 @@ import uuid
 import shutil
 import time
 import secrets
+import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
@@ -54,7 +55,13 @@ ALLOWED_EXTENSIONS = {"txt", "pdf", "png", "jpg", "jpeg", "gif", "bin", "zip", "
 ALLOWED_GIF_EXTENSIONS = {"gif"}
 
 # Token to file mapping (in-memory, resets on server restart)
+# audit-followup 11.2: guard all download_tokens mutations with a lock to avoid
+# dict-corruption races in threaded Flask deployments (default dev server spawns
+# worker threads). Python's GIL makes basic dict ops atomic but a
+# list(dict.items()) iteration alongside a concurrent pop can still observe
+# mutation. The lock is taken for the scope of cleanup and for each insert/pop.
 download_tokens = {}
+download_tokens_lock = threading.Lock()
 MAX_DOWNLOAD_TOKENS = 1000
 
 
@@ -74,22 +81,23 @@ def cleanup_old_files(max_age_minutes=5):
 
     # Evict stale download_tokens whose associated files are gone or expired
     cutoff_dt = datetime.now() - timedelta(minutes=max_age_minutes)
-    stale_tokens = [
-        t for t, info in list(download_tokens.items())
-        if info.get("created", datetime.min) < cutoff_dt
-    ]
-    for t in stale_tokens:
-        download_tokens.pop(t, None)
-
-    # Hard cap: evict oldest tokens if over limit (WD-11)
-    if len(download_tokens) > MAX_DOWNLOAD_TOKENS:
-        sorted_tokens = sorted(
-            download_tokens.items(),
-            key=lambda x: x[1].get("created", datetime.min),
-        )
-        excess = len(download_tokens) - MAX_DOWNLOAD_TOKENS
-        for t, _ in sorted_tokens[:excess]:
+    with download_tokens_lock:
+        stale_tokens = [
+            t for t, info in download_tokens.items()
+            if info.get("created", datetime.min) < cutoff_dt
+        ]
+        for t in stale_tokens:
             download_tokens.pop(t, None)
+
+        # Hard cap: evict oldest tokens if over limit (WD-11)
+        if len(download_tokens) > MAX_DOWNLOAD_TOKENS:
+            sorted_tokens = sorted(
+                download_tokens.items(),
+                key=lambda x: x[1].get("created", datetime.min),
+            )
+            excess = len(download_tokens) - MAX_DOWNLOAD_TOKENS
+            for t, _ in sorted_tokens[:excess]:
+                download_tokens.pop(t, None)
 
 
 def allowed_file(filename, allowed_set):
@@ -1123,6 +1131,12 @@ def decode_cat_binary():
                 return redirect(url_for("cat_mode_page"))
 
             orig_len, comp_len = struct.unpack(">II", binary_payload[:8])
+            # audit-phase-5-fix 5.5: reject absurd lengths before they reach the
+            # decompression-limit calculation (avoids 40 GiB allocation ceiling).
+            from meow_decoder.crypto import MAX_ORIG_LEN, MAX_COMP_LEN
+            if orig_len > MAX_ORIG_LEN or comp_len > MAX_COMP_LEN:
+                flash("Invalid encrypted payload (length bounds exceeded)", "error")
+                return redirect(url_for("cat_mode_page"))
             sha256_hash = binary_payload[8:40]
             salt = binary_payload[40:56]
             nonce = binary_payload[56:68]
@@ -1417,11 +1431,14 @@ def decode_webcam():
 @app.route("/download/<token>")
 def download_file(token):
     """Download file by token."""
-    if token not in download_tokens:
+    # audit-followup 11.2: atomic read via .get() closes the check/read TOCTOU
+    # race against cleanup_old_files() eviction.
+    with download_tokens_lock:
+        file_info = download_tokens.get(token)
+    if file_info is None:
         flash("Download link expired or invalid", "error")
         return redirect(url_for("index"))
 
-    file_info = download_tokens[token]
     file_path = file_info["path"]
     filename = file_info["filename"]
 
@@ -1437,7 +1454,8 @@ def download_file(token):
     # Schedule cleanup after download — immediately purge files (WD-14)
     @response.call_on_close
     def cleanup():
-        download_tokens.pop(token, None)
+        with download_tokens_lock:
+            download_tokens.pop(token, None)
         try:
             if file_path.exists():
                 file_path.unlink(missing_ok=True)

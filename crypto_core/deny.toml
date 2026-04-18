@@ -1,0 +1,45 @@
+# cargo-deny configuration for crypto_core
+# See https://embarkstudios.github.io/cargo-deny/
+#
+# Scope: security advisories + license guardrails for the crypto_core crate.
+# Source-of-truth for review rationale is osv-scanner.toml at the repo root;
+# we mirror the accepted items here so `cargo deny check` stays green in CI.
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = [
+    # rsa crate Marvin Attack — transitive via optional `yubikey` feature.
+    # Production code path refuses RSA in YubiKey::decrypt() (RUSTSEC-2023-0071
+    # guard added in yubikey_piv.rs). Reviewed: osv-scanner.toml.
+    "RUSTSEC-2023-0071",
+]
+
+[licenses]
+version = 2
+confidence-threshold = 0.8
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Unicode-3.0",
+    "Unicode-DFS-2016",
+    "Zlib",
+    "CC0-1.0",
+    "MPL-2.0",
+    "CC-BY-NC-SA-4.0",
+    "BSL-1.0",
+    "0BSD",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "warn"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
