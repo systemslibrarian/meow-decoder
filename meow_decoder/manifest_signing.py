@@ -46,6 +46,7 @@ def _require_rust_ed25519(reason: str) -> None:
             "or set MEOW_PRODUCTION_MODE=0 for tests."
         )
 
+
 __all__ = [
     "SigningKeyPair",
     "ManifestSignature",

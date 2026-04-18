@@ -144,9 +144,7 @@ class FountainEncoder:
             raise ValueError(f"fountain: invalid k_blocks={k_blocks} block_size={block_size}")
         total_size = k_blocks * block_size
         if total_size > 10 * 1024 * 1024 * 1024:
-            raise ValueError(
-                f"fountain: total_size {total_size} exceeds 10 GiB sanity ceiling"
-            )
+            raise ValueError(f"fountain: total_size {total_size} exceeds 10 GiB sanity ceiling")
         self.data = data + b"\x00" * (total_size - len(data))
 
         # Split into blocks

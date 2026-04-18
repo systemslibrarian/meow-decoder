@@ -157,9 +157,7 @@ class GIFDecoder:
             try:
                 while True:
                     if len(frames) >= self.MAX_GIF_FRAMES:
-                        raise ValueError(
-                            f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})"
-                        )
+                        raise ValueError(f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})")
                     # Copy current frame
                     frame = img.copy().convert("RGB")
                     frames.append(frame)
@@ -188,9 +186,7 @@ class GIFDecoder:
             try:
                 while True:
                     if len(frames) >= self.MAX_GIF_FRAMES:
-                        raise ValueError(
-                            f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})"
-                        )
+                        raise ValueError(f"GIF exceeds MAX_GIF_FRAMES ({self.MAX_GIF_FRAMES})")
                     frame = img.copy().convert("RGB")
                     frames.append(frame)
                     img.seek(img.tell() + 1)

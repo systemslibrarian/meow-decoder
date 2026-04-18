@@ -355,7 +355,9 @@ def save_receiver_keypair(
                 32,
             )
             nonce = secrets.token_bytes(12)
-            encrypted = hb.aes_gcm_encrypt(storage_key_handle, nonce, bytes(private_key_bytes), None)
+            encrypted = hb.aes_gcm_encrypt(
+                storage_key_handle, nonce, bytes(private_key_bytes), None
+            )
             hb.drop(storage_key_handle)
             with open(private_key_file, "wb") as f:
                 f.write(_MAGIC_ENCRYPTED + salt + nonce + encrypted)
