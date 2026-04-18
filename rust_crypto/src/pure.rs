@@ -275,8 +275,8 @@ pub fn aes_gcm_decrypt(
 
 /// Compute HMAC-SHA256.
 pub fn hmac_sha256(key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    let mut mac =
-        <HmacSha256 as HmacKeyInit>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(key)
+        .map_err(|_| CryptoError::InvalidHmacKey)?;
     mac.update(message);
     let result = mac.finalize();
     Ok(result.into_bytes().to_vec())
@@ -288,8 +288,8 @@ pub fn hmac_sha256_verify(
     message: &[u8],
     expected_tag: &[u8],
 ) -> Result<bool, CryptoError> {
-    let mut mac =
-        <HmacSha256 as HmacKeyInit>::new_from_slice(key).map_err(|_| CryptoError::InvalidHmacKey)?;
+    let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(key)
+        .map_err(|_| CryptoError::InvalidHmacKey)?;
     mac.update(message);
     let result = mac.finalize();
 
