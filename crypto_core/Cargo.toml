@@ -157,6 +157,9 @@ flate2 = { version = "1.0", optional = true }
 # WASM-compatible getrandom
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 getrandom = { version = "0.4", features = ["wasm_js"] }
+# Transitive crates in the WASM build still pull getrandom 0.2 via rand_core.
+# Enable its JS backend too so wasm32-unknown-unknown builds succeed on Pages.
+getrandom_02 = { package = "getrandom", version = "0.2.17", features = ["js"] }
 
 # Windows-specific dependencies for SecureBox (VirtualAlloc, VirtualLock)
 [target.'cfg(windows)'.dependencies]
