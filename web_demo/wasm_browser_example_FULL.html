@@ -260,29 +260,43 @@
         .tab-content { border: 1px solid #333; border-radius: 0 8px 8px 8px; padding: 20px; }
 
         .mode-tabs {
-            display: flex;
-            justify-content: center;
+            display: grid;
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 0;
             margin: 20px 0 0 0;
+            width: 100%;
         }
         .mode-tab {
-            padding: 12px 24px;
+            min-height: 68px;
+            padding: 12px 14px;
+            margin: 0;
             background: rgba(255,255,255,0.05);
             border: 1px solid #444;
-            border-bottom: none;
-            border-radius: 8px 8px 0 0;
+            border-radius: 0;
             cursor: pointer;
             color: #888;
             transition: all 0.2s;
             font-weight: 500;
             font-size: 0.95em;
-            margin-right: -1px;
+            margin-right: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            white-space: normal;
+            line-height: 1.2;
+            font-family: inherit;
         }
         .mode-tab:hover { background: rgba(255,255,255,0.1); color: #00ccff; }
+        .mode-tab:focus-visible {
+            outline: 3px solid #00ff88;
+            outline-offset: -3px;
+            position: relative;
+            z-index: 2;
+        }
         .mode-tab.active {
             background: rgba(0,204,255,0.15);
             border-color: #00ccff;
-            border-bottom: 1px solid transparent;
             color: #00ccff;
             position: relative;
             z-index: 1;
@@ -290,6 +304,16 @@
 
         .mode-content { display: none !important; visibility: hidden; }
         .mode-content.active { display: block !important; visibility: visible; }
+        .technical-note {
+            color: #d7f7ff;
+            font-size: 0.9em;
+            margin: 10px 0 15px 0;
+            padding: 10px;
+            background: rgba(0, 60, 90, 0.35);
+            border-radius: 6px;
+            border-left: 3px solid #00ccff;
+            line-height: 1.55;
+        }
 
         .schrodinger-box {
             background: linear-gradient(135deg, rgba(138,43,226,0.1) 0%, rgba(0,204,255,0.1) 100%);
@@ -441,22 +465,16 @@
 
             /* Mode tabs: wrap into a grid on mobile */
             .mode-tabs {
-                flex-wrap: wrap;
+                grid-template-columns: repeat(3, minmax(0, 1fr));
                 gap: 4px;
-                justify-content: center;
             }
             .mode-tab {
-                padding: 8px 12px;
-                font-size: 0.8em;
+                min-height: 60px;
+                padding: 10px 8px;
+                font-size: 0.82em;
                 border-radius: 6px;
-                border-bottom: 1px solid #444;
-                margin-right: 0;
-                flex: 0 1 auto;
-                text-align: center;
-                white-space: nowrap;
-            }
-            .mode-tab.active {
-                border-bottom: 1px solid #00ccff;
+                border: 1px solid #444;
+                line-height: 1.15;
             }
 
             /* Steps */
@@ -511,11 +529,14 @@
 
         @media (max-width: 480px) {
             .mode-tabs {
-                gap: 3px;
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                gap: 2px;
             }
             .mode-tab {
-                padding: 6px 8px;
-                font-size: 0.72em;
+                min-height: 52px;
+                padding: 7px 5px;
+                font-size: 0.74em;
+                line-height: 1.1;
             }
             h1 { font-size: 1.2em; }
             .cat-header { font-size: 1.4em; }
@@ -556,16 +577,16 @@
     </div>
 
     <!-- MODE SELECTION -->
-    <div class="mode-tabs">
-        <div class="mode-tab active" onclick="switchMode('standard')">🔐 Standard</div>
-        <div class="mode-tab" onclick="switchMode('schrodinger')">🐱 Schrödinger</div>
-        <div class="mode-tab" onclick="switchMode('stego')">🖼️ Stego</div>
-        <div class="mode-tab" onclick="switchMode('cat')">😺 Cat</div>
-        <div class="mode-tab" onclick="switchMode('catAnimated')">🧶 Cat Animated</div>
-        <div class="mode-tab" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</div>
-        <div class="mode-tab" onclick="switchMode('postQuantum')">🔮 Post-Quantum</div>
-        <div class="mode-tab" onclick="switchMode('webcam')">📹 Webcam</div>
-        <div class="mode-tab" onclick="switchMode('duress')">🚨 Duress</div>
+    <div class="mode-tabs" role="tablist" aria-label="Demo modes">
+        <button id="tab-standard" class="mode-tab active" type="button" role="tab" aria-selected="true" aria-controls="standardMode" data-mode="standard" onclick="switchMode('standard')">🔐 Standard</button>
+        <button id="tab-schrodinger" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="schrodingerMode" data-mode="schrodinger" onclick="switchMode('schrodinger')">🐱 Schrödinger</button>
+        <button id="tab-stego" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="stegoMode" data-mode="stego" onclick="switchMode('stego')">🖼️ Stego</button>
+        <button id="tab-cat" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="catMode" data-mode="cat" onclick="switchMode('cat')">😺 Cat</button>
+        <button id="tab-catAnimated" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="catAnimatedMode" data-mode="catAnimated" onclick="switchMode('catAnimated')">🧶 Cat Animated</button>
+        <button id="tab-forwardSecrecy" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="forwardSecrecyMode" data-mode="forwardSecrecy" onclick="switchMode('forwardSecrecy')">🔑 Forward Secrecy</button>
+        <button id="tab-postQuantum" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="postQuantumMode" data-mode="postQuantum" onclick="switchMode('postQuantum')">🔮 Post-Quantum</button>
+        <button id="tab-webcam" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="webcamMode" data-mode="webcam" onclick="switchMode('webcam')">📹 Webcam</button>
+        <button id="tab-duress" class="mode-tab" type="button" role="tab" aria-selected="false" aria-controls="duressMode" data-mode="duress" onclick="switchMode('duress')">🚨 Duress</button>
     </div>
 
     <!-- GLOBAL SECURITY LEVEL (applies to all modes) -->
@@ -586,6 +607,7 @@
             <span class="step-number" style="background: #8a2be2;">1</span>
             <h2>🎬 Animated QR Reveal</h2>
             <p class="step-desc">Watch the cat video while your secret is encrypted. The QR code slowly fades in behind the video, and when the video ends the encrypted QR code is fully revealed.</p>
+            <p class="technical-note" style="border-left-color: #8a2be2;"><strong>Technical:</strong> Animated QR Reveal uses the same password-based cryptography as Standard mode: <strong>Argon2id</strong> derives the symmetric key, <strong>AES-256-GCM</strong> encrypts the message or file, and the resulting <strong>MEOW:</strong> payload is rendered as a QR. The animation only changes presentation; it does not change the ciphertext format.</p>
 
             <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
                 <div style="flex: 1; min-width: 280px;">
@@ -653,11 +675,12 @@
     </div>
 
     <!-- FORWARD SECRECY MODE -->
-    <div id="forwardSecrecyMode" class="mode-content">
+    <div id="forwardSecrecyMode" class="mode-content" role="tabpanel" aria-labelledby="tab-forwardSecrecy" aria-hidden="true">
         <div class="step" style="background: linear-gradient(135deg, rgba(0,200,100,0.1) 0%, rgba(0,150,200,0.1) 100%); border: 1px solid #00c864;">
             <span class="step-number" style="background: #00c864;">1</span>
             <h2>🔑 Generate Your Key Pair</h2>
             <p class="step-desc">Forward secrecy uses X25519 ephemeral keys. Each message uses a unique key that's destroyed after use — even if your long-term key is compromised, past messages remain safe.</p>
+            <p class="technical-note" style="border-left-color: #00c864;"><strong>Technical:</strong> This mode uses a recipient <strong>X25519</strong> key pair and creates a fresh <strong>ephemeral X25519 sender key</strong> for each message. The shared secret is derived inside WASM and packaged in an <strong>FS:</strong> envelope; an optional password can add an extra symmetric gate, but the core confidentiality comes from the one-time ECDH exchange.</p>
 
             <div style="background: rgba(0,200,100,0.1); padding: 15px; border-radius: 8px; margin: 15px 0;">
                 <p style="margin: 0 0 10px 0;"><strong>Your Public Key:</strong></p>
@@ -737,11 +760,12 @@
     </div>
 
     <!-- POST-QUANTUM MODE -->
-    <div id="postQuantumMode" class="mode-content">
+    <div id="postQuantumMode" class="mode-content" role="tabpanel" aria-labelledby="tab-postQuantum" aria-hidden="true">
         <div class="step" style="background: linear-gradient(135deg, rgba(138,43,226,0.15) 0%, rgba(0,200,255,0.15) 100%); border: 2px solid #8a2be2;">
             <span class="step-number" style="background: linear-gradient(135deg, #8a2be2 0%, #00c8ff 100%);">1</span>
             <h2>🔮 Generate Post-Quantum Key Pair</h2>
             <p class="step-desc"><strong>Hybrid X25519 + ML-KEM-1024 encryption.</strong> Secure against both classical computers AND future quantum computers. This is NIST's newly standardized post-quantum algorithm!</p>
+            <p class="technical-note" style="border-left-color: #8a2be2;"><strong>Technical:</strong> Post-Quantum mode is a <strong>hybrid KEM</strong>: it combines <strong>X25519</strong> with <strong>ML-KEM-1024</strong> so the receiver must possess both private keys to recover the shared secret. The derived secret protects the message in a <strong>HYBRID-PQ:</strong> payload, and an optional password can add a second symmetric check on top of the hybrid key exchange.</p>
 
             <div style="background: rgba(138,43,226,0.1); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #8a2be2;">
                 <p style="margin: 0; font-size: 0.9em;"><strong>🛡️ Why Post-Quantum?</strong></p>
@@ -836,11 +860,12 @@
     </div>
 
     <!-- WEBCAM MODE -->
-    <div id="webcamMode" class="mode-content">
+    <div id="webcamMode" class="mode-content" role="tabpanel" aria-labelledby="tab-webcam" aria-hidden="true">
         <div class="step" style="background: linear-gradient(135deg, rgba(255,100,100,0.1) 0%, rgba(255,150,50,0.1) 100%); border: 1px solid #ff6464;">
             <span class="step-number" style="background: #ff6464;">📹</span>
             <h2>📹 Live Webcam QR Scanner</h2>
             <p class="step-desc">Use your camera to scan a QR code generated by one of the encryption modes in this app, then decrypt it here.</p>
+            <p class="technical-note" style="border-left-color: #ff6464;"><strong>Technical:</strong> Webcam mode does <strong>no encryption</strong> of its own. It scans QR payloads, identifies their prefix such as <strong>MEOW:</strong>, <strong>FS:</strong>, <strong>HYBRID-PQ:</strong>, <strong>DURESS:</strong>, or <strong>QUANTUM:</strong>, and dispatches to the matching decryptor. The security properties come entirely from the originating mode.</p>
 
             <div style="background: rgba(255,100,100,0.12); padding: 14px 16px; border-radius: 8px; margin: 12px 0 18px 0; border-left: 4px solid #ff6464;">
                 <p style="margin: 0 0 8px 0; color: #ff9a9a; font-weight: bold;">Which tabs generate scannable QR codes?</p>
@@ -887,12 +912,13 @@
     </div>
 
     <!-- DURESS MODE -->
-    <div id="duressMode" class="mode-content">
+    <div id="duressMode" class="mode-content" role="tabpanel" aria-labelledby="tab-duress" aria-hidden="true">
         <!-- STEP 1: ENCRYPT WITH DURESS -->
         <div class="step" style="background: linear-gradient(135deg, rgba(255,50,50,0.15) 0%, rgba(150,50,50,0.15) 100%); border: 2px solid #ff3232;">
             <span class="step-number" style="background: #ff3232;">1</span>
             <h2>🚨 Encrypt with Panic Password</h2>
             <p class="step-desc">Encrypt a secret message with <strong>two passwords</strong>: a real password for decryption, and a panic password that shows fake decoy content and wipes stored keys.</p>
+            <p class="technical-note" style="border-left-color: #ff3232;"><strong>Technical:</strong> Duress mode keeps the real secret under the normal password-based encryption path, then adds a <strong>duress tag</strong> derived from the panic password plus decoy metadata. Real password input follows the ordinary decrypt path; panic password input authenticates the decoy path and triggers key wiping; wrong passwords should remain indistinguishable from normal failure.</p>
 
             <div style="background: rgba(255,50,50,0.2); padding: 15px; border-radius: 8px; margin: 15px 0; border-left: 4px solid #ff3232;">
                 <p style="margin: 0; color: #ff6464;"><strong>⚠️ How Duress Mode Works:</strong></p>
@@ -1002,7 +1028,7 @@
     </div>
 
         <!-- CAT ANIMATED MODE -->
-        <div id="catAnimatedMode" class="mode-content">
+        <div id="catAnimatedMode" class="mode-content" role="tabpanel" aria-labelledby="tab-catAnimated" aria-hidden="true">
             <div class="step" style="background: linear-gradient(135deg, rgba(255,150,200,0.07) 0%, rgba(200,100,255,0.07) 100%); border: 1px solid #ff96c8;">
                 <span class="step-number" style="background: #ff96c8;">1</span>
                 <h2>🧶 Cat Animated Mode: Watch the QR Code Being Crocheted!</h2>
@@ -1082,7 +1108,7 @@
         </div>
 
         <!-- CAT MODE -->
-        <div id="catMode" class="mode-content">
+        <div id="catMode" class="mode-content" role="tabpanel" aria-labelledby="tab-cat" aria-hidden="true">
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">1</span>
                 <h2>😺 Cat Mode: Optical Data Transmission</h2>
@@ -1275,7 +1301,7 @@
         </div>
 
     <!-- STANDARD MODE -->
-    <div id="standardMode" class="mode-content active">
+    <div id="standardMode" class="mode-content active" role="tabpanel" aria-labelledby="tab-standard" aria-hidden="false">
 
     <!-- STEP 1: ENCODE (Standard) -->
     <div class="step">
@@ -1386,7 +1412,7 @@
     </div><!-- End Standard Mode -->
 
     <!-- SCHRÖDINGER MODE -->
-    <div id="schrodingerMode" class="mode-content">
+    <div id="schrodingerMode" class="mode-content" role="tabpanel" aria-labelledby="tab-schrodinger" aria-hidden="true">
 
     <div class="step schrodinger-box">
         <span class="step-number" style="background: #8a2be2;">1</span>
@@ -1480,7 +1506,7 @@
     </div><!-- End Schrödinger Mode -->
 
     <!-- STEGO MODE -->
-    <div id="stegoMode" class="mode-content">
+    <div id="stegoMode" class="mode-content" role="tabpanel" aria-labelledby="tab-stego" aria-hidden="true">
         <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
             <span class="step-number" style="background: #00ccff;">1</span>
             <h2>🖼️ LSB Steganography</h2>
@@ -7938,11 +7964,18 @@
         // Switch between modes
         window.switchMode = function(mode) {
             // Update tabs
-            document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
-            document.querySelector(`.mode-tab[onclick*="${mode}"]`).classList.add('active');
+            document.querySelectorAll('.mode-tab').forEach(tab => {
+                const isActive = tab.dataset.mode === mode;
+                tab.classList.toggle('active', isActive);
+                tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+                tab.tabIndex = isActive ? 0 : -1;
+            });
             // Update content
-            document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
-            document.getElementById(mode + 'Mode').classList.add('active');
+            document.querySelectorAll('.mode-content').forEach(content => {
+                const isActive = content.id === mode + 'Mode';
+                content.classList.toggle('active', isActive);
+                content.setAttribute('aria-hidden', isActive ? 'false' : 'true');
+            });
             const modeNames = {
                 standard: 'Standard',
                 forwardSecrecy: 'Forward Secrecy',
@@ -7976,6 +8009,34 @@
                 }
             }
         };
+
+        function initializeModeTabs() {
+            const tabs = Array.from(document.querySelectorAll('.mode-tab'));
+            tabs.forEach((tab, index) => {
+                tab.tabIndex = tab.classList.contains('active') ? 0 : -1;
+                tab.addEventListener('keydown', (event) => {
+                    let nextIndex = null;
+                    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+                        nextIndex = (index + 1) % tabs.length;
+                    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+                        nextIndex = (index - 1 + tabs.length) % tabs.length;
+                    } else if (event.key === 'Home') {
+                        nextIndex = 0;
+                    } else if (event.key === 'End') {
+                        nextIndex = tabs.length - 1;
+                    }
+
+                    if (nextIndex !== null) {
+                        event.preventDefault();
+                        const nextTab = tabs[nextIndex];
+                        nextTab.focus();
+                        switchMode(nextTab.dataset.mode);
+                    }
+                });
+            });
+
+            switchMode('standard');
+        }
 
         // ============================================================
         // FORWARD SECRECY MODE FUNCTIONS
@@ -9940,6 +10001,7 @@
 
         // Initialize
         document.getElementById('log').textContent = '';
+        initializeModeTabs();
         registerServiceWorker();
         initWasm();
 
