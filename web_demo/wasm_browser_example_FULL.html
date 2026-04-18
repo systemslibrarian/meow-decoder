@@ -356,6 +356,34 @@
             animation: catShake 0.5s ease-in-out 2, catPulseRed 1s ease-in-out;
             border: 3px solid #ff4444;
         }
+        #catCanvas {
+            display: block;
+            width: min(100%, 400px);
+            max-width: 100%;
+            height: auto;
+            margin: 0 auto;
+        }
+        .cat-canvas-stage {
+            flex: 1 1 320px;
+            width: min(100%, 400px);
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .cat-canvas-stage:fullscreen,
+        .cat-canvas-stage:-webkit-full-screen {
+            width: 100vw;
+            max-width: none;
+            height: 100vh;
+            background: #050816;
+            padding: 16px;
+        }
+        .cat-canvas-stage:fullscreen #catCanvas,
+        .cat-canvas-stage:-webkit-full-screen #catCanvas {
+            width: min(92vw, 92vh);
+            max-width: min(92vw, 92vh);
+        }
         .cat-reaction {
             font-size: 1.5em;
             margin-top: 15px;
@@ -1120,7 +1148,9 @@
                     💡 <b>Note:</b> The green flashing in the eye regions during transmission is intentional — that's the binary data being transmitted! Left eye = even bits, right eye = odd bits. 2 bits per blink interval.
                 </p>
                 <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
-                    <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                    <div id="catCanvasStage" class="cat-canvas-stage">
+                        <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                    </div>
                     <div style="flex:1; min-width:260px;">
                         <label for="catMessage">🔒 Secret Message:</label>
                         <textarea id="catMessage" rows="2" placeholder="Type message to transmit..." style="margin-bottom: 10px;">Hello Cat! 🐱</textarea>
@@ -1148,7 +1178,10 @@
                         </div>
 
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
+                        <button id="catFullscreenBtn" onclick="toggleCatFullscreen()" class="secondary" type="button">⛶ Fullscreen Cat</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
+
+                        <p style="color:#888; font-size:0.82em; margin: 4px 0 0 0;">On phones, use fullscreen before transmitting so the cat stays as large as possible for optical capture.</p>
 
                         <div id="catProgress" style="margin-top: 15px; display: none;">
                             <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
@@ -4116,6 +4149,40 @@
             hysteresis: {},
             greenStats: null,
             error: null
+        };
+
+        function updateCatFullscreenButton() {
+            const btn = document.getElementById('catFullscreenBtn');
+            if (!btn) return;
+            const stage = document.getElementById('catCanvasStage');
+            const isFullscreen = document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+            btn.textContent = isFullscreen ? '🡼 Exit Fullscreen' : '⛶ Fullscreen Cat';
+        }
+
+        window.toggleCatFullscreen = async function() {
+            const stage = document.getElementById('catCanvasStage');
+            if (!stage) return;
+
+            try {
+                const isFullscreen = document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+                if (isFullscreen) {
+                    if (document.exitFullscreen) {
+                        await document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    }
+                } else if (stage.requestFullscreen) {
+                    await stage.requestFullscreen();
+                } else if (stage.webkitRequestFullscreen) {
+                    stage.webkitRequestFullscreen();
+                } else {
+                    alert('Fullscreen mode is not supported in this browser.');
+                }
+            } catch (err) {
+                log('⚠️ [Cat Mode] Fullscreen request failed: ' + err.message);
+            } finally {
+                updateCatFullscreenButton();
+            }
         };
 
         // Pre-load cat image and draw on canvas
@@ -8038,6 +8105,9 @@
             switchMode('standard');
         }
 
+        document.addEventListener('fullscreenchange', updateCatFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateCatFullscreenButton);
+
         // ============================================================
         // FORWARD SECRECY MODE FUNCTIONS
         // ============================================================
@@ -10002,6 +10072,7 @@
         // Initialize
         document.getElementById('log').textContent = '';
         initializeModeTabs();
+        updateCatFullscreenButton();
         registerServiceWorker();
         initWasm();
 
