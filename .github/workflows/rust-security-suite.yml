@@ -73,7 +73,7 @@ jobs:
           components: rustfmt, clippy
 
       - name: Cache Cargo
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             ~/.cargo/registry
@@ -159,7 +159,7 @@ jobs:
         run: cargo install cargo-fuzz --locked
 
       - name: Cache Cargo
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             ~/.cargo/registry
@@ -168,7 +168,7 @@ jobs:
           key: ${{ runner.os }}-cargo-fuzz-${{ matrix.target }}-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Restore fuzz corpus
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: rust_crypto/fuzz/corpus/${{ matrix.target }}
           key: corpus-${{ matrix.target }}-${{ github.ref }}
@@ -238,7 +238,7 @@ jobs:
 
       - name: Save updated fuzz corpus
         if: always()
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: rust_crypto/fuzz/corpus/${{ matrix.target }}
           key: corpus-${{ matrix.target }}-${{ github.ref }}-${{ github.run_id }}
@@ -275,7 +275,7 @@ jobs:
         run: cargo install cargo-fuzz --locked
 
       - name: Cache Cargo
-        uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4.2.2
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
         with:
           path: |
             ~/.cargo/registry
