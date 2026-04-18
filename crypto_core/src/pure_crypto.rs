@@ -721,16 +721,17 @@ pub mod pq {
         /// The seed is the 32-byte secret that reconstructs the signing key.
         pub fn mldsa65_keygen() -> Result<(Vec<u8>, Vec<u8>), CryptoError> {
             use ml_dsa::signature::Keypair;
+            use ml_dsa::KeyGen;
 
             // Generate a random 32-byte seed using the system RNG
             let mut seed_bytes = [0u8; 32];
-            getrandom::getrandom(&mut seed_bytes)
+            getrandom::fill(&mut seed_bytes)
                 .map_err(|_| CryptoError::KeyDerivationFailed("System RNG failed".into()))?;
             let seed = ml_dsa::Seed::try_from(&seed_bytes[..])
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid seed".into()))?;
 
             // Derive signing key from seed (deterministic)
-            let sk = SigningKey::<MlDsa65>::from_seed(&seed);
+            let sk = MlDsa65::from_seed(&seed);
             let vk = sk.verifying_key();
             let vk_encoded = vk.encode();
             Ok((seed_bytes.to_vec(), vk_encoded.to_vec()))
@@ -741,6 +742,7 @@ pub mod pq {
         /// Returns the encoded signature bytes.
         pub fn mldsa65_sign(secret_key: &[u8], message: &[u8]) -> Result<Vec<u8>, CryptoError> {
             use ml_dsa::signature::Signer;
+            use ml_dsa::KeyGen;
             use ml_dsa::Seed;
 
             if secret_key.len() != 32 {
@@ -752,7 +754,7 @@ pub mod pq {
 
             let seed = Seed::try_from(secret_key)
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid seed".into()))?;
-            let sk = SigningKey::<MlDsa65>::from_seed(&seed);
+            let sk = MlDsa65::from_seed(&seed);
             let sig = sk.sign(message);
             Ok(sig.encode().to_vec())
         }
