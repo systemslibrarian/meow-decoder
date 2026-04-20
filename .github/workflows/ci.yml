@@ -93,8 +93,8 @@ jobs:
 
   # ═══════════════════════════════════════════════════════════════════════════
   # GATE 1a/1b/1c: Tests split into three parallel batches to avoid timeouts.
-  # Batch 1 keeps the coverage threshold; batches 2 and 3 split the second
-  # half of the suite for better isolation and shorter wall-clock runtime.
+  # These shards validate correctness only. Coverage tracking lives in Gate 5,
+  # which scopes measurement to the curated security-critical module set.
   # ═══════════════════════════════════════════════════════════════════════════
   test-batch-1:
     name: "Gate 1a: Tests Batch 1 (a-m)"
@@ -152,7 +152,6 @@ jobs:
             --cov=meow_decoder \
             --cov-config=.coveragerc \
             --cov-report=term-missing \
-            --cov-fail-under=80 \
             -q --no-header \
             tests/test_adversarial.py \
             tests/test_asymmetric_rekey.py \

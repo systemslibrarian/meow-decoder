@@ -121,7 +121,7 @@ struct X25519Private {
 
 impl X25519Private {
     fn generate() -> (Self, [u8; 32]) {
-        use rand::rngs::OsRng;
+        use rand_core::OsRng;
         let secret = StaticSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&secret);
         let mut bytes = [0u8; 32];

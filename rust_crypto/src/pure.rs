@@ -318,7 +318,7 @@ pub fn sha256(data: &[u8]) -> Vec<u8> {
 /// Generate X25519 keypair.
 /// Returns (private_key, public_key), both 32 bytes.
 pub fn x25519_generate_keypair() -> ([u8; 32], [u8; 32]) {
-    use rand::rngs::OsRng;
+    use rand_core::OsRng;
 
     let secret = StaticSecret::random_from_rng(OsRng);
     let public = PublicKey::from(&secret);

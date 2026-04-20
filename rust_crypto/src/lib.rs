@@ -400,7 +400,7 @@ fn sha256<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
 fn x25519_generate_keypair<'py>(
     py: Python<'py>,
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-    use rand::rngs::OsRng;
+    use rand_core::OsRng;
 
     let secret = StaticSecret::random_from_rng(OsRng);
     let public = PublicKey::from(&secret);
