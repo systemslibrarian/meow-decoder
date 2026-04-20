@@ -38,10 +38,23 @@ permissions:
   security-events: write
 
 jobs:
-  long-fuzz-tamper:
-    name: Long-Run Tamper Detection Fuzz
+  long-fuzz:
+    name: Long-Run Fuzz - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
-    timeout-minutes: 90 # 1 h target + 30 min overhead
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     env:
       MEOW_TEST_MODE: "1"
@@ -100,46 +113,38 @@ jobs:
             echo "DURATION=${{ github.event.inputs.duration || '300' }}" >> "$GITHUB_ENV"
           fi
 
-      # ── PRIMARY: Tamper detection (Gap-10 target) ─────────────────────
-      - name: Long-fuzz tamper detection (adversarial poisoning)
+      - name: Run long-fuzz shard targets
         run: |
-          echo "Running tamper detection fuzz for ${DURATION}s …"
-          echo "This long-duration run surfaces slow-triggering adversarial"
-          echo "poisoning, HMAC-bypass accumulation, and state-machine exhaustion."
-          timeout "${DURATION}s" python fuzz/fuzz_tamper_detection.py \
-            fuzz/corpus/manifest || RC=$?
-          RC=${RC:-0}
-          [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-          echo "Tamper detection fuzz completed (RC=$RC)"
+          run_target() {
+            local label="$1"
+            shift
+            echo "=== $label ==="
+            timeout "${DURATION}s" "$@" || RC=$?
+            RC=${RC:-0}
+            [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+            unset RC
+          }
 
-      # ── Crypto backend (Rust FFI memory safety) ───────────────────────
-      - name: Long-fuzz crypto backend (Rust FFI)
-        run: |
-          timeout "${DURATION}s" python fuzz/fuzz_crypto_backend.py \
-            fuzz/corpus/manifest || RC=$?
-          RC=${RC:-0}
-          [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Schrödinger (dual-secret entropy exhaustion) ──────────────────
-      - name: Long-fuzz Schrödinger encode/decode
-        run: |
-          timeout "${DURATION}s" python fuzz/fuzz_schrodinger.py || RC=$?
-          RC=${RC:-0}
-          [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Ratchet (skip-key-cache overflow at ≥ 2000 steps) ─────────────
-      - name: Long-fuzz ratchet (skip-key-cache depth)
-        run: |
-          timeout "${DURATION}s" python fuzz/fuzz_ratchet.py || RC=$?
-          RC=${RC:-0}
-          [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Adversarial stego (rotation schedule exhaustion) ──────────────
-      - name: Long-fuzz adversarial stego rotation
-        run: |
-          timeout "${DURATION}s" python fuzz/fuzz_adversarial_stego.py || RC=$?
-          RC=${RC:-0}
-          [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+          case "${{ matrix.shard_id }}" in
+            1)
+              echo "Running shard 1/3 long-fuzz targets for ${DURATION}s each"
+              run_target "Long-fuzz tamper detection (adversarial poisoning)" python fuzz/fuzz_tamper_detection.py fuzz/corpus/manifest
+              run_target "Long-fuzz crypto backend (Rust FFI)" python fuzz/fuzz_crypto_backend.py fuzz/corpus/manifest
+              ;;
+            2)
+              echo "Running shard 2/3 long-fuzz targets for ${DURATION}s each"
+              run_target "Long-fuzz Schrödinger encode/decode" python fuzz/fuzz_schrodinger.py
+              run_target "Long-fuzz ratchet (skip-key-cache depth)" python fuzz/fuzz_ratchet.py
+              ;;
+            3)
+              echo "Running shard 3/3 long-fuzz targets for ${DURATION}s each"
+              run_target "Long-fuzz adversarial stego rotation" python fuzz/fuzz_adversarial_stego.py
+              ;;
+            *)
+              echo "Unknown shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
 
       # ── Crash gate ────────────────────────────────────────────────────
       - name: Check for crashes
@@ -157,7 +162,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: long-fuzz-crashes-${{ github.run_id }}
+          name: long-fuzz-crashes-${{ matrix.shard_key }}-${{ github.run_id }}
           path: fuzz/crashes/
           retention-days: 90 # Keep longer than short-run crashes
 
@@ -165,6 +170,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: long-fuzz-corpus-${{ github.run_id }}
+          name: long-fuzz-corpus-${{ matrix.shard_key }}-${{ github.run_id }}
           path: fuzz/corpus/
           retention-days: 14

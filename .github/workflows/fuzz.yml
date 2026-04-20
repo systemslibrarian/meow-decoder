@@ -20,9 +20,22 @@ permissions:
 
 jobs:
   atheris-fuzz:
-    name: Python Fuzzing (Atheris)
+    name: Python Fuzzing (Atheris) - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     env:
       MEOW_TEST_MODE: "1"
@@ -73,137 +86,55 @@ jobs:
         run: |
           python fuzz/seed_corpus.py
 
-      # ── Core security targets (always run) ──────────────────────────────
-      - name: Fuzz manifest parser
+      - name: Set fuzz duration
         run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_manifest.py fuzz/corpus/manifest || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+          echo "DURATION=${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}" >> "$GITHUB_ENV"
 
-      - name: Fuzz fountain decoder
+      - name: Run Atheris shard targets
         run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_fountain.py fuzz/corpus/fountain || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+          run_target() {
+            local label="$1"
+            shift
+            echo "=== $label ==="
+            timeout "${DURATION}s" "$@" || RC=$?
+            RC=${RC:-0}
+            [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+            unset RC
+          }
 
-      - name: Fuzz crypto operations
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_crypto.py fuzz/corpus/manifest || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz guard page memory safety
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_windows_guard.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz mouse gesture auth
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_mouse_gesture.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz tamper detection
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_tamper_detection.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz adversarial stego rotation
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_adversarial_stego.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Previously-missing security targets (FIX: audit gap #2) ─────────
-      - name: Fuzz ratchet (frame encrypt/decrypt)
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_ratchet.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz manifest signing (Ed25519/ML-DSA)
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_manifest_signing.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz PQ ratchet beacon
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_pq_ratchet_beacon.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz master ratchet
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_master_ratchet.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz Schrodinger encode/decode
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_schrodinger.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz crypto backend (Rust FFI)
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_crypto_backend.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz Shamir secret sharing
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_shamir.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz memory guard operations
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_memory_guard.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz dual stream encoding
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_dual_stream.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      - name: Fuzz multi-layer stego
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_stego_multilayer.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Audit-fix: PQXDH hybrid key exchange (was absent — Critical gap) ──
-      - name: Fuzz PQ hybrid PQXDH (ML-KEM-768/1024 + X25519)
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_pq_hybrid.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Audit-fix: X25519 forward secrecy key agreement ──
-      - name: Fuzz X25519 forward secrecy
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_x25519_fs.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Audit-fix: time-lock duress + content expiry ──
-      - name: Fuzz time-lock duress & content expiry
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_timelock_expiry.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
-
-      # ── Audit-fix: forensic cleanup module ──
-      - name: Fuzz forensic cleanup
-        run: |
-          DURATION="${{ github.event_name == 'push' && '120' || github.event.inputs.fuzz_duration || '300' }}"
-          timeout ${DURATION}s python fuzz/fuzz_forensic_cleanup.py || RC=$?
-          RC=${RC:-0}; [ "$RC" -eq 0 ] || [ "$RC" -eq 124 ] || exit "$RC"
+          case "${{ matrix.shard_id }}" in
+            1)
+              run_target "Fuzz manifest parser" python fuzz/fuzz_manifest.py fuzz/corpus/manifest
+              run_target "Fuzz fountain decoder" python fuzz/fuzz_fountain.py fuzz/corpus/fountain
+              run_target "Fuzz crypto operations" python fuzz/fuzz_crypto.py fuzz/corpus/manifest
+              run_target "Fuzz guard page memory safety" python fuzz/fuzz_windows_guard.py
+              run_target "Fuzz mouse gesture auth" python fuzz/fuzz_mouse_gesture.py
+              run_target "Fuzz tamper detection" python fuzz/fuzz_tamper_detection.py
+              run_target "Fuzz adversarial stego rotation" python fuzz/fuzz_adversarial_stego.py
+              ;;
+            2)
+              run_target "Fuzz ratchet (frame encrypt/decrypt)" python fuzz/fuzz_ratchet.py
+              run_target "Fuzz manifest signing (Ed25519/ML-DSA)" python fuzz/fuzz_manifest_signing.py
+              run_target "Fuzz PQ ratchet beacon" python fuzz/fuzz_pq_ratchet_beacon.py
+              run_target "Fuzz master ratchet" python fuzz/fuzz_master_ratchet.py
+              run_target "Fuzz Schrodinger encode/decode" python fuzz/fuzz_schrodinger.py
+              run_target "Fuzz crypto backend (Rust FFI)" python fuzz/fuzz_crypto_backend.py
+              run_target "Fuzz Shamir secret sharing" python fuzz/fuzz_shamir.py
+              ;;
+            3)
+              run_target "Fuzz memory guard operations" python fuzz/fuzz_memory_guard.py
+              run_target "Fuzz dual stream encoding" python fuzz/fuzz_dual_stream.py
+              run_target "Fuzz multi-layer stego" python fuzz/fuzz_stego_multilayer.py
+              run_target "Fuzz PQ hybrid PQXDH (ML-KEM-768/1024 + X25519)" python fuzz/fuzz_pq_hybrid.py
+              run_target "Fuzz X25519 forward secrecy" python fuzz/fuzz_x25519_fs.py
+              run_target "Fuzz time-lock duress & content expiry" python fuzz/fuzz_timelock_expiry.py
+              run_target "Fuzz forensic cleanup" python fuzz/fuzz_forensic_cleanup.py
+              ;;
+            *)
+              echo "Unknown shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
 
       # ── Crash gate (MUST fail the build on any crash) ───────────────────
       - name: Check for crashes
@@ -220,14 +151,27 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: fuzz-crashes
+          name: fuzz-crashes-${{ matrix.shard_key }}-${{ github.run_id }}
           path: fuzz/crashes/
           retention-days: 30
 
   afl-fuzz:
-    name: AFL++ Fuzzing (Native)
+    name: AFL++ Fuzzing (Native) - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -268,21 +212,40 @@ jobs:
       - name: Create corpus
         run: |
           mkdir -p fuzz/afl-corpus
-          mkdir -p fuzz/afl-output
+          mkdir -p fuzz/afl-output/${{ matrix.shard_key }}
           python fuzz/seed_corpus.py --afl
 
-      - name: Run AFL++ on manifest parser
+      - name: Run AFL++ shard
         run: |
           cd fuzz
+          case "${{ matrix.shard_id }}" in
+            1)
+              echo "Running AFL shard 1/3 with default mutation strategy"
+              ;;
+            2)
+              echo "Running AFL shard 2/3 with aggressive havoc expansion"
+              export AFL_EXPAND_HAVOC_NOW=1
+              ;;
+            3)
+              echo "Running AFL shard 3/3 with queue shuffling and trim disabled"
+              export AFL_SHUFFLE_QUEUE=1
+              export AFL_DISABLE_TRIM=1
+              ;;
+            *)
+              echo "Unknown AFL shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
+
           timeout ${{ github.event.inputs.fuzz_duration || '300' }}s \
-            py-afl-fuzz -i afl-corpus -o afl-output -m none -- \
+            py-afl-fuzz -i afl-corpus -o afl-output/${{ matrix.shard_key }} -m none -- \
             python afl_fuzz_manifest.py || true
 
       - name: Check AFL++ results
         run: |
-          if [ -d "fuzz/afl-output/default/crashes" ] && [ -n "$(ls -A fuzz/afl-output/default/crashes 2>/dev/null)" ]; then
+          if [ -d "fuzz/afl-output/${{ matrix.shard_key }}/default/crashes" ] && [ -n "$(ls -A fuzz/afl-output/${{ matrix.shard_key }}/default/crashes 2>/dev/null)" ]; then
             echo "🚨 AFL++ found crashes!"
-            ls -la fuzz/afl-output/default/crashes/
+            ls -la fuzz/afl-output/${{ matrix.shard_key }}/default/crashes/
             exit 1
           else
             echo "✅ No AFL++ crashes found"
@@ -292,6 +255,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: afl-results
-          path: fuzz/afl-output/
+          name: afl-results-${{ matrix.shard_key }}
+          path: fuzz/afl-output/${{ matrix.shard_key }}/
           retention-days: 7

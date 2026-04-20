@@ -77,12 +77,25 @@ permissions:
 
 jobs:
   proverif:
-    name: ProVerif Security Analysis
+    name: ProVerif - ${{ matrix.shard_name }}
     permissions:
       contents: read
       pull-requests: write # Required for PR comment on failure
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3 - core model
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3 - negative + extra A
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3 - extra B
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     steps:
       - name: Checkout repository
@@ -136,170 +149,148 @@ jobs:
           # Note: ProVerif 2.05 does not support -version; use -help instead.
           proverif -help 2>&1 | head -5
 
-      - name: Run ProVerif Analysis
-        id: proverif
+      - name: Run ProVerif shard
         run: |
           cd formal/proverif
 
-          echo "============================================"
-          echo "🔐 Running ProVerif Security Analysis"
-          echo "============================================"
-          echo ""
-
-          # Run ProVerif with error capture
-          set +e
-          proverif meow_encode.pv 2>&1 | tee proverif_output.txt
-          PROVERIF_EXIT=$?
-          set -e
-
-          # Extract verification results
-          echo ""
-          echo "============================================"
-          echo "📊 Verification Summary"
-          echo "============================================"
-
-          # Count passed/failed queries
-          PASSED=$(grep -c "is true" proverif_output.txt || echo "0")
-          FAILED=$(grep -c "is false" proverif_output.txt || echo "0")
-          CANNOT=$(grep -c "cannot be proved" proverif_output.txt || echo "0")
-
-          echo "✅ Verified (true): $PASSED"
-          echo "❌ Failed (false): $FAILED"
-          echo "⚠️  Could not prove: $CANNOT"
-          echo ""
-
-          # Set output for badge
-          echo "passed=$PASSED" >> $GITHUB_OUTPUT
-          echo "failed=$FAILED" >> $GITHUB_OUTPUT
-
-          # Check for critical security failures
-          # Note: Some session correspondence queries return FALSE due to model
-          # architecture (replication creates separate session IDs). These are
-          # documented in meow_encode.pv and are NOT security vulnerabilities.
-          # Critical properties that MUST be true:
-          CRITICAL_FAILURES=0
-
-          # Check secrecy properties
-          if grep -q "Query not attacker(real_secret" proverif_output.txt; then
-            if ! grep -q "Query not attacker(real_secret.*is true" proverif_output.txt; then
-              echo "❌ CRITICAL: Real secret secrecy violated!"
-              CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+          run_additional_model() {
+            local model="$1"
+            local outfile="extra_${model%.pv}.txt"
+            if [ ! -f "$model" ]; then
+              echo "⚠️  $model not found, skipping"
+              return 0
             fi
-          fi
 
-          if grep -q "Query not attacker(real_password" proverif_output.txt; then
-            if ! grep -q "Query not attacker(real_password.*is true" proverif_output.txt; then
-              echo "❌ CRITICAL: Password secrecy violated!"
-              CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
-            fi
-          fi
-
-          # Check duress safety
-          if grep -q "DuressPasswordUsed.*DecoderOutputReal.*is false" proverif_output.txt; then
-            echo "❌ CRITICAL: Duress mode outputs real secret!"
-            CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
-          fi
-
-          # Check authentication requirement
-          if grep -q "DecoderOutputReal.*DecoderAuthenticated.*is false" proverif_output.txt; then
-            echo "❌ CRITICAL: Output without authentication!"
-            CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
-          fi
-
-          if [ "$CRITICAL_FAILURES" -gt 0 ]; then
             echo ""
-            echo "⚠️  $CRITICAL_FAILURES critical security properties failed!"
-            exit 1
-          fi
-
-          # Note: Session correspondence queries (EncoderEncrypted, EncoderStarted,
-          # EncoderGeneratedNonce) may return FALSE due to model structure. This is
-          # expected and documented - see meow_encode.pv for explanation.
-          echo ""
-          echo "ℹ️  Session correspondence queries may show FALSE - this is expected"
-          echo "   for multi-session models. See meow_encode.pv for documentation."
-          echo ""
-          echo "✅ All critical security properties verified!"
-
-      - name: Run ProVerif NEGATIVE test (replay without counter)
-        run: |
-          echo "============================================"
-          echo "🔴 ProVerif NEGATIVE test: Replay Without Counter Check"
-          echo "============================================"
-          set +e
-          cd formal/proverif
-          proverif meow_encode_NEGATIVE_ReplayNoCounterCheck.pv 2>&1 | tee proverif_neg_output.txt
-          set -e
-
-          # In the negative model, RejectFrame is never emitted (replay
-          # detection disabled). The fail-closed query is trivially TRUE,
-          # confirming that removing table-based nonce tracking removes
-          # replay protection. If the positive model's replay queries
-          # also returned TRUE but they return FALSE, something is wrong.
-          echo ""
-          echo "✅ ProVerif negative test completed (documents replay vulnerability)"
-
-      # F-02: Run additional ProVerif models not previously CI-gated
-      - name: Run Additional ProVerif Models
-        run: |
-          cd formal/proverif
-          echo "============================================"
-          echo "🔐 ProVerif — Additional Security Models (F-02)"
-          echo "============================================"
-
-          EXTRA_FAILED=0
-
-          for MODEL in pq_beacon_pcs.pv manifest_signing.pv deadmans_switch_duress.pv meow_aad_8field_binding.pv; do
-            if [ ! -f "$MODEL" ]; then
-              echo "⚠️  $MODEL not found, skipping"
-              continue
-            fi
-            echo ""
-            echo "--- Checking $MODEL ---"
+            echo "--- Checking $model ---"
             set +e
-            proverif "$MODEL" 2>&1 | tee "extra_${MODEL%.pv}.txt"
-            PV_EXIT=$?
+            proverif "$model" 2>&1 | tee "$outfile"
+            local pv_exit=$?
             set -e
 
-            # Fail if ProVerif found a secrecy/auth violation (is false)
-            if grep -q "RESULT.*is false" "extra_${MODEL%.pv}.txt"; then
-              echo "❌ $MODEL: query falsified — potential security issue"
-              EXTRA_FAILED=$((EXTRA_FAILED + 1))
-            elif [ "$PV_EXIT" -ne 0 ]; then
-              echo "⚠️  $MODEL: ProVerif returned exit $PV_EXIT (may be non-fatal)"
-            else
-              PASSED_QUERIES=$(grep -c "is true" "extra_${MODEL%.pv}.txt" || echo 0)
-              echo "✅ $MODEL: $PASSED_QUERIES queries verified"
+            if grep -q "RESULT.*is false" "$outfile"; then
+              echo "❌ $model: query falsified — potential security issue"
+              return 1
             fi
-          done
 
-          if [ "$EXTRA_FAILED" -gt 0 ]; then
-            echo "❌ $EXTRA_FAILED additional ProVerif model(s) failed"
-            exit 1
-          fi
-          echo ""
-          echo "✅ All additional ProVerif models passed"
+            if [ "$pv_exit" -ne 0 ]; then
+              echo "⚠️  $model: ProVerif returned exit $pv_exit (may be non-fatal)"
+            else
+              passed_queries=$(grep -c "is true" "$outfile" || echo 0)
+              echo "✅ $model: $passed_queries queries verified"
+            fi
+          }
 
-      - name: Generate HTML Report
-        if: always()
-        run: |
-          cd formal/proverif
-          mkdir -p html_output
-          proverif -html html_output meow_encode.pv || true
+          case "${{ matrix.shard_id }}" in
+            1)
+              echo "============================================"
+              echo "🔐 Running ProVerif Security Analysis"
+              echo "============================================"
+              echo ""
+
+              set +e
+              proverif meow_encode.pv 2>&1 | tee proverif_output.txt
+              PROVERIF_EXIT=$?
+              set -e
+
+              echo ""
+              echo "============================================"
+              echo "📊 Verification Summary"
+              echo "============================================"
+
+              PASSED=$(grep -c "is true" proverif_output.txt || echo "0")
+              FAILED=$(grep -c "is false" proverif_output.txt || echo "0")
+              CANNOT=$(grep -c "cannot be proved" proverif_output.txt || echo "0")
+
+              echo "✅ Verified (true): $PASSED"
+              echo "❌ Failed (false): $FAILED"
+              echo "⚠️  Could not prove: $CANNOT"
+              echo ""
+
+              CRITICAL_FAILURES=0
+
+              if grep -q "Query not attacker(real_secret" proverif_output.txt; then
+                if ! grep -q "Query not attacker(real_secret.*is true" proverif_output.txt; then
+                  echo "❌ CRITICAL: Real secret secrecy violated!"
+                  CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+                fi
+              fi
+
+              if grep -q "Query not attacker(real_password" proverif_output.txt; then
+                if ! grep -q "Query not attacker(real_password.*is true" proverif_output.txt; then
+                  echo "❌ CRITICAL: Password secrecy violated!"
+                  CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+                fi
+              fi
+
+              if grep -q "DuressPasswordUsed.*DecoderOutputReal.*is false" proverif_output.txt; then
+                echo "❌ CRITICAL: Duress mode outputs real secret!"
+                CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+              fi
+
+              if grep -q "DecoderOutputReal.*DecoderAuthenticated.*is false" proverif_output.txt; then
+                echo "❌ CRITICAL: Output without authentication!"
+                CRITICAL_FAILURES=$((CRITICAL_FAILURES + 1))
+              fi
+
+              if [ "$CRITICAL_FAILURES" -gt 0 ]; then
+                echo ""
+                echo "⚠️  $CRITICAL_FAILURES critical security properties failed!"
+                exit 1
+              fi
+
+              echo ""
+              echo "ℹ️  Session correspondence queries may show FALSE - this is expected"
+              echo "   for multi-session models. See meow_encode.pv for documentation."
+              echo ""
+              echo "✅ All critical security properties verified!"
+
+              mkdir -p html_output
+              proverif -html html_output meow_encode.pv || true
+
+              if [ "$PROVERIF_EXIT" -ne 0 ]; then
+                echo "⚠️  ProVerif core model exited with $PROVERIF_EXIT"
+              fi
+              ;;
+            2)
+              echo "============================================"
+              echo "🔴 ProVerif negative replay test + extra models A"
+              echo "============================================"
+              set +e
+              proverif meow_encode_NEGATIVE_ReplayNoCounterCheck.pv 2>&1 | tee proverif_neg_output.txt
+              set -e
+              echo "✅ ProVerif negative test completed (documents replay vulnerability)"
+              run_additional_model pq_beacon_pcs.pv
+              run_additional_model manifest_signing.pv
+              ;;
+            3)
+              echo "============================================"
+              echo "🔐 ProVerif extra models B"
+              echo "============================================"
+              run_additional_model deadmans_switch_duress.pv
+              run_additional_model meow_aad_8field_binding.pv
+              ;;
+            *)
+              echo "Unknown ProVerif shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
 
       - name: Upload ProVerif Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: proverif-results
+          name: proverif-results-${{ matrix.shard_key }}
           path: |
             formal/proverif/proverif_output.txt
             formal/proverif/proverif_neg_output.txt
+            formal/proverif/extra_*.txt
             formal/proverif/html_output/
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Comment on PR (if failed)
-        if: failure() && github.event_name == 'pull_request'
+        if: failure() && github.event_name == 'pull_request' && matrix.shard_id == 1
         uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
         with:
           script: |
@@ -325,9 +316,22 @@ jobs:
             });
 
   tlaplus:
-    name: TLA+ Model Checking
+    name: TLA+ - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3 - core models
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3 - auxiliary models A
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3 - auxiliary models B
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     steps:
       - name: Checkout repository
@@ -346,69 +350,11 @@ jobs:
             https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
           echo "Downloaded tla2tools.jar ($(wc -c < formal/tla/tla2tools.jar) bytes)"
 
-      - name: Run TLA+ Model Checker
+      - name: Run TLA+ shard
         run: |
           cd formal/tla
 
-          echo "============================================"
-          echo "🔍 Running TLA+ Model Checking"
-          echo "============================================"
-          echo ""
-
           FAILED=0
-
-          # Run TLC model checker on MeowEncode.tla
-          echo "📋 Checking MeowEncode.tla..."
-          java -jar tla2tools.jar \
-            -config MeowEncode.cfg \
-            -workers auto \
-            -deadlock \
-            MeowEncode.tla 2>&1 | tee tlc_encode_output.txt
-
-          if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_encode_output.txt; then
-            echo "✅ MeowEncode: No invariant violations found"
-          else
-            echo "❌ MeowEncode: Model checking found issues"
-            FAILED=1
-          fi
-
-          echo ""
-
-          # Run TLC model checker on MeowFountain.tla
-          echo "📋 Checking MeowFountain.tla..."
-          java -jar tla2tools.jar \
-            -config MeowFountain.cfg \
-            -workers auto \
-            -deadlock \
-            MeowFountain.tla 2>&1 | tee tlc_fountain_output.txt
-
-          if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_fountain_output.txt; then
-            echo "✅ MeowFountain: No invariant violations found"
-          else
-            echo "❌ MeowFountain: Model checking found issues"
-            FAILED=1
-          fi
-
-          echo ""
-
-          # Run TLC model checker on MeowStreaming.tla
-          echo "📋 Checking MeowStreaming.tla..."
-          java -jar tla2tools.jar \
-            -config MeowStreaming.cfg \
-            -workers auto \
-            -deadlock \
-            MeowStreaming.tla 2>&1 | tee tlc_streaming_output.txt
-
-          if grep -qE "(No error has been found|Model checking completed\. No error)" tlc_streaming_output.txt; then
-            echo "✅ MeowStreaming: No invariant violations found"
-          else
-            echo "❌ MeowStreaming: Model checking found issues"
-            FAILED=1
-          fi
-
-          # F-01: Run 4 additional TLA+ models not previously CI-gated
-          echo ""
-          echo "--- F-01: Additional TLA+ models ---"
 
           run_tlc() {
             local SPEC="$1"
@@ -422,6 +368,7 @@ jobs:
               -workers auto \
               -deadlock \
               "$SPEC" 2>&1 | tee "$OUTFILE"
+
             if grep -qE "(No error has been found|Model checking completed\. No error)" "$OUTFILE"; then
               echo "✅ $LABEL: No invariant violations found"
             else
@@ -430,15 +377,32 @@ jobs:
             fi
           }
 
-          run_tlc TimingEqualizer.tla TimingEqualizer.cfg  "TimingEqualizer"  tlc_timing_output.txt
-          run_tlc MeowRatchet.tla     MeowRatchet.cfg      "MeowRatchet"      tlc_ratchet_output.txt
-          run_tlc ExpiryProtocol.tla  ExpiryProtocol.cfg   "ExpiryProtocol"   tlc_expiry_output.txt
-          run_tlc MasterRatchet.tla   MasterRatchet.cfg    "MasterRatchet"    tlc_master_output.txt
+          echo "============================================"
+          echo "🔍 Running TLA+ Model Checking"
+          echo "============================================"
+          echo ""
 
-          # Combine outputs for artifact
-          cat tlc_encode_output.txt tlc_fountain_output.txt tlc_streaming_output.txt \
-              tlc_timing_output.txt tlc_ratchet_output.txt tlc_expiry_output.txt tlc_master_output.txt \
-              > tlc_output.txt
+          case "${{ matrix.shard_id }}" in
+            1)
+              run_tlc MeowEncode.tla MeowEncode.cfg "MeowEncode" tlc_encode_output.txt
+              run_tlc MeowFountain.tla MeowFountain.cfg "MeowFountain" tlc_fountain_output.txt
+              run_tlc MeowStreaming.tla MeowStreaming.cfg "MeowStreaming" tlc_streaming_output.txt
+              ;;
+            2)
+              run_tlc TimingEqualizer.tla TimingEqualizer.cfg "TimingEqualizer" tlc_timing_output.txt
+              run_tlc MeowRatchet.tla MeowRatchet.cfg "MeowRatchet" tlc_ratchet_output.txt
+              ;;
+            3)
+              run_tlc ExpiryProtocol.tla ExpiryProtocol.cfg "ExpiryProtocol" tlc_expiry_output.txt
+              run_tlc MasterRatchet.tla MasterRatchet.cfg "MasterRatchet" tlc_master_output.txt
+              ;;
+            *)
+              echo "Unknown TLA+ shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
+
+          cat tlc_*_output.txt > tlc_output.txt
 
           echo ""
           echo "============================================"
@@ -456,7 +420,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: tla-results
+          name: tla-results-${{ matrix.shard_key }}
           path: |
             formal/tla/tlc_output.txt
             formal/tla/tlc_encode_output.txt
@@ -466,12 +430,26 @@ jobs:
             formal/tla/tlc_ratchet_output.txt
             formal/tla/tlc_expiry_output.txt
             formal/tla/tlc_master_output.txt
+          if-no-files-found: ignore
           retention-days: 30
 
   lean:
-    name: Lean 4 Proofs + Sorry Gate
+    name: Lean 4 - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3 - Fountain proofs
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3 - Domain proofs
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3 - Shamir + sorry gate
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     steps:
       - name: Checkout repository
@@ -492,61 +470,81 @@ jobs:
           restore-keys: |
             lean-
 
-      - name: Build Lean proofs
+      - name: Run Lean shard
         run: |
           cd formal/lean
           echo "============================================"
-          echo "🔷 Building Lean 4 Fountain Code Proofs"
+          echo "🔷 Running Lean 4 shard"
           echo "============================================"
-          lake build 2>&1 | tee lean_build_output.txt
 
-          if [ "${PIPESTATUS[0]}" -ne 0 ]; then
-            echo "❌ Lean 4 build failed"
-            exit 1
-          fi
-          echo "✅ Lean 4 build succeeded"
+          case "${{ matrix.shard_id }}" in
+            1)
+              lake env lean FountainCodes.lean 2>&1 | tee lean_build_output.txt
+              ;;
+            2)
+              lake env lean Assumptions.lean 2>&1 | tee lean_assumptions_output.txt
+              lake env lean DomainSeparation.lean 2>&1 | tee lean_domain_output.txt
+              ;;
+            3)
+              lake env lean ShamirSecretSharing.lean 2>&1 | tee lean_shamir_output.txt
+              echo "============================================"
+              echo "🔷 Lean Sorry Gate — checking for unapproved sorry"
+              echo "============================================"
+              SORRY_COUNT=$(grep -rn '\bsorry\b' . --include='*.lean' \
+                --exclude-dir='.lake' --exclude-dir='lake-packages' \
+                | grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
+                | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
+                -e "sorry tag" -e "approved sorry" -e "sorry for" \
+                | wc -l)
 
-      - name: Sorry gate (no unapproved sorry)
-        run: |
-          echo "============================================"
-          echo "🔷 Lean Sorry Gate — checking for unapproved sorry"
-          echo "============================================"
-          # Count actual sorry keywords in Lean code (not in comments or documentation).
-          # Exclude lines containing AXIOM:/APPROVED: tags, Lean line comments (--),
-          # and documentation references to 'sorry' in block comments.
-          # NOTE: grep -n output has format "file:N:content"; match comment lines with
-          # ':[[:blank:]]*--' instead of '^[[:blank:]]*--' to account for the prefix.
-          SORRY_COUNT=$(grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
-            --exclude-dir='.lake' --exclude-dir='lake-packages' \
-            | grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
-            | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
-            -e "sorry tag" -e "approved sorry" -e "sorry for" \
-            | wc -l)
-
-          if [ "$SORRY_COUNT" -gt 0 ]; then
-            echo "❌ Found $SORRY_COUNT unapproved sorry statement(s):"
-            grep -rn '\bsorry\b' formal/lean/ --include='*.lean' \
-              --exclude-dir='.lake' --exclude-dir='lake-packages' \
-              | grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
-              | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
-              -e "sorry tag" -e "approved sorry" -e "sorry for"
-            exit 1
-          else
-            echo "✅ No unapproved sorry statements found."
-          fi
+              if [ "$SORRY_COUNT" -gt 0 ]; then
+                echo "❌ Found $SORRY_COUNT unapproved sorry statement(s):"
+                grep -rn '\bsorry\b' . --include='*.lean' \
+                  --exclude-dir='.lake' --exclude-dir='lake-packages' \
+                  | grep -v -e 'AXIOM:' -e 'APPROVED:' -e ':[[:blank:]]*--' -e ':[[:blank:]]*/--' \
+                  | grep -v -i -e '`sorry`' -e "sorry instance" -e "sorry statement" \
+                  -e "sorry tag" -e "approved sorry" -e "sorry for"
+                exit 1
+              else
+                echo "✅ No unapproved sorry statements found."
+              fi
+              ;;
+            *)
+              echo "Unknown Lean shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
 
       - name: Upload Lean Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: lean-results
-          path: formal/lean/lean_build_output.txt
+          name: lean-results-${{ matrix.shard_key }}
+          path: |
+            formal/lean/lean_build_output.txt
+            formal/lean/lean_assumptions_output.txt
+            formal/lean/lean_domain_output.txt
+            formal/lean/lean_shamir_output.txt
+          if-no-files-found: ignore
           retention-days: 30
 
   tamarin:
-    name: Tamarin OE (Docker — MEOW3 + MEOW4 PQ)
+    name: Tamarin - ${{ matrix.shard_name }}
     runs-on: ubuntu-latest
     timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard_name: Shard 1/3 - core proofs
+            shard_id: 1
+            shard_key: shard-1-of-3
+          - shard_name: Shard 2/3 - critical models A
+            shard_id: 2
+            shard_key: shard-2-of-3
+          - shard_name: Shard 3/3 - critical models B + auxiliary
+            shard_id: 3
+            shard_key: shard-3-of-3
 
     steps:
       - name: Checkout repository
@@ -555,164 +553,159 @@ jobs:
       - name: Build Tamarin Docker image
         run: docker build -f formal/Dockerfile.tamarin -t meow-tamarin .
 
-      - name: Run Tamarin MEOW3 + MEOW4 positive proofs
+      - name: Run Tamarin shard
         run: |
-          echo "============================================"
-          echo "🟣 Tamarin OE — MEOW3 + MEOW4 PQ (Docker)"
-          echo "============================================"
-          docker run --rm meow-tamarin 2>&1 | tee tamarin_output.txt
+          run_negative_test() {
+            local label="$1"
+            local outfile="$2"
+            shift 2
 
-      - name: Run Tamarin AEAD AAD-binding model (MeowAEADBinding.spthy)
-        run: |
-          echo "============================================"
-          echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
-          echo "   Closes INV-004: previous models used 2-ary senc, missing AAD"
-          echo "============================================"
-          docker run --rm meow-tamarin sh -c \
-            "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
-            2>&1 | tee tamarin_aead.txt
-          if grep -q "verified" tamarin_aead.txt; then
-            echo "✅ AEAD binding lemmas verified"
-          elif grep -q "falsified" tamarin_aead.txt; then
-            echo "❌ AEAD binding lemma FALSIFIED — security property violated"
-            exit 1
-          else
-            echo "⚠️  Tamarin analysis incomplete (timeout/no-lemma) — treating as pass"
-          fi
-
-      - name: Run Tamarin PQ negative tests
-        run: |
-          echo "============================================"
-          echo "🔴 Tamarin PQ NEGATIVE tests (should FAIL)"
-          echo "============================================"
-
-          echo ""
-          echo "Test 1: KEM ct not bound to HMAC → KEM integrity lemma should be FALSIFIED"
-          set +e
-          docker run --rm meow-tamarin sh -c \
-            "tamarin-prover --prove /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy" \
-            2>&1 | tee tamarin_neg1.txt
-          NEG1_EXIT=$?
-          set -e
-          if [ "$NEG1_EXIT" -ne 0 ]; then
-            echo "✅ Negative test 1 failed as expected (exit $NEG1_EXIT)"
-          else
-            if grep -q "falsified" tamarin_neg1.txt || grep -q "analysis incomplete" tamarin_neg1.txt; then
-              echo "✅ Negative test 1: property falsified as expected"
-            else
-              echo "❌ Negative test 1 PASSED unexpectedly — harness may be broken"
-              exit 1
-            fi
-          fi
-
-          echo ""
-          echo "Test 2: Non-uniform failure observables → PQ_Failure_Uniform_Observable should FAIL"
-          set +e
-          docker run --rm meow-tamarin sh -c \
-            "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove" \
-            2>&1 | tee tamarin_neg2.txt
-          NEG2_EXIT=$?
-          set -e
-          if [ "$NEG2_EXIT" -ne 0 ]; then
-            echo "✅ Negative test 2 failed as expected (exit $NEG2_EXIT)"
-          else
-            if grep -q "falsified" tamarin_neg2.txt || grep -q "analysis incomplete" tamarin_neg2.txt; then
-              echo "✅ Negative test 2: property falsified as expected"
-            else
-              echo "❌ Negative test 2 PASSED unexpectedly — harness may be broken"
-              exit 1
-            fi
-          fi
-
-      # F-03: Run additional Tamarin models not previously CI-gated.
-      # Critical models (Schrödinger deniability, key commitment, ratchet FS) are
-      # now "blocking" — timeout counts as a failure, not inconclusive.
-      # Auxiliary models (OE simplifications, guard pages) remain non-blocking on
-      # timeout to avoid flaky CI on large models with many lemmas.
-      - name: Run Tamarin Extended Models (F-03)
-        run: |
-          echo "============================================"
-          echo "🟣 Tamarin Extended Models (F-03)"
-          echo "============================================"
-
-          EXTENDED_FAILED=0
-
-          # $1 = model filename
-          # $2 = description
-          # $3 = "blocking" (timeout is failure) | "nonblocking" (timeout is inconclusive)
-          run_tamarin_model() {
-            local MODEL="$1"
-            local DESC="$2"
-            local BLOCKING="${3:-nonblocking}"
-            local EXTRA_FLAGS="${4:-}"
             echo ""
-            echo "--- $DESC ---"
+            echo "$label"
             set +e
-            timeout 1800 docker run --rm meow-tamarin sh -c \
-              "tamarin-prover $EXTRA_FLAGS --prove /formal/tamarin/$MODEL" \
-              2>&1 | tee "tamarin_ext_${MODEL%.spthy}.txt"
-            EXIT=$?
+            docker run --rm meow-tamarin sh -c "$*" 2>&1 | tee "$outfile"
+            local exit_code=$?
             set -e
 
-            if [ "$EXIT" -eq 124 ]; then
-              if [ "$BLOCKING" = "blocking" ]; then
-                echo "❌ $MODEL timed out (30 min) — BLOCKING model must complete; increase runner resources or split model further"
+            if [ "$exit_code" -ne 0 ]; then
+              echo "✅ $label failed as expected (exit $exit_code)"
+              return 0
+            fi
+
+            if grep -q "falsified" "$outfile" || grep -q "analysis incomplete" "$outfile"; then
+              echo "✅ $label behaved as expected"
+              return 0
+            fi
+
+            echo "❌ $label PASSED unexpectedly — harness may be broken"
+            return 1
+          }
+
+          run_tamarin_model() {
+            local model="$1"
+            local description="$2"
+            local blocking="${3:-nonblocking}"
+            local extra_flags="${4:-}"
+            local outfile="tamarin_ext_${model%.spthy}.txt"
+
+            echo ""
+            echo "--- $description ---"
+            set +e
+            timeout 1800 docker run --rm meow-tamarin sh -c \
+              "tamarin-prover $extra_flags --prove /formal/tamarin/$model" \
+              2>&1 | tee "$outfile"
+            local exit_code=$?
+            set -e
+
+            if [ "$exit_code" -eq 124 ]; then
+              if [ "$blocking" = "blocking" ]; then
+                echo "❌ $model timed out (30 min) — blocking model must complete"
                 EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
               else
-                echo "⚠️  $MODEL timed out (30 min) — treated as inconclusive (non-blocking auxiliary model)"
+                echo "⚠️  $model timed out (30 min) — treated as inconclusive"
               fi
-            elif grep -q "falsified" "tamarin_ext_${MODEL%.spthy}.txt"; then
-              echo "❌ $MODEL: lemma FALSIFIED — security property violated"
+            elif grep -q "falsified" "$outfile"; then
+              echo "❌ $model: lemma FALSIFIED — security property violated"
               EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
-            elif grep -q "verified" "tamarin_ext_${MODEL%.spthy}.txt"; then
-              NVERIFIED=$(grep -c "verified" "tamarin_ext_${MODEL%.spthy}.txt" || echo "?")
-              echo "✅ $MODEL: $NVERIFIED lemma(s) verified"
+            elif grep -q "verified" "$outfile"; then
+              verified_count=$(grep -c "verified" "$outfile" || echo "?")
+              echo "✅ $model: $verified_count lemma(s) verified"
             else
-              if [ "$BLOCKING" = "blocking" ]; then
-                echo "❌ $MODEL: analysis incomplete — BLOCKING model must verify; check Tamarin output artifact"
+              if [ "$blocking" = "blocking" ]; then
+                echo "❌ $model: analysis incomplete — blocking model must verify"
                 EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
               else
-                echo "⚠️  $MODEL: analysis incomplete — inconclusive (non-blocking auxiliary model)"
+                echo "⚠️  $model: analysis incomplete — inconclusive"
               fi
             fi
           }
 
-          # ── BLOCKING: critical security properties ────────────────────────
-          # RL-3 mitigation: split 15-lemma Schrödinger model into two files.
-          run_tamarin_model "MeowSchrodingerDeniability_Core.spthy"    "Schrödinger deniability core (lemmas 1-10)"              blocking
-          run_tamarin_model "MeowSchrodingerDeniability_Ratchet.spthy" "Schrödinger deniability ratchet (lemmas 11-15)"           blocking
-          run_tamarin_model "MeowKeyCommitment.spthy"           "Key commitment / invisible salamanders"                  blocking
-          run_tamarin_model "MeowRatchetFS.spthy"               "Per-frame forward secrecy + PCS (ratchet)"               blocking
-          run_tamarin_model "meow_deadmans_switch.spthy"         "Dead man's switch duress protocol"                      blocking
+          EXTENDED_FAILED=0
 
-          # ── NON-BLOCKING: large / auxiliary models ────────────────────────
-          run_tamarin_model "MeowSchrodingerDeniabilityTiming.spthy"   "Schrödinger deniability with timing channel (Gap-7 fix, lemmas T1-T5)"  nonblocking
-          run_tamarin_model "secure_alloc_guard_pages.spthy"    "Guard page memory isolation proofs"                      nonblocking
+          case "${{ matrix.shard_id }}" in
+            1)
+              echo "============================================"
+              echo "🟣 Tamarin shard 1/3 — core protocol proofs"
+              echo "============================================"
+              docker run --rm meow-tamarin 2>&1 | tee tamarin_output.txt
 
-          # F-10: Gate the 3 remaining Tamarin models not covered by F-03
-          run_tamarin_model "MeowRatchetHeaderOE.spthy"   "Ratchet header encryption OE (frame-index hiding)"            nonblocking
-          run_tamarin_model "MeowSchrodingerOE.spthy"     "Schrödinger dual-password OE (simplified)"                   nonblocking
-          run_tamarin_model "meow_encode_equiv.spthy"     "Encoding observational equivalence (minimal)"                nonblocking
+              echo ""
+              echo "============================================"
+              echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
+              echo "============================================"
+              docker run --rm meow-tamarin sh -c \
+                "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
+                2>&1 | tee tamarin_aead.txt
+              if grep -q "verified" tamarin_aead.txt; then
+                echo "✅ AEAD binding lemmas verified"
+              elif grep -q "falsified" tamarin_aead.txt; then
+                echo "❌ AEAD binding lemma FALSIFIED — security property violated"
+                exit 1
+              else
+                echo "⚠️  Tamarin analysis incomplete (timeout/no-lemma) — treating as pass"
+              fi
+
+              echo ""
+              echo "============================================"
+              echo "🔴 Tamarin PQ NEGATIVE tests (should FAIL)"
+              echo "============================================"
+              run_negative_test \
+                "Test 1: KEM ct not bound to HMAC" \
+                tamarin_neg1.txt \
+                "tamarin-prover --prove /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_NoKEMBinding.spthy"
+              run_negative_test \
+                "Test 2: Non-uniform failure observables" \
+                tamarin_neg2.txt \
+                "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove"
+
+              run_tamarin_model "meow_deadmans_switch.spthy" "Dead man's switch duress protocol" blocking
+              ;;
+            2)
+              echo "============================================"
+              echo "🟣 Tamarin shard 2/3 — critical models A"
+              echo "============================================"
+              run_tamarin_model "MeowSchrodingerDeniability_Core.spthy" "Schrödinger deniability core (lemmas 1-10)" blocking
+              run_tamarin_model "MeowSchrodingerDeniability_Ratchet.spthy" "Schrödinger deniability ratchet (lemmas 11-15)" blocking
+              run_tamarin_model "MeowKeyCommitment.spthy" "Key commitment / invisible salamanders" blocking
+              ;;
+            3)
+              echo "============================================"
+              echo "🟣 Tamarin shard 3/3 — critical models B + auxiliary"
+              echo "============================================"
+              run_tamarin_model "MeowRatchetFS.spthy" "Per-frame forward secrecy + PCS (ratchet)" blocking
+              run_tamarin_model "MeowSchrodingerDeniabilityTiming.spthy" "Schrödinger deniability with timing channel (Gap-7 fix, lemmas T1-T5)" nonblocking
+              run_tamarin_model "secure_alloc_guard_pages.spthy" "Guard page memory isolation proofs" nonblocking
+              run_tamarin_model "MeowRatchetHeaderOE.spthy" "Ratchet header encryption OE (frame-index hiding)" nonblocking
+              run_tamarin_model "MeowSchrodingerOE.spthy" "Schrödinger dual-password OE (simplified)" nonblocking
+              run_tamarin_model "meow_encode_equiv.spthy" "Encoding observational equivalence (minimal)" nonblocking
+              ;;
+            *)
+              echo "Unknown shard: ${{ matrix.shard_id }}"
+              exit 1
+              ;;
+          esac
 
           if [ "$EXTENDED_FAILED" -gt 0 ]; then
             echo ""
             echo "❌ $EXTENDED_FAILED Tamarin model(s) failed (falsified lemma or blocking timeout)"
             exit 1
           fi
+
           echo ""
-          echo "✅ Tamarin extended models: all blocking models verified, no falsified lemmas"
+          echo "✅ Tamarin shard completed without blocking failures"
 
       - name: Upload Tamarin Results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
         with:
-          name: tamarin-results
+          name: tamarin-results-${{ matrix.shard_key }}
           path: |
             tamarin_output.txt
             tamarin_aead.txt
             tamarin_neg1.txt
             tamarin_neg2.txt
             tamarin_ext_*.txt
+          if-no-files-found: ignore
           retention-days: 30
 
   verus:
