@@ -16,6 +16,6 @@ pip-audit==2.10.0
 pip-licenses==5.5.5
 cyclonedx-bom==7.3.0
 toml==0.10.2
-hypothesis==6.151.14
+hypothesis==6.152.1
 cryptography==46.0.7
 argon2-cffi==25.1.0
