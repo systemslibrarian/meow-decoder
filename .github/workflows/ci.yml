@@ -174,7 +174,7 @@ jobs:
             tests/test_encode.py \
             tests/test_encode_DEBUG.py \
             tests/test_fail_closed_enforcement.py \
-            tests/test_formal_fuzz_gaps.py \
+            tests/test_formal_fuzz_gaps_aead.py \
             tests/test_fountain.py \
             tests/test_fountain_montecarlo.py \
             tests/test_frame_mac.py \
@@ -250,6 +250,7 @@ jobs:
             tests/test_production_boundary.py \
             tests/test_production_import_boundary.py \
             tests/test_profile_required_and_checked.py \
+            tests/test_formal_fuzz_gaps_fountain.py \
             tests/test_high_security_extras.py \
             tests/test_invariants_fail_closed.py \
             tests/test_progress.py \
@@ -313,6 +314,7 @@ jobs:
             --cov-config=.coveragerc \
             --cov-report=term-missing \
             -q --no-header \
+            tests/test_formal_fuzz_gaps_tamper.py \
             tests/test_high_security_boost.py \
             tests/test_invariants_regressions.py \
             tests/test_rust_crypto_backend.py \
