@@ -1098,10 +1098,12 @@ fn test_argon2id_wrong_salt_length() {
 
 #[test]
 fn test_handle_count_increases() {
-    let before = handle_count();
     let h = fresh_key();
-    let after = handle_count();
-    assert!(after > before);
+    // Verify the handle exists and the registry is non-empty.
+    // We avoid comparing before/after counts because parallel tests share
+    // the global registry and can cause spurious failures.
+    assert!(handle_exists(h));
+    assert!(handle_count() >= 1);
     handle_drop(h).unwrap();
 }
 
