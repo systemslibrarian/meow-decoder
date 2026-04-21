@@ -48,6 +48,13 @@ import numpy as np
 # Set test mode for faster Argon2 parameters
 os.environ["MEOW_TEST_MODE"] = "1"
 
+# OpenCV availability (saliency tests require it)
+try:
+    import cv2 as _cv2  # noqa: F401
+    CV2_AVAILABLE = True
+except ImportError:
+    CV2_AVAILABLE = False
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -494,6 +501,7 @@ class TestCommentChannelEncoder(unittest.TestCase):
 class TestSaliencyCostComputer(unittest.TestCase):
     """Test OpenCV-based saliency cost computation."""
 
+    @unittest.skipUnless(CV2_AVAILABLE, "requires OpenCV for non-uniform saliency")
     def test_flat_region_high_cost(self):
         """Flat (uniform) regions should have high embedding cost."""
         # Solid gray frame
@@ -515,6 +523,7 @@ class TestSaliencyCostComputer(unittest.TestCase):
         mean_cost = float(np.mean(cost_map))
         self.assertLess(mean_cost, 3.0, f"Textured region mean cost {mean_cost} should be < 3.0")
 
+    @unittest.skipUnless(CV2_AVAILABLE, "requires OpenCV for non-uniform saliency")
     def test_edge_region_medium_cost(self):
         """Edges should have medium cost."""
         # Frame with sharp vertical edge
@@ -781,6 +790,7 @@ class TestPhase0Integration(unittest.TestCase):
             f"before={ratio_before:.3f}, after={ratio_after:.3f}",
         )
 
+    @unittest.skipUnless(CV2_AVAILABLE, "requires OpenCV for non-uniform saliency")
     def test_saliency_produces_nonuniform_costs(self):
         """Saliency cost map should vary across image regions."""
         # Frame with both flat and textured regions

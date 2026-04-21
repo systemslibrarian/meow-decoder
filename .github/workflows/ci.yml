@@ -312,7 +312,9 @@ jobs:
             --cov-report=term-missing \
             -q --no-header \
             tests/test_rust_crypto_backend.py \
-            tests/test_security.py \
+            tests/test_security_crypto.py \
+            tests/test_security_frame_mac.py \
+            tests/test_security_manifest.py \
             tests/test_security_hardening.py \
             tests/test_security_warnings.py \
             tests/test_setup.py \
@@ -590,7 +592,9 @@ jobs:
                 -q --no-header \
                 tests/test_adversarial.py \
                 tests/test_stego_adversarial.py \
-                tests/test_security.py \
+                tests/test_security_crypto.py \
+                tests/test_security_frame_mac.py \
+                tests/test_security_manifest.py \
                 tests/test_high_security.py \
                 tests/test_security_hardening.py \
                 tests/test_security_warnings.py \

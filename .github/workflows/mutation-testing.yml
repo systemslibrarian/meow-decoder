@@ -102,7 +102,7 @@ jobs:
           # Run mutation testing focused on crypto modules
           mutmut run \
             --paths-to-mutate meow_decoder/crypto.py \
-            --runner "python -m pytest tests/test_crypto.py tests/test_security.py -x --timeout=30" \
+            --runner "python -m pytest tests/test_crypto.py tests/test_security_crypto.py tests/test_security_frame_mac.py tests/test_security_manifest.py -x --timeout=30" \
             || true
           echo "=== Mutation Results: crypto.py ==="
           mutmut results
