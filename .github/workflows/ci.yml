@@ -183,8 +183,8 @@ jobs:
             tests/test_gif_handler.py \
             tests/test_golden_vectors.py \
             tests/test_hardware_integration.py \
-            tests/test_high_security.py \
-            tests/test_invariants.py \
+            tests/test_high_security_mode.py \
+            tests/test_invariants_critical.py \
             tests/test_logo_eyes.py \
             tests/test_metadata_obfuscation.py
 
@@ -250,6 +250,8 @@ jobs:
             tests/test_production_boundary.py \
             tests/test_production_import_boundary.py \
             tests/test_profile_required_and_checked.py \
+            tests/test_high_security_extras.py \
+            tests/test_invariants_fail_closed.py \
             tests/test_progress.py \
             tests/test_property_based.py \
             tests/test_property_ratchet_pq.py \
@@ -311,6 +313,8 @@ jobs:
             --cov-config=.coveragerc \
             --cov-report=term-missing \
             -q --no-header \
+            tests/test_high_security_boost.py \
+            tests/test_invariants_regressions.py \
             tests/test_rust_crypto_backend.py \
             tests/test_security_crypto.py \
             tests/test_security_frame_mac.py \
@@ -595,7 +599,9 @@ jobs:
                 tests/test_security_crypto.py \
                 tests/test_security_frame_mac.py \
                 tests/test_security_manifest.py \
-                tests/test_high_security.py \
+                tests/test_high_security_mode.py \
+                tests/test_high_security_extras.py \
+                tests/test_high_security_boost.py \
                 tests/test_security_hardening.py \
                 tests/test_security_warnings.py \
                 tests/security/test_air_gap.py \
