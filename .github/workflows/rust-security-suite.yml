@@ -431,7 +431,7 @@ jobs:
   miri:
     name: Miri (UB detection)
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     if: github.event_name == 'schedule'
 
     steps:
@@ -449,10 +449,17 @@ jobs:
 
       - name: Run Miri on pure crypto tests
         working-directory: rust_crypto
+        # Miri runs ~50× slower than native. Skip CPU-bound tests with no
+        # unsafe code (Argon2id KDF, STC bit ops, pixel-walk permutations) —
+        # Miri adds nothing on those, but each costs minutes. Memory-safety
+        # tests on handles, FFI boundaries, and AEAD wrappers still run.
         run: |
           cargo +nightly miri test \
             --lib \
-            -- --test-threads=1
+            -- --test-threads=1 \
+               --skip argon2id \
+               --skip stc_ \
+               --skip pixel_walk
         env:
           # Stacked Borrows model (default); switch to Tree Borrows if needed
           MIRIFLAGS: "-Zmiri-symbolic-alignment-check -Zmiri-strict-provenance"

@@ -13,18 +13,9 @@ from http.server import HTTPServer, SimpleHTTPRequestHandler
 from threading import Thread
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-
-# Try to import webdriver-manager for auto chromedriver download
-try:
-    from webdriver_manager.chrome import ChromeDriverManager
-
-    USE_WEBDRIVER_MANAGER = True
-except ImportError:
-    USE_WEBDRIVER_MANAGER = False
 
 # ====================================================================
 # Configuration
@@ -90,13 +81,13 @@ def run_headless_test():
             chrome_options.binary_location = chrome_binary
             print(f"✓ Using Chrome: {chrome_binary}\n")
 
-        # Create driver with webdriver-manager if available
-        if USE_WEBDRIVER_MANAGER:
-            print("✓ Using webdriver-manager for chromedriver\n")
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-        else:
-            driver = webdriver.Chrome(options=chrome_options)
+        # Selenium Manager (built into selenium >=4.6) auto-resolves a
+        # chromedriver compatible with the installed Chrome. webdriver-manager
+        # downloads the *latest* chromedriver, which can desync from the
+        # Chrome version installed by browser-actions/setup-chrome and crash
+        # on session start with an empty error message.
+        print("✓ Using Selenium Manager for chromedriver resolution\n")
+        driver = webdriver.Chrome(options=chrome_options)
         driver.set_page_load_timeout(TIMEOUT_SEC)
 
         try:
@@ -155,7 +146,9 @@ def run_headless_test():
             driver.quit()
 
     except Exception as error:
-        print(f"\n❌ Test execution failed: {error}")
+        import traceback
+        print(f"\n❌ Test execution failed: {type(error).__name__}: {error!r}")
+        traceback.print_exc()
         return 1
 
     finally:

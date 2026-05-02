@@ -287,17 +287,21 @@ test.describe('Cat Mode Cross-Browser Compatibility', () => {
     test('should export diagnostics JSON', async ({ page }) => {
         // Start a decode session - use the actual button IDs
         const startBtn = page.locator('#catQrBtn');
-        if (!await startBtn.isVisible()) {
-            // Cat Mode tab may not be active; try clicking into it
+        if (!await startBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            // Cat Mode tab may not be active; try clicking into it.
+            // Guard against the locator matching a hidden element — clicking
+            // a non-actionable element hangs until the global timeout (60s)
+            // and burns retries across all 3 browsers, blowing the job budget.
             const catTab = page.locator('[data-mode="catMode"], [onclick*="catMode"]').first();
-            if (await catTab.count() > 0) {
+            const tabReady = await catTab.isVisible({ timeout: 2000 }).catch(() => false);
+            if (tabReady) {
                 await catTab.click();
                 await page.waitForTimeout(500);
             }
         }
 
-        if (!await startBtn.isVisible()) {
-            test.skip();
+        if (!await startBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+            test.skip(true, 'Cat Mode UI not present in this build');
             return;
         }
 

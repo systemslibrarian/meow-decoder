@@ -218,6 +218,7 @@ lazy_static::lazy_static! {
 }
 
 fn insert_handle(payload: HandlePayload) -> Result<HandleId, HandleError> {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     if reg.len() >= MAX_HANDLES {
         return Err(HandleError::RegistryFull);
@@ -228,6 +229,7 @@ fn insert_handle(payload: HandlePayload) -> Result<HandleId, HandleError> {
 }
 
 fn remove_handle(id: HandleId) -> Result<HandlePayload, HandleError> {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     reg.remove(&id).ok_or(HandleError::InvalidHandle)
 }
@@ -236,6 +238,7 @@ fn with_handle<F, R>(id: HandleId, f: F) -> Result<R, HandleError>
 where
     F: FnOnce(&HandlePayload) -> Result<R, HandleError>,
 {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     let payload = reg.get(&id).ok_or(HandleError::InvalidHandle)?;
     f(payload)
@@ -245,6 +248,7 @@ fn with_handle_mut<F, R>(id: HandleId, f: F) -> Result<R, HandleError>
 where
     F: FnOnce(&mut HandlePayload) -> Result<R, HandleError>,
 {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     let payload = reg.get_mut(&id).ok_or(HandleError::InvalidHandle)?;
     f(payload)
@@ -1067,12 +1071,14 @@ pub fn handle_drop(id: HandleId) -> Result<(), HandleError> {
 
 /// Check if a handle exists (for testing).
 pub fn handle_exists(id: HandleId) -> bool {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     reg.contains_key(&id)
 }
 
 /// Get current handle count (for testing / bounds checking).
 pub fn handle_count() -> usize {
+    #[allow(clippy::unwrap_used)] // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     reg.len()
 }
