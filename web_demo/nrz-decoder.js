@@ -34,6 +34,7 @@ var NRZ_DEBUG = (typeof window !== 'undefined' && window.MEOW_DEBUG) || false;
  * @returns {object|null} {t0, confidence, syncBits, samples} or null
  */
 function findSyncWord(frames, bitPeriod, startSearchTime = 0, maxSearchDuration = 5.0, options = {}) {
+    if (!frames || frames.length === 0) return null;
     const { shortVideoMode = false, allowShortSync = true } = options;
     const syncPattern16 = [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]; // 0xAA55
     const syncPattern8 = [1, 0, 1, 0, 1, 0, 1, 0]; // 0xAA (8-bit)
@@ -172,6 +173,7 @@ function findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime 
  * @returns {Array<number|string>} Array of bits (0, 1, or '?' for uncertain)
  */
 function sampleBits(frames, t0, bitPeriod, numBits, confidenceThreshold = 0.15) {
+    if (!frames || frames.length === 0 || numBits <= 0) return [];
     const bits = [];
     let frameIdx = 0; // Two-pointer: advance through sorted frames
 
@@ -220,7 +222,8 @@ function sampleBits(frames, t0, bitPeriod, numBits, confidenceThreshold = 0.15) 
  * @returns {object} Nearest frame
  */
 function findNearestFrame(frames, targetTime) {
-    if (frames.length === 0) return null;
+    if (!frames || frames.length === 0) return null;
+    if (!Number.isFinite(targetTime)) return null;
     if (frames.length === 1) return frames[0];
 
     let left = 0;
@@ -262,9 +265,12 @@ function voteWithinBitWindow(frames, t0, bitPeriod, bitIndex, numSamples = 5, co
     const bitStart = t0 + bitIndex * bitPeriod;
     const bitEnd = bitStart + bitPeriod;
 
-    // Sample evenly across bit window
+    // Sample evenly across bit window. Guard the divisor so callers that
+    // pass numSamples=1 don't produce a NaN sampleTime (which then makes
+    // findNearestFrame silently return frames[0]).
+    const denom = Math.max(1, numSamples - 1);
     for (let i = 0; i < numSamples; i++) {
-        const sampleTime = bitStart + (i / (numSamples - 1)) * bitPeriod;
+        const sampleTime = bitStart + (i / denom) * bitPeriod;
         const frame = findNearestFrame(frames, sampleTime);
 
         if (frame && frame.confidence >= confidenceThreshold) {
@@ -311,12 +317,21 @@ function resolveUnknownBits(bits, frames, t0, bitPeriod, policy = 'vote') {
             return b;
         });
     } else {
-        // Option B: Vote within bit window (better - recommended)
+        // Option B: Vote within bit window (better - recommended).
+        // When voting still yields '?', fall back to the previous resolved
+        // bit (NRZ run-length-aware) instead of always 0. The old "default
+        // to 0" path silently biased ambiguous bits to zero, which CRC32
+        // reliably catches and surfaces as a CRC error rather than the
+        // "low confidence — re-record" diagnostic the user actually needs.
+        let lastResolved = 0;
         return bits.map((b, i) => {
             if (b === '?') {
                 const voted = voteWithinBitWindow(frames, t0, bitPeriod, i, 5, 0.15);
-                return voted === '?' ? 0 : voted; // Default to 0 if still uncertain
+                if (voted === '?') return lastResolved;
+                lastResolved = voted;
+                return voted;
             }
+            lastResolved = b;
             return b;
         });
     }
@@ -342,6 +357,16 @@ function resolveUnknownBits(bits, frames, t0, bitPeriod, policy = 'vote') {
  */
 function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 100000, options = {}) {
     const { shortVideoMode = false } = options;
+
+    if (!frames || frames.length === 0) {
+        return {
+            success: false,
+            binary: '',
+            t0: null,
+            error: 'no_frames',
+            diagnostics: { reason: 'frames array is empty or null' }
+        };
+    }
 
     // Find sync word (with 8-bit fallback for short videos)
     const syncResult = findSyncWordWithFallback(frames, bitPeriod, threshold, startSearchTime, { shortVideoMode });
@@ -399,6 +424,24 @@ function decodeNRZ(frames, bitPeriod, threshold, startSearchTime = 0, maxBits = 
     const availableDuration = lastFrameTime - t0;
     const maxAvailableBits = Math.floor(availableDuration / bitPeriod);
     const numBits = Math.min(maxBits, maxAvailableBits);
+
+    // If sync landed at or past the last frame there is no data after it.
+    // Without this check we'd silently return success: true with binary: ''
+    // and the user would see a confusing CRC error instead of "video too short".
+    if (numBits <= 0) {
+        return {
+            success: false,
+            binary: '',
+            t0,
+            error: 'no_data_after_sync',
+            diagnostics: {
+                lastFrameTime,
+                t0,
+                availableDuration,
+                bitPeriodMs: bitPeriod * 1000
+            }
+        };
+    }
 
     NRZ_DEBUG && console.log(`📡 [NRZ] Decoding ${numBits} bits starting at t=${(t0 * 1000).toFixed(1)}ms (${syncBits}-bit sync)`);
 

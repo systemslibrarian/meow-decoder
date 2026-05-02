@@ -308,8 +308,10 @@ let catTransmitting = false;
 let catBlinkInterval = null;
 let catBitIndex = 0;
 let mediaRecorder = null;
+let mediaStream = null;       // The captureStream so we can stop tracks on cleanup.
 let recordedChunks = [];
 let videoBlob = null;
+let encryptAbortController = null;  // Aborts in-flight encryption when user clicks Stop or restarts.
 
 document.addEventListener('DOMContentLoaded', async () => {
     catCanvas = document.getElementById('catCanvas');
@@ -333,6 +335,27 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Trigger load (the element already has autoplay but we want the event)
     catBgVideo.load();
+
+    // Tear down anything still running when the page unloads. Without
+    // this, the camera/canvas capture stream and the in-flight encryption
+    // fetch can survive into bfcache and leak resources.
+    window.addEventListener('pagehide', () => {
+        try {
+            if (encryptAbortController) encryptAbortController.abort();
+        } catch (_) {}
+        try {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+        } catch (_) {}
+        try {
+            if (mediaStream) mediaStream.getTracks().forEach(t => t.stop());
+        } catch (_) {}
+        try {
+            if (catBlinkInterval) cancelAnimationFrame(catBlinkInterval);
+        } catch (_) {}
+        try {
+            if (lastUploadObjectURL) URL.revokeObjectURL(lastUploadObjectURL);
+        } catch (_) {}
+    });
 });
 
 async function initCatCanvas() {
@@ -466,11 +489,20 @@ async function catModeEncode() {
         }
     }
 
+    // Abort any prior in-flight encryption so a Stop→Start sequence (or
+    // double-clicking Start) doesn't end up with two transmissions racing.
+    if (encryptAbortController) {
+        try { encryptAbortController.abort(); } catch (_) {}
+    }
+    encryptAbortController = new AbortController();
+    const myAbortSignal = encryptAbortController.signal;
+
     // Always use server-side encryption with Argon2id + AES-256-GCM
     let payload;
+    const startBtn = document.getElementById('catQrBtn');
     try {
-        document.getElementById('catQrBtn').disabled = true;
-        document.getElementById('catQrBtn').textContent = '🔒 Encrypting...';
+        startBtn.disabled = true;
+        startBtn.textContent = '🔒 Encrypting...';
 
         const formData = new FormData();
         formData.append('message', message);
@@ -478,14 +510,23 @@ async function catModeEncode() {
 
         const response = await fetch('/cat-mode-encrypt-server', {
             method: 'POST',
-            body: formData
+            body: formData,
+            signal: myAbortSignal
         });
+
+        // If the user clicked Stop / restarted while we were waiting, this
+        // fetch is stale — drop the result rather than continuing.
+        if (myAbortSignal.aborted) {
+            startBtn.disabled = false;
+            startBtn.textContent = '😺 Start Transmitting';
+            return;
+        }
 
         if (!response.ok) {
             const error = await response.json();
             alert('Encryption failed: ' + (error.error || 'Unknown error'));
-            document.getElementById('catQrBtn').disabled = false;
-            document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+            startBtn.disabled = false;
+            startBtn.textContent = '😺 Start Transmitting';
             return;
         }
 
@@ -498,13 +539,17 @@ async function catModeEncode() {
             sessionStorage.setItem('meow_cat_encryption_mode', 'server');
         } catch (e) {}
 
-        document.getElementById('catQrBtn').disabled = false;
-        document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+        startBtn.disabled = false;
+        startBtn.textContent = '😺 Start Transmitting';
 
     } catch (error) {
+        if (error.name === 'AbortError') {
+            // User cancelled or restarted — silent return, button reset above.
+            return;
+        }
         alert('Server encryption failed: ' + error.message);
-        document.getElementById('catQrBtn').disabled = false;
-        document.getElementById('catQrBtn').textContent = '😺 Start Transmitting';
+        startBtn.disabled = false;
+        startBtn.textContent = '😺 Start Transmitting';
         return;
     }
 
@@ -519,25 +564,50 @@ async function catModeEncode() {
         sessionStorage.setItem('meow_cat_speed_ms', String(speed));
     } catch (e) {}
 
+    // Tear down any leftover recorder/stream from a previous run before
+    // starting a new one. Without this, the previous capture stream and
+    // recorder leak across consecutive Start clicks, and the new
+    // recordedChunks=[] reset above can clobber chunks still being
+    // delivered by the old recorder's ondataavailable.
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        try { mediaRecorder.stop(); } catch (_) {}
+    }
+    if (mediaStream) {
+        try { mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+        mediaStream = null;
+    }
+    mediaRecorder = null;
+
     // Start video recording
     recordedChunks = [];
     videoBlob = null;
     try {
-        const stream = catCanvas.captureStream(60); // 60 FPS for fast blink capture
-        mediaRecorder = new MediaRecorder(stream, {
+        mediaStream = catCanvas.captureStream(60); // 60 FPS for fast blink capture
+        const recorder = new MediaRecorder(mediaStream, {
             mimeType: 'video/webm;codecs=vp9',
             videoBitsPerSecond: 2500000
         });
+        mediaRecorder = recorder;
 
-        mediaRecorder.ondataavailable = (event) => {
+        // Capture the chunks array into a local closure so a subsequent
+        // catModeEncode() that resets `recordedChunks = []` can't clobber
+        // this in-flight recorder's data.
+        const myChunks = recordedChunks;
+        recorder.ondataavailable = (event) => {
             if (event.data.size > 0) {
-                recordedChunks.push(event.data);
+                myChunks.push(event.data);
             }
         };
 
-        mediaRecorder.onstop = () => {
-            videoBlob = new Blob(recordedChunks, { type: 'video/webm' });
+        recorder.onstop = () => {
+            videoBlob = new Blob(myChunks, { type: 'video/webm' });
             console.log(`🎥 Video recorded: ${(videoBlob.size / 1024).toFixed(1)} KB`);
+
+            // Stop tracks now that the recorder is finalised.
+            if (mediaStream === recorder.stream) {
+                try { mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
+                mediaStream = null;
+            }
 
             // Auto-save to server and show download link
             const formData = new FormData();
@@ -559,7 +629,7 @@ async function catModeEncode() {
             .catch(err => console.warn('Video save failed:', err));
         };
 
-        mediaRecorder.start();
+        recorder.start();
         console.log('🎥 Recording started');
     } catch (e) {
         console.warn('Video recording not supported:', e);
@@ -612,6 +682,23 @@ async function catModeEncode() {
 
     function transmitFrame(timestamp) {
         if (frameStartTime === null) frameStartTime = timestamp;
+
+        // requestAnimationFrame is throttled to ~1 Hz when the tab is
+        // hidden. Without this guard, the catch-up while-loop below would
+        // silently advance frameIndex past totalFrames without rendering
+        // anything to the canvas, producing an unusable recorded video.
+        // Abort the transmission if the user backgrounds the tab and warn
+        // them — they need to redo the recording with the tab visible.
+        if (typeof document !== 'undefined' && document.hidden) {
+            console.warn('Tab hidden during transmission — aborting; recorded video would be unusable.');
+            catTransmitting = false;
+            const progressEl = document.getElementById('catProgressText');
+            if (progressEl) {
+                progressEl.textContent = '⚠️ Transmission aborted: tab was backgrounded. Re-run with the page visible.';
+            }
+            catModeStop();
+            return;
+        }
 
         while (frameIndex < totalFrames && timestamp - frameStartTime >= speed) {
             frameStartTime += speed;
@@ -666,13 +753,21 @@ function catModeStop() {
         catBlinkInterval = null;
     }
 
+    // Cancel any in-flight encryption so it can't continue and start a
+    // second recording after the user clicked Stop.
+    if (encryptAbortController) {
+        try { encryptAbortController.abort(); } catch (_) {}
+        encryptAbortController = null;
+    }
+
     // Pause background video (transmission done — no looping)
     if (catBgVideo) {
         catBgVideo.pause();
         catBgVideo.playbackRate = 1.0; // reset rate for next run
     }
 
-    // Stop video recording
+    // Stop video recording. Note: the recorder's onstop handler also
+    // stops the underlying MediaStream tracks, so we don't double-stop here.
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
         mediaRecorder.stop();
         console.log('🎥 Recording stopped');
@@ -754,6 +849,11 @@ function loadSavedBinary() {
     }
 }
 
+// Track the previous object URL so we can revoke it before assigning a new
+// one. Without this, every upload leaks one object URL until the page closes.
+let lastUploadObjectURL = null;
+const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;  // 100 MB
+
 function handleVideoUpload(input) {
     const statusEl = document.getElementById('videoUploadStatus');
     const previewContainer = document.getElementById('videoPreviewContainer');
@@ -762,13 +862,43 @@ function handleVideoUpload(input) {
     if (!input.files || !input.files[0]) return;
 
     const file = input.files[0];
+
+    // Validate before sending the bytes anywhere — surprise multi-GB uploads
+    // and zero-byte files both produce confusing server-side errors.
+    if (file.size === 0) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = '❌ File is empty.';
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.color = '#721c24';
+        return;
+    }
+    if (file.size > MAX_UPLOAD_BYTES) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = `❌ File too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Max ${MAX_UPLOAD_BYTES / 1024 / 1024} MB.`;
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.color = '#721c24';
+        return;
+    }
+    if (file.type && !file.type.startsWith('video/')) {
+        statusEl.style.display = 'block';
+        statusEl.innerHTML = `❌ Not a video file (got "${file.type}").`;
+        statusEl.style.background = '#f8d7da';
+        statusEl.style.color = '#721c24';
+        return;
+    }
+
     statusEl.style.display = 'block';
     statusEl.innerHTML = '⏳ Loading video...';
     statusEl.style.background = '#fff3cd';
     statusEl.style.color = '#856404';
 
-    // Show video preview
+    // Show video preview. Revoke previous object URL first to avoid a leak
+    // on repeat uploads.
+    if (lastUploadObjectURL) {
+        try { URL.revokeObjectURL(lastUploadObjectURL); } catch (_) {}
+    }
     const url = URL.createObjectURL(file);
+    lastUploadObjectURL = url;
     videoPreview.src = url;
     previewContainer.style.display = 'block';
 

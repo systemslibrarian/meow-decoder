@@ -232,13 +232,16 @@ class GradientCompensator {
     detectTrend() {
         const n = this.recentScores.length;
         if (n < 10) return { slope: 0, intercept: 0, r2: 0 };
-        
+
+        // Cache returns the actual r2 — the previous code returned 0 on a
+        // cache hit, which made compensate() flip off whenever it was
+        // called twice without intervening data.
         if (this._cacheValid && this._lastCacheSize === n) {
-            return { slope: this._cachedSlope, intercept: this._cachedIntercept, r2: 0 };
+            return { slope: this._cachedSlope, intercept: this._cachedIntercept, r2: this._cachedR2 };
         }
-        
-        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0, sumY2 = 0;
-        
+
+        let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+
         for (let i = 0; i < n; i++) {
             const x = this.recentTimes[i];
             const y = this.recentScores[i];
@@ -246,30 +249,43 @@ class GradientCompensator {
             sumY += y;
             sumXY += x * y;
             sumX2 += x * x;
-            sumY2 += y * y;
         }
-        
+
         const denom = n * sumX2 - sumX * sumX;
         if (Math.abs(denom) < 1e-10) {
             return { slope: 0, intercept: sumY / n, r2: 0 };
         }
-        
+
         const slope = (n * sumXY - sumX * sumY) / denom;
         const intercept = (sumY - slope * sumX) / n;
-        
-        // R² (coefficient of determination) - how well the line fits
+
+        // R² (coefficient of determination). Compute ssTotal and
+        // ssResidual directly from residuals rather than from the
+        // algebraic-expansion form (sumY2 - n*meanY*meanY etc.), which
+        // catastrophically cancels when y has small variance — green
+        // scores cluster tightly so this case is the norm, not the
+        // exception. The clamp at the end was hiding wrong values.
         const meanY = sumY / n;
-        const ssTotal = sumY2 - n * meanY * meanY;
-        const ssResidual = sumY2 - intercept * sumY - slope * sumXY;
-        const r2 = ssTotal > 0 ? 1 - ssResidual / ssTotal : 0;
-        
+        let ssTotal = 0;
+        let ssResidual = 0;
+        for (let i = 0; i < n; i++) {
+            const y = this.recentScores[i];
+            const x = this.recentTimes[i];
+            const dy = y - meanY;
+            ssTotal += dy * dy;
+            const r = y - (slope * x + intercept);
+            ssResidual += r * r;
+        }
+        const r2 = ssTotal > 0 ? Math.max(0, Math.min(1, 1 - ssResidual / ssTotal)) : 0;
+
         // Cache result
         this._cachedSlope = slope;
         this._cachedIntercept = intercept;
+        this._cachedR2 = r2;
         this._cacheValid = true;
         this._lastCacheSize = n;
-        
-        return { slope, intercept, r2: Math.max(0, Math.min(1, r2)) };
+
+        return { slope, intercept, r2 };
     }
     
     /**
@@ -349,7 +365,10 @@ class AdaptiveThreshold {
         this.window = [];
         this.windowSize = windowSize;
         this.recalibrateInterval = recalibrateSec * 1000; // Convert to ms
-        this.lastCalibration = 0;
+        // Use null sentinel so the first frame doesn't immediately trigger
+        // calibration (timestamp - 0 always exceeds recalibrateInterval).
+        // Set on the first update() call.
+        this.lastCalibration = null;
         this.threshold = 0.5; // Initial guess (will be updated)
         this.histogramBins = histogramBins;
         
@@ -383,7 +402,12 @@ class AdaptiveThreshold {
             this.window.shift();
         }
         
-        // Check if need to recalibrate (every 1s per Task 5.2.2, was 5s)
+        // Check if need to recalibrate (every 1s per Task 5.2.2, was 5s).
+        // Initialize lastCalibration on the first update so the elapsed-time
+        // check measures from real first-frame time, not from epoch zero.
+        if (this.lastCalibration === null) {
+            this.lastCalibration = timestamp;
+        }
         let calibrated = false;
         if (timestamp - this.lastCalibration >= this.recalibrateInterval && this.window.length >= 20) {
             this.recalibrate();
@@ -510,7 +534,7 @@ class AdaptiveThreshold {
      */
     reset() {
         this.window = [];
-        this.lastCalibration = 0;
+        this.lastCalibration = null;
         this.threshold = 0.5;
         this.calibrationCount = 0;
         this.lastHistogram = null;

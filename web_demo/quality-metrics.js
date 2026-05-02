@@ -128,7 +128,10 @@ function classifyFrame(greenScore, threshold, onMean, offMean, confidenceMargin 
     const distance = Math.abs(greenScore - threshold);
     const range = Math.abs(onMean - offMean); // Learned from preamble
     const eps = 0.01; // Prevent division by zero
-    const confidence = distance / (range + eps);
+    // Clamp confidence to [0, 1]. Saturated pixels can put greenScore
+    // outside [offMean, onMean], producing values like 3.7 that pollute
+    // any downstream code treating this as a probability.
+    const confidence = Math.min(distance / (range + eps), 1);
     
     if (confidence < confidenceMargin) {
         return { 
@@ -173,7 +176,8 @@ function classifyFrameWithPercentiles(greenScore, threshold, allScores, confiden
     const eps = 0.01;
     
     const distance = Math.abs(greenScore - threshold);
-    const confidence = distance / (range + eps);
+    // Same clamp as classifyFrame — keep confidence in [0, 1].
+    const confidence = Math.min(distance / (range + eps), 1);
     
     if (confidence < confidenceMargin) {
         return { 
