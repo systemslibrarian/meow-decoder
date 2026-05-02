@@ -140,18 +140,25 @@ function findPeaks(histogram, minPeakHeight = null) {
 function findValley(histogram, peak1, peak2) {
     const leftIdx = Math.min(peak1.index, peak2.index);
     const rightIdx = Math.max(peak1.index, peak2.index);
-    
-    // Find minimum count between peaks
-    let minIdx = leftIdx;
-    let minCount = histogram[leftIdx].count;
-    
-    for (let i = leftIdx + 1; i <= rightIdx; i++) {
+
+    // Look strictly between the two peaks. The previous version seeded
+    // minIdx at leftIdx (the peak itself), so adjacent or near-adjacent
+    // peaks could return a peak as the threshold and misclassify ~half the
+    // samples in that bin.
+    if (rightIdx - leftIdx < 2) {
+        return (histogram[leftIdx].value + histogram[rightIdx].value) / 2;
+    }
+
+    let minIdx = leftIdx + 1;
+    let minCount = histogram[minIdx].count;
+
+    for (let i = leftIdx + 2; i < rightIdx; i++) {
         if (histogram[i].count < minCount) {
             minCount = histogram[i].count;
             minIdx = i;
         }
     }
-    
+
     return histogram[minIdx].value;
 }
 

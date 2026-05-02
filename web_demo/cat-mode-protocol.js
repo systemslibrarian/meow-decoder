@@ -50,6 +50,7 @@ const PROTOCOL_VERSION = 0x01;
 const HEADER_SIZE = 15;  // Total header size (magic + version + session + seq + len + crc)
 const MAX_PAYLOAD_SIZE = 1024;  // Max 1KB per packet
 const MAX_PACKETS = 65535;  // 16-bit sequence number limit
+const SESSION_UNLOCK_THRESHOLD = 5;  // Mismatched packets before adopting a fresh session.
 
 // ============================================================================
 // CRC32 Implementation (IEEE 802.3 polynomial)
@@ -376,7 +377,9 @@ class CatProtocolDecoder {
     reset() {
         this.lockedSessionId = null;
         this.receivedPackets = new Map();  // seq -> payload
+        this.maxSeq = -1;  // Tracks the highest seq seen (avoids Math.max(...keys) crash on large messages).
         this.expectedPackets = null;  // Total expected (unknown initially)
+        this.sessionMismatches = 0;  // Consecutive mismatches; auto-unlocks on threshold to recover from spurious lock.
         this.stats = {
             packets_received: 0,
             packets_accepted: 0,
@@ -410,8 +413,31 @@ class CatProtocolDecoder {
         if (this.lockedSessionId === null) {
             // First valid packet locks session
             this.lockedSessionId = decoded.sessionId;
+            this.sessionMismatches = 0;
         } else if (!constantTimeEqual32(decoded.sessionId, this.lockedSessionId)) {
-            // Wrong session — generic error, no session ID leak
+            // Wrong session — generic error, no session ID leak.
+            // After repeated mismatches assume the original lock came from a
+            // spurious / adversarial packet and let a fresh sender take over.
+            this.sessionMismatches++;
+            if (this.sessionMismatches >= SESSION_UNLOCK_THRESHOLD) {
+                this.lockedSessionId = decoded.sessionId;
+                this.receivedPackets = new Map();
+                this.maxSeq = -1;
+                this.sessionMismatches = 0;
+            } else {
+                this.stats.packets_rejected++;
+                return {
+                    accepted: false,
+                    error: 'packet_rejected'
+                };
+            }
+        } else {
+            this.sessionMismatches = 0;
+        }
+
+        // Reject seq numbers above MAX_PACKETS so a single crafted packet
+        // can't grow the reconstruction loop to 65k iterations.
+        if (decoded.sequenceNum > MAX_PACKETS) {
             this.stats.packets_rejected++;
             return {
                 accepted: false,
@@ -431,10 +457,13 @@ class CatProtocolDecoder {
 
         // Store packet
         this.receivedPackets.set(decoded.sequenceNum, decoded.payload);
+        if (decoded.sequenceNum > this.maxSeq) this.maxSeq = decoded.sequenceNum;
         this.stats.packets_accepted++;
 
-        // Check if complete (all sequence numbers from 0 to max received)
-        const maxSeq = Math.max(...this.receivedPackets.keys());
+        // Check if complete (all sequence numbers from 0 to max received).
+        // maxSeq is tracked incrementally — Math.max(...keys) would crash
+        // when receivedPackets has tens of thousands of entries.
+        const maxSeq = this.maxSeq;
         const isComplete = this.receivedPackets.size === (maxSeq + 1);
 
         if (isComplete) {

@@ -331,8 +331,10 @@ function detectPreamble(frames, minTransitionRate = 0.8, windowSize = 50) {
         return null;
     }
     
-    // Count transitions in sliding window
-    for (let i = 0; i < frames.length - windowSize; i++) {
+    // Count transitions in sliding window. Use `<=` so the trailing window
+    // starting at frames.length - windowSize is also considered — `<`
+    // skipped any preamble that landed at the very end of the capture.
+    for (let i = 0; i <= frames.length - windowSize; i++) {
         const windowFrames = frames.slice(i, i + windowSize);
         let transitions = 0;
         

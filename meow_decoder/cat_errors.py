@@ -243,9 +243,13 @@ def pounce_on_errors(
                     if attempt == lives - 1:
                         if reraise:
                             raise
-            # Should not reach here, but just in case
-            if last_exc is not None:
+                        return None
+            # All attempts exhausted with reraise=True; the inner `raise`
+            # already fired, so this is unreachable. Keep as a safety net
+            # only when reraise is True.
+            if reraise and last_exc is not None:
                 raise last_exc
+            return None
 
         return wrapper  # type: ignore[return-value]
 
