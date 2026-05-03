@@ -403,19 +403,24 @@ test.describe('Browser-Specific Workarounds', () => {
             test.skip();
         }
 
-        // Check for MP4 conversion helper. The asserted feature
-        // (window.convertWebMToMp4) is not yet implemented in the demo —
-        // see TODO at line 123. Skip until the helper ships rather than
-        // failing on missing functionality.
+        // window.convertWebMToMp4 is shipped via static/convert-webm-to-mp4.js
+        // (loaded from wasm_browser_example_FULL.html). For Safari/WebKit,
+        // MediaRecorder produces video/mp4 directly — the helper short-circuits
+        // to identity on MP4 input.
         const hasMp4Fallback = await page.evaluate(() => {
             return typeof window.convertWebMToMp4 === 'function';
         });
-
-        if (!hasMp4Fallback) {
-            test.skip(true, 'convertWebMToMp4 helper not implemented yet');
-            return;
-        }
         expect(hasMp4Fallback).toBe(true);
+
+        // Verify the identity branch returns an MP4 blob from an MP4 input.
+        const identityWorks = await page.evaluate(async () => {
+            const fakeMp4 = new Blob([new Uint8Array([0x00, 0x00, 0x00, 0x18])], {
+                type: 'video/mp4',
+            });
+            const out = await window.convertWebMToMp4(fakeMp4);
+            return out instanceof Blob && out.type === 'video/mp4';
+        });
+        expect(identityWorks).toBe(true);
     });
 
     test('Firefox: MediaRecorder constraints', async ({ page, browserName }) => {

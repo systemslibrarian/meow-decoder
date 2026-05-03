@@ -1,5 +1,7 @@
 [build-system]
-requires = ["setuptools>=69.0", "wheel"]
+# wheel ≥0.46 closes the path-traversal CVE in older versions
+# (Finding 7.2). setuptools floor stays at 69 for the existing API.
+requires = ["setuptools>=69.0", "wheel>=0.46"]
 build-backend = "setuptools.build_meta"
 
 [project]

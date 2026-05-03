@@ -1,5 +1,10 @@
-# Hash-pinned pip for OpenSSF Scorecard compliance
-# This file pins pip itself to satisfy supply-chain security requirements.
-# Install with: pip install --require-hashes -r requirements-pip.lock
-pip==24.3.1 \
-    --hash=sha256:3790624780082365f47549d032f3770eeb2b1e8bd1f7b2e02dace1afa361b4ed
+# Hash-pinned pip + wheel for OpenSSF Scorecard compliance
+# This file pins pip and wheel themselves to satisfy supply-chain security
+# requirements. Install with: pip install --require-hashes -r requirements-pip.lock
+#
+# Bumped 2026-05-03: pip 24.3.1 → 26.1 and added wheel 0.47.0 to address
+# Finding 7.2 (pip 24.x + wheel 0.45.x build-time CVEs).
+pip==26.1 \
+    --hash=sha256:4e8486d821d814b77319acb7b9e8bf5a4ee7590a643e7cb21029f209be8573c1
+wheel==0.47.0 \
+    --hash=sha256:212281cab4dff978f6cedd499cd893e1f620791ca6ff7107cf270781e587eced
