@@ -25,8 +25,9 @@
 //! to keep each phase's diff focused. The phases land independently;
 //! every committed phase leaves the crate compiling and tested.
 
+pub mod cpython_random;
 pub mod distribution;
 pub mod mt19937;
 pub mod wire;
-// cpython_random, encoder, decoder land in follow-up commits — see
-// module-level docstring above.
+// encoder, decoder land in follow-up commits — see module-level
+// docstring above.
