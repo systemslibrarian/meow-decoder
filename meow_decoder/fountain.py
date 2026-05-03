@@ -118,11 +118,37 @@ class RobustSolitonDistribution:
         return 1
 
 
+# ── Rust encoder backend (Phase 2b of the migration plan) ───────────────────
+#
+# `meow_crypto_rs.FountainEncoder` is the pure-Rust LT encoder under
+# `crypto_core::meow_fountain`. It produces droplets byte-identical to the
+# legacy Python encoder for the 16 golden vectors under
+# `tests/golden/fountain/`. We feature-detect at import time so a stale wheel
+# without the fountain symbols still works (falls back to the pure-Python
+# encoder defined below).
+try:
+    from meow_crypto_rs import FountainEncoder as _RustFountainEncoder
+
+    _RUST_FOUNTAIN_AVAILABLE = True
+except ImportError:
+    _RUST_FOUNTAIN_AVAILABLE = False
+
+
 class FountainEncoder:
     """
     Fountain code encoder using Luby Transform codes.
 
-    Generates an endless stream of encoded droplets from source blocks.
+    Phase 2b of the Rust+WASM unification (see
+    docs/FOUNTAIN_RUST_WASM_MIGRATION.md): when meow_crypto_rs is
+    available with the fountain feature, this class delegates to the
+    Rust core for byte-identical droplet generation; the pure-Python
+    fallback below preserves the legacy behaviour for environments
+    without the binding.
+
+    The public API and droplet wire format are unchanged. The
+    ``data``, ``blocks``, ``distribution``, and ``droplet_count``
+    attributes are still exposed for tests that inspect encoder
+    internals.
     """
 
     def __init__(self, data: bytes, k_blocks: int, block_size: int):
@@ -147,14 +173,30 @@ class FountainEncoder:
             raise ValueError(f"fountain: total_size {total_size} exceeds 10 GiB sanity ceiling")
         self.data = data + b"\x00" * (total_size - len(data))
 
-        # Split into blocks
+        # Split into blocks (kept around so tests / introspection still
+        # see the per-block view; the Rust encoder works on its own
+        # internal copy).
         self.blocks = [self.data[i * block_size : (i + 1) * block_size] for i in range(k_blocks)]
 
-        # Initialize distribution
+        # Initialize distribution (still Python — exposes
+        # `.distribution` and `.sample_degree(rng)` for tests).
         self.distribution = RobustSolitonDistribution(k_blocks)
 
         # Droplet counter
         self.droplet_count = 0
+
+        # Rust encoder, if available. Constructed lazily on the
+        # *padded* `self.data` so its internal blocks match the
+        # Python-side `self.blocks`.
+        if _RUST_FOUNTAIN_AVAILABLE:
+            try:
+                self._rust = _RustFountainEncoder(bytes(self.data), k_blocks, block_size)
+            except (ValueError, RuntimeError):
+                # Defensive — should only happen if the Rust side
+                # disagrees on shape, which we already validated.
+                self._rust = None
+        else:
+            self._rust = None
 
     def droplet(self, seed: Optional[int] = None) -> Droplet:
         """
@@ -171,26 +213,32 @@ class FountainEncoder:
 
         self.droplet_count += 1
 
-        # For small k (and especially in tests), it's valuable to make early droplets
-        # systematic (degree-1). This dramatically improves decode reliability under
-        # loss without weakening confidentiality (payload is already high-entropy).
+        # ── Fast path: delegate to the Rust encoder ──
+        # The Rust impl handles both the systematic (seed < 2*k) and
+        # the Robust-Soliton paths in a single byte-identical
+        # implementation. Translate the returned droplet into the
+        # canonical Python dataclass.
+        if self._rust is not None and 0 <= seed <= 0xFFFF_FFFF:
+            d = self._rust.droplet(seed)
+            return Droplet(
+                seed=int(d.seed),
+                block_indices=list(d.block_indices),
+                data=bytes(d.data),
+            )
+
+        # ── Pure-Python fallback (legacy path) ──
+        # For small k (and especially in tests), it's valuable to make
+        # early droplets systematic (degree-1).
         if seed < (2 * self.k_blocks):
             block_idx = seed % self.k_blocks
             block_indices = [block_idx]
             xor_data = bytearray(self.blocks[block_idx])
         else:
-            # Use a local RNG instance to avoid mutating global random state
-            # (thread safety + prevents interference from other code)
+            # Local RNG instance to avoid mutating global random state.
             rng = random.Random(seed)
-
-            # Sample degree
             degree = self.distribution.sample_degree(rng)
-
-            # Select random blocks
             block_indices = rng.sample(range(self.k_blocks), min(degree, self.k_blocks))
             block_indices.sort()
-
-            # XOR selected blocks
             xor_data = bytearray(self.block_size)
             for idx in block_indices:
                 block_data = self.blocks[idx]
