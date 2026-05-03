@@ -57,7 +57,9 @@ class TestBeliefPropagationProgress:
         d = Droplet(seed=99, block_indices=[0, 1, 2], data=secrets.token_bytes(block_size))
         decoder.add_droplet(d)
         assert not decoder.is_complete()
-        assert len(decoder.pending_droplets) >= 1
+        # pending_count: degree-3 droplet with no decoded blocks → lands
+        # in the BP pending queue. Backend-agnostic introspection.
+        assert decoder.pending_count >= 1
 
     def test_belief_propagation_terminates(self):
         from meow_decoder.fountain import FountainEncoder, FountainDecoder

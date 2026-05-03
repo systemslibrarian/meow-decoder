@@ -348,18 +348,17 @@ class TestFountainCoverageGaps:
             assert degree == 1
 
     def test_decoder_degree_greater_than_one(self):
-        """Test droplets with degree > 1 go to pending (line 263)."""
-        # Create decoder
+        """A degree-3 droplet should be accepted by the decoder without
+        crashing — the BP path internally pushes it into the pending
+        queue. Black-box variant: assert add_droplet returns False
+        (decoder not complete) and decoded_count is still 0.
+        """
         decoder = FountainDecoder(k_blocks=10, block_size=20, original_length=200)
-
-        # Create a droplet with degree > 1 (multiple block_indices)
-        droplet = Droplet(seed=42, block_indices=[0, 1, 2], data=b"\x00" * 20)  # degree 3
-
-        # Add it - should go to pending
-        decoder.add_droplet(droplet)
-
-        # Verify it was added to pending
-        assert len(decoder.pending_droplets) >= 0  # Just verify it works
+        droplet = Droplet(seed=42, block_indices=[0, 1, 2], data=b"\x00" * 20)
+        done = decoder.add_droplet(droplet)
+        assert done is False
+        assert decoder.decoded_count == 0
+        assert not decoder.is_complete()
 
     def test_process_pending_belief_propagation(self):
         """Test belief propagation in _process_pending (lines 321-333).
@@ -389,50 +388,57 @@ class TestFountainCoverageGaps:
         assert len(decoded) > 0
 
     def test_process_pending_with_redundant_droplets(self):
-        """Test pending droplet reduction to redundant (empty indices)."""
+        """Test pending droplet reduction to redundant (empty indices).
+
+        Black-box variant: feed the decoder degree-1 droplets for every
+        block (so it's complete), then feed a degree-2 droplet covering
+        already-decoded blocks. The decoder must accept it without
+        crashing and the completion state must be unchanged. This
+        replaces the old whitebox version that mutated decoder.blocks /
+        decoder.decoded directly — those internals are no longer
+        Python-side after the Phase 2b decoder swap.
+        """
         decoder = FountainDecoder(k_blocks=3, block_size=10, original_length=30)
 
-        # Manually decode all blocks first
-        decoder.blocks = [b"A" * 10, b"B" * 10, b"C" * 10]
-        decoder.decoded = [True, True, True]
-        decoder.decoded_count = 3
+        # Decode all 3 blocks via degree-1 droplets.
+        decoder.add_droplet(Droplet(seed=0, block_indices=[0], data=b"A" * 10))
+        decoder.add_droplet(Droplet(seed=1, block_indices=[1], data=b"B" * 10))
+        decoder.add_droplet(Droplet(seed=2, block_indices=[2], data=b"C" * 10))
+        assert decoder.is_complete()
 
-        # Now add a droplet that references already-decoded blocks
-        # When reduced, it will have empty block_indices
-        droplet = Droplet(
-            seed=100, block_indices=[0, 1], data=b"\x00" * 10  # These are already decoded
-        )
-
-        decoder.pending_droplets.append(droplet)
-
-        # Process pending - the droplet should be discarded as redundant
-        decoder._process_pending()
-
-        # Verify pending is cleared (was redundant)
-        assert len(decoder.pending_droplets) == 0
+        # Redundant droplet — covers blocks 0 and 1, both already known.
+        # Reduces to degree-0 internally and is dropped without effect.
+        redundant = Droplet(seed=100, block_indices=[0, 1], data=b"\x00" * 10)
+        already_done = decoder.is_complete()
+        decoder.add_droplet(redundant)
+        assert decoder.is_complete() == already_done
+        # And the recovered data is unchanged.
+        assert decoder.get_data() == (b"A" * 10) + (b"B" * 10) + (b"C" * 10)
 
     def test_process_pending_reduces_to_degree_one(self):
-        """Test pending droplet reduces to degree 1 and decodes."""
+        """Test pending droplet reduces to degree 1 and decodes.
+
+        Black-box variant: feed block 0 directly (degree-1), then feed a
+        degree-2 droplet covering blocks 0 and 1. The decoder reduces
+        the degree-2 droplet by XOR-ing out block 0, making it degree-1
+        for block 1, and decodes block 1. Replaces the old whitebox
+        version that mutated decoder internals directly.
+        """
         decoder = FountainDecoder(k_blocks=3, block_size=10, original_length=30)
 
-        # Decode block 0 manually
-        decoder.blocks = [b"A" * 10, b"\x00" * 10, b"\x00" * 10]
-        decoder.decoded = [True, False, False]
-        decoder.decoded_count = 1
-
-        # Create a droplet that covers blocks 0 and 1
-        # Block 0's data XOR'd with block 1's data
+        # Plant block 0 via a degree-1 droplet.
         block0_data = b"A" * 10
         block1_data = b"B" * 10
+        decoder.add_droplet(Droplet(seed=0, block_indices=[0], data=block0_data))
+        assert not decoder.is_complete()
+
+        # Degree-2 droplet covering blocks 0 and 1: data = block0 XOR block1.
         xor_data = bytes(a ^ b for a, b in zip(block0_data, block1_data))
+        decoder.add_droplet(Droplet(seed=100, block_indices=[0, 1], data=xor_data))
 
-        droplet = Droplet(seed=100, block_indices=[0, 1], data=xor_data)
-
-        decoder.pending_droplets.append(droplet)
-
-        # Process pending - should reduce to degree 1 and decode block 1
-        decoder._process_pending()
-
-        # Block 1 should now be decoded
-        assert decoder.decoded[1] is True
-        assert decoder.blocks[1] == block1_data
+        # Block 1 should now be decoded — feed degree-1 for block 2 to
+        # complete the decoder and assert recovered data.
+        decoder.add_droplet(Droplet(seed=2, block_indices=[2], data=b"C" * 10))
+        assert decoder.is_complete()
+        recovered = decoder.get_data()
+        assert recovered == block0_data + block1_data + (b"C" * 10)

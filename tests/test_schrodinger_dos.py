@@ -165,7 +165,7 @@ class TestSchrodingerDoSCeiling:
         print(
             f"\n[Schrödinger DoS] {DOS_FRAME_COUNT} forged droplets: "
             f"wall={elapsed:.2f}s, rss_after={rss_after:.1f} MB "
-            f"(Δ={rss_delta:+.1f} MB), pending={len(decoder.pending_droplets)}"
+            f"(Δ={rss_delta:+.1f} MB), pending={decoder.pending_count}"
         )
 
     def test_pending_droplets_grow_at_most_linearly_with_input(self):
@@ -188,9 +188,9 @@ class TestSchrodingerDoSCeiling:
                 _forge_garbage_droplet(DOS_BLOCK_COUNT, DOS_BLOCK_SIZE)
             )
 
-        assert len(decoder.pending_droplets) <= n, (
+        assert decoder.pending_count <= n, (
             f"pending_droplets grew super-linearly: "
-            f"{len(decoder.pending_droplets)} > {n} input droplets"
+            f"{decoder.pending_count} > {n} input droplets"
         )
 
     def test_legitimate_decode_still_works_after_garbage_flood(self):
