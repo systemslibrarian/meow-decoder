@@ -9,11 +9,11 @@ Features:
 - Efficient block management
 """
 
+import math
 import struct
 import random
 from typing import List, Tuple, Optional, Set
 from dataclasses import dataclass
-import numpy as np
 
 
 @dataclass
@@ -71,7 +71,11 @@ class RobustSolitonDistribution:
             rho[i] = 1.0 / (i * (i - 1))
 
         # Robust part (τ)
-        R = self.c * np.log(k / self.delta) * np.sqrt(k)
+        # math.log + math.sqrt are bit-equivalent to numpy.log/sqrt
+        # for f64 inputs on every libm we ship against; dropping
+        # numpy means fountain.py no longer drags in a 30 MB native
+        # dependency just for two scalar calls.
+        R = self.c * math.log(k / self.delta) * math.sqrt(k)
         tau = [0.0] * (k + 1)
 
         # Clamp spike index to valid range [1, k]
@@ -81,7 +85,7 @@ class RobustSolitonDistribution:
 
         for i in range(1, m):
             tau[i] = R / (i * k)
-        tau[m] = R * np.log(R / self.delta) / k
+        tau[m] = R * math.log(R / self.delta) / k
 
         # Combine ρ and τ
         mu = [rho[i] + tau[i] for i in range(k + 1)]

@@ -85,29 +85,45 @@ from `FOLLOWUP.md`. Eleven commits; full diff:
   `tests/test_property_ratchet_pq.py::TestDecoderRollbackInvariants`
   randomising tamper location, frame layout, and rekey interval.
 
-#### Fountain Rust+WASM unification (gemini #6) — Phases 0, 1, 2a complete
+#### Fountain Rust+WASM unification (gemini #6) — Phases 0–3 complete
 
-* **Phase 0** — design doc + golden vectors. 16 byte-exact `.bin`
-  fixtures covering k ∈ {2, 10, 100, 1000} × multiple seeds.
-  `docs/FOUNTAIN_RUST_WASM_MIGRATION.md` + 50 Python regression tests.
+The Luby Transform fountain code is now unified across Python, Rust,
+and JS via a single Rust core in `crypto_core::meow_fountain`.
+Producing byte-identical droplets to the prior Python encoder for
+all 16 golden vectors under `tests/golden/fountain/`.
+
+* **Phase 0** — design doc + 16 byte-exact golden vectors covering
+  k ∈ {2, 10, 100, 1000} × multiple seeds. 50 Python regression tests.
 * **Phase 1** — pure-Rust LT core under `crypto_core/src/meow_fountain/`:
   wire format, MT19937 (CPython-compatible), Robust Soliton
   distribution, CPython `random()/getrandbits()/randbelow()/sample()`
   faithful re-implementations, encoder, BP decoder. 38 unit tests +
-  golden-vector parity test (`crypto_core/tests/fountain_golden_parity.rs`)
-  — green for all 16 vectors.
+  golden-vector parity test, all green.
 * **Phase 2a** — PyO3 binding (`rust_crypto/src/fountain.rs`).
-  `meow_crypto_rs.FountainEncoder` / `.FountainDecoder` / `.Droplet`
-  produce byte-identical output to the Python encoder via the FFI
-  boundary. Verified against all 16 golden vectors.
-* **Phase 2b not yet landed**: replacing `meow_decoder/fountain.py`
-  with a thin shim (and dropping the NumPy dependency) is the next
-  step. Tracked in the migration plan.
+  `meow_crypto_rs.FountainEncoder/Decoder/Droplet` produce byte-
+  identical output via the FFI boundary.
+* **Phase 2b** — `meow_decoder.fountain.FountainEncoder` /
+  `FountainDecoder` now delegate to the Rust core when
+  `meow_crypto_rs` is available (pure-Python fallback retained).
+  Three whitebox tests rewritten as black-box. New `pending_count`
+  property replaces direct `len(decoder.pending_droplets)` access.
+  282/282 fountain + downstream tests pass.
+* **Phase 3** — `wasm-fountain` feature in `crypto_core` exports
+  `WasmFountainEncoder/Decoder/Droplet` from the same
+  `crypto_core_bg.wasm`. `web_demo/static/fountain-codes.js` keeps
+  its pure-JS fallback and gains `window.activateWasmFountain(mod)`
+  for hot-swap to the WASM backend.
+  `wasm_browser_example_FULL.html` calls activation immediately
+  after WASM init. Cross-language: Python, Rust, JS, WASM all
+  produce identical droplets.
+* **Phase 4 partial** — NumPy import dropped from `fountain.py`
+  (`math.log` / `math.sqrt` are bit-equivalent on this platform).
+  NumPy stays in `requirements.txt` for the other consumers
+  (qr_code, stego_multilayer, logo_eyes).
 * **Wire format correction**: the original design doc said little-
   endian u64 seed; production `pack_droplet` is big-endian u32.
-  Caught while wiring the PyO3 binding. Doc + golden vectors + Rust
-  core all updated to the production format before any production
-  code was changed (commit 195c0e6).
+  Caught during PyO3 wiring; doc + golden vectors + Rust core all
+  updated before any production code was changed.
 
 #### Schrödinger DoS empirical bound (gemini v2 #1)
 

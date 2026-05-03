@@ -174,44 +174,58 @@ crate primitives.)
 4. CI integration: `cargo test --features fountain` runs locally;
    workflow wiring pending.
 
-### 🟡 Phase 2 — Python binding (Phase 2a complete in ec6633a + 195c0e6)
+### ✅ Phase 2 — Python binding (commits ec6633a + 195c0e6 + 220f5db + 402baa7)
 
 1. ✅ Phase 2a: `rust_crypto/src/fountain.rs` with PyO3 wrappers
    (`PyDroplet`, `PyFountainEncoder`, `PyFountainDecoder` +
    `robust_soliton_pmf`). Wheel builds, all 16 golden vectors match
    through the FFI boundary.
-2. ❌ Phase 2b (NOT yet landed): replace the body of
-   `meow_decoder/fountain.py` with a thin shim that re-exports the
-   Rust types under the existing public symbols (`Droplet` dataclass
-   shape, `RobustSolitonDistribution`, `FountainEncoder`,
-   `FountainDecoder`, `pack_droplet`, `unpack_droplet`). Risk: 506
-   existing fountain tests need to remain green; some depend on
-   subtle behaviours (e.g. `droplet(seed=None)` auto-increments,
-   `Decoder.get_data(original_length=None)` truncation). Phase 2b
-   should land as its own commit with full test verification.
-3. ❌ Drop NumPy from `requirements.txt` (post Phase 2b).
+2. ✅ Phase 2b: `meow_decoder/fountain.py` is now a thin shim around
+   the Rust core for both encoder and decoder. Three whitebox tests
+   (`decoder.blocks` / `.decoded` / `.pending_droplets` mutations)
+   rewritten as black-box tests against the public API. New
+   `decoder.pending_count` property replaces direct
+   `len(decoder.pending_droplets)` access uniformly across both
+   backends. 282/282 fountain + downstream tests pass.
+3. ✅ Phase 4 partial: NumPy import dropped from `fountain.py`
+   (see Phase 4). NumPy stays in `requirements.txt` for the other
+   consumers (qr_code, stego_multilayer, logo_eyes, etc.).
 
-### ❌ Phase 3 — WASM binding for web_demo (NOT started)
+### ✅ Phase 3 — WASM binding for web_demo (commit 1249283)
 
-1. Add `crypto_core/src/wasm_fountain.rs` (sibling of `wasm/`)
-   gated by `wasm-fountain` feature.
-2. Update `scripts/build_wasm.sh` to build with the feature enabled
-   and copy the resulting `fountain_bg.wasm` next to
-   `crypto_core_bg.wasm`.
-3. Replace the body of `web_demo/static/fountain-codes.js` with a
-   loader that instantiates the WASM module and exposes the same JS
-   class API (`FountainEncoder`, `FountainDecoder`).
-4. Run `tests/test_cross_browser.spec.js` to confirm the web demo
-   roundtrips end-to-end.
+1. ✅ `wasm-fountain` feature in `crypto_core/Cargo.toml`. Fountain
+   types compile through wasm-bindgen into the same
+   `crypto_core_bg.wasm` (273 KB total, fountain adds ~10 KB).
+2. ✅ `scripts/build_wasm.sh` enables the new feature.
+3. ✅ `web_demo/static/fountain-codes.js` retains its 464-line pure-
+   JS fallback and adds a `window.activateWasmFountain(wasmModule)`
+   hot-swap function. After activation, `FountainEncoder` /
+   `FountainDecoder` are WASM-backed wrappers preserving the legacy
+   API.
+4. ✅ `wasm_browser_example_FULL.html` calls `activateWasmFountain`
+   immediately after WASM init. Idempotent and safe-failing — JS
+   fallback remains in effect if activation throws. webcam.html and
+   modes.html don't load WASM so the JS fallback is what they get.
+5. Cross-browser Playwright validation pending (live browser test
+   not run in this session); JS-only smoke verified via Node.js
+   roundtrip.
 
-### ❌ Phase 4 — cleanup (NOT started)
+### 🟡 Phase 4 — cleanup (partial — see below)
 
-1. Delete the old Python LT implementation (after the shim ships).
-2. Delete `web_demo/static/fountain-codes.js` (replaced by the WASM
-   loader).
-3. Drop NumPy from `requirements.txt` if no other module uses it.
-4. Update `docs/PROTOCOL.md` to note the unified implementation
-   location.
+1. ❌ Delete the old Python LT implementation in `fountain.py`. The
+   shim deliberately keeps the pure-Python encoder + decoder paths as
+   a fallback for environments without `meow_crypto_rs.fountain`
+   (stale wheels, restricted builds). When that risk is acceptable,
+   trim down to a pure shim.
+2. ❌ Delete `web_demo/static/fountain-codes.js`'s legacy classes.
+   Same fallback rationale as above — works without WASM.
+3. ✅ NumPy import dropped from `fountain.py` (commit on this branch).
+   `requirements.txt` still lists NumPy for the other consumers
+   (qr_code, stego_multilayer, etc.); dropping it from the package
+   would require migrating those too.
+4. ❌ `docs/PROTOCOL.md` doesn't currently document the fountain
+   implementation — no doc location to update. Migration plan
+   (this file) and CHANGELOG cover the migration history.
 
 ## Acceptance criteria
 
