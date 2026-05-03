@@ -46,40 +46,51 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 - **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Refactor toward the handle-based `derive_key_argon2id_with_keyfile` path. Defensive cleanup; not a vulnerability.
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
-## Real protocol state-machine bugs (needs cryptographer review + speculative-state refactor)
+## Real protocol state-machine bugs — FIXED (2026-05-03, audit/cat-mode-fixes)
 
-Surfaced by deep code review (gemini_suggestions_v2.md). Both verified
-against the actual source. **Do not auto-patch** — the fix requires
-restructuring the ratchet state-machine and re-validating against
-`MeowRatchetFS.spthy` invariants and forward-secrecy properties the
-current test suite does not cover.
+Surfaced by deep code review (gemini_suggestions_v2.md). Both fixed via
+a speculative-state pattern in `meow_decoder/ratchet.py`. **Still
+recommend cryptographer review** of the rollback paths and Tamarin
+re-run against `MeowRatchetFS.spthy`; existing forward-secrecy tests
+all pass and three new regression tests cover the specific bugs (see
+`tests/test_ratchet.py::TestSpeculativeStateRollback`).
 
-- **HIGH — `meow_decoder/ratchet.py:1356-1369` — silent ratchet desync via PQ implicit rejection.**
-  `_execute_rekey()` calls `_mlkem1024_decapsulate(...)` and folds the
-  result into `new_root_h` (line 1358), then commits `self._state.root_key
-  = new_root_h` (line 1368), all *before* the commit_tag verification at
-  line 1583. ML-KEM Fujisaki-Okamoto implicit rejection means a tampered
-  PQ ciphertext returns a pseudorandom shared secret instead of erroring.
-  That pseudorandom secret is folded into the root, the state is
-  irreversibly mutated, and the subsequent MAC fails — but rollback
-  doesn't happen. Session is permanently desynced.
-  **Fix sketch:** compute `new_root_h` and the new chain in local
-  variables; derive the message key from the *speculative* chain; verify
-  commit_tag with that key; only assign `self._state.root_key = new_root_h`
-  if verification succeeds.
+- **HIGH — silent ratchet desync via PQ implicit rejection (FIXED).**
+  Was: `_execute_rekey()` decapsulated ML-KEM, folded junk into root,
+  dropped old root/chain, committed `self._state` — all before
+  `commit_tag` verification. Tampered PQ ciphertext → pseudorandom
+  shared secret (FO implicit rejection) → state mutated with junk →
+  MAC fails but no rollback → permanent desync.
+  Fix: `_execute_rekey()` now snapshots the pre-rekey root/chain/
+  position/epoch into `self._pending_rollback` and does NOT drop the
+  old handles. `decrypt()` calls `_commit_rekey()` (drops old) on
+  commit_tag pass, or `_rollback_rekey()` (restores old, drops new
+  junk) on any verification failure — including AES-GCM auth failure
+  downstream. New regression test:
+  `test_tampered_pq_ciphertext_does_not_desync_ratchet` flips a byte
+  inside the PQ ciphertext, asserts decrypt raises, verifies the
+  pre-rekey state handles are unchanged, and proves a clean rekey
+  frame still decrypts. `finalize()` also drops a stale
+  `_pending_rollback` so an interrupted decrypt does not leak handles.
 
-- **MEDIUM — `meow_decoder/ratchet.py:1525-1608` — frame-corruption burns msg key permanently.**
-  Case 1 path (`frame_index in self._skipped_keys`) does
-  `self._skipped_keys.pop(frame_index)` at line 1528 *before* the
-  commit_tag verification at line 1583. The `finally` block at line 1606+
-  drops the handle on exception. Net effect: a single corrupted-but-MAC-
-  pretending frame removes the cached key permanently — even a clean
-  re-scan of that QR frame will then fail. For an asymmetric rekey
-  beacon frame, `state.position` has also been advanced, compounding the
-  problem: the user can't recover the rekey epoch transition.
-  **Fix sketch:** speculative pop — copy the handle without removing from
-  cache, verify MAC, only `pop()` on success. Same speculative-state
-  pattern as the HIGH item above.
+- **MEDIUM — frame-corruption burns msg key permanently (FIXED).**
+  Was: Case 1 path (`frame_index in self._skipped_keys`) eagerly
+  popped the cached handle before commit_tag verification. The
+  `finally` block dropped on exception → cache permanently empty →
+  re-scans of the same QR frame failed.
+  Fix: `decrypt()` now peeks (`self._skipped_keys[frame_index]`)
+  with an `owns_handle` ownership flag. The pop happens only after
+  commit_tag + AES-GCM both pass. Beacon-mix derivations along the
+  way create new owned handles and never drop the cache value while
+  it is still tracked as not-owned. Two new regression tests:
+  `test_cached_key_survives_commit_tag_failure` (regular frame) and
+  `test_cached_rekey_frame_survives_commit_tag_failure` (rekey frame
+  through the beacon-mix path).
+
+Verification: 225/225 ratchet tests pass (`test_ratchet.py`,
+`test_property_ratchet_pq.py`, `test_asymmetric_rekey.py`,
+`security/test_ratchet_forward_secrecy.py`); 88/88 broader e2e +
+audit-fixes + web-demo sweep passes; 1 pre-existing xfail unchanged.
 
 ## Design choices flagged but not bugs
 

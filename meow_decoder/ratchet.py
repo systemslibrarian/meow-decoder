@@ -1301,6 +1301,15 @@ class DecoderRatchet:
         # the chain can cross epoch boundaries during fast-forward.
         # Maps epoch → (eph_pub_bytes, pq_ciphertext_or_None) for hybrid root rekey
         self._received_rekey_material: Dict[int, tuple] = {}
+        # Speculative-rekey snapshot (gemini #2 — silent ratchet desync).
+        # ML-KEM Fujisaki-Okamoto implicit rejection means a tampered PQ
+        # ciphertext returns a pseudorandom shared secret instead of
+        # erroring; without rollback, the junk gets folded into the root
+        # before commit_tag verification and the session desyncs forever.
+        # _execute_rekey() saves the pre-rekey root/chain handles here;
+        # decrypt() commits (drops old) on commit_tag pass or rolls back
+        # (restores old, drops new junk) on any verification failure.
+        self._pending_rollback: Optional[tuple] = None
         # Header encryption: precompute encrypted-index → real-index lookup
         self._header_key = _derive_header_key(root_key, salt)
         self._header_lookup = _build_header_lookup(self._header_key, total_frames)
@@ -1323,51 +1332,179 @@ class DecoderRatchet:
         return frame_index // self._rekey_interval
 
     def _execute_rekey(self, epoch: int) -> None:
-        """Execute asymmetric root key rotation for the given epoch.
+        """Speculatively execute asymmetric root key rotation for the given epoch.
 
         Uses handle-based operations so all secret key bytes stay in Rust.
         When PQ rekey material is available, performs a full PQXDH-style
         hybrid root rotation: new_root depends on BOTH X25519 AND ML-KEM-1024.
+
+        SPECULATIVE: mutates ``self._state`` to the new root/chain so that
+        subsequent ``ratchet_step`` calls produce the correct message key,
+        but does NOT drop the previous root/chain handles. Instead it
+        records them in ``self._pending_rollback`` so the caller (decrypt)
+        can either:
+
+        * call ``_commit_rekey()`` after ``commit_tag`` verification passes
+          (drops the saved old handles — forward secrecy advance), or
+        * call ``_rollback_rekey()`` on any verification failure (restores
+          the old handles into ``self._state`` and drops the new junk
+          ones).
+
+        Without this two-phase commit, an attacker who tampers with the PQ
+        ciphertext gets ML-KEM Fujisaki-Okamoto implicit rejection — the
+        decapsulation silently returns a pseudorandom shared secret which
+        gets folded into the root, the state mutates, the subsequent MAC
+        fails, but rollback never happens. Session desyncs permanently.
+
+        Raises ``RuntimeError`` if a rollback is already pending (a single
+        decrypt() should only invoke one rekey; the safety check catches
+        accidental nesting from future restructuring).
         """
-        eph_pub, pq_ct = self._received_rekey_material.pop(epoch)
+        if self._pending_rollback is not None:
+            raise RuntimeError(
+                "Nested rekey detected: prior _execute_rekey() not yet "
+                "committed or rolled back."
+            )
+
+        eph_pub, pq_ct = self._received_rekey_material[epoch]
         shared_secret_handle = _recover_asym_rekey(eph_pub, self._receiver_private_key)
 
         hb = get_handle_backend()
-        new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
-            root_key_handle=self._state.root_key,
-            shared_secret_handle=shared_secret_handle,
-            salt=self._salt,
-            epoch=epoch,
+        new_root_h: Optional[int] = None
+        new_chain_h: Optional[int] = None
+
+        try:
+            new_root_h, new_chain_h = _asymmetric_root_rekey_handle(
+                root_key_handle=self._state.root_key,
+                shared_secret_handle=shared_secret_handle,
+                salt=self._salt,
+                epoch=epoch,
+            )
+
+            # ─── PQ-hybrid root fold: fold ML-KEM-1024 into root (PQXDH) ────────
+            # If the encoder included a PQ ciphertext in the rekey frame and we
+            # have the PQ keypair, decapsulate and fold the shared secret into
+            # the root. This must mirror encode_next's PQ-hybrid block exactly.
+            # ML-KEM FO implicit rejection: tampered ct returns junk silently;
+            # detection happens via commit_tag verification downstream, gated
+            # by the speculative-state pattern.
+            if pq_ct is not None and self._receiver_pq_keypair is not None:
+                pq_shared = _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
+                try:
+                    # _fold_pq_into_root drops the input post-X25519 root and
+                    # returns a fresh PQ-hybrid root handle.
+                    new_root_h = _fold_pq_into_root(new_root_h, pq_shared, epoch)
+                    # Re-derive chain from the PQ-hybrid root so chain key
+                    # depends on BOTH X25519 AND ML-KEM-1024.
+                    if isinstance(new_chain_h, int):
+                        hb.drop(new_chain_h)
+                        new_chain_h = None
+                    new_chain_h = _hkdf_derive_handle(
+                        new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
+                    )
+                finally:
+                    # Zeroize Python-side copy (defense in depth)
+                    pq_shared = b"\x00" * len(pq_shared)
+        except Exception:
+            # Cleanup on partial allocation failure — state has not been
+            # mutated yet, so no rollback needed beyond freeing the new
+            # handles.
+            if new_root_h is not None:
+                try:
+                    hb.drop(new_root_h)
+                except Exception:
+                    pass
+            if new_chain_h is not None:
+                try:
+                    hb.drop(new_chain_h)
+                except Exception:
+                    pass
+            raise
+        finally:
+            try:
+                hb.drop(shared_secret_handle)
+            except Exception:
+                pass
+
+        # Snapshot OLD handles BEFORE mutating state. The caller will commit
+        # (drop) or roll back (restore) based on commit_tag verification.
+        self._pending_rollback = (
+            self._state.root_key,
+            self._state.chain_key,
+            self._state.position,
+            self._state.epoch,
+            epoch,
         )
 
-        # Drop old handles (forward secrecy)
-        old_rk = self._state.root_key
-        old_ck = self._state.chain_key
-        if isinstance(old_rk, int):
-            hb.drop(old_rk)
-        if isinstance(old_ck, int):
-            hb.drop(old_ck)
-        hb.drop(shared_secret_handle)
-
-        # ─── PQ-hybrid root fold: fold ML-KEM-1024 into root (PQXDH) ────────
-        # If the encoder included a PQ ciphertext in the rekey frame and we have
-        # the PQ keypair, decapsulate and fold the shared secret into the root.
-        # This must mirror encode_next's PQ-hybrid block exactly.
-        if pq_ct is not None and self._receiver_pq_keypair is not None:
-            pq_shared = _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
-            new_root_h = _fold_pq_into_root(new_root_h, pq_shared, epoch)
-            # CRITICAL: Re-derive chain from the PQ-hybrid root so that the
-            # chain key (and all subsequent message keys) depend on BOTH
-            # X25519 AND ML-KEM-1024.  Must mirror the encoder's fix exactly.
-            if isinstance(new_chain_h, int):
-                hb.drop(new_chain_h)
-            new_chain_h = _hkdf_derive_handle(new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32)
-            # Zeroize Python-side copy (defense in depth)
-            pq_shared = b"\x00" * len(pq_shared)
-
+        # Install NEW handles. Subsequent ratchet_step() will derive from
+        # these. If commit_tag fails, _rollback_rekey() drops these and
+        # restores the snapshot.
         self._state.root_key = new_root_h
         self._state.chain_key = new_chain_h
         self._state.epoch = epoch
+
+    def _commit_rekey(self) -> None:
+        """Commit a speculative rekey: drop the saved pre-rekey root/chain
+        handles and the consumed rekey-material entry.
+
+        Idempotent: returns immediately if no rekey is pending. Always
+        clears ``self._pending_rollback`` so the next decrypt starts fresh.
+        """
+        if self._pending_rollback is None:
+            return
+        old_rk, old_ck, _old_pos, _old_epoch, used_epoch = self._pending_rollback
+        hb = get_handle_backend()
+        if isinstance(old_rk, int):
+            try:
+                hb.drop(old_rk)
+            except Exception:
+                pass
+        if isinstance(old_ck, int):
+            try:
+                hb.drop(old_ck)
+            except Exception:
+                pass
+        self._received_rekey_material.pop(used_epoch, None)
+        self._pending_rollback = None
+
+    def _rollback_rekey(self) -> None:
+        """Roll back a speculative rekey: drop the new (possibly junk)
+        root/chain in self._state, restore the saved pre-rekey handles.
+
+        After rollback the state matches its pre-rekey snapshot exactly:
+        ``root_key``, ``chain_key``, ``position``, ``epoch`` are restored.
+        ``self._received_rekey_material[epoch]`` is dropped — its contents
+        produced the junk root, so retrying would produce the same junk.
+        A re-scan of a clean rekey frame would re-populate it.
+
+        Idempotent: returns immediately if no rekey is pending.
+        """
+        if self._pending_rollback is None:
+            return
+        old_rk, old_ck, old_pos, old_epoch, used_epoch = self._pending_rollback
+        hb = get_handle_backend()
+        # Drop the speculative new handles currently in self._state.
+        # ratchet_step() may have advanced past them (consuming chain_key
+        # and producing a fresh next_chain) — drop whatever is currently
+        # installed.
+        if isinstance(self._state.root_key, int):
+            try:
+                hb.drop(self._state.root_key)
+            except Exception:
+                pass
+        if isinstance(self._state.chain_key, int):
+            try:
+                hb.drop(self._state.chain_key)
+            except Exception:
+                pass
+        # Restore snapshot
+        self._state.root_key = old_rk
+        self._state.chain_key = old_ck
+        self._state.position = old_pos
+        self._state.epoch = old_epoch
+        # Discard the rekey material that produced junk
+        self._received_rekey_material.pop(used_epoch, None)
+        self._pending_rollback = None
 
     @property
     def position(self) -> int:
@@ -1517,18 +1654,39 @@ class DecoderRatchet:
             epoch = self._frame_epoch(frame_index)
             self._received_rekey_material[epoch] = (eph_pub, _pq_ct_early)
 
-        # Get the message key handle for this frame
+        # Get the message key handle for this frame.
+        #
+        # Bug #2 fix (gemini #3 / FOLLOWUP MEDIUM): when the handle comes
+        # from self._skipped_keys we PEEK rather than pop, so a corrupted
+        # frame's commit_tag failure doesn't permanently burn the cached
+        # key. The pop happens only after commit_tag + AES-GCM both pass.
+        #
+        # `owns_handle` tracks who owns the current msg_key_handle:
+        #   - True  → we created it (advance_to or beacon-mix derivation),
+        #             must drop in finally.
+        #   - False → it's still the cache value at frame_index; must NOT
+        #             drop in finally (cache owns it).
+        # Each beacon-mix derivation produces a fresh handle that we own,
+        # so the flag flips True after the first mix.
         msg_key_handle: Optional[int] = None
         commit_keys = None
+        owns_handle = False
+        cache_idx: Optional[int] = None  # frame_index iff we peeked from cache
         hb = get_handle_backend()
 
         try:
             if frame_index in self._skipped_keys:
-                # Case 1: This frame was skipped earlier — use cached handle
-                msg_key_handle = self._skipped_keys.pop(frame_index)
+                # Case 1: This frame was skipped earlier — peek the cached
+                # handle. We do NOT pop yet: bug #2 fix.
+                cache_idx = frame_index
+                msg_key_handle = self._skipped_keys[cache_idx]
+                owns_handle = False
             elif frame_index >= self._state.position:
-                # Case 2: Frame is at or ahead of current position — advance chain
+                # Case 2: Frame is at or ahead of current position — advance
+                # chain. _advance_to may invoke _execute_rekey which sets
+                # self._pending_rollback for speculative rekey commit.
                 msg_key_handle = self._advance_to(frame_index)
+                owns_handle = True
             else:
                 # Case 3: Frame is behind current position and NOT in cache
                 raise ValueError(
@@ -1545,11 +1703,15 @@ class DecoderRatchet:
                 ciphertext_body = frame_body[REKEY_BEACON_SIZE:]
 
                 if not is_asym_rekey:
-                    # Plaintext beacon fallback: mix beacon via handle
+                    # Plaintext beacon fallback: mix beacon via handle.
+                    # Drop the previous handle only if we owned it; never
+                    # drop the cache value (bug #2).
                     beacon_data = frame_body[:REKEY_BEACON_SIZE]
                     new_mk_handle = _mix_beacon_handle(msg_key_handle, beacon_data, self._salt)
-                    hb.drop(msg_key_handle)
+                    if owns_handle:
+                        hb.drop(msg_key_handle)
                     msg_key_handle = new_mk_handle
+                    owns_handle = True
 
             # Step 4b: PQ beacon processing (after classical beacon is stripped)
             # Two code paths:
@@ -1567,8 +1729,10 @@ class DecoderRatchet:
                             pq_frame.ciphertext,
                         )
                         new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
-                        hb.drop(msg_key_handle)
+                        if owns_handle:
+                            hb.drop(msg_key_handle)
                         msg_key_handle = new_mk_handle
+                        owns_handle = True
                         # Zeroize Python-side copy (defense in depth)
                         pq_shared = b"\x00" * len(pq_shared)
                     # is_asym_rekey: PQ already folded into root by _execute_rekey
@@ -1576,7 +1740,11 @@ class DecoderRatchet:
                     pq_total = PQBeaconFrame.header_size() + len(pq_frame.ciphertext)
                     ciphertext_body = ciphertext_body[pq_total:]
 
-            # Step 5: Key commitment verification (BEFORE decryption!)
+            # Step 5: Key commitment verification (BEFORE decryption!).
+            # This is the gate that decides commit-vs-rollback for any
+            # pending speculative rekey: a tampered PQ ciphertext produces
+            # a junk msg_key, the HMAC over frame_body won't match, and
+            # the rollback path below restores the pre-rekey root/chain.
             commit_keys = derive_frame_keys(msg_key_handle, self._salt)
             expected_commitment = _compute_commitment(commit_keys.mac_key, frame_body)
             _backend = get_default_backend()
@@ -1599,13 +1767,36 @@ class DecoderRatchet:
                 total_frames=self._total_frames,
             )
 
-            # Mark as consumed (replay prevention)
+            # ── SUCCESS PATH ──────────────────────────────────────────
+            # Both commit_tag and AES-GCM passed. Promote speculative
+            # state to committed state, consume cache entry, mark frame
+            # as replay-protected.
+            if cache_idx is not None:
+                # We peeked earlier; now consume the cached handle. We
+                # take ownership and the regular finally-block drop path
+                # will free it.
+                self._skipped_keys.pop(cache_idx, None)
+                cache_idx = None
+                owns_handle = True
+            self._commit_rekey()
             self._consumed_indices.add(frame_index)
             return plaintext
 
+        except Exception:
+            # ── FAILURE PATH ──────────────────────────────────────────
+            # Any exception inside the try block (commit_tag mismatch,
+            # GCM auth failure, etc.) rolls back any speculative rekey.
+            # _rollback_rekey() is idempotent — safe even when no rekey
+            # ran (e.g. header lookup failed).
+            self._rollback_rekey()
+            raise
+
         finally:
-            # Drop message key handle and commitment keys
-            if msg_key_handle is not None:
+            # Drop owned message-key handle. If we peeked from cache and
+            # then bailed out (failure path with cache_idx still set), we
+            # do NOT drop — the cache still owns it and a clean re-scan
+            # of the same QR frame must succeed (bug #2).
+            if msg_key_handle is not None and owns_handle:
                 try:
                     hb.drop(msg_key_handle)
                 except Exception:
@@ -1625,8 +1816,25 @@ class DecoderRatchet:
         - Received rekey material (ephemeral public keys)
         """
         if not self._finalized:
-            self._state.zeroize()
             hb = get_handle_backend()
+            # Defensive: if a speculative rekey is mid-flight (decrypt was
+            # interrupted between _execute_rekey and commit/rollback), drop
+            # the snapshotted old handles so they do not leak. The new
+            # handles in self._state will be cleared by zeroize() below.
+            if self._pending_rollback is not None:
+                old_rk, old_ck, *_ = self._pending_rollback
+                if isinstance(old_rk, int):
+                    try:
+                        hb.drop(old_rk)
+                    except Exception:
+                        pass
+                if isinstance(old_ck, int):
+                    try:
+                        hb.drop(old_ck)
+                    except Exception:
+                        pass
+                self._pending_rollback = None
+            self._state.zeroize()
             for idx, key_handle in self._skipped_keys.items():
                 try:
                     hb.drop(key_handle)
