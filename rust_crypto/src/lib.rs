@@ -20,6 +20,8 @@
 //! file are thin wrappers over the pure functions.
 
 // Pure Rust crypto module (testable without Python)
+#[cfg(feature = "python")]
+pub mod fountain;
 pub mod pure;
 
 // Opaque handle registry (all secrets Rust-owned)
@@ -1676,6 +1678,12 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stego_palette_encode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_palette_decode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_count_changes, m)?)?;
+
+    // Fountain (Luby Transform) — Phase 2 of the Rust+WASM unification
+    // (docs/FOUNTAIN_RUST_WASM_MIGRATION.md). FountainEncoder /
+    // FountainDecoder / Droplet types backed by the Rust core in
+    // crypto_core::meow_fountain.
+    fountain::register(m)?;
 
     Ok(())
 }
