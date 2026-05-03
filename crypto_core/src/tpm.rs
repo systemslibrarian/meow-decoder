@@ -27,6 +27,8 @@
 //! ```
 
 #[cfg(feature = "tpm")]
+use std::str::FromStr;
+#[cfg(feature = "tpm")]
 use tss_esapi::{
     abstraction::{
         cipher::Cipher,
@@ -39,7 +41,7 @@ use tss_esapi::{
         tss::{TPM2_ALG_AES, TPM2_ALG_CFB, TPM2_ALG_ECC, TPM2_ALG_RSA, TPM2_ALG_SHA256},
         SessionType,
     },
-    handles::{KeyHandle, PcrHandle, TpmHandle},
+    handles::{KeyHandle, ObjectHandle, PcrHandle, TpmHandle},
     interface_types::{
         algorithm::{HashingAlgorithm, PublicAlgorithm, SymmetricMode},
         key_bits::RsaKeyBits,
@@ -47,11 +49,13 @@ use tss_esapi::{
         session_handles::AuthSession,
     },
     structures::{
-        Auth, CreatePrimaryKeyResult, Digest, DigestList, HashScheme, MaxBuffer,
-        PcrSelectionListBuilder, PcrSlot, Public, PublicBuilder, RsaScheme,
-        SymmetricCipherParameters, SymmetricDefinitionObject,
+        Auth, CreatePrimaryKeyResult, Digest, DigestList, KeyedHashScheme,
+        PcrSelectionListBuilder, PcrSlot, Public, PublicBuilder, PublicKeyedHashParameters,
+        PublicRsaParameters, RsaExponent, RsaScheme, SensitiveData, SymmetricCipherParameters,
+        SymmetricDefinitionObject,
     },
     tcti_ldr::TctiNameConf,
+    traits::{Marshall, UnMarshall},
     Context, Tcti,
 };
 
@@ -324,8 +328,13 @@ impl TpmProvider {
 
     /// Connect to TPM with specific TCTI
     pub fn connect_tcti(tcti: &str) -> Result<Self, TpmError> {
-        let tcti_conf =
-            TctiNameConf::from_environment_variable().unwrap_or_else(|_| tcti.try_into().unwrap());
+        // tss-esapi 7.6: TctiNameConf is the canonical type (re-exported as Tcti).
+        // Prefer the env var if set; otherwise parse the supplied TCTI string.
+        let tcti_conf = match TctiNameConf::from_environment_variable() {
+            Ok(conf) => conf,
+            Err(_) => TctiNameConf::from_str(tcti)
+                .map_err(|e| TpmError::CommunicationFailed(e.to_string()))?,
+        };
 
         let context =
             Context::new(tcti_conf).map_err(|e| TpmError::CommunicationFailed(e.to_string()))?;
@@ -369,7 +378,8 @@ impl TpmProvider {
         let mut results = Vec::new();
 
         for &pcr in selection.pcrs() {
-            let pcr_slot = PcrSlot::try_from(pcr).map_err(|_| TpmError::InvalidPcr(pcr))?;
+            // tss-esapi 7.6: PcrSlot is a bitflag enum; convert pcr index -> bit -> PcrSlot.
+            let pcr_slot = PcrSlot::try_from(1u32 << pcr).map_err(|_| TpmError::InvalidPcr(pcr))?;
 
             let selection_list = PcrSelectionListBuilder::new()
                 .with_selection(HashingAlgorithm::Sha256, &[pcr_slot])
@@ -383,7 +393,7 @@ impl TpmProvider {
 
             if let Some(digest) = digests.value().first() {
                 let mut value = [0u8; 32];
-                let bytes = digest.as_bytes();
+                let bytes = digest.value();
                 let copy_len = bytes.len().min(32);
                 value[..copy_len].copy_from_slice(&bytes[..copy_len]);
                 results.push((pcr, value));
@@ -414,16 +424,17 @@ impl TpmProvider {
     ) -> Result<SealedBlob, TpmError> {
         // Create sealing object under storage hierarchy
         let auth_value = auth
-            .map(|a| Auth::from_bytes(&a.auth).unwrap())
+            .map(|a| Auth::try_from(a.auth.as_slice()).unwrap())
             .unwrap_or(Auth::default());
 
         // Build PCR policy digest
         // audit-phase-6-fix 6.3: propagate InvalidPcr instead of panicking (matches
         // the pattern in read_pcrs above).
+        // tss-esapi 7.6: PcrSlot is a bitflag enum; convert pcr index -> bit -> PcrSlot.
         let pcr_slots: Vec<PcrSlot> = pcr_selection
             .pcrs()
             .iter()
-            .map(|&p| PcrSlot::try_from(p).map_err(|_| TpmError::InvalidPcr(p)))
+            .map(|&p| PcrSlot::try_from(1u32 << p).map_err(|_| TpmError::InvalidPcr(p)))
             .collect::<Result<Vec<_>, _>>()?;
 
         let pcr_list = PcrSelectionListBuilder::new()
@@ -435,12 +446,14 @@ impl TpmProvider {
         let public = PublicBuilder::new()
             .with_public_algorithm(PublicAlgorithm::KeyedHash)
             .with_name_hashing_algorithm(HashingAlgorithm::Sha256)
-            .with_keyed_hash_parameters(HashScheme::Null)
+            .with_keyed_hash_parameters(PublicKeyedHashParameters::new(KeyedHashScheme::Null))
             .build()
             .map_err(|e| TpmError::SealFailed(e.to_string()))?;
 
-        let max_buffer =
-            MaxBuffer::from_bytes(data).map_err(|e| TpmError::SealFailed(e.to_string()))?;
+        // tss-esapi 7.6: Context::create takes sealed payload as Option<SensitiveData>
+        // (formerly MaxBuffer in older API surface).
+        let sensitive_payload = SensitiveData::try_from(data.to_vec())
+            .map_err(|e| TpmError::SealFailed(e.to_string()))?;
 
         // Use owner hierarchy for sealing
         let primary_key = self
@@ -455,13 +468,13 @@ impl TpmProvider {
             )
             .map_err(|e| TpmError::SealFailed(e.to_string()))?;
 
-        let (private, public_part) = self
+        let create_result = self
             .context
             .create(
                 primary_key.key_handle,
                 public,
                 Some(auth_value),
-                Some(max_buffer),
+                Some(sensitive_payload),
                 None,
                 None,
             )
@@ -475,9 +488,16 @@ impl TpmProvider {
         // Serialize PCR selection
         let pcr_bytes: Vec<u8> = pcr_selection.pcrs().to_vec();
 
+        // tss-esapi 7.6: Private exposes raw bytes via .value(); Public is an enum
+        // and must be marshalled via the Marshall trait.
+        let public_marshalled = create_result
+            .out_public
+            .marshall()
+            .map_err(|e| TpmError::SealFailed(e.to_string()))?;
+
         Ok(SealedBlob {
-            private: private.as_bytes().to_vec(),
-            public: public_part.as_bytes().to_vec(),
+            private: create_result.out_private.value().to_vec(),
+            public: public_marshalled,
             pcr_selection: pcr_bytes,
         })
     }
@@ -494,7 +514,7 @@ impl TpmProvider {
         auth: Option<&TpmAuth>,
     ) -> Result<Vec<u8>, TpmError> {
         let auth_value = auth
-            .map(|a| Auth::from_bytes(&a.auth).unwrap())
+            .map(|a| Auth::try_from(a.auth.as_slice()).unwrap())
             .unwrap_or(Auth::default());
 
         // Recreate primary key
@@ -511,10 +531,11 @@ impl TpmProvider {
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
 
         // Load sealed object
-        let private = tss_esapi::structures::Private::from_bytes(&blob.private)
+        // tss-esapi 7.6: Private uses TryFrom<Vec<u8>>; Public uses UnMarshall.
+        let private = tss_esapi::structures::Private::try_from(blob.private.clone())
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        let public =
-            Public::from_bytes(&blob.public).map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
+        let public = Public::unmarshall(&blob.public)
+            .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
 
         let key_handle = self
             .context
@@ -522,7 +543,8 @@ impl TpmProvider {
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
 
         // Unseal
-        let data = self.context.unseal(key_handle).map_err(|e| {
+        // tss-esapi 7.6: Context::unseal takes ObjectHandle; KeyHandle: Into<ObjectHandle>.
+        let data = self.context.unseal(key_handle.into()).map_err(|e| {
             // Check if PCR mismatch
             if e.to_string().contains("policy") {
                 TpmError::PcrMismatch("Platform state changed since sealing".into())
@@ -537,19 +559,21 @@ impl TpmProvider {
             .flush_context(primary_key.key_handle.into())
             .ok();
 
-        Ok(data.as_bytes().to_vec())
+        // tss-esapi 7.6: SensitiveData exposes raw bytes via .value().
+        Ok(data.value().to_vec())
     }
 
     /// Create primary key template for storage
     fn create_primary_template(&self) -> Result<Public, TpmError> {
+        // tss-esapi 7.6: RsaParameters was renamed to PublicRsaParameters.
         PublicBuilder::new()
             .with_public_algorithm(PublicAlgorithm::Rsa)
             .with_name_hashing_algorithm(HashingAlgorithm::Sha256)
-            .with_rsa_parameters(tss_esapi::structures::RsaParameters::new(
+            .with_rsa_parameters(PublicRsaParameters::new(
                 SymmetricDefinitionObject::AES_128_CFB,
                 RsaScheme::Null,
                 RsaKeyBits::Rsa2048,
-                tss_esapi::structures::RsaExponent::default(),
+                RsaExponent::default(),
             ))
             .with_rsa_unique_identifier(Default::default())
             .with_object_attributes(
