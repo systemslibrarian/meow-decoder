@@ -262,8 +262,14 @@ wasm-pq = ["wasm", "ml-kem", "kem"]
 # Meta Features
 # ============================================
 
+# Luby Transform fountain code — pure deterministic Rust, no crypto deps.
+# Implementation must produce byte-identical droplets to the existing
+# Python encoder (meow_decoder/fountain.py) for the 16 golden vectors
+# under tests/golden/fountain/. See docs/FOUNTAIN_RUST_WASM_MIGRATION.md.
+fountain = []
+
 # Everything except hardware (for cross-compilation)
-full-software = ["pure-crypto", "pq-crypto"]
+full-software = ["pure-crypto", "pq-crypto", "fountain"]
 
 # Everything (requires native platform)
 full = ["full-software", "hardware-full"]
