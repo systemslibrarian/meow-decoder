@@ -1,6 +1,211 @@
 /* @ts-self-types="./crypto_core.d.ts" */
 
 /**
+ * Browser-visible droplet — exposes (seed, block_indices, data)
+ * to the JS side. The JS shim translates this into its existing
+ * `Droplet` shape so callers don't change.
+ */
+export class WasmDroplet {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WasmDroplet.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmDropletFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmDropletFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmdroplet_free(ptr, 0);
+    }
+    /**
+     * Indices as a `Uint16Array` view on the JS side.
+     * @returns {Uint16Array}
+     */
+    get blockIndices() {
+        const ret = wasm.wasmdroplet_blockIndices(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get data() {
+        const ret = wasm.wasmdroplet_data(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Parse a droplet from wire bytes.
+     * @param {Uint8Array} buf
+     * @param {number} block_size
+     * @returns {WasmDroplet}
+     */
+    static fromWire(buf, block_size) {
+        const ptr0 = passArray8ToWasm0(buf, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmdroplet_fromWire(ptr0, len0, block_size);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmDroplet.__wrap(ret[0]);
+    }
+    /**
+     * @returns {number}
+     */
+    get seed() {
+        const ret = wasm.wasmdroplet_seed(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Wire-format bytes (matches `pack_droplet` in the Python encoder).
+     * @returns {Uint8Array}
+     */
+    toWire() {
+        const ret = wasm.wasmdroplet_toWire(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+}
+if (Symbol.dispose) WasmDroplet.prototype[Symbol.dispose] = WasmDroplet.prototype.free;
+
+export class WasmFountainDecoder {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmFountainDecoderFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmfountaindecoder_free(ptr, 0);
+    }
+    /**
+     * Add a droplet. Returns true if decoding is complete.
+     * @param {WasmDroplet} droplet
+     * @returns {boolean}
+     */
+    addDroplet(droplet) {
+        _assertClass(droplet, WasmDroplet);
+        var ptr0 = droplet.__destroy_into_raw();
+        const ret = wasm.wasmfountaindecoder_addDroplet(this.__wbg_ptr, ptr0);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get blockSize() {
+        const ret = wasm.wasmfountaindecoder_blockSize(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get decodedCount() {
+        const ret = wasm.wasmfountaindecoder_decodedCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    isComplete() {
+        const ret = wasm.wasmfountaindecoder_isComplete(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get kBlocks() {
+        const ret = wasm.wasmfountaindecoder_kBlocks(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} k_blocks
+     * @param {number} block_size
+     */
+    constructor(k_blocks, block_size) {
+        const ret = wasm.wasmfountaindecoder_new(k_blocks, block_size);
+        this.__wbg_ptr = ret >>> 0;
+        WasmFountainDecoderFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Recovered raw bytes, or null if incomplete.
+     * @returns {Uint8Array | undefined}
+     */
+    recoveredData() {
+        const ret = wasm.wasmfountaindecoder_recoveredData(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+}
+if (Symbol.dispose) WasmFountainDecoder.prototype[Symbol.dispose] = WasmFountainDecoder.prototype.free;
+
+export class WasmFountainEncoder {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmFountainEncoderFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmfountainencoder_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get blockSize() {
+        const ret = wasm.wasmfountainencoder_blockSize(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} seed
+     * @returns {WasmDroplet}
+     */
+    droplet(seed) {
+        const ret = wasm.wasmfountainencoder_droplet(this.__wbg_ptr, seed);
+        return WasmDroplet.__wrap(ret);
+    }
+    /**
+     * @returns {number}
+     */
+    get kBlocks() {
+        const ret = wasm.wasmfountainencoder_kBlocks(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {Uint8Array} data
+     * @param {number} k_blocks
+     * @param {number} block_size
+     */
+    constructor(data, k_blocks, block_size) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmfountainencoder_new(ptr0, len0, k_blocks, block_size);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        WasmFountainEncoderFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+}
+if (Symbol.dispose) WasmFountainEncoder.prototype[Symbol.dispose] = WasmFountainEncoder.prototype.free;
+
+/**
  * WASM result type for JavaScript interop
  */
 export class WasmResult {
@@ -590,30 +795,30 @@ export function x25519_generate_keypair() {
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg___wbindgen_copy_to_typed_array_281f659934f5228b: function(arg0, arg1, arg2) {
+        __wbg___wbindgen_copy_to_typed_array_2f7503a7f71d6632: function(arg0, arg1, arg2) {
             new Uint8Array(arg2.buffer, arg2.byteOffset, arg2.byteLength).set(getArrayU8FromWasm0(arg0, arg1));
         },
-        __wbg___wbindgen_is_function_18bea6e84080c016: function(arg0) {
+        __wbg___wbindgen_is_function_2a95406423ea8626: function(arg0) {
             const ret = typeof(arg0) === 'function';
             return ret;
         },
-        __wbg___wbindgen_is_object_8d3fac158b36498d: function(arg0) {
+        __wbg___wbindgen_is_object_59a002e76b059312: function(arg0) {
             const val = arg0;
             const ret = typeof(val) === 'object' && val !== null;
             return ret;
         },
-        __wbg___wbindgen_is_string_4d5f2c5b2acf65b0: function(arg0) {
+        __wbg___wbindgen_is_string_624d5244bb2bc87c: function(arg0) {
             const ret = typeof(arg0) === 'string';
             return ret;
         },
-        __wbg___wbindgen_is_undefined_4a711ea9d2e1ef93: function(arg0) {
+        __wbg___wbindgen_is_undefined_87a3a837f331fef5: function(arg0) {
             const ret = arg0 === undefined;
             return ret;
         },
-        __wbg___wbindgen_throw_df03e93053e0f4bc: function(arg0, arg1) {
+        __wbg___wbindgen_throw_5549492daedad139: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_call_85e5437fa1ab109d: function() { return handleError(function (arg0, arg1, arg2) {
+        __wbg_call_8f5d7bb070283508: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.call(arg1, arg2);
             return ret;
         }, arguments); },
@@ -627,7 +832,7 @@ function __wbg_get_imports() {
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             arg0.getRandomValues(arg1);
         }, arguments); },
-        __wbg_length_5e07cf181b2745fb: function(arg0) {
+        __wbg_length_e6e1633fbea6cfa9: function(arg0) {
             const ret = arg0.length;
             return ret;
         },
@@ -635,11 +840,11 @@ function __wbg_get_imports() {
             const ret = arg0.msCrypto;
             return ret;
         },
-        __wbg_new_from_slice_e98c2bb0a59c32a0: function(arg0, arg1) {
+        __wbg_new_from_slice_0bc58e36f82a1b50: function(arg0, arg1) {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
         },
-        __wbg_new_with_length_9b57e4a9683723fa: function(arg0) {
+        __wbg_new_with_length_0f3108b57e05ed7c: function(arg0) {
             const ret = new Uint8Array(arg0 >>> 0);
             return ret;
         },
@@ -651,7 +856,7 @@ function __wbg_get_imports() {
             const ret = arg0.process;
             return ret;
         },
-        __wbg_prototypesetcall_d1a7133bc8d83aa9: function(arg0, arg1, arg2) {
+        __wbg_prototypesetcall_3875d54d12ef2eec: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);
         },
         __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
@@ -661,23 +866,23 @@ function __wbg_get_imports() {
             const ret = module.require;
             return ret;
         }, arguments); },
-        __wbg_static_accessor_GLOBAL_THIS_6614f2f4998e3c4c: function() {
-            const ret = typeof globalThis === 'undefined' ? null : globalThis;
-            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        },
-        __wbg_static_accessor_GLOBAL_d8e8a2fefe80bc1d: function() {
+        __wbg_static_accessor_GLOBAL_8dfb7f5e26ebe523: function() {
             const ret = typeof global === 'undefined' ? null : global;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_static_accessor_SELF_e29eaf7c465526b1: function() {
+        __wbg_static_accessor_GLOBAL_THIS_941154efc8395cdd: function() {
+            const ret = typeof globalThis === 'undefined' ? null : globalThis;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_static_accessor_SELF_58dac9af822f561f: function() {
             const ret = typeof self === 'undefined' ? null : self;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_static_accessor_WINDOW_66e7ca3eef30585a: function() {
+        __wbg_static_accessor_WINDOW_ee64f0b3d8354c0b: function() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
         },
-        __wbg_subarray_f36da54ffa7114f5: function(arg0, arg1, arg2) {
+        __wbg_subarray_035d32bb24a7d55d: function(arg0, arg1, arg2) {
             const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
             return ret;
         },
@@ -711,6 +916,15 @@ function __wbg_get_imports() {
     };
 }
 
+const WasmDropletFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmdroplet_free(ptr >>> 0, 1));
+const WasmFountainDecoderFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmfountaindecoder_free(ptr >>> 0, 1));
+const WasmFountainEncoderFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmfountainencoder_free(ptr >>> 0, 1));
 const WasmResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmresult_free(ptr >>> 0, 1));
@@ -724,6 +938,17 @@ function addToExternrefTable0(obj) {
     return idx;
 }
 
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
+    }
+}
+
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+
 function getArrayU8FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
@@ -732,6 +957,14 @@ function getArrayU8FromWasm0(ptr, len) {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return decodeText(ptr, len);
+}
+
+let cachedUint16ArrayMemory0 = null;
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
 }
 
 let cachedUint8ArrayMemory0 = null;
@@ -838,6 +1071,7 @@ let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedUint16ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;

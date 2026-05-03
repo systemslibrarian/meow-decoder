@@ -262,6 +262,10 @@ wasm = [
 # NOTE: ml-kem is pure Rust and fully WASM-compatible
 wasm-pq = ["wasm", "ml-kem", "kem"]
 
+# WebAssembly with Luby Transform fountain code (Phase 3 of the
+# Rust+WASM unification — see docs/FOUNTAIN_RUST_WASM_MIGRATION.md).
+wasm-fountain = ["wasm", "fountain"]
+
 # ============================================
 # Meta Features
 # ============================================

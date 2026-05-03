@@ -3110,6 +3110,17 @@
                 await wasmModule.default();
                 wasm = wasmModule;
 
+                // Phase 3: hot-swap fountain JS impl with WASM backend
+                // (gemini #6 unification). Same droplet wire format as
+                // the Python encoder — see docs/FOUNTAIN_RUST_WASM_MIGRATION.md.
+                if (typeof window.activateWasmFountain === 'function') {
+                    try {
+                        await window.activateWasmFountain(wasmModule);
+                    } catch (e) {
+                        console.warn('[fountain] WASM activation failed; using JS fallback:', e);
+                    }
+                }
+
                 // Wait for worker to be ready
                 await workerPromise;
 
