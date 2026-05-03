@@ -35,7 +35,7 @@
         <select id="mode" name="mode" required onchange="updateModeUI()">
             <option value="normal">🔒 Normal (Standard QR codes)</option>
             <option value="cat" selected>😻 Cat Mode (Photographic camouflage) ⭐ FLAGSHIP</option>
-            <option value="duress">⚠️ Duress (Dual-password plausible deniability)</option>
+            <option value="duress" disabled>⚠️ Duress (CLI only — needs forward-secrecy keys)</option>
             <option value="schrodinger" disabled>⚛️ Schrödinger (Quantum superposition - CLI only)</option>
         </select>
         <small id="mode-description">Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage.</small>

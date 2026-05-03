@@ -385,22 +385,6 @@ def test_encode_normal_wrong_password_fails(client, app):
             pass
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Web demo /encode mode=cat encodes a steganographic carrier "
-        "(stego_level=2 + bundled cat GIF) but /decode of the resulting "
-        "file fails with 'Decoding failed' — the stego LSB extraction "
-        "fallback in decode_gif doesn't recover the QR frames embedded "
-        "by encode_file's cat-mode path. The /encode form advertises "
-        "cat mode as a usable option but it does not round-trip end-to-"
-        "end. When the underlying decode pipeline is fixed (or the form "
-        "is updated to disable cat mode for files), this xfail will "
-        "surface as an unexpected pass. This is distinct from the JS "
-        "Cat Mode optical-transmission feature on /cat-mode, which "
-        "round-trips correctly via /cat-mode-encrypt-server."
-    ),
-)
 def test_encode_cat_mode_round_trip(client, app):
     """mode=cat uses a steganographic carrier; same round-trip should work."""
     plaintext = b"cat-mode steganographic payload"
@@ -441,54 +425,67 @@ def test_encode_cat_mode_round_trip(client, app):
     assert recovered == plaintext
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "Web demo /encode form exposes mode=duress but the underlying "
-        "meow_decoder.encode_file rejects duress without forward secrecy "
-        "or PQ — and the form has no field for a receiver public key. "
-        "This is a real product bug: the UI advertises a mode it can't "
-        "actually run. Either remove the option from encode.html or add "
-        "the missing FS/PQ inputs. When fixed, this xfail will surface "
-        "as an unexpected pass."
-    ),
-)
-def test_encode_duress_mode_round_trip(client, app):
-    """Duress mode: real password recovers the real file."""
-    plaintext = b"the real secret payload"
-    real_pw = "real-password-duress"
-    duress_pw = "duress-password-x"
+def test_encode_duress_mode_rejects_with_clear_error(client, app):
+    """mode=duress must surface a clear, actionable error.
 
+    The web demo can't run duress mode without forward-secrecy key
+    management, so the form's <option> is `disabled` and the route
+    returns a redirect with a flash message pointing users at the CLI.
+    Anyone who bypasses the disabled option (devtools, scripted POST)
+    must still get a useful error rather than a 500 / silent failure.
+    """
     enc = _upload(
         client,
         "/encode",
         filename="real.txt",
-        contents=plaintext,
-        password=real_pw,
-        duress_password=duress_pw,
+        contents=b"x" * 32,
+        password="real-password-duress",
+        duress_password="duress-password-x",
         mode="duress",
         redundancy="1.5",
     )
-    assert enc.status_code == 200, f"duress encode failed: {enc.status_code}"
-    token = _extract_download_token(enc.data.decode("utf-8", errors="replace"))
-    assert token
-
-    gif_bytes = _decode_token_to_bytes(client, app, token)
-
-    # Decode with the real password → should recover plaintext
-    dec = _upload(
-        client,
-        "/decode",
-        filename="encoded.gif",
-        contents=gif_bytes,
-        password=real_pw,
+    # Should redirect back to the form with a flash, not 500 or 200.
+    assert enc.status_code == 302, (
+        f"duress mode should redirect with flash, got {enc.status_code}"
     )
-    assert dec.status_code == 200
-    dec_body = dec.data.decode("utf-8", errors="replace")
-    dec_token = _extract_download_token(dec_body)
-    assert dec_token, f"decode with real password did not produce a token:\n{dec_body[:500]}"
-    recovered = _decode_token_to_bytes(client, app, dec_token)
-    assert recovered == plaintext
+
+    # Follow the redirect and confirm the flash message points the user
+    # somewhere actionable (mentions CLI / forward-secrecy / keys).
+    enc_followed = _upload(
+        client,
+        "/encode",
+        filename="real.txt",
+        contents=b"x" * 32,
+        password="real-password-duress",
+        duress_password="duress-password-x",
+        mode="duress",
+        redundancy="1.5",
+    )
+    body = client.get(enc_followed.headers.get("Location", "/encode")).data.decode(
+        "utf-8", errors="replace"
+    )
+    body_lower = body.lower()
+    assert any(
+        kw in body_lower
+        for kw in ("cli", "forward-secrecy", "forward secrecy", "key")
+    ), f"flash message must mention the CLI / FS workaround:\n{body[:500]}"
+
+
+def test_encode_form_disables_unsupported_modes(client):
+    """The mode dropdown must mark unsupported options `disabled` so users
+    can't pick a mode the backend can't actually execute."""
+    response = client.get("/encode")
+    body = response.data.decode("utf-8", errors="replace")
+
+    # Schrödinger has been disabled in the dropdown all along — assert that
+    # remains so, AND that duress is now disabled too (the bug fix).
+    assert 'value="duress" disabled' in body, (
+        "duress option must be `disabled` in the encode form mode dropdown — "
+        "the backend can't run it without FS/PQ keys"
+    )
+    assert 'value="schrodinger" disabled' in body, (
+        "schrödinger option must be `disabled` in the encode form mode dropdown"
+    )
 
 
 def _extract_download_token(html: str) -> str | None:
