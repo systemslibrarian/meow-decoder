@@ -1428,7 +1428,9 @@ def decrypt_to_raw(
             logger.log("Decompressing data with zlib", category="io")
 
         # ST-2: Decompression bomb protection — limit output size
-        # Use incremental decompression to enforce MAX_DECOMP_RATIO
+        # Use incremental decompression to enforce MAX_DECOMP_RATIO.
+        # Coverage: tests/test_decompression_bomb.py exercises both the
+        # initial-chunk overflow and the corrupted-zlib-data branches.
         decomp_limit = (
             max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
             if orig_len is not None and orig_len > 0
@@ -1441,22 +1443,26 @@ def decrypt_to_raw(
         try:
             chunk = decompressor.decompress(comp, decomp_limit + 1)
             total_out += len(chunk)
-            if total_out > decomp_limit:  # pragma: no cover
+            if total_out > decomp_limit:
                 raise ValueError(
                     f"Decompression bomb detected: output ({total_out} bytes) exceeds "
                     f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
                 )
             chunks.append(chunk)
-            # Flush remaining
+            # Flush remaining: drains decompressor.unconsumed_tail in case
+            # the first decompress stopped at a stream boundary before the
+            # full output was emitted. Defence-in-depth — in practice the
+            # initial-chunk check catches bombs first because zlib emits up
+            # to decomp_limit+1 bytes per call.
             remaining = decompressor.flush()
             total_out += len(remaining)
-            if total_out > decomp_limit:  # pragma: no cover
+            if total_out > decomp_limit:  # pragma: no cover - defence-in-depth; the initial-chunk branch above fires first under all known zlib behaviour
                 raise ValueError(
                     f"Decompression bomb detected: output ({total_out} bytes) exceeds "
                     f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
                 )
             chunks.append(remaining)
-        except zlib.error as ze:  # pragma: no cover
+        except zlib.error as ze:
             raise RuntimeError(f"Decompression failed: {ze}")
         raw = b"".join(chunks)
 
