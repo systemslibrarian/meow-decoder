@@ -103,9 +103,22 @@ audit-fixes + web-demo sweep passes; 1 pre-existing xfail unchanged.
   the Argon2id HMAC layer (reality_a/b_hmac + AES-GCM)."* The dual-
   reality property requires either-password verifiability; binding the
   MAC to a secret only one password holder knows breaks that property.
-  Real authentication is layered below. **Not a bug** per documented
-  threat model — but worth empirically measuring Fountain decoder CPU
-  behavior under a flood of valid-MAC garbage droplets.
+  Real authentication is layered below.
+
+  **Empirically measured** (commit on this branch, 2026-05-03):
+  10,000 forged-but-valid-MAC droplets fed into a fresh
+  `FountainDecoder` complete in **0.01 seconds wall time** with
+  effectively zero RSS growth. Reason: `_process_pending` (the
+  belief-propagation loop, the only place an O(|pending|²) cost could
+  surface) runs only after a legitimate degree-1 decode. Without
+  legitimate input the garbage just appends to `pending_droplets`,
+  which is bounded by the GIF parser's `MAX_GIF_FRAMES = 100,000`.
+
+  The test (`tests/test_schrodinger_dos.py`) asserts conservative
+  ceilings (30s wall, 64 MB RSS) for the 10K-droplet flood and acts
+  as a CI regression net for any future change that removes the
+  GIF cap or pessimizes the pending data structure. **Confirmed
+  bounded; gemini v2 #1 closed.**
 
 ## Tamarin formal-verification model issues — ALL ADDRESSED
 
