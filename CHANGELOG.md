@@ -10,6 +10,99 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Audit-followup hardening (2026-05-03) 🔒
+
+Tracking branch: `audit/cat-mode-fixes`. Closes the
+`gemini_suggestions_v2.md` HIGH/MEDIUM ratchet bugs, the HIGH+MEDIUM
+`MeowKeyCommitment.spthy` Tamarin issues, the `gemini_suggetions.md`
+"clean the litter box" item (#7), and several smaller deferred items
+from `FOLLOWUP.md`. Eleven commits; full diff:
+[fa04a1f...3bab6d7].
+
+#### Security fixes
+- **HIGH — Ratchet PQ implicit-rejection silent desync.**
+  `meow_decoder/ratchet.py::DecoderRatchet._execute_rekey()` now uses
+  a speculative-state pattern: snapshot pre-rekey root/chain handles,
+  defer the destructive drop until commit_tag verification passes,
+  roll back to the snapshot on any verification failure (commit_tag
+  mismatch, AES-GCM auth failure, etc.). Tampered ML-KEM-1024
+  ciphertexts that produce pseudorandom shared secrets via
+  Fujisaki-Okamoto implicit rejection no longer permanently desync
+  the receiver. Cryptographer-review brief in
+  `docs/audits/RATCHET_SPECULATIVE_ROLLBACK.md`.
+- **MEDIUM — Cached message-key burned on commit_tag failure.**
+  `decrypt()`'s skipped-keys cache lookup now peeks (does not pop)
+  until commit_tag + AES-GCM both pass. A single tampered scan of an
+  out-of-order frame no longer invalidates the cached key — clean
+  re-scans of the same QR frame succeed.
+
+#### Tamarin formal-verification model
+- **HIGH — `MeowKeyCommitment.spthy` `CommitmentNonForgeability`
+  falsified-lemma rewrite.** `let` bindings now use freshened
+  `~mk, ~salt, ~nonce, ~pt`; receiver consumes the sender's
+  `!SentWithCommit` persistent state instead of generating its own
+  uncorrelated keys; In() pattern matching enforces commit_tag
+  verification structurally. Cryptographer review on the rewrite
+  is the explicit ask before merging.
+- **MEDIUM — `MeowRatchetFS.spthy` action-fact arity** —
+  `FrameEncrypted/5` now matches the rule emitter; lemmas
+  reformulated; `RegisterPK/3` exposes `~rsk` for
+  `PostCompromiseSecurityViaBeacon` to bind.
+- **MEDIUM — `MeowRatchetHeaderOE.spthy` unguarded `hk`** —
+  `SentFrameWithIdx/5` and `ReceivedFrameWithIdx/5` carry the header
+  key so lemma quantifiers bind it.
+
+#### Surface-area minimisation (gemini #7)
+- `meow_decoder/_archive/` (684 KB of historical reference code)
+  moved to top-level `archive/`. `bandit -r meow_decoder/` no longer
+  walks the archive tree; legacy `random.Random()` and empty-password
+  findings (potential_bugs.md #3, #4) are now structurally outside
+  the production-package scan. Boundary test
+  (`tests/test_production_import_boundary.py`) rewritten with three
+  new tests enforcing the new layout. `[tool.bandit]` section added
+  to `pyproject.toml` for defensive `bandit -r .` runs.
+
+#### Other hardening
+- `tests/conftest.py` exports `MEOW_PRODUCTION_MODE=0` alongside
+  `MEOW_TEST_MODE=1` (matches every CI workflow). Six failing
+  C3-transcript-binding tests in `test_audit_fixes.py` are green
+  again locally; documented in `tests/TEST_SUITE_README.md`.
+- Decompression-bomb branches in `decrypt_to_raw` covered by 5 new
+  tests in `tests/test_decompression_bomb.py`. Two pragmas dropped;
+  one remains for a defence-in-depth path that's dead code under
+  every observed zlib behaviour.
+- Legacy `derive_key()` keyfile path now routes through the Rust
+  `handle_derive_key_argon2id_with_keyfile` primitive — no Python-
+  side HKDF intermediate buffer (Finding 3.7).
+- Single-threaded decode contract documented in
+  `docs/RATCHET_PROTOCOL.md` §10.5.
+
+#### Tests
+- 3 deterministic regression tests in
+  `tests/test_ratchet.py::TestSpeculativeStateRollback` covering the
+  two source bugs.
+- 3 hypothesis-driven property tests in
+  `tests/test_property_ratchet_pq.py::TestDecoderRollbackInvariants`
+  randomising tamper location, frame layout, and rekey interval.
+
+#### Fountain Phase 0 (gemini #6 prep)
+- Migration plan: `docs/FOUNTAIN_RUST_WASM_MIGRATION.md`.
+- 16 byte-exact golden vectors generated from the current Python LT
+  encoder under `tests/golden/fountain/` covering
+  k ∈ {2, 10, 100, 1000} × multiple seeds. These are the cross-
+  language acceptance bar for the Rust + WASM unification.
+- `tests/test_fountain_golden_vectors.py` (50 cases) locks the
+  Python encoder's wire-format output against drift.
+
+#### Repository organisation
+- 15 historical audit MDs moved to `docs/audits/`, 3 audit
+  templates to `docs/templates/`, dev shell scripts and stray
+  test_*.{py,js} scratch files to `scripts/dev/`. Stale
+  `tarpaulin-report.json` (1.5 MB) and `lcov.info` (33 KB) deleted
+  and added to `.gitignore`.
+
+---
+
 ### Meow Capture v3.2 — Mobile Companion App Polish (2026-02-25) 📱
 
 *A secure offline QR capture companion app for air-gapped file transfer.*
