@@ -15,6 +15,7 @@ Usage:
 
 import os
 import secrets
+import threading
 from typing import Optional, Tuple, Union, Literal
 from dataclasses import dataclass
 
@@ -299,13 +300,21 @@ class CryptoBackend:
 
 # Module-level convenience functions using default backend
 _default_backend: Optional[CryptoBackend] = None
+_default_backend_lock = threading.Lock()
 
 
 def get_default_backend() -> CryptoBackend:
-    """Get the default crypto backend (Rust-only)."""
+    """Get the default crypto backend (Rust-only).
+
+    Locked to prevent two callers from simultaneously creating distinct
+    CryptoBackend instances under the singleton — the second instance
+    would silently leak its initialization work and any subsequent state.
+    """
     global _default_backend
     if _default_backend is None:
-        _default_backend = CryptoBackend()
+        with _default_backend_lock:
+            if _default_backend is None:
+                _default_backend = CryptoBackend()
     return _default_backend
 
 
@@ -666,13 +675,19 @@ class HandleBackend:
 
 
 _default_handle_backend: Optional[HandleBackend] = None
+_default_handle_backend_lock = threading.Lock()
 
 
 def get_handle_backend() -> HandleBackend:
-    """Get the default handle-based crypto backend."""
+    """Get the default handle-based crypto backend.
+
+    Same singleton-init race protection as get_default_backend().
+    """
     global _default_handle_backend
     if _default_handle_backend is None:
-        _default_handle_backend = HandleBackend()
+        with _default_handle_backend_lock:
+            if _default_handle_backend is None:
+                _default_handle_backend = HandleBackend()
     return _default_handle_backend
 
 
