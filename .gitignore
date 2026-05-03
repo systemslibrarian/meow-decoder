@@ -32,6 +32,8 @@ htmlcov/
 .hypothesis/
 *.cover
 coverage.xml
+lcov.info
+tarpaulin-report.json
 
 # Environments
 .env
