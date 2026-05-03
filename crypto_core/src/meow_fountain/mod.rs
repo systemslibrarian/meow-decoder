@@ -26,8 +26,8 @@
 //! every committed phase leaves the crate compiling and tested.
 
 pub mod cpython_random;
+pub mod decoder;
 pub mod distribution;
 pub mod encoder;
 pub mod mt19937;
 pub mod wire;
-// decoder lands in follow-up commit — see module-level docstring above.
