@@ -753,6 +753,25 @@ If QR frames are lost during camera capture:
 
 If more than MAX_SKIP_KEYS (2000) frames arrive out-of-order, the decoder raises `ValueError`. This bounds memory usage and prevents DoS from adversarial frame index inflation. In practice, 2000 is far more than fountain codes need.
 
+### 10.5 Single-Threaded Decode Contract
+
+`DecoderRatchet.decrypt()` is **not** safe to call concurrently from
+multiple threads on the same instance. The speculative-state rollback
+path introduced in commit `8a3bb48` uses `self._pending_rollback` as a
+single-slot snapshot for the asymmetric rekey commit/abort decision; a
+second concurrent `decrypt()` call would race that slot.
+
+In practice the decoder is consumed by a single decode loop that pulls
+frames one at a time from the QR-stream reader, so this is not a
+limitation today. If a future change introduces concurrent decoding
+(e.g. an encoder/decoder pool that processes multiple GIFs in
+parallel), the per-instance contract must be preserved: each parallel
+worker gets its own `DecoderRatchet`.
+
+The encoder side (`EncoderRatchet`) has the same contract for the same
+reason: ratchet steps and chain advances mutate `self._state`
+non-atomically.
+
 ---
 
 ## 11. Hardening Recommendations (Future Work)
