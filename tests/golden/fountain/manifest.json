@@ -1,0 +1,207 @@
+{
+  "format_version": 1,
+  "vectors": [
+    {
+      "file": "k2_b32_s0.bin",
+      "k_blocks": 2,
+      "block_size": 32,
+      "seed": 0,
+      "total_size": 64,
+      "block_indices": [
+        0
+      ],
+      "data_sha256_prefix": "33ba8b438761d0a0",
+      "wire_size": 44
+    },
+    {
+      "file": "k2_b32_s1.bin",
+      "k_blocks": 2,
+      "block_size": 32,
+      "seed": 1,
+      "total_size": 64,
+      "block_indices": [
+        1
+      ],
+      "data_sha256_prefix": "64c77eda994480ad",
+      "wire_size": 44
+    },
+    {
+      "file": "k2_b32_s7.bin",
+      "k_blocks": 2,
+      "block_size": 32,
+      "seed": 7,
+      "total_size": 64,
+      "block_indices": [
+        0
+      ],
+      "data_sha256_prefix": "33ba8b438761d0a0",
+      "wire_size": 44
+    },
+    {
+      "file": "k10_b64_s0.bin",
+      "k_blocks": 10,
+      "block_size": 64,
+      "seed": 0,
+      "total_size": 640,
+      "block_indices": [
+        0
+      ],
+      "data_sha256_prefix": "f616afd08efb65e9",
+      "wire_size": 76
+    },
+    {
+      "file": "k10_b64_s5.bin",
+      "k_blocks": 10,
+      "block_size": 64,
+      "seed": 5,
+      "total_size": 640,
+      "block_indices": [
+        5
+      ],
+      "data_sha256_prefix": "dd6db216859123a2",
+      "wire_size": 76
+    },
+    {
+      "file": "k10_b64_s21.bin",
+      "k_blocks": 10,
+      "block_size": 64,
+      "seed": 21,
+      "total_size": 640,
+      "block_indices": [
+        4,
+        6
+      ],
+      "data_sha256_prefix": "1df1b7ce1fd8fcbe",
+      "wire_size": 78
+    },
+    {
+      "file": "k10_b64_s100.bin",
+      "k_blocks": 10,
+      "block_size": 64,
+      "seed": 100,
+      "total_size": 640,
+      "block_indices": [
+        7
+      ],
+      "data_sha256_prefix": "6361325d7ac0e316",
+      "wire_size": 76
+    },
+    {
+      "file": "k100_b128_s0.bin",
+      "k_blocks": 100,
+      "block_size": 128,
+      "seed": 0,
+      "total_size": 12800,
+      "block_indices": [
+        0
+      ],
+      "data_sha256_prefix": "fdb50d75cc2ca565",
+      "wire_size": 140
+    },
+    {
+      "file": "k100_b128_s50.bin",
+      "k_blocks": 100,
+      "block_size": 128,
+      "seed": 50,
+      "total_size": 12800,
+      "block_indices": [
+        50
+      ],
+      "data_sha256_prefix": "fdb50d75cc2ca565",
+      "wire_size": 140
+    },
+    {
+      "file": "k100_b128_s199.bin",
+      "k_blocks": 100,
+      "block_size": 128,
+      "seed": 199,
+      "total_size": 12800,
+      "block_indices": [
+        99
+      ],
+      "data_sha256_prefix": "5fe8f8d2175cec64",
+      "wire_size": 140
+    },
+    {
+      "file": "k100_b128_s1000.bin",
+      "k_blocks": 100,
+      "block_size": 128,
+      "seed": 1000,
+      "total_size": 12800,
+      "block_indices": [
+        8,
+        12,
+        21,
+        45,
+        50,
+        59,
+        85,
+        97
+      ],
+      "data_sha256_prefix": "b7effd43ee501602",
+      "wire_size": 154
+    },
+    {
+      "file": "k1000_b256_s0.bin",
+      "k_blocks": 1000,
+      "block_size": 256,
+      "seed": 0,
+      "total_size": 256000,
+      "block_indices": [
+        0
+      ],
+      "data_sha256_prefix": "e99ccdfa408797be",
+      "wire_size": 268
+    },
+    {
+      "file": "k1000_b256_s999.bin",
+      "k_blocks": 1000,
+      "block_size": 256,
+      "seed": 999,
+      "total_size": 256000,
+      "block_indices": [
+        999
+      ],
+      "data_sha256_prefix": "e99ccdfa408797be",
+      "wire_size": 268
+    },
+    {
+      "file": "k1000_b256_s1999.bin",
+      "k_blocks": 1000,
+      "block_size": 256,
+      "seed": 1999,
+      "total_size": 256000,
+      "block_indices": [
+        999
+      ],
+      "data_sha256_prefix": "e99ccdfa408797be",
+      "wire_size": 268
+    },
+    {
+      "file": "k1000_b256_s5000.bin",
+      "k_blocks": 1000,
+      "block_size": 256,
+      "seed": 5000,
+      "total_size": 256000,
+      "block_indices": [
+        406,
+        801
+      ],
+      "data_sha256_prefix": "5341e6b2646979a7",
+      "wire_size": 270
+    },
+    {
+      "file": "k1000_b256_s12345.bin",
+      "k_blocks": 1000,
+      "block_size": 256,
+      "seed": 12345,
+      "total_size": 256000,
+      "block_indices": [
+        10,
+        839
+      ],
+      "data_sha256_prefix": "5341e6b2646979a7",
+      "wire_size": 270
+    }
+  ]
+}
