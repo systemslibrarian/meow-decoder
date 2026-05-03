@@ -41,6 +41,48 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 - **Finding 12.2 — Pre-commit lacks secret-scanning.** `.pre-commit-config.yaml`. Add `detect-secrets` / `trufflehog` / `gitleaks` hook.
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
+## Tamarin formal-verification model issues (needs cryptographer review)
+
+After Tamarin 1.10.0 → 1.12.0 (PR #171, accepting Maude 3.5.1), three CI shards
+remain red. Tamarin/Maude are confirmed working — the failures are real model
+bugs that 1.10.0 was lenient about and 1.12.0's stricter wellformedness checks
+now surface. **Do not auto-patch — claiming a security proof works when it
+does not is worse than failing CI.**
+
+Severity-ordered findings:
+
+- **HIGH — `formal/tamarin/MeowKeyCommitment.spthy:52-80`** — `CommitmentNonForgeability`
+  lemma is genuinely **falsified** (2-step trace). Root cause: `let` bindings
+  reference unfreshened `mk, salt, nonce, pt` while premises declare `~mk, ~salt,
+  ~nonce, ~pt`, AND `ReceiverVerifyDecrypt` freshly generates its own `~mk, ~salt`
+  instead of consuming the sender's `!SentWithCommit(...)` persistent state.
+  Receiver thus uses random keys uncorrelated with sender — trivial forgery.
+  **Fix requires cryptographer:** wire receiver to `!SentWithCommit` correctly,
+  not just rename variables.
+
+- **MEDIUM — `formal/tamarin/MeowRatchetFS.spthy:~180`** — undefined predicate
+  `FrameEncrypted/4` referenced by lemma; no rule emits this action fact.
+  Adjacent: `m+'1'` multiset notation is fine (builtin imported line 45) but
+  whatever rule should produce `FrameEncrypted` is missing.
+
+- **MEDIUM — `formal/tamarin/MeowRatchetHeaderOE.spthy:~88,113`** — unguarded
+  variable `hk` in lemma quantifier (1.12.0 enforcement).
+
+- **LOW (mechanical) — `formal/tamarin/MeowSchrodingerDeniabilityTiming.spthy:68`** —
+  custom `h/1` collides with `builtins: hashing`. Rename to `hash_fn` or drop
+  hashing import. Verify no other model imports this file's signature.
+
+- **LOW (mechanical) — `formal/tamarin/secure_alloc_guard_pages.spthy:33`** —
+  custom `zero/1` is a reserved name. Rename to `zero_buf` and update all use
+  sites in the same file.
+
+- **CI infra — `.github/workflows/formal-verification.yml:630`** — shard 1's
+  `docker run --rm meow-tamarin` (no timeout, no memory cap) ran for 1h6m and
+  the runner died with "lost communication with the server" (OOM/heartbeat).
+  Wrap in `timeout 1800` and add `--memory=6g --cpus=2`. Independent of the
+  model bugs above; will at least give clean failure output instead of runner
+  blackout.
+
 ## Pre-existing test failures (not caused by audit)
 
 - **`tests/test_cat_js_runner.py::TestCat5SpeedsJS::test_cat_5speeds_pipeline`** — Marked `xfail` in the audit-followup commit. Confirmed pre-existing by `git stash` test on bare main. Root cause: `web_demo/preamble-calibration.js` over-measures preamble duration when the sync word uses the same `1010...` pattern. NRZ decoder then locks onto sync *inside* the preamble, overshoots by 8 bits, and byte[0] comes out as `0xca` (second half of magic `0xfe 0xca`) instead of `0xfe`. Node probe in `/tmp/debug_cat.js` reproduces deterministically. **Recommended fix:** preamble-calibration should stop at the expected 16-bit boundary (using known `bitPeriod`) rather than measuring the extent of alternation.

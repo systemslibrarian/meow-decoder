@@ -503,19 +503,11 @@ def test_encode_file_duress_requires_forward_secrecy(tmp_path):
         )
 
 
-def test_encode_file_duress_requires_pubkey_or_pq(tmp_path):
-    """Line 83-84: duress without pubkey/PQ raises ValueError."""
-    inp = _write_input(tmp_path)
-    with pytest.raises(ValueError, match="Duress mode requires a distinct manifest format"):
-        enc.encode_file(
-            inp,
-            tmp_path / "out.gif",
-            password="pw",
-            duress_password="dur",
-            forward_secrecy=True,
-            receiver_public_key=None,
-            use_pq=False,
-        )
+# Note: the previous "duress requires pubkey or PQ" upfront rejection was
+# removed in commit eef0cb4 — MEOW2 + Duress (password-only) is now a valid
+# manifest configuration thanks to the explicit mode_byte distinguishing it
+# from MEOW3. The full round-trip is exercised by
+# tests/test_web_demo_routes.py::test_encode_duress_mode_round_trip_real_password.
 
 
 # --- Line 118: verbose manifest version print (MEOW2) ---
