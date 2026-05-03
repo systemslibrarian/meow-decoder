@@ -443,8 +443,18 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     """
     PRODUCTION-FORBIDDEN: Derive encryption key using Argon2id.
 
-    This function returns raw key bytes.  In production, use
-    ``derive_key_handle()`` which keeps all key material in Rust.
+    Returns raw key bytes — production code MUST use ``derive_key_handle()``
+    (keeps the key inside Rust). This wrapper exists only for tests and
+    for legacy serialization paths gated by MEOW_PRODUCTION_MODE=0.
+
+    Implementation note (FOLLOWUP Finding 3.7): the keyfile path
+    previously did its own HKDF(password || keyfile) inside Python and
+    materialized 64 intermediate bytes in a bytearray that the GC could
+    keep alive past the explicit zeroize. We now route both code paths
+    through ``derive_key_handle()`` (which uses the Rust
+    ``derive_key_argon2id_with_keyfile`` primitive that combines the
+    keyfile in Rust). The only Python exposure is the final 32-byte key
+    bytes returned by ``export_key`` — gated by MEOW_PRODUCTION_MODE=0.
 
     Args:
         password: User passphrase (minimum 8 characters)
@@ -459,46 +469,17 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         RuntimeError: If called in production mode
     """
     _legacy_guard("derive_key")
-    if not password:
-        raise ValueError("Password cannot be empty")
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(
-            f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)"
-        )
-    if len(salt) != 16:
-        raise ValueError("Salt must be 16 bytes")
-
-    # Combine password and keyfile if provided
-    secret = password.encode("utf-8")
-    if keyfile:
-        # Use HKDF to properly combine password and keyfile (via Rust backend)
-        backend = get_default_backend()
-        secret = backend.derive_key_hkdf(
-            secret + keyfile,
-            KEYFILE_DOMAIN_SEP,
-            b"password_keyfile_combine",
-            64,
-        )
-
-    secret_buf = bytearray(secret)
+    # ``derive_key_handle`` validates inputs (password length, salt size)
+    # so we reuse that rather than duplicating the checks here.
+    handle = derive_key_handle(password, salt, keyfile)
+    hb = get_handle_backend()
     try:
-        # Derive key using Argon2id via backend
-        backend = get_default_backend()
-        key = backend.derive_key_argon2id(
-            bytes(secret_buf),
-            salt,
-            output_len=32,
-            iterations=ARGON2_ITERATIONS,
-            memory_kib=ARGON2_MEMORY,
-            parallelism=ARGON2_PARALLELISM,
-        )
-
-        return key
-    except Exception as e:
-        raise RuntimeError(f"Key derivation failed: {e}")
+        return bytes(hb.export_key(handle))
     finally:
-        # Best-effort zeroing of mutable secret material
-        secure_zero_memory(secret_buf)
+        try:
+            hb.drop(handle)
+        except Exception:
+            pass
 
 
 # ── Handle-based key derivation (Rule #2: Python never holds secret key bytes) ──
