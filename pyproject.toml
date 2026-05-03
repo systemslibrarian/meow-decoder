@@ -92,7 +92,7 @@ include = '\.pyi?$'
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-norecursedirs = ["_archive", "__pycache__", ".git", ".hypothesis"]
+norecursedirs = ["archive", "_archive", "__pycache__", ".git", ".hypothesis"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
@@ -213,8 +213,6 @@ module = [
     "meow_decoder.size_normalizer",
     "meow_decoder.source_cleanup",
     "meow_decoder.stego_multilayer",
-    # Archive/legacy subpackage — pre-existing type errors not maintained
-    "meow_decoder._archive.*",
 ]
 ignore_errors = true
 
@@ -224,9 +222,19 @@ tests_dir = "tests/"
 runner = "python -m pytest -x --timeout=30"
 dict_synonyms = "Struct,NamedStruct"
 
+# Bandit: even though CI invokes `bandit -r meow_decoder/` (which now
+# never sees archive/ since the move out of the package), defend
+# against `bandit -r .` runs by some developer locally.
+[tool.bandit]
+exclude_dirs = ["archive", "tests/_archive", "node_modules", "target", ".venv", "venv"]
+
 # NOTE: flake8 config lives in .flake8 (flake8 does not read pyproject.toml)
 
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["meow_decoder*"]
-exclude = ["assets*", "sounds*", "legacy_py*", "meow_decoder._archive*"]
+# `archive/` lives at the repo root and is not a `meow_decoder*` package,
+# so `include = ["meow_decoder*"]` already excludes it. Keep the legacy
+# `meow_decoder._archive*` entry harmlessly listed — it acts as a guard
+# in case someone re-introduces a `_archive/` subpackage by mistake.
+exclude = ["assets*", "sounds*", "legacy_py*", "archive*", "meow_decoder._archive*"]

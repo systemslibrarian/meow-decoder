@@ -21,5 +21,7 @@ global-exclude *.py[co]
 global-exclude .DS_Store
 global-exclude *.swp
 
-# Exclude archived (non-production) modules
-prune meow_decoder/_archive
+# archive/ is a top-level reference directory, not part of the package —
+# setuptools `packages.find` (pyproject.toml) only includes `meow_decoder*`
+# so it would not be packaged anyway, but make the intent explicit.
+prune archive
