@@ -109,23 +109,17 @@ def encode_file(
     if duress_password and duress_password == password:
         raise ValueError("Duress password cannot be the same as encryption password")
 
-    # Duress mode requires forward secrecy (to avoid manifest size ambiguity)
+    # Duress + password-only is now supported via the explicit mode_byte
+    # (FIX-D3). The legacy length-based manifest dispatcher used to
+    # mis-parse MEOW2+Duress (148 bytes) as MEOW3 (148 bytes), so this
+    # branch hard-rejected it. unpack_manifest now dispatches on
+    # mode_byte for new-format manifests, so MEOW2+Duress decodes
+    # correctly. Legacy callers writing without mode_byte still need
+    # FS or PQ to disambiguate — surface that as a clearer error.
     if duress_password:
         if not forward_secrecy:
             raise ValueError(
                 "Duress mode requires forward secrecy (do not use --no-forward-secrecy with --duress-password)"
-            )
-
-        # Ambiguity check: Password-Only + Duress (147 bytes) vs Forward Secrecy (147 bytes)
-        # If we don't use PQ and don't use keys, we default to Password-Only mode (even if FS flag is on).
-        # This creates a 147-byte manifest which unpack_manifest misinterprets as FS mode.
-        if not use_pq and receiver_public_key is None:
-            raise ValueError(
-                "Duress mode requires a distinct manifest format. "
-                "Please either:\n"
-                "  1. Provide a receiver public key for Forward Secrecy (--receiver-pubkey)\n"
-                "  2. Enable Post-Quantum mode (--pq)\n"
-                "Standard password-only mode creates a manifest size collision with Duress mode."
             )
 
     # Select crypto mode based on flags
@@ -661,6 +655,35 @@ def encode_file(
             4: StealthLevel.PARANOID,
         }
         stealth = stealth_map.get(stego_level, StealthLevel.SUBTLE)
+
+        # GIF format uses an indexed 256-colour palette. When the stego
+        # encoder embeds at lsb_bits >= 2 (StealthLevel.SUBTLE / HIDDEN /
+        # PARANOID), the carrier's RGB diversity (typically 4000+ unique
+        # colours after embedding) gets quantised down to 256 by the GIF
+        # writer, destroying the LSB-2 precision and making the embedded
+        # QR codes unrecoverable. Verified empirically: stego_level=1
+        # (VISIBLE / lsb_bits=3) round-trips through GIF; levels 2 and 3
+        # do not.
+        #
+        # Force VISIBLE stealth when output is GIF and warn the caller.
+        # Callers that need higher stealth must use a lossless format
+        # (PNG / APNG) — the encoder writes whatever the output suffix
+        # asks for, so changing the suffix selects a format that
+        # preserves LSB depth.
+        output_suffix = output_path.suffix.lower() if hasattr(output_path, "suffix") else ""
+        if output_suffix in (".gif", "") and stealth in (
+            StealthLevel.SUBTLE,
+            StealthLevel.HIDDEN,
+            StealthLevel.PARANOID,
+        ):
+            if verbose:
+                print(
+                    f"  ⚠️  GIF output cannot preserve stego_level={stego_level} "
+                    f"(palette quantisation destroys LSB precision); "
+                    f"clamping to level 1 (VISIBLE). Use --output foo.png for "
+                    f"a lossless format that preserves higher stealth levels."
+                )
+            stealth = StealthLevel.VISIBLE
 
         # Load carrier images if provided (your cat photos!)
         carriers = None

@@ -203,32 +203,29 @@ def encode_page():
             stego_level_val = 0
 
             if mode == "cat":
-                # Cat mode: use bundled carrier image.
-                # stego_level=1 (StealthLevel.VISIBLE → lsb_bits=1) round-trips
-                # cleanly through decode_gif's stego LSB extraction. stego_level=2
-                # (SUBTLE / lsb_bits=2) currently produces a corrupt manifest on
-                # decode (915 bytes vs expected 115-188); fix the underlying
-                # stego_advanced.py mismatch before bumping this back up.
+                # Cat mode: use bundled carrier image. encode_file now
+                # auto-clamps stego_level to 1 when output is GIF (palette
+                # quantisation can't preserve lsb_bits >= 2), so passing a
+                # higher value is harmless — the user just gets a warning.
+                # Pick level 2 (SUBTLE) here so the request to the encoder
+                # documents intent; the actual embedding falls back to
+                # VISIBLE for GIF output.
                 cat_carrier = Path(__file__).parent.parent / "assets" / "demo_logo_eyes.gif"
                 if cat_carrier.exists():
                     carrier_images = [cat_carrier]
-                    stego_level_val = 1
+                    stego_level_val = 2
                 else:
                     flash("Warning: Cat carrier image not found, using plain QR codes", "warning")
             elif mode == "duress":
-                # Duress mode requires forward secrecy or PQ to avoid manifest
-                # size collisions in the underlying encode_file. The web demo
-                # has no UI for receiver public keys, so duress is CLI-only
-                # for now. Direct power users to the CLI rather than letting
-                # them hit a confusing internal-error after submitting the form.
-                flash(
-                    "Duress mode requires forward-secrecy keys and is CLI-only "
-                    "for now: see `meow-encode --duress-password` with "
-                    "--receiver-pubkey or --pq.",
-                    "error",
-                )
-                shutil.rmtree(request_dir, ignore_errors=True)
-                return redirect(request.url)
+                # Duress + password-only is now supported via FIX-D3
+                # mode_byte dispatch in unpack_manifest. Require the
+                # duress password field; everything else uses the same
+                # path as normal mode.
+                use_duress = True
+                if not duress_password:
+                    flash("Duress mode requires a duress password", "error")
+                    shutil.rmtree(request_dir, ignore_errors=True)
+                    return redirect(request.url)
             elif mode == "schrodinger":
                 # Note: schrodinger_encode_file is separate function
                 flash(

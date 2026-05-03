@@ -425,66 +425,70 @@ def test_encode_cat_mode_round_trip(client, app):
     assert recovered == plaintext
 
 
-def test_encode_duress_mode_rejects_with_clear_error(client, app):
-    """mode=duress must surface a clear, actionable error.
+def test_encode_duress_mode_round_trip_real_password(client, app):
+    """Duress mode: encode with real+duress passwords, decode with real
+    password recovers the real plaintext.
 
-    The web demo can't run duress mode without forward-secrecy key
-    management, so the form's <option> is `disabled` and the route
-    returns a redirect with a flash message pointing users at the CLI.
-    Anyone who bypasses the disabled option (devtools, scripted POST)
-    must still get a useful error rather than a 500 / silent failure.
+    The underlying meow_decoder library now supports MEOW2+Duress
+    (FIX-D3 mode_byte dispatch in unpack_manifest), so the web demo's
+    /encode form can offer duress without needing FS/PQ keys.
     """
+    real_payload = b"the real secret payload"
+    real_pw = "real-password-duress-x"
+    duress_pw = "duress-password-x-12"
+
     enc = _upload(
         client,
         "/encode",
         filename="real.txt",
-        contents=b"x" * 32,
-        password="real-password-duress",
-        duress_password="duress-password-x",
+        contents=real_payload,
+        password=real_pw,
+        duress_password=duress_pw,
         mode="duress",
         redundancy="1.5",
     )
-    # Should redirect back to the form with a flash, not 500 or 200.
-    assert enc.status_code == 302, (
-        f"duress mode should redirect with flash, got {enc.status_code}"
-    )
+    assert enc.status_code == 200, f"duress encode failed: {enc.status_code}"
+    token = _extract_download_token(enc.data.decode("utf-8", errors="replace"))
+    assert token, "duress encode did not produce a download token"
 
-    # Follow the redirect and confirm the flash message points the user
-    # somewhere actionable (mentions CLI / forward-secrecy / keys).
-    enc_followed = _upload(
+    gif_bytes = _decode_token_to_bytes(client, app, token)
+
+    dec = _upload(
         client,
-        "/encode",
-        filename="real.txt",
-        contents=b"x" * 32,
-        password="real-password-duress",
-        duress_password="duress-password-x",
-        mode="duress",
-        redundancy="1.5",
+        "/decode",
+        filename="encoded.gif",
+        contents=gif_bytes,
+        password=real_pw,
     )
-    body = client.get(enc_followed.headers.get("Location", "/encode")).data.decode(
-        "utf-8", errors="replace"
+    assert dec.status_code == 200, f"duress decode (real password) failed: {dec.status_code}"
+    dec_body = dec.data.decode("utf-8", errors="replace")
+    dec_token = _extract_download_token(dec_body)
+    assert dec_token, "decode with real password did not produce a token"
+    recovered = _decode_token_to_bytes(client, app, dec_token)
+    assert recovered == real_payload, (
+        f"duress real-password round-trip mismatch:\n"
+        f"  expected: {real_payload!r}\n  got: {recovered!r}"
     )
-    body_lower = body.lower()
-    assert any(
-        kw in body_lower
-        for kw in ("cli", "forward-secrecy", "forward secrecy", "key")
-    ), f"flash message must mention the CLI / FS workaround:\n{body[:500]}"
 
 
 def test_encode_form_disables_unsupported_modes(client):
     """The mode dropdown must mark unsupported options `disabled` so users
-    can't pick a mode the backend can't actually execute."""
+    can't pick a mode the backend can't actually execute.
+
+    Currently only Schrödinger is disabled (the encode form doesn't
+    expose the dual-file UI Schrödinger needs). Duress and cat were
+    re-enabled after the underlying library bugs were fixed.
+    """
     response = client.get("/encode")
     body = response.data.decode("utf-8", errors="replace")
 
-    # Schrödinger has been disabled in the dropdown all along — assert that
-    # remains so, AND that duress is now disabled too (the bug fix).
-    assert 'value="duress" disabled' in body, (
-        "duress option must be `disabled` in the encode form mode dropdown — "
-        "the backend can't run it without FS/PQ keys"
-    )
     assert 'value="schrodinger" disabled' in body, (
-        "schrödinger option must be `disabled` in the encode form mode dropdown"
+        "schrödinger option must be `disabled` in the encode form mode dropdown "
+        "(the form lacks the dual-file UI it needs)"
+    )
+    # Duress is intentionally NOT disabled now — the round-trip works.
+    assert 'value="duress" disabled' not in body, (
+        "duress should be enabled now that MEOW2+Duress decode works"
     )
 
 

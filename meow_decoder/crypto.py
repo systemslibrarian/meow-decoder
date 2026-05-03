@@ -1666,21 +1666,33 @@ def unpack_manifest(b: bytes) -> Manifest:
     # Effective sizes for field detection (normalize to legacy equivalent)
     effective_len = len(b) - (1 if has_mode_byte else 0)
 
-    if effective_len >= fs_len:
+    # Determine which fields are present. Length alone is ambiguous: a
+    # MEOW2 + duress manifest is 116 + 32 = 148 bytes, the same size as
+    # MEOW3 (FS, no duress) at 116 + 32 = 148. The previous length-only
+    # dispatch always parsed 32 bytes after the base as ephemeral_public_key
+    # — for MEOW2+Duress this stole the duress_tag, then the post-parse
+    # mode-byte sanity check rejected the manifest as "MEOW2 but ephemeral
+    # key is present". Result: encode_file refused MEOW2+Duress entirely.
+    #
+    # Now: when mode_byte explicitly identifies MEOW2 (no FS), skip
+    # ephemeral parsing so the trailing 32 bytes can be claimed by the
+    # duress detection below. Legacy manifests (no mode_byte) keep the
+    # length-based behaviour for backward compatibility.
+    base_version = (mode_byte & 0x0F) if mode_byte != MODE_LEGACY else 0
+    base_version_clean = base_version & ~MODE_RATCHET
+    has_explicit_mode = mode_byte != MODE_LEGACY
+    explicit_no_fs = has_explicit_mode and base_version_clean == MODE_MEOW2
+
+    if effective_len >= fs_len and not explicit_no_fs:
         ephemeral_public_key = b[off : off + 32]
         off += 32
-
-    # Determine PQ ciphertext size from mode byte
-    base_version = (mode_byte & 0x0F) if mode_byte != MODE_LEGACY else 0
-    # Strip ratchet flag for base version check
-    base_version_clean = base_version & ~MODE_RATCHET
 
     if base_version_clean == MODE_MEOW5:
         # ML-KEM-768: ciphertext is 1088 bytes
         if effective_len >= pq_768_len:
             pq_ciphertext = b[off : off + 1088]
             off += 1088
-    elif effective_len >= pq_1024_len:
+    elif effective_len >= pq_1024_len and not explicit_no_fs:
         # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
         pq_ciphertext = b[off : off + 1568]
         off += 1568
