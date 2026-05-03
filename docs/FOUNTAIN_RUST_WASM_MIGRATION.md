@@ -97,16 +97,26 @@ their current public APIs so call sites do not change.
 
 ## Wire format (frozen)
 
-Existing droplet wire layout, must be preserved bit-for-bit:
+Existing droplet wire layout, must be preserved bit-for-bit. **Big-
+endian throughout** (matches the production
+`meow_decoder.fountain.pack_droplet` which uses `struct.pack(">I", ...)`):
 
 ```text
 struct Droplet {
-    seed: u64                   # little-endian
-    block_count: u16            # little-endian (number of source-block indices)
-    block_indices: [u16; block_count]   # little-endian
+    seed: u32                   # BIG-endian
+    block_count: u16            # BIG-endian (number of source-block indices)
+    block_indices: [u16; block_count]   # BIG-endian
     data: [u8; block_size]
 }
 ```
+
+Total = `4 + 2 + 2*block_count + block_size` bytes.
+
+> **Note:** an earlier draft of this doc said little-endian u64 seed.
+> That was a doc bug, caught when the PyO3 binding work cross-
+> referenced `pack_droplet()` and `unpack_droplet()` in fountain.py.
+> The doc and golden vectors were corrected before any production
+> code was changed.
 
 `seed` deterministically reconstructs the `block_indices` list (so a
 malformed-but-valid `block_indices` field MUST equal the seed-derived
@@ -143,44 +153,48 @@ crate primitives.)
 
 ## Migration phases
 
-### Phase 0 — design + golden vectors (this commit)
+### ✅ Phase 0 — design + golden vectors (commit 731533d)
 
-1. Add `docs/FOUNTAIN_RUST_WASM_MIGRATION.md` (this file).
-2. Add `tests/test_fountain_golden_vectors.py` that *generates*
-   reference droplets from the current Python implementation under a
-   fixed set of `(k, block_size, total_size, seed)` tuples and writes
-   them to `tests/golden/fountain/*.bin`.
-3. Add `tests/golden/fountain/README.md` documenting the format.
+1. ✅ `docs/FOUNTAIN_RUST_WASM_MIGRATION.md` (this file).
+2. ✅ `tests/test_fountain_golden_vectors.py` + 16 byte-exact `.bin`
+   fixtures under `tests/golden/fountain/`.
+3. ✅ `tests/golden/fountain/README.md`.
+4. ✅ Wire format corrected to production `pack_droplet` (BE u32)
+   in commit 195c0e6 after the divergence was caught during Phase 2a.
 
-This phase has zero runtime impact. The golden vectors are the
-acceptance criteria for every later phase.
+### ✅ Phase 1 — Rust core (commits cad92c5 → e6b86e8)
 
-### Phase 1 — Rust core (no bindings yet)
+1. ✅ `crypto_core/src/meow_fountain/` with 5 modules: `wire`,
+   `mt19937`, `distribution`, `cpython_random`, `encoder`, `decoder`.
+2. ✅ 38 unit tests (wire / MT19937 / Soliton / CPython random /
+   encoder / decoder).
+3. ✅ Golden-vector parity test in
+   `crypto_core/tests/fountain_golden_parity.rs` — green for all
+   16 vectors.
+4. CI integration: `cargo test --features fountain` runs locally;
+   workflow wiring pending.
 
-1. Create `crypto_core/src/meow_fountain/` with the four modules
-   (`encoder`, `decoder`, `distribution`, `rng`, `wire`).
-2. Pure-Rust unit tests + property tests via `proptest`.
-3. A "golden-vector parity" test that loads the Phase 0 vectors from
-   `tests/golden/fountain/` and asserts byte-identical droplets.
-4. CI: `cargo test -p crypto_core --features fountain` runs on every PR.
+### 🟡 Phase 2 — Python binding (Phase 2a complete in ec6633a + 195c0e6)
 
-### Phase 2 — Python binding
+1. ✅ Phase 2a: `rust_crypto/src/fountain.rs` with PyO3 wrappers
+   (`PyDroplet`, `PyFountainEncoder`, `PyFountainDecoder` +
+   `robust_soliton_pmf`). Wheel builds, all 16 golden vectors match
+   through the FFI boundary.
+2. ❌ Phase 2b (NOT yet landed): replace the body of
+   `meow_decoder/fountain.py` with a thin shim that re-exports the
+   Rust types under the existing public symbols (`Droplet` dataclass
+   shape, `RobustSolitonDistribution`, `FountainEncoder`,
+   `FountainDecoder`, `pack_droplet`, `unpack_droplet`). Risk: 506
+   existing fountain tests need to remain green; some depend on
+   subtle behaviours (e.g. `droplet(seed=None)` auto-increments,
+   `Decoder.get_data(original_length=None)` truncation). Phase 2b
+   should land as its own commit with full test verification.
+3. ❌ Drop NumPy from `requirements.txt` (post Phase 2b).
 
-1. Add `rust_crypto/src/fountain.rs` with PyO3 wrappers:
-   `FountainEncoder`, `FountainDecoder`, `Droplet` types.
-2. Update `meow_decoder/fountain.py` to be a thin shim that imports
-   from the Rust extension. Keep all existing public symbols
-   (`Droplet`, `LTEncoder`, `LTDecoder`, `RobustSolitonDistribution`)
-   for backward-compat at the source level — they delegate.
-3. Run the full Python test suite. The 506 existing
-   `tests/test_fountain*` cases are the regression net.
-4. Drop `meow_decoder/fountain.py`'s NumPy import. (Reduces install
-   footprint — `numpy` is currently only used by fountain.py.)
+### ❌ Phase 3 — WASM binding for web_demo (NOT started)
 
-### Phase 3 — WASM binding for web_demo
-
-1. Add `crypto_core/src/wasm_fountain.rs` (sibling of
-   `wasm_pq.rs`) gated by `wasm-fountain` feature.
+1. Add `crypto_core/src/wasm_fountain.rs` (sibling of `wasm/`)
+   gated by `wasm-fountain` feature.
 2. Update `scripts/build_wasm.sh` to build with the feature enabled
    and copy the resulting `fountain_bg.wasm` next to
    `crypto_core_bg.wasm`.
@@ -190,10 +204,9 @@ acceptance criteria for every later phase.
 4. Run `tests/test_cross_browser.spec.js` to confirm the web demo
    roundtrips end-to-end.
 
-### Phase 4 — cleanup
+### ❌ Phase 4 — cleanup (NOT started)
 
-1. Delete the old Python LT implementation (now superseded by the
-   shim).
+1. Delete the old Python LT implementation (after the shim ships).
 2. Delete `web_demo/static/fountain-codes.js` (replaced by the WASM
    loader).
 3. Drop NumPy from `requirements.txt` if no other module uses it.

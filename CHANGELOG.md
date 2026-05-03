@@ -85,14 +85,38 @@ from `FOLLOWUP.md`. Eleven commits; full diff:
   `tests/test_property_ratchet_pq.py::TestDecoderRollbackInvariants`
   randomising tamper location, frame layout, and rekey interval.
 
-#### Fountain Phase 0 (gemini #6 prep)
-- Migration plan: `docs/FOUNTAIN_RUST_WASM_MIGRATION.md`.
-- 16 byte-exact golden vectors generated from the current Python LT
-  encoder under `tests/golden/fountain/` covering
-  k ∈ {2, 10, 100, 1000} × multiple seeds. These are the cross-
-  language acceptance bar for the Rust + WASM unification.
-- `tests/test_fountain_golden_vectors.py` (50 cases) locks the
-  Python encoder's wire-format output against drift.
+#### Fountain Rust+WASM unification (gemini #6) — Phases 0, 1, 2a complete
+
+* **Phase 0** — design doc + golden vectors. 16 byte-exact `.bin`
+  fixtures covering k ∈ {2, 10, 100, 1000} × multiple seeds.
+  `docs/FOUNTAIN_RUST_WASM_MIGRATION.md` + 50 Python regression tests.
+* **Phase 1** — pure-Rust LT core under `crypto_core/src/meow_fountain/`:
+  wire format, MT19937 (CPython-compatible), Robust Soliton
+  distribution, CPython `random()/getrandbits()/randbelow()/sample()`
+  faithful re-implementations, encoder, BP decoder. 38 unit tests +
+  golden-vector parity test (`crypto_core/tests/fountain_golden_parity.rs`)
+  — green for all 16 vectors.
+* **Phase 2a** — PyO3 binding (`rust_crypto/src/fountain.rs`).
+  `meow_crypto_rs.FountainEncoder` / `.FountainDecoder` / `.Droplet`
+  produce byte-identical output to the Python encoder via the FFI
+  boundary. Verified against all 16 golden vectors.
+* **Phase 2b not yet landed**: replacing `meow_decoder/fountain.py`
+  with a thin shim (and dropping the NumPy dependency) is the next
+  step. Tracked in the migration plan.
+* **Wire format correction**: the original design doc said little-
+  endian u64 seed; production `pack_droplet` is big-endian u32.
+  Caught while wiring the PyO3 binding. Doc + golden vectors + Rust
+  core all updated to the production format before any production
+  code was changed (commit 195c0e6).
+
+#### Schrödinger DoS empirical bound (gemini v2 #1)
+
+* `tests/test_schrodinger_dos.py` empirically measures the fountain
+  decoder under a flood of valid-MAC garbage droplets: 10K forged
+  droplets process in 0.01s with negligible RSS growth. The GIF
+  parser caps the attacker at MAX_GIF_FRAMES = 100K, so the cost
+  ceiling is bounded. Closes gemini v2 #1 as "documented design
+  choice; empirically bounded".
 
 #### Repository organisation
 - 15 historical audit MDs moved to `docs/audits/`, 3 audit
