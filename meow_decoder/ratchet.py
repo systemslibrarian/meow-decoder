@@ -1362,8 +1362,7 @@ class DecoderRatchet:
         """
         if self._pending_rollback is not None:
             raise RuntimeError(
-                "Nested rekey detected: prior _execute_rekey() not yet "
-                "committed or rolled back."
+                "Nested rekey detected: prior _execute_rekey() not yet " "committed or rolled back."
             )
 
         eph_pub, pq_ct = self._received_rekey_material[epoch]

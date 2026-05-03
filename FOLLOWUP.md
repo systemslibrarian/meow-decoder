@@ -43,7 +43,7 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 ### Low
 
 - ~~**Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.**~~ FIXED on this branch — `.devcontainer/devcontainer.json` `postCreateCommand` now runs `pip install --upgrade 'pip>=25' 'wheel>=0.46'` before installing the project. Verified locally: pip 26.1, wheel 0.47.0 after upgrade. Build-time CVE chain on the codespace image is closed for new container builds.
-- **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Refactor toward the handle-based `derive_key_argon2id_with_keyfile` path. Defensive cleanup; not a vulnerability.
+- ~~**Finding 3.7 — Keyfile HKDF intermediate lives in Python.**~~ FIXED on this branch — `meow_decoder/crypto.py:471-482` (`derive_key`) now routes through `derive_key_handle()` and only briefly exports the final key bytes via `hb.export_key(handle)`, with the handle dropped in `finally`. No Python-side HKDF intermediate buffer remains. Already recorded under "Other hardening" in CHANGELOG.md (line 75).
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
 ## Real protocol state-machine bugs — FIXED (2026-05-03, audit/cat-mode-fixes)

@@ -1456,7 +1456,9 @@ def decrypt_to_raw(
             # to decomp_limit+1 bytes per call.
             remaining = decompressor.flush()
             total_out += len(remaining)
-            if total_out > decomp_limit:  # pragma: no cover - defence-in-depth; the initial-chunk branch above fires first under all known zlib behaviour
+            if (
+                total_out > decomp_limit
+            ):  # pragma: no cover - defence-in-depth; the initial-chunk branch above fires first under all known zlib behaviour
                 raise ValueError(
                     f"Decompression bomb detected: output ({total_out} bytes) exceeds "
                     f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"

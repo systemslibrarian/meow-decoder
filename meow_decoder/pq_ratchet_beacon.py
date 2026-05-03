@@ -104,6 +104,7 @@ class PQBeaconKeyPair:
         if sk:
             try:
                 from .crypto_backend import secure_zero_memory
+
                 secure_zero_memory(bytearray(sk))
             except Exception:
                 pass

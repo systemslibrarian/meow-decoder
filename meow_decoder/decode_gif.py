@@ -217,13 +217,33 @@ def decode_gif(
     # a QR-shaped pattern the reader picks up).
     expected_lengths = {
         # Legacy (no mode_byte)
-        115, 123, 147, 155, 179, 187,
+        115,
+        123,
+        147,
+        155,
+        179,
+        187,
         # New (with mode_byte, FIX-D3)
-        116, 124, 148, 156, 180, 188,
+        116,
+        124,
+        148,
+        156,
+        180,
+        188,
         # PQ ML-KEM-768 (legacy / new)
-        1235, 1243, 1267, 1275, 1236, 1244, 1268, 1276,
+        1235,
+        1243,
+        1267,
+        1275,
+        1236,
+        1244,
+        1268,
+        1276,
         # PQ ML-KEM-1024 (new)
-        1716, 1724, 1748, 1756,
+        1716,
+        1724,
+        1748,
+        1756,
     }
 
     if not qr_data_list:
