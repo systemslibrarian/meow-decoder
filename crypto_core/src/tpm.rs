@@ -49,9 +49,9 @@ use tss_esapi::{
         session_handles::AuthSession,
     },
     structures::{
-        Auth, CreatePrimaryKeyResult, Digest, DigestList, KeyedHashScheme,
-        PcrSelectionListBuilder, PcrSlot, Public, PublicBuilder, PublicKeyedHashParameters,
-        PublicRsaParameters, RsaExponent, RsaScheme, SensitiveData, SymmetricCipherParameters,
+        Auth, CreatePrimaryKeyResult, Digest, DigestList, KeyedHashScheme, PcrSelectionListBuilder,
+        PcrSlot, Public, PublicBuilder, PublicKeyedHashParameters, PublicRsaParameters,
+        RsaExponent, RsaScheme, SensitiveData, SymmetricCipherParameters,
         SymmetricDefinitionObject,
     },
     tcti_ldr::TctiNameConf,
@@ -541,8 +541,8 @@ impl TpmProvider {
         // tss-esapi 7.6: Private uses TryFrom<Vec<u8>>; Public uses UnMarshall.
         let private = tss_esapi::structures::Private::try_from(blob.private.clone())
             .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
-        let public = Public::unmarshall(&blob.public)
-            .map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
+        let public =
+            Public::unmarshall(&blob.public).map_err(|e| TpmError::UnsealFailed(e.to_string()))?;
 
         let key_handle = self
             .context
