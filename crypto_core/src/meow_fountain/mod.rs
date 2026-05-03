@@ -27,7 +27,7 @@
 
 pub mod cpython_random;
 pub mod distribution;
+pub mod encoder;
 pub mod mt19937;
 pub mod wire;
-// encoder, decoder land in follow-up commits — see module-level
-// docstring above.
+// decoder lands in follow-up commit — see module-level docstring above.

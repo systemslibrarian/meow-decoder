@@ -183,6 +183,10 @@ tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
 # Hex encoding for test vectors
 hex = "0.4"
 
+# JSON parsing for fountain golden-vector manifest (test-only).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [features]
 # ============================================
 # Feature Flags (Modular Compilation)

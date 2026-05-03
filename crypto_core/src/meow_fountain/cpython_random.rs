@@ -150,33 +150,70 @@ impl CpRandom {
     /// if k > 5:
     ///     setsize += 4 ** _ceil(_log(k * 3, 4))
     /// if n <= setsize:
-    ///     # pool path (this function)
+    ///     # pool path
     /// else:
-    ///     # set path (NOT YET IMPLEMENTED — see module docstring)
+    ///     # set path
     /// ```
     ///
-    /// All 16 golden vectors hit the pool path, so the set path is
-    /// deferred. `setsize_for_k` exposes the threshold so the encoder
-    /// can pick the right path; calling `sample_range_pool` when the
-    /// set path is required panics — surfaces a regression rather
-    /// than producing diverging droplets.
-    pub fn sample_range_pool(&mut self, n: u32, k: u32) -> Vec<u32> {
+    /// `sample_range` dispatches to the correct path so callers see a
+    /// single API.
+    pub fn sample_range(&mut self, n: u32, k: u32) -> Vec<u32> {
         assert!(k <= n, "sample: k > n");
         let setsize = setsize_for_k(k);
-        assert!(
-            (n as u64) <= (setsize as u64),
-            "sample_range_pool: n={n} exceeds setsize={setsize} for k={k}; \
-             the set-based path is not yet implemented (Phase 1d follow-up)"
-        );
+        if (n as u64) <= setsize {
+            self.sample_range_pool(n, k)
+        } else {
+            self.sample_range_set(n, k)
+        }
+    }
 
+    /// Pool path of `sample` — CPython's `n <= setsize` branch:
+    ///
+    /// ```python
+    /// pool = list(population)
+    /// for i in range(k):
+    ///     j = randbelow(n - i)
+    ///     result[i] = pool[j]
+    ///     pool[j] = pool[n - i - 1]   # move non-selected into vacancy
+    /// ```
+    pub fn sample_range_pool(&mut self, n: u32, k: u32) -> Vec<u32> {
+        assert!(k <= n, "sample: k > n");
         let mut pool: Vec<u32> = (0..n).collect();
         let mut result = Vec::with_capacity(k as usize);
         for i in 0..k {
             let j = self.randbelow(n - i) as usize;
             result.push(pool[j]);
-            // CPython: pool[j] = pool[n - i - 1]
-            // (no swap — the unused tail is just truncated logically)
             pool[j] = pool[(n - i - 1) as usize];
+        }
+        result
+    }
+
+    /// Set path of `sample` — CPython's `n > setsize` branch:
+    ///
+    /// ```python
+    /// selected = set()
+    /// for i in range(k):
+    ///     j = randbelow(n)
+    ///     while j in selected:
+    ///         j = randbelow(n)
+    ///     selected.add(j)
+    ///     result[i] = population[j]
+    /// ```
+    ///
+    /// Uses the same `randbelow(n)` (not `n - i`) as CPython, so the
+    /// MT19937 consumption pattern matches byte-for-byte.
+    pub fn sample_range_set(&mut self, n: u32, k: u32) -> Vec<u32> {
+        assert!(k <= n, "sample: k > n");
+        use std::collections::HashSet;
+        let mut selected: HashSet<u32> = HashSet::with_capacity(k as usize);
+        let mut result = Vec::with_capacity(k as usize);
+        for _ in 0..k {
+            let mut j = self.randbelow(n);
+            while selected.contains(&j) {
+                j = self.randbelow(n);
+            }
+            selected.insert(j);
+            result.push(j);
         }
         result
     }
@@ -294,6 +331,31 @@ mod tests {
         let mut r = CpRandom::new(99);
         let out = r.sample_range_pool(20, 5);
         assert_eq!(out, vec![12, 19, 6, 5, 7]);
+    }
+
+    /// Set path: `Random(7).sample(range(100), 2)` → `[41, 19]`. With
+    /// k=2 the setsize threshold is 21, n=100 forces set path.
+    #[test]
+    fn sample_range_set_matches_python_seed_7() {
+        let mut r = CpRandom::new(7);
+        let out = r.sample_range_set(100, 2);
+        assert_eq!(out, vec![41, 19]);
+    }
+
+    /// Dispatch via `sample_range` picks pool path for n=10, k=2.
+    #[test]
+    fn sample_range_dispatches_to_pool_for_small_n() {
+        let mut r = CpRandom::new(7);
+        let out = r.sample_range(10, 2);
+        assert_eq!(out, vec![5, 2]);
+    }
+
+    /// Dispatch via `sample_range` picks set path for n=100, k=2.
+    #[test]
+    fn sample_range_dispatches_to_set_for_large_n() {
+        let mut r = CpRandom::new(7);
+        let out = r.sample_range(100, 2);
+        assert_eq!(out, vec![41, 19]);
     }
 
     /// `setsize_for_k` boundary checks. Pulled from CPython source:
