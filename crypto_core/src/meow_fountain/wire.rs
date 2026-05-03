@@ -56,9 +56,7 @@ pub struct Droplet {
 pub enum WireError {
     /// Header would not fit in the buffer at all.
     /// Need at least 10 bytes (8 seed + 2 block_count).
-    HeaderTooShort {
-        got: usize,
-    },
+    HeaderTooShort { got: usize },
     /// `block_count` field claims more indices than the buffer can hold.
     IndicesOverflow {
         block_count: u16,
@@ -68,10 +66,7 @@ pub enum WireError {
     /// expected `block_size` configured by the caller. `expected` is
     /// the size declared by the encoder/decoder manifest; `got` is the
     /// number of leftover bytes.
-    DataLengthMismatch {
-        expected: usize,
-        got: usize,
-    },
+    DataLengthMismatch { expected: usize, got: usize },
     /// `block_indices` contains a duplicate or non-sorted value — the
     /// canonical encoder always emits sorted, unique indices.
     UnsortedOrDuplicateIndices,
@@ -95,10 +90,8 @@ impl Droplet {
     /// `random.sample`). Decoders should call [`Droplet::from_wire`]
     /// which DOES enforce the sort invariant.
     pub fn to_wire(&self) -> Vec<u8> {
-        let mut out = Vec::with_capacity(Self::wire_size(
-            self.block_indices.len(),
-            self.data.len(),
-        ));
+        let mut out =
+            Vec::with_capacity(Self::wire_size(self.block_indices.len(), self.data.len()));
         out.extend_from_slice(&self.seed.to_be_bytes());
         out.extend_from_slice(&(self.block_indices.len() as u16).to_be_bytes());
         for idx in &self.block_indices {

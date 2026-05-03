@@ -191,7 +191,10 @@ mod tests {
                 break;
             }
         }
-        assert!(dec.is_complete(), "decoder should complete from systematic droplets");
+        assert!(
+            dec.is_complete(),
+            "decoder should complete from systematic droplets"
+        );
         assert_eq!(dec.recovered_data().unwrap(), source);
     }
 

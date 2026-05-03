@@ -266,10 +266,7 @@ mod tests {
             let got = r.random();
             // bit-exact: random() is pure integer arithmetic + powers
             // of 2, so no libm tolerance is needed.
-            assert_eq!(
-                got, *want,
-                "random() #{i} mismatch: got {got}, want {want}"
-            );
+            assert_eq!(got, *want, "random() #{i} mismatch: got {got}, want {want}");
         }
     }
 
@@ -306,7 +303,10 @@ mod tests {
             seen[v as usize] = true;
         }
         for (i, &b) in seen.iter().enumerate() {
-            assert!(b, "value {i} never seen in 1000 draws — distribution broken");
+            assert!(
+                b,
+                "value {i} never seen in 1000 draws — distribution broken"
+            );
         }
     }
 

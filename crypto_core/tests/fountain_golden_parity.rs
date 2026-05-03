@@ -70,8 +70,7 @@ fn rust_encoder_matches_all_golden_vectors() {
             return;
         }
     };
-    let manifest: Manifest =
-        serde_json::from_str(&manifest_json).expect("manifest.json parses");
+    let manifest: Manifest = serde_json::from_str(&manifest_json).expect("manifest.json parses");
     assert_eq!(manifest.format_version, 1, "manifest format version");
 
     let mut failed = Vec::new();
@@ -79,8 +78,8 @@ fn rust_encoder_matches_all_golden_vectors() {
 
     for v in &manifest.vectors {
         let source = make_source(v.total_size);
-        let enc = FountainEncoder::new(&source, v.k_blocks, v.block_size)
-            .expect("encoder construction");
+        let enc =
+            FountainEncoder::new(&source, v.k_blocks, v.block_size).expect("encoder construction");
         let droplet: Droplet = enc.droplet(v.seed);
         let actual_wire = droplet.to_wire();
 
@@ -91,12 +90,7 @@ fn rust_encoder_matches_all_golden_vectors() {
         if actual_wire != expected_wire {
             failed.push(format!(
                 "{}: rust ≠ python (k={}, b={}, seed={}, indices got={:?} want={:?})",
-                v.file,
-                v.k_blocks,
-                v.block_size,
-                v.seed,
-                droplet.block_indices,
-                v.block_indices
+                v.file, v.k_blocks, v.block_size, v.seed, droplet.block_indices, v.block_indices
             ));
         }
         checked += 1;

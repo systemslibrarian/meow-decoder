@@ -47,6 +47,7 @@ impl RobustSoliton {
     ///
     /// Edge case: `k <= 1` returns `[0.0, 1.0]` — only degree 1 is
     /// meaningful when there's at most one source block.
+    #[allow(clippy::needless_range_loop)]
     pub fn with_params(k: usize, c: f64, delta: f64) -> Self {
         if k <= 1 {
             return Self {

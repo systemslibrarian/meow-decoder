@@ -47,15 +47,9 @@ const MAX_TOTAL_SIZE: u64 = 10 * 1024 * 1024 * 1024;
 pub enum EncoderError {
     /// `k_blocks` or `block_size` is non-positive — same check as the
     /// Python encoder.
-    InvalidShape {
-        k_blocks: usize,
-        block_size: usize,
-    },
+    InvalidShape { k_blocks: usize, block_size: usize },
     /// `k_blocks * block_size` exceeds the 10 GiB sanity ceiling.
-    TotalSizeExceeded {
-        total: u64,
-        ceiling: u64,
-    },
+    TotalSizeExceeded { total: u64, ceiling: u64 },
     /// `k_blocks` does not fit in u16 (which is what the wire format
     /// allows). Practical limit: 65535 source blocks.
     KBlocksOverflowU16 { k_blocks: usize },
@@ -77,11 +71,7 @@ impl FountainEncoder {
     /// Build a fresh encoder over `data`. `data` is zero-padded up to
     /// `k_blocks * block_size`. Errors mirror `FountainEncoder.__init__`
     /// in fountain.py.
-    pub fn new(
-        data: &[u8],
-        k_blocks: usize,
-        block_size: usize,
-    ) -> Result<Self, EncoderError> {
+    pub fn new(data: &[u8], k_blocks: usize, block_size: usize) -> Result<Self, EncoderError> {
         if k_blocks == 0 || block_size == 0 {
             return Err(EncoderError::InvalidShape {
                 k_blocks,

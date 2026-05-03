@@ -174,8 +174,7 @@ impl Mt19937 {
         }
         for kk in (N - M)..(N - 1) {
             let y = (self.state[kk] & UPPER_MASK) | (self.state[kk + 1] & LOWER_MASK);
-            self.state[kk] =
-                self.state[kk + M - N] ^ (y >> 1) ^ mag01[(y & 1) as usize];
+            self.state[kk] = self.state[kk + M - N] ^ (y >> 1) ^ mag01[(y & 1) as usize];
         }
         let y = (self.state[N - 1] & UPPER_MASK) | (self.state[0] & LOWER_MASK);
         self.state[N - 1] = self.state[M - 1] ^ (y >> 1) ^ mag01[(y & 1) as usize];
@@ -264,7 +263,11 @@ mod tests {
         ];
         for (i, want) in expected.iter().enumerate() {
             let got = g.next_u32();
-            assert_eq!(got, *want, "seed=1 output {} mismatch: got {}, want {}", i, got, *want);
+            assert_eq!(
+                got, *want,
+                "seed=1 output {} mismatch: got {}, want {}",
+                i, got, *want
+            );
         }
     }
 
