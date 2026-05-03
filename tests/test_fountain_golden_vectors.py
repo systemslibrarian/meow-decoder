@@ -46,9 +46,12 @@ def _make_source(total_size: int) -> bytes:
 
 
 def _droplet_to_wire(droplet) -> bytes:
-    """Mirror of the generator's wire encoder."""
-    head = struct.pack("<QH", droplet.seed, len(droplet.block_indices))
-    indices = struct.pack(f"<{len(droplet.block_indices)}H", *droplet.block_indices)
+    """Mirror of the generator's wire encoder — production
+    `pack_droplet` format (seed u32 BE, count u16 BE, indices u16 BE,
+    data raw).
+    """
+    head = struct.pack(">IH", droplet.seed, len(droplet.block_indices))
+    indices = struct.pack(f">{len(droplet.block_indices)}H", *droplet.block_indices)
     return head + indices + droplet.data
 
 
@@ -125,8 +128,8 @@ class TestFountainGoldenVectors:
         checkout, partial copy)."""
         v = manifest["vectors"][idx]
         wire = (GOLDEN_DIR / v["file"]).read_bytes()
-        # Skip the 8-byte seed + 2-byte block_count + 2*block_count indices header
-        head_len = 8 + 2 + 2 * len(v["block_indices"])
+        # Skip the 4-byte seed + 2-byte block_count + 2*block_count indices header
+        head_len = 4 + 2 + 2 * len(v["block_indices"])
         data_part = wire[head_len:]
         actual_prefix = hashlib.sha256(data_part).hexdigest()[:16]
         assert actual_prefix == v["data_sha256_prefix"], (

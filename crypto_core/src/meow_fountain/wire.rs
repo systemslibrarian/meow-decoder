@@ -1,19 +1,30 @@
 //! Droplet wire format — serialise / deserialise.
 //!
-//! Format (little-endian, see `docs/FOUNTAIN_RUST_WASM_MIGRATION.md`):
+//! Format (BIG-endian — must match the existing production
+//! `meow_decoder.fountain.pack_droplet`, which uses `struct.pack(">I", ...)`
+//! for the seed and `>H` for the counts/indices):
 //!
 //! ```text
-//! seed:           u64
-//! block_count:    u16
-//! block_indices: [u16; block_count]
+//! seed:           u32  big-endian
+//! block_count:    u16  big-endian
+//! block_indices: [u16; block_count] big-endian
 //! data:          [u8;  block_size]
 //! ```
 //!
-//! Total size = `8 + 2 + 2*block_count + block_size` bytes.
+//! Total size = `4 + 2 + 2*block_count + block_size` bytes.
 //!
-//! This format is locked: changing it breaks every previously-encoded
-//! GIF. The 16 golden vectors under `tests/golden/fountain/` are the
-//! regression net.
+//! This format is locked — every Schrödinger GIF and every air-gap
+//! transfer in the wild uses these bytes. Changing the format breaks
+//! every previously-encoded recipient.
+//!
+//! The 16 golden vectors under `tests/golden/fountain/` are generated
+//! by `pack_droplet()` and are the cross-language regression net.
+//!
+//! **Note on the design doc:** an earlier version of
+//! `docs/FOUNTAIN_RUST_WASM_MIGRATION.md` documented this as
+//! little-endian with a u64 seed; that was a doc bug, corrected when
+//! the binding work crossed reference with `pack_droplet()` in
+//! fountain.py. The doc and golden vectors were updated to match.
 
 use core::convert::TryFrom;
 
@@ -26,8 +37,10 @@ use core::convert::TryFrom;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Droplet {
     /// PRNG seed that deterministically reconstructs the
-    /// `block_indices` list. Cross-checked at decode time.
-    pub seed: u64,
+    /// `block_indices` list. Cross-checked at decode time. The wire
+    /// format pins this to a u32 (4 bytes big-endian); the in-memory
+    /// type is u32 to match.
+    pub seed: u32,
     /// Sorted, unique source-block indices that XOR into this droplet.
     pub block_indices: Vec<u16>,
     /// XOR of the source blocks at `block_indices`. Length is
@@ -69,55 +82,56 @@ impl Droplet {
     /// indices. Pure function — no allocation.
     #[inline]
     pub fn wire_size(block_count: usize, block_size: usize) -> usize {
-        8 + 2 + 2 * block_count + block_size
+        // 4 (seed BE u32) + 2 (block_count BE u16) + 2*block_count + block_size
+        4 + 2 + 2 * block_count + block_size
     }
 
-    /// Serialise a droplet to its wire bytes. Allocates exactly
-    /// `wire_size(...)` bytes.
+    /// Serialise a droplet to its wire bytes (BIG-endian).
+    /// Allocates exactly `wire_size(...)` bytes.
     ///
-    /// Does NOT validate that `block_indices` is sorted — the encoder
-    /// is expected to feed a sorted slice (matching the Python encoder
-    /// which always sorts after `random.sample`). Decoders should call
-    /// [`Droplet::from_wire`] which DOES enforce the sort invariant.
+    /// Matches `meow_decoder.fountain.pack_droplet`. Does NOT validate
+    /// that `block_indices` is sorted — the encoder feeds a sorted
+    /// slice (matching the Python encoder which always sorts after
+    /// `random.sample`). Decoders should call [`Droplet::from_wire`]
+    /// which DOES enforce the sort invariant.
     pub fn to_wire(&self) -> Vec<u8> {
         let mut out = Vec::with_capacity(Self::wire_size(
             self.block_indices.len(),
             self.data.len(),
         ));
-        out.extend_from_slice(&self.seed.to_le_bytes());
-        out.extend_from_slice(&(self.block_indices.len() as u16).to_le_bytes());
+        out.extend_from_slice(&self.seed.to_be_bytes());
+        out.extend_from_slice(&(self.block_indices.len() as u16).to_be_bytes());
         for idx in &self.block_indices {
-            out.extend_from_slice(&idx.to_le_bytes());
+            out.extend_from_slice(&idx.to_be_bytes());
         }
         out.extend_from_slice(&self.data);
         out
     }
 
-    /// Parse a droplet from wire bytes given the expected `block_size`
-    /// (configured in the encoder's manifest, propagated to the
-    /// decoder out of band).
+    /// Parse a droplet from wire bytes given the expected `block_size`.
+    /// Mirrors `meow_decoder.fountain.unpack_droplet`.
     ///
     /// Strict: rejects unsorted or duplicate indices — those would be
     /// either a forged droplet or a buggy encoder.
     pub fn from_wire(buf: &[u8], block_size: usize) -> Result<Self, WireError> {
-        if buf.len() < 10 {
+        if buf.len() < 6 {
             return Err(WireError::HeaderTooShort { got: buf.len() });
         }
-        let seed = u64::from_le_bytes(<[u8; 8]>::try_from(&buf[0..8]).unwrap());
-        let block_count = u16::from_le_bytes(<[u8; 2]>::try_from(&buf[8..10]).unwrap());
+        let seed = u32::from_be_bytes(<[u8; 4]>::try_from(&buf[0..4]).unwrap());
+        let block_count = u16::from_be_bytes(<[u8; 2]>::try_from(&buf[4..6]).unwrap());
         let block_count_usize = block_count as usize;
         let indices_byte_count = 2 * block_count_usize;
-        let header_end = 10 + indices_byte_count;
+        let header_end = 6 + indices_byte_count;
         if buf.len() < header_end {
             return Err(WireError::IndicesOverflow {
                 block_count,
-                remaining_bytes: buf.len().saturating_sub(10),
+                remaining_bytes: buf.len().saturating_sub(6),
             });
         }
         let mut block_indices = Vec::with_capacity(block_count_usize);
         for i in 0..block_count_usize {
-            let off = 10 + 2 * i;
-            block_indices.push(u16::from_le_bytes(
+            let off = 6 + 2 * i;
+            block_indices.push(u16::from_be_bytes(
                 <[u8; 2]>::try_from(&buf[off..off + 2]).unwrap(),
             ));
         }
@@ -151,17 +165,14 @@ mod tests {
 
     #[test]
     fn wire_size_arithmetic() {
-        // 8 (seed) + 2 (count) + 2*degree + block_size
-        assert_eq!(Droplet::wire_size(0, 0), 10);
-        assert_eq!(Droplet::wire_size(1, 32), 8 + 2 + 2 + 32);
-        assert_eq!(Droplet::wire_size(5, 256), 8 + 2 + 10 + 256);
+        // 4 (seed) + 2 (count) + 2*degree + block_size
+        assert_eq!(Droplet::wire_size(0, 0), 6);
+        assert_eq!(Droplet::wire_size(1, 32), 4 + 2 + 2 + 32);
+        assert_eq!(Droplet::wire_size(5, 256), 4 + 2 + 10 + 256);
     }
 
     #[test]
     fn roundtrip_degree_one_systematic() {
-        // Mirrors the seed=0 case from the smallest golden vector
-        // (k=2, block_size=32). The systematic-droplet branch in the
-        // Python encoder emits a degree-1 droplet for seed < 2*k.
         let d = Droplet {
             seed: 0,
             block_indices: vec![0],
@@ -169,11 +180,11 @@ mod tests {
         };
         let wire = d.to_wire();
         assert_eq!(wire.len(), Droplet::wire_size(1, 32));
-        // Header bytes spot check.
-        assert_eq!(&wire[0..8], &0u64.to_le_bytes()); // seed
-        assert_eq!(&wire[8..10], &1u16.to_le_bytes()); // count
-        assert_eq!(&wire[10..12], &0u16.to_le_bytes()); // index 0
-        assert_eq!(&wire[12..], &[0xAB; 32]);
+        // Header bytes spot check (BIG-endian).
+        assert_eq!(&wire[0..4], &0u32.to_be_bytes());
+        assert_eq!(&wire[4..6], &1u16.to_be_bytes());
+        assert_eq!(&wire[6..8], &0u16.to_be_bytes());
+        assert_eq!(&wire[8..], &[0xAB; 32]);
 
         let parsed = Droplet::from_wire(&wire, 32).expect("parse ok");
         assert_eq!(parsed, d);
@@ -182,7 +193,7 @@ mod tests {
     #[test]
     fn roundtrip_degree_five_random_data() {
         let d = Droplet {
-            seed: 0xDEAD_BEEF_F00D_CAFE,
+            seed: 0xF00D_CAFE,
             block_indices: vec![3, 7, 11, 22, 99],
             data: (0u8..200).collect(),
         };
@@ -194,16 +205,16 @@ mod tests {
     #[test]
     fn header_too_short_rejected() {
         assert!(matches!(
-            Droplet::from_wire(&[0u8; 9], 32),
-            Err(WireError::HeaderTooShort { got: 9 })
+            Droplet::from_wire(&[0u8; 5], 32),
+            Err(WireError::HeaderTooShort { got: 5 })
         ));
     }
 
     #[test]
     fn indices_overflow_rejected() {
-        // Claim 5 indices, supply 0 indices' worth of bytes.
-        let mut buf = vec![0u8; 10];
-        buf[8..10].copy_from_slice(&5u16.to_le_bytes());
+        // 6-byte header claiming 5 indices, with 0 indices bytes after.
+        let mut buf = vec![0u8; 6];
+        buf[4..6].copy_from_slice(&5u16.to_be_bytes());
         assert!(matches!(
             Droplet::from_wire(&buf, 32),
             Err(WireError::IndicesOverflow { .. })
@@ -213,10 +224,10 @@ mod tests {
     #[test]
     fn data_length_mismatch_rejected() {
         // 1 index, block_size 100, but only 99 data bytes.
-        let mut buf = Vec::with_capacity(8 + 2 + 2 + 99);
-        buf.extend_from_slice(&0u64.to_le_bytes());
-        buf.extend_from_slice(&1u16.to_le_bytes());
-        buf.extend_from_slice(&0u16.to_le_bytes());
+        let mut buf = Vec::with_capacity(4 + 2 + 2 + 99);
+        buf.extend_from_slice(&0u32.to_be_bytes());
+        buf.extend_from_slice(&1u16.to_be_bytes());
+        buf.extend_from_slice(&0u16.to_be_bytes());
         buf.extend(std::iter::repeat(0xFFu8).take(99));
         assert!(matches!(
             Droplet::from_wire(&buf, 100),
@@ -230,12 +241,12 @@ mod tests {
     #[test]
     fn unsorted_indices_rejected() {
         let mut buf = Vec::new();
-        buf.extend_from_slice(&0u64.to_le_bytes());
-        buf.extend_from_slice(&3u16.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_be_bytes());
+        buf.extend_from_slice(&3u16.to_be_bytes());
         // 3, 1, 2 — out of order
-        buf.extend_from_slice(&3u16.to_le_bytes());
-        buf.extend_from_slice(&1u16.to_le_bytes());
-        buf.extend_from_slice(&2u16.to_le_bytes());
+        buf.extend_from_slice(&3u16.to_be_bytes());
+        buf.extend_from_slice(&1u16.to_be_bytes());
+        buf.extend_from_slice(&2u16.to_be_bytes());
         buf.extend(std::iter::repeat(0u8).take(32));
         assert!(matches!(
             Droplet::from_wire(&buf, 32),
@@ -246,34 +257,14 @@ mod tests {
     #[test]
     fn duplicate_indices_rejected() {
         let mut buf = Vec::new();
-        buf.extend_from_slice(&0u64.to_le_bytes());
-        buf.extend_from_slice(&2u16.to_le_bytes());
-        buf.extend_from_slice(&5u16.to_le_bytes());
-        buf.extend_from_slice(&5u16.to_le_bytes());
+        buf.extend_from_slice(&0u32.to_be_bytes());
+        buf.extend_from_slice(&2u16.to_be_bytes());
+        buf.extend_from_slice(&5u16.to_be_bytes());
+        buf.extend_from_slice(&5u16.to_be_bytes());
         buf.extend(std::iter::repeat(0u8).take(32));
         assert!(matches!(
             Droplet::from_wire(&buf, 32),
             Err(WireError::UnsortedOrDuplicateIndices)
         ));
-    }
-
-    #[test]
-    fn matches_golden_vector_smallest() {
-        // The k=2, b=32, seed=0 golden vector lives at
-        // tests/golden/fountain/k2_b32_s0.bin and starts with:
-        //   seed=0 (8 bytes LE), block_count=1, indices=[0], data=...
-        // We can't read the file from a Rust test (path crosses crate
-        // boundary), but we can assert the FORMAT by reconstructing it.
-        let d = Droplet {
-            seed: 0,
-            block_indices: vec![0],
-            data: vec![0u8; 32],
-        };
-        let wire = d.to_wire();
-        // First two bytes of the seed field must be zero (LE encoding).
-        assert_eq!(wire[0], 0x00);
-        assert_eq!(wire[1], 0x00);
-        // block_count = 1 in the next two bytes.
-        assert_eq!(&wire[8..10], &1u16.to_le_bytes());
     }
 }

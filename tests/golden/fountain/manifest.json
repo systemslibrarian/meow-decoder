@@ -11,7 +11,7 @@
         0
       ],
       "data_sha256_prefix": "33ba8b438761d0a0",
-      "wire_size": 44
+      "wire_size": 40
     },
     {
       "file": "k2_b32_s1.bin",
@@ -23,7 +23,7 @@
         1
       ],
       "data_sha256_prefix": "64c77eda994480ad",
-      "wire_size": 44
+      "wire_size": 40
     },
     {
       "file": "k2_b32_s7.bin",
@@ -35,7 +35,7 @@
         0
       ],
       "data_sha256_prefix": "33ba8b438761d0a0",
-      "wire_size": 44
+      "wire_size": 40
     },
     {
       "file": "k10_b64_s0.bin",
@@ -47,7 +47,7 @@
         0
       ],
       "data_sha256_prefix": "f616afd08efb65e9",
-      "wire_size": 76
+      "wire_size": 72
     },
     {
       "file": "k10_b64_s5.bin",
@@ -59,7 +59,7 @@
         5
       ],
       "data_sha256_prefix": "dd6db216859123a2",
-      "wire_size": 76
+      "wire_size": 72
     },
     {
       "file": "k10_b64_s21.bin",
@@ -72,7 +72,7 @@
         6
       ],
       "data_sha256_prefix": "1df1b7ce1fd8fcbe",
-      "wire_size": 78
+      "wire_size": 74
     },
     {
       "file": "k10_b64_s100.bin",
@@ -84,7 +84,7 @@
         7
       ],
       "data_sha256_prefix": "6361325d7ac0e316",
-      "wire_size": 76
+      "wire_size": 72
     },
     {
       "file": "k100_b128_s0.bin",
@@ -96,7 +96,7 @@
         0
       ],
       "data_sha256_prefix": "fdb50d75cc2ca565",
-      "wire_size": 140
+      "wire_size": 136
     },
     {
       "file": "k100_b128_s50.bin",
@@ -108,7 +108,7 @@
         50
       ],
       "data_sha256_prefix": "fdb50d75cc2ca565",
-      "wire_size": 140
+      "wire_size": 136
     },
     {
       "file": "k100_b128_s199.bin",
@@ -120,7 +120,7 @@
         99
       ],
       "data_sha256_prefix": "5fe8f8d2175cec64",
-      "wire_size": 140
+      "wire_size": 136
     },
     {
       "file": "k100_b128_s1000.bin",
@@ -139,7 +139,7 @@
         97
       ],
       "data_sha256_prefix": "b7effd43ee501602",
-      "wire_size": 154
+      "wire_size": 150
     },
     {
       "file": "k1000_b256_s0.bin",
@@ -151,7 +151,7 @@
         0
       ],
       "data_sha256_prefix": "e99ccdfa408797be",
-      "wire_size": 268
+      "wire_size": 264
     },
     {
       "file": "k1000_b256_s999.bin",
@@ -163,7 +163,7 @@
         999
       ],
       "data_sha256_prefix": "e99ccdfa408797be",
-      "wire_size": 268
+      "wire_size": 264
     },
     {
       "file": "k1000_b256_s1999.bin",
@@ -175,7 +175,7 @@
         999
       ],
       "data_sha256_prefix": "e99ccdfa408797be",
-      "wire_size": 268
+      "wire_size": 264
     },
     {
       "file": "k1000_b256_s5000.bin",
@@ -188,7 +188,7 @@
         801
       ],
       "data_sha256_prefix": "5341e6b2646979a7",
-      "wire_size": 270
+      "wire_size": 266
     },
     {
       "file": "k1000_b256_s12345.bin",
@@ -201,7 +201,7 @@
         839
       ],
       "data_sha256_prefix": "5341e6b2646979a7",
-      "wire_size": 270
+      "wire_size": 266
     }
   ]
 }

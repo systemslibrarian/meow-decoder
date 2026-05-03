@@ -141,7 +141,7 @@ impl FountainEncoder {
             // Systematic branch — degree 1, deterministic block index.
             let block_idx = (seed as usize) % k;
             return Droplet {
-                seed: seed as u64,
+                seed,
                 block_indices: vec![block_idx as u16],
                 data: self.blocks[block_idx].clone(),
             };
@@ -167,7 +167,7 @@ impl FountainEncoder {
         }
 
         Droplet {
-            seed: seed as u64,
+            seed,
             block_indices,
             data: xor_data,
         }

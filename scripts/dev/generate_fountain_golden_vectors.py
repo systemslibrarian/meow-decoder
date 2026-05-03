@@ -69,15 +69,16 @@ def make_source(total_size: int) -> bytes:
 
 
 def droplet_to_wire(droplet) -> bytes:
-    """Serialise a droplet to the migration-doc wire format.
+    """Serialise a droplet to the production wire format. Mirrors
+    `meow_decoder.fountain.pack_droplet`.
 
-    seed:        u64 little-endian
-    block_count: u16 little-endian
-    block_indices: [u16; block_count] little-endian
+    seed:        u32 BIG-endian
+    block_count: u16 BIG-endian
+    block_indices: [u16; block_count] BIG-endian
     data:        [u8; block_size]
     """
-    head = struct.pack("<QH", droplet.seed, len(droplet.block_indices))
-    indices = struct.pack(f"<{len(droplet.block_indices)}H", *droplet.block_indices)
+    head = struct.pack(">IH", droplet.seed, len(droplet.block_indices))
+    indices = struct.pack(f">{len(droplet.block_indices)}H", *droplet.block_indices)
     return head + indices + droplet.data
 
 

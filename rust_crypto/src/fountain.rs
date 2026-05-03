@@ -73,7 +73,7 @@ impl PyDroplet {
     /// Construct a droplet directly from its three fields. Mostly
     /// useful for tests; the encoder produces droplets directly.
     #[new]
-    fn new(seed: u64, block_indices: Vec<u16>, data: Vec<u8>) -> Self {
+    fn new(seed: u32, block_indices: Vec<u16>, data: Vec<u8>) -> Self {
         Self {
             inner: RustDroplet {
                 seed,
@@ -84,7 +84,7 @@ impl PyDroplet {
     }
 
     #[getter]
-    fn seed(&self) -> u64 {
+    fn seed(&self) -> u32 {
         self.inner.seed
     }
 
