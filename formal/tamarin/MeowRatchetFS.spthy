@@ -136,10 +136,13 @@ rule CompromiseChainKey:
     Out(ck)
   ]
 
-/* Public key infrastructure */
+/* Public key infrastructure. The action fact carries `rsk` itself so
+   lemmas can quantify "KU(this receiver's secret key)" without leaving
+   the secret unguarded. Action facts are abstract — they are part of
+   the trace, not the wire. */
 rule RegisterReceiverPK:
   [ Fr(~rsk) ]
-  --[ RegisterPK($Receiver, 'g'^~rsk) ]->
+  --[ RegisterPK($Receiver, 'g'^~rsk, ~rsk) ]->
   [ !ReceiverPK($Receiver, 'g'^~rsk),
     !ReceiverSK($Receiver, ~rsk) ]
 
@@ -159,8 +162,12 @@ rule RegisterReceiverPK:
  * the frame's message key MK_k is not in the adversary's knowledge.
  */
 lemma PerFrameForwardSecrecy:
-  "All sender k n mk_k ck_n #t1 #t2 .
-    FrameEncrypted(sender, k, mk_k, #t1) &
+  "All sender k n mk_k ck_n body ct #t1 #t2 .
+    /* FrameEncrypted/5 — emitted by RatchetStep; body and ct are
+       irrelevant to FS but must be bound to match the rule's arity
+       (Tamarin 1.12.0 wellformedness requires positional arg count
+       to match the action-fact declaration). */
+    FrameEncrypted(sender, k, mk_k, body, ct) @ #t1 &
     CompromisedChainKey(sender, n, ck_n) @ #t2 &
     k < n
     ==>
@@ -178,14 +185,22 @@ lemma PerFrameForwardSecrecy:
  * adversary without the receiver's static secret key.
  */
 lemma PostCompromiseSecurityViaBeacon:
-  "All sender receiver n m mk_k #t1 #t2 #t3 .
-    CompromisedChainKey(sender, n, #t1) &
-    BeaconRekey(sender, receiver, m, #t2) &
-    FrameEncrypted(sender, m+'1', mk_k, #t3) &
+  "All sender receiver n m mk_k ck_n ck_pre ck_post body ct rsk rpk
+       #t0 #t1 #t2 #t3 .
+    /* Match the action facts' actual arities: RegisterPK/3,
+       CompromisedChainKey/3, BeaconRekey/5, FrameEncrypted/5.
+       RegisterPK binds rsk so the conclusion can talk about a SPECIFIC
+       receiver's static secret key. body and ct on FrameEncrypted are
+       wildcards. */
+    RegisterPK(receiver, rpk, rsk) @ #t0 &
+    CompromisedChainKey(sender, n, ck_n) @ #t1 &
+    BeaconRekey(sender, receiver, m, ck_pre, ck_post) @ #t2 &
+    FrameEncrypted(sender, m+'1', mk_k, body, ct) @ #t3 &
     n < m
     ==>
-    /* If adversary does not know receiver's static secret, mk_k is secret */
-    (Ex rsk . KU(rsk) @ #t1) | not (Ex #t4 . KU(mk_k) @ #t4)
+    /* If adversary knows the receiver's static secret it can break PCS,
+       otherwise mk_k stays secret. */
+    (Ex #tk . KU(rsk) @ #tk) | not (Ex #t4 . KU(mk_k) @ #t4)
   "
 
 /*
@@ -199,9 +214,14 @@ lemma PostCompromiseSecurityViaBeacon:
  * their bodies must be identical.
  */
 lemma KeyCommitmentBinding:
-  "All sender k body1 body2 auth_key #t1 #t2 .
-    FrameEncrypted(sender, k, body1, commit(auth_key, body1)) @ #t1 &
-    FrameEncrypted(sender, k, body2, commit(auth_key, body2)) @ #t2
+  "All sender k body1 body2 mk1 mk2 auth_key #t1 #t2 .
+    /* FrameEncrypted/5(sender, frame_idx, mk, body, com_tag).
+       The lemma binds the same auth_key (derived deterministically
+       from mk via hkdf) so that two frames at the same index claiming
+       the same commit_tag must agree on body. mk1 and mk2 are
+       wildcards (HMAC binding gives the property regardless). */
+    FrameEncrypted(sender, k, mk1, body1, commit(auth_key, body1)) @ #t1 &
+    FrameEncrypted(sender, k, mk2, body2, commit(auth_key, body2)) @ #t2
     ==>
     body1 = body2
   "
