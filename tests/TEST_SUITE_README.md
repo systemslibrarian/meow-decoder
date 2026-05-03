@@ -371,6 +371,13 @@ fail_under = 35  # Incrementally increase to 80%+
 
 ## Running Tests
 
+> **Environment.** `tests/conftest.py` already sets `MEOW_TEST_MODE=1`
+> (fast Argon2) and `MEOW_PRODUCTION_MODE=0` (lets test code call
+> `HandleBackend.export_key()`, gated to non-production by commit
+> `bb8880c`). If you bypass conftest — e.g. running individual modules
+> with `python -m` or invoking `meow_decoder` directly under pytest —
+> you must export both yourself. CI workflows do this explicitly.
+
 ```bash
 # ============ Python Tests ============
 # Run all tests with coverage
