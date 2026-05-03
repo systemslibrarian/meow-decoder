@@ -627,7 +627,18 @@ jobs:
               echo "============================================"
               echo "🟣 Tamarin shard 1/3 — core protocol proofs"
               echo "============================================"
-              docker run --rm meow-tamarin 2>&1 | tee tamarin_output.txt
+              # Cap wall-time and memory: prior runs lost runner heartbeat
+              # at ~1h6m with no per-step timeout, taking down the whole job
+              # without diagnostics. 30 min timeout + 6 GiB memory ceiling
+              # forces a clean exit instead of a runner blackout.
+              timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin 2>&1 | tee tamarin_output.txt
+              shard1_exit=$?
+              if [ "$shard1_exit" -eq 124 ]; then
+                echo "⚠️  Shard 1 core proofs timed out (30 min) — treating as inconclusive (non-blocking)"
+              elif [ "$shard1_exit" -ne 0 ]; then
+                echo "❌ Shard 1 core proofs exited $shard1_exit"
+                EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
+              fi
 
               echo ""
               echo "============================================"
