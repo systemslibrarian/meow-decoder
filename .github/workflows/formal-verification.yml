@@ -563,7 +563,11 @@ jobs:
             echo ""
             echo "$label"
             set +e
-            docker run --rm meow-tamarin sh -c "$*" 2>&1 | tee "$outfile"
+            # --memory=6g --cpus=2 mirrors the shard 1 entrypoint hardening;
+            # negative tests still produce useful output below the cap and
+            # don't kill the runner if Tamarin's heap blows up.
+            timeout 1800 docker run --rm --memory=6g --cpus=2 \
+              meow-tamarin sh -c "$*" 2>&1 | tee "$outfile"
             local exit_code=$?
             set -e
 
@@ -591,7 +595,12 @@ jobs:
             echo ""
             echo "--- $description ---"
             set +e
-            timeout 1800 docker run --rm meow-tamarin sh -c \
+            # --memory=6g --cpus=2 mirrors the shard 1 hardening in 6aa5b8e.
+            # Without the cap, Tamarin can starve the GitHub runner of memory
+            # and trigger "lost communication with the server" failures
+            # without leaving any diagnostic output (observed on shards 1/3
+            # in run 25287479059).
+            timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin sh -c \
               "tamarin-prover $extra_flags --prove /formal/tamarin/$model" \
               2>&1 | tee "$outfile"
             local exit_code=$?
@@ -644,7 +653,10 @@ jobs:
               echo "============================================"
               echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
               echo "============================================"
-              docker run --rm meow-tamarin sh -c \
+              # --memory=6g --cpus=2 keeps the runner alive when this and
+              # the negative tests below run after the memory-capped main
+              # shard 1 entrypoint has already used heap headroom.
+              timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin sh -c \
                 "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
                 2>&1 | tee tamarin_aead.txt
               if grep -q "verified" tamarin_aead.txt; then

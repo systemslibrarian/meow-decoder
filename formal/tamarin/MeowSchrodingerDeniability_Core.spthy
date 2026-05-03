@@ -35,7 +35,8 @@ functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
   aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) -- AAD-bound         */
   aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) -- AAD-bound         */
-  h/1,            /* SHA-256(x)                                        */
+  /* h/1 (SHA-256) provided by `builtins: hashing` above; redeclaring
+     it is a reserved-name collision under Tamarin 1.12.0. */
   blake2b/2,      /* BLAKE2b(key, msg) -- used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
   entropy_ok/1,   /* Entropy oracle: true iff input passes chi^2/NIST   */
