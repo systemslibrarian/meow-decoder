@@ -46,6 +46,56 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 - **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Refactor toward the handle-based `derive_key_argon2id_with_keyfile` path. Defensive cleanup; not a vulnerability.
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
+## Real protocol state-machine bugs (needs cryptographer review + speculative-state refactor)
+
+Surfaced by deep code review (gemini_suggestions_v2.md). Both verified
+against the actual source. **Do not auto-patch** — the fix requires
+restructuring the ratchet state-machine and re-validating against
+`MeowRatchetFS.spthy` invariants and forward-secrecy properties the
+current test suite does not cover.
+
+- **HIGH — `meow_decoder/ratchet.py:1356-1369` — silent ratchet desync via PQ implicit rejection.**
+  `_execute_rekey()` calls `_mlkem1024_decapsulate(...)` and folds the
+  result into `new_root_h` (line 1358), then commits `self._state.root_key
+  = new_root_h` (line 1368), all *before* the commit_tag verification at
+  line 1583. ML-KEM Fujisaki-Okamoto implicit rejection means a tampered
+  PQ ciphertext returns a pseudorandom shared secret instead of erroring.
+  That pseudorandom secret is folded into the root, the state is
+  irreversibly mutated, and the subsequent MAC fails — but rollback
+  doesn't happen. Session is permanently desynced.
+  **Fix sketch:** compute `new_root_h` and the new chain in local
+  variables; derive the message key from the *speculative* chain; verify
+  commit_tag with that key; only assign `self._state.root_key = new_root_h`
+  if verification succeeds.
+
+- **MEDIUM — `meow_decoder/ratchet.py:1525-1608` — frame-corruption burns msg key permanently.**
+  Case 1 path (`frame_index in self._skipped_keys`) does
+  `self._skipped_keys.pop(frame_index)` at line 1528 *before* the
+  commit_tag verification at line 1583. The `finally` block at line 1606+
+  drops the handle on exception. Net effect: a single corrupted-but-MAC-
+  pretending frame removes the cached key permanently — even a clean
+  re-scan of that QR frame will then fail. For an asymmetric rekey
+  beacon frame, `state.position` has also been advanced, compounding the
+  problem: the user can't recover the rekey epoch transition.
+  **Fix sketch:** speculative pop — copy the handle without removing from
+  cache, verify MAC, only `pop()` on success. Same speculative-state
+  pattern as the HIGH item above.
+
+## Design choices flagged but not bugs
+
+- **`meow_decoder/schrodinger_encode.py` `frame_mac_seed` is public** —
+  gemini_suggestions_v2.md item #1 framed this as a CPU-exhaustion DoS
+  vector. The codebase explicitly documents the choice
+  (`schrodinger_encode.py:88-99`): *"frame_mac_seed is stored UNENCRYPTED.
+  It is NOT a secret. It provides only per-GIF key uniqueness for the
+  DoS-filter frame MACs. Content authentication is always provided by
+  the Argon2id HMAC layer (reality_a/b_hmac + AES-GCM)."* The dual-
+  reality property requires either-password verifiability; binding the
+  MAC to a secret only one password holder knows breaks that property.
+  Real authentication is layered below. **Not a bug** per documented
+  threat model — but worth empirically measuring Fountain decoder CPU
+  behavior under a flood of valid-MAC garbage droplets.
+
 ## Tamarin formal-verification model issues (needs cryptographer review)
 
 After Tamarin 1.10.0 → 1.12.0 (PR #171, accepting Maude 3.5.1), three CI shards
