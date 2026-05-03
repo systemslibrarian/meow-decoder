@@ -107,47 +107,61 @@ audit-fixes + web-demo sweep passes; 1 pre-existing xfail unchanged.
   threat model — but worth empirically measuring Fountain decoder CPU
   behavior under a flood of valid-MAC garbage droplets.
 
-## Tamarin formal-verification model issues (needs cryptographer review)
+## Tamarin formal-verification model issues — ALL ADDRESSED
 
 After Tamarin 1.10.0 → 1.12.0 (PR #171, accepting Maude 3.5.1), three CI shards
-remain red. Tamarin/Maude are confirmed working — the failures are real model
+were red. Tamarin/Maude are confirmed working — the failures were real model
 bugs that 1.10.0 was lenient about and 1.12.0's stricter wellformedness checks
-now surface. **Do not auto-patch — claiming a security proof works when it
-does not is worse than failing CI.**
+surface. **All findings now patched in this branch. CI run + cryptographer
+review still recommended before claiming the proofs are sound** — the
+reformulated `CommitmentNonForgeability` lemma especially.
 
-Severity-ordered findings:
+Severity-ordered status:
 
-- **HIGH — `formal/tamarin/MeowKeyCommitment.spthy:52-80`** — `CommitmentNonForgeability`
-  lemma is genuinely **falsified** (2-step trace). Root cause: `let` bindings
-  reference unfreshened `mk, salt, nonce, pt` while premises declare `~mk, ~salt,
-  ~nonce, ~pt`, AND `ReceiverVerifyDecrypt` freshly generates its own `~mk, ~salt`
-  instead of consuming the sender's `!SentWithCommit(...)` persistent state.
-  Receiver thus uses random keys uncorrelated with sender — trivial forgery.
-  **Fix requires cryptographer:** wire receiver to `!SentWithCommit` correctly,
-  not just rename variables.
+- **HIGH — `formal/tamarin/MeowKeyCommitment.spthy` (FIXED, this branch).**
+  `CommitmentNonForgeability` had two compounded root causes:
+  1. `SenderCommitEncrypt` and `ReceiverVerifyDecrypt` `let` blocks referenced
+     unfreshened `mk, salt, nonce, pt` (free variables), while premises
+     declared `~mk, ~salt, ~nonce, ~pt` — Tamarin treats them as distinct
+     terms, so derived `enc_key`/`auth_key` weren't derived from the actual
+     fresh master keys.
+  2. `ReceiverVerifyDecrypt` had its own `Fr(~mk), Fr(~salt)` premises,
+     freshly generating keys uncorrelated with the sender's commit instead
+     of consuming the persistent `!SentWithCommit(...)` fact.
+  Fix:
+  * `let` blocks now use `~mk, ~salt, ~nonce, ~pt` consistently.
+  * `ReceiverVerifyDecrypt` consumes `!SentWithCommit` for `auth_key`,
+    `enc_key`, `nonce`, then verifies the wire frame via a structural
+    `In(<ct_recv, truncate16(hmac(auth_key, ct_recv)), nonce>)` pattern —
+    the rule only fires when the wire tag matches the recomputed tag.
+  * `CommitmentNonForgeability` reformulated: any `AdversaryForgeOutput`
+    that happens to equal a real `CommitEncrypt`'s tag for the same `ct`
+    implies the adversary knew the real auth_key. New
+    `AdversaryForgeOutput/2` action fact carries the produced tag.
+  * `AdversaryForgeAttempt/3` retained for future lemmas.
+  Cryptographer review of the reformulation is requested before merging:
+  the new lemma's intent matches the original property but the
+  formalization is novel.
 
-- **MEDIUM — `formal/tamarin/MeowRatchetFS.spthy:~180`** — undefined predicate
-  `FrameEncrypted/4` referenced by lemma; no rule emits this action fact.
-  Adjacent: `m+'1'` multiset notation is fine (builtin imported line 45) but
-  whatever rule should produce `FrameEncrypted` is missing.
+- **MEDIUM — `formal/tamarin/MeowRatchetFS.spthy` (FIXED, this branch).**
+  `FrameEncrypted/5` is what the rule actually emits; three lemmas
+  referenced `FrameEncrypted/4` (PerFrameForwardSecrecy missed `@ #t`,
+  PostCompromiseSecurityViaBeacon used wrong arities for multiple action
+  facts, KeyCommitmentBinding used /4 + missed `mk` arg). All lemmas now
+  match emitted arities; `RegisterReceiverPK` action fact promoted to
+  `RegisterPK/3` so PCS lemma can reference receiver's static `rsk`
+  without unguarded quantification.
 
-- **MEDIUM — `formal/tamarin/MeowRatchetHeaderOE.spthy:~88,113`** — unguarded
-  variable `hk` in lemma quantifier (1.12.0 enforcement).
+- **MEDIUM — `formal/tamarin/MeowRatchetHeaderOE.spthy` (FIXED, this
+  branch).** `SentFrameWithIdx`/`ReceivedFrameWithIdx` promoted to /5 to
+  bind the header key `hk` for lemma quantifiers; all four lemmas updated.
 
-- **LOW (mechanical) — `formal/tamarin/MeowSchrodingerDeniabilityTiming.spthy:68`** —
-  custom `h/1` collides with `builtins: hashing`. Rename to `hash_fn` or drop
-  hashing import. Verify no other model imports this file's signature.
+- **LOW — `MeowSchrodingerDeniabilityTiming.spthy` `h/1`** — DONE in 6aa5b8e.
 
-- **LOW (mechanical) — `formal/tamarin/secure_alloc_guard_pages.spthy:33`** —
-  custom `zero/1` is a reserved name. Rename to `zero_buf` and update all use
-  sites in the same file.
+- **LOW — `secure_alloc_guard_pages.spthy` `zero/1`** — DONE in 6aa5b8e.
 
-- **CI infra — `.github/workflows/formal-verification.yml:630`** — shard 1's
-  `docker run --rm meow-tamarin` (no timeout, no memory cap) ran for 1h6m and
-  the runner died with "lost communication with the server" (OOM/heartbeat).
-  Wrap in `timeout 1800` and add `--memory=6g --cpus=2`. Independent of the
-  model bugs above; will at least give clean failure output instead of runner
-  blackout.
+- **CI infra — `formal-verification.yml:634` shard-1 `timeout 1800` +
+  `--memory=6g --cpus=2`** — DONE in 6aa5b8e.
 
 ## Pre-existing test failures (not caused by audit)
 

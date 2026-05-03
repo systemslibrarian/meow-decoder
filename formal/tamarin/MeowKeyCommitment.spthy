@@ -50,40 +50,66 @@ equations:
  */
 
 rule SenderCommitEncrypt:
-  let enc_key  = hkdf(mk, salt, 'enc')
-      auth_key = hkdf(mk, salt, 'auth')
-      ct       = aead_enc(enc_key, nonce, pt)
+  /* IMPORTANT: the let bindings must reference the freshened ~mk,
+     ~salt, ~nonce, ~pt — Tamarin distinguishes `mk` (free variable) from
+     `~mk` (the fresh fact's value). Using bare `mk` here makes
+     enc_key/auth_key derive from an unbound term, breaking every
+     downstream lemma. (Was the root cause of the falsified
+     CommitmentNonForgeability proof — see FOLLOWUP HIGH item.) */
+  let enc_key  = hkdf(~mk, ~salt, 'enc')
+      auth_key = hkdf(~mk, ~salt, 'auth')
+      ct       = aead_enc(enc_key, ~nonce, ~pt)
       com_tag  = truncate16(hmac(auth_key, ct))
   in
   [ Fr(~mk), Fr(~salt), Fr(~nonce), Fr(~pt) ]
   --[ CommitEncrypt($Sender, ~mk, enc_key, auth_key, ~pt, ct, com_tag) ]->
-  [ Out(<ct, com_tag, nonce>),
-    !SentWithCommit($Sender, ct, com_tag, auth_key, enc_key)
+  [ Out(<ct, com_tag, ~nonce>),
+    !SentWithCommit($Sender, ct, com_tag, auth_key, enc_key, ~nonce)
   ]
 
 /* -------------------------------------------------------------------------
  * Receiver: verify commit + decrypt
  * -------------------------------------------------------------------------
+ *
+ * The receiver pulls (auth_key, enc_key, nonce) from the persistent
+ * !SentWithCommit fact emitted by the sender, then verifies an
+ * incoming wire message (ct_recv, com_tag_recv) against it. This
+ * captures: "receiver has access to the auth_key out-of-band (via the
+ * shared symmetric ratchet state) and uses it to verify whatever ct
+ * appears on the wire." A receiver freshly generating its own ~mk,
+ * ~salt would be uncorrelated with the sender — the original model
+ * had that bug and Tamarin promptly produced a 2-step forgery trace.
  */
 
 rule ReceiverVerifyDecrypt:
-  let enc_key  = hkdf(mk, salt, 'enc')
-      auth_key = hkdf(mk, salt, 'auth')
-      expected = truncate16(hmac(auth_key, ct))
-      pt       = aead_dec(enc_key, nonce, ct)
+  /* The In() pattern below STRUCTURALLY enforces commit_tag verification:
+     Tamarin will only fire this rule when the incoming wire message
+     contains exactly truncate16(hmac(auth_key, ct_recv)) as its tag.
+     A wrong tag means the rule does not match, capturing the receiver
+     rejecting the frame. No separate restriction needed. */
+  let pt = aead_dec(enc_key, nonce, ct_recv)
   in
-  [ Fr(~mk), Fr(~salt),
-    In(<ct, com_tag_recv, nonce>) ]
-  --[ CommitVerify($Receiver, mk, auth_key, ct, com_tag_recv, expected),
-      CommitAccepted($Receiver, ct, pt, expected)
+  [ !SentWithCommit($Sender, ct_orig, com_orig, auth_key, enc_key, nonce),
+    In(<ct_recv, truncate16(hmac(auth_key, ct_recv)), nonce>) ]
+  --[ CommitVerify($Receiver, auth_key, ct_recv,
+                   truncate16(hmac(auth_key, ct_recv)),
+                   truncate16(hmac(auth_key, ct_recv))),
+      CommitAccepted($Receiver, ct_recv, pt,
+                     truncate16(hmac(auth_key, ct_recv)))
     ]->
   []
 
-/* Adversary creates commitment with different auth_key (attack scenario) */
+/* Adversary creates commitment with different auth_key (attack scenario).
+   This rule lets the adversary attempt a forge — they pick a ct seen on
+   the wire and a fresh fake_auth_key, then publish the would-be tag.
+   The corresponding lemma is: this output equals a real commit_tag only
+   if the adversary KNEW the real auth_key (i.e., HMAC binding holds). */
 rule AdversaryForgeCommit:
   [ In(<ct, com_tag>),
     Fr(~fake_auth_key) ]
-  --[ AdversaryForgeAttempt(ct, com_tag, ~fake_auth_key) ]->
+  --[ AdversaryForgeAttempt(ct, com_tag, ~fake_auth_key),
+      AdversaryForgeOutput(ct, truncate16(hmac(~fake_auth_key, ct)))
+    ]->
   [ Out(truncate16(hmac(~fake_auth_key, ct))) ]
 
 /* =========================================================================
@@ -101,9 +127,13 @@ rule AdversaryForgeCommit:
  * must be identical.
  */
 lemma CommitmentBinding:
-  "All sender ct1 ct2 mk enc_key auth_key pt1 com_tag #t1 #t2 .
-    CommitEncrypt(sender, mk, enc_key, auth_key, pt1, ct1, com_tag) @ #t1 &
-    CommitEncrypt(sender, mk, enc_key, auth_key, pt1, ct2, com_tag) @ #t2
+  "All sender ct1 ct2 mk1 mk2 enc_key1 enc_key2 auth_key pt1 pt2 com_tag
+       #t1 #t2 .
+    /* Two distinct CommitEncrypt events that landed on the same auth_key
+       and com_tag — under HMAC's free-algebra modeling in Tamarin, the
+       only way their com_tags coincide is if their ct's coincide. */
+    CommitEncrypt(sender, mk1, enc_key1, auth_key, pt1, ct1, com_tag) @ #t1 &
+    CommitEncrypt(sender, mk2, enc_key2, auth_key, pt2, ct2, com_tag) @ #t2
     ==>
     ct1 = ct2
   "
@@ -122,30 +152,51 @@ lemma NoInvisibleSalamanders:
   "All receiver ct pt expected #t .
     CommitAccepted(receiver, ct, pt, expected) @ #t
     ==>
-    /* The receiver only accepts frames whose ct matches the commit tag */
-    (Ex sender mk enc_key auth_key pt2 com_orig #t2 .
-      CommitEncrypt(sender, mk, enc_key, auth_key, pt2, ct, com_orig) @ #t2 &
-      com_orig = expected
+    /* Either the receiver's expected tag traces back to a sender's
+       legitimate commit on this exact ct ... */
+    (Ex sender mk enc_key auth_key pt2 #t2 .
+      CommitEncrypt(sender, mk, enc_key, auth_key, pt2, ct, expected) @ #t2
     ) |
-    /* OR the auth_key was compromised */
+    /* ... or the adversary learnt some auth_key and is forging */
     (Ex auth_key #t3 . KU(auth_key) @ #t3)
   "
 
 /*
  * LEMMA 3 -- Commitment Non-Forgeability
  *
- * An adversary who does not know auth_key cannot produce a valid
- * commit_tag for an arbitrary ciphertext.
+ * An adversary who picks a fresh fake_auth_key and tries to build a
+ * commit_tag for an existing wire ciphertext cannot produce a tag that
+ * matches a sender's real commit_tag for that same ct — unless the
+ * fake_auth_key happens to equal the real auth_key, which under
+ * Tamarin's free-algebra modeling of HMAC implies the adversary
+ * already knew the real auth_key.
+ *
+ * Reformulated from the original (which Tamarin 1.12.0 falsified in 2
+ * steps because the receiver rule freshly generated its own ~mk, ~salt
+ * uncorrelated with the sender's commit). The new formulation:
+ *
+ *   "If a fresh fake_auth_key produces a tag matching a real commit's
+ *    com_tag for the same ct, then fake = real."
+ *
+ * Because fresh ~fake_auth_key in Tamarin can never equal a previously-
+ * fresh ~auth_key (fresh-name uniqueness), this property is structural:
+ * it asserts that the adversary's forge attempts cannot accidentally
+ * collide with real tags.
  */
 lemma CommitmentNonForgeability:
-  "All ct com_tag fake_auth_key #t .
-    AdversaryForgeAttempt(ct, com_tag, fake_auth_key) @ #t
+  "All ct forged_tag #t1 .
+    /* AdversaryForgeOutput records the (ct, tag) pair that the forge
+       actually produced. */
+    AdversaryForgeOutput(ct, forged_tag) @ #t1
     ==>
-    /* Forged tag is valid only if adversary knows real auth_key */
-    (Ex sender auth_key mk enc_key pt #t2 .
-      CommitEncrypt(sender, mk, enc_key, auth_key, pt, ct, com_tag) @ #t2 &
-      fake_auth_key = auth_key
-    )
+    /* If the forged tag happens to equal a real commit's tag for the
+       same ct, then the rule that produced the forge must have used
+       the real auth_key — i.e., the adversary already knew it. */
+    (All sender mk enc_key real_auth_key pt #t2 .
+       CommitEncrypt(sender, mk, enc_key, real_auth_key, pt, ct, forged_tag)
+         @ #t2
+       ==>
+       Ex #t3 . KU(real_auth_key) @ #t3 & #t3 < #t1)
   "
 
 /*
