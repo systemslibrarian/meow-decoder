@@ -91,6 +91,10 @@ pub enum TpmError {
     Lockout,
     /// Platform hierarchy disabled
     HierarchyDisabled(String),
+    /// Caller-provided auth blob is malformed (e.g. wrong length for the
+    /// TPM's max auth size). Replaces the prior `.unwrap()` panic on the
+    /// `Auth::try_from` boundary.
+    InvalidAuth,
 }
 
 #[cfg(feature = "std")]
@@ -109,6 +113,7 @@ impl fmt::Display for TpmError {
             TpmError::InvalidPcr(pcr) => write!(f, "Invalid PCR index: {}", pcr),
             TpmError::Lockout => write!(f, "TPM is in lockout mode"),
             TpmError::HierarchyDisabled(h) => write!(f, "TPM hierarchy disabled: {}", h),
+            TpmError::InvalidAuth => write!(f, "TPM auth blob is malformed (wrong length)"),
         }
     }
 }
@@ -423,9 +428,10 @@ impl TpmProvider {
         auth: Option<&TpmAuth>,
     ) -> Result<SealedBlob, TpmError> {
         // Create sealing object under storage hierarchy
-        let auth_value = auth
-            .map(|a| Auth::try_from(a.auth.as_slice()).unwrap())
-            .unwrap_or(Auth::default());
+        let auth_value = match auth {
+            Some(a) => Auth::try_from(a.auth.as_slice()).map_err(|_| TpmError::InvalidAuth)?,
+            None => Auth::default(),
+        };
 
         // Build PCR policy digest
         // audit-phase-6-fix 6.3: propagate InvalidPcr instead of panicking (matches
@@ -513,9 +519,10 @@ impl TpmProvider {
         blob: &SealedBlob,
         auth: Option<&TpmAuth>,
     ) -> Result<Vec<u8>, TpmError> {
-        let auth_value = auth
-            .map(|a| Auth::try_from(a.auth.as_slice()).unwrap())
-            .unwrap_or(Auth::default());
+        let auth_value = match auth {
+            Some(a) => Auth::try_from(a.auth.as_slice()).map_err(|_| TpmError::InvalidAuth)?,
+            None => Auth::default(),
+        };
 
         // Recreate primary key
         let primary_key = self

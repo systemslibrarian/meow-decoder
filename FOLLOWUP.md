@@ -23,22 +23,27 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 - **Finding 5.5 — web_demo bounds check** (`web_demo/app.py:1121-1135`, commit 896958b)
 - **Finding 6.3 — TPM PcrSlot map_err** (`crypto_core/src/tpm.rs:421-428`, commit 896958b)
 
-## Medium-severity items still deferred
+## Fixed in `audit/cat-mode-fixes` (2026-05-03)
 
-- **Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).** Transitive via jest/playwright/selenium/canvas. ReDoS + path-traversal. Not in shipped artifacts. **Recommended fix:** `npm audit fix --force` then re-run `npm test` on both root and web_demo. Deferred: touches devDeps that could break tests, needs triage with maintainer.
-- **Finding 12.6 — `cargo build --features tpm` fails on main.** `crypto_core/src/tpm.rs:525,540` — `SensitiveData::as_bytes` and `KeyHandle→ObjectHandle` type errors against current `tss-esapi 7.5` API. **Recommended fix:** rename `as_bytes()` calls to `bytes()`; add `.into()` to convert `KeyHandle` to `ObjectHandle` at the unseal call site. Deferred: needs hardware to validate, feature is opt-in.
+- **Finding 4.5** — `random.choice` → `secrets.choice` in `meow_decoder/high_security.py`.
+- **Finding 6.2** — `TpmContext::connect_tcti` no longer panics; uses `TctiNameConf::from_str(tcti)?` propagating via `TpmError::CommunicationFailed`.
+- **Finding 6.6** — `Auth::try_from(...).unwrap()` replaced with `match` arm that maps the `Err` to a new `TpmError::InvalidAuth` variant; no panic on caller-supplied auth blob.
+- **Finding 11.1** — `crypto_backend.get_default_backend()` and `get_handle_backend()` wrapped in `threading.Lock` with double-checked init (CPython 3.13+ free-threading safety).
+- **Finding 3.2** — `HybridKeyPair` and `PQBeaconKeyPair` carry `__del__` best-effort zeroization (defense in depth; for hard guarantees use handle-based APIs).
+- **Finding 12.2** — `.pre-commit-config.yaml` now includes `detect-secrets` (Yelp v1.5.0) with baseline `.secrets.baseline`. Excludes test fixtures, formal-method outputs, lock files.
+- **Finding 12.6** — `cargo build --features tpm` now compiles cleanly. `crypto_core/src/tpm.rs` migrated through 16 distinct API breaks against `tss-esapi 7.6.0` (Marshall/UnMarshall traits, `try_from` constructors, `value()` accessors, `PcrSlot` bitflag enum, `TctiNameConf::from_str`, `CreateKeyResult` struct, `KeyHandle→ObjectHandle` via `.into()`). One judgment call flagged in commit `e43577e` for cryptographer review (`Context::create()` `SensitiveData` slot — the original code at that site appears to have been broken too).
 
-## Low-severity items still deferred
+## Still deferred
 
-- **Finding 4.5 — `random.choice` in `meow_decoder/high_security.py:446-447`.** Unused function `generate_innocuous_filename`. If ever exposed, switch to `secrets.choice`.
-- **Finding 6.2 — `TpmContext::connect_tcti` panics on invalid TCTI parse** at `crypto_core/src/tpm.rs:328`. Internal callers pass hardcoded values, but `pub fn` exposes panic to external Rust users. Replace with `.map_err(|e| TpmError::CommunicationFailed(e.to_string()))?`.
-- **Finding 6.6 — `Auth::from_bytes(&a.auth).unwrap()`** at `crypto_core/src/tpm.rs:417`. Auth blob is caller-controlled; panic on out-of-range length. Replace with `TpmError::InvalidAuth`.
-- **Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.** Build-time only. Bump dev env to pip≥25 / wheel≥0.46.
-- **Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).** Jest transitive. Bump alongside root npm update.
-- **Finding 3.2 — `HybridKeyPair` / `PQBeaconKeyPair` no `__del__`.** `meow_decoder/pq_hybrid.py:131`, `meow_decoder/pq_ratchet_beacon.py:176`. Python memory zeroization is best-effort. Add explicit `__del__` or replace raw bytes with a zeroizing wrapper.
-- **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Prefer the handle-based `derive_key_argon2id_with_keyfile` path.
-- **Finding 11.1 — Backend singleton init not explicitly locked.** `meow_decoder/crypto_backend.py:301,668`. Add `threading.Lock`.
-- **Finding 12.2 — Pre-commit lacks secret-scanning.** `.pre-commit-config.yaml`. Add `detect-secrets` / `trufflehog` / `gitleaks` hook.
+### Medium
+
+- **Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).** `npm audit fix` blocked by `canvas`/`node-pre-gyp` build failure under Node v24 — `canvas` needs a major-version bump (the v2.x line uses node-pre-gyp; v3.x switched to prebuilt binaries). Best handled by the dependabot path or a dedicated `canvas` upgrade PR rather than `--force`.
+- **Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).** Same root cause as above (jest/picomatch transitive via `canvas`). Bumps with the same upgrade.
+
+### Low
+
+- **Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.** Build-time only; touches the dev environment image rather than this repo. Bump pip≥25 / wheel≥0.46 in the codespace base image.
+- **Finding 3.7 — Keyfile HKDF intermediate lives in Python.** `meow_decoder/crypto.py:471-481`. Refactor toward the handle-based `derive_key_argon2id_with_keyfile` path. Defensive cleanup; not a vulnerability.
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
 ## Tamarin formal-verification model issues (needs cryptographer review)
