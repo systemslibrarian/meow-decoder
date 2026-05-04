@@ -1216,6 +1216,40 @@ fn handle_export_key<'py>(py: Python<'py>, id: u64) -> PyResult<Bound<'py, PyByt
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// Seal one handle's key bytes with another handle's key (AES-256-GCM).
+/// Both keys remain in Rust; only the AEAD ciphertext crosses the FFI.
+/// Designed for encrypted-at-rest persistence of long-lived secret keys.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (payload_handle, encryption_key_handle, nonce, aad=None))]
+fn handle_seal_key<'py>(
+    py: Python<'py>,
+    payload_handle: u64,
+    encryption_key_handle: u64,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let ct = handles::handle_seal_key(payload_handle, encryption_key_handle, nonce, aad)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &ct))
+}
+
+/// Unseal a sealed key blob into a new SymmetricKey handle.
+/// The plaintext key bytes never cross the FFI. Fail-closed on AEAD auth failure
+/// or non-32-byte plaintext.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (ciphertext, encryption_key_handle, nonce, aad=None))]
+fn handle_unseal_key(
+    ciphertext: &[u8],
+    encryption_key_handle: u64,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<u64> {
+    handles::handle_unseal_key(ciphertext, encryption_key_handle, nonce, aad)
+        .map_err(handle_err_to_py)
+}
+
 /// Check if a handle exists (for testing only).
 #[cfg(feature = "python")]
 #[pyfunction]
@@ -1661,6 +1695,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_hkdf_two_handles, m)?)?;
     m.add_function(wrap_pyfunction!(handle_drop, m)?)?;
     m.add_function(wrap_pyfunction!(handle_export_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_seal_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_unseal_key, m)?)?;
     m.add_function(wrap_pyfunction!(handle_pqxdh_encapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_pqxdh_decapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_exists, m)?)?;

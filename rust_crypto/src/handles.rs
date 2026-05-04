@@ -1109,6 +1109,118 @@ pub fn handle_export_key(id: HandleId) -> Result<Vec<u8>, HandleError> {
     })
 }
 
+/// Seal (AES-256-GCM encrypt) the bytes of `payload_handle` using the key
+/// inside `encryption_key_handle`. Both keys remain in Rust; only the
+/// ciphertext (with tag) crosses the FFI boundary.
+///
+/// Designed for encrypted-at-rest persistence of long-lived keys
+/// (e.g. master ratchet chain key) so the plaintext key never enters Python.
+pub fn handle_seal_key(
+    payload_handle: HandleId,
+    encryption_key_handle: HandleId,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> Result<Vec<u8>, HandleError> {
+    if nonce.len() != 12 {
+        return Err(HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        });
+    }
+
+    // Copy payload key bytes into a Vec we explicitly zeroize before return.
+    let mut payload_bytes = with_handle(payload_handle, |p| match p {
+        HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
+        HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
+        HandlePayload::Session(s) => Ok(s.enc_key.as_bytes().to_vec()),
+        _ => Err(HandleError::HandleTypeMismatch),
+    })?;
+
+    let result = with_handle(encryption_key_handle, |p| {
+        let key_bytes = match p {
+            HandlePayload::SymmetricKey(k) => k.as_bytes(),
+            HandlePayload::Session(s) => s.enc_key.as_bytes(),
+            _ => return Err(HandleError::HandleTypeMismatch),
+        };
+        let cipher =
+            Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::EncryptionFailed)?;
+        let nonce_arr = Nonce::from_slice(nonce);
+        let ct = if let Some(aad_data) = aad {
+            cipher.encrypt(
+                nonce_arr,
+                Payload {
+                    msg: &payload_bytes,
+                    aad: aad_data,
+                },
+            )
+        } else {
+            cipher.encrypt(nonce_arr, payload_bytes.as_slice())
+        };
+        ct.map_err(|_| HandleError::EncryptionFailed)
+    });
+
+    payload_bytes.zeroize();
+    result
+}
+
+/// Unseal (AES-256-GCM decrypt) a sealed key blob using `encryption_key_handle`.
+/// Imports the recovered 32-byte key as a new SymmetricKey handle.
+///
+/// The plaintext key bytes never cross the FFI boundary. Fail-closed on
+/// authentication failure or non-32-byte plaintext.
+pub fn handle_unseal_key(
+    ciphertext: &[u8],
+    encryption_key_handle: HandleId,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> Result<HandleId, HandleError> {
+    if nonce.len() != 12 {
+        return Err(HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        });
+    }
+    if ciphertext.len() < 16 {
+        return Err(HandleError::CiphertextTooShort);
+    }
+
+    let mut plaintext = with_handle(encryption_key_handle, |p| {
+        let key_bytes = match p {
+            HandlePayload::SymmetricKey(k) => k.as_bytes(),
+            HandlePayload::Session(s) => s.enc_key.as_bytes(),
+            _ => return Err(HandleError::HandleTypeMismatch),
+        };
+        let cipher =
+            Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::DecryptionFailed)?;
+        let nonce_arr = Nonce::from_slice(nonce);
+        let pt = if let Some(aad_data) = aad {
+            cipher.decrypt(
+                nonce_arr,
+                Payload {
+                    msg: ciphertext,
+                    aad: aad_data,
+                },
+            )
+        } else {
+            cipher.decrypt(nonce_arr, ciphertext)
+        };
+        pt.map_err(|_| HandleError::DecryptionFailed)
+    })?;
+
+    if plaintext.len() != 32 {
+        plaintext.zeroize();
+        return Err(HandleError::InvalidKeyLength {
+            expected: 32,
+            got: plaintext.len(),
+        });
+    }
+    let mut key_bytes = [0u8; 32];
+    key_bytes.copy_from_slice(&plaintext);
+    plaintext.zeroize();
+    let key = SecretKey { bytes: key_bytes };
+    insert_handle(HandlePayload::SymmetricKey(key))
+}
+
 // ─── Public API: Stream chunk operations ────────────────────────────────────
 // These enable chunk-by-chunk streaming encryption without leaking keys to Python.
 
@@ -1541,5 +1653,70 @@ mod tests {
         for h in handles {
             handle_drop(h).unwrap();
         }
+    }
+
+    #[test]
+    fn test_seal_unseal_roundtrip() {
+        let payload = handle_import_key(&[0x77u8; 32]).unwrap();
+        let kek = handle_import_key(&[0x88u8; 32]).unwrap();
+        let nonce = [0x99u8; 12];
+        let aad = b"meow_seal_aad_v1";
+
+        let sealed = handle_seal_key(payload, kek, &nonce, Some(aad)).unwrap();
+        // Ciphertext = 32 (key) + 16 (GCM tag).
+        assert_eq!(sealed.len(), 48);
+
+        let recovered = handle_unseal_key(&sealed, kek, &nonce, Some(aad)).unwrap();
+        // Verify the recovered handle holds the same key (encrypt the same
+        // plaintext with each and compare ciphertexts under a fixed nonce).
+        let test_nonce = [0u8; 12];
+        let ct_orig = handle_aes_gcm_encrypt(payload, &test_nonce, b"x", None).unwrap();
+        let ct_recovered = handle_aes_gcm_encrypt(recovered, &test_nonce, b"x", None).unwrap();
+        assert_eq!(ct_orig, ct_recovered);
+
+        handle_drop(payload).unwrap();
+        handle_drop(kek).unwrap();
+        handle_drop(recovered).unwrap();
+    }
+
+    #[test]
+    fn test_seal_unseal_aad_mismatch() {
+        let payload = handle_import_key(&[0x77u8; 32]).unwrap();
+        let kek = handle_import_key(&[0x88u8; 32]).unwrap();
+        let nonce = [0x99u8; 12];
+
+        let sealed = handle_seal_key(payload, kek, &nonce, Some(b"aad-A")).unwrap();
+        let err = handle_unseal_key(&sealed, kek, &nonce, Some(b"aad-B"));
+        assert_eq!(err, Err(HandleError::DecryptionFailed));
+
+        handle_drop(payload).unwrap();
+        handle_drop(kek).unwrap();
+    }
+
+    #[test]
+    fn test_seal_unseal_wrong_kek() {
+        let payload = handle_import_key(&[0x77u8; 32]).unwrap();
+        let kek_a = handle_import_key(&[0x88u8; 32]).unwrap();
+        let kek_b = handle_import_key(&[0xBBu8; 32]).unwrap();
+        let nonce = [0x99u8; 12];
+
+        let sealed = handle_seal_key(payload, kek_a, &nonce, None).unwrap();
+        let err = handle_unseal_key(&sealed, kek_b, &nonce, None);
+        assert_eq!(err, Err(HandleError::DecryptionFailed));
+
+        handle_drop(payload).unwrap();
+        handle_drop(kek_a).unwrap();
+        handle_drop(kek_b).unwrap();
+    }
+
+    #[test]
+    fn test_seal_invalid_nonce_length() {
+        let payload = handle_import_key(&[0x77u8; 32]).unwrap();
+        let kek = handle_import_key(&[0x88u8; 32]).unwrap();
+        let bad_nonce = [0u8; 11]; // wrong length
+        let err = handle_seal_key(payload, kek, &bad_nonce, None);
+        assert!(matches!(err, Err(HandleError::InvalidNonceLength { .. })));
+        handle_drop(payload).unwrap();
+        handle_drop(kek).unwrap();
     }
 }

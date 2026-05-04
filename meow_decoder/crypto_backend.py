@@ -644,6 +644,31 @@ class HandleBackend:
         """Zeroize and free a handle."""
         self._rs.handle_drop(handle_id)
 
+    def seal_key(
+        self,
+        payload_handle: int,
+        encryption_key_handle: int,
+        nonce: bytes,
+        aad: Optional[bytes] = None,
+    ) -> bytes:
+        """Seal payload handle's key bytes under encryption_key_handle (AES-256-GCM).
+
+        Both keys remain in Rust; only the AEAD ciphertext (32-byte key + 16-byte
+        tag = 48 bytes) crosses the FFI. Use for encrypted-at-rest persistence
+        of long-lived keys without ever exposing plaintext to Python.
+        """
+        return self._rs.handle_seal_key(payload_handle, encryption_key_handle, nonce, aad)
+
+    def unseal_key(
+        self,
+        ciphertext: bytes,
+        encryption_key_handle: int,
+        nonce: bytes,
+        aad: Optional[bytes] = None,
+    ) -> int:
+        """Unseal a sealed key blob to a new SymmetricKey handle. Fail-closed."""
+        return self._rs.handle_unseal_key(ciphertext, encryption_key_handle, nonce, aad)
+
     def export_key(self, handle_id: int) -> bytes:
         """PRODUCTION-FORBIDDEN: Export raw key bytes from handle.
 
