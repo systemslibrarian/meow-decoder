@@ -10,6 +10,7 @@ import os
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JS_DIR = os.path.join(ROOT, "scripts", "dev")
 
 
 class TestCatBinaryJS:
@@ -18,7 +19,7 @@ class TestCatBinaryJS:
     def test_cat_binary_roundtrip(self):
         """Execute test_cat_binary.js and verify all 6 tests pass."""
         result = subprocess.run(
-            ["node", os.path.join(ROOT, "test_cat_binary.js")],
+            ["node", os.path.join(JS_DIR, "test_cat_binary.js")],
             capture_output=True,
             text=True,
             timeout=30,
@@ -43,7 +44,7 @@ class TestCat5SpeedsJS:
     def test_cat_5speeds_pipeline(self):
         """Execute test_cat_5speeds.js and verify all 5 speeds pass."""
         result = subprocess.run(
-            ["node", os.path.join(ROOT, "test_cat_5speeds.js")],
+            ["node", os.path.join(JS_DIR, "test_cat_5speeds.js")],
             capture_output=True,
             text=True,
             timeout=60,

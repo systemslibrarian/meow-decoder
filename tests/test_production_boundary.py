@@ -132,12 +132,25 @@ class TestProductionBoundary:
             assert ep_path.exists(), f"Production entrypoint {ep} does not exist"
 
     def test_testonly_dir_exists(self):
-        """The _testonly directory must exist (archived or at root)."""
-        testonly = PRODUCTION_ROOT / "_testonly"
-        testonly_archived = PRODUCTION_ROOT / "_archive" / "_testonly"
-        assert (
-            testonly.exists() or testonly_archived.exists()
-        ), "_testonly directory missing (not at root or in _archive)"
+        """The _testonly directory must exist somewhere recognised.
+
+        Accepts three layouts:
+        * `meow_decoder/_testonly/` — original in-package location.
+        * `meow_decoder/_archive/_testonly/` — package-internal archive
+          (older organisation).
+        * `archive/_testonly/` — top-level archive (current layout, post
+          gemini #7 surface-area minimisation; the package-internal
+          `_archive/` was moved to top-level `archive/`).
+        """
+        candidates = [
+            PRODUCTION_ROOT / "_testonly",
+            PRODUCTION_ROOT / "_archive" / "_testonly",
+            WORKSPACE / "archive" / "_testonly",
+        ]
+        assert any(p.exists() for p in candidates), (
+            "_testonly directory missing. Tried: "
+            + ", ".join(str(p.relative_to(WORKSPACE)) for p in candidates)
+        )
 
 
 class TestProductionEntrypointPurity:

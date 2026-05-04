@@ -28,10 +28,15 @@
 
 const crypto = require('crypto');
 
-// Load production modules
-const CatProtocol = require('./web_demo/cat-mode-protocol.js');
-const NRZDecoder = require('./web_demo/nrz-decoder.js');
-const PreambleCalibration = require('./web_demo/preamble-calibration.js');
+// Load production modules. Resolve relative to repo root so the file
+// works whether invoked from scripts/dev/ or any other cwd (this script
+// was moved from repo root to scripts/dev/ in the 2026-05-03 organisation
+// sweep; cat-mode-protocol.js etc. stayed in web_demo/).
+const REPO_ROOT = require('path').join(__dirname, '..', '..');
+const WEB_DEMO = require('path').join(REPO_ROOT, 'web_demo');
+const CatProtocol = require(require('path').join(WEB_DEMO, 'cat-mode-protocol.js'));
+const NRZDecoder = require(require('path').join(WEB_DEMO, 'nrz-decoder.js'));
+const PreambleCalibration = require(require('path').join(WEB_DEMO, 'preamble-calibration.js'));
 
 // Suppress verbose logging from imported modules during test
 const _origLog = console.log;
