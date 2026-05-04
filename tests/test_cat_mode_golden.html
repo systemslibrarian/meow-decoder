@@ -205,53 +205,91 @@
         // ====================================================================
         
         async function extractFrames(video, canvas) {
-            const ctx = canvas.getContext('2d');
+            // FIX (2026-05-04, Gate 2): the prior `video.currentTime = X;
+            // await onseeked` pattern is flaky in headless Chromium —
+            // `seeked` can fire before the new frame has actually been
+            // composited, so getImageData reads stale frame buffers and
+            // the histogram collapses to the dominant (off-state) value.
+            //
+            // New extraction:
+            //   1. `requestVideoFrameCallback` when available (Chrome 83+,
+            //      Firefox 130+, Safari 15.4+) — fires exactly when a new
+            //      frame is presented for compositing.
+            //   2. Fallback: play the video at natural speed and sample
+            //      via rAF, indexing samples by `video.currentTime` so
+            //      timing remains spec-correct under load.
+            //
+            // `willReadFrequently: true` on getContext silences the
+            // Canvas2D readback warning and lets Chromium use a software
+            // backing store optimized for `getImageData`.
+            const ctx = canvas.getContext('2d', { willReadFrequently: true });
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            
+
             const frames = [];
-            const fps = 30; // Approximate
-            const duration = video.duration;
-            const totalFrames = Math.floor(duration * fps);
-            
-            video.currentTime = 0;
-            
-            for (let i = 0; i < totalFrames; i++) {
-                const time = i / fps;
-                video.currentTime = time;
-                
-                await new Promise(resolve => {
-                    video.onseeked = resolve;
-                });
-                
-                // Draw frame
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const roiSize = Math.min(canvas.width, canvas.height) * 0.3;
+
+            function sampleFrame(timeMs) {
                 ctx.drawImage(video, 0, 0);
-                
-                // Calculate green score (ROI = center, where eyes are)
-                const cx = canvas.width / 2;
-                const cy = canvas.height / 2;
-                const roiSize = Math.min(canvas.width, canvas.height) * 0.3;
-                
                 const imageData = ctx.getImageData(
-                    cx - roiSize/2,
-                    cy - roiSize/2,
-                    roiSize,
-                    roiSize
+                    cx - roiSize / 2, cy - roiSize / 2, roiSize, roiSize
                 );
-                
-                const greenScore = calculateGreenScore(imageData);
-                
-                frames.push({
-                    time: time * 1000, // Convert to ms
-                    greenScore: greenScore
-                });
-                
-                // Update progress
-                if (i % 10 === 0) {
-                    document.getElementById('framesProcessed').textContent = i;
-                }
+                frames.push({ time: timeMs, greenScore: calculateGreenScore(imageData) });
             }
-            
+
+            const useVFC = typeof video.requestVideoFrameCallback === 'function';
+
+            if (useVFC) {
+                // Per-frame callback: fires once per presented compositor frame.
+                await new Promise((resolve, reject) => {
+                    let cancelled = false;
+                    const tick = (now, metadata) => {
+                        if (cancelled) return;
+                        sampleFrame(metadata.mediaTime * 1000);
+                        if (frames.length % 10 === 0) {
+                            document.getElementById('framesProcessed').textContent = frames.length;
+                        }
+                        if (video.ended || video.currentTime >= video.duration - 0.05) {
+                            cancelled = true;
+                            resolve();
+                            return;
+                        }
+                        video.requestVideoFrameCallback(tick);
+                    };
+                    video.muted = true;
+                    video.requestVideoFrameCallback(tick);
+                    video.play().catch(reject);
+                    // Safety timeout: 60s max for any video (golden videos
+                    // are 30-50s real-time).
+                    setTimeout(() => { if (!cancelled) { cancelled = true; resolve(); } }, 90000);
+                });
+            } else {
+                // Fallback for older browsers: rAF + currentTime indexing.
+                await new Promise((resolve, reject) => {
+                    let lastSampledTime = -1;
+                    const tick = () => {
+                        if (video.ended || video.currentTime >= video.duration - 0.05) {
+                            resolve();
+                            return;
+                        }
+                        const tNow = video.currentTime;
+                        if (tNow - lastSampledTime >= 1 / 60) {
+                            sampleFrame(tNow * 1000);
+                            lastSampledTime = tNow;
+                            if (frames.length % 10 === 0) {
+                                document.getElementById('framesProcessed').textContent = frames.length;
+                            }
+                        }
+                        requestAnimationFrame(tick);
+                    };
+                    video.muted = true;
+                    video.play().then(() => requestAnimationFrame(tick)).catch(reject);
+                    setTimeout(() => resolve(), 90000);
+                });
+            }
+
             return frames;
         }
         
