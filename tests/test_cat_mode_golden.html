@@ -384,7 +384,22 @@
                 let lastState = 'off';
                 
                 for (const frame of frames) {
-                    adaptiveThreshold.update(frame.greenScore, frame.time);
+                    // FIX (2026-05-04, Gate 2): AdaptiveThreshold.update
+                    // takes timestamp in MILLISECONDS (its docstring says
+                    // so; internally it does timeSec = timestamp/1000 for
+                    // GradientCompensator and uses recalibrateInterval
+                    // = recalibrateSec*1000 for gating recalibrate()).
+                    // frame.time is in seconds (matches what production
+                    // stores), so multiply by 1000 here. This matches
+                    // production at wasm_browser_example_FULL.html:5817:
+                    //   adaptiveThreshold.update(sample.greenLevel,
+                    //                            sample.time * 1000);
+                    // Without the *1000, recalibrate() never triggers
+                    // (timestamp - lastCalibration < 1000ms) and threshold
+                    // stays at the 0.5 default — every score >0.5 reads as
+                    // 'on', no transitions detected, sync search returns 0
+                    // alt bits.
+                    adaptiveThreshold.update(frame.greenScore, frame.time * 1000);
                     const threshold = adaptiveThreshold.getThreshold();
 
                     // FIX (2026-05-04, Gate 2): pass the current adaptive
