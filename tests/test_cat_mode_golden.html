@@ -432,7 +432,10 @@
                         threshold
                     });
                     
-                    qualityMetrics.recordFrame(state, confidence);
+                    // FIX (2026-05-04, Gate 2): QualityMetrics.recordFrame
+                    // takes a single classification-result object, not
+                    // (state, confidence). It internally pulls .state.
+                    qualityMetrics.recordFrame({ state, confidence });
                     
                     if (state !== lastState && state !== 'unknown') {
                         transitionCount++;
@@ -659,11 +662,15 @@
                     pass: decodedPayload === testConfig.expectedPayload
                 });
                 
-                // Calculate overall confidence
-                const metrics = qualityMetrics.getMetrics();
-                const confidencePercent = (metrics.confident_percent || 0).toFixed(1);
+                // Calculate overall confidence.
+                // FIX (2026-05-04, Gate 2): the API is `getSummary()` not
+                // `getMetrics()`, and the field is `confidence_percent`
+                // (string, e.g. "97.3"), not `confident_percent`. The old
+                // call would always throw before reaching the assertion.
+                const metrics = qualityMetrics.getSummary();
+                const confidencePercent = parseFloat(metrics.confidence_percent || '0').toFixed(1);
                 document.getElementById('confidence').textContent = confidencePercent + '%';
-                
+
                 assertions.push({
                     name: 'Overall confidence',
                     expected: `≥ ${testConfig.minConfidence}%`,
