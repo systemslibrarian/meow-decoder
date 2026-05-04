@@ -179,7 +179,7 @@ class TestMasterRatchetInvariants:
             pytest.skip("MasterRatchet not available")
 
     def test_emergency_wipe_zeros_all_state(self):
-        """Emergency wipe must zero chain_key and master_salt."""
+        """Emergency wipe must drop chain handle, zero salt, reset generation."""
         try:
             from meow_decoder.master_ratchet import MasterRatchet
 
@@ -187,12 +187,18 @@ class TestMasterRatchetInvariants:
             ratchet.ratchet()
             ratchet.ratchet()
 
+            pre_wipe_handle = ratchet._state.chain_handle
+            assert pre_wipe_handle is not None
+
             # Wipe
             result = ratchet.emergency_wipe()
             assert result is True
 
-            # Verify zeroed
-            assert ratchet._state.chain_key == bytes(32)
+            # Chain handle dropped (Rust SecretKey zeroized via Drop), salt
+            # zeroed in Python (defense-in-depth — salt is non-secret),
+            # generation reset.
+            assert ratchet._state.chain_handle is None
+            assert not ratchet._hb.exists(pre_wipe_handle)
             assert ratchet._state.master_salt == bytes(32)
             assert ratchet._state.generation == 0
         except (ImportError, RuntimeError):
