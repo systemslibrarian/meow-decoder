@@ -96,25 +96,36 @@
                 'WebM → MP4 conversion requires either (a) recording in Safari ' +
                 '(which produces MP4 natively), or (b) a browser with WebCodecs ' +
                 'H.264 encoder support. Your browser provides neither. ' +
-                'Either save the WebM file directly, or use server-side ffmpeg.'
+                'Save the WebM file directly, then convert offline with one of: ' +
+                'ffmpeg -i input.webm -c:v libx264 -c:a aac output.mp4 ' +
+                '(or HandBrake / VLC, which both ship a WebM→MP4 preset).'
             );
         }
 
         // Branch 2 implementation: WebCodecs decode + encode + mp4-muxer.
         //
-        // Wiring this requires (1) demuxing the WebM container to extract
-        // raw VP8/VP9 packets, (2) feeding them to a VideoDecoder, (3)
-        // re-encoding the resulting VideoFrames via VideoEncoder@H.264,
-        // (4) muxing into an MP4 container with mp4-muxer.
+        // STATUS (2026-05-04): scaffold complete, full pipeline DEFERRED.
+        // Implementing this path requires:
+        //   (1) demuxing the WebM/Matroska container to extract raw VP8/VP9
+        //       packets — needs ~200-400 lines of EBML parsing, OR vendoring
+        //       a WebM demuxer (no good lightweight option exists today; the
+        //       common ones are full Matroska parsers in the 50-100 KB range);
+        //   (2) feeding packets to a VideoDecoder → VideoFrames;
+        //   (3) re-encoding VideoFrames via VideoEncoder @ H.264 baseline;
+        //   (4) muxing the H.264 chunks into MP4 via mp4-muxer (~30 KB ESM);
+        //   (5) cross-browser test surface for Chromium + Firefox WebCodecs
+        //       paths (Firefox shipped WebCodecs only recently and has
+        //       known H.264 quirks that need test coverage).
         //
-        // Step (1) needs a WebM/Matroska demuxer (~30KB JS) — vendor when
-        // the WebCodecs path is enabled in production. The branch is
-        // gated above so users on browsers WITHOUT support never hit
-        // this throw; it only fires if a contributor enables the branch
-        // by removing this guard before vendoring the demuxer.
+        // Estimated effort: 1-2 focused days. Tracked in FOLLOWUP.md.
+        // The branch is gated above so users on browsers WITHOUT WebCodecs
+        // never hit this throw; it only fires if a contributor flips the
+        // capability flag below before vendoring the demuxer + muxer.
         throw new Error(
             'In-browser WebM→MP4 transcoding via WebCodecs is gated pending ' +
-            'mp4-muxer + WebM demuxer integration. Tracked in potential_bugs.md #5.'
+            'mp4-muxer + WebM demuxer integration. ' +
+            'See FOLLOWUP.md ("gemini #5 MP4 transcode Branch 2") for the ' +
+            'estimated-effort breakdown.'
         );
     }
 

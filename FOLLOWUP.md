@@ -46,6 +46,86 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 - ~~**Finding 3.7 — Keyfile HKDF intermediate lives in Python.**~~ FIXED on this branch — `meow_decoder/crypto.py:471-482` (`derive_key`) now routes through `derive_key_handle()` and only briefly exports the final key bytes via `hb.export_key(handle)`, with the handle dropped in `finally`. No Python-side HKDF intermediate buffer remains. Already recorded under "Other hardening" in CHANGELOG.md (line 75).
 - **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
 
+## gemini #1 — Rust handle migration of long-lived secret keys (in progress)
+
+**Done on this branch (2026-05-04):**
+
+- **Rust seal/unseal primitives (commit `1ba282b`).** `handle_seal_key` /
+  `handle_unseal_key` added to `rust_crypto/src/handles.rs` (+ PyO3
+  wrappers + `HandleBackend.{seal_key,unseal_key}`). One handle's key
+  bytes are AES-256-GCM-encrypted by another handle's key without ever
+  exposing plaintext to Python. 4 unit tests cover round-trip, AAD
+  mismatch, wrong KEK, invalid nonce length.
+
+- **`master_ratchet.py` migrated (commit `f42c395`).** `ChainState.
+  chain_key: bytes` → `chain_handle: Optional[int]`. All HKDF
+  derivations route through `HandleBackend.derive_key_hkdf{,_bytes,
+  _raw}`. Pure-Python HKDF + cryptography-lib fallbacks dropped.
+  At-rest format `MRCV2` uses `seal_key` for the chain — no plaintext
+  chain key ever enters Python.  Old `MRCV1`/`MRCX1` formats removed
+  (no production callers, only tests). 17 master-ratchet tests pass;
+  211 broader ratchet tests pass.
+
+- **`stego_multilayer.py` Python AES-GCM fallbacks dropped (commit
+  `7076640`).** All four `cryptography.hazmat.AESGCM` branches in
+  `pack_payload`, `unpack_payload`, `CommentChannelEncoder.{encode,
+  decode}` removed — fail-closed if Rust backend missing. 183 stego
+  tests pass.
+
+**Deferred (separate focused PRs):**
+
+- **Stego instance-key migration to handles.** `CommentChannelEncoder.
+  _enc_key` / `_mac_key` and `DisposalChannelEncoder._channel_key` are
+  still raw `bytes` instance attributes derived via Python `hmac.
+  new(master_key, DOMAIN_*, sha256).digest()`. Migrating to handle IDs
+  requires updating ~8 test assertions in `tests/test_stego_phase0.py`
+  that compare `_enc_key` bytes across encoder instances (would use
+  `hmac_sha256(handle, b"_test_fingerprint_v1")` instead).
+
+- **`stego_multilayer.py` `pack_payload`/`unpack_payload` `enc_key`
+  via FFI bytes.** The short-lived `enc_key` is HMAC-derived in
+  Python and passed to Rust `aes_gcm_encrypt(key_bytes, ...)`. The
+  Rust path exists; eliminating the Python-side HMAC derivation
+  needs a new Rust primitive `handle_hmac_to_handle(key_handle,
+  message)` so the derived key never enters Python.
+
+- **Other Python-side key bytes call sites** (e.g. master keys passed
+  as bytes parameters across the codebase — `prepare_payload`,
+  `unpack_payload`, the various encoder constructors). These can be
+  migrated incrementally as callers are willing to switch to handle-
+  based parameter types.
+
+## gemini #5 — In-browser WebM → MP4 transcode (Branch 2 deferred)
+
+**Done:** Branch 1 (Safari/WebKit MP4 pass-through) ships in
+`web_demo/static/convert-webm-to-mp4.js`. `window.convertWebMToMp4`
+exists and the cross-browser test (`tests/test_cross_browser.spec.js
+:401-424`) verifies the identity branch.
+
+**Deferred:** in-browser WebM → MP4 transcoding via WebCodecs +
+mp4-muxer + a WebM/Matroska demuxer. Estimated 1-2 focused days.
+Required components:
+
+1. WebM/Matroska demuxer — no good lightweight option exists; either
+   write ~200-400 lines of EBML parsing for the MediaRecorder subset,
+   or vendor a 50-100 KB Matroska parser.
+2. `mp4-muxer` ESM (~30 KB minified) — vendor as `static/vendor/`.
+3. WebCodecs decode→encode pipeline (VP8/VP9 → VideoFrame →
+   H.264 baseline → mp4-muxer chunks).
+4. Cross-browser test surface for Chromium + Firefox WebCodecs
+   (Firefox shipped WebCodecs only recently and has known H.264
+   quirks worth covering in `tests/test_cross_browser.spec.js`).
+5. UI integration — wire the converter into `wasm_browser_example_
+   FULL.html`'s `downloadCatVideo()` and surface a "Save as MP4"
+   button when `window.convertWebMToMp4Capabilities.webcodecsTranscode`
+   is true.
+
+The Branch 3 error (browser without WebCodecs and not Safari) now
+points users at offline tools (`ffmpeg -i in.webm -c:v libx264
+-c:a aac out.mp4`, HandBrake, VLC) — strictly more actionable than
+the previous "use server-side ffmpeg" hint that didn't tell users
+which command to run.
+
 ## Real protocol state-machine bugs — FIXED (2026-05-03, audit/cat-mode-fixes)
 
 Surfaced by deep code review (gemini_suggestions_v2.md). Both fixed via
