@@ -1376,6 +1376,45 @@ fn stego_derive_walk_seed<'py>(
     Ok(PyBytes::new(py, &seed))
 }
 
+/// gemini #1: handle-based wrappers — derive seeds from a master key
+/// HANDLE rather than master_key bytes crossing the FFI on every call.
+/// Implementation extracts the key bytes inside Rust (never crossing
+/// FFI) and feeds them to the existing pure derivation function.
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn stego_derive_frame_seed_from_handle<'py>(
+    py: Python<'py>,
+    master_handle: u64,
+    frame_idx: u32,
+    channel_id: u8,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut master_bytes = handles::handle_export_key(master_handle).map_err(handle_err_to_py)?;
+    let seed_result = stego::derive_frame_seed(&master_bytes, frame_idx, channel_id);
+    // Zeroize the briefly-exported key bytes immediately. (Keeps the
+    // "key never crosses FFI in Python" invariant — the bytes existed
+    // only as a Rust-internal Vec<u8> for the duration of the derive.)
+    use zeroize::Zeroize;
+    master_bytes.zeroize();
+    let seed = seed_result.map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn stego_derive_walk_seed_from_handle<'py>(
+    py: Python<'py>,
+    master_handle: u64,
+    frame_idx: u32,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut master_bytes = handles::handle_export_key(master_handle).map_err(handle_err_to_py)?;
+    let seed_result = stego::derive_walk_seed(&master_bytes, frame_idx);
+    use zeroize::Zeroize;
+    master_bytes.zeroize();
+    let seed = seed_result.map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
 #[cfg(feature = "python")]
 /// Generate a pseudorandom pixel walk order (Fisher-Yates keyed permutation).
 ///
@@ -1714,6 +1753,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Steganography primitives
     m.add_function(wrap_pyfunction!(stego_derive_frame_seed, m)?)?;
     m.add_function(wrap_pyfunction!(stego_derive_walk_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_derive_frame_seed_from_handle, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_derive_walk_seed_from_handle, m)?)?;
     m.add_function(wrap_pyfunction!(stego_generate_pixel_walk, m)?)?;
     m.add_function(wrap_pyfunction!(stego_stc_encode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_stc_decode, m)?)?;
