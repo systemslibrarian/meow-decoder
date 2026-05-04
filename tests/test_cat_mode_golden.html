@@ -378,8 +378,21 @@
                 for (const frame of frames) {
                     adaptiveThreshold.update(frame.greenScore, frame.time);
                     const threshold = adaptiveThreshold.getThreshold();
-                    
-                    const hysteresisResult = hysteresis.update(frame.greenScore);
+
+                    // FIX (2026-05-04, Gate 2): pass the current adaptive
+                    // threshold as the SECOND argument to hysteresis.update()
+                    // — `AdaptiveHysteresis.update(value, adaptiveThreshold)`
+                    // takes two. The prior single-arg call left the
+                    // threshold-changed comparison evaluating NaN against
+                    // NaN, which is always false. The schmitt trigger
+                    // never moved off its constructor-time initialThreshold
+                    // (= median of all scores ≈ 8.4 for cat-mode), with
+                    // a 10% margin (low=7.56, high=9.24). Off-state samples
+                    // (8.4) fell INSIDE the hysteresis band so once any
+                    // bright frame pushed state to 'on', state stuck on
+                    // forever. That broke the bit decoder and prevented
+                    // sync-word lock.
+                    const hysteresisResult = hysteresis.update(frame.greenScore, threshold);
                     const state = hysteresisResult.state;
                     
                     // Calculate confidence
