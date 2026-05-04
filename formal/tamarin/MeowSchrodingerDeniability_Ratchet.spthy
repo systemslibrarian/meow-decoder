@@ -163,7 +163,7 @@ lemma RatchetForwardSecrecy:
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1
     ==>
-    not(Ex k_derived k_original #t2 #t3 .
+    not(Ex k_original #t2 #t3 .
        KU(kdf(k_original, 'chain_step')) @ #t2 &
        KU(k_original) @ #t3 &
        #t2 < #t3)
@@ -178,7 +178,8 @@ lemma PQBeaconDomainSeparation:
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1
     ==>
-    not(Ex x .
+    not(Ex x #t2 .
+       KU(x) @ #t2 &
        kdf(x, 'pq_beacon_mix') = kdf(x, 'classical_beacon_mix'))
   "
 
@@ -225,9 +226,10 @@ lemma HeaderEncryptionConfidentiality:
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1
     ==>
-    not(Ex idx header_key #t2 .
+    not(Ex idx header_key #t2 #thk .
        KU(idx) @ #t2 &
-       not(Ex #t3 . KU(header_key) @ #t3) &
+       KU(header_key) @ #thk &
+       not(#thk < #t1) &
        h(idx) = h('frame_index'))
   "
 

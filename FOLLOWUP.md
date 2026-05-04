@@ -176,6 +176,44 @@ Severity-ordered status:
 - **CI infra — `formal-verification.yml:634` shard-1 `timeout 1800` +
   `--memory=6g --cpus=2`** — DONE in 6aa5b8e.
 
+### Schrödinger Deniability split models — DEFERRED to nonblocking
+
+`MeowSchrodingerDeniability_Core.spthy` and
+`MeowSchrodingerDeniability_Ratchet.spthy` (extracted from the
+unsplit `MeowSchrodingerDeniability.spthy` for CI scalability)
+have multiple model-level issues that the prior `h/1` parse error
+masked. Now demoted to `nonblocking` in
+`.github/workflows/formal-verification.yml` shard 2 case.
+
+Issues identified and partially patched on this branch:
+
+* **Core::CoercionSafety** — `KU(payload_a)` missing temporal
+  binder. **FIXED** (commit 38b3476): wrapped in `Ex #t2 . ... @ #t2`.
+* **Core::FullCorruptionBreaksDeniability** — same. **FIXED.**
+* **Core (state-space explosion)** — under `--prove`, the
+  `EntropyPass` constraint in the `EntropyGate` restriction blows up
+  the state space (process killed mid-search). Needs a
+  bounded-trace restriction or a tighter `restriction` shape.
+  **NOT FIXED** — model design issue.
+* **Ratchet::AsymRekeyPCS** — bare `not(KU(rekey_key))`. **FIXED**
+  (commit 38b3476): wrapped in `not(Ex #tr . ... @ #tr)`.
+* **Ratchet::RatchetForwardSecrecy** — quantifier introduced
+  `k_derived` that wasn't used in the body (unguarded variable).
+  **FIXED**: dropped the unused quantifier.
+* **Ratchet::PQBeaconDomainSeparation** — `Ex x . kdf(x,...) =
+  kdf(x,...)` had `x` unguarded by any action fact. **FIXED**:
+  added `KU(x) @ #t2` guard.
+* **Ratchet::HeaderEncryptionConfidentiality** — `header_key`
+  quantified inside `not(Ex #t3 . KU(header_key) @ #t3)` left the
+  outer `header_key` binder unguarded. **FIXED**: hoisted KU into
+  the outer existential as `KU(header_key) @ #thk`.
+
+The fixes turn parse-time errors into actual proof attempts, but
+none of these lemmas have been verified end-to-end with Tamarin
+1.12.0 yet. The cryptographer-review ask covers all of them, plus
+the unsplit original (`MeowSchrodingerDeniability.spthy`) which has
+the same patterns but is not in CI.
+
 ## Pre-existing test failures (not caused by audit)
 
 - **`tests/test_cat_js_runner.py::TestCat5SpeedsJS::test_cat_5speeds_pipeline`** — Marked `xfail` in the audit-followup commit. Confirmed pre-existing by `git stash` test on bare main. Root cause: `web_demo/preamble-calibration.js` over-measures preamble duration when the sync word uses the same `1010...` pattern. NRZ decoder then locks onto sync *inside* the preamble, overshoots by 8 bits, and byte[0] comes out as `0xca` (second half of magic `0xfe 0xca`) instead of `0xfe`. Node probe in `/tmp/debug_cat.js` reproduces deterministically. **Recommended fix:** preamble-calibration should stop at the expected 16-bit boundary (using known `bitPeriod`) rather than measuring the extent of alternation.
