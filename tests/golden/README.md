@@ -47,21 +47,22 @@ See `.github/workflows/test.yml` for automated golden video testing in CI.
 
 
 
+
 ## 🔐 Checksums (SHA-256)
 
 **Verify golden videos before running tests:**
 
 ```bash
 cd tests/golden
-echo "9f139d73a90a197bbd92c0ced137c9816a9113eb9700caca2ae5c9c597b3938a  cat_mode_golden_empty_hash_100ms.webm" | sha256sum -c
-echo "61bdad9c06eb7ae5eaa17a9be4af59ab2f90bbe055fc63d787899ebb307f7e0d  cat_mode_golden_short_150ms.webm" | sha256sum -c
-echo "85d16135835123887aa6baee3bdee2e75d25e3301037237692379c9c1f293213  cat_mode_golden_long_50ms.webm" | sha256sum -c
+echo "a57ace710a93d874480759a5fde9f11b347d74a7d773cb1c7dc8dc7d58c91540  cat_mode_golden_empty_hash_100ms.webm" | sha256sum -c
+echo "cbf62dca07afdcfbe54cdad8e664c221f6a9f5ed414e513ecc80582e4363880a  cat_mode_golden_short_150ms.webm" | sha256sum -c
+echo "2bddfb514d9581224acea75f9588615e434ae94767ad8f165914d09dd2a53e1b  cat_mode_golden_long_50ms.webm" | sha256sum -c
 ```
 
 | File | SHA-256 Checksum |
 |------|------------------|
-| `cat_mode_golden_empty_hash_100ms.webm` | `9f139d73a90a197b...` |
-| `cat_mode_golden_short_150ms.webm` | `61bdad9c06eb7ae5...` |
-| `cat_mode_golden_long_50ms.webm` | `85d1613583512388...` |
+| `cat_mode_golden_empty_hash_100ms.webm` | `a57ace710a93d874...` |
+| `cat_mode_golden_short_150ms.webm` | `cbf62dca07afdcfb...` |
+| `cat_mode_golden_long_50ms.webm` | `2bddfb514d958122...` |
 
-**Generated:** 2026-05-04T12:04:40.071Z
+**Generated:** 2026-05-04T16:22:13.714Z

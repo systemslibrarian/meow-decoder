@@ -436,12 +436,25 @@
                     pass: true // Fallback is acceptable
                 });
                 
-                // Phase 3: Find sync word
+                // Phase 3: Find sync word.
+                //
+                // FIX (2026-05-04, Gate 2): pass `startSearchTime` so sync
+                // search begins AFTER the preamble. The default 0 made
+                // findSyncWord match the first 16 alternating bits inside
+                // the preamble, which gives a t0 at the start of the
+                // preamble — corrupts every downstream bit calculation.
+                // Now sync's t0 lands at the start of the sync word
+                // (= end of preamble), and data starts at t0 +
+                // 16*bitPeriod.
                 status.innerHTML = '⏳ Searching for sync word...';
+                const startSearchTime = (preambleResult.preamble && preambleResult.preamble.end !== undefined)
+                    ? (classifiedFrames[preambleResult.preamble.end - 1] || classifiedFrames[classifiedFrames.length - 1]).time / 1000
+                    : 0;
                 const syncResult = findSyncWordWithFallback(
                     classifiedFrames,
                     preambleResult.bitPeriod,
-                    preambleResult.threshold
+                    preambleResult.threshold,
+                    startSearchTime
                 );
                 
                 assertions.push({
