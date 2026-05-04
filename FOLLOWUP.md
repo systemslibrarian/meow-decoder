@@ -44,7 +44,9 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 
 - ~~**Finding 7.2 — pip 24.0 + wheel 0.45.1 CVEs.**~~ FIXED on this branch — `.devcontainer/devcontainer.json` `postCreateCommand` now runs `pip install --upgrade 'pip>=25' 'wheel>=0.46'` before installing the project. Verified locally: pip 26.1, wheel 0.47.0 after upgrade. Build-time CVE chain on the codespace image is closed for new container builds.
 - ~~**Finding 3.7 — Keyfile HKDF intermediate lives in Python.**~~ FIXED on this branch — `meow_decoder/crypto.py:471-482` (`derive_key`) now routes through `derive_key_handle()` and only briefly exports the final key bytes via `hb.export_key(handle)`, with the handle dropped in `finally`. No Python-side HKDF intermediate buffer remains. Already recorded under "Other hardening" in CHANGELOG.md (line 75).
-- **Finding 13 coverage gaps.** Add `MEOW_PRODUCTION_MODE=0` to `tests/TEST_SUITE_README.md`; cover `# pragma: no cover` decompression-bomb branches.
+- ~~**Finding 13 coverage gaps.**~~ FIXED on this branch.
+  - `tests/TEST_SUITE_README.md` already documents `MEOW_PRODUCTION_MODE=0` alongside `MEOW_TEST_MODE=1` (lines 374-379) — both env vars and their purpose are explained, with a note that `tests/conftest.py` sets them automatically and that bypassing conftest requires manual export.
+  - The `# pragma: no cover` decompression-bomb branches in `meow_decoder/crypto.py:decrypt_to_raw()` are documented as intentional defence-in-depth in `tests/test_decompression_bomb.py:25-29`. The ST-2 numeric bounds checks (orig_len/comp_len/cipher_len/block_size, line 1721-1730) and the PQ ciphertext length check (line 1741) gained brief inline rationale comments pointing back to Finding 13 so a future reviewer doesn't mistake them for forgotten gaps.
 
 ## gemini #1 — Rust handle migration of long-lived secret keys (in progress)
 

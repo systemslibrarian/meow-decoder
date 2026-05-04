@@ -1718,6 +1718,12 @@ def unpack_manifest(b: bytes) -> Manifest:
             raise ValueError("Manifest mode byte lacks duress flag but duress tag is present")
 
     # ── ST-2: Strict numeric bounds validation ──
+    # The four pragma'd branches below are defence-in-depth — earlier
+    # parsing already enforces these via fixed-width struct unpacks and
+    # the FountainEncoder sanity checks (Finding 9.1). They re-check
+    # post-parse so a future refactor that removes a parse-time check
+    # can't silently regress past them. Coverage rationale recorded in
+    # tests/test_decompression_bomb.py docstring (Finding 13).
     if orig_len > MAX_ORIG_LEN:  # pragma: no cover
         raise ValueError(f"Manifest orig_len too large ({orig_len} > {MAX_ORIG_LEN})")
     if comp_len > MAX_COMP_LEN:  # pragma: no cover
@@ -1739,6 +1745,9 @@ def unpack_manifest(b: bytes) -> Manifest:
     if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
     if pq_ciphertext is not None and len(pq_ciphertext) not in (1088, 1568):  # pragma: no cover
+        # Defence-in-depth: parser already validates length via the fixed
+        # ML-KEM-{768,1088}/1024-{1568} struct layouts; this re-check
+        # protects against a future parse-time regression. (Finding 13.)
         raise ValueError(
             f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, "
             f"expected 1088 (ML-KEM-768) or 1568 (ML-KEM-1024))"
