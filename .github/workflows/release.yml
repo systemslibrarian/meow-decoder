@@ -94,7 +94,20 @@ jobs:
           path: dist/
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@dc72c7d5c4d10cd6bcb8cf6e3fd625a9e5e537da # v3.7.0
+        # Bumped from v3.7.0 → v4.1.1 to clear the dependabot upgrade
+        # (PR #167). v4 of the installer DEFAULTS to installing Cosign
+        # v3, which has a breaking change to `sign-blob` (requires a new
+        # `--bundle` flag, drops `--output-signature`/`--output-certificate`
+        # and produces a single `.bundle.json` instead of separate `.sig`
+        # + `.pem`). To preserve the current sig output format and avoid
+        # downstream verifier breakage, pin `cosign-release` back to
+        # v2.6.1 — supported by installer v4 per the upstream release
+        # notes ("You may still install Cosign v2.x with cosign-installer
+        # v4"). When migrating to Cosign v3, drop this pin and update
+        # the sign-blob call below.
+        uses: sigstore/cosign-installer@cad07c2e89fa2edd6e2d7bab4c1aa38e53f76003 # v4.1.1
+        with:
+          cosign-release: 'v2.6.1'
 
       - name: Sign artifacts with Sigstore
         run: |
