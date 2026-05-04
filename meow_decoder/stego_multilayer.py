@@ -418,17 +418,13 @@ def prepare_payload(
                 meow_crypto_rs.aes_gcm_encrypt(enc_key, nonce, payload, b"meow_stego_aad_v2")
             )
         else:
-            # Python fallback using cryptography library -- FAIL CLOSED if unavailable
-            try:
-                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-                aes = AESGCM(enc_key)
-                payload = nonce + aes.encrypt(nonce, payload, b"meow_stego_aad_v2")
-            except ImportError:
-                raise RuntimeError(
-                    "FATAL: No encryption backend available (meow_crypto_rs or cryptography required). "
-                    "Refusing to store payload unencrypted -- fail-closed policy."
-                )
+            # gemini #1 / CRIT-03: Rust backend is required for production
+            # crypto. The cryptography.hazmat fallback was removed —
+            # fail-closed if meow_crypto_rs is unavailable.
+            raise RuntimeError(
+                "FATAL: No encryption backend available (meow_crypto_rs required). "
+                "Refusing to store payload unencrypted -- fail-closed policy."
+            )
 
     # Build header
     header = STEGO_MAGIC + struct.pack("<BBI I", STEGO_VERSION, flags, orig_len, len(payload))
@@ -500,13 +496,9 @@ def unpack_payload(
             except Exception:
                 return b"", False
         else:
-            try:
-                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-                aes = AESGCM(enc_key)
-                payload = aes.decrypt(nonce, ciphertext, b"meow_stego_aad_v2")
-            except Exception:
-                return b"", False
+            # gemini #1: Rust backend required; no Python AES-GCM fallback.
+            # Treat missing backend as decryption failure (fail-closed).
+            return b"", False
 
     # Decompress
     if flags & 0x01:
@@ -2298,16 +2290,11 @@ class CommentChannelEncoder:
                 meow_crypto_rs.aes_gcm_encrypt(self._enc_key, nonce, payload, DOMAIN_COMMENT_ENC)
             )
         else:
-            try:
-                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-                aes = AESGCM(self._enc_key)
-                ciphertext = aes.encrypt(nonce, payload, DOMAIN_COMMENT_ENC)
-            except ImportError:
-                raise RuntimeError(
-                    "No encryption backend for comment channel. "
-                    "Need meow_crypto_rs or cryptography."
-                )
+            # gemini #1 / CRIT-03: Rust backend required; no Python fallback.
+            raise RuntimeError(
+                "No encryption backend for comment channel. "
+                "meow_crypto_rs (Rust) is required."
+            )
 
         # Build: MAGIC(4) + orig_len(4) + nonce(12) + ciphertext
         inner = COMMENT_MAGIC + struct.pack("<I", len(payload)) + nonce + ciphertext
@@ -2361,13 +2348,8 @@ class CommentChannelEncoder:
             except Exception:
                 return b"", False
         else:
-            try:
-                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-                aes = AESGCM(self._enc_key)
-                plaintext = aes.decrypt(nonce, ciphertext, DOMAIN_COMMENT_ENC)
-            except Exception:
-                return b"", False
+            # gemini #1: Rust required; no Python fallback. Fail-closed.
+            return b"", False
 
         return plaintext[:orig_len], True
 
