@@ -37,8 +37,8 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
 
 ### Medium
 
-- **Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).** `npm audit fix` blocked by `canvas`/`node-pre-gyp` build failure under Node v24 — `canvas` needs a major-version bump (the v2.x line uses node-pre-gyp; v3.x switched to prebuilt binaries). Best handled by the dependabot path or a dedicated `canvas` upgrade PR rather than `--force`.
-- **Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).** Same root cause as above (jest/picomatch transitive via `canvas`). Bumps with the same upgrade.
+- ~~**Finding 7.3 — npm audit root devDependencies (4 HIGH / 1 MODERATE).**~~ FIXED on this branch. `package.json` declares `"canvas": "^3.2.3"` (v3 line uses prebuilt binaries — no node-pre-gyp dependency, builds cleanly under Node v24); `package-lock.json` resolves to canvas 3.2.3. `npm audit --omit=optional` reports 0 vulnerabilities at the repo root.
+- ~~**Finding 7.4 — npm audit web_demo devDependencies (1 HIGH / 1 MODERATE).**~~ FIXED on this branch. The transitive jest/picomatch chain was cleared by the same canvas v2→v3 upgrade and the jest 30.x bump. `npm audit --omit=optional` in `web_demo/` reports 0 vulnerabilities. Closes gemini #3.
 
 ### Low
 
