@@ -256,20 +256,39 @@
         }
         
         function calculateGreenScore(imageData) {
+            // FIX (2026-05-04, Gate 2): the previous formula
+            // `green / (red + green + blue)` is GREEN-CHANNEL-SHARE, which
+            // collapses to 1.0 for any pure-green pixel regardless of
+            // brightness. The golden video fixture uses #00ff00 for bit=1
+            // and #003300 for bit=0 — both pure green, both produce ratio
+            // 1.0, so the histogram is degenerate and the AdaptiveThreshold
+            // reports "No peaks detected" with threshold=0.000.
+            //
+            // The production decoder
+            // (`web_demo/wasm_browser_example_FULL.html::analyzeFrameGreen
+            // Weighted`) uses `greenness = g - max(r, b)` — absolute green
+            // purity. For #00ff00: greenness=255; for #003300: greenness=51;
+            // for gray face pixels: greenness=0. Bimodal again.
+            //
+            // Mirror that formula here so the Gate 2 test pipeline
+            // exercises the same metric the production decoder ships.
             const data = imageData.data;
-            let greenSum = 0;
-            let totalSum = 0;
-            
+            let greennessSum = 0;
+            let pixelCount = 0;
+
             for (let i = 0; i < data.length; i += 4) {
                 const r = data[i];
                 const g = data[i + 1];
                 const b = data[i + 2];
-                
-                greenSum += g;
-                totalSum += r + g + b;
+
+                const greenness = g - Math.max(r, b);
+                if (greenness > 0) {
+                    greennessSum += greenness;
+                }
+                pixelCount += 1;
             }
-            
-            return totalSum > 0 ? greenSum / totalSum : 0;
+
+            return pixelCount > 0 ? greennessSum / pixelCount : 0;
         }
         
         // ====================================================================

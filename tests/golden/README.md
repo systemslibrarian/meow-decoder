@@ -46,21 +46,22 @@ See `.github/workflows/test.yml` for automated golden video testing in CI.
 - Maximum file size: 5 MB per video
 
 
+
 ## 🔐 Checksums (SHA-256)
 
 **Verify golden videos before running tests:**
 
 ```bash
 cd tests/golden
-echo "47f6a05c28f5c8faf59a77f70b10c904964e30e9bd6e71d09e9031bbded44437  cat_mode_golden_empty_hash_100ms.webm" | sha256sum -c
-echo "f456e86141ec5e94f356b45f395781240a014fa539889e619ff247bf16bf5568  cat_mode_golden_short_150ms.webm" | sha256sum -c
-echo "a1fdde1e00e795df7812cca2cf1030e99c9be1f6d4bbf4088f38a87da6475c41  cat_mode_golden_long_50ms.webm" | sha256sum -c
+echo "9f139d73a90a197bbd92c0ced137c9816a9113eb9700caca2ae5c9c597b3938a  cat_mode_golden_empty_hash_100ms.webm" | sha256sum -c
+echo "61bdad9c06eb7ae5eaa17a9be4af59ab2f90bbe055fc63d787899ebb307f7e0d  cat_mode_golden_short_150ms.webm" | sha256sum -c
+echo "85d16135835123887aa6baee3bdee2e75d25e3301037237692379c9c1f293213  cat_mode_golden_long_50ms.webm" | sha256sum -c
 ```
 
 | File | SHA-256 Checksum |
 |------|------------------|
-| `cat_mode_golden_empty_hash_100ms.webm` | `47f6a05c28f5c8fa...` |
-| `cat_mode_golden_short_150ms.webm` | `f456e86141ec5e94...` |
-| `cat_mode_golden_long_50ms.webm` | `a1fdde1e00e795df...` |
+| `cat_mode_golden_empty_hash_100ms.webm` | `9f139d73a90a197b...` |
+| `cat_mode_golden_short_150ms.webm` | `61bdad9c06eb7ae5...` |
+| `cat_mode_golden_long_50ms.webm` | `85d1613583512388...` |
 
-**Generated:** 2026-02-13T17:06:03.905Z
+**Generated:** 2026-05-04T12:04:40.071Z
