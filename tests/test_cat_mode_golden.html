@@ -495,30 +495,62 @@
                 //
                 // Production has the same off-by-one bug; tracked for a
                 // follow-up fix to wasm_browser_example_FULL.html.
+                // FIX (2026-05-04, Gate 2): sample raw greenScore against
+                // the bimodal threshold directly, NOT via sampleBits which
+                // reads frame.state (hysteresis-classified). The hysteresis
+                // Schmitt trigger smears bit boundaries when scores wobble
+                // through the hysteresis band — chaining sampleBits +
+                // resolveUnknownBits over a hysteresis-classified stream
+                // shrinks the visible alternation run dramatically (saw 6
+                // alt bits instead of 48). Production avoids this by
+                // sampling raw greenLevel directly:
+                //   resolvedScan.push(frameSamples[bestIdx].greenLevel
+                //                     >= threshold ? 1 : 0);
+                // (wasm_browser_example_FULL.html:6058). Mirror that here.
                 status.innerHTML = '⏳ Decoding bits (protocol-aware)...';
                 const bp = preambleResult.bitRate || 0.1;
                 const lastFrameTime = classifiedFrames[classifiedFrames.length - 1].time;
+                // Use the bimodal-calibrated threshold (preferred) or fall
+                // back to the preamble's threshold.
+                const decodeThreshold = adaptiveThreshold.getThreshold() || preambleResult.threshold;
+
+                function sampleBitsRaw(t0, numBits) {
+                    const out = [];
+                    let idx = 0;
+                    for (let i = 0; i < numBits; i++) {
+                        const sampleTime = t0 + (i + 0.5) * bp;
+                        while (idx < classifiedFrames.length - 1 &&
+                               classifiedFrames[idx + 1].time < sampleTime) idx++;
+                        let nearest = classifiedFrames[idx];
+                        if (idx < classifiedFrames.length - 1) {
+                            const distA = Math.abs(classifiedFrames[idx].time - sampleTime);
+                            const distB = Math.abs(classifiedFrames[idx + 1].time - sampleTime);
+                            if (distB < distA) nearest = classifiedFrames[idx + 1];
+                        }
+                        out.push(nearest.greenScore >= decodeThreshold ? 1 : 0);
+                    }
+                    return out;
+                }
 
                 let bestAltCount = 0;
                 let bestPhase = 0;
                 let bestLeadInEnd = -1;
                 const phaseStep = bp / 10;
                 for (let phase = 0; phase < bp; phase += phaseStep) {
-                    const probeBits = Math.min(60, Math.floor((lastFrameTime - phase) / bp));
+                    const probeBits = Math.min(80, Math.floor((lastFrameTime - phase) / bp));
                     if (probeBits < 10) continue;
-                    const probe = window.NRZDecoder.sampleBits(classifiedFrames, phase, bp, probeBits, 0.15);
-                    const resolved = window.NRZDecoder.resolveUnknownBits(probe, classifiedFrames, phase, bp, 'vote');
+                    const probe = sampleBitsRaw(phase, probeBits);
                     let firstTransition = -1;
-                    for (let i = 1; i < resolved.length; i++) {
-                        if (resolved[i] !== resolved[i - 1] && resolved[i] !== '?' && resolved[i - 1] !== '?') {
+                    for (let i = 1; i < probe.length; i++) {
+                        if (probe[i] !== probe[i - 1]) {
                             firstTransition = i;
                             break;
                         }
                     }
                     if (firstTransition < 0) continue;
                     let altCount = 1;
-                    for (let i = firstTransition + 1; i < resolved.length; i++) {
-                        if (resolved[i] !== resolved[i - 1] && resolved[i] !== '?') altCount++;
+                    for (let i = firstTransition + 1; i < probe.length; i++) {
+                        if (probe[i] !== probe[i - 1]) altCount++;
                         else break;
                     }
                     if (altCount > bestAltCount) {
@@ -532,7 +564,7 @@
                 assertions.push({
                     name: 'Sync word detection',
                     expected: 'Found (alt run >= 16 bits)',
-                    actual: syncFound ? `Found (${bestAltCount} alt bits)` : 'Not found',
+                    actual: syncFound ? `Found (${bestAltCount} alt bits)` : `Not found (best ${bestAltCount})`,
                     pass: syncFound
                 });
 
@@ -543,9 +575,7 @@
                 // Advance exactly 48 bits past lead-in to reach data start.
                 const dataT0 = bestPhase + (bestLeadInEnd + 1 + 48) * bp;
                 const numBits = Math.min(2000, Math.floor((lastFrameTime - dataT0) / bp));
-                const dataBits = window.NRZDecoder.sampleBits(classifiedFrames, dataT0, bp, numBits, 0.15);
-                const resolvedBits = window.NRZDecoder.resolveUnknownBits(dataBits, classifiedFrames, dataT0, bp, 'vote');
-                const bits = resolvedBits.map(c => parseInt(c, 10));
+                const bits = sampleBitsRaw(dataT0, numBits);
                 document.getElementById('bitsRecovered').textContent = bits.length;
                 
                 if (testConfig.expectedBits) {
