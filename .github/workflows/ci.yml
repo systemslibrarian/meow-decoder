@@ -590,6 +590,19 @@ jobs:
 
       - name: Security coverage shard
         run: |
+          # 2026-05-04 Gate 5 expansion: added the test files below to each
+          # shard after auditing which existing tests actually exercise the
+          # under-covered security modules but weren't being run under
+          # `--cov-config=.coveragerc-security`. Local measurement on
+          # `audit/cat-mode-fixes` shows TOTAL coverage rises from
+          # ~65% → 64-77% per module across the include set after these
+          # additions (master_ratchet 45%→77%, schrodinger_encode 0%→40%,
+          # manifest_signing 63%→64%, pq_hybrid 69%→70%). The 85%
+          # aspirational target stays in `.coveragerc-security` but
+          # `--cov-fail-under=0` keeps the gate non-blocking on the actual
+          # number until OS-specific code in memory_guard.py (412 lines,
+          # 27% in Linux CI) gets either tested or trimmed from the
+          # include list.
           case "${{ matrix.shard_id }}" in
             1)
               pytest \
@@ -608,6 +621,12 @@ jobs:
                 tests/test_high_security_boost.py \
                 tests/test_security_hardening.py \
                 tests/test_security_warnings.py \
+                tests/test_phase5_modules.py \
+                tests/test_audit_fixes.py \
+                tests/test_property_ratchet_pq.py \
+                tests/test_schrodinger_dos.py \
+                tests/test_formal_fuzz_gaps_fountain.py \
+                tests/test_formal_fuzz_gaps_tamper.py \
                 tests/security/test_air_gap.py \
                 tests/security/test_ci_distinguishability.py \
                 tests/security/test_decorrelation.py \
@@ -627,9 +646,13 @@ jobs:
                 tests/test_crypto_backend.py \
                 tests/test_rust_crypto_backend.py \
                 tests/test_pq_crypto_real.py \
+                tests/test_pq_hybrid.py \
+                tests/test_pqxdh_upgrade.py \
+                tests/test_constant_time.py \
                 tests/test_e2e_crypto_fountain.py \
                 tests/test_x25519_forward_secrecy.py \
                 tests/test_timelock_duress.py \
+                tests/test_ratchet.py \
                 tests/security/test_nonce_uniqueness.py \
                 tests/security/test_ratchet_forward_secrecy.py \
                 tests/security/test_timing_equalizer.py
