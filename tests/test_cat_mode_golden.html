@@ -521,6 +521,24 @@
                 await new Promise(r => setTimeout(r, 1000)); // Pause between tests
             }
         }
+
+        // Auto-run for headless test runners (Selenium / Playwright). The
+        // human-facing UI keeps the manual ▶️ buttons; ?autorun=0 in the
+        // URL disables the auto-trigger if needed.
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('autorun') === '0') return;
+            // Defer one tick so the video element finishes loading metadata
+            // before runTest() awaits it.
+            setTimeout(() => { runTest().catch(err => {
+                console.error('Auto-run failed:', err);
+                const status = document.getElementById('status');
+                if (status) {
+                    status.className = 'status fail';
+                    status.innerHTML = `❌ Auto-run error: ${err.message}`;
+                }
+            }); }, 100);
+        });
     </script>
 </body>
 </html>

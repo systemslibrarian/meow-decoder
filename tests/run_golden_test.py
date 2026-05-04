@@ -74,6 +74,11 @@ def run_headless_test():
         chrome_options.add_argument("--disable-dev-shm-usage")
         chrome_options.add_argument("--disable-gpu")
         chrome_options.add_argument("--disable-software-rasterizer")
+        # Capture browser console output so timeouts/crashes leave a
+        # diagnostic trail instead of an empty TimeoutException.
+        chrome_options.set_capability(
+            "goog:loggingPrefs", {"browser": "ALL"}
+        )
 
         # Find Chrome binary
         chrome_binary = find_chrome_binary()
@@ -149,6 +154,25 @@ def run_headless_test():
         import traceback
         print(f"\n❌ Test execution failed: {type(error).__name__}: {error!r}")
         traceback.print_exc()
+        # Dump browser console logs and current page status so a timeout
+        # tells us what the JS was doing when it stalled.
+        try:
+            logs = driver.get_log("browser")
+            if logs:
+                print("\n--- Browser console (last 30) ---")
+                for entry in logs[-30:]:
+                    print(f"  [{entry.get('level')}] {entry.get('message')}")
+            else:
+                print("\n--- Browser console: (empty) ---")
+            try:
+                status_html = driver.find_element(By.ID, "status").get_attribute(
+                    "outerHTML"
+                )
+                print(f"\n--- #status outerHTML ---\n  {status_html}")
+            except Exception:
+                pass
+        except Exception as diag_err:
+            print(f"  (diagnostics unavailable: {diag_err!r})")
         return 1
 
     finally:
