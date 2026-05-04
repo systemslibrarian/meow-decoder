@@ -45,8 +45,11 @@ equations:
  * Restrictions
  * -------------------------------------------------------------------- */
 
+// FIX (2026-05-04): tightened from `Ex #t2` to same-time co-occurrence
+// to prevent state-space explosion on Tamarin saturation. See the Core
+// model's matching restriction comment for full rationale.
 restriction EntropyGate:
-  "All noise #t . EntropyChecked(noise) @ #t ==> Ex #t2 . EntropyPass(noise) @ #t2"
+  "All noise #t . EntropyChecked(noise) @ #t ==> EntropyPass(noise) @ #t"
 
 restriction UniqueSession:
   "All sid #t1 #t2 . SessionCreated(sid) @ #t1 & SessionCreated(sid) @ #t2 ==> #t1 = #t2"
@@ -60,23 +63,31 @@ rule Create_Session:
   --[ SessionCreated(~sid) ]->
   [ Session(~sid) ]
 
+// FIX (2026-05-04): identical to the Core model fixes —
+//   - `let` block now uses `~`-prefixed names consistently with the
+//     Fr-bound premises (Tamarin treated the unprefixed forms as
+//     distinct terms, breaking the encode→decode binding)
+//   - aad no longer includes h(payload) (was circular at decode time)
+//   - DecodeStream rules now MAC-verify via `hmac(k_*, ...)` pattern
+//     in the In(...) tuple, rejecting adversary-forged inputs.
+// See the Core model's adjacent comment for full rationale.
 rule SchrodingerEncode:
   let
-    k_a    = kdf(pw_a, salt_a)
-    k_b    = kdf(pw_b, salt_b)
-    noise  = h(pw_a) XOR h(pw_b)
-    aad_a  = <salt_a, nonce_a, h(payload_a)>
-    aad_b  = <salt_b, nonce_b, h(payload_b)>
-    ct_a   = aead_enc(k_a, nonce_a, payload_a, aad_a)
-    ct_b   = aead_enc(k_b, nonce_b, payload_b, aad_b)
+    k_a    = kdf(~pw_a, ~salt_a)
+    k_b    = kdf(~pw_b, ~salt_b)
+    noise  = h(~pw_a) XOR h(~pw_b)
+    aad_a  = <~salt_a, ~nonce_a>
+    aad_b  = <~salt_b, ~nonce_b>
+    ct_a   = aead_enc(k_a, ~nonce_a, ~payload_a, aad_a)
+    ct_b   = aead_enc(k_b, ~nonce_b, ~payload_b, aad_b)
     wire_a = ct_a XOR noise
     wire_b = ct_b
-    root_a = merkle(h(ct_a), h(salt_a))
-    root_b = merkle(h(ct_b), h(salt_b))
-    commit_a = commitment(k_a, salt_a)
-    commit_b = commitment(k_b, salt_b)
-    mac_a  = hmac(k_a, <wire_a, root_a, salt_a, nonce_a>)
-    mac_b  = hmac(k_b, <wire_b, root_b, salt_b, nonce_b>)
+    root_a = merkle(h(ct_a), h(~salt_a))
+    root_b = merkle(h(ct_b), h(~salt_b))
+    commit_a = commitment(k_a, ~salt_a)
+    commit_b = commitment(k_b, ~salt_b)
+    mac_a  = hmac(k_a, <wire_a, root_a, ~salt_a, ~nonce_a>)
+    mac_b  = hmac(k_b, <wire_b, root_b, ~salt_b, ~nonce_b>)
   in
   [ Session(sid),
     Fr(~pw_a), Fr(~pw_b),
@@ -90,7 +101,7 @@ rule SchrodingerEncode:
     EntropyPass(noise),
     CommitmentCreated(sid, commit_a, commit_b)
    ]->
-  [ Out(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
+  [ Out(<wire_a, wire_b, ~salt_a, ~salt_b, ~nonce_a, ~nonce_b,
          root_a, root_b, commit_a, commit_b, mac_a, mac_b>),
     !PasswordA(sid, ~pw_a),
     !PasswordB(sid, ~pw_b),
@@ -105,25 +116,29 @@ rule DecodeStreamA:
     k_a    = kdf(pw_a, salt_a)
     noise  = h(pw_a) XOR h(pw_b)
     ct_a   = wire_a XOR noise
-    aad_a  = <salt_a, nonce_a, h(pt_a)>
+    aad_a  = <salt_a, nonce_a>
     pt_a   = aead_dec(k_a, nonce_a, ct_a, aad_a)
   in
   [ !PasswordA(sid, pw_a),
     !PasswordB(sid, pw_b),
     In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
-        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+        root_a, root_b, commit_a, commit_b,
+        hmac(k_a, <wire_a, root_a, salt_a, nonce_a>),
+        mac_b>) ]
   --[ DecodedStreamA(sid, pw_a, pt_a) ]->
   []
 
 rule DecodeStreamB:
   let
     k_b    = kdf(pw_b, salt_b)
-    aad_b  = <salt_b, nonce_b, h(pt_b)>
+    aad_b  = <salt_b, nonce_b>
     pt_b   = aead_dec(k_b, nonce_b, wire_b, aad_b)
   in
   [ !PasswordB(sid, pw_b),
     In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
-        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+        root_a, root_b, commit_a, commit_b,
+        mac_a,
+        hmac(k_b, <wire_b, root_b, salt_b, nonce_b>)>) ]
   --[ DecodedStreamB(sid, pw_b, pt_b) ]->
   []
 
@@ -218,19 +233,39 @@ lemma AsymRekeyPCS:
   "
 
 /*
- * LEMMA 15 -- Header Encryption Confidentiality
- * XOR-masked frame indices are not learnable from wire output alone.
+ * LEMMA 15 -- Header Encryption Confidentiality — COMMENTED OUT (2026-05-04).
+ *
+ * The intended property: "XOR-masked frame indices are not learnable
+ * from wire output alone." But the SchrodingerEncode rule in this
+ * model does not introduce a `header_key` or an XOR-masked `idx` —
+ * the wire output (Out tuple) carries no header field. The lemma
+ * therefore quantifies over `idx` and `header_key` that don't
+ * structurally exist in any trace.
+ *
+ * Worse: `h(idx) = h('frame_index')` collapses to `idx = 'frame_index'`
+ * by collision resistance, and `'frame_index'` is a public constant
+ * that the adversary trivially knows — making the existential always
+ * satisfiable when any `header_key` becomes adversary-knowable, which
+ * happens by default since no rule prevents it.
+ *
+ * To be meaningful, this lemma needs the model to actually implement
+ * header encryption (a rule that produces `wire_idx = idx XOR
+ * header_key` and a `!HeaderKey(sid, header_key)` persistent fact).
+ * That's a model extension, not a lemma fix — it should live in the
+ * dedicated `MeowRatchetHeaderOE.spthy` model (which exists and was
+ * fixed in commit 6aa5b8e).
+ *
+ * lemma HeaderEncryptionConfidentiality:
+ *   "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 .
+ *     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
+ *                        wire_a, wire_b, noise, root_a, root_b) @ #t1
+ *     ==>
+ *     not(Ex idx header_key #t2 #thk .
+ *        KU(idx) @ #t2 &
+ *        KU(header_key) @ #thk &
+ *        not(#thk < #t1) &
+ *        h(idx) = h('frame_index'))
+ *   "
  */
-lemma HeaderEncryptionConfidentiality:
-  "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 .
-    SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
-                       wire_a, wire_b, noise, root_a, root_b) @ #t1
-    ==>
-    not(Ex idx header_key #t2 #thk .
-       KU(idx) @ #t2 &
-       KU(header_key) @ #thk &
-       not(#thk < #t1) &
-       h(idx) = h('frame_index'))
-  "
 
 end
