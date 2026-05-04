@@ -144,6 +144,31 @@ def run_headless_test():
                 for assertion in results["assertions"]:
                     if not assertion["pass"]:
                         print(f"  - {assertion['name']}")
+                # Dump status + console even on the "completed but failed"
+                # path. Empty assertions means the page threw before any
+                # check ran (e.g. video metadata load, sync word detection
+                # fast-path) — the only diagnostic is the status text and
+                # the browser console.
+                if not results["assertions"]:
+                    print(
+                        "  (no assertions registered — page errored before "
+                        "first check; see status + console below)"
+                    )
+                try:
+                    status_html = driver.find_element(By.ID, "status").get_attribute(
+                        "outerHTML"
+                    )
+                    print(f"\n--- #status outerHTML ---\n  {status_html}")
+                except Exception:
+                    pass
+                try:
+                    logs = driver.get_log("browser")
+                    if logs:
+                        print("\n--- Browser console (last 50) ---")
+                        for entry in logs[-50:]:
+                            print(f"  [{entry.get('level')}] {entry.get('message')}")
+                except Exception:
+                    pass
                 print("")
                 return 1
 

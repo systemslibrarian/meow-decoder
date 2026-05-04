@@ -59,14 +59,24 @@ DOS_BLOCK_COUNT = 100
 DOS_BLOCK_SIZE = 200
 # Hard ceilings — assertions fail above these.
 #
-# RSS baseline drifts depending on which extensions are loaded into the
-# pytest process (Rust crypto core, Rust fountain core, ML-KEM, etc.).
-# The DoS-relevant signal is the *delta* (which is asserted separately
-# in `print` output for review), not the absolute. The absolute ceiling
-# of 256 MB exists as a sanity floor in case the decoder leaks
-# unboundedly under garbage input — well above any realistic baseline.
+# RSS baseline depends heavily on what's loaded into the pytest process
+# at the moment this test runs: a fresh `pytest tests/test_schrodinger_dos.py`
+# starts at ~80 MB, but the security-CI sweep
+# (`pytest -m "security or adversarial"`) reaches this test at ~1.7 GB
+# RSS because every fountain/ratchet/PQ extension is already loaded.
+# That makes an *absolute* ceiling brittle.
+#
+# What the DoS bound actually claims: 10K forged droplets must not cause
+# *unbounded* growth in the FountainDecoder (the `pending` queue is
+# capped by the GIF parser's MAX_GIF_FRAMES). The signal is therefore
+# the **delta** between rss_after and rss_before — that's what we
+# assert. Each forged droplet stores ~300 bytes (Vec<u16> indices +
+# 200 B data) plus FFI overhead, so 10K droplets is ~3 MB of decoder
+# state. 256 MB delta gives ~85× headroom over the projected footprint
+# and still fires loud if a regression makes the decoder retain large
+# buffers per garbage input.
 MAX_WALL_SECONDS = 30.0
-MAX_PEAK_RSS_MB = 256
+MAX_RSS_DELTA_MB = 256
 
 
 def _peak_rss_mb() -> float:
@@ -153,11 +163,17 @@ class TestSchrodingerDoSCeiling:
             "documented in FOLLOWUP.md / docs/audits/. Revisit the public-"
             "seed design choice in schrodinger_encode.py."
         )
-        # Use the absolute ceiling rather than delta — RSS can fluctuate
-        # downward, and we care about the worst case.
-        assert rss_after < MAX_PEAK_RSS_MB, (
-            f"FountainDecoder peak RSS reached {rss_after:.1f} MB under "
-            f"garbage flood — exceeds ceiling of {MAX_PEAK_RSS_MB} MB."
+        # Delta-based: this test asserts that the DoS attack doesn't
+        # cause unbounded growth of the FountainDecoder, not that the
+        # whole pytest process stays small. Absolute RSS can be 1.7+ GB
+        # by the time this test runs in the security-CI sweep, dominated
+        # by extensions loaded by earlier tests.
+        assert rss_delta < MAX_RSS_DELTA_MB, (
+            f"FountainDecoder RSS grew by {rss_delta:.1f} MB under "
+            f"garbage flood (before={rss_before:.1f} MB, after="
+            f"{rss_after:.1f} MB) — exceeds delta ceiling of "
+            f"{MAX_RSS_DELTA_MB} MB. This is a regression of the DoS "
+            "bound documented in FOLLOWUP.md / docs/audits/."
         )
 
         # Provenance: include numbers in the test output so future
