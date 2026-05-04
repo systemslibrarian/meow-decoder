@@ -458,11 +458,24 @@ test.describe('Browser-Specific Workarounds', () => {
         // After the Branch 2 wiring (commit 880f335), all browsers see the
         // capability advertisement. The actual transcode path additionally
         // requires VideoEncoder + H.264 at runtime.
-        const caps = await page.evaluate(() => window.convertWebMToMp4Capabilities);
+        //
+        // NOTE: `page.evaluate` returns a JSON-serialized snapshot — function
+        // properties don't survive the cross-context boundary. So we check
+        // each property inside the browser context and return only
+        // booleans/strings.
+        const caps = await page.evaluate(() => {
+            const c = window.convertWebMToMp4Capabilities;
+            if (!c) return null;
+            return {
+                mp4Identity: c.mp4Identity,
+                webcodecsTranscode: c.webcodecsTranscode,
+                probeIsFunction: typeof c.probeTranscodeSupport === 'function',
+            };
+        });
         expect(caps).toBeTruthy();
         expect(caps.mp4Identity).toBe(true);
         expect(caps.webcodecsTranscode).toBe(true);
-        expect(typeof caps.probeTranscodeSupport).toBe('function');
+        expect(caps.probeIsFunction).toBe(true);
     });
 
     /**
