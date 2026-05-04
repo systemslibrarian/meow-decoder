@@ -16,6 +16,7 @@ no Playwright. They verify:
 This wrapper just shells out to `node` so the tests run inside the
 repo's normal pytest run (and therefore in CI).
 """
+
 from __future__ import annotations
 
 import shutil

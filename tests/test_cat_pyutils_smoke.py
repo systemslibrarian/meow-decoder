@@ -5,6 +5,7 @@ These verify the bug fixes from the cat-mode audit:
   * pounce_on_errors(reraise=False) returns None instead of re-raising
   * cat_nap_timeout supports sub-second timeouts and worker threads
 """
+
 from __future__ import annotations
 
 import threading
@@ -18,7 +19,6 @@ from meow_decoder.cat_errors import (
     pounce_on_errors,
 )
 from meow_decoder.cat_utils import cat_tqdm
-
 
 # ─── cat_tqdm ────────────────────────────────────────────────────────
 
@@ -49,6 +49,7 @@ def test_pounce_default_reraises():
 
 def test_pounce_reraise_false_returns_none():
     """The bug fix — `reraise=False` previously still re-raised."""
+
     @pounce_on_errors(lives=2, reraise=False)
     def boom():
         raise ValueError("boom")

@@ -76,9 +76,7 @@ def run_headless_test():
         chrome_options.add_argument("--disable-software-rasterizer")
         # Capture browser console output so timeouts/crashes leave a
         # diagnostic trail instead of an empty TimeoutException.
-        chrome_options.set_capability(
-            "goog:loggingPrefs", {"browser": "ALL"}
-        )
+        chrome_options.set_capability("goog:loggingPrefs", {"browser": "ALL"})
 
         # Find Chrome binary
         chrome_binary = find_chrome_binary()
@@ -155,9 +153,7 @@ def run_headless_test():
                         "first check; see status + console below)"
                     )
                 try:
-                    status_html = driver.find_element(By.ID, "status").get_attribute(
-                        "outerHTML"
-                    )
+                    status_html = driver.find_element(By.ID, "status").get_attribute("outerHTML")
                     print(f"\n--- #status outerHTML ---\n  {status_html}")
                 except Exception:
                     pass
@@ -177,6 +173,7 @@ def run_headless_test():
 
     except Exception as error:
         import traceback
+
         print(f"\n❌ Test execution failed: {type(error).__name__}: {error!r}")
         traceback.print_exc()
         # Dump browser console logs and current page status so a timeout
@@ -190,9 +187,7 @@ def run_headless_test():
             else:
                 print("\n--- Browser console: (empty) ---")
             try:
-                status_html = driver.find_element(By.ID, "status").get_attribute(
-                    "outerHTML"
-                )
+                status_html = driver.find_element(By.ID, "status").get_attribute("outerHTML")
                 print(f"\n--- #status outerHTML ---\n  {status_html}")
             except Exception:
                 pass

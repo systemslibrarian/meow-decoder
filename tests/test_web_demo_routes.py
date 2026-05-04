@@ -14,6 +14,7 @@ corruption fix, cat-mode-protocol.js audit fixes, signal-processing
 fixes). They do NOT exercise actual encryption / decoding (those need
 Rust crypto and live in test_all_modes.py).
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -46,9 +47,7 @@ def app():
 
     try:
         os.chdir(WEB_DEMO_DIR)
-        spec = importlib.util.spec_from_file_location(
-            "web_demo_app", WEB_DEMO_DIR / "app.py"
-        )
+        spec = importlib.util.spec_from_file_location("web_demo_app", WEB_DEMO_DIR / "app.py")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         yield module.app
@@ -69,9 +68,7 @@ def client(app):
 def test_index_redirects_to_encode(client):
     """/ should redirect to /encode."""
     response = client.get("/")
-    assert response.status_code in (301, 302), (
-        f"Expected redirect, got {response.status_code}"
-    )
+    assert response.status_code in (301, 302), f"Expected redirect, got {response.status_code}"
     assert "/encode" in response.headers.get("Location", "")
 
 
@@ -109,9 +106,9 @@ def test_webcam_page_renders(client):
     assert response.status_code == 200
     body = response.data.decode("utf-8", errors="replace")
     # Webcam page needs a video element or canvas for capture.
-    assert "<video" in body or "<canvas" in body, (
-        "webcam page must have a <video> or <canvas> for live capture"
-    )
+    assert (
+        "<video" in body or "<canvas" in body
+    ), "webcam page must have a <video> or <canvas> for live capture"
 
 
 # ─── Demo mode ────────────────────────────────────────────────────────
@@ -146,17 +143,17 @@ def test_cat_mode_page_renders(client):
     body = response.data.decode("utf-8", errors="replace")
 
     # The three previously-corrupted functions must all be present.
-    assert "async function initCatCanvas()" in body, (
-        "initCatCanvas missing — cat_mode.html corruption regression?"
-    )
-    assert "function autoDetectEyeRegions(imageData)" in body, (
-        "autoDetectEyeRegions missing — cat_mode.html corruption regression?"
-    )
+    assert (
+        "async function initCatCanvas()" in body
+    ), "initCatCanvas missing — cat_mode.html corruption regression?"
+    assert (
+        "function autoDetectEyeRegions(imageData)" in body
+    ), "autoDetectEyeRegions missing — cat_mode.html corruption regression?"
     assert "function drawEyeOverlay(box, isOn)" in body
     # The init guard inside initCatCanvas
-    assert "if (!catBgVideo || catBgVideo.readyState < 2) return;" in body, (
-        "initCatCanvas guard missing — page corruption regression"
-    )
+    assert (
+        "if (!catBgVideo || catBgVideo.readyState < 2) return;" in body
+    ), "initCatCanvas guard missing — page corruption regression"
 
     # Encoder + decoder UI is present
     assert 'id="catCanvas"' in body, "cat canvas missing"
@@ -209,9 +206,9 @@ def test_cat_mode_encrypt_endpoint_round_trip(client):
         "/cat-mode-encrypt-server",
         data={"message": plaintext, "password": password},
     )
-    assert enc_response.status_code == 200, (
-        f"encrypt failed: {enc_response.status_code} {enc_response.data[:200]!r}"
-    )
+    assert (
+        enc_response.status_code == 200
+    ), f"encrypt failed: {enc_response.status_code} {enc_response.data[:200]!r}"
     enc = json.loads(enc_response.data)
     assert enc["success"] is True
     assert "payload_hex" in enc
@@ -223,21 +220,17 @@ def test_cat_mode_encrypt_endpoint_round_trip(client):
 
     # Now convert hex → bits (the JS encoder does this client-side) and
     # POST to the binary-decode endpoint to recover the plaintext.
-    binary_str = "".join(
-        bin(int(c, 16))[2:].zfill(4) for c in payload_hex
-    )
+    binary_str = "".join(bin(int(c, 16))[2:].zfill(4) for c in payload_hex)
     dec_response = client.post(
         "/decode-cat-binary",
         data={"binary": binary_str, "password": password},
     )
-    assert dec_response.status_code == 200, (
-        f"decode failed: {dec_response.status_code} {dec_response.data[:300]!r}"
-    )
+    assert (
+        dec_response.status_code == 200
+    ), f"decode failed: {dec_response.status_code} {dec_response.data[:300]!r}"
     dec_body = dec_response.data.decode("utf-8", errors="replace")
     # The decode page renders the plaintext when successful.
-    assert plaintext in dec_body, (
-        f"decoded body did not contain plaintext.\nGot: {dec_body[:500]}"
-    )
+    assert plaintext in dec_body, f"decoded body did not contain plaintext.\nGot: {dec_body[:500]}"
 
 
 def test_cat_mode_encrypt_wrong_password_fails(client):
@@ -250,9 +243,7 @@ def test_cat_mode_encrypt_wrong_password_fails(client):
     )
     assert enc_response.status_code == 200
     payload_hex = json.loads(enc_response.data)["payload_hex"]
-    binary_str = "".join(
-        bin(int(c, 16))[2:].zfill(4) for c in payload_hex
-    )
+    binary_str = "".join(bin(int(c, 16))[2:].zfill(4) for c in payload_hex)
 
     dec_response = client.post(
         "/decode-cat-binary",
@@ -260,9 +251,9 @@ def test_cat_mode_encrypt_wrong_password_fails(client):
     )
     # Should not crash and should not contain the plaintext.
     body = dec_response.data.decode("utf-8", errors="replace")
-    assert "secret" not in body or "wrong" in body.lower() or "fail" in body.lower(), (
-        "wrong password must not reveal plaintext"
-    )
+    assert (
+        "secret" not in body or "wrong" in body.lower() or "fail" in body.lower()
+    ), "wrong password must not reveal plaintext"
 
 
 # ─── /encode → /decode round-trips ───────────────────────────────────
@@ -317,9 +308,7 @@ def test_encode_normal_mode_round_trip(client, app):
     assert token, f"no download token in encode response:\n{body[:500]}"
 
     gif_bytes = _decode_token_to_bytes(client, app, token)
-    assert gif_bytes.startswith(b"GIF8"), (
-        f"output is not a GIF (header: {gif_bytes[:8]!r})"
-    )
+    assert gif_bytes.startswith(b"GIF8"), f"output is not a GIF (header: {gif_bytes[:8]!r})"
 
     # Decode the GIF back through the Flask /decode endpoint
     dec = _upload(
@@ -335,9 +324,9 @@ def test_encode_normal_mode_round_trip(client, app):
     assert dec_token, f"no download token in decode response:\n{dec_body[:500]}"
 
     recovered = _decode_token_to_bytes(client, app, dec_token)
-    assert recovered == plaintext, (
-        f"round-trip mismatch:\n  expected: {plaintext!r}\n  got: {recovered!r}"
-    )
+    assert (
+        recovered == plaintext
+    ), f"round-trip mismatch:\n  expected: {plaintext!r}\n  got: {recovered!r}"
 
 
 def test_encode_normal_wrong_password_fails(client, app):
@@ -375,9 +364,7 @@ def test_encode_normal_wrong_password_fails(client, app):
         # the original plaintext.
         try:
             recovered = _decode_token_to_bytes(client, app, bad_token)
-            assert recovered != plaintext, (
-                "wrong password should not recover plaintext"
-            )
+            assert recovered != plaintext, "wrong password should not recover plaintext"
         except AssertionError:
             raise
         except Exception:
@@ -405,9 +392,7 @@ def test_encode_cat_mode_round_trip(client, app):
 
     gif_bytes = _decode_token_to_bytes(client, app, token)
     # Output may be GIF or PNG depending on stego level
-    assert gif_bytes[:4] in (b"GIF8", b"\x89PNG"), (
-        f"unexpected file format: {gif_bytes[:8]!r}"
-    )
+    assert gif_bytes[:4] in (b"GIF8", b"\x89PNG"), f"unexpected file format: {gif_bytes[:8]!r}"
 
     dec = _upload(
         client,
@@ -487,9 +472,9 @@ def test_encode_form_disables_unsupported_modes(client):
         "(the form lacks the dual-file UI it needs)"
     )
     # Duress is intentionally NOT disabled now — the round-trip works.
-    assert 'value="duress" disabled' not in body, (
-        "duress should be enabled now that MEOW2+Duress decode works"
-    )
+    assert (
+        'value="duress" disabled' not in body
+    ), "duress should be enabled now that MEOW2+Duress decode works"
 
 
 def _extract_download_token(html: str) -> str | None:
@@ -531,9 +516,10 @@ def test_schrodinger_encode_creates_dual_payload(client, app):
 
         gif_bytes = _decode_token_to_bytes(client, app, token)
         # Schrödinger output is a GIF.
-        assert gif_bytes[:4] in (b"GIF8", b"\x89PNG"), (
-            f"unexpected schrödinger output format: {gif_bytes[:8]!r}"
-        )
+        assert gif_bytes[:4] in (
+            b"GIF8",
+            b"\x89PNG",
+        ), f"unexpected schrödinger output format: {gif_bytes[:8]!r}"
         assert len(gif_bytes) > 100, "schrödinger output suspiciously small"
     elif response.status_code == 200:
         # If it rendered the form again, the encode failed — surface that.
@@ -544,9 +530,7 @@ def test_schrodinger_encode_creates_dual_payload(client, app):
                 "schrödinger encode failed (likely due to environment); "
                 "form re-rendered with error"
             )
-        pytest.fail(
-            "schrödinger POST returned 200 without redirect or error message"
-        )
+        pytest.fail("schrödinger POST returned 200 without redirect or error message")
     else:
         pytest.fail(f"schrödinger POST returned unexpected {response.status_code}")
 
@@ -561,9 +545,7 @@ def test_schrodinger_page_renders(client):
     body = response.data.decode("utf-8", errors="replace")
     # Schrödinger needs a "real" + "duress" password input
     password_inputs = body.count('type="password"')
-    assert password_inputs >= 2, (
-        f"Schrödinger needs ≥2 password fields, found {password_inputs}"
-    )
+    assert password_inputs >= 2, f"Schrödinger needs ≥2 password fields, found {password_inputs}"
 
 
 # ─── Inline JS validation ─────────────────────────────────────────────
@@ -601,9 +583,7 @@ def _check_js_parses(js: str, label: str, tmp_path: Path):
         text=True,
         timeout=10,
     )
-    assert result.returncode == 0, (
-        f"Inline <script> in {label} has syntax error:\n{result.stderr}"
-    )
+    assert result.returncode == 0, f"Inline <script> in {label} has syntax error:\n{result.stderr}"
 
 
 @pytest.mark.parametrize(

@@ -51,6 +51,7 @@ os.environ["MEOW_TEST_MODE"] = "1"
 # OpenCV availability (saliency tests require it)
 try:
     import cv2 as _cv2  # noqa: F401
+
     CV2_AVAILABLE = True
 except ImportError:
     CV2_AVAILABLE = False

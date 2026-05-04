@@ -22,12 +22,14 @@ _PW = "password123"
 
 def _encrypt(plaintext: bytes, password: str):
     from meow_decoder.crypto import encrypt_file_bytes
+
     comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(plaintext, password)
     return comp, sha, salt, nonce, cipher, len(plaintext)
 
 
 def _decrypt(cipher, password, salt, nonce, comp, sha, orig_len: int = 0):
     from meow_decoder.crypto import decrypt_to_raw
+
     return decrypt_to_raw(
         cipher, password, salt, nonce, orig_len=orig_len, comp_len=len(comp), sha256=sha
     )
@@ -112,6 +114,7 @@ class TestGap1ContinueOnErrorAbsent:
     def test_fuzz_tamper_is_importable(self):
         import importlib.util
         from pathlib import Path
+
         fuzz_path = Path(__file__).parent.parent / "fuzz" / "fuzz_tamper_detection.py"
         spec = importlib.util.spec_from_file_location("fuzz_tamper_detection", str(fuzz_path))
         mod = importlib.util.module_from_spec(spec)
@@ -126,18 +129,22 @@ class TestGap3CoverageThreshold:
 
     def test_crypto_module_importable(self):
         from meow_decoder import crypto
+
         assert hasattr(crypto, "encrypt_file_bytes") and hasattr(crypto, "decrypt_to_raw")
 
     def test_fountain_module_importable(self):
         from meow_decoder import fountain
+
         assert hasattr(fountain, "FountainEncoder") and hasattr(fountain, "FountainDecoder")
 
     def test_ratchet_module_importable(self):
         from meow_decoder import ratchet
+
         assert hasattr(ratchet, "EncoderRatchet") and hasattr(ratchet, "DecoderRatchet")
 
     def test_schrodinger_module_importable(self):
         from meow_decoder import schrodinger_encode
+
         assert hasattr(schrodinger_encode, "schrodinger_encode_data")
 
 
@@ -147,6 +154,7 @@ class TestGap4Tamarin4AryAAD:
     def test_aad_has_eight_fields(self):
         try:
             from meow_decoder.crypto import build_canonical_aad
+
             aad = build_canonical_aad(
                 orig_len=100,
                 comp_len=80,
@@ -164,11 +172,17 @@ class TestGap4Tamarin4AryAAD:
     def test_different_orig_len_different_aad(self):
         try:
             from meow_decoder.crypto import build_canonical_aad
+
             salt = secrets.token_bytes(32)
             sha = secrets.token_bytes(32)
             kwargs = dict(
-                comp_len=80, salt=salt, sha256_hash=sha,
-                magic=b"MEOW", ephemeral_public_key=b"", pq_ciphertext=b"", mode_byte=0x02,
+                comp_len=80,
+                salt=salt,
+                sha256_hash=sha,
+                magic=b"MEOW",
+                ephemeral_public_key=b"",
+                pq_ciphertext=b"",
+                mode_byte=0x02,
             )
             aad100 = build_canonical_aad(orig_len=100, **kwargs)
             aad200 = build_canonical_aad(orig_len=200, **kwargs)
@@ -183,6 +197,7 @@ class TestGap8WindowsFuzz:
     def test_guarded_buffer_zeroize(self):
         try:
             from meow_decoder.constant_time import GuardedBuffer
+
             buf = GuardedBuffer(b"sensitive data here")
             buf.release()
             assert buf.is_released()
@@ -197,6 +212,7 @@ class TestGap9DifferentialStegoFuzz:
         try:
             from meow_decoder.stego import encode_lsb, decode_lsb
             from PIL import Image
+
             img = Image.new("RGB", (100, 100), color=(128, 128, 128))
             payload = b"stego test payload"
             stego_img = encode_lsb(img, payload, depth=1)

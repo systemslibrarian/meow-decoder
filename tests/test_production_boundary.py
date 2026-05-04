@@ -147,9 +147,10 @@ class TestProductionBoundary:
             PRODUCTION_ROOT / "_archive" / "_testonly",
             WORKSPACE / "archive" / "_testonly",
         ]
-        assert any(p.exists() for p in candidates), (
-            "_testonly directory missing. Tried: "
-            + ", ".join(str(p.relative_to(WORKSPACE)) for p in candidates)
+        assert any(
+            p.exists() for p in candidates
+        ), "_testonly directory missing. Tried: " + ", ".join(
+            str(p.relative_to(WORKSPACE)) for p in candidates
         )
 
 

@@ -305,9 +305,7 @@ class MasterRatchet:
             raise RuntimeError("Cannot ratchet a wiped chain")
 
         info = self.DOMAIN_CHAIN_RATCHET + struct.pack("<Q", self._state.generation)
-        new_handle = self._hb.derive_key_hkdf(
-            self._state.chain_handle, b"", info, 32
-        )
+        new_handle = self._hb.derive_key_hkdf(self._state.chain_handle, b"", info, 32)
 
         old = self._state.chain_handle
         self._state.chain_handle = new_handle
@@ -338,9 +336,7 @@ class MasterRatchet:
             + struct.pack("<Q", self._state.generation)
             + file_id.encode("utf-8")
         )
-        return self._hb.derive_key_hkdf_bytes(
-            self._state.chain_handle, b"", info, key_length
-        )
+        return self._hb.derive_key_hkdf_bytes(self._state.chain_handle, b"", info, key_length)
 
     def derive_file_key_with_commitment(
         self,
@@ -458,9 +454,7 @@ def _decode_chain_state(
     meta = data[:53]  # magic || generation || timestamp || master_salt
 
     try:
-        chain_handle = hb.unseal_key(
-            sealed, state_key_handle, seal_nonce, aad=meta + _SEAL_AAD
-        )
+        chain_handle = hb.unseal_key(sealed, state_key_handle, seal_nonce, aad=meta + _SEAL_AAD)
     except Exception:
         return None
 

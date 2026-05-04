@@ -2534,15 +2534,11 @@ class TestSpeculativeStateRollback:
         total = 8
         data = [secrets.token_bytes(120) for _ in range(total)]
 
-        encoder = EncoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
         encrypted = [encoder.encrypt_next(d) for d in data]
         encoder.finalize()
 
-        decoder = DecoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
 
         # Decrypt frame 5 first — this caches keys for frames 0..4 in
         # self._skipped_keys. Frame 5 is consumed.
@@ -2704,10 +2700,7 @@ class TestSpeculativeStateRollback:
         # Skip past frame index + commit_tag + classical-beacon prefix +
         # PQBeaconFrame header to land inside the actual ML-KEM ciphertext.
         pq_ct_offset = (
-            FRAME_INDEX_SIZE
-            + COMMIT_TAG_SIZE
-            + REKEY_BEACON_SIZE
-            + PQBeaconFrame.header_size()
+            FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + REKEY_BEACON_SIZE + PQBeaconFrame.header_size()
         )
         # Flip a byte deep inside the PQ ciphertext.
         tampered[pq_ct_offset + 32] ^= 0xFF
@@ -2725,9 +2718,9 @@ class TestSpeculativeStateRollback:
         assert decoder._state.chain_key == pre_chain
         assert decoder._state.position == pre_pos
         assert decoder._state.epoch == pre_epoch
-        assert decoder._pending_rollback is None, (
-            "rollback marker should be cleared after _rollback_rekey()"
-        )
+        assert (
+            decoder._pending_rollback is None
+        ), "rollback marker should be cleared after _rollback_rekey()"
 
         # ── Clean re-scan of the same epoch boundary must succeed ──
         # The encoder advanced its state on encrypt_next, so a fresh

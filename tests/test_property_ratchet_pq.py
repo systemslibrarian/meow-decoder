@@ -564,9 +564,7 @@ class TestDecoderRollbackInvariants:
         deadline=20000,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
-    def test_tampered_frame_does_not_burn_cached_key(
-        self, total, target_idx, tamper_offset_seed
-    ):
+    def test_tampered_frame_does_not_burn_cached_key(self, total, target_idx, tamper_offset_seed):
         """For any fountain-style frame layout, tampering with a frame whose
         key was previously cached (out-of-order receive) must not invalidate
         the cache: a clean re-scan of the same frame_index must succeed.
@@ -592,18 +590,14 @@ class TestDecoderRollbackInvariants:
         root_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
 
-        encoder = EncoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
         encrypted = []
         for i in range(total):
             data = f"frame_{i:04d}".encode()
             encrypted.append(encoder.encrypt_next(data))
         encoder.finalize()
 
-        decoder = DecoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
 
         # Decrypt a later frame first to populate the skipped-keys cache
         # for [0, target_idx-1] (and beyond, up to the first decoded one).
@@ -649,9 +643,7 @@ class TestDecoderRollbackInvariants:
         deadline=30000,
         suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
     )
-    def test_tampered_rekey_frame_preserves_state(
-        self, rekey_interval, total, tamper_offset_seed
-    ):
+    def test_tampered_rekey_frame_preserves_state(self, rekey_interval, total, tamper_offset_seed):
         """For an asymmetric rekey frame whose body has been tampered with,
         the decoder's root_key/chain_key/position/epoch must be identical
         before and after the failed decrypt — invariant I-3 from the
@@ -734,8 +726,7 @@ class TestDecoderRollbackInvariants:
             "the speculative-rekey rollback pattern."
         )
         assert decoder._pending_rollback is None, (
-            "_pending_rollback should be cleared after a failed decrypt; "
-            "found stale snapshot."
+            "_pending_rollback should be cleared after a failed decrypt; " "found stale snapshot."
         )
 
         encoder.finalize()
@@ -758,12 +749,8 @@ class TestDecoderRollbackInvariants:
         salt = secrets.token_bytes(16)
         total = max(n_decrypts + 1, 4)
 
-        encoder = EncoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
-        decoder = DecoderRatchet(
-            root_key, salt, k_blocks=3, block_size=200, total_frames=total
-        )
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
 
         for i in range(n_decrypts):
             d = secrets.token_bytes(80)

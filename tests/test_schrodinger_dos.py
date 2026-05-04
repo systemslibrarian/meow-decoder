@@ -135,8 +135,7 @@ class TestSchrodingerDoSCeiling:
         # Seed forged droplets up front so generation cost doesn't pollute
         # the decoder timing.
         forged = [
-            _forge_garbage_droplet(DOS_BLOCK_COUNT, DOS_BLOCK_SIZE)
-            for _ in range(DOS_FRAME_COUNT)
+            _forge_garbage_droplet(DOS_BLOCK_COUNT, DOS_BLOCK_SIZE) for _ in range(DOS_FRAME_COUNT)
         ]
 
         rss_before = _peak_rss_mb()
@@ -200,9 +199,7 @@ class TestSchrodingerDoSCeiling:
         n = 2000
 
         for i in range(n):
-            decoder.add_droplet(
-                _forge_garbage_droplet(DOS_BLOCK_COUNT, DOS_BLOCK_SIZE)
-            )
+            decoder.add_droplet(_forge_garbage_droplet(DOS_BLOCK_COUNT, DOS_BLOCK_SIZE))
 
         assert decoder.pending_count <= n, (
             f"pending_droplets grew super-linearly: "

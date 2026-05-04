@@ -493,14 +493,10 @@ def prepare_payload(
             )
 
         # Build header
-        header = STEGO_MAGIC + struct.pack(
-            "<BBI I", STEGO_VERSION, flags, orig_len, len(payload)
-        )
+        header = STEGO_MAGIC + struct.pack("<BBI I", STEGO_VERSION, flags, orig_len, len(payload))
 
         # Outer HMAC over header + payload, key derived via Rust handle.
-        mac_key_handle = hb.hmac_sha256_to_handle(
-            master_handle, b"meow_stego_payload_mac_v1"
-        )
+        mac_key_handle = hb.hmac_sha256_to_handle(master_handle, b"meow_stego_payload_mac_v1")
         mac = bytes(hb.hmac_sha256(mac_key_handle, header + payload))
 
         return header + payload + mac
@@ -568,9 +564,7 @@ def unpack_payload(
     try:
         # Verify HMAC (constant-time inside Rust).
         header = raw[:14]
-        mac_key_handle = hb.hmac_sha256_to_handle(
-            master_handle, b"meow_stego_payload_mac_v1"
-        )
+        mac_key_handle = hb.hmac_sha256_to_handle(master_handle, b"meow_stego_payload_mac_v1")
         if not hb.hmac_sha256_verify(mac_key_handle, header + payload, stored_mac):
             return b"", False
 
@@ -588,9 +582,7 @@ def unpack_payload(
 
             try:
                 payload = bytes(
-                    hb.aes_gcm_decrypt(
-                        enc_key_handle, nonce, ciphertext, b"meow_stego_aad_v2"
-                    )
+                    hb.aes_gcm_decrypt(enc_key_handle, nonce, ciphertext, b"meow_stego_aad_v2")
                 )
             except Exception:
                 return b"", False
@@ -1688,8 +1680,7 @@ class TemporalChannelEncoder:
         # Keyed shuffle using deterministic seed (HMAC inside Rust handle).
         if self._channel_key_handle is None:
             raise RuntimeError(
-                "Temporal channel requires meow_crypto_rs (Rust) backend "
-                "for keyed shuffle."
+                "Temporal channel requires meow_crypto_rs (Rust) backend " "for keyed shuffle."
             )
         from meow_decoder.crypto_backend import get_handle_backend
 
@@ -1922,10 +1913,13 @@ class AdversarialPerturbationLayer:
                     "backend for keyed seed derivation."
                 )
             from meow_decoder.crypto_backend import get_handle_backend
-            seed = bytes(get_handle_backend().hmac_sha256(
-                self._perturb_key_handle,
-                b"hpf_smooth" + struct.pack("<IB", frame_idx, ch),
-            ))
+
+            seed = bytes(
+                get_handle_backend().hmac_sha256(
+                    self._perturb_key_handle,
+                    b"hpf_smooth" + struct.pack("<IB", frame_idx, ch),
+                )
+            )
             rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed[:8], "little")))
 
             # Threshold: anomalous = residual magnitude > 2x median
@@ -2012,10 +2006,13 @@ class AdversarialPerturbationLayer:
                     "backend for keyed seed derivation."
                 )
             from meow_decoder.crypto_backend import get_handle_backend
-            seed = bytes(get_handle_backend().hmac_sha256(
-                self._perturb_key_handle,
-                b"cooc_match" + struct.pack("<IB", frame_idx, ch),
-            ))
+
+            seed = bytes(
+                get_handle_backend().hmac_sha256(
+                    self._perturb_key_handle,
+                    b"cooc_match" + struct.pack("<IB", frame_idx, ch),
+                )
+            )
             rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed[:8], "little")))
 
             max_corrections = max(1, h * w // 200)  # Limit corrections per frame
@@ -2120,9 +2117,10 @@ class ProceduralCatGenerator:
                 "backend for seed derivation."
             )
         from meow_decoder.crypto_backend import get_handle_backend
-        seed_tag = bytes(get_handle_backend().hmac_sha256(
-            self._seed_key_handle, b"proccat_pcg_seed_v1"
-        ))
+
+        seed_tag = bytes(
+            get_handle_backend().hmac_sha256(self._seed_key_handle, b"proccat_pcg_seed_v1")
+        )
         rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed_tag[:8], "little")))
 
         frames = []
@@ -2486,8 +2484,7 @@ class CommentChannelEncoder:
 
         if not _RUST_AVAILABLE or self._enc_key_handle is None or self._mac_key_handle is None:
             raise RuntimeError(
-                "No encryption backend for comment channel. "
-                "meow_crypto_rs (Rust) is required."
+                "No encryption backend for comment channel. " "meow_crypto_rs (Rust) is required."
             )
 
         from meow_decoder.crypto_backend import get_handle_backend

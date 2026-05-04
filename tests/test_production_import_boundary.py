@@ -238,9 +238,7 @@ class TestProductionImportBoundary:
                 if isinstance(node, ast.Import):
                     for alias in node.names:
                         if any(alias.name.startswith(p) for p in FORBIDDEN_PREFIXES):
-                            violations.append(
-                                f"{_file_to_module(py_file)} imports {alias.name}"
-                            )
+                            violations.append(f"{_file_to_module(py_file)} imports {alias.name}")
                 elif isinstance(node, ast.ImportFrom):
                     mod = node.module or ""
                     if any(mod.startswith(p) for p in FORBIDDEN_PREFIXES):
