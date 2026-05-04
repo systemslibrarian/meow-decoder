@@ -80,6 +80,64 @@ try:
 except ImportError:
     logger.warning("meow_crypto_rs not available; using Python stego fallback (NOT constant-time)")
 
+
+# ---------------------------------------------------------------------------
+# Per-channel sub-key derivation via Rust handle backend (gemini #1).
+# Channels keep their derived sub-keys as opaque handle IDs so the bytes
+# never live as long-running Python instance attributes. The HMAC-SHA256
+# derivation is preserved (so wire formats are unchanged); the derived
+# bytes lifetime is bounded to the helper's frame.
+# ---------------------------------------------------------------------------
+
+_FINGERPRINT_DOMAIN = b"_meow_stego_test_kfp_v1"
+
+
+def _derive_channel_subkey_handle(master_key: bytes, domain: bytes):
+    """Derive HMAC-SHA256(master_key, domain) and import as a Rust handle.
+
+    Returns the handle ID, or None if the Rust backend is unavailable.
+    The bytes are zeroed before return.
+    """
+    if not _RUST_AVAILABLE:
+        return None
+    try:
+        from meow_decoder.crypto_backend import get_handle_backend
+    except ImportError:
+        return None
+    hb = get_handle_backend()
+    derived = bytearray(hmac_stdlib.new(master_key, domain, hashlib.sha256).digest())
+    try:
+        return hb.import_key(bytes(derived))
+    finally:
+        for i in range(len(derived)):
+            derived[i] = 0
+
+
+def _drop_handle_safe(handle):
+    """Drop a handle if the backend is available; swallow exceptions."""
+    if handle is None or not _RUST_AVAILABLE:
+        return
+    try:
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        get_handle_backend().drop(handle)
+    except Exception:
+        pass
+
+
+def _key_fingerprint(handle) -> bytes:
+    """Stable test-only fingerprint over a key handle.
+    Returns empty bytes if the handle or backend is unavailable."""
+    if handle is None or not _RUST_AVAILABLE:
+        return b""
+    try:
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        return bytes(get_handle_backend().hmac_sha256(handle, _FINGERPRINT_DOMAIN))
+    except Exception:
+        return b""
+
+
 # ---------------------------------------------------------------------------
 # Attempt to import imageio for reliable animated GIF handling
 # ---------------------------------------------------------------------------
@@ -1422,7 +1480,15 @@ class TemporalChannelEncoder:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._channel_key = hmac_stdlib.new(master_key, DOMAIN_TEMPORAL, hashlib.sha256).digest()
+        # gemini #1: channel key as Rust handle.
+        self._channel_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_TEMPORAL)
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_channel_key_handle", None))
+
+    def key_fingerprint(self) -> bytes:
+        """Stable test-only fingerprint over the temporal channel sub-key."""
+        return _key_fingerprint(self._channel_key_handle)
 
     def embed(
         self,
@@ -1567,12 +1633,20 @@ class TemporalChannelEncoder:
             (r * block_size, c * block_size) for r in range(block_rows) for c in range(block_cols)
         ]
 
-        # Keyed shuffle using deterministic seed
-        seed = hmac_stdlib.new(
-            self._channel_key,
-            DOMAIN_TEMPORAL + struct.pack("<I", transition_idx),
-            hashlib.sha256,
-        ).digest()
+        # Keyed shuffle using deterministic seed (HMAC inside Rust handle).
+        if self._channel_key_handle is None:
+            raise RuntimeError(
+                "Temporal channel requires meow_crypto_rs (Rust) backend "
+                "for keyed shuffle."
+            )
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        seed = bytes(
+            get_handle_backend().hmac_sha256(
+                self._channel_key_handle,
+                DOMAIN_TEMPORAL + struct.pack("<I", transition_idx),
+            )
+        )
 
         seed_int = int.from_bytes(seed[:8], "little")
         rng = np.random.Generator(np.random.PCG64(seed_int))
@@ -2168,8 +2242,18 @@ class DisposalChannelEncoder:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        # Derive channel-specific key
-        self._channel_key = hmac_stdlib.new(master_key, DOMAIN_DISPOSAL, hashlib.sha256).digest()
+        # gemini #1: channel sub-key as Rust handle. Note: this attribute
+        # is currently unused by `encode`/`decode` here (the disposal-bit
+        # encoding doesn't require keyed PRFs); kept for cross-channel
+        # domain-separation invariants asserted by the test suite.
+        self._channel_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_DISPOSAL)
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_channel_key_handle", None))
+
+    def key_fingerprint(self) -> bytes:
+        """Stable test-only fingerprint over the disposal channel sub-key."""
+        return _key_fingerprint(self._channel_key_handle)
 
     def encode(
         self,
@@ -2266,9 +2350,28 @@ class CommentChannelEncoder:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        # Derive channel-specific keys
-        self._enc_key = hmac_stdlib.new(master_key, DOMAIN_COMMENT_ENC, hashlib.sha256).digest()
-        self._mac_key = hmac_stdlib.new(master_key, DOMAIN_COMMENT_MAC, hashlib.sha256).digest()
+        # gemini #1: derived sub-keys live as Rust handles so the bytes
+        # never persist as Python instance attributes. HMAC derivation
+        # is unchanged (wire format preserved).
+        self._enc_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_COMMENT_ENC)
+        self._mac_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_COMMENT_MAC)
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_enc_key_handle", None))
+        _drop_handle_safe(getattr(self, "_mac_key_handle", None))
+
+    def key_fingerprint(self, role: str) -> bytes:
+        """Stable test-only fingerprint over the named channel sub-key.
+
+        Lets tests assert key equality / domain separation without ever
+        exporting the underlying bytes from Rust. Returns empty bytes
+        if the Rust backend isn't available.
+        """
+        if role == "enc":
+            return _key_fingerprint(self._enc_key_handle)
+        if role == "mac":
+            return _key_fingerprint(self._mac_key_handle)
+        raise ValueError(f"unknown role {role!r}; expected 'enc' or 'mac'")
 
     def encode(self, payload: bytes) -> bytes:
         """Prepare comment payload (encrypt + MAC).
@@ -2282,25 +2385,28 @@ class CommentChannelEncoder:
         Raises:
             RuntimeError: If no encryption backend is available
         """
-        # Encrypt with AES-256-GCM
+        # Encrypt with AES-256-GCM via the Rust handle backend (key never
+        # leaves Rust; gemini #1).
         nonce = os.urandom(12)
 
-        if _RUST_AVAILABLE:
-            ciphertext = bytes(
-                meow_crypto_rs.aes_gcm_encrypt(self._enc_key, nonce, payload, DOMAIN_COMMENT_ENC)
-            )
-        else:
-            # gemini #1 / CRIT-03: Rust backend required; no Python fallback.
+        if not _RUST_AVAILABLE or self._enc_key_handle is None or self._mac_key_handle is None:
             raise RuntimeError(
                 "No encryption backend for comment channel. "
                 "meow_crypto_rs (Rust) is required."
             )
 
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+        ciphertext = bytes(
+            hb.aes_gcm_encrypt(self._enc_key_handle, nonce, payload, DOMAIN_COMMENT_ENC)
+        )
+
         # Build: MAGIC(4) + orig_len(4) + nonce(12) + ciphertext
         inner = COMMENT_MAGIC + struct.pack("<I", len(payload)) + nonce + ciphertext
 
-        # HMAC-SHA256 over entire inner payload
-        mac = hmac_stdlib.new(self._mac_key, inner, hashlib.sha256).digest()
+        # HMAC-SHA256 over entire inner payload (MAC key in Rust handle).
+        mac = bytes(hb.hmac_sha256(self._mac_key_handle, inner))
 
         return inner + mac
 
@@ -2327,9 +2433,16 @@ class CommentChannelEncoder:
         inner = comment_data[:-32]
         stored_mac = comment_data[-32:]
 
-        # Verify HMAC (constant-time via compare_digest)
-        expected_mac = hmac_stdlib.new(self._mac_key, inner, hashlib.sha256).digest()
-        if not hmac_stdlib.compare_digest(stored_mac, expected_mac):
+        if not _RUST_AVAILABLE or self._enc_key_handle is None or self._mac_key_handle is None:
+            # gemini #1: Rust required; no Python fallback. Fail-closed.
+            return b"", False
+
+        from meow_decoder.crypto_backend import get_handle_backend
+
+        hb = get_handle_backend()
+
+        # Verify HMAC (constant-time via Rust handle_hmac_sha256_verify).
+        if not hb.hmac_sha256_verify(self._mac_key_handle, inner, stored_mac):
             return b"", False
 
         # Parse inner
@@ -2337,18 +2450,12 @@ class CommentChannelEncoder:
         nonce = inner[8:20]
         ciphertext = inner[20:]
 
-        # Decrypt
-        if _RUST_AVAILABLE:
-            try:
-                plaintext = bytes(
-                    meow_crypto_rs.aes_gcm_decrypt(
-                        self._enc_key, nonce, ciphertext, DOMAIN_COMMENT_ENC
-                    )
-                )
-            except Exception:
-                return b"", False
-        else:
-            # gemini #1: Rust required; no Python fallback. Fail-closed.
+        # Decrypt via Rust handle (key never leaves Rust).
+        try:
+            plaintext = bytes(
+                hb.aes_gcm_decrypt(self._enc_key_handle, nonce, ciphertext, DOMAIN_COMMENT_ENC)
+            )
+        except Exception:
             return b"", False
 
         return plaintext[:orig_len], True

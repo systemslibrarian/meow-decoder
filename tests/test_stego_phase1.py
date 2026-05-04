@@ -90,13 +90,18 @@ class TestTemporalChannelEncoder:
     """Test suite for inter-frame temporal delta embedding."""
 
     def test_init(self):
-        """TemporalChannelEncoder initializes with keyed channel key."""
+        """TemporalChannelEncoder initializes with a keyed channel key.
+
+        After gemini #1 the channel key is a Rust handle ID rather than
+        bytes. Verify the handle was created and has a stable fingerprint.
+        """
         key = make_key()
         config = make_config()
         enc = TemporalChannelEncoder(key, config)
         assert enc.master_key == key
-        assert enc._channel_key is not None
-        assert len(enc._channel_key) == 32
+        assert enc._channel_key_handle is not None
+        # Fingerprint is HMAC(handle, _meow_stego_test_kfp_v1) — 32 bytes.
+        assert len(enc.key_fingerprint()) == 32
 
     def test_embed_extract_roundtrip_small(self):
         """Small payload embeds and extracts correctly."""

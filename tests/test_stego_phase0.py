@@ -867,29 +867,35 @@ class TestPhase0Security(unittest.TestCase):
     """Security-focused tests for Phase 0 features."""
 
     def test_comment_channel_domain_separation(self):
-        """Different domain strings should produce different keys."""
+        """Different domain strings should produce different keys.
+
+        After gemini #1 migration, channel sub-keys live as opaque Rust
+        handle IDs — equality is asserted via stable HMAC fingerprints
+        (`key_fingerprint(role)`) rather than direct byte comparison so
+        the underlying key bytes never need to leave Rust.
+        """
         enc1 = CommentChannelEncoder(MASTER_KEY, MultiLayerConfig())
         # Verify internal keys are derived deterministically
         enc2 = CommentChannelEncoder(MASTER_KEY, MultiLayerConfig())
-        self.assertEqual(enc1._enc_key, enc2._enc_key)
-        self.assertEqual(enc1._mac_key, enc2._mac_key)
+        self.assertEqual(enc1.key_fingerprint("enc"), enc2.key_fingerprint("enc"))
+        self.assertEqual(enc1.key_fingerprint("mac"), enc2.key_fingerprint("mac"))
 
         # Different master key → different channel keys
         enc3 = CommentChannelEncoder(b"\x00" * 32, MultiLayerConfig())
-        self.assertNotEqual(enc1._enc_key, enc3._enc_key)
-        self.assertNotEqual(enc1._mac_key, enc3._mac_key)
+        self.assertNotEqual(enc1.key_fingerprint("enc"), enc3.key_fingerprint("enc"))
+        self.assertNotEqual(enc1.key_fingerprint("mac"), enc3.key_fingerprint("mac"))
 
     def test_comment_enc_key_ne_mac_key(self):
         """Encryption key and MAC key should be different (domain separation)."""
         enc = CommentChannelEncoder(MASTER_KEY, MultiLayerConfig())
-        self.assertNotEqual(enc._enc_key, enc._mac_key)
+        self.assertNotEqual(enc.key_fingerprint("enc"), enc.key_fingerprint("mac"))
 
     def test_disposal_channel_key_independence(self):
         """Disposal channel key should be independent of other channels."""
         enc = DisposalChannelEncoder(MASTER_KEY, MultiLayerConfig())
         comment_enc = CommentChannelEncoder(MASTER_KEY, MultiLayerConfig())
-        self.assertNotEqual(enc._channel_key, comment_enc._enc_key)
-        self.assertNotEqual(enc._channel_key, comment_enc._mac_key)
+        self.assertNotEqual(enc.key_fingerprint(), comment_enc.key_fingerprint("enc"))
+        self.assertNotEqual(enc.key_fingerprint(), comment_enc.key_fingerprint("mac"))
 
     def test_immunization_noise_unpredictable_without_key(self):
         """Noise should not be predictable without the correct key."""
