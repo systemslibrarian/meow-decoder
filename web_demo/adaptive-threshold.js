@@ -102,21 +102,34 @@ function computeHistogram(values, bins = 50, min = null, max = null) {
  */
 function findPeaks(histogram, minPeakHeight = null) {
     if (histogram.length < 3) return [];
-    
+
     // Auto-set minimum peak height if not provided
     const maxCount = Math.max(...histogram.map(b => b.count));
     if (minPeakHeight === null) {
         minPeakHeight = maxCount * 0.05;  // 5% of max count
     }
-    
+
     const peaks = [];
-    
-    // Find local maxima (higher than both neighbors)
+
+    // FIX (2026-05-04, Gate 2): also consider boundary bins.
+    // computeHistogram bins values from min..max, so a bimodal
+    // distribution clustered at the EXTREMES (e.g. cat-mode green
+    // scores: 8.x off, 43.x on) puts both peaks in bin 0 and bin N-1.
+    // The interior-only loop missed both, returning peaks=[] →
+    // "No peaks detected" → median fallback → bad threshold → no sync.
+    // A boundary bin is a peak iff it's greater than its one neighbor
+    // and meets the height threshold.
+    if (histogram.length >= 2 && histogram[0].count > histogram[1].count
+        && histogram[0].count >= minPeakHeight) {
+        peaks.push({ value: histogram[0].value, height: histogram[0].count, index: 0 });
+    }
+
+    // Find interior local maxima (higher than both neighbors)
     for (let i = 1; i < histogram.length - 1; i++) {
         const current = histogram[i].count;
         const left = histogram[i - 1].count;
         const right = histogram[i + 1].count;
-        
+
         if (current > left && current > right && current >= minPeakHeight) {
             peaks.push({
                 value: histogram[i].value,
@@ -125,7 +138,17 @@ function findPeaks(histogram, minPeakHeight = null) {
             });
         }
     }
-    
+
+    const lastIdx = histogram.length - 1;
+    if (histogram.length >= 2 && histogram[lastIdx].count > histogram[lastIdx - 1].count
+        && histogram[lastIdx].count >= minPeakHeight) {
+        peaks.push({
+            value: histogram[lastIdx].value,
+            height: histogram[lastIdx].count,
+            index: lastIdx,
+        });
+    }
+
     return peaks;
 }
 
