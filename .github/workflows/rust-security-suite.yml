@@ -156,7 +156,13 @@ jobs:
           toolchain: nightly
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        # NOTE: dropped `--locked` (2026-05-04). cargo-fuzz 0.13.1's
+        # bundled Cargo.lock pins rustix 0.36.5, which uses unstable
+        # `rustc_attrs` features that newer nightly Rust (1.97+)
+        # rejects. Without --locked, cargo resolves a newer rustix
+        # that compiles. This trades reproducibility-of-tool-build
+        # for being-able-to-build-the-tool-at-all on current nightly.
+        run: cargo install cargo-fuzz
 
       - name: Cache Cargo
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
@@ -272,7 +278,13 @@ jobs:
           toolchain: nightly
 
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz --locked
+        # NOTE: dropped `--locked` (2026-05-04). cargo-fuzz 0.13.1's
+        # bundled Cargo.lock pins rustix 0.36.5, which uses unstable
+        # `rustc_attrs` features that newer nightly Rust (1.97+)
+        # rejects. Without --locked, cargo resolves a newer rustix
+        # that compiles. This trades reproducibility-of-tool-build
+        # for being-able-to-build-the-tool-at-all on current nightly.
+        run: cargo install cargo-fuzz
 
       - name: Cache Cargo
         uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
