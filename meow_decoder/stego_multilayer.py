@@ -1748,7 +1748,17 @@ class AdversarialPerturbationLayer:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._perturb_key = hmac_stdlib.new(master_key, DOMAIN_ADVERSARIAL, hashlib.sha256).digest()
+        # gemini #1: perturbation sub-key as a Rust handle. The HMAC-derived
+        # seeds at use sites go through `hb.hmac_sha256(handle, ...)` so
+        # the long-lived key bytes never live in Python.
+        self._perturb_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_ADVERSARIAL)
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_perturb_key_handle", None))
+
+    def key_fingerprint(self) -> bytes:
+        """Stable test-only fingerprint over the perturbation sub-key."""
+        return _key_fingerprint(self._perturb_key_handle)
 
     def apply(
         self,
@@ -1904,12 +1914,18 @@ class AdversarialPerturbationLayer:
             # Compute residual
             residual = cv2.filter2D(channel, cv2.CV_32F, kernel_hpf)
 
-            # Derive keyed mask: only modify pixels where residual is anomalous
-            seed = hmac_stdlib.new(
-                self._perturb_key,
+            # Derive keyed mask: only modify pixels where residual is anomalous.
+            # HMAC inside Rust handle (gemini #1).
+            if self._perturb_key_handle is None:
+                raise RuntimeError(
+                    "Adversarial perturbation requires meow_crypto_rs (Rust) "
+                    "backend for keyed seed derivation."
+                )
+            from meow_decoder.crypto_backend import get_handle_backend
+            seed = bytes(get_handle_backend().hmac_sha256(
+                self._perturb_key_handle,
                 b"hpf_smooth" + struct.pack("<IB", frame_idx, ch),
-                hashlib.sha256,
-            ).digest()
+            ))
             rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed[:8], "little")))
 
             # Threshold: anomalous = residual magnitude > 2x median
@@ -1988,12 +2004,18 @@ class AdversarialPerturbationLayer:
             cover_freq = cover_cooc / max(cover_cooc.sum(), 1)
             diff_freq = stego_freq - cover_freq
 
-            # For over-represented pairs, flip bit-1 of the second pixel
-            seed = hmac_stdlib.new(
-                self._perturb_key,
+            # For over-represented pairs, flip bit-1 of the second pixel.
+            # HMAC inside Rust handle (gemini #1).
+            if self._perturb_key_handle is None:
+                raise RuntimeError(
+                    "Adversarial perturbation requires meow_crypto_rs (Rust) "
+                    "backend for keyed seed derivation."
+                )
+            from meow_decoder.crypto_backend import get_handle_backend
+            seed = bytes(get_handle_backend().hmac_sha256(
+                self._perturb_key_handle,
                 b"cooc_match" + struct.pack("<IB", frame_idx, ch),
-                hashlib.sha256,
-            ).digest()
+            ))
             rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed[:8], "little")))
 
             max_corrections = max(1, h * w // 200)  # Limit corrections per frame
@@ -2060,7 +2082,17 @@ class ProceduralCatGenerator:
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
         self.master_key = master_key
         self.config = config
-        self._seed_key = hmac_stdlib.new(master_key, DOMAIN_PROCCAT_SEED, hashlib.sha256).digest()
+        # gemini #1: seed sub-key as a Rust handle. The 8-byte PCG seed
+        # used by `generate()` is derived via HMAC inside Rust at use
+        # time, so the underlying bytes never persist in Python.
+        self._seed_key_handle = _derive_channel_subkey_handle(master_key, DOMAIN_PROCCAT_SEED)
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_seed_key_handle", None))
+
+    def key_fingerprint(self) -> bytes:
+        """Stable test-only fingerprint over the procedural-cat seed sub-key."""
+        return _key_fingerprint(self._seed_key_handle)
 
     def generate(
         self,
@@ -2079,8 +2111,19 @@ class ProceduralCatGenerator:
         num_frames = num_frames or self.config.procedural_cat_frames
         w, h = size or self.config.procedural_cat_size
 
-        # Derive per-frame seeds
-        rng = np.random.Generator(np.random.PCG64(int.from_bytes(self._seed_key[:8], "little")))
+        # Derive per-frame seed inside Rust (gemini #1) — get a stable
+        # 32-byte tag from the seed key handle, take its first 8 bytes
+        # for the PCG state.
+        if self._seed_key_handle is None:
+            raise RuntimeError(
+                "ProceduralCatGenerator requires meow_crypto_rs (Rust) "
+                "backend for seed derivation."
+            )
+        from meow_decoder.crypto_backend import get_handle_backend
+        seed_tag = bytes(get_handle_backend().hmac_sha256(
+            self._seed_key_handle, b"proccat_pcg_seed_v1"
+        ))
+        rng = np.random.Generator(np.random.PCG64(int.from_bytes(seed_tag[:8], "little")))
 
         frames = []
         for t in range(num_frames):
