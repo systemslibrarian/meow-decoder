@@ -95,36 +95,53 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
   migrated incrementally as callers are willing to switch to handle-
   based parameter types.
 
-## gemini #5 — In-browser WebM → MP4 transcode (Branch 2 deferred)
+## gemini #5 — In-browser WebM → MP4 transcode (Branch 2 SHIPPED)
 
-**Done:** Branch 1 (Safari/WebKit MP4 pass-through) ships in
-`web_demo/static/convert-webm-to-mp4.js`. `window.convertWebMToMp4`
-exists and the cross-browser test (`tests/test_cross_browser.spec.js
-:401-424`) verifies the identity branch.
+**Done on this branch (2026-05-04):**
 
-**Deferred:** in-browser WebM → MP4 transcoding via WebCodecs +
-mp4-muxer + a WebM/Matroska demuxer. Estimated 1-2 focused days.
-Required components:
+* **Branch 1 (Safari MP4 identity)** — `convertWebMToMp4` recognises
+  Safari/WebKit `video/mp4` recordings and returns them untouched.
+* **Branch 2 (WebCodecs transcode) — WIRED.** `transcodeWebMToMp4
+  ViaWebCodecs(blob)` now does the full pipeline: WebM demux →
+  VideoDecoder (VP8/VP9) → VideoEncoder (H.264 avc1.42E01F baseline
+  3.1) → mp4-muxer (ArrayBufferTarget) → MP4 Blob. Source-frame
+  keyframe flags propagate to the H.264 output so cat-mode resume
+  points are preserved.
+* **Vendored deps:**
+  - `web_demo/static/vendor/mp4-muxer-5.2.2.mjs` — MIT, ~70 KB ESM,
+    SHA-256 `d2c4c782…d38f9bb5` of the upstream tarball.
+  - `web_demo/static/vendor/webm-demuxer.mjs` — in-tree, ~10 KB,
+    minimal MediaRecorder-WebM EBML parser. Out-of-scope: lacing,
+    BlockGroup wrapping, multiple video tracks, audio.
+* **Capability flag flipped:** `window.convertWebMToMp4Capabilities.
+  webcodecsTranscode` is now `true`.
+* **Branch 3 fallback message** still points users at offline tools
+  (`ffmpeg -i in.webm -c:v libx264 -c:a aac out.mp4`, HandBrake, VLC)
+  for browsers that don't expose WebCodecs.
+* **Smoke tests** — `tests/test_webm_to_mp4_smoke.node.js` (13 pass,
+  0 fail under Node). Covers module loading, identity branch,
+  Branch 3 error message, demux of synthetic V_VP9 + V_VP8 fixtures,
+  V_AV1 rejection, empty-input rejection, VINT edge cases, mp4-muxer
+  Muxer instantiation.
 
-1. WebM/Matroska demuxer — no good lightweight option exists; either
-   write ~200-400 lines of EBML parsing for the MediaRecorder subset,
-   or vendor a 50-100 KB Matroska parser.
-2. `mp4-muxer` ESM (~30 KB minified) — vendor as `static/vendor/`.
-3. WebCodecs decode→encode pipeline (VP8/VP9 → VideoFrame →
-   H.264 baseline → mp4-muxer chunks).
-4. Cross-browser test surface for Chromium + Firefox WebCodecs
-   (Firefox shipped WebCodecs only recently and has known H.264
-   quirks worth covering in `tests/test_cross_browser.spec.js`).
-5. UI integration — wire the converter into `wasm_browser_example_
-   FULL.html`'s `downloadCatVideo()` and surface a "Save as MP4"
-   button when `window.convertWebMToMp4Capabilities.webcodecsTranscode`
-   is true.
+**Still deferred (lower priority):**
 
-The Branch 3 error (browser without WebCodecs and not Safari) now
-points users at offline tools (`ffmpeg -i in.webm -c:v libx264
--c:a aac out.mp4`, HandBrake, VLC) — strictly more actionable than
-the previous "use server-side ffmpeg" hint that didn't tell users
-which command to run.
+* **Cross-browser WebCodecs end-to-end test in Playwright.** The Node
+  smoke test verifies the wiring; full transcode under Chromium +
+  Firefox WebCodecs (with real H.264 encoding) needs a Playwright
+  test in `tests/test_cross_browser.spec.js`. Firefox shipped
+  WebCodecs only recently and has known H.264 quirks worth covering.
+* **UI integration in `wasm_browser_example_FULL.html`.** `download
+  CatVideo()` currently saves whatever blob format MediaRecorder
+  produced. A "Save as MP4" button gated on
+  `convertWebMToMp4Capabilities.webcodecsTranscode` would let
+  Chromium/Firefox users opt into the transcode. Deferred so this
+  PR doesn't touch the cat-mode UI (which has the open Gate 2 issue).
+* **Audio track passthrough.** The current pipeline drops audio.
+  MediaRecorder transmissions are video-only by design, but a
+  user-uploaded WebM with audio would silently lose its audio.
+  Adding audio means demuxing A_OPUS / A_VORBIS, an AudioDecoder/
+  AudioEncoder pair, and an `audio:` track in the mp4-muxer config.
 
 ## Real protocol state-machine bugs — FIXED (2026-05-03, audit/cat-mode-fixes)
 

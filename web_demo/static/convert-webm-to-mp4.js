@@ -1,7 +1,8 @@
 /**
  * window.convertWebMToMp4(blob) → Promise<Blob>
  *
- * Cat-mode Safari/WebKit MP4 fallback (potential_bugs.md item #5).
+ * Cat-mode Safari/WebKit MP4 fallback + WebCodecs WebM→MP4 transcode
+ * (gemini #5).
  *
  * Behaviour:
  *
@@ -11,25 +12,38 @@
  *      unchanged with the correct MIME label.
  *
  *   2. Input is WebM (Chromium/Firefox MediaRecorder default) AND the
- *      browser exposes WebCodecs `VideoEncoder` with H.264 support →
- *      transcode in-browser to MP4 via the WebCodecs decoder + encoder
- *      pipeline and the lightweight `mp4-muxer` ESM.
+ *      browser exposes WebCodecs `VideoEncoder` + `VideoDecoder` with
+ *      H.264 support → transcode in-browser to MP4 via WebCodecs
+ *      decode → encode → mp4-muxer pipeline.
  *
  *   3. Input is WebM and WebCodecs/H.264 unavailable → reject with a
- *      clear, actionable error so the caller can fall back to offering
- *      the WebM file or pointing the user at server-side conversion.
+ *      clear, actionable error pointing the user at offline tools
+ *      (`ffmpeg -i in.webm -c:v libx264 -c:a aac out.mp4`, HandBrake,
+ *      VLC).
  *
- * Why this lives as a separate file:
- *   - keeps wasm_browser_example_FULL.html focused on the cat-mode UI
- *   - testable in isolation (cross-browser test asserts only that the
- *     symbol exists; runtime path is exercised by manual QA)
- *   - mp4-muxer can be vendored via <script type="module"> when full
- *     transcoding is requested; current implementation lazy-loads it
- *     only on the WebM branch so Safari users pay zero bytes.
+ * Vendored dependencies (loaded lazily on the WebM branch only —
+ * Safari users pay zero bytes):
+ *   - static/vendor/mp4-muxer-5.2.2.mjs   (MIT, ~70 KB ESM)
+ *   - static/vendor/webm-demuxer.mjs      (in-tree, ~9 KB ESM)
  */
 
 (function () {
     'use strict';
+
+    // Lazy-loaded ESM modules (cached after first call).
+    let _mp4MuxerModule = null;
+    let _webmDemuxerModule = null;
+
+    async function loadMuxer() {
+        if (_mp4MuxerModule) return _mp4MuxerModule;
+        _mp4MuxerModule = await import('./vendor/mp4-muxer-5.2.2.mjs');
+        return _mp4MuxerModule;
+    }
+    async function loadDemuxer() {
+        if (_webmDemuxerModule) return _webmDemuxerModule;
+        _webmDemuxerModule = await import('./vendor/webm-demuxer.mjs');
+        return _webmDemuxerModule;
+    }
 
     /** Return true if the blob's MIME type is already an MP4 container. */
     function isMp4Blob(blob) {
@@ -102,31 +116,131 @@
             );
         }
 
-        // Branch 2 implementation: WebCodecs decode + encode + mp4-muxer.
-        //
-        // STATUS (2026-05-04): scaffold complete, full pipeline DEFERRED.
-        // Implementing this path requires:
-        //   (1) demuxing the WebM/Matroska container to extract raw VP8/VP9
-        //       packets — needs ~200-400 lines of EBML parsing, OR vendoring
-        //       a WebM demuxer (no good lightweight option exists today; the
-        //       common ones are full Matroska parsers in the 50-100 KB range);
-        //   (2) feeding packets to a VideoDecoder → VideoFrames;
-        //   (3) re-encoding VideoFrames via VideoEncoder @ H.264 baseline;
-        //   (4) muxing the H.264 chunks into MP4 via mp4-muxer (~30 KB ESM);
-        //   (5) cross-browser test surface for Chromium + Firefox WebCodecs
-        //       paths (Firefox shipped WebCodecs only recently and has
-        //       known H.264 quirks that need test coverage).
-        //
-        // Estimated effort: 1-2 focused days. Tracked in FOLLOWUP.md.
-        // The branch is gated above so users on browsers WITHOUT WebCodecs
-        // never hit this throw; it only fires if a contributor flips the
-        // capability flag below before vendoring the demuxer + muxer.
-        throw new Error(
-            'In-browser WebM→MP4 transcoding via WebCodecs is gated pending ' +
-            'mp4-muxer + WebM demuxer integration. ' +
-            'See FOLLOWUP.md ("gemini #5 MP4 transcode Branch 2") for the ' +
-            'estimated-effort breakdown.'
-        );
+        // Branch 2 implementation: WebCodecs decode → encode → mp4-muxer.
+        return await transcodeWebMToMp4ViaWebCodecs(blob);
+    }
+
+    /**
+     * Transcode a WebM (VP8/VP9) Blob to MP4 (H.264 baseline) via WebCodecs
+     * + mp4-muxer. Caller MUST gate on `canTranscodeViaWebCodecs()` first.
+     *
+     * Implementation notes:
+     *   - One VideoDecoder for the source WebM (VP8 or VP9 from CodecID).
+     *   - One VideoEncoder targeting `avc1.42E01F` (H.264 baseline 3.1)
+     *     at the source dimensions. Bitrate scales with pixel count.
+     *   - mp4-muxer ArrayBufferTarget collects the muxed MP4 in memory.
+     *   - Frame timestamps come from the WebM SimpleBlock cluster +
+     *     block-relative offset (microseconds).
+     *   - Keyframe interval mirrors the source (every keyframe in the
+     *     WebM forces a keyframe in the MP4 too — preserves the
+     *     decoder restart points cat-mode relies on for resume).
+     */
+    async function transcodeWebMToMp4ViaWebCodecs(blob) {
+        const buf = await blob.arrayBuffer();
+        const demuxer = await loadDemuxer();
+        const muxerMod = await loadMuxer();
+        const { Muxer, ArrayBufferTarget } = muxerMod;
+
+        const { codec: webmCodec, width, height, packets } =
+            demuxer.demuxWebMToVideoPackets(buf);
+
+        if (packets.length === 0) {
+            throw new Error('convertWebMToMp4: input has no video frames');
+        }
+
+        const decoderCodec = webmCodec === 'V_VP8' ? 'vp8' : 'vp09.00.10.08';
+
+        // Bitrate heuristic: 0.1 bits per pixel per frame at 30fps =
+        // ~width * height * 3.0. Cap at 8 Mbps to keep blobs sane.
+        const bitrate = Math.min(8_000_000, Math.max(500_000, width * height * 3));
+
+        const target = new ArrayBufferTarget();
+        const muxer = new Muxer({
+            target,
+            video: {
+                codec: 'avc',
+                width,
+                height,
+            },
+            fastStart: 'in-memory',
+            firstTimestampBehavior: 'offset',
+        });
+
+        // Encoder: pushes EncodedVideoChunks straight into the muxer.
+        let encoderError = null;
+        const encoder = new VideoEncoder({
+            output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
+            error: (e) => { encoderError = e; },
+        });
+        encoder.configure({
+            codec: 'avc1.42E01F',
+            width,
+            height,
+            bitrate,
+            // Match the source keyframe cadence by leaving avc decisions
+            // to the encoder; we override per-frame keyframe via the
+            // EncodeOptions when the source packet was a keyframe.
+        });
+
+        // Decoder: each decoded VideoFrame is re-encoded then closed.
+        let decoderError = null;
+        const decoder = new VideoDecoder({
+            output: (frame) => {
+                try {
+                    if (encoderError) {
+                        frame.close();
+                        return;
+                    }
+                    // Force a keyframe whenever the source packet was a
+                    // keyframe so the MP4 has the same decoder restart
+                    // points as the WebM (matters for cat-mode resume).
+                    const sourcePacket = pendingKeyframeFlags.shift();
+                    encoder.encode(frame, { keyFrame: !!sourcePacket });
+                } finally {
+                    frame.close();
+                }
+            },
+            error: (e) => { decoderError = e; },
+        });
+        decoder.configure({
+            codec: decoderCodec,
+            codedWidth: width,
+            codedHeight: height,
+        });
+
+        // We track the source keyframe flag per pending decoded-frame so
+        // the encoder callback can mirror it. Decode→output ordering
+        // matches input ordering for VP8/VP9 (no B-frames).
+        const pendingKeyframeFlags = [];
+
+        for (const pkt of packets) {
+            pendingKeyframeFlags.push(pkt.isKeyframe);
+            decoder.decode(new EncodedVideoChunk({
+                type: pkt.isKeyframe ? 'key' : 'delta',
+                timestamp: pkt.timestampUs,
+                data: pkt.data,
+            }));
+        }
+
+        await decoder.flush();
+        if (decoderError) {
+            try { decoder.close(); } catch (_) {}
+            try { encoder.close(); } catch (_) {}
+            throw new Error(`WebM decode failed: ${decoderError.message || decoderError}`);
+        }
+
+        await encoder.flush();
+        if (encoderError) {
+            try { decoder.close(); } catch (_) {}
+            try { encoder.close(); } catch (_) {}
+            throw new Error(`H.264 encode failed: ${encoderError.message || encoderError}`);
+        }
+
+        decoder.close();
+        encoder.close();
+        muxer.finalize();
+
+        return new Blob([target.buffer], { type: 'video/mp4' });
     }
 
     if (typeof window !== 'undefined') {
@@ -134,11 +248,17 @@
         // Expose a non-promise capability probe for tests / UI gating.
         window.convertWebMToMp4Capabilities = {
             mp4Identity: true,                    // Safari recordings handled
-            webcodecsTranscode: false,            // gated; flip when implemented
+            webcodecsTranscode: true,             // Branch 2 wired (gemini #5)
             probeTranscodeSupport: canTranscodeViaWebCodecs,
         };
     }
     if (typeof module !== 'undefined' && module.exports) {
-        module.exports = { convertWebMToMp4, isMp4Blob, canTranscodeViaWebCodecs };
+        module.exports = {
+            convertWebMToMp4,
+            isMp4Blob,
+            canTranscodeViaWebCodecs,
+            // Exposed for unit tests; not part of the public browser API.
+            transcodeWebMToMp4ViaWebCodecs,
+        };
     }
 })();
