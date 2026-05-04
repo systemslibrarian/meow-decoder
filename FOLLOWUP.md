@@ -72,28 +72,31 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
   decode}` removed — fail-closed if Rust backend missing. 183 stego
   tests pass.
 
-**Deferred (separate focused PRs):**
+**Done in subsequent commits (2026-05-04):**
 
-- **Stego instance-key migration to handles.** `CommentChannelEncoder.
-  _enc_key` / `_mac_key` and `DisposalChannelEncoder._channel_key` are
-  still raw `bytes` instance attributes derived via Python `hmac.
-  new(master_key, DOMAIN_*, sha256).digest()`. Migrating to handle IDs
-  requires updating ~8 test assertions in `tests/test_stego_phase0.py`
-  that compare `_enc_key` bytes across encoder instances (would use
-  `hmac_sha256(handle, b"_test_fingerprint_v1")` instead).
+- **Stego instance-key migration to handles** (commit `3a90214`).
+  `CommentChannelEncoder._enc_key`/`_mac_key`,
+  `TemporalChannelEncoder._channel_key`, and
+  `DisposalChannelEncoder._channel_key` all migrated to handle IDs.
+  Tests updated to use `key_fingerprint(role)` (HMAC over a stable
+  test domain) instead of raw bytes equality.
 
-- **`stego_multilayer.py` `pack_payload`/`unpack_payload` `enc_key`
-  via FFI bytes.** The short-lived `enc_key` is HMAC-derived in
-  Python and passed to Rust `aes_gcm_encrypt(key_bytes, ...)`. The
-  Rust path exists; eliminating the Python-side HMAC derivation
-  needs a new Rust primitive `handle_hmac_to_handle(key_handle,
-  message)` so the derived key never enters Python.
+- **`stego_multilayer.py` pack/unpack enc_key migration** (commit
+  `8254bf7`). New Rust primitive `handle_hmac_sha256_to_handle`
+  added (rust_crypto/src/handles.rs + 2 unit tests + PyO3 wrapper +
+  `HandleBackend.hmac_sha256_to_handle`). `pack_payload` and
+  `unpack_payload` no longer hold derived sub-key bytes in Python —
+  master_key briefly imported as a handle, enc_key + mac_key derived
+  inside Rust, all handles dropped in `try`/`finally`. Wire format
+  preserved (HMAC-SHA256 derivation unchanged inside the new
+  primitive).
+
+**Still deferred (lower priority):**
 
 - **Other Python-side key bytes call sites** (e.g. master keys passed
-  as bytes parameters across the codebase — `prepare_payload`,
-  `unpack_payload`, the various encoder constructors). These can be
-  migrated incrementally as callers are willing to switch to handle-
-  based parameter types.
+  as bytes parameters across the codebase — primary/timing/palette
+  channel encoder constructors). These can be migrated incrementally
+  as callers are willing to switch to handle-based parameter types.
 
 ## gemini #5 — In-browser WebM → MP4 transcode (Branch 2 SHIPPED)
 
@@ -124,19 +127,29 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
   V_AV1 rejection, empty-input rejection, VINT edge cases, mp4-muxer
   Muxer instantiation.
 
+**Done in subsequent commits (2026-05-04):**
+
+* **Playwright cross-browser test added** (`tests/test_cross_browser.
+  spec.js` "Chromium: WebCodecs WebM→MP4 transcode end-to-end").
+  Records a tiny VP9 WebM via `canvas.captureStream` + MediaRecorder,
+  pipes it through `convertWebMToMp4`, asserts `ftyp` box at offset 4
+  in the resulting MP4. Probes `probeTranscodeSupport()` first so
+  the test self-skips on Chromium builds without H.264.
+* **"Download MP4" UI button wired** in `wasm_browser_example_FULL.
+  html`. Renders alongside the existing "Download Video" button when
+  `window.convertWebMToMp4Capabilities.{mp4Identity OR
+  webcodecsTranscode}` is true. Calls a new `downloadCatVideoAsMp4()`
+  that handles the conversion, button busy-state, and a user-facing
+  alert if the transcode fails. Falls through to the original
+  recording on error.
+
 **Still deferred (lower priority):**
 
-* **Cross-browser WebCodecs end-to-end test in Playwright.** The Node
-  smoke test verifies the wiring; full transcode under Chromium +
-  Firefox WebCodecs (with real H.264 encoding) needs a Playwright
-  test in `tests/test_cross_browser.spec.js`. Firefox shipped
-  WebCodecs only recently and has known H.264 quirks worth covering.
-* **UI integration in `wasm_browser_example_FULL.html`.** `download
-  CatVideo()` currently saves whatever blob format MediaRecorder
-  produced. A "Save as MP4" button gated on
-  `convertWebMToMp4Capabilities.webcodecsTranscode` would let
-  Chromium/Firefox users opt into the transcode. Deferred so this
-  PR doesn't touch the cat-mode UI (which has the open Gate 2 issue).
+* **Firefox / WebKit Playwright transcode test.** Firefox WebCodecs
+  H.264 support is recent and quirky; WebKit doesn't expose
+  `VideoEncoder`. The Chromium test added here is the baseline; the
+  cross-browser variants need separate test cases with browser-
+  specific skip conditions.
 * **Audio track passthrough.** The current pipeline drops audio.
   MediaRecorder transmissions are video-only by design, but a
   user-uploaded WebM with audio would silently lose its audio.

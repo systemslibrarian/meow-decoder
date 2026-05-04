@@ -453,6 +453,89 @@ test.describe('Browser-Specific Workarounds', () => {
         const catVideoUpload = await page.locator('#catVideoUpload').count();
         expect(catVideoUpload).toBeGreaterThan(0);
     });
+
+    test('WebCodecs: capability flag exposed (gemini #5)', async ({ page }) => {
+        // After the Branch 2 wiring (commit 880f335), all browsers see the
+        // capability advertisement. The actual transcode path additionally
+        // requires VideoEncoder + H.264 at runtime.
+        const caps = await page.evaluate(() => window.convertWebMToMp4Capabilities);
+        expect(caps).toBeTruthy();
+        expect(caps.mp4Identity).toBe(true);
+        expect(caps.webcodecsTranscode).toBe(true);
+        expect(typeof caps.probeTranscodeSupport).toBe('function');
+    });
+
+    test('Chromium: WebCodecs WebM→MP4 transcode end-to-end', async ({ page, browserName }) => {
+        if (browserName !== 'chromium') {
+            // Firefox WebCodecs H.264 support is recent and quirky; WebKit
+            // doesn't expose VideoEncoder. Track those in a follow-up.
+            test.skip();
+        }
+
+        // Probe runtime capability — skip if the test env's Chromium
+        // build is missing the H.264 encoder.
+        const transcodable = await page.evaluate(async () => {
+            return await window.convertWebMToMp4Capabilities.probeTranscodeSupport();
+        });
+        if (!transcodable) {
+            test.skip(true, 'Chromium build missing H.264 encoder; skipping runtime transcode');
+        }
+
+        // Record a tiny WebM in-page via OffscreenCanvas + captureStream,
+        // then convert it to MP4 and assert ftyp box presence.
+        const result = await page.evaluate(async () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const stream = canvas.captureStream(15); // 15 fps
+            const chunks = [];
+            const mimeWebM = 'video/webm;codecs=vp9';
+            if (!MediaRecorder.isTypeSupported(mimeWebM)) {
+                return { skipped: true, reason: 'No VP9 MediaRecorder support' };
+            }
+            const rec = new MediaRecorder(stream, { mimeType: mimeWebM, videoBitsPerSecond: 200_000 });
+            rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+            rec.start(100);
+            // Animate ~0.5s so we get multiple frames + at least one keyframe.
+            const startTime = performance.now();
+            while (performance.now() - startTime < 500) {
+                ctx.fillStyle = ((performance.now() | 0) % 2) ? '#00ff88' : '#0088ff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                await new Promise((r) => requestAnimationFrame(r));
+            }
+            await new Promise((r) => {
+                rec.onstop = () => r();
+                rec.stop();
+            });
+            const webm = new Blob(chunks, { type: mimeWebM });
+            if (webm.size === 0) {
+                return { skipped: true, reason: 'No WebM data captured' };
+            }
+            const mp4 = await window.convertWebMToMp4(webm);
+            const buf = new Uint8Array(await mp4.arrayBuffer());
+            // MP4 files start with size(4) + 'ftyp' (offset 4..8 = 0x66 0x74 0x79 0x70).
+            const ftyp = String.fromCharCode(buf[4], buf[5], buf[6], buf[7]);
+            return {
+                skipped: false,
+                webmSize: webm.size,
+                mp4Size: mp4.size,
+                mp4MimeType: mp4.type,
+                ftypAt4: ftyp,
+            };
+        });
+
+        if (result.skipped) {
+            test.skip(true, result.reason);
+        }
+
+        expect(result.webmSize).toBeGreaterThan(0);
+        expect(result.mp4Size).toBeGreaterThan(0);
+        expect(result.mp4MimeType).toBe('video/mp4');
+        expect(result.ftypAt4).toBe('ftyp');
+    });
 });
 
 test.describe('Mobile-Specific Features', () => {
