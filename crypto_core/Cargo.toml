@@ -178,7 +178,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.11"
 
 # Async test runtime (for hardware tests)
-tokio = { version = "1.51", features = ["rt-multi-thread", "macros"] }
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros"] }
 
 # Hex encoding for test vectors
 hex = "0.4"
