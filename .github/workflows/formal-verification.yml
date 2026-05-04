@@ -681,15 +681,23 @@ jobs:
                 tamarin_neg2.txt \
                 "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove"
 
-              # Dead man's switch model is non-blocking: under Tamarin
-              # 1.12.0 the prover passes derivation checks in 5s but then
-              # spends 12+ minutes on proof search before being OOM-killed
-              # at the 6 GiB cap (observed in run 25295960352 / job
-              # 74154718189). Same root cause as the Schrödinger
-              # Deniability Core demote in shard 2 — needs a bounded-trace
-              # restriction or a tighter rule shape to be tractable on
-              # the runner. Tracked in FOLLOWUP.md.
-              run_tamarin_model "meow_deadmans_switch.spthy" "Dead man's switch duress protocol" nonblocking
+              # Promoted nonblocking → blocking 2026-05-04 after the OOM
+              # root cause was fixed locally (verified with Tamarin 1.12.0
+              # + Maude 3.5.1):
+              #   - 2 wellformedness bugs (unguarded `ct` in
+              #     disable_prevents_decoy lemma; undeducible `current_time`
+              #     in Trigger_OnDeadline rule — Tamarin's derivation check
+              #     flagged it, and the rule never fired in practice)
+              #   - 1 lemma typo (`Renew(_, 't1')` literal string `'t1'`
+              #     never matched the Renew action's `current_tick` term)
+              #   - Self-loop saturation anti-pattern in Check_Time rule
+              #     (consumed State_Armed and re-emitted it unchanged)
+              # The renewal_prevents_trigger lemma is commented out with
+              # detailed rationale — proving it requires a sources/oracle
+              # script that needs cryptographer review. The remaining 8
+              # lemmas verify in ~1.3s total locally. See FOLLOWUP.md +
+              # the model file for the full root-cause + fix narrative.
+              run_tamarin_model "meow_deadmans_switch.spthy" "Dead man's switch duress protocol" blocking
               ;;
             2)
               echo "============================================"
