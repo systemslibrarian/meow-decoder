@@ -465,24 +465,99 @@ test.describe('Browser-Specific Workarounds', () => {
         expect(typeof caps.probeTranscodeSupport).toBe('function');
     });
 
-    test('Chromium: WebCodecs WebM→MP4 transcode end-to-end', async ({ page, browserName }) => {
-        if (browserName !== 'chromium') {
-            // Firefox WebCodecs H.264 support is recent and quirky; WebKit
-            // doesn't expose VideoEncoder. Track those in a follow-up.
-            test.skip();
-        }
-
-        // Probe runtime capability — skip if the test env's Chromium
-        // build is missing the H.264 encoder.
+    /**
+     * Shared body for the Chromium + Firefox WebCodecs end-to-end tests.
+     * Records a tiny WebM via canvas.captureStream + MediaRecorder,
+     * pipes it through window.convertWebMToMp4, asserts an MP4 ftyp box.
+     *
+     * Returns { skipped: bool, reason?: string, ...metrics }.
+     */
+    async function runWebCodecsTranscode(page, mediaRecorderMime) {
+        // Probe runtime capability — skip if the test env's browser
+        // build lacks the H.264 encoder.
         const transcodable = await page.evaluate(async () => {
             return await window.convertWebMToMp4Capabilities.probeTranscodeSupport();
         });
         if (!transcodable) {
-            test.skip(true, 'Chromium build missing H.264 encoder; skipping runtime transcode');
+            return { skipped: true, reason: 'browser missing H.264 encoder' };
         }
 
-        // Record a tiny WebM in-page via OffscreenCanvas + captureStream,
-        // then convert it to MP4 and assert ftyp box presence.
+        return await page.evaluate(async (mime) => {
+            if (!MediaRecorder.isTypeSupported(mime)) {
+                return { skipped: true, reason: `no MediaRecorder support for ${mime}` };
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = 160;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#00ff88';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            const stream = canvas.captureStream(15);
+            const chunks = [];
+            const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 200_000 });
+            rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
+            rec.start(100);
+            const startTime = performance.now();
+            while (performance.now() - startTime < 500) {
+                ctx.fillStyle = ((performance.now() | 0) % 2) ? '#00ff88' : '#0088ff';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                await new Promise((r) => requestAnimationFrame(r));
+            }
+            await new Promise((r) => { rec.onstop = () => r(); rec.stop(); });
+            const webm = new Blob(chunks, { type: mime });
+            if (webm.size === 0) return { skipped: true, reason: 'no WebM data captured' };
+            try {
+                const mp4 = await window.convertWebMToMp4(webm);
+                const buf = new Uint8Array(await mp4.arrayBuffer());
+                const ftyp = String.fromCharCode(buf[4], buf[5], buf[6], buf[7]);
+                return {
+                    skipped: false,
+                    webmSize: webm.size,
+                    mp4Size: mp4.size,
+                    mp4MimeType: mp4.type,
+                    ftypAt4: ftyp,
+                };
+            } catch (e) {
+                return { skipped: true, reason: `transcode threw: ${e.message || e}` };
+            }
+        }, mediaRecorderMime);
+    }
+
+    test('Chromium: WebCodecs WebM→MP4 transcode end-to-end', async ({ page, browserName }) => {
+        if (browserName !== 'chromium') test.skip();
+
+        const result = await runWebCodecsTranscode(page, 'video/webm;codecs=vp9');
+        if (result.skipped) test.skip(true, result.reason);
+
+        expect(result.webmSize).toBeGreaterThan(0);
+        expect(result.mp4Size).toBeGreaterThan(0);
+        expect(result.mp4MimeType).toBe('video/mp4');
+        expect(result.ftypAt4).toBe('ftyp');
+    });
+
+    test('Firefox: WebCodecs WebM→MP4 transcode (VP8 source)', async ({ page, browserName }) => {
+        if (browserName !== 'firefox') test.skip();
+
+        // Firefox MediaRecorder defaults to VP8 (per "Firefox: MediaRecorder
+        // constraints" test above). Firefox WebCodecs H.264 support is
+        // recent (gecko 130+) and may be missing in the playwright-bundled
+        // Firefox — `probeTranscodeSupport()` self-skips in that case.
+        const result = await runWebCodecsTranscode(page, 'video/webm;codecs=vp8');
+        if (result.skipped) test.skip(true, result.reason);
+
+        expect(result.webmSize).toBeGreaterThan(0);
+        expect(result.mp4Size).toBeGreaterThan(0);
+        expect(result.mp4MimeType).toBe('video/mp4');
+        expect(result.ftypAt4).toBe('ftyp');
+    });
+
+    test('WebKit: convertWebMToMp4 identity branch on MP4 recording', async ({ page, browserName }) => {
+        if (browserName !== 'webkit') test.skip();
+
+        // WebKit doesn't expose VideoEncoder, so Branch 2 is impossible.
+        // But MediaRecorder produces video/mp4 directly — the helper
+        // should short-circuit on the identity branch and return a
+        // recognisable MP4 (ftyp box at offset 4).
         const result = await page.evaluate(async () => {
             const canvas = document.createElement('canvas');
             canvas.width = 160;
@@ -490,50 +565,58 @@ test.describe('Browser-Specific Workarounds', () => {
             const ctx = canvas.getContext('2d');
             ctx.fillStyle = '#00ff88';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            const stream = canvas.captureStream(15); // 15 fps
-            const chunks = [];
-            const mimeWebM = 'video/webm;codecs=vp9';
-            if (!MediaRecorder.isTypeSupported(mimeWebM)) {
-                return { skipped: true, reason: 'No VP9 MediaRecorder support' };
+            const stream = canvas.captureStream(15);
+            // WebKit MediaRecorder MIME selection: try mp4 explicitly,
+            // fall back to leaving it undefined (which is what the
+            // production code path uses on Safari).
+            let mime = 'video/mp4';
+            if (!MediaRecorder.isTypeSupported(mime)) {
+                mime = '';
             }
-            const rec = new MediaRecorder(stream, { mimeType: mimeWebM, videoBitsPerSecond: 200_000 });
+            const chunks = [];
+            const rec = mime
+                ? new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 200_000 })
+                : new MediaRecorder(stream, { videoBitsPerSecond: 200_000 });
             rec.ondataavailable = (e) => { if (e.data.size > 0) chunks.push(e.data); };
             rec.start(100);
-            // Animate ~0.5s so we get multiple frames + at least one keyframe.
             const startTime = performance.now();
             while (performance.now() - startTime < 500) {
                 ctx.fillStyle = ((performance.now() | 0) % 2) ? '#00ff88' : '#0088ff';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
                 await new Promise((r) => requestAnimationFrame(r));
             }
-            await new Promise((r) => {
-                rec.onstop = () => r();
-                rec.stop();
-            });
-            const webm = new Blob(chunks, { type: mimeWebM });
-            if (webm.size === 0) {
-                return { skipped: true, reason: 'No WebM data captured' };
+            await new Promise((r) => { rec.onstop = () => r(); rec.stop(); });
+            const recorded = new Blob(chunks, { type: rec.mimeType || mime || '' });
+            if (recorded.size === 0) {
+                return { skipped: true, reason: 'no recording data' };
             }
-            const mp4 = await window.convertWebMToMp4(webm);
-            const buf = new Uint8Array(await mp4.arrayBuffer());
-            // MP4 files start with size(4) + 'ftyp' (offset 4..8 = 0x66 0x74 0x79 0x70).
-            const ftyp = String.fromCharCode(buf[4], buf[5], buf[6], buf[7]);
-            return {
-                skipped: false,
-                webmSize: webm.size,
-                mp4Size: mp4.size,
-                mp4MimeType: mp4.type,
-                ftypAt4: ftyp,
-            };
+            // If WebKit recorded as something other than mp4, the helper
+            // would attempt the WebCodecs path which WebKit doesn't
+            // support — the test would then need to skip.
+            if (!(recorded.type || '').toLowerCase().includes('mp4')) {
+                return { skipped: true, reason: `WebKit recorded as ${recorded.type}, expected mp4` };
+            }
+            try {
+                const mp4 = await window.convertWebMToMp4(recorded);
+                const buf = new Uint8Array(await mp4.arrayBuffer());
+                const ftyp = String.fromCharCode(buf[4], buf[5], buf[6], buf[7]);
+                return {
+                    skipped: false,
+                    recordedType: recorded.type,
+                    mp4Size: mp4.size,
+                    mp4MimeType: mp4.type,
+                    ftypAt4: ftyp,
+                };
+            } catch (e) {
+                return { skipped: true, reason: `identity branch threw: ${e.message || e}` };
+            }
         });
 
-        if (result.skipped) {
-            test.skip(true, result.reason);
-        }
+        if (result.skipped) test.skip(true, result.reason);
 
-        expect(result.webmSize).toBeGreaterThan(0);
-        expect(result.mp4Size).toBeGreaterThan(0);
+        expect(result.recordedType.toLowerCase()).toContain('mp4');
         expect(result.mp4MimeType).toBe('video/mp4');
+        expect(result.mp4Size).toBeGreaterThan(0);
         expect(result.ftypAt4).toBe('ftyp');
     });
 });

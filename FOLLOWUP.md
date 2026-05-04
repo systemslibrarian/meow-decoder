@@ -145,13 +145,24 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
   alert if the transcode fails. Falls through to the original
   recording on error.
 
+**Done in subsequent commits (2026-05-04):**
+
+* **Firefox + WebKit Playwright variants** (commit follows). Refactored
+  the Chromium transcode test body into a shared `runWebCodecs
+  Transcode(page, mimeType)` helper. Two new tests:
+  - `Firefox: WebCodecs WebM→MP4 transcode (VP8 source)` — Firefox
+    MediaRecorder defaults to VP8 per the existing Firefox MediaRecorder
+    test; self-skips if `probeTranscodeSupport()` returns false (Firefox
+    < 130 lacks H.264 WebCodecs).
+  - `WebKit: convertWebMToMp4 identity branch on MP4 recording` —
+    records video via MediaRecorder (WebKit emits MP4 natively), pipes
+    through `convertWebMToMp4`, asserts the helper short-circuits on
+    the identity branch and returns a recognisable MP4 (`ftyp` at
+    offset 4). Skips if WebKit recorded as something other than MP4
+    (which would require Branch 2, unavailable on WebKit).
+
 **Still deferred (lower priority):**
 
-* **Firefox / WebKit Playwright transcode test.** Firefox WebCodecs
-  H.264 support is recent and quirky; WebKit doesn't expose
-  `VideoEncoder`. The Chromium test added here is the baseline; the
-  cross-browser variants need separate test cases with browser-
-  specific skip conditions.
 * **Audio track passthrough.** The current pipeline drops audio.
   MediaRecorder transmissions are video-only by design, but a
   user-uploaded WebM with audio would silently lose its audio.
