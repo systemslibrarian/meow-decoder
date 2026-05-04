@@ -44,6 +44,10 @@ const ID_CODEC_ID = 0x86;
 const ID_VIDEO = 0xE0;
 const ID_PIXEL_WIDTH = 0xB0;
 const ID_PIXEL_HEIGHT = 0xBA;
+const ID_AUDIO = 0xE1;
+const ID_SAMPLING_FREQUENCY = 0xB5;
+const ID_CHANNELS = 0x9F;
+const ID_CODEC_PRIVATE = 0x63A2;
 const ID_CLUSTER = 0x1F43B675;
 const ID_CLUSTER_TIMECODE = 0xE7;
 const ID_SIMPLE_BLOCK = 0xA3;
@@ -63,6 +67,7 @@ const MASTER_ELEMENTS = new Set([
     ID_TRACKS,
     ID_TRACK_ENTRY,
     ID_VIDEO,
+    ID_AUDIO,
     ID_CLUSTER,
     ID_BLOCK_GROUP,
 ]);
@@ -145,6 +150,14 @@ function readAscii(view, offset, length) {
         s += String.fromCharCode(view.getUint8(offset + i));
     }
     return s;
+}
+
+/** Read an EBML float (4 or 8 bytes, big-endian IEEE 754). */
+function readFloat(view, offset, length) {
+    if (length === 4) return view.getFloat32(offset, false);
+    if (length === 8) return view.getFloat64(offset, false);
+    if (length === 0) return 0.0;
+    throw new Error(`readFloat: invalid length ${length} (must be 0/4/8)`);
 }
 
 /**
@@ -238,40 +251,97 @@ function walkEbml(view, startOffset, endOffset, visitor) {
  * video tracks, no video track, missing codec ID).
  */
 export function demuxWebMToVideoPackets(arrayBuffer) {
+    // Back-compat shim — return only the video portion of demuxWebM.
+    const r = demuxWebM(arrayBuffer);
+    return {
+        codec: r.video.codec,
+        width: r.video.width,
+        height: r.video.height,
+        timecodeScaleNs: r.timecodeScaleNs,
+        packets: r.video.packets,
+    };
+}
+
+/**
+ * Full demux returning both video and audio tracks (when present).
+ *
+ * Returns:
+ *   {
+ *     timecodeScaleNs: number,
+ *     video: {
+ *       codec: "V_VP8" | "V_VP9",
+ *       width, height: number,
+ *       packets: [{ data, timestampUs, isKeyframe }, ...],
+ *     },
+ *     audio: null | {
+ *       codec: "A_OPUS" | "A_VORBIS",
+ *       sampleRate: number,
+ *       channels: number,
+ *       codecPrivate: Uint8Array | null,  // OpusHead / Vorbis setup blob
+ *       packets: [{ data, timestampUs }, ...],
+ *     },
+ *   }
+ *
+ * `audio` is null when no audio track is present (the MediaRecorder
+ * cat-mode case). Throws on missing/unsupported video.
+ */
+export function demuxWebM(arrayBuffer) {
     if (!(arrayBuffer instanceof ArrayBuffer)) {
-        throw new TypeError('demuxWebMToVideoPackets: expected ArrayBuffer');
+        throw new TypeError('demuxWebM: expected ArrayBuffer');
     }
     const view = new DataView(arrayBuffer);
 
-    let codec = null;
-    let width = 0;
-    let height = 0;
+    let videoCodec = null;
+    let videoWidth = 0;
+    let videoHeight = 0;
     let timecodeScaleNs = 1_000_000; // Matroska default
     let videoTrackNumber = null;
     let currentClusterTimecode = 0;
-    const packets = [];
+    const videoPackets = [];
+
+    // Audio track state.
+    let audioCodec = null;
+    let audioSampleRate = 0;
+    let audioChannels = 0;
+    let audioCodecPrivate = null;
+    let audioTrackNumber = null;
+    const audioPackets = [];
 
     // Per-track-entry scratch for the Tracks pass.
     let inTrackEntry = false;
+    let inAudioMaster = false;
     let trackEntryNumber = null;
     let trackEntryType = null;
     let trackEntryCodec = null;
     let trackEntryWidth = 0;
     let trackEntryHeight = 0;
+    let trackEntrySampleRate = 0;
+    let trackEntryChannels = 0;
+    let trackEntryCodecPrivate = null;
 
     function flushTrackEntry() {
         if (trackEntryType === 1 /* video */ && videoTrackNumber === null) {
             videoTrackNumber = trackEntryNumber;
-            codec = trackEntryCodec;
-            width = trackEntryWidth;
-            height = trackEntryHeight;
+            videoCodec = trackEntryCodec;
+            videoWidth = trackEntryWidth;
+            videoHeight = trackEntryHeight;
+        } else if (trackEntryType === 2 /* audio */ && audioTrackNumber === null) {
+            audioTrackNumber = trackEntryNumber;
+            audioCodec = trackEntryCodec;
+            audioSampleRate = trackEntrySampleRate || 48000;
+            audioChannels = trackEntryChannels || 1;
+            audioCodecPrivate = trackEntryCodecPrivate;
         }
         inTrackEntry = false;
+        inAudioMaster = false;
         trackEntryNumber = null;
         trackEntryType = null;
         trackEntryCodec = null;
         trackEntryWidth = 0;
         trackEntryHeight = 0;
+        trackEntrySampleRate = 0;
+        trackEntryChannels = 0;
+        trackEntryCodecPrivate = null;
     }
 
     walkEbml(view, 0, view.byteLength, (id, bodyOffset, bodySize, v, phase) => {
@@ -280,8 +350,10 @@ export function demuxWebMToVideoPackets(arrayBuffer) {
                 case ID_TRACK_ENTRY:
                     inTrackEntry = true;
                     return true;
+                case ID_AUDIO:
+                    inAudioMaster = true;
+                    return true;
                 case ID_CLUSTER:
-                    // Reset per-cluster timecode; will be set by ID_CLUSTER_TIMECODE leaf.
                     currentClusterTimecode = 0;
                     return true;
                 default:
@@ -292,6 +364,8 @@ export function demuxWebMToVideoPackets(arrayBuffer) {
         if (phase === 'exit') {
             if (id === ID_TRACK_ENTRY) {
                 flushTrackEntry();
+            } else if (id === ID_AUDIO) {
+                inAudioMaster = false;
             }
             return;
         }
@@ -317,6 +391,22 @@ export function demuxWebMToVideoPackets(arrayBuffer) {
             case ID_PIXEL_HEIGHT:
                 if (inTrackEntry) trackEntryHeight = readUint(v, bodyOffset, bodySize);
                 break;
+            case ID_SAMPLING_FREQUENCY:
+                if (inAudioMaster) trackEntrySampleRate = Math.round(readFloat(v, bodyOffset, bodySize));
+                break;
+            case ID_CHANNELS:
+                if (inAudioMaster) trackEntryChannels = readUint(v, bodyOffset, bodySize);
+                break;
+            case ID_CODEC_PRIVATE:
+                // Capture for audio tracks (OpusHead, Vorbis setup).
+                // Video CodecPrivate isn't useful for VP8/VP9 (no codec setup
+                // is needed for VideoDecoder.configure).
+                if (inTrackEntry) {
+                    trackEntryCodecPrivate = new Uint8Array(
+                        v.buffer, v.byteOffset + bodyOffset, bodySize
+                    );
+                }
+                break;
 
             case ID_CLUSTER_TIMECODE:
                 currentClusterTimecode = readUint(v, bodyOffset, bodySize);
@@ -324,74 +414,59 @@ export function demuxWebMToVideoPackets(arrayBuffer) {
 
             case ID_SIMPLE_BLOCK: {
                 const hdr = parseSimpleBlockHeader(v, bodyOffset);
+                const frameStart = bodyOffset + hdr.frameOffset;
+                const frameLen = bodySize - hdr.frameOffset;
+                const frameBytes = new Uint8Array(
+                    v.buffer, v.byteOffset + frameStart, frameLen
+                );
+                const clusterUs = (currentClusterTimecode * timecodeScaleNs) / 1000;
+                const blockUs = hdr.timecodeRel * 1000;
+                const tsUs = Math.round(clusterUs + blockUs);
                 if (videoTrackNumber !== null && hdr.trackNumber === videoTrackNumber) {
-                    const frameStart = bodyOffset + hdr.frameOffset;
-                    const frameLen = bodySize - hdr.frameOffset;
-                    const frameBytes = new Uint8Array(
-                        v.buffer,
-                        v.byteOffset + frameStart,
-                        frameLen
-                    );
-                    // Cluster timecode is in TimecodeScale ticks; SimpleBlock
-                    // adds its own ms-resolution relative offset (per spec,
-                    // SimpleBlock timecode is always in milliseconds, not
-                    // TimecodeScale ticks).
-                    const clusterUs = (currentClusterTimecode * timecodeScaleNs) / 1000;
-                    const blockUs = hdr.timecodeRel * 1000;
-                    packets.push({
+                    videoPackets.push({
                         data: frameBytes,
-                        timestampUs: Math.round(clusterUs + blockUs),
+                        timestampUs: tsUs,
                         isKeyframe: hdr.isKeyframe,
+                    });
+                } else if (audioTrackNumber !== null && hdr.trackNumber === audioTrackNumber) {
+                    // Opus / Vorbis frames in MediaRecorder output are
+                    // self-contained — every frame is decodable on its own.
+                    // No keyframe flag needed for audio.
+                    audioPackets.push({
+                        data: frameBytes,
+                        timestampUs: tsUs,
                     });
                 }
                 break;
             }
 
             case ID_BLOCK: {
-                // Inside BlockGroup. Same body layout as SimpleBlock minus
-                // the keyframe flag (which lives in the Block's parent
-                // BlockGroup via ReferenceBlock — absent ReferenceBlock
-                // implies keyframe). MediaRecorder doesn't emit BlockGroup
-                // in our scope, but we handle it defensively.
                 const hdr = parseSimpleBlockHeader(v, bodyOffset);
+                const frameStart = bodyOffset + hdr.frameOffset;
+                const frameLen = bodySize - hdr.frameOffset;
+                const frameBytes = new Uint8Array(
+                    v.buffer, v.byteOffset + frameStart, frameLen
+                );
+                const clusterUs = (currentClusterTimecode * timecodeScaleNs) / 1000;
+                const blockUs = hdr.timecodeRel * 1000;
+                const tsUs = Math.round(clusterUs + blockUs);
                 if (videoTrackNumber !== null && hdr.trackNumber === videoTrackNumber) {
-                    const frameStart = bodyOffset + hdr.frameOffset;
-                    const frameLen = bodySize - hdr.frameOffset;
-                    const frameBytes = new Uint8Array(
-                        v.buffer,
-                        v.byteOffset + frameStart,
-                        frameLen
-                    );
-                    const clusterUs = (currentClusterTimecode * timecodeScaleNs) / 1000;
-                    const blockUs = hdr.timecodeRel * 1000;
-                    packets.push({
-                        data: frameBytes,
-                        timestampUs: Math.round(clusterUs + blockUs),
-                        // We don't see ReferenceBlock here (it's a sibling),
-                        // so default to true on Block to avoid false negatives.
-                        // SimpleBlock is the strict path.
-                        isKeyframe: true,
-                    });
+                    videoPackets.push({ data: frameBytes, timestampUs: tsUs, isKeyframe: true });
+                } else if (audioTrackNumber !== null && hdr.trackNumber === audioTrackNumber) {
+                    audioPackets.push({ data: frameBytes, timestampUs: tsUs });
                 }
                 break;
             }
 
             case ID_VOID:
             case ID_CRC32:
-                // Skip padding / CRC.
                 break;
 
             default:
-                // Unknown leaf — ignore. WebM/Matroska is forward-compatible.
                 break;
         }
     });
 
-    // Flush the final track entry if we ended inside one (rare, but possible
-    // if the buffer is truncated mid-Tracks). The walkEbml-visitor model
-    // doesn't fire a master-exit hook, so we rely on the videoTrackNumber
-    // being set by the time we hit the first Cluster — which is the spec
-    // ordering guarantee.
     if (inTrackEntry) flushTrackEntry();
 
     if (videoTrackNumber === null) {
@@ -400,27 +475,46 @@ export function demuxWebMToVideoPackets(arrayBuffer) {
             'or the EBML structure is malformed.'
         );
     }
-    if (!codec) {
+    if (!videoCodec) {
         throw new Error('webm-demuxer: video track missing CodecID');
     }
-    if (codec !== 'V_VP8' && codec !== 'V_VP9') {
+    if (videoCodec !== 'V_VP8' && videoCodec !== 'V_VP9') {
         throw new Error(
-            `webm-demuxer: unsupported video codec ${codec}. ` +
+            `webm-demuxer: unsupported video codec ${videoCodec}. ` +
             'MediaRecorder typically emits V_VP8 or V_VP9.'
         );
     }
-    if (width <= 0 || height <= 0) {
+    if (videoWidth <= 0 || videoHeight <= 0) {
         throw new Error(
-            `webm-demuxer: invalid dimensions ${width}x${height} from PixelWidth/PixelHeight`
+            `webm-demuxer: invalid dimensions ${videoWidth}x${videoHeight} from PixelWidth/PixelHeight`
         );
     }
 
+    let audio = null;
+    if (audioTrackNumber !== null) {
+        if (audioCodec === 'A_OPUS' || audioCodec === 'A_VORBIS') {
+            audio = {
+                codec: audioCodec,
+                sampleRate: audioSampleRate,
+                channels: audioChannels,
+                codecPrivate: audioCodecPrivate,
+                packets: audioPackets,
+            };
+        }
+        // Else: unsupported audio codec — silently drop the audio track.
+        // Caller can detect via `result.audio === null` and warn the user
+        // that their audio was lost.
+    }
+
     return {
-        codec,
-        width,
-        height,
         timecodeScaleNs,
-        packets,
+        video: {
+            codec: videoCodec,
+            width: videoWidth,
+            height: videoHeight,
+            packets: videoPackets,
+        },
+        audio,
     };
 }
 
@@ -430,6 +524,7 @@ export const __test = {
     readUint,
     readSint,
     readAscii,
+    readFloat,
     parseSimpleBlockHeader,
     walkEbml,
     VINT_LENGTH_LOOKUP,

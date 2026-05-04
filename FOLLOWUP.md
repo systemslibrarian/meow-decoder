@@ -161,13 +161,23 @@ Also fixed earlier in the audit (pre-FOLLOWUP):
     offset 4). Skips if WebKit recorded as something other than MP4
     (which would require Branch 2, unavailable on WebKit).
 
-**Still deferred (lower priority):**
+**Done in subsequent commits (2026-05-04):**
 
-* **Audio track passthrough.** The current pipeline drops audio.
-  MediaRecorder transmissions are video-only by design, but a
-  user-uploaded WebM with audio would silently lose its audio.
-  Adding audio means demuxing A_OPUS / A_VORBIS, an AudioDecoder/
-  AudioEncoder pair, and an `audio:` track in the mp4-muxer config.
+* **Audio track passthrough — SHIPPED.** `webm-demuxer.mjs` extended
+  with a new audio-aware `demuxWebM()` (the original
+  `demuxWebMToVideoPackets` becomes a back-compat shim). Demuxes
+  A_OPUS and A_VORBIS audio tracks, captures CodecPrivate (OpusHead
+  / Vorbis setup), parses SamplingFrequency (IEEE 754 float) and
+  Channels. Unsupported codecs (e.g. A_FLAC) drop silently — caller
+  sees `result.audio === null` and can warn the user.
+  `transcodeWebMToMp4ViaWebCodecs()` now wires AudioDecoder
+  (Opus/Vorbis) → AudioEncoder (`mp4a.40.2` AAC-LC) in parallel
+  with the video pipeline. AAC encoder support is probed via
+  `AudioEncoder.isConfigSupported()`; if the browser lacks it,
+  audio drops silently rather than failing the whole transcode.
+  6 new Node smoke tests (19 total).
+
+**Still deferred (no remaining items in this section).**
 
 ## Real protocol state-machine bugs — FIXED (2026-05-03, audit/cat-mode-fixes)
 

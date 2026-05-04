@@ -121,14 +121,16 @@
     }
 
     /**
-     * Transcode a WebM (VP8/VP9) Blob to MP4 (H.264 baseline) via WebCodecs
-     * + mp4-muxer. Caller MUST gate on `canTranscodeViaWebCodecs()` first.
+     * Transcode a WebM (VP8/VP9 + optional Opus/Vorbis audio) Blob to MP4
+     * (H.264 baseline + AAC-LC) via WebCodecs + mp4-muxer. Caller MUST
+     * gate on `canTranscodeViaWebCodecs()` first.
      *
      * Implementation notes:
-     *   - One VideoDecoder for the source WebM (VP8 or VP9 from CodecID).
-     *   - One VideoEncoder targeting `avc1.42E01F` (H.264 baseline 3.1)
-     *     at the source dimensions. Bitrate scales with pixel count.
-     *   - mp4-muxer ArrayBufferTarget collects the muxed MP4 in memory.
+     *   - VideoDecoder for VP8 or VP9 source → VideoEncoder@`avc1.42E01F`
+     *     (H.264 baseline 3.1). Bitrate scales with pixel count.
+     *   - When source has audio (Opus/Vorbis): AudioDecoder → AudioEncoder
+     *     @`mp4a.40.2` (AAC-LC). When the browser lacks AAC encoding
+     *     support, audio is dropped silently (the MP4 ships video-only).
      *   - Frame timestamps come from the WebM SimpleBlock cluster +
      *     block-relative offset (microseconds).
      *   - Keyframe interval mirrors the source (every keyframe in the
@@ -141,10 +143,11 @@
         const muxerMod = await loadMuxer();
         const { Muxer, ArrayBufferTarget } = muxerMod;
 
-        const { codec: webmCodec, width, height, packets } =
-            demuxer.demuxWebMToVideoPackets(buf);
+        const demuxed = demuxer.demuxWebM(buf);
+        const { video, audio } = demuxed;
+        const { codec: webmCodec, width, height, packets: videoPkts } = video;
 
-        if (packets.length === 0) {
+        if (videoPkts.length === 0) {
             throw new Error('convertWebMToMp4: input has no video frames');
         }
 
@@ -154,90 +157,159 @@
         // ~width * height * 3.0. Cap at 8 Mbps to keep blobs sane.
         const bitrate = Math.min(8_000_000, Math.max(500_000, width * height * 3));
 
+        // Audio capability probe — if AudioEncoder@AAC isn't supported,
+        // we'll drop the audio rather than fail the whole transcode.
+        let audioEnabled = false;
+        if (audio && typeof AudioEncoder !== 'undefined' && typeof AudioDecoder !== 'undefined') {
+            try {
+                const aacSupport = await AudioEncoder.isConfigSupported({
+                    codec: 'mp4a.40.2',
+                    sampleRate: audio.sampleRate,
+                    numberOfChannels: audio.channels,
+                    bitrate: 128_000,
+                });
+                audioEnabled = !!(aacSupport && aacSupport.supported);
+            } catch (_) {
+                audioEnabled = false;
+            }
+        }
+
         const target = new ArrayBufferTarget();
-        const muxer = new Muxer({
+        const muxerConfig = {
             target,
-            video: {
-                codec: 'avc',
-                width,
-                height,
-            },
+            video: { codec: 'avc', width, height },
             fastStart: 'in-memory',
             firstTimestampBehavior: 'offset',
-        });
+        };
+        if (audioEnabled) {
+            muxerConfig.audio = {
+                codec: 'aac',
+                sampleRate: audio.sampleRate,
+                numberOfChannels: audio.channels,
+            };
+        }
+        const muxer = new Muxer(muxerConfig);
 
-        // Encoder: pushes EncodedVideoChunks straight into the muxer.
+        // ── Video pipeline ─────────────────────────────────────────────
         let encoderError = null;
-        const encoder = new VideoEncoder({
+        const videoEncoder = new VideoEncoder({
             output: (chunk, meta) => muxer.addVideoChunk(chunk, meta),
             error: (e) => { encoderError = e; },
         });
-        encoder.configure({
+        videoEncoder.configure({
             codec: 'avc1.42E01F',
             width,
             height,
             bitrate,
-            // Match the source keyframe cadence by leaving avc decisions
-            // to the encoder; we override per-frame keyframe via the
-            // EncodeOptions when the source packet was a keyframe.
         });
 
-        // Decoder: each decoded VideoFrame is re-encoded then closed.
         let decoderError = null;
-        const decoder = new VideoDecoder({
+        const pendingKeyframeFlags = [];
+        const videoDecoder = new VideoDecoder({
             output: (frame) => {
                 try {
-                    if (encoderError) {
-                        frame.close();
-                        return;
-                    }
-                    // Force a keyframe whenever the source packet was a
-                    // keyframe so the MP4 has the same decoder restart
-                    // points as the WebM (matters for cat-mode resume).
+                    if (encoderError) { frame.close(); return; }
                     const sourcePacket = pendingKeyframeFlags.shift();
-                    encoder.encode(frame, { keyFrame: !!sourcePacket });
+                    videoEncoder.encode(frame, { keyFrame: !!sourcePacket });
                 } finally {
                     frame.close();
                 }
             },
             error: (e) => { decoderError = e; },
         });
-        decoder.configure({
+        videoDecoder.configure({
             codec: decoderCodec,
             codedWidth: width,
             codedHeight: height,
         });
 
-        // We track the source keyframe flag per pending decoded-frame so
-        // the encoder callback can mirror it. Decode→output ordering
-        // matches input ordering for VP8/VP9 (no B-frames).
-        const pendingKeyframeFlags = [];
-
-        for (const pkt of packets) {
+        for (const pkt of videoPkts) {
             pendingKeyframeFlags.push(pkt.isKeyframe);
-            decoder.decode(new EncodedVideoChunk({
+            videoDecoder.decode(new EncodedVideoChunk({
                 type: pkt.isKeyframe ? 'key' : 'delta',
                 timestamp: pkt.timestampUs,
                 data: pkt.data,
             }));
         }
 
-        await decoder.flush();
-        if (decoderError) {
-            try { decoder.close(); } catch (_) {}
-            try { encoder.close(); } catch (_) {}
-            throw new Error(`WebM decode failed: ${decoderError.message || decoderError}`);
+        // ── Audio pipeline (parallel with video, when enabled) ─────────
+        let audioEncoder = null;
+        let audioDecoder = null;
+        let audioEncoderError = null;
+        let audioDecoderError = null;
+        if (audioEnabled) {
+            audioEncoder = new AudioEncoder({
+                output: (chunk, meta) => muxer.addAudioChunk(chunk, meta),
+                error: (e) => { audioEncoderError = e; },
+            });
+            audioEncoder.configure({
+                codec: 'mp4a.40.2',
+                sampleRate: audio.sampleRate,
+                numberOfChannels: audio.channels,
+                bitrate: 128_000,
+            });
+
+            audioDecoder = new AudioDecoder({
+                output: (audioData) => {
+                    try {
+                        if (audioEncoderError) { audioData.close(); return; }
+                        audioEncoder.encode(audioData);
+                    } finally {
+                        audioData.close();
+                    }
+                },
+                error: (e) => { audioDecoderError = e; },
+            });
+            const decConfig = {
+                codec: audio.codec === 'A_OPUS' ? 'opus' : 'vorbis',
+                sampleRate: audio.sampleRate,
+                numberOfChannels: audio.channels,
+            };
+            if (audio.codecPrivate && audio.codecPrivate.byteLength > 0) {
+                decConfig.description = audio.codecPrivate;
+            }
+            audioDecoder.configure(decConfig);
+
+            for (const pkt of audio.packets) {
+                audioDecoder.decode(new EncodedAudioChunk({
+                    type: 'key',  // Opus/Vorbis frames are self-contained
+                    timestamp: pkt.timestampUs,
+                    data: pkt.data,
+                }));
+            }
         }
 
-        await encoder.flush();
+        // ── Drain + finalise ───────────────────────────────────────────
+        await videoDecoder.flush();
+        if (decoderError) {
+            try { videoDecoder.close(); } catch (_) {}
+            try { videoEncoder.close(); } catch (_) {}
+            if (audioDecoder) try { audioDecoder.close(); } catch (_) {}
+            if (audioEncoder) try { audioEncoder.close(); } catch (_) {}
+            throw new Error(`WebM video decode failed: ${decoderError.message || decoderError}`);
+        }
+        await videoEncoder.flush();
         if (encoderError) {
-            try { decoder.close(); } catch (_) {}
-            try { encoder.close(); } catch (_) {}
+            try { videoDecoder.close(); } catch (_) {}
+            try { videoEncoder.close(); } catch (_) {}
+            if (audioDecoder) try { audioDecoder.close(); } catch (_) {}
+            if (audioEncoder) try { audioEncoder.close(); } catch (_) {}
             throw new Error(`H.264 encode failed: ${encoderError.message || encoderError}`);
         }
 
-        decoder.close();
-        encoder.close();
+        if (audioDecoder && audioEncoder) {
+            try {
+                await audioDecoder.flush();
+                await audioEncoder.flush();
+            } catch (_) {
+                // Audio failure is non-fatal — the muxer keeps the video track.
+            }
+            try { audioDecoder.close(); } catch (_) {}
+            try { audioEncoder.close(); } catch (_) {}
+        }
+
+        videoDecoder.close();
+        videoEncoder.close();
         muxer.finalize();
 
         return new Blob([target.buffer], { type: 'video/mp4' });
