@@ -587,48 +587,75 @@
                     });
                 }
                 
-                // Phase 5: Decode packets
-                status.innerHTML = '⏳ Decoding packets...';
+                // Phase 5 + 6: Validate payload directly from bits.
+                //
+                // FIX (2026-05-04, Gate 2): the prior "decode packets via
+                // CatProtocol" step was bogus — the golden video generator
+                // (tests/golden-video-lib.js, encodePayloadToBits) emits the
+                // raw payload bits straight after lead-in/preamble/sync,
+                // with NO CatProtocol packet headers. So treating the bit
+                // stream as packetized was a category error. It also called
+                // `new CatProtocol()` (CatProtocol is a namespace, not a
+                // class) and used a non-existent `result.crc_match` field.
+                //
+                // Compare bits → expected representation directly:
+                //   - hash/hex payloads: bits → hex string
+                //   - text payloads:     bits → bytes → UTF-8 string
+                // Bit accuracy serves as the primary correctness signal,
+                // replacing the meaningless "CRC pass rate" assertion.
+                status.innerHTML = '⏳ Validating payload...';
                 const bytes = bitsToBytes(bits);
-                const protocol = new CatProtocol();
-                
-                let crcPass = 0;
-                let crcFail = 0;
-                const payloadChunks = [];
-                
-                for (let i = 0; i < bytes.length; i += protocol.PACKET_SIZE) {
-                    if (i + protocol.PACKET_SIZE > bytes.length) break;
-                    
-                    const packetBytes = bytes.slice(i, i + protocol.PACKET_SIZE);
-                    const result = protocol.decodePacket(packetBytes);
-                    
-                    if (result.valid) {
-                        if (result.crc_match) {
-                            crcPass++;
-                            payloadChunks.push(...result.payload);
-                        } else {
-                            crcFail++;
+
+                let decodedPayload;
+                if (testConfig.payloadType === 'hash' || testConfig.payloadType === 'hex') {
+                    // Match only the bit-length the test expects (drop
+                    // trailing partial-byte padding from the bit decode).
+                    const expectedHexLen = testConfig.expectedPayload.length;
+                    const expectedByteLen = Math.ceil(expectedHexLen / 2);
+                    decodedPayload = bytes.slice(0, expectedByteLen)
+                        .map(b => b.toString(16).padStart(2, '0')).join('')
+                        .substring(0, expectedHexLen);
+                } else {
+                    // Text payload: trim to expected length.
+                    const expectedByteLen = testConfig.expectedPayload.length;
+                    decodedPayload = new TextDecoder().decode(
+                        new Uint8Array(bytes.slice(0, expectedByteLen))
+                    );
+                }
+
+                // Bit accuracy as the primary correctness metric.
+                let matchingBits = 0;
+                const compareBits = Math.min(bits.length, testConfig.expectedBits || bits.length);
+                if (testConfig.expectedBits) {
+                    // Re-encode expected payload to bits and diff
+                    let expectedBitStr = '';
+                    if (testConfig.payloadType === 'hash' || testConfig.payloadType === 'hex') {
+                        for (const c of testConfig.expectedPayload) {
+                            expectedBitStr += parseInt(c, 16).toString(2).padStart(4, '0');
+                        }
+                    } else {
+                        for (const c of testConfig.expectedPayload) {
+                            expectedBitStr += c.charCodeAt(0).toString(2).padStart(8, '0');
                         }
                     }
+                    const lim = Math.min(expectedBitStr.length, bits.length);
+                    for (let i = 0; i < lim; i++) {
+                        if (String(bits[i]) === expectedBitStr[i]) matchingBits++;
+                    }
+                    const accPercent = (100 * matchingBits / lim).toFixed(1);
+                    document.getElementById('crcRate').textContent = accPercent + '%';
+                    assertions.push({
+                        name: 'Bit accuracy',
+                        expected: `≥ ${testConfig.minCrcPassRate}%`,
+                        actual: accPercent + '%',
+                        pass: parseFloat(accPercent) >= testConfig.minCrcPassRate
+                    });
                 }
-                
-                const crcPassRate = ((crcPass / (crcPass + crcFail)) * 100).toFixed(1);
-                document.getElementById('crcRate').textContent = crcPassRate + '%';
-                
-                assertions.push({
-                    name: 'CRC pass rate',
-                    expected: `≥ ${testConfig.minCrcPassRate}%`,
-                    actual: crcPassRate + '%',
-                    pass: parseFloat(crcPassRate) >= testConfig.minCrcPassRate
-                });
-                
-                // Phase 6: Validate payload
-                const decodedPayload = new TextDecoder().decode(new Uint8Array(payloadChunks));
-                
+
                 assertions.push({
                     name: 'Payload match',
-                    expected: testConfig.expectedPayload.substring(0, 40) + '...',
-                    actual: decodedPayload.substring(0, 40) + '...',
+                    expected: testConfig.expectedPayload.substring(0, 40) + (testConfig.expectedPayload.length > 40 ? '...' : ''),
+                    actual: decodedPayload.substring(0, 40) + (decodedPayload.length > 40 ? '...' : ''),
                     pass: decodedPayload === testConfig.expectedPayload
                 });
                 
