@@ -462,36 +462,63 @@ def prepare_payload(
 
     orig_len = len(data)
 
-    if encrypt:
-        # Derive encryption key via HKDF domain separation (independent of nonce)
-        enc_key = hmac_stdlib.new(
-            master_key, b"meow_stego_payload_enc_key_v2", hashlib.sha256
-        ).digest()
+    if encrypt and not _RUST_AVAILABLE:
+        # gemini #1 / CRIT-03: Rust backend is required for production
+        # crypto. The cryptography.hazmat fallback was removed —
+        # fail-closed if meow_crypto_rs is unavailable.
+        raise RuntimeError(
+            "FATAL: No encryption backend available (meow_crypto_rs required). "
+            "Refusing to store payload unencrypted -- fail-closed policy."
+        )
 
-        # Generate random 12-byte nonce for AES-GCM (CRITICAL: never reuse key+nonce)
-        nonce = os.urandom(12)
+    # gemini #1: derive enc_key + mac_key as Rust handles via HMAC-SHA256
+    # inside Rust. Master_key is briefly imported into a transient handle;
+    # neither the master nor the derived sub-keys are ever exposed to
+    # Python. Handles are dropped (Zeroize-on-Drop) on the way out.
+    from meow_decoder.crypto_backend import get_handle_backend
 
-        if _RUST_AVAILABLE:
+    hb = get_handle_backend()
+    master_handle = hb.import_key(master_key)
+    enc_key_handle = None
+    mac_key_handle = None
+    try:
+        if encrypt:
+            enc_key_handle = hb.hmac_sha256_to_handle(
+                master_handle, b"meow_stego_payload_enc_key_v2"
+            )
+            # Random 12-byte nonce (CRITICAL: never reuse key+nonce).
+            nonce = os.urandom(12)
             payload = nonce + bytes(
-                meow_crypto_rs.aes_gcm_encrypt(enc_key, nonce, payload, b"meow_stego_aad_v2")
-            )
-        else:
-            # gemini #1 / CRIT-03: Rust backend is required for production
-            # crypto. The cryptography.hazmat fallback was removed —
-            # fail-closed if meow_crypto_rs is unavailable.
-            raise RuntimeError(
-                "FATAL: No encryption backend available (meow_crypto_rs required). "
-                "Refusing to store payload unencrypted -- fail-closed policy."
+                hb.aes_gcm_encrypt(enc_key_handle, nonce, payload, b"meow_stego_aad_v2")
             )
 
-    # Build header
-    header = STEGO_MAGIC + struct.pack("<BBI I", STEGO_VERSION, flags, orig_len, len(payload))
+        # Build header
+        header = STEGO_MAGIC + struct.pack(
+            "<BBI I", STEGO_VERSION, flags, orig_len, len(payload)
+        )
 
-    # HMAC over header + payload
-    mac_key = hmac_stdlib.new(master_key, b"meow_stego_payload_mac_v1", hashlib.sha256).digest()
-    mac = hmac_stdlib.new(mac_key, header + payload, hashlib.sha256).digest()
+        # Outer HMAC over header + payload, key derived via Rust handle.
+        mac_key_handle = hb.hmac_sha256_to_handle(
+            master_handle, b"meow_stego_payload_mac_v1"
+        )
+        mac = bytes(hb.hmac_sha256(mac_key_handle, header + payload))
 
-    return header + payload + mac
+        return header + payload + mac
+    finally:
+        if enc_key_handle is not None:
+            try:
+                hb.drop(enc_key_handle)
+            except Exception:
+                pass
+        if mac_key_handle is not None:
+            try:
+                hb.drop(mac_key_handle)
+            except Exception:
+                pass
+        try:
+            hb.drop(master_handle)
+        except Exception:
+            pass
 
 
 def unpack_payload(
@@ -525,47 +552,72 @@ def unpack_payload(
     payload = raw[14 : 14 + data_len]
     stored_mac = raw[14 + data_len : 14 + data_len + 32]
 
-    # Verify HMAC
-    header = raw[:14]
-    mac_key = hmac_stdlib.new(master_key, b"meow_stego_payload_mac_v1", hashlib.sha256).digest()
-    expected_mac = hmac_stdlib.new(mac_key, header + payload, hashlib.sha256).digest()
-
-    mac_valid = hmac_stdlib.compare_digest(stored_mac, expected_mac)
-    if not mac_valid:
+    # gemini #1: verify outer MAC + decrypt via Rust handles. Master key
+    # briefly imported; sub-keys derived inside Rust; all handles dropped
+    # before return.
+    if not _RUST_AVAILABLE:
+        # Without Rust we cannot verify or decrypt. Fail-closed.
         return b"", False
 
-    # Decrypt
-    if flags & 0x02:
-        enc_key = hmac_stdlib.new(
-            master_key, b"meow_stego_payload_enc_key_v2", hashlib.sha256
-        ).digest()
+    from meow_decoder.crypto_backend import get_handle_backend
 
-        # Nonce is prepended (first 12 bytes of encrypted payload)
-        if len(payload) < 12:
+    hb = get_handle_backend()
+    master_handle = hb.import_key(master_key)
+    mac_key_handle = None
+    enc_key_handle = None
+    try:
+        # Verify HMAC (constant-time inside Rust).
+        header = raw[:14]
+        mac_key_handle = hb.hmac_sha256_to_handle(
+            master_handle, b"meow_stego_payload_mac_v1"
+        )
+        if not hb.hmac_sha256_verify(mac_key_handle, header + payload, stored_mac):
             return b"", False
-        nonce = payload[:12]
-        ciphertext = payload[12:]
 
-        if _RUST_AVAILABLE:
+        # Decrypt
+        if flags & 0x02:
+            enc_key_handle = hb.hmac_sha256_to_handle(
+                master_handle, b"meow_stego_payload_enc_key_v2"
+            )
+
+            # Nonce is prepended (first 12 bytes of encrypted payload)
+            if len(payload) < 12:
+                return b"", False
+            nonce = payload[:12]
+            ciphertext = payload[12:]
+
             try:
                 payload = bytes(
-                    meow_crypto_rs.aes_gcm_decrypt(enc_key, nonce, ciphertext, b"meow_stego_aad_v2")
+                    hb.aes_gcm_decrypt(
+                        enc_key_handle, nonce, ciphertext, b"meow_stego_aad_v2"
+                    )
                 )
             except Exception:
                 return b"", False
-        else:
-            # gemini #1: Rust backend required; no Python AES-GCM fallback.
-            # Treat missing backend as decryption failure (fail-closed).
-            return b"", False
 
-    # Decompress
-    if flags & 0x01:
+        # Decompress
+        if flags & 0x01:
+            try:
+                payload = zlib.decompress(payload)
+            except zlib.error:
+                return b"", False
+
+        return payload, True
+    finally:
+        if mac_key_handle is not None:
+            try:
+                hb.drop(mac_key_handle)
+            except Exception:
+                pass
+        if enc_key_handle is not None:
+            try:
+                hb.drop(enc_key_handle)
+            except Exception:
+                pass
         try:
-            payload = zlib.decompress(payload)
-        except zlib.error:
-            return b"", False
-
-    return payload, True
+            hb.drop(master_handle)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------

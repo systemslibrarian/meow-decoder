@@ -470,6 +470,16 @@ class HandleBackend:
         """Verify HMAC-SHA256 constant-time using key handle."""
         return self._rs.handle_hmac_sha256_verify(key_handle, message, expected_tag)
 
+    def hmac_sha256_to_handle(self, key_handle: int, message: bytes) -> int:
+        """Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+        as a new SymmetricKey handle. Derived bytes never cross FFI.
+
+        Use for derived sub-keys whose lifetime extends past the HMAC call
+        (e.g. stego per-payload `enc_key`). Avoids the round-trip via
+        bytes → import_key.
+        """
+        return self._rs.handle_hmac_sha256_to_handle(key_handle, message)
+
     def hmac_sha256_prefixed(self, key_handle: int, prefix: bytes, message: bytes) -> bytes:
         """Compute HMAC-SHA256 with effective key = prefix || handle_key.
         All key material stays in Rust. No export needed."""

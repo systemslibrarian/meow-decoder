@@ -973,6 +973,14 @@ fn handle_hmac_sha256_verify(
     handles::handle_hmac_sha256_verify(key_handle, message, expected_tag).map_err(handle_err_to_py)
 }
 
+/// Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+/// as a new SymmetricKey handle (no plaintext crosses FFI).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256_to_handle(key_handle: u64, message: &[u8]) -> PyResult<u64> {
+    handles::handle_hmac_sha256_to_handle(key_handle, message).map_err(handle_err_to_py)
+}
+
 /// Compute HMAC-SHA256 with prefixed key: effective key = prefix || handle_key.
 /// Enables domain-separated HMAC (e.g. manifest auth) without exporting the secret.
 #[cfg(feature = "python")]
@@ -1671,6 +1679,7 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_aes_gcm_decrypt, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256_to_handle, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed_verify, m)?)?;
     m.add_function(wrap_pyfunction!(handle_x25519_generate, m)?)?;

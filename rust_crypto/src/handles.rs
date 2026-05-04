@@ -570,6 +570,33 @@ pub fn handle_hmac_sha256_verify(
     Ok(computed.as_slice().ct_eq(expected_tag).into())
 }
 
+/// Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+/// as a new SymmetricKey handle. The derived bytes never cross the FFI
+/// boundary.
+///
+/// Use case: derived sub-keys whose lifetime extends past the HMAC call
+/// (e.g. stego per-payload `enc_key` that's used for AES-GCM later).
+/// Avoids the round-trip via `handle_hmac_sha256` → Python bytes →
+/// `handle_import_key`.
+pub fn handle_hmac_sha256_to_handle(
+    key_handle: HandleId,
+    message: &[u8],
+) -> Result<HandleId, HandleError> {
+    let mut tag = handle_hmac_sha256(key_handle, message)?;
+    if tag.len() != 32 {
+        tag.zeroize();
+        return Err(HandleError::InvalidKeyLength {
+            expected: 32,
+            got: tag.len(),
+        });
+    }
+    let mut key_bytes = [0u8; 32];
+    key_bytes.copy_from_slice(&tag);
+    tag.zeroize();
+    let key = SecretKey { bytes: key_bytes };
+    insert_handle(HandlePayload::SymmetricKey(key))
+}
+
 /// Compute HMAC-SHA256 with the effective key = `prefix || handle_key_bytes`.
 ///
 /// This enables domain-separated HMAC (e.g. manifest authentication:
@@ -1707,6 +1734,46 @@ mod tests {
         handle_drop(payload).unwrap();
         handle_drop(kek_a).unwrap();
         handle_drop(kek_b).unwrap();
+    }
+
+    #[test]
+    fn test_hmac_to_handle_matches_hmac_then_import() {
+        // The handle-derived key must match what we'd get from
+        // handle_hmac_sha256 → handle_import_key (just without the
+        // round-trip via Python bytes).
+        let kek = handle_import_key(&[0xAAu8; 32]).unwrap();
+        let derived_h = handle_hmac_sha256_to_handle(kek, b"derive_me_v1").unwrap();
+        assert!(handle_exists(derived_h));
+
+        // Manual path
+        let manual_tag = handle_hmac_sha256(kek, b"derive_me_v1").unwrap();
+        let manual_h = handle_import_key(&manual_tag).unwrap();
+
+        // Both should encrypt b"x" to the same ciphertext under fixed nonce.
+        let nonce = [0u8; 12];
+        let ct1 = handle_aes_gcm_encrypt(derived_h, &nonce, b"x", None).unwrap();
+        let ct2 = handle_aes_gcm_encrypt(manual_h, &nonce, b"x", None).unwrap();
+        assert_eq!(ct1, ct2);
+
+        handle_drop(kek).unwrap();
+        handle_drop(derived_h).unwrap();
+        handle_drop(manual_h).unwrap();
+    }
+
+    #[test]
+    fn test_hmac_to_handle_different_messages_diverge() {
+        let kek = handle_import_key(&[0xBBu8; 32]).unwrap();
+        let h1 = handle_hmac_sha256_to_handle(kek, b"msg-A").unwrap();
+        let h2 = handle_hmac_sha256_to_handle(kek, b"msg-B").unwrap();
+
+        let nonce = [0u8; 12];
+        let ct1 = handle_aes_gcm_encrypt(h1, &nonce, b"x", None).unwrap();
+        let ct2 = handle_aes_gcm_encrypt(h2, &nonce, b"x", None).unwrap();
+        assert_ne!(ct1, ct2);
+
+        handle_drop(kek).unwrap();
+        handle_drop(h1).unwrap();
+        handle_drop(h2).unwrap();
     }
 
     #[test]
