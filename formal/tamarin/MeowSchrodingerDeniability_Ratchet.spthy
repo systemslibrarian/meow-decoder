@@ -212,7 +212,7 @@ lemma AsymRekeyPCS:
     ==>
     not(Ex chain_key rekey_key #tc .
        KU(chain_key) @ #tc &
-       not(KU(rekey_key)) &
+       not(Ex #tr . KU(rekey_key) @ #tr) &
        kdf(rekey_key, 'asym_rekey') = kdf(chain_key, 'post_rekey'))
   "
 

@@ -226,7 +226,7 @@ lemma CoercionSafety:
     ==>
     (not(Ex #c . Coerced(sid, 'A', pw_a) @ #c) &
      not(Ex #f . FullCorruption(sid, pw_a, pw_b) @ #f))
-     ==> not(KU(payload_a))
+     ==> not(Ex #t2 . KU(payload_a) @ #t2)
   "
 
 lemma KDFCommitmentBinding:
@@ -246,11 +246,11 @@ lemma Executability:
 /* Negative / sanity: full corruption breaks deniability */
 lemma FullCorruptionBreaksDeniability:
   exists-trace
-  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
+  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 #t3 #t4 .
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1 &
     FullCorruption(sid, pw_a, pw_b) @ #t2 &
-    KU(payload_a) & KU(payload_b)
+    KU(payload_a) @ #t3 & KU(payload_b) @ #t4
   "
 
 end
