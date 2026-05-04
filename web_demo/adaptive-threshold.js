@@ -172,17 +172,27 @@ function findValley(histogram, peak1, peak2) {
         return (histogram[leftIdx].value + histogram[rightIdx].value) / 2;
     }
 
-    let minIdx = leftIdx + 1;
-    let minCount = histogram[minIdx].count;
-
-    for (let i = leftIdx + 2; i < rightIdx; i++) {
-        if (histogram[i].count < minCount) {
-            minCount = histogram[i].count;
-            minIdx = i;
-        }
+    // FIX (2026-05-04, Gate 2): scan ALL interior bins for the minimum
+    // count first, then return the CENTRE of the contiguous run of bins
+    // at that minimum. The previous version returned the FIRST min-count
+    // bin encountered, which — for cat-mode green scores where the peaks
+    // sit at the histogram extremes (8.x off, 43.x on) and almost every
+    // intermediate bin is empty (count=0) — meant the returned value was
+    // bin (leftIdx+1), i.e. immediately adjacent to the lower peak.
+    // Sampling noise of one bin width then crossed the threshold the
+    // wrong way and corrupted bit decoding (sync word mismatch).
+    let minCount = Infinity;
+    for (let i = leftIdx + 1; i < rightIdx; i++) {
+        if (histogram[i].count < minCount) minCount = histogram[i].count;
     }
-
-    return histogram[minIdx].value;
+    // Collect all interior bins at the minimum count.
+    const minIndices = [];
+    for (let i = leftIdx + 1; i < rightIdx; i++) {
+        if (histogram[i].count === minCount) minIndices.push(i);
+    }
+    // Return the CENTRE of that valley region.
+    const centerIdx = minIndices[Math.floor(minIndices.length / 2)];
+    return histogram[centerIdx].value;
 }
 
 // ============================================================================
