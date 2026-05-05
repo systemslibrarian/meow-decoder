@@ -125,6 +125,27 @@ def _drop_handle_safe(handle):
         pass
 
 
+def _import_master_key_handle(master_key: bytes):
+    """Import a master key as a Rust handle.
+
+    Returns the handle ID, or None if the Rust backend is unavailable
+    (in which case callers fall back to keeping the bytes for the
+    pure-Python derivation path). Used by PrimaryChannelEncoder,
+    TimingChannelEncoder, and PaletteChannelEncoder to avoid keeping
+    the master key as a Python instance attribute (gemini #1).
+    """
+    if not _RUST_AVAILABLE:
+        return None
+    try:
+        from meow_decoder.crypto_backend import get_handle_backend
+    except ImportError:
+        return None
+    try:
+        return get_handle_backend().import_key(master_key)
+    except Exception:
+        return None
+
+
 def _key_fingerprint(handle) -> bytes:
     """Stable test-only fingerprint over a key handle.
     Returns empty bytes if the handle or backend is unavailable."""
@@ -392,6 +413,24 @@ def derive_walk_seed(master_key: bytes, frame_idx: int) -> bytes:
     if _RUST_AVAILABLE:
         return bytes(meow_crypto_rs.stego_derive_walk_seed(master_key, frame_idx))
     return _py_derive_walk_seed(master_key, frame_idx)
+
+
+def derive_frame_seed_from_handle(master_handle: int, frame_idx: int, channel_id: int) -> bytes:
+    """Derive per-frame, per-channel 32-byte seed from a Rust master-key handle.
+
+    gemini #1 — keeps the master key bytes inside Rust for the duration of
+    the derive call. Output (the seed) is intentionally plaintext: it is
+    a per-frame derivation input, not a key.
+    """
+    return bytes(meow_crypto_rs.stego_derive_frame_seed_from_handle(master_handle, frame_idx, channel_id))
+
+
+def derive_walk_seed_from_handle(master_handle: int, frame_idx: int) -> bytes:
+    """Derive walk seed for pixel permutation from a Rust master-key handle.
+
+    gemini #1 — see derive_frame_seed_from_handle docstring.
+    """
+    return bytes(meow_crypto_rs.stego_derive_walk_seed_from_handle(master_handle, frame_idx))
 
 
 def generate_pixel_walk(walk_seed: bytes, num_pixels: int) -> List[int]:
@@ -754,8 +793,28 @@ class PrimaryChannelEncoder:
     """
 
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
-        self.master_key = master_key
         self.config = config
+        # gemini #1 — store the master key as a Rust handle when the
+        # backend is available so the bytes do not persist as a Python
+        # instance attribute. The bytes fallback is kept only for
+        # environments without the Rust extension (Python derivation
+        # path). HMAC derivation matches the bytes path so wire formats
+        # are unchanged.
+        self._master_handle = _import_master_key_handle(master_key)
+        self._master_key_bytes = None if self._master_handle is not None else master_key
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_master_handle", None))
+
+    def _derive_frame_seed(self, frame_idx: int, channel_id: int) -> bytes:
+        if self._master_handle is not None:
+            return derive_frame_seed_from_handle(self._master_handle, frame_idx, channel_id)
+        return derive_frame_seed(self._master_key_bytes, frame_idx, channel_id)
+
+    def _derive_walk_seed(self, frame_idx: int) -> bytes:
+        if self._master_handle is not None:
+            return derive_walk_seed_from_handle(self._master_handle, frame_idx)
+        return derive_walk_seed(self._master_key_bytes, frame_idx)
 
     def embed_frame(
         self,
@@ -780,8 +839,8 @@ class PrimaryChannelEncoder:
             return frame_array
 
         # 1. Derive seeds
-        channel_seed = derive_frame_seed(self.master_key, frame_idx, CHANNEL_PRIMARY)
-        walk_seed = derive_walk_seed(self.master_key, frame_idx)
+        channel_seed = self._derive_frame_seed(frame_idx, CHANNEL_PRIMARY)
+        walk_seed = self._derive_walk_seed(frame_idx)
 
         # 2. Generate walk order
         walk = generate_pixel_walk(walk_seed, num_pixels)
@@ -906,8 +965,8 @@ class PrimaryChannelEncoder:
         num_pixels = h * w
 
         # Derive same seeds
-        channel_seed = derive_frame_seed(self.master_key, frame_idx, CHANNEL_PRIMARY)
-        walk_seed = derive_walk_seed(self.master_key, frame_idx)
+        channel_seed = self._derive_frame_seed(frame_idx, CHANNEL_PRIMARY)
+        walk_seed = self._derive_walk_seed(frame_idx)
 
         # Generate same walk
         walk = generate_pixel_walk(walk_seed, num_pixels)
@@ -948,8 +1007,18 @@ class TimingChannelEncoder:
     """
 
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
-        self.master_key = master_key
         self.config = config
+        # gemini #1 — see PrimaryChannelEncoder.__init__
+        self._master_handle = _import_master_key_handle(master_key)
+        self._master_key_bytes = None if self._master_handle is not None else master_key
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_master_handle", None))
+
+    def _derive_frame_seed(self, frame_idx: int, channel_id: int) -> bytes:
+        if self._master_handle is not None:
+            return derive_frame_seed_from_handle(self._master_handle, frame_idx, channel_id)
+        return derive_frame_seed(self._master_key_bytes, frame_idx, channel_id)
 
     def encode(
         self,
@@ -965,7 +1034,7 @@ class TimingChannelEncoder:
         Returns:
             List of frame delays in centiseconds
         """
-        seed = derive_frame_seed(self.master_key, 0, CHANNEL_SECONDARY)
+        seed = self._derive_frame_seed(0, CHANNEL_SECONDARY)
 
         if _RUST_AVAILABLE:
             delays = meow_crypto_rs.stego_timing_encode(
@@ -1016,7 +1085,7 @@ class TimingChannelEncoder:
         Returns:
             Decoded bits
         """
-        seed = derive_frame_seed(self.master_key, 0, CHANNEL_SECONDARY)
+        seed = self._derive_frame_seed(0, CHANNEL_SECONDARY)
 
         if _RUST_AVAILABLE:
             bits = meow_crypto_rs.stego_timing_decode(
@@ -1071,8 +1140,18 @@ class PaletteChannelEncoder:
     """
 
     def __init__(self, master_key: bytes, config: MultiLayerConfig):
-        self.master_key = master_key
         self.config = config
+        # gemini #1 — see PrimaryChannelEncoder.__init__
+        self._master_handle = _import_master_key_handle(master_key)
+        self._master_key_bytes = None if self._master_handle is not None else master_key
+
+    def __del__(self):
+        _drop_handle_safe(getattr(self, "_master_handle", None))
+
+    def _derive_frame_seed(self, frame_idx: int, channel_id: int) -> bytes:
+        if self._master_handle is not None:
+            return derive_frame_seed_from_handle(self._master_handle, frame_idx, channel_id)
+        return derive_frame_seed(self._master_key_bytes, frame_idx, channel_id)
 
     @staticmethod
     def find_permutable_entries(
@@ -1129,7 +1208,7 @@ class PaletteChannelEncoder:
         Returns:
             Tuple of (new_palette, new_pixel_indices) with bits encoded
         """
-        seed = derive_frame_seed(self.master_key, frame_idx, CHANNEL_TERTIARY)
+        seed = self._derive_frame_seed(frame_idx, CHANNEL_TERTIARY)
         permutable = self.find_permutable_entries(palette, pixel_indices)
 
         if len(permutable) < self.config.min_permutable_entries:
@@ -1189,7 +1268,7 @@ class PaletteChannelEncoder:
         Returns:
             Decoded bits
         """
-        seed = derive_frame_seed(self.master_key, frame_idx, CHANNEL_TERTIARY)
+        seed = self._derive_frame_seed(frame_idx, CHANNEL_TERTIARY)
         perm_bytes = bytes(original_permutable)
 
         if original_palette is not None:
