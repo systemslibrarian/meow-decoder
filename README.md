@@ -5,15 +5,15 @@
 </p>
 
 <p align="center">
-  <strong>Smuggle bytes through the air — Security-focused QR code encryption</strong>
+  <strong>Move files offline — show, scan, recover</strong>
 </p>
 
 <p align="center">
-  <em>Meow Decoder lets you securely transfer files between air-gapped computers using only a phone camera as a dumb optical bridge — animated QR codes carry AES-256-GCM encrypted data with forward secrecy, post-quantum protection, and experimental deniability features.</em>
+  <em>Meow Decoder moves files between computers without a network. The sender shows an encrypted transfer on screen, the receiver phone captures it with a camera, and the file is recovered on the other side. No Wi-Fi, no Bluetooth, no cloud.</em>
 </p>
 
 <p align="center">
-  <strong>Why choose this?</strong> Unlike basic QR exfil tools, Meow Decoder adds strong authenticated encryption, forward secrecy, and post-quantum options. It includes experimental deniability and duress features that may reduce risk under casual inspection, but may be detectable under advanced forensic analysis. Not suitable for nation-state adversaries without additional operational security measures.
+  <strong>Why use it?</strong> When two machines shouldn't share a network — air-gapped systems, sensitive transfers, hostile environments — Meow Decoder turns any screen into a one-way data path. Files are encrypted before they leave the sender (AES-256-GCM, with optional forward secrecy and post-quantum hybrid), so the phone in the middle never sees the plaintext. Strong by default; advanced and experimental modes available when you need them.
 </p>
 
 <p align="center">
@@ -59,39 +59,43 @@
 
 ---
 
-## ⚠️ Who This Is For (And Who It Isn't)
+## ⭐ Start Here — Recommended Path
 
-| ✅ This IS for you if... | ❌ This is NOT for you if... |
-|--------------------------|------------------------------|
-| You're a developer/researcher | You want a consumer mobile app |
-| You need air-gapped file transfer | You want one-tap phone scanning |
-| You understand command-line tools | You need plug-and-play simplicity |
-| You want to audit the crypto yourself | You need production enterprise support |
+If you are new to Meow Decoder, use the standard encrypted transfer flow:
+
+1. **Encode** the file on the sender desktop.
+2. **Show** the transfer on screen.
+3. **Scan** with Meow Capture (mobile) or the browser receiver.
+4. **Export** the capture artifact from the receiver.
+5. **Recover** and decrypt on the receiving desktop.
+
+That is the path the project is most ready to support end-to-end. See [QUICKSTART.md](QUICKSTART.md) for a five-minute walkthrough.
+
+| Maturity | What belongs here |
+|----------|-------------------|
+| **Recommended** | Standard encrypted offline transfer, guided mobile capture, standard export and desktop recovery |
+| **Advanced** | Redundancy tuning, diagnostics, alternate receiver workflows, hardware-backed security paths (HSM / YubiKey / TPM) |
+| **Experimental** | Schrödinger mode, camouflage and stego presentation layers, deniability and duress-heavy workflows |
+
+Recommended is the path the project optimizes for. Advanced is useful power-user capability. Experimental may still be valuable, but it isn't the default product promise — see [docs/TRUST_CENTER.md](docs/TRUST_CENTER.md) for how to think about each tier.
+
+## Who This Is For
+
+Meow Decoder is built for people who need to move files **without using a network** — across an air gap, between isolated machines, or anywhere Wi-Fi, Bluetooth, and cloud sync are off the table.
+
+**Best fit if you want to:**
+- move data between machines that should not share a network
+- run a desktop tool on the sender and the receiver
+- keep encryption applied before the file ever leaves your machine
+- audit the crypto yourself
+
+**Less ideal if you want:**
+- a one-tap consumer app on both ends — the desktop side still expects a developer or operator
+- a vendor-supported enterprise product with an SLA and support contract
 
 **⚖️ Legal Notice:** Meow Decoder is not intended to circumvent law enforcement or legal obligations. Steganography and deniability features are limited and detectable under forensic examination.
 
 **📜 Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
-
-**Honest disclaimer:** This is a security-focused tool with a clear recommended path and a larger set of advanced and experimental modes. The default transfer flow is the safest place to start. Some features still assume Python, command-line comfort, and careful threat-model reading.
-
-## Recommended Starting Path
-
-If you are new to Meow Decoder, start with the standard encrypted transfer flow:
-
-1. Encode on the sender desktop.
-2. Capture with Meow Capture or the browser receiver flow.
-3. Export the capture artifact.
-4. Recover and decrypt on the receiving desktop.
-
-That path is what the project is most ready to support end-to-end.
-
-| Maturity | What belongs here |
-|----------|-------------------|
-| Recommended | Standard encrypted offline transfer, guided mobile capture, standard export and desktop recovery |
-| Advanced | Redundancy tuning, diagnostics, alternate receiver workflows, hardware-backed security paths |
-| Experimental | Schrodinger mode, camouflage and stego presentation layers, deniability and duress-heavy workflows |
-
-Recommended means the project should optimize for it. Advanced means useful power-user capability. Experimental means the feature may still be valuable, but it should not be mistaken for the default product promise.
 
 ## 📱 Mobile Companion App — Download Now
 
