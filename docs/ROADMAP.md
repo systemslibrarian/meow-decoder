@@ -258,11 +258,13 @@ Tracking branch: `audit/cat-mode-fixes` (PR #172). See CHANGELOG entry "Product 
 - [x] onboarding focused on first-transfer success — OnboardingScreen subtitle, three-step copy, and security bullets rewritten around the default-transfer story; implementation specifics (GIF, ADB, JSON-to-Downloads) dropped from the first-run flow
 - [x] web parity — `result.html` reframed as "Transfer Ready" (Show Transfer state); `decode.html` reframed as "Recover File"
 
-#### Milestone C: Trust And Market Readiness 🔄 In Progress
+#### Milestone C: Trust And Market Readiness 🟢 In-house deliverables shipped (2026-05-05)
 
 - [x] trust-center style documentation (`docs/TRUST_CENTER.md`) — plain-language trust framing with the Recommended / Advanced / Experimental taxonomy
-- [ ] packaging and release maturity communication — per-artifact maturity tier (CLI, web, Android APK, iOS) and signing posture documented
-- [ ] external audit readiness — see Phase 10 in the security roadmap above
+- [x] packaging and release maturity communication — per-artifact maturity tier (CLI, web, Android APK, iOS, Rust crate), signing posture, distribution channel, and verification recipe documented in `docs/RELEASE_MATURITY.md`
+- [x] external audit readiness — `docs/AUDIT_READINESS.md` is the one-stop pre-audit checklist (scope, threat model, protocol, test coverage, fuzzing, formal methods, hardware paths, recently closed findings, supply-chain posture, known gaps to look at)
+
+**Out of in-house scope** (depend on external parties / market timing): signed desktop builds beyond the existing Sigstore-cosigned wheel pipeline, Play Store + App Store listings, a contracted third-party security audit (Phase 10 of the security roadmap), and a published CVE process. These are now blocked only on external engagement — the in-house artifacts an external party needs are in place.
 
 ### Supporting Planning Docs
 

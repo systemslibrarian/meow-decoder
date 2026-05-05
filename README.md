@@ -79,6 +79,16 @@ That is the path the project is most ready to support end-to-end. See [QUICKSTAR
 
 Recommended is the path the project optimizes for. Advanced is useful power-user capability. Experimental may still be valuable, but it isn't the default product promise — see [docs/TRUST_CENTER.md](docs/TRUST_CENTER.md) for how to think about each tier.
 
+### Trust and release information
+
+| Question | Where |
+|---|---|
+| What does each maturity tier mean? | [docs/TRUST_CENTER.md](docs/TRUST_CENTER.md) |
+| How is each release artifact signed and distributed? | [docs/RELEASE_MATURITY.md](docs/RELEASE_MATURITY.md) |
+| What hardware paths are validated? | [docs/HARDWARE_TEST_MATRIX.md](docs/HARDWARE_TEST_MATRIX.md) |
+| What would an external auditor need? | [docs/AUDIT_READINESS.md](docs/AUDIT_READINESS.md) |
+| Threat model (what we protect against) | [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) |
+
 ## Who This Is For
 
 Meow Decoder is built for people who need to move files **without using a network** — across an air gap, between isolated machines, or anywhere Wi-Fi, Bluetooth, and cloud sync are off the table.
