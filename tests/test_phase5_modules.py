@@ -340,7 +340,11 @@ class TestMasterRatchet:
         )
 
         assert ratchet.generation == 0
-        assert ratchet._state.chain_key != bytes(32)
+        # Chain handle is now an opaque int — verify it is live in the
+        # Rust handle registry rather than inspecting key bytes (which
+        # never enter Python).
+        assert ratchet._state.chain_handle is not None
+        assert ratchet._hb.exists(ratchet._state.chain_handle)
 
     def test_ratchet_forward(self):
         """Ratcheting should advance generation."""
@@ -348,13 +352,16 @@ class TestMasterRatchet:
 
         ratchet = MasterRatchet.from_password("test", auto_persist=False)
 
-        old_key = ratchet._state.chain_key
+        old_handle = ratchet._state.chain_handle
         old_gen = ratchet.generation
 
         ratchet.ratchet()
 
         assert ratchet.generation == old_gen + 1
-        assert ratchet._state.chain_key != old_key
+        # New handle is a different ID; old handle was dropped.
+        assert ratchet._state.chain_handle != old_handle
+        assert not ratchet._hb.exists(old_handle)
+        assert ratchet._hb.exists(ratchet._state.chain_handle)
 
     def test_file_key_derivation(self):
         """File keys should be derivable."""
@@ -419,12 +426,18 @@ class TestMasterRatchet:
             ratchet._save_state()
             assert state_file.exists()
 
+            # Capture pre-wipe handle for post-wipe registry check
+            pre_wipe_handle = ratchet._state.chain_handle
+
             # Wipe
             result = ratchet.emergency_wipe()
 
             assert result
             assert not state_file.exists()
-            assert ratchet._state.chain_key == bytes(32)
+            # Handle is dropped (Rust zeroizes the SecretKey on Drop) and
+            # the in-memory reference cleared.
+            assert ratchet._state.chain_handle is None
+            assert not ratchet._hb.exists(pre_wipe_handle)
 
     def test_save_load_roundtrip(self):
         """State should save and load correctly."""

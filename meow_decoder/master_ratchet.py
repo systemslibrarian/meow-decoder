@@ -19,13 +19,19 @@ Security properties:
 - Chain cannot be rewound (one-way hash ratchet)
 - Each file gets unique key even with same password
 
+Implementation note (gemini #1, 2026-05-04):
+The chain key never leaves Rust. `ChainState.chain_handle` is an opaque
+HandleBackend handle; HKDF derivations and AES-GCM sealing for at-rest
+persistence happen entirely in Rust. The on-disk format `MRCV2`
+supersedes the legacy `MRCV1`/`MRCX1` formats — old state files cannot
+be loaded by this version.
+
 Cross-platform: Windows, Linux, macOS.
 """
 
 from __future__ import annotations
 
 import hashlib
-import hmac
 import os
 import platform
 import secrets
@@ -35,71 +41,33 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
-# Try to use cryptography library, fall back to pure Python
-try:
-    from cryptography.hazmat.primitives import hashes
-    from cryptography.hazmat.primitives.kdf.hkdf import HKDF
-    from cryptography.hazmat.backends import default_backend
-
-    HAS_CRYPTOGRAPHY = True
-except ImportError:
-    HAS_CRYPTOGRAPHY = False
+from meow_decoder.crypto_backend import HandleBackend, get_handle_backend
 
 __all__ = [
     "MasterRatchet",
     "ChainState",
     "derive_file_key",
     "get_master_ratchet",
+    "set_master_ratchet",
     "emergency_wipe_chain",
 ]
 
 
-def _hkdf_expand(
-    key_material: bytes,
-    info: bytes,
-    length: int = 32,
-    salt: Optional[bytes] = None,
-) -> bytes:
-    """
-    HKDF-Expand for key derivation.
+# ─── On-disk format constants ───────────────────────────────────────────────
 
-    Uses cryptography library if available, otherwise pure Python.
-    """
-    if HAS_CRYPTOGRAPHY:
-        hkdf = HKDF(
-            algorithm=hashes.SHA256(),
-            length=length,
-            salt=salt,
-            info=info,
-            backend=default_backend(),
-        )
-        return hkdf.derive(key_material)
-    else:
-        # Pure Python HKDF-Extract + Expand (RFC 5869)
-        if salt is None:
-            salt = b"\x00" * 32
+_FORMAT_MAGIC = b"MRCV2"
+_FORMAT_AAD = b"meow_chain_state_v2"
+_SEAL_AAD = b"meow_chain_seal_v2"
 
-        # Extract
-        prk = hmac.new(salt, key_material, hashlib.sha256).digest()
-
-        # Expand
-        t = b""
-        okm = b""
-        counter = 1
-        while len(okm) < length:
-            t = hmac.new(prk, t + info + bytes([counter]), hashlib.sha256).digest()
-            okm += t
-            counter += 1
-
-        return okm[:length]
+# Layout: magic(5) || generation(8 LE) || timestamp(8 LE double) ||
+#         master_salt(32) || seal_nonce(12) || sealed_chain_key(48)
+_HEADER_LEN = 5 + 8 + 8 + 32 + 12 + 48  # = 113
 
 
-def _secure_zero(data: bytearray) -> None:
-    """Securely zero a bytearray."""
+def _zero_bytearray(data: bytearray) -> None:
+    """Best-effort zero of a bytearray (CPython only — bytes objects are immutable)."""
     for i in range(len(data)):
         data[i] = 0
-    # Memory barrier (best effort)
-    _ = bytes(data)
 
 
 @dataclass
@@ -107,128 +75,15 @@ class ChainState:
     """
     Ratchet chain state.
 
-    Contains the current chain key and generation counter.
+    `chain_handle` is an opaque HandleBackend handle ID; the actual chain
+    key bytes never enter Python. `master_salt` is non-secret (per-file
+    randomness used for KDF domain separation) and lives in Python as bytes.
     """
 
-    # Current chain key (32 bytes)
-    chain_key: bytes
-
-    # Generation counter (number of ratchets performed)
+    chain_handle: Optional[int]
     generation: int
-
-    # Timestamp of last ratchet
     last_ratchet_time: float
-
-    # Salt used for initial derivation
     master_salt: bytes
-
-    def to_bytes(self, encryption_key: bytes) -> bytes:
-        """
-        Serialize chain state with AES-GCM encryption.
-
-        Args:
-            encryption_key: 32-byte key for state encryption.
-
-        Returns:
-            Encrypted state bytes.
-        """
-        try:
-            from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-            plaintext = (
-                struct.pack("<Q", self.generation)
-                + struct.pack("<d", self.last_ratchet_time)
-                + self.master_salt
-                + self.chain_key
-            )
-
-            nonce = secrets.token_bytes(12)
-            aesgcm = AESGCM(encryption_key)
-            ciphertext = aesgcm.encrypt(nonce, plaintext, b"meow_chain_state_v1")
-
-            return b"MRCV1" + nonce + ciphertext
-        except ImportError:
-            # Fallback: XOR with derived key (less secure, but works)
-            derived = _hkdf_expand(encryption_key, b"chain_state_encryption", 80)
-            plaintext = (
-                struct.pack("<Q", self.generation)
-                + struct.pack("<d", self.last_ratchet_time)
-                + self.master_salt
-                + self.chain_key
-            )
-            ciphertext = bytes(a ^ b for a, b in zip(plaintext, derived))
-            mac = hmac.new(encryption_key, ciphertext, hashlib.sha256).digest()[:16]
-            return b"MRCX1" + mac + ciphertext
-
-    @classmethod
-    def from_bytes(cls, data: bytes, encryption_key: bytes) -> Optional["ChainState"]:
-        """
-        Deserialize and decrypt chain state.
-
-        Args:
-            data: Encrypted state bytes from to_bytes().
-            encryption_key: 32-byte key for state decryption.
-
-        Returns:
-            ChainState or None if decryption fails.
-        """
-        if len(data) < 5:
-            return None
-
-        magic = data[:5]
-
-        if magic == b"MRCV1":
-            try:
-                from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-
-                nonce = data[5:17]
-                ciphertext = data[17:]
-
-                aesgcm = AESGCM(encryption_key)
-                plaintext = aesgcm.decrypt(nonce, ciphertext, b"meow_chain_state_v1")
-
-                generation = struct.unpack("<Q", plaintext[:8])[0]
-                last_ratchet_time = struct.unpack("<d", plaintext[8:16])[0]
-                master_salt = plaintext[16:48]
-                chain_key = plaintext[48:80]
-
-                return cls(
-                    chain_key=chain_key,
-                    generation=generation,
-                    last_ratchet_time=last_ratchet_time,
-                    master_salt=master_salt,
-                )
-            except Exception:
-                return None
-
-        elif magic == b"MRCX1":
-            # XOR fallback
-            if len(data) < 5 + 16 + 80:
-                return None
-
-            stored_mac = data[5:21]
-            ciphertext = data[21:101]
-
-            expected_mac = hmac.new(encryption_key, ciphertext, hashlib.sha256).digest()[:16]
-            if not hmac.compare_digest(stored_mac, expected_mac):
-                return None
-
-            derived = _hkdf_expand(encryption_key, b"chain_state_encryption", 80)
-            plaintext = bytes(a ^ b for a, b in zip(ciphertext, derived))
-
-            generation = struct.unpack("<Q", plaintext[:8])[0]
-            last_ratchet_time = struct.unpack("<d", plaintext[8:16])[0]
-            master_salt = plaintext[16:48]
-            chain_key = plaintext[48:80]
-
-            return cls(
-                chain_key=chain_key,
-                generation=generation,
-                last_ratchet_time=last_ratchet_time,
-                master_salt=master_salt,
-            )
-
-        return None
 
 
 class MasterRatchet:
@@ -260,6 +115,7 @@ class MasterRatchet:
         state: ChainState,
         state_file: Optional[Path] = None,
         auto_persist: bool = True,
+        backend: Optional[HandleBackend] = None,
     ):
         """
         Initialize ratchet with existing chain state.
@@ -270,11 +126,13 @@ class MasterRatchet:
             state: Existing chain state.
             state_file: Path to persist state (optional).
             auto_persist: If True, save state after each ratchet.
+            backend: HandleBackend instance (defaults to global singleton).
         """
         self._state = state
         self._state_file = state_file
         self._auto_persist = auto_persist
-        self._state_key: Optional[bytes] = None
+        self._state_key_handle: Optional[int] = None
+        self._hb: HandleBackend = backend if backend is not None else get_handle_backend()
 
     @classmethod
     def from_password(
@@ -287,36 +145,36 @@ class MasterRatchet:
         Initialize ratchet from password.
 
         Combines password with hardware entropy for initial chain key.
-
-        Args:
-            password: User password.
-            state_file: Path to persist state (optional).
-            auto_persist: If True, save state after each ratchet.
-
-        Returns:
-            New MasterRatchet instance.
+        The password and IKM bytes briefly live in Python (they originate
+        from user input / OS entropy); the derived chain key is imported
+        directly into a Rust handle and never re-exported.
         """
-        # Generate fresh salt with hardware entropy
+        hb = get_handle_backend()
+
         master_salt = secrets.token_bytes(32)
 
-        # Derive initial chain key from password + salt
-        key_material = password.encode("utf-8") + master_salt + cls._get_hardware_entropy()
+        # IKM = password || salt || hardware_entropy. Hold in a bytearray
+        # so we can overwrite after the derive.
+        password_bytes = password.encode("utf-8")
+        ikm = bytearray(password_bytes)
+        ikm.extend(master_salt)
+        ikm.extend(cls._get_hardware_entropy())
 
-        chain_key = _hkdf_expand(
-            key_material,
-            cls.DOMAIN_CHAIN_INIT,
-            32,
-            master_salt,
-        )
+        try:
+            chain_handle = hb.derive_key_hkdf_raw(
+                bytes(ikm), master_salt, cls.DOMAIN_CHAIN_INIT, 32
+            )
+        finally:
+            _zero_bytearray(ikm)
 
         state = ChainState(
-            chain_key=chain_key,
+            chain_handle=chain_handle,
             generation=0,
             last_ratchet_time=time.time(),
             master_salt=master_salt,
         )
 
-        ratchet = cls(state, state_file, auto_persist)
+        ratchet = cls(state, state_file, auto_persist, backend=hb)
 
         if auto_persist and state_file is not None:
             ratchet._derive_state_key(password)
@@ -333,12 +191,8 @@ class MasterRatchet:
         """
         Load existing ratchet from state file.
 
-        Args:
-            password: User password (for state decryption).
-            state_file: Path to state file.
-
-        Returns:
-            MasterRatchet or None if load fails.
+        Returns None on any failure (missing file, IO error, decryption
+        failure, format mismatch).
         """
         if not state_file.exists():
             return None
@@ -348,20 +202,23 @@ class MasterRatchet:
         except (OSError, IOError):
             return None
 
-        # Derive state key from password
-        state_key = _hkdf_expand(
-            password.encode("utf-8"),
-            cls.DOMAIN_STATE_KEY,
-            32,
-        )
+        hb = get_handle_backend()
 
-        state = ChainState.from_bytes(data, state_key)
-        if state is None:
+        # Derive the state KEK as a handle.
+        state_key_handle = cls._derive_state_key_handle(hb, password)
+
+        try:
+            state = _decode_chain_state(data, state_key_handle, hb)
+        except (ValueError, RuntimeError):
+            hb.drop(state_key_handle)
             return None
 
-        ratchet = cls(state, state_file, auto_persist=True)
-        ratchet._state_key = state_key
+        if state is None:
+            hb.drop(state_key_handle)
+            return None
 
+        ratchet = cls(state, state_file, auto_persist=True, backend=hb)
+        ratchet._state_key_handle = state_key_handle
         return ratchet
 
     @staticmethod
@@ -387,24 +244,55 @@ class MasterRatchet:
         combined = b"".join(entropy_sources)
         return hashlib.sha256(combined).digest()
 
+    @staticmethod
+    def _derive_state_key_handle(hb: HandleBackend, password: str) -> int:
+        """Derive the at-rest KEK handle from password (HKDF, no Argon2 — KEK
+        binds the on-disk state to *this* password but the KDF cost lives in
+        the chain init step which already mixed hardware entropy)."""
+        password_bytes = bytearray(password.encode("utf-8"))
+        try:
+            return hb.derive_key_hkdf_raw(
+                bytes(password_bytes), b"", MasterRatchet.DOMAIN_STATE_KEY, 32
+            )
+        finally:
+            _zero_bytearray(password_bytes)
+
     def _derive_state_key(self, password: str) -> None:
-        """Derive key for state file encryption."""
-        self._state_key = _hkdf_expand(
-            password.encode("utf-8"),
-            self.DOMAIN_STATE_KEY,
-            32,
-        )
+        """Derive (or re-derive) the at-rest KEK handle for this ratchet."""
+        if self._state_key_handle is not None:
+            self._hb.drop(self._state_key_handle)
+            self._state_key_handle = None
+        self._state_key_handle = self._derive_state_key_handle(self._hb, password)
 
     def _save_state(self) -> None:
-        """Save encrypted state to file."""
-        if self._state_file is None or self._state_key is None:
+        """Save encrypted state to file. Silent on IO errors (best-effort)."""
+        if self._state_file is None or self._state_key_handle is None:
+            return
+        if self._state.chain_handle is None:
             return
 
+        seal_nonce = secrets.token_bytes(12)
+
+        # AAD binds the on-disk metadata to the sealed chain key. Tampering
+        # with generation/timestamp/master_salt invalidates the seal.
+        meta = (
+            _FORMAT_MAGIC
+            + struct.pack("<Q", self._state.generation)
+            + struct.pack("<d", self._state.last_ratchet_time)
+            + self._state.master_salt
+        )
+        sealed = self._hb.seal_key(
+            self._state.chain_handle,
+            self._state_key_handle,
+            seal_nonce,
+            aad=meta + _SEAL_AAD,
+        )
+
+        blob = meta + seal_nonce + sealed
         try:
-            encrypted = self._state.to_bytes(self._state_key)
-            self._state_file.write_bytes(encrypted)
+            self._state_file.write_bytes(blob)
         except (OSError, IOError):
-            pass  # Silent failure
+            pass
 
     def ratchet(self) -> None:
         """
@@ -413,23 +301,18 @@ class MasterRatchet:
         This is a one-way operation - previous keys cannot be recovered.
         Call this after each successful encode operation.
         """
-        # Derive next chain key
-        new_chain_key = _hkdf_expand(
-            self._state.chain_key,
-            self.DOMAIN_CHAIN_RATCHET + struct.pack("<Q", self._state.generation),
-            32,
-        )
+        if self._state.chain_handle is None:
+            raise RuntimeError("Cannot ratchet a wiped chain")
 
-        # Zero old key
-        old_key = bytearray(self._state.chain_key)
-        _secure_zero(old_key)
+        info = self.DOMAIN_CHAIN_RATCHET + struct.pack("<Q", self._state.generation)
+        new_handle = self._hb.derive_key_hkdf(self._state.chain_handle, b"", info, 32)
 
-        # Update state
-        self._state.chain_key = new_chain_key
+        old = self._state.chain_handle
+        self._state.chain_handle = new_handle
         self._state.generation += 1
         self._state.last_ratchet_time = time.time()
+        self._hb.drop(old)
 
-        # Persist if enabled
         if self._auto_persist:
             self._save_state()
 
@@ -441,24 +324,19 @@ class MasterRatchet:
         """
         Derive a unique key for a specific file.
 
-        Args:
-            file_id: Unique identifier for the file (e.g., filename, hash).
-            key_length: Length of derived key in bytes.
-
-        Returns:
-            Derived file key.
+        Returns raw bytes — file keys are consumed by callers that need
+        bytes (e.g. shamir_split, downstream AES setup). The chain key
+        itself is never exported.
         """
-        context = (
+        if self._state.chain_handle is None:
+            raise RuntimeError("Cannot derive from a wiped chain")
+
+        info = (
             self.DOMAIN_FILE_KEY
             + struct.pack("<Q", self._state.generation)
             + file_id.encode("utf-8")
         )
-
-        return _hkdf_expand(
-            self._state.chain_key,
-            context,
-            key_length,
-        )
+        return self._hb.derive_key_hkdf_bytes(self._state.chain_handle, b"", info, key_length)
 
     def derive_file_key_with_commitment(
         self,
@@ -466,27 +344,21 @@ class MasterRatchet:
         key_length: int = 32,
     ) -> Tuple[bytes, bytes]:
         """
-        Derive file key with commitment tag.
+        Derive file key with a commitment tag.
 
-        The commitment tag binds the ciphertext to the chain state,
-        preventing invisible salamanders attacks.
-
-        Args:
-            file_id: Unique identifier for the file.
-            key_length: Length of derived key in bytes.
-
-        Returns:
-            Tuple of (file_key, commitment_tag).
+        Commitment binds the ciphertext to the chain state, preventing
+        invisible-salamander attacks. Computed via HMAC-SHA256(chain_handle,
+        "commitment:" || file_id) inside Rust.
         """
+        if self._state.chain_handle is None:
+            raise RuntimeError("Cannot derive from a wiped chain")
+
         file_key = self.derive_file_key(file_id, key_length)
-
-        commitment = hmac.new(
-            self._state.chain_key,
+        tag = self._hb.hmac_sha256(
+            self._state.chain_handle,
             b"commitment:" + file_id.encode("utf-8"),
-            hashlib.sha256,
-        ).digest()[:16]
-
-        return file_key, commitment
+        )
+        return file_key, tag[:16]
 
     @property
     def generation(self) -> int:
@@ -500,42 +372,42 @@ class MasterRatchet:
 
     def emergency_wipe(self) -> bool:
         """
-        Emergency wipe - securely delete all chain state.
+        Emergency wipe — securely delete all chain state.
 
-        After this operation:
-        - All past files become undecryptable
-        - Chain cannot be recovered
-        - Provides plausible deniability
-
-        Returns:
-            True if wipe succeeded, False otherwise.
+        After this:
+        - Chain handle dropped (Rust zeroizes via Zeroize impl on Drop)
+        - State file overwritten with random data 3x then unlinked
+        - Future calls to ratchet/derive_file_key raise RuntimeError
         """
         success = True
 
-        # Zero in-memory state
-        chain_key_ba = bytearray(self._state.chain_key)
-        salt_ba = bytearray(self._state.master_salt)
-        _secure_zero(chain_key_ba)
-        _secure_zero(salt_ba)
+        # Drop the chain handle — Rust zeroizes the SecretKey on Drop.
+        if self._state.chain_handle is not None:
+            try:
+                self._hb.drop(self._state.chain_handle)
+            except Exception:
+                success = False
+            self._state.chain_handle = None
 
-        self._state.chain_key = bytes(32)
+        if self._state_key_handle is not None:
+            try:
+                self._hb.drop(self._state_key_handle)
+            except Exception:
+                success = False
+            self._state_key_handle = None
+
+        # Zero the non-secret salt as defence-in-depth.
+        salt_ba = bytearray(self._state.master_salt)
+        _zero_bytearray(salt_ba)
         self._state.master_salt = bytes(32)
         self._state.generation = 0
 
-        if self._state_key is not None:
-            state_key_ba = bytearray(self._state_key)
-            _secure_zero(state_key_ba)
-            self._state_key = None
-
-        # Delete state file
+        # Delete state file.
         if self._state_file is not None and self._state_file.exists():
             try:
-                # Overwrite with random data multiple times
                 size = self._state_file.stat().st_size
                 for _ in range(3):
                     self._state_file.write_bytes(secrets.token_bytes(size))
-
-                # Then delete
                 self._state_file.unlink()
             except (OSError, IOError):
                 success = False
@@ -550,6 +422,49 @@ class MasterRatchet:
         """
         return hashlib.sha256(b"chain_id:" + self._state.master_salt).digest()[:16]
 
+    def __del__(self) -> None:
+        # Best-effort handle cleanup on GC. Production code should call
+        # emergency_wipe() explicitly for deterministic teardown.
+        try:
+            if self._state.chain_handle is not None:
+                self._hb.drop(self._state.chain_handle)
+                self._state.chain_handle = None
+            if self._state_key_handle is not None:
+                self._hb.drop(self._state_key_handle)
+                self._state_key_handle = None
+        except Exception:
+            pass
+
+
+def _decode_chain_state(
+    data: bytes, state_key_handle: int, hb: HandleBackend
+) -> Optional[ChainState]:
+    """Parse and verify an MRCV2 blob, return ChainState or None."""
+    if len(data) != _HEADER_LEN:
+        return None
+    if data[:5] != _FORMAT_MAGIC:
+        return None
+
+    generation = struct.unpack("<Q", data[5:13])[0]
+    last_ratchet_time = struct.unpack("<d", data[13:21])[0]
+    master_salt = data[21:53]
+    seal_nonce = data[53:65]
+    sealed = data[65:113]
+
+    meta = data[:53]  # magic || generation || timestamp || master_salt
+
+    try:
+        chain_handle = hb.unseal_key(sealed, state_key_handle, seal_nonce, aad=meta + _SEAL_AAD)
+    except Exception:
+        return None
+
+    return ChainState(
+        chain_handle=chain_handle,
+        generation=generation,
+        last_ratchet_time=last_ratchet_time,
+        master_salt=master_salt,
+    )
+
 
 def derive_file_key(
     password: str,
@@ -559,27 +474,33 @@ def derive_file_key(
     """
     Convenience function to derive a one-shot file key.
 
-    Use this when you don't need persistent ratchet state.
-
-    Args:
-        password: User password.
-        file_id: Unique file identifier.
-        salt: Optional salt (generated if not provided).
-
-    Returns:
-        32-byte derived key.
+    Use this when you don't need persistent ratchet state. Goes through
+    the Rust handle backend (no Python-side HKDF).
     """
     if salt is None:
         salt = secrets.token_bytes(32)
 
-    key_material = password.encode("utf-8") + salt
+    hb = get_handle_backend()
+    password_bytes = bytearray(password.encode("utf-8"))
+    try:
+        ikm = bytearray(password_bytes)
+        ikm.extend(salt)
+        try:
+            transient = hb.derive_key_hkdf_raw(bytes(ikm), salt, b"meow_oneshot_seed", 32)
+        finally:
+            _zero_bytearray(ikm)
+    finally:
+        _zero_bytearray(password_bytes)
 
-    return _hkdf_expand(
-        key_material,
-        MasterRatchet.DOMAIN_FILE_KEY + file_id.encode("utf-8"),
-        32,
-        salt,
-    )
+    try:
+        return hb.derive_key_hkdf_bytes(
+            transient,
+            b"",
+            MasterRatchet.DOMAIN_FILE_KEY + file_id.encode("utf-8"),
+            32,
+        )
+    finally:
+        hb.drop(transient)
 
 
 # Global singleton

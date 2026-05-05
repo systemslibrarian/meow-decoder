@@ -84,8 +84,12 @@
   // LIFECYCLE COMMANDS
   // ============================================================
 
-  // Run after container creation (installs dependencies)
-  "postCreateCommand": "pip install -e '.[dev]' && cargo install wasm-pack && echo '✅ Dependencies installed'",
+  // Run after container creation (installs dependencies).
+  // Bump pip and wheel before installing — the python:3.11-bookworm
+  // image ships pip 24.0 + wheel 0.45.1, both of which carry build-time
+  // CVEs (FOLLOWUP Finding 7.2). Upgrading first means the project
+  // install runs against patched build tooling.
+  "postCreateCommand": "pip install --upgrade 'pip>=25' 'wheel>=0.46' && pip install -e '.[dev]' && cargo install wasm-pack && echo '✅ Dependencies installed (pip $(pip --version | cut -d\" \" -f2), wheel $(python -c \"import wheel; print(wheel.__version__)\"))'",
 
   // Run after container starts (show welcome message)
   "postStartCommand": "echo '' && echo '🐱 Welcome to Meow Decoder!' && echo '' && echo '🌐 To run WASM demo:  make meow-build' && echo '                      Then forward port 8080 in the Ports tab' && echo '                      Navigate to /examples/wasm_browser_example.html' && echo '' && echo '🧪 To run tests:      make test' && echo ''",

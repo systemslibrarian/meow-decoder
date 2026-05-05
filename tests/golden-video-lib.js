@@ -165,11 +165,26 @@ function encodePayloadToBits(payload, payloadType) {
     }
     
     // Build full transmission:
-    // Lead-in (8 bits dark) + Preamble (32 bits alternating) + Sync (16 bits 0xAA55) + Payload
+    // Lead-in (8 bits dark) + Preamble (32 bits alternating) + Sync (16 bits) + Payload
+    //
+    // FIX (2026-05-04, Gate 2): the syncWord was '1010101001010101' (the
+    // literal bits of 0xAA55 = 0xAA<<8 | 0x55 = 1010_1010 0101_0101). But
+    // both the production encoder
+    // (`web_demo/wasm_browser_example_FULL.html:4531`) and the production
+    // NRZ decoder (`web_demo/nrz-decoder.js::syncPattern16`) use 16
+    // alternating bits ('1010101010101010', mathematically 0xAAAA but
+    // mislabelled "0xAA55" in their comments). The production protocol
+    // therefore has a 48-bit alternating block (preamble+sync) and the
+    // decoder finds the data start by detecting where that alternation
+    // breaks (`wasm_browser_example_FULL.html:6065-6087`). The literal-
+    // 0xAA55 sync the golden video previously emitted broke alternation
+    // at sync bit 7→8 (both 0), making the decoder treat positions
+    // 47..56 as data — corrupting the bit stream by 9 bits.
+    // Aligning the golden video with what production actually expects.
     const leadIn = '00000000';
     const preamble = '10101010101010101010101010101010'; // 32 bits
-    const syncWord = '1010101001010101'; // 0xAA55
-    
+    const syncWord = '1010101010101010'; // 16 alternating (matches prod encoder + decoder)
+
     return leadIn + preamble + syncWord + payloadBits;
 }
 

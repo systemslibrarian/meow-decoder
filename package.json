@@ -29,12 +29,12 @@
   "license": "CC-BY-NC-SA-4.0",
   "devDependencies": {
     "@playwright/test": "^1.40.0",
-    "canvas": "^2.11.2",
+    "canvas": "^3.2.3",
     "jest": "^30.2.0",
     "selenium-webdriver": "^4.16.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   },
   "repository": {
     "type": "git",

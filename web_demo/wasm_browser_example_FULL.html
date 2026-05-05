@@ -1610,6 +1610,9 @@
     <!-- CAT MODE NRZ DECODER - NRZ timing decoder (Task 1.2) -->
     <script src="nrz-decoder.js"></script>
 
+    <!-- WebM → MP4 fallback for Safari compatibility (potential_bugs.md #5) -->
+    <script src="static/convert-webm-to-mp4.js"></script>
+
     <!-- CAT MODE ADAPTIVE THRESHOLD - Sliding window threshold adaptation (Task 2.1) -->
     <script src="adaptive-threshold.js"></script>
 
@@ -3106,6 +3109,17 @@
                 const wasmModule = await import('../crypto_core/pkg/crypto_core.js');
                 await wasmModule.default();
                 wasm = wasmModule;
+
+                // Phase 3: hot-swap fountain JS impl with WASM backend
+                // (gemini #6 unification). Same droplet wire format as
+                // the Python encoder — see docs/FOUNTAIN_RUST_WASM_MIGRATION.md.
+                if (typeof window.activateWasmFountain === 'function') {
+                    try {
+                        await window.activateWasmFountain(wasmModule);
+                    } catch (e) {
+                        console.warn('[fountain] WASM activation failed; using JS fallback:', e);
+                    }
+                }
 
                 // Wait for worker to be ready
                 await workerPromise;
@@ -4796,9 +4810,20 @@
                             </p>
                         ` : '';
 
-                        // Build download button HTML (will be enabled once blob is ready)
+                        // Build download button HTML (will be enabled once blob is ready).
+                        // gemini #5: surface a second "Download MP4" button when the
+                        // WebCodecs transcode pipeline is available (Chromium / Firefox
+                        // with WebCodecs H.264 encoder, or Safari which records MP4
+                        // natively and short-circuits on the identity branch).
+                        const mp4Capable = !!(window.convertWebMToMp4Capabilities &&
+                            (window.convertWebMToMp4Capabilities.mp4Identity ||
+                             window.convertWebMToMp4Capabilities.webcodecsTranscode));
+                        const mp4BtnHtml = mp4Capable ? `
+                            <button id="catDownloadMp4Btn" onclick="downloadCatVideoAsMp4()" style="background: linear-gradient(135deg, #00ccff 0%, #0088ff 100%); border:none; margin-right:10px; margin-top:10px;">🎞️ Download MP4</button>
+                        ` : '';
                         const downloadBtnHtml = catMediaRecorder ? `
                             <button id="catDownloadVideoBtn" onclick="downloadCatVideo()" style="background: linear-gradient(135deg, #00ff88 0%, #00cc66 100%); border:none; margin-right:10px; margin-top:10px;">📹 Download Video</button>
+                            ${mp4BtnHtml}
                             <span id="catVideoSizeInfo" style="color:#888; font-size:0.85em;"></span>
                         ` : '';
 
@@ -4888,7 +4913,8 @@
             log('⏹️ [Cat Mode] Stopped');
         };
 
-        // Download the recorded canvas video
+        // Download the recorded canvas video (native format — Safari MP4
+        // or Chromium/Firefox WebM).
         window.downloadCatVideo = function() {
             if (!catRecordedBlob) {
                 alert('No video recorded yet. The recording may still be processing — try again in a moment.');
@@ -4902,6 +4928,46 @@
             a.click();
             URL.revokeObjectURL(url);
             log(`📹 [Cat Mode] Video downloaded (${(catRecordedBlob.size / (1024 * 1024)).toFixed(1)} MB)`);
+        };
+
+        // Download the recorded canvas video as MP4 — uses
+        // window.convertWebMToMp4 (gemini #5). Safari recordings short-
+        // circuit on the identity branch; Chromium/Firefox go through
+        // the WebCodecs decode→encode→mux pipeline.
+        window.downloadCatVideoAsMp4 = async function() {
+            if (!catRecordedBlob) {
+                alert('No video recorded yet. The recording may still be processing — try again in a moment.');
+                return;
+            }
+            if (typeof window.convertWebMToMp4 !== 'function') {
+                alert('MP4 conversion is unavailable in this build — please use the regular Download button.');
+                return;
+            }
+            const btn = document.getElementById('catDownloadMp4Btn');
+            const originalLabel = btn ? btn.textContent : null;
+            try {
+                if (btn) {
+                    btn.disabled = true;
+                    btn.textContent = '⏳ Converting…';
+                }
+                log('🎞️ [Cat Mode] Converting recording to MP4…');
+                const mp4Blob = await window.convertWebMToMp4(catRecordedBlob);
+                const url = URL.createObjectURL(mp4Blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `meow-cat-transmission-${Date.now()}.mp4`;
+                a.click();
+                URL.revokeObjectURL(url);
+                log(`📹 [Cat Mode] MP4 downloaded (${(mp4Blob.size / (1024 * 1024)).toFixed(1)} MB)`);
+            } catch (err) {
+                log(`❌ [Cat Mode] MP4 conversion failed: ${err.message || err}`);
+                alert(`MP4 conversion failed:\n${err.message || err}\n\nThe original recording is still available via the Download Video button.`);
+            } finally {
+                if (btn && originalLabel) {
+                    btn.disabled = false;
+                    btn.textContent = originalLabel;
+                }
+            }
         };
 
         // Update the video size info after recording completes

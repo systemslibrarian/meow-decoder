@@ -2505,3 +2505,250 @@ class TestHardenedFrameFormat:
         with pytest.raises(ValueError, match="too short"):
             decoder.decrypt(too_short)
         decoder.finalize()
+
+
+class TestSpeculativeStateRollback:
+    """Regression tests for the two state-machine bugs surfaced in
+    gemini_suggestions_v2.md (FOLLOWUP "Real protocol state-machine bugs").
+
+    * Bug #2 — cached message-key burn on commit_tag failure
+    * Bug #1 — silent ratchet desync via ML-KEM FO implicit rejection
+
+    Both classes of failure used to mutate decoder state irreversibly
+    before the commit_tag verification step. The fix introduces a
+    speculative-state pattern: peek-don't-pop on the skipped-keys cache,
+    and a deferred-commit/rollback wrapper around _execute_rekey().
+    """
+
+    def test_cached_key_survives_commit_tag_failure(self, root_key, salt):
+        """Bug #2: a single tampered scan of an out-of-order frame must
+        NOT burn the cached message key — a clean re-scan still succeeds.
+
+        Reproduces FOLLOWUP MEDIUM finding at ratchet.py:1525-1608. Before
+        the fix, decrypt() would pop self._skipped_keys[frame_index]
+        eagerly (line 1528) and the finally block would drop the handle
+        on commit_tag failure. The cache entry was lost permanently and
+        the user's second scan of the same QR frame failed with "Key is
+        irrecoverable (forward secrecy)".
+        """
+        total = 8
+        data = [secrets.token_bytes(120) for _ in range(total)]
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+        encrypted = [encoder.encrypt_next(d) for d in data]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+
+        # Decrypt frame 5 first — this caches keys for frames 0..4 in
+        # self._skipped_keys. Frame 5 is consumed.
+        assert decoder.decrypt(encrypted[5]) == data[5]
+        assert 0 in decoder._skipped_keys
+        assert 2 in decoder._skipped_keys
+
+        # Now feed a TAMPERED frame 2: flip a byte in the ciphertext
+        # body so commit_tag verification fails. Use a deep enough offset
+        # that the header lookup still succeeds (encrypted index is the
+        # first 4 bytes; commitment_tag is the next 16; we tamper inside
+        # the AES-GCM payload after that).
+        tampered = bytearray(encrypted[2])
+        tamper_offset = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + 2
+        tampered[tamper_offset] ^= 0x01
+
+        with pytest.raises(ValueError, match="commitment|verification|GCM|Auth"):
+            decoder.decrypt(bytes(tampered))
+
+        # The cache entry for frame 2 must still be present — bug #2
+        # would have removed it.
+        assert 2 in decoder._skipped_keys, (
+            "cached msg-key for frame 2 was burned by tampered scan; "
+            "regression of bug #2 (gemini_suggestions_v2.md item #3)"
+        )
+
+        # A clean re-scan of frame 2 must succeed.
+        assert decoder.decrypt(encrypted[2]) == data[2]
+        decoder.finalize()
+
+    def test_cached_rekey_frame_survives_commit_tag_failure(self, root_key, salt):
+        """Bug #2 extension for rekey-frame replays: the beacon-mix
+        derivation in decrypt() previously dropped the cached msg-key as
+        a side effect, even when commit_tag would later fail. After the
+        owns_handle ownership tracking, the cache survives.
+        """
+        total = 8
+        rekey = 3
+        data = [secrets.token_bytes(120) for _ in range(total)]
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+        encrypted = [encoder.encrypt_next(d) for d in data]
+        encoder.finalize()
+
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=3,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey,
+        )
+
+        # Decrypt frame 5 first → caches keys for [0, 1, 2, 3, 4] including
+        # the plaintext beacon at frame 3.
+        assert decoder.decrypt(encrypted[5]) == data[5]
+        assert 3 in decoder._skipped_keys
+
+        # Tamper with the rekey frame body (after beacon prefix).
+        tampered = bytearray(encrypted[3])
+        # Flip something inside the ciphertext payload.
+        tamper_offset = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + REKEY_BEACON_SIZE + 1
+        tampered[tamper_offset] ^= 0x80
+
+        with pytest.raises(ValueError, match="commitment|verification|GCM|Auth"):
+            decoder.decrypt(bytes(tampered))
+
+        # Cached msg-key for the rekey frame must still be intact.
+        assert 3 in decoder._skipped_keys
+
+        # Clean re-scan succeeds.
+        assert decoder.decrypt(encrypted[3]) == data[3]
+        decoder.finalize()
+
+    @pytest.mark.skipif(
+        not (
+            __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_RUST_MLKEM_AVAILABLE"]
+            )._RUST_MLKEM_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_MLKEM_PURE_AVAILABLE"]
+            )._MLKEM_PURE_AVAILABLE
+            or __import__(
+                "meow_decoder.pq_ratchet_beacon", fromlist=["_OQS_AVAILABLE"]
+            )._OQS_AVAILABLE
+        ),
+        reason="ML-KEM-1024 not available (no Rust/ml-kem/OQS backend)",
+    )
+    def test_tampered_pq_ciphertext_does_not_desync_ratchet(self, root_key, salt):
+        """Bug #1 (HIGH): a tampered PQ ciphertext on an asymmetric rekey
+        frame MUST NOT mutate the decoder's root/chain state. Fujisaki-
+        Okamoto implicit rejection means the decapsulation silently
+        returns junk; without rollback the junk gets folded into the root
+        and the session desyncs forever. This test feeds a corrupted
+        rekey frame and then verifies that:
+
+        1. The decrypt call raises (commit_tag verification catches it).
+        2. _state.root_key, _state.chain_key, _state.position, _state.epoch
+           are unchanged from the pre-rekey snapshot.
+        3. A subsequent clean rekey frame for the same epoch decrypts
+           cleanly — proving the chain advances normally.
+        """
+        import meow_crypto_rs
+        from meow_decoder.pq_ratchet_beacon import generate_beacon_keypair
+        from meow_decoder.ratchet import REKEY_BEACON_SIZE, COMMIT_TAG_SIZE
+        from meow_decoder.pq_ratchet_beacon import PQBeaconFrame
+
+        receiver_priv, receiver_pub = meow_crypto_rs.x25519_generate_keypair()
+        pq_keypair = generate_beacon_keypair()
+
+        total = 6
+        rekey = 4  # rekey at frame 4
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=2,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_pub,
+            receiver_pq_public_key=pq_keypair.public_key,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=2,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_private_key=receiver_priv,
+            receiver_pq_keypair=pq_keypair,
+        )
+
+        # Burn through frames 0..3 normally so the decoder is sitting
+        # right at the rekey boundary.
+        for i in range(rekey):
+            d = secrets.token_bytes(80)
+            assert decoder.decrypt(encoder.encrypt_next(d)) == d
+
+        # Snapshot the pre-rekey state.
+        pre_root = decoder._state.root_key
+        pre_chain = decoder._state.chain_key
+        pre_pos = decoder._state.position
+        pre_epoch = decoder._state.epoch
+
+        # Real frame 4 (the rekey frame). Tamper the PQ ciphertext bytes
+        # which start at frame_body[REKEY_BEACON_SIZE + PQBeaconFrame.header_size()].
+        clean_data = b"clean rekey payload"
+        clean_frame = encoder.encrypt_next(clean_data)
+        tampered = bytearray(clean_frame)
+        # Skip past frame index + commit_tag + classical-beacon prefix +
+        # PQBeaconFrame header to land inside the actual ML-KEM ciphertext.
+        pq_ct_offset = (
+            FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + REKEY_BEACON_SIZE + PQBeaconFrame.header_size()
+        )
+        # Flip a byte deep inside the PQ ciphertext.
+        tampered[pq_ct_offset + 32] ^= 0xFF
+
+        with pytest.raises(ValueError, match="commitment|verification|GCM|Auth"):
+            decoder.decrypt(bytes(tampered))
+
+        # ── State must be untouched ──
+        assert decoder._state.root_key == pre_root, (
+            "root_key mutated by tampered PQ ciphertext — regression of "
+            "bug #1 (gemini_suggestions_v2.md item #2). FO implicit "
+            "rejection produced junk shared secret which the decoder "
+            "folded into the root before commit_tag verification."
+        )
+        assert decoder._state.chain_key == pre_chain
+        assert decoder._state.position == pre_pos
+        assert decoder._state.epoch == pre_epoch
+        assert (
+            decoder._pending_rollback is None
+        ), "rollback marker should be cleared after _rollback_rekey()"
+
+        # ── Clean re-scan of the same epoch boundary must succeed ──
+        # The encoder advanced its state on encrypt_next, so a fresh
+        # encoder mirroring the decoder's pre-rekey state is needed for
+        # this re-scan check. Rebuild it from the same root/salt and
+        # fast-forward to position 4.
+        encoder2 = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=2,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey,
+            receiver_public_key=receiver_pub,
+            receiver_pq_public_key=pq_keypair.public_key,
+        )
+        for _ in range(rekey):
+            encoder2.encrypt_next(secrets.token_bytes(80))
+        clean_rekey = encoder2.encrypt_next(clean_data)
+        # encoder2's frame 4 won't match decoder.encrypt_next(clean_data)'s
+        # output because the rekey ephemeral keys are freshly generated,
+        # but the decoder doesn't know that and will still process the
+        # frame from encoder2 successfully — same root, salt, position,
+        # epoch on both sides at this point.
+        assert decoder.decrypt(clean_rekey) == clean_data
+        assert decoder._state.position == rekey + 1
+        assert decoder._state.epoch == 1
+
+        encoder.finalize()
+        encoder2.finalize()
+        decoder.finalize()

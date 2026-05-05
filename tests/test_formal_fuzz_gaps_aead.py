@@ -14,6 +14,7 @@ import pytest
 pytestmark = pytest.mark.security
 
 import os
+
 os.environ.setdefault("MEOW_TEST_MODE", "1")
 
 _PW = "password123"
@@ -21,12 +22,14 @@ _PW = "password123"
 
 def _encrypt(plaintext: bytes, password: str):
     from meow_decoder.crypto import encrypt_file_bytes
+
     comp, sha, salt, nonce, cipher, _, _ = encrypt_file_bytes(plaintext, password)
     return comp, sha, salt, nonce, cipher, len(plaintext)
 
 
 def _decrypt(cipher, password, salt, nonce, comp, sha, orig_len: int = 0):
     from meow_decoder.crypto import decrypt_to_raw
+
     return decrypt_to_raw(
         cipher, password, salt, nonce, orig_len=orig_len, comp_len=len(comp), sha256=sha
     )
@@ -108,6 +111,7 @@ class TestAEAD007NonceDomainSeparation:
 
     def test_nonce_reuse_guard_fires(self):
         from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+
         _nonce_reuse_cache.clear()
         key = secrets.token_bytes(32)
         nonce = secrets.token_bytes(12)
@@ -118,6 +122,7 @@ class TestAEAD007NonceDomainSeparation:
 
     def test_different_keys_same_nonce_ok(self):
         from meow_decoder.crypto import _register_nonce_use, _nonce_reuse_cache
+
         _nonce_reuse_cache.clear()
         key1, key2 = secrets.token_bytes(32), secrets.token_bytes(32)
         nonce = secrets.token_bytes(12)
@@ -131,20 +136,31 @@ class TestAEAD008FailClosed:
 
     def test_all_zeros_fails_closed(self):
         from meow_decoder.crypto import decrypt_to_raw
+
         with pytest.raises(Exception):
             decrypt_to_raw(
-                b"\x00" * 32, _PW, b"\x00" * 32, b"\x00" * 12,
-                orig_len=None, comp_len=10, sha256=b"\x00" * 32,
+                b"\x00" * 32,
+                _PW,
+                b"\x00" * 32,
+                b"\x00" * 12,
+                orig_len=None,
+                comp_len=10,
+                sha256=b"\x00" * 32,
             )
 
     def test_random_noise_fails_closed(self):
         from meow_decoder.crypto import decrypt_to_raw
+
         for _ in range(3):
             with pytest.raises(Exception):
                 decrypt_to_raw(
-                    secrets.token_bytes(64), _PW,
-                    secrets.token_bytes(32), secrets.token_bytes(12),
-                    orig_len=None, comp_len=32, sha256=secrets.token_bytes(32),
+                    secrets.token_bytes(64),
+                    _PW,
+                    secrets.token_bytes(32),
+                    secrets.token_bytes(12),
+                    orig_len=None,
+                    comp_len=32,
+                    sha256=secrets.token_bytes(32),
                 )
 
     def test_no_plaintext_in_error(self):
@@ -163,6 +179,7 @@ class TestAEAD009RatchetKeyIndependence:
 
     def test_successive_encoder_outputs_differ(self):
         from meow_decoder.ratchet import EncoderRatchet
+
         root_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
         enc = EncoderRatchet(root_key, salt, k_blocks=4, block_size=100, total_frames=10)
@@ -173,6 +190,7 @@ class TestAEAD009RatchetKeyIndependence:
 
     def test_encoder_decoder_roundtrip(self):
         from meow_decoder.ratchet import EncoderRatchet, DecoderRatchet
+
         root_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
         total = 5
@@ -186,20 +204,32 @@ class TestAEAD009RatchetKeyIndependence:
 
     def test_wrong_epoch_decrypt_fails(self):
         from meow_decoder.ratchet import encrypt_frame, decrypt_frame
+
         msg_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
         ct0 = encrypt_frame(
-            b"frame zero", msg_key, frame_index=0, salt=salt,
-            k_blocks=4, block_size=100, total_frames=5,
+            b"frame zero",
+            msg_key,
+            frame_index=0,
+            salt=salt,
+            k_blocks=4,
+            block_size=100,
+            total_frames=5,
         )
         with pytest.raises(Exception):
             decrypt_frame(
-                ct0, msg_key, expected_index=1, salt=salt,
-                k_blocks=4, block_size=100, total_frames=5,
+                ct0,
+                msg_key,
+                expected_index=1,
+                salt=salt,
+                k_blocks=4,
+                block_size=100,
+                total_frames=5,
             )
 
     def test_module_level_encrypt_decrypt_roundtrip(self):
         from meow_decoder.ratchet import encrypt_frame, decrypt_frame
+
         msg_key = secrets.token_bytes(32)
         salt = secrets.token_bytes(16)
         pt = b"encrypt_frame test data"

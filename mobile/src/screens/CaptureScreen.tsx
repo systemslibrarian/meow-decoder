@@ -280,10 +280,10 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     }
 
     const TOASTS: Record<number, { message: string; type: 'milestone' | 'success' }> = {
-      0.25: { message: '25% captured — keep scanning, good start', type: 'milestone' },
+      0.25: { message: 'Keep scanning — good start', type: 'milestone' },
       0.5: { message: 'Halfway there — keep holding steady', type: 'milestone' },
-      0.75: { message: '75% done — almost there, keep going', type: 'milestone' },
-      1.0: { message: 'All expected frames captured! You can safely tap Done now.', type: 'success' },
+      0.75: { message: 'Almost done — keep going', type: 'milestone' },
+      1.0: { message: 'Transfer captured — safe to stop now.', type: 'success' },
     };
 
     const toast = TOASTS[lastMilestone];
@@ -431,7 +431,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
             accessibilityLabel="Stop capture and export"
           >
             <Text style={styles.buttonText}>
-              {progress?.isFountainComplete ? '😸 Done!' : '🐾 Stop'}
+              {progress?.isFountainComplete ? '✓ Safe to stop' : '🐾 Stop'}
             </Text>
           </TouchableOpacity>
         )}
@@ -451,11 +451,11 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
 
 function statusLabel(status: string): string {
   switch (status) {
-    case 'AWAITING_GIF': return '🔍 Point camera at the code on screen';
+    case 'AWAITING_GIF': return '🔍 Point camera at the sender screen';
     case 'CAPTURING': return '😼 Scanning — hold steady';
     case 'PAUSED': return '⏸ Paused — tap Resume to continue';
-    case 'TIMED_OUT': return '⏰ Time\'s up — preparing your file...';
-    case 'COMPLETE': return '✅ All captured! Preparing your file...';
+    case 'TIMED_OUT': return '⏰ Time\'s up — preparing your transfer…';
+    case 'COMPLETE': return '✅ Transfer captured — preparing for export…';
     default: return '';
   }
 }

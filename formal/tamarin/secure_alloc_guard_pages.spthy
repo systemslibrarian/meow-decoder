@@ -30,7 +30,9 @@ builtins: hashing, symmetric-encryption
 functions:
     guard_page/0,           /* Inaccessible guard page marker */
     alloc/2,                /* alloc(size, data) -- allocate guarded buffer */
-    zero/1,                 /* zero(buf) -- securely zeroize buffer */
+    /* zero/1 removed — reserved name collision under Tamarin 1.12.0,
+       and the symbolic `zero` function was never called in any rule
+       (zeroization is captured by the Zeroized() action fact instead). */
     mlock/1,                /* mlock(buf) -- pin in RAM */
     munlock/1,              /* munlock(buf) -- unpin from RAM */
     read_buf/2,             /* read_buf(buf, offset) -- read from buffer */

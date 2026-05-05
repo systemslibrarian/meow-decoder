@@ -10,6 +10,236 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Product & UX track — Milestones A and B (2026-05-04 → 2026-05-05) 🐾
+
+Tracking branch: `audit/cat-mode-fixes` (PR #172). Establishes the
+product/UX track in the roadmap and ships the first two milestones
+of the new default-flow story across docs, web demo, and the mobile
+receiver. No protocol or crypto changes — only user-facing copy,
+information architecture, and one structural mobile reorder. See
+`docs/ROADMAP.md` Product & UX Track and the supporting docs
+(`docs/TRUST_CENTER.md`, `docs/DEFAULT_WORKFLOW_SPEC.md`) for the
+spec these commits implement.
+
+#### Foundation
+- **`docs/ROADMAP.md`** — adds Product & UX Track section
+  (direction, priorities, workstreams, milestone sequence A/B/C,
+  supporting-doc index).
+- **`docs/TRUST_CENTER.md`** *(new)* — plain-language trust
+  framing with the Recommended / Advanced / Experimental taxonomy.
+- **`docs/DEFAULT_WORKFLOW_SPEC.md`** *(new)* — narrow, opinionated
+  default-workflow spec with per-state copy guidance.
+- **`gemini_suggetions.md` / `gemini_suggestions_v2.md`** — strategic
+  notes reconciled against current branch state.
+
+#### Milestone A — Message and default flow
+- **`README.md`** — outcome-led lede ("Move files offline — show,
+  scan, recover") replaces mechanism-led copy. Recommended Starting
+  Path elevated above the legal/disclaimer block. The four-row
+  "This IS / This is NOT for you" exclusion table is reframed as
+  softer "Best fit / Less ideal" lists. Maturity table links into
+  `TRUST_CENTER.md`.
+- **`web_demo/templates/encode.html`** — page title becomes "Start
+  an Offline Transfer". Mode dropdown gets `<optgroup>` grouping
+  (Recommended / Experimental). Standard is the new default;
+  Cat Mode loses its "FLAGSHIP" tag and the top "Cat Mode Available"
+  highlight box is removed.
+- **`web_demo/templates/base.html`** — tagline becomes "Move files
+  offline — show, scan, recover". Nav splits Recommended (Encode /
+  Decode / Webcam) from Experimental (Cat Mode / Schrödinger /
+  All Modes) with a visual divider.
+- **`web_demo/templates/demo.html`** — closing CTA reframed around
+  the outcome ("Ready to Move a File Offline?") instead of mode
+  advertising.
+- **`mobile/src/screens/HomeScreen.tsx`** — restructured so the
+  camera scan path is the obvious primary action. "📷 Scan Sender
+  Screen" becomes the single full-width primary button in a
+  "Start Capture" card. JSON import + Video import drop into a
+  clearly-marked "ADVANCED SETUP" section. Manual session entry
+  toggle relabeled and grouped with the advanced fallbacks. QR
+  scanner modal title and helper copy aligned. File header
+  docstring rewritten.
+- **`mobile/README.md` / `web_demo/README.md`** — added
+  Recommended Starting Path + maturity tables.
+
+#### Milestone B — Receiver experience
+- **`mobile/src/screens/OnboardingScreen.tsx`** — hero subtitle
+  rewritten ("Move files offline — the phone is the bridge.").
+  Steps rewritten so the user learns: open the sender → scan the
+  sender screen → export and recover. Drops "GIF", "ADB", and
+  "JSON to Downloads" implementation specifics from the first-run
+  flow. Security bullets reframed around the "phone is a sensor,
+  not a trust anchor" model.
+- **`mobile/src/screens/CaptureScreen.tsx`** — status labels and
+  milestone toasts use the spec's situational/outcome language
+  instead of leading percentages ("25% captured" → "Keep
+  scanning — good start"; "All expected frames captured!" →
+  "Transfer captured — safe to stop now."). COMPLETE label
+  becomes "Transfer captured — preparing for export…". Stop
+  button on safe-to-stop reads "✓ Safe to stop".
+- **`mobile/src/components/CaptureCoachPanel.tsx`** — safe-to-stop
+  hint becomes "Safe to stop — tap to finish"; "Receiving data"
+  hint uses the spec's "sender screen" terminology.
+- **`mobile/src/screens/ExportScreen.tsx`** — title becomes
+  "✓ Transfer captured" with the spec's mandated subtitle.
+  Recovery-estimate strings lead with "Ready to export" instead
+  of probabilistic hedging. Primary button: "Export Transfer".
+  Section headings: "Verification details" / "Receive on the
+  desktop" replace artifact-led "Verify on desktop" / "Retrieve
+  with ADB".
+- **`web_demo/templates/result.html`** — title "Encoding
+  Complete!" → "Transfer Ready" with support copy that tells
+  the user what to do next: keep the screen visible, the
+  receiver tells you when it's safe to stop. "Next Steps" list
+  rewritten around the Scan Sender Screen flow.
+- **`web_demo/templates/decode.html`** — title "Decode Your GIF"
+  → "Recover File"; lead and submit-button copy aligned with
+  spec state 6.
+
+#### Verification
+- Web demo smoke-tested via Flask test client: `/`, `/encode`,
+  `/decode`, `/webcam`, `/cat-mode`, `/schrodinger`, `/modes`
+  all return 200 / 302 with the new defaults rendering.
+- Mobile: no behavior changes; only user-visible string edits and
+  one structural reorder of the Home screen card. No mobile tests
+  reference the renamed labels.
+- Security CI flake (`test_dual_runs_random` Z=-4.08, run
+  `25334582217`) confirmed as a one-off — both subsequent re-runs
+  on this branch are green (`25353137409`, `25353181241`).
+
+### Audit-followup hardening (2026-05-03) 🔒
+
+Tracking branch: `audit/cat-mode-fixes`. Closes the
+`gemini_suggestions_v2.md` HIGH/MEDIUM ratchet bugs, the HIGH+MEDIUM
+`MeowKeyCommitment.spthy` Tamarin issues, the `gemini_suggetions.md`
+"clean the litter box" item (#7), and several smaller deferred items
+from `FOLLOWUP.md`. Eleven commits; full diff:
+[fa04a1f...3bab6d7].
+
+#### Security fixes
+- **HIGH — Ratchet PQ implicit-rejection silent desync.**
+  `meow_decoder/ratchet.py::DecoderRatchet._execute_rekey()` now uses
+  a speculative-state pattern: snapshot pre-rekey root/chain handles,
+  defer the destructive drop until commit_tag verification passes,
+  roll back to the snapshot on any verification failure (commit_tag
+  mismatch, AES-GCM auth failure, etc.). Tampered ML-KEM-1024
+  ciphertexts that produce pseudorandom shared secrets via
+  Fujisaki-Okamoto implicit rejection no longer permanently desync
+  the receiver. Cryptographer-review brief in
+  `docs/audits/RATCHET_SPECULATIVE_ROLLBACK.md`.
+- **MEDIUM — Cached message-key burned on commit_tag failure.**
+  `decrypt()`'s skipped-keys cache lookup now peeks (does not pop)
+  until commit_tag + AES-GCM both pass. A single tampered scan of an
+  out-of-order frame no longer invalidates the cached key — clean
+  re-scans of the same QR frame succeed.
+
+#### Tamarin formal-verification model
+- **HIGH — `MeowKeyCommitment.spthy` `CommitmentNonForgeability`
+  falsified-lemma rewrite.** `let` bindings now use freshened
+  `~mk, ~salt, ~nonce, ~pt`; receiver consumes the sender's
+  `!SentWithCommit` persistent state instead of generating its own
+  uncorrelated keys; In() pattern matching enforces commit_tag
+  verification structurally. Cryptographer review on the rewrite
+  is the explicit ask before merging.
+- **MEDIUM — `MeowRatchetFS.spthy` action-fact arity** —
+  `FrameEncrypted/5` now matches the rule emitter; lemmas
+  reformulated; `RegisterPK/3` exposes `~rsk` for
+  `PostCompromiseSecurityViaBeacon` to bind.
+- **MEDIUM — `MeowRatchetHeaderOE.spthy` unguarded `hk`** —
+  `SentFrameWithIdx/5` and `ReceivedFrameWithIdx/5` carry the header
+  key so lemma quantifiers bind it.
+
+#### Surface-area minimisation (gemini #7)
+- `meow_decoder/_archive/` (684 KB of historical reference code)
+  moved to top-level `archive/`. `bandit -r meow_decoder/` no longer
+  walks the archive tree; legacy `random.Random()` and empty-password
+  findings (potential_bugs.md #3, #4) are now structurally outside
+  the production-package scan. Boundary test
+  (`tests/test_production_import_boundary.py`) rewritten with three
+  new tests enforcing the new layout. `[tool.bandit]` section added
+  to `pyproject.toml` for defensive `bandit -r .` runs.
+
+#### Other hardening
+- `tests/conftest.py` exports `MEOW_PRODUCTION_MODE=0` alongside
+  `MEOW_TEST_MODE=1` (matches every CI workflow). Six failing
+  C3-transcript-binding tests in `test_audit_fixes.py` are green
+  again locally; documented in `tests/TEST_SUITE_README.md`.
+- Decompression-bomb branches in `decrypt_to_raw` covered by 5 new
+  tests in `tests/test_decompression_bomb.py`. Two pragmas dropped;
+  one remains for a defence-in-depth path that's dead code under
+  every observed zlib behaviour.
+- Legacy `derive_key()` keyfile path now routes through the Rust
+  `handle_derive_key_argon2id_with_keyfile` primitive — no Python-
+  side HKDF intermediate buffer (Finding 3.7).
+- Single-threaded decode contract documented in
+  `docs/RATCHET_PROTOCOL.md` §10.5.
+
+#### Tests
+- 3 deterministic regression tests in
+  `tests/test_ratchet.py::TestSpeculativeStateRollback` covering the
+  two source bugs.
+- 3 hypothesis-driven property tests in
+  `tests/test_property_ratchet_pq.py::TestDecoderRollbackInvariants`
+  randomising tamper location, frame layout, and rekey interval.
+
+#### Fountain Rust+WASM unification (gemini #6) — Phases 0–3 complete
+
+The Luby Transform fountain code is now unified across Python, Rust,
+and JS via a single Rust core in `crypto_core::meow_fountain`.
+Producing byte-identical droplets to the prior Python encoder for
+all 16 golden vectors under `tests/golden/fountain/`.
+
+* **Phase 0** — design doc + 16 byte-exact golden vectors covering
+  k ∈ {2, 10, 100, 1000} × multiple seeds. 50 Python regression tests.
+* **Phase 1** — pure-Rust LT core under `crypto_core/src/meow_fountain/`:
+  wire format, MT19937 (CPython-compatible), Robust Soliton
+  distribution, CPython `random()/getrandbits()/randbelow()/sample()`
+  faithful re-implementations, encoder, BP decoder. 38 unit tests +
+  golden-vector parity test, all green.
+* **Phase 2a** — PyO3 binding (`rust_crypto/src/fountain.rs`).
+  `meow_crypto_rs.FountainEncoder/Decoder/Droplet` produce byte-
+  identical output via the FFI boundary.
+* **Phase 2b** — `meow_decoder.fountain.FountainEncoder` /
+  `FountainDecoder` now delegate to the Rust core when
+  `meow_crypto_rs` is available (pure-Python fallback retained).
+  Three whitebox tests rewritten as black-box. New `pending_count`
+  property replaces direct `len(decoder.pending_droplets)` access.
+  282/282 fountain + downstream tests pass.
+* **Phase 3** — `wasm-fountain` feature in `crypto_core` exports
+  `WasmFountainEncoder/Decoder/Droplet` from the same
+  `crypto_core_bg.wasm`. `web_demo/static/fountain-codes.js` keeps
+  its pure-JS fallback and gains `window.activateWasmFountain(mod)`
+  for hot-swap to the WASM backend.
+  `wasm_browser_example_FULL.html` calls activation immediately
+  after WASM init. Cross-language: Python, Rust, JS, WASM all
+  produce identical droplets.
+* **Phase 4 partial** — NumPy import dropped from `fountain.py`
+  (`math.log` / `math.sqrt` are bit-equivalent on this platform).
+  NumPy stays in `requirements.txt` for the other consumers
+  (qr_code, stego_multilayer, logo_eyes).
+* **Wire format correction**: the original design doc said little-
+  endian u64 seed; production `pack_droplet` is big-endian u32.
+  Caught during PyO3 wiring; doc + golden vectors + Rust core all
+  updated before any production code was changed.
+
+#### Schrödinger DoS empirical bound (gemini v2 #1)
+
+* `tests/test_schrodinger_dos.py` empirically measures the fountain
+  decoder under a flood of valid-MAC garbage droplets: 10K forged
+  droplets process in 0.01s with negligible RSS growth. The GIF
+  parser caps the attacker at MAX_GIF_FRAMES = 100K, so the cost
+  ceiling is bounded. Closes gemini v2 #1 as "documented design
+  choice; empirically bounded".
+
+#### Repository organisation
+- 15 historical audit MDs moved to `docs/audits/`, 3 audit
+  templates to `docs/templates/`, dev shell scripts and stray
+  test_*.{py,js} scratch files to `scripts/dev/`. Stale
+  `tarpaulin-report.json` (1.5 MB) and `lcov.info` (33 KB) deleted
+  and added to `.gitignore`.
+
+---
+
 ### Meow Capture v3.2 — Mobile Companion App Polish (2026-02-25) 📱
 
 *A secure offline QR capture companion app for air-gapped file transfer.*

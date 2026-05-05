@@ -302,7 +302,7 @@ mod aead_wrapper_edge_cases {
         // Empty plaintext is valid (produces nonce + auth tag)
         let (nonce, ct) = wrapper.encrypt(b"", b"aad").expect("encrypt empty");
         assert_eq!(ct.len(), TAG_SIZE); // Just the auth tag
-        // Verify we can decrypt it back
+                                        // Verify we can decrypt it back
         let pt = wrapper.decrypt(&nonce, &ct, b"aad").expect("decrypt");
         assert_eq!(pt.data(), b"");
     }
@@ -322,8 +322,12 @@ mod aead_wrapper_edge_cases {
         let key = [0x42u8; KEY_SIZE];
         let wrapper = AeadWrapper::new(&key).expect("wrapper");
         let nonce = [0xAAu8; NONCE_SIZE];
-        let ct = wrapper.encrypt_raw(&nonce, b"hello", b"aad").expect("encrypt_raw");
-        let pt = wrapper.decrypt_raw(&nonce, &ct, b"aad").expect("decrypt_raw");
+        let ct = wrapper
+            .encrypt_raw(&nonce, b"hello", b"aad")
+            .expect("encrypt_raw");
+        let pt = wrapper
+            .decrypt_raw(&nonce, &ct, b"aad")
+            .expect("decrypt_raw");
         assert_eq!(pt, b"hello");
     }
 }
@@ -402,8 +406,8 @@ mod pure_crypto_edge_cases {
 
     #[test]
     fn test_hkdf_derive_key() {
-        let key = hkdf_derive_key(b"input key material", Some(b"salt"), b"info")
-            .expect("hkdf derive");
+        let key =
+            hkdf_derive_key(b"input key material", Some(b"salt"), b"info").expect("hkdf derive");
         assert_eq!(key.as_bytes().len(), 32);
     }
 

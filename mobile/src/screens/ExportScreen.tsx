@@ -69,10 +69,10 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
   const pct = formatPercent(ratio);
 
   const recoveryStatus =
-    ratio >= 1.5 ? { label: 'Transfer complete — all data captured', color: Colors.catGold } :
-    ratio >= 1.0 ? { label: 'Likely recoverable — good capture', color: Colors.success } :
-    ratio >= 0.67 ? { label: 'Possibly recoverable — try decoding', color: Colors.warning } :
-    { label: 'May not decode — consider recapturing', color: Colors.danger };
+    ratio >= 1.5 ? { label: 'Ready to export — all data captured', color: Colors.catGold } :
+    ratio >= 1.0 ? { label: 'Ready to export — good capture', color: Colors.success } :
+    ratio >= 0.67 ? { label: 'Ready to export — recovery may need a retry', color: Colors.warning } :
+    { label: 'Low coverage — may not decode without recapture', color: Colors.danger };
 
   // ── Check biometric availability on mount ──────────────────────────────────
   // SECURITY: No auto-export. The user must explicitly confirm and pass
@@ -162,7 +162,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       const result = await exportResponse(response);
       setExportResult(result);
       ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
-      showToast({ message: 'Delivered to Downloads! 📦🐾', type: 'success' });
+      showToast({ message: 'Transfer exported — ready to move to the desktop 📦🐾', type: 'success' });
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Unknown error';
       setExportError(`Export failed: ${msg}. Your captured data is still in memory — tap Retry to try again.`);
@@ -225,37 +225,41 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.scroll}>
           <Text style={styles.title}>
-            {reason === 'timeout' ? '⏰ Capture ended' : '🎉 Capture complete'}
+            {reason === 'timeout' ? '⏰ Capture ended early' : '✓ Transfer captured'}
+          </Text>
+          <Text style={styles.subtitle}>
+            Your capture is ready to export for recovery on the receiving computer.
           </Text>
 
           {/* Summary card */}
           <View style={styles.card} accessibilityRole="summary">
-            <Row label="Frames captured" value={`${captured} / ${expected}`} />
-            <Row label="Coverage" value={pct} />
-            <Row label="Frames missed" value={String(response.frames_missed)} />
-            <View style={styles.statusRow} accessible={true} accessibilityLabel={`Recovery estimate: ${recoveryStatus.label}`}>
-              <Text style={styles.rowLabel}>Recovery estimate</Text>
+            <View style={styles.statusRow} accessible={true} accessibilityLabel={`Status: ${recoveryStatus.label}`}>
+              <Text style={styles.rowLabel}>Status</Text>
               <Text style={[styles.statusValue, { color: recoveryStatus.color }]}>
                 {recoveryStatus.label}
               </Text>
             </View>
+            <Row label="Frames captured" value={`${captured} / ${expected}`} />
+            <Row label="Coverage" value={pct} />
+            <Row label="Frames missed" value={String(response.frames_missed)} />
           </View>
 
           {/* Explicit export CTA */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Export to device storage</Text>
+            <Text style={styles.cardTitle}>Export Transfer</Text>
             <Text style={styles.cardBody}>
-              Writes the capture JSON to your Downloads folder for USB/ADB retrieval.
+              Saves the captured transfer to this device so you can move it to the
+              receiving computer for recovery.
               {biometricAvailable ? '\nBiometric confirmation will be required.' : null}
             </Text>
             <TouchableOpacity
               style={[styles.primaryButton, { backgroundColor: recoveryStatus.color }]}
               onPress={handleExport}
               accessibilityRole="button"
-              accessibilityLabel={biometricAvailable ? 'Confirm export with biometrics' : 'Export capture data to device storage'}
+              accessibilityLabel={biometricAvailable ? 'Confirm export with biometrics' : 'Export captured transfer to device storage'}
             >
               <Text style={styles.primaryButtonText}>
-                {biometricAvailable ? '🔒 Confirm & Export' : '📦 Export to Downloads'}
+                {biometricAvailable ? '🔒 Confirm & Export Transfer' : '📦 Export Transfer'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -381,7 +385,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
       <ScrollView contentContainerStyle={styles.scroll}>
         {/* Results header */}
         <Text style={styles.title}>
-          {reason === 'timeout' ? '⏰ Timed out' : '🎉 Capture Complete'}
+          {reason === 'timeout' ? '⏰ Capture ended early' : '✓ Transfer captured'}
         </Text>
         {reason === 'timeout' && (
           <Text style={styles.timeoutMsg}>
@@ -410,11 +414,13 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
         {/* Export status */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Export to Downloads</Text>
+          <Text style={styles.cardTitle}>
+            {exportResult ? 'Export complete' : 'Export Transfer'}
+          </Text>
           {exporting && (
             <View style={styles.exportingRow}>
               <ActivityIndicator color={Colors.catOrange} />
-              <Text style={styles.exportingText}>Writing JSON...</Text>
+              <Text style={styles.exportingText}>Saving transfer…</Text>
             </View>
           )}
           {exportError && (
@@ -459,7 +465,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
               {/* Desktop verify helper */}
               <View style={styles.verifyHintBox}>
-                <Text style={styles.verifyHintTitle}>Verify on desktop (optional):</Text>
+                <Text style={styles.verifyHintTitle}>Verification details (optional):</Text>
                 <Text style={styles.verifyHintCode}>
                   {`sha256sum ${exportResult.filenames[0] ?? 'meow-capture.json'}`}
                 </Text>
@@ -467,7 +473,7 @@ export function ExportScreen({ route, navigation }: ExportScreenProps) {
 
               {/* ADB instructions */}
               <View style={styles.adbBox}>
-                <Text style={styles.adbTitle}>Retrieve with ADB:</Text>
+                <Text style={styles.adbTitle}>Receive on the desktop:</Text>
                 <Text style={styles.adbCode}>
                   {`adb pull /sdcard/Download/meow-capture-${response.session_id.slice(0, 8)}*.json ./\nmeow-decoder decode --input meow-capture-*.json`}
                 </Text>
@@ -596,6 +602,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: Spacing.xs,
     marginTop: Spacing.lg,
+  },
+  subtitle: {
+    color: Colors.textSecondary,
+    fontSize: Typography.md,
+    textAlign: 'center',
+    marginBottom: Spacing.lg,
+    paddingHorizontal: Spacing.lg,
+    lineHeight: Typography.md * 1.4,
   },
   timeoutMsg: {
     color: Colors.textSecondary,

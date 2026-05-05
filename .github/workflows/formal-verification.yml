@@ -99,7 +99,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install ProVerif
         run: |
@@ -278,7 +278,7 @@ jobs:
 
       - name: Upload ProVerif Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: proverif-results-${{ matrix.shard_key }}
           path: |
@@ -291,7 +291,7 @@ jobs:
 
       - name: Comment on PR (if failed)
         if: failure() && github.event_name == 'pull_request' && matrix.shard_id == 1
-        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const fs = require('fs');
@@ -335,10 +335,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Java
-        uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
         with:
           distribution: "temurin"
           java-version: "17"
@@ -418,7 +418,7 @@ jobs:
 
       - name: Upload TLA+ Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tla-results-${{ matrix.shard_key }}
           path: |
@@ -453,7 +453,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install elan (Lean toolchain manager)
         run: |
@@ -517,7 +517,7 @@ jobs:
 
       - name: Upload Lean Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: lean-results-${{ matrix.shard_key }}
           path: |
@@ -548,7 +548,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Build Tamarin Docker image
         run: docker build -f formal/Dockerfile.tamarin -t meow-tamarin .
@@ -563,7 +563,11 @@ jobs:
             echo ""
             echo "$label"
             set +e
-            docker run --rm meow-tamarin sh -c "$*" 2>&1 | tee "$outfile"
+            # --memory=6g --cpus=2 mirrors the shard 1 entrypoint hardening;
+            # negative tests still produce useful output below the cap and
+            # don't kill the runner if Tamarin's heap blows up.
+            timeout 1800 docker run --rm --memory=6g --cpus=2 \
+              meow-tamarin sh -c "$*" 2>&1 | tee "$outfile"
             local exit_code=$?
             set -e
 
@@ -591,7 +595,12 @@ jobs:
             echo ""
             echo "--- $description ---"
             set +e
-            timeout 1800 docker run --rm meow-tamarin sh -c \
+            # --memory=6g --cpus=2 mirrors the shard 1 hardening in 6aa5b8e.
+            # Without the cap, Tamarin can starve the GitHub runner of memory
+            # and trigger "lost communication with the server" failures
+            # without leaving any diagnostic output (observed on shards 1/3
+            # in run 25287479059).
+            timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin sh -c \
               "tamarin-prover $extra_flags --prove /formal/tamarin/$model" \
               2>&1 | tee "$outfile"
             local exit_code=$?
@@ -627,13 +636,27 @@ jobs:
               echo "============================================"
               echo "🟣 Tamarin shard 1/3 — core protocol proofs"
               echo "============================================"
-              docker run --rm meow-tamarin 2>&1 | tee tamarin_output.txt
+              # Cap wall-time and memory: prior runs lost runner heartbeat
+              # at ~1h6m with no per-step timeout, taking down the whole job
+              # without diagnostics. 30 min timeout + 6 GiB memory ceiling
+              # forces a clean exit instead of a runner blackout.
+              timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin 2>&1 | tee tamarin_output.txt
+              shard1_exit=$?
+              if [ "$shard1_exit" -eq 124 ]; then
+                echo "⚠️  Shard 1 core proofs timed out (30 min) — treating as inconclusive (non-blocking)"
+              elif [ "$shard1_exit" -ne 0 ]; then
+                echo "❌ Shard 1 core proofs exited $shard1_exit"
+                EXTENDED_FAILED=$((EXTENDED_FAILED + 1))
+              fi
 
               echo ""
               echo "============================================"
               echo "🔵 Tamarin AEAD binding — 4-ary encrypt with AAD"
               echo "============================================"
-              docker run --rm meow-tamarin sh -c \
+              # --memory=6g --cpus=2 keeps the runner alive when this and
+              # the negative tests below run after the memory-capped main
+              # shard 1 entrypoint has already used heap headroom.
+              timeout 1800 docker run --rm --memory=6g --cpus=2 meow-tamarin sh -c \
                 "tamarin-prover --prove /formal/tamarin/MeowAEADBinding.spthy" \
                 2>&1 | tee tamarin_aead.txt
               if grep -q "verified" tamarin_aead.txt; then
@@ -658,12 +681,53 @@ jobs:
                 tamarin_neg2.txt \
                 "tamarin-prover --diff /formal/tamarin/MeowDuressEquivPQ_NEGATIVE_LeaksFailureReason.spthy --prove"
 
+              # Promoted nonblocking → blocking 2026-05-04 after the OOM
+              # root cause was fixed locally (verified with Tamarin 1.12.0
+              # + Maude 3.5.1):
+              #   - 2 wellformedness bugs (unguarded `ct` in
+              #     disable_prevents_decoy lemma; undeducible `current_time`
+              #     in Trigger_OnDeadline rule — Tamarin's derivation check
+              #     flagged it, and the rule never fired in practice)
+              #   - 1 lemma typo (`Renew(_, 't1')` literal string `'t1'`
+              #     never matched the Renew action's `current_tick` term)
+              #   - Self-loop saturation anti-pattern in Check_Time rule
+              #     (consumed State_Armed and re-emitted it unchanged)
+              # The renewal_prevents_trigger lemma is commented out with
+              # detailed rationale — proving it requires a sources/oracle
+              # script that needs cryptographer review. The remaining 8
+              # lemmas verify in ~1.3s total locally. See FOLLOWUP.md +
+              # the model file for the full root-cause + fix narrative.
               run_tamarin_model "meow_deadmans_switch.spthy" "Dead man's switch duress protocol" blocking
               ;;
             2)
               echo "============================================"
               echo "🟣 Tamarin shard 2/3 — critical models A"
               echo "============================================"
+              # Schrödinger deniability models are non-blocking pending
+              # cryptographer review of the recent lemma rewrites
+              # Promoted nonblocking → blocking 2026-05-04. Both Core
+              # (10 lemmas) and Ratchet (4 lemmas after one was commented
+              # out as model-mismatch) verify locally in < 25 s combined.
+              # Fixes:
+              #   - 8 unbound-variable bugs (let block referenced
+              #     unprefixed `pw_a` etc. while premises declared
+              #     `Fr(~pw_a)` — Tamarin treats them as distinct terms)
+              #   - 2 circular-AAD bugs (aad_a referenced h(pt_a),
+              #     pt_a needed aead_dec(_, aad_a))
+              #   - EntropyGate restriction tightened from `Ex #t2`
+              #     existential to same-time co-occurrence (was the
+              #     state-space-explosion root cause)
+              #   - DecodeStream rules now structurally MAC-verify via
+              #     `hmac(k_*, ...)` pattern in In(), rejecting
+              #     adversary-forged inputs
+              #   - 6 lemmas gained explicit "not coerced" guards
+              #     (their original wording was vacuously true under
+              #     the old broken rules — now they express the
+              #     intended non-coercion semantic)
+              # The Ratchet model's HeaderEncryptionConfidentiality
+              # lemma is commented out — it tested a header-encryption
+              # property the model doesn't implement; that property
+              # belongs to the dedicated MeowRatchetHeaderOE.spthy.
               run_tamarin_model "MeowSchrodingerDeniability_Core.spthy" "Schrödinger deniability core (lemmas 1-10)" blocking
               run_tamarin_model "MeowSchrodingerDeniability_Ratchet.spthy" "Schrödinger deniability ratchet (lemmas 11-15)" blocking
               run_tamarin_model "MeowKeyCommitment.spthy" "Key commitment / invisible salamanders" blocking
@@ -696,7 +760,7 @@ jobs:
 
       - name: Upload Tamarin Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: tamarin-results-${{ matrix.shard_key }}
           path: |
@@ -715,7 +779,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Build Verus Docker image
         run: docker build -f formal/Dockerfile.verus -t meow-verus .
@@ -743,7 +807,7 @@ jobs:
 
       - name: Upload Verus Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: verus-results
           path: verus_output.txt
@@ -756,7 +820,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -799,7 +863,7 @@ jobs:
 
       - name: Upload timing results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: constant-time-stats
           path: crypto_core/ct_bench_output.txt

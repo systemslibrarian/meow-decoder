@@ -33,8 +33,12 @@ settings.register_profile(
 # Load CI profile by default in test environments
 settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 
-# Enable test mode for fast Argon2 parameters BEFORE importing meow_decoder modules
+# Enable test mode for fast Argon2 parameters BEFORE importing meow_decoder modules.
+# MEOW_PRODUCTION_MODE=0 must accompany MEOW_TEST_MODE=1: a tightening in commit
+# bb8880c (export_key()) gates raw-key export on PRODUCTION_MODE alone, so test
+# mode no longer suffices. Every CI workflow sets both; mirror that locally.
 os.environ["MEOW_TEST_MODE"] = "1"
+os.environ.setdefault("MEOW_PRODUCTION_MODE", "0")
 
 
 def pytest_configure(config):

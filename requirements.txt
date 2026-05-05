@@ -9,7 +9,7 @@ Pillow>=12.1.1              # Image processing (QR, GIF, PNG)
 qrcode>=8.2                 # QR code generation
 pyzbar>=0.1.9               # QR code reading
 opencv-python>=4.8.1.78     # Webcam capture and image processing
-numpy>=1.24.0               # Numerical operations
+numpy>=1.24.0               # Numerical operations (qr_code, stego_multilayer, logo_eyes; fountain.py moved to Rust)
 argon2-cffi>=25.1.0         # Argon2id key derivation
 pynacl>=1.6.2               # Ed25519/X25519 conversion (spec v1.2+)
 

@@ -443,8 +443,18 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     """
     PRODUCTION-FORBIDDEN: Derive encryption key using Argon2id.
 
-    This function returns raw key bytes.  In production, use
-    ``derive_key_handle()`` which keeps all key material in Rust.
+    Returns raw key bytes — production code MUST use ``derive_key_handle()``
+    (keeps the key inside Rust). This wrapper exists only for tests and
+    for legacy serialization paths gated by MEOW_PRODUCTION_MODE=0.
+
+    Implementation note (FOLLOWUP Finding 3.7): the keyfile path
+    previously did its own HKDF(password || keyfile) inside Python and
+    materialized 64 intermediate bytes in a bytearray that the GC could
+    keep alive past the explicit zeroize. We now route both code paths
+    through ``derive_key_handle()`` (which uses the Rust
+    ``derive_key_argon2id_with_keyfile`` primitive that combines the
+    keyfile in Rust). The only Python exposure is the final 32-byte key
+    bytes returned by ``export_key`` — gated by MEOW_PRODUCTION_MODE=0.
 
     Args:
         password: User passphrase (minimum 8 characters)
@@ -459,46 +469,17 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
         RuntimeError: If called in production mode
     """
     _legacy_guard("derive_key")
-    if not password:
-        raise ValueError("Password cannot be empty")
-    if len(password) < MIN_PASSWORD_LENGTH:
-        raise ValueError(
-            f"Password must be at least {MIN_PASSWORD_LENGTH} characters (NIST SP 800-63B)"
-        )
-    if len(salt) != 16:
-        raise ValueError("Salt must be 16 bytes")
-
-    # Combine password and keyfile if provided
-    secret = password.encode("utf-8")
-    if keyfile:
-        # Use HKDF to properly combine password and keyfile (via Rust backend)
-        backend = get_default_backend()
-        secret = backend.derive_key_hkdf(
-            secret + keyfile,
-            KEYFILE_DOMAIN_SEP,
-            b"password_keyfile_combine",
-            64,
-        )
-
-    secret_buf = bytearray(secret)
+    # ``derive_key_handle`` validates inputs (password length, salt size)
+    # so we reuse that rather than duplicating the checks here.
+    handle = derive_key_handle(password, salt, keyfile)
+    hb = get_handle_backend()
     try:
-        # Derive key using Argon2id via backend
-        backend = get_default_backend()
-        key = backend.derive_key_argon2id(
-            bytes(secret_buf),
-            salt,
-            output_len=32,
-            iterations=ARGON2_ITERATIONS,
-            memory_kib=ARGON2_MEMORY,
-            parallelism=ARGON2_PARALLELISM,
-        )
-
-        return key
-    except Exception as e:
-        raise RuntimeError(f"Key derivation failed: {e}")
+        return bytes(hb.export_key(handle))
     finally:
-        # Best-effort zeroing of mutable secret material
-        secure_zero_memory(secret_buf)
+        try:
+            hb.drop(handle)
+        except Exception:
+            pass
 
 
 # ── Handle-based key derivation (Rule #2: Python never holds secret key bytes) ──
@@ -1447,7 +1428,9 @@ def decrypt_to_raw(
             logger.log("Decompressing data with zlib", category="io")
 
         # ST-2: Decompression bomb protection — limit output size
-        # Use incremental decompression to enforce MAX_DECOMP_RATIO
+        # Use incremental decompression to enforce MAX_DECOMP_RATIO.
+        # Coverage: tests/test_decompression_bomb.py exercises both the
+        # initial-chunk overflow and the corrupted-zlib-data branches.
         decomp_limit = (
             max(orig_len * MAX_DECOMP_RATIO, 1024 * 1024)
             if orig_len is not None and orig_len > 0
@@ -1460,22 +1443,28 @@ def decrypt_to_raw(
         try:
             chunk = decompressor.decompress(comp, decomp_limit + 1)
             total_out += len(chunk)
-            if total_out > decomp_limit:  # pragma: no cover
+            if total_out > decomp_limit:
                 raise ValueError(
                     f"Decompression bomb detected: output ({total_out} bytes) exceeds "
                     f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
                 )
             chunks.append(chunk)
-            # Flush remaining
+            # Flush remaining: drains decompressor.unconsumed_tail in case
+            # the first decompress stopped at a stream boundary before the
+            # full output was emitted. Defence-in-depth — in practice the
+            # initial-chunk check catches bombs first because zlib emits up
+            # to decomp_limit+1 bytes per call.
             remaining = decompressor.flush()
             total_out += len(remaining)
-            if total_out > decomp_limit:  # pragma: no cover
+            if (
+                total_out > decomp_limit
+            ):  # pragma: no cover - defence-in-depth; the initial-chunk branch above fires first under all known zlib behaviour
                 raise ValueError(
                     f"Decompression bomb detected: output ({total_out} bytes) exceeds "
                     f"limit ({decomp_limit} bytes, {MAX_DECOMP_RATIO}× orig_len)"
                 )
             chunks.append(remaining)
-        except zlib.error as ze:  # pragma: no cover
+        except zlib.error as ze:
             raise RuntimeError(f"Decompression failed: {ze}")
         raw = b"".join(chunks)
 
@@ -1666,21 +1655,33 @@ def unpack_manifest(b: bytes) -> Manifest:
     # Effective sizes for field detection (normalize to legacy equivalent)
     effective_len = len(b) - (1 if has_mode_byte else 0)
 
-    if effective_len >= fs_len:
+    # Determine which fields are present. Length alone is ambiguous: a
+    # MEOW2 + duress manifest is 116 + 32 = 148 bytes, the same size as
+    # MEOW3 (FS, no duress) at 116 + 32 = 148. The previous length-only
+    # dispatch always parsed 32 bytes after the base as ephemeral_public_key
+    # — for MEOW2+Duress this stole the duress_tag, then the post-parse
+    # mode-byte sanity check rejected the manifest as "MEOW2 but ephemeral
+    # key is present". Result: encode_file refused MEOW2+Duress entirely.
+    #
+    # Now: when mode_byte explicitly identifies MEOW2 (no FS), skip
+    # ephemeral parsing so the trailing 32 bytes can be claimed by the
+    # duress detection below. Legacy manifests (no mode_byte) keep the
+    # length-based behaviour for backward compatibility.
+    base_version = (mode_byte & 0x0F) if mode_byte != MODE_LEGACY else 0
+    base_version_clean = base_version & ~MODE_RATCHET
+    has_explicit_mode = mode_byte != MODE_LEGACY
+    explicit_no_fs = has_explicit_mode and base_version_clean == MODE_MEOW2
+
+    if effective_len >= fs_len and not explicit_no_fs:
         ephemeral_public_key = b[off : off + 32]
         off += 32
-
-    # Determine PQ ciphertext size from mode byte
-    base_version = (mode_byte & 0x0F) if mode_byte != MODE_LEGACY else 0
-    # Strip ratchet flag for base version check
-    base_version_clean = base_version & ~MODE_RATCHET
 
     if base_version_clean == MODE_MEOW5:
         # ML-KEM-768: ciphertext is 1088 bytes
         if effective_len >= pq_768_len:
             pq_ciphertext = b[off : off + 1088]
             off += 1088
-    elif effective_len >= pq_1024_len:
+    elif effective_len >= pq_1024_len and not explicit_no_fs:
         # ML-KEM-1024 (MEOW4 or legacy): ciphertext is 1568 bytes
         pq_ciphertext = b[off : off + 1568]
         off += 1568
@@ -1717,6 +1718,12 @@ def unpack_manifest(b: bytes) -> Manifest:
             raise ValueError("Manifest mode byte lacks duress flag but duress tag is present")
 
     # ── ST-2: Strict numeric bounds validation ──
+    # The four pragma'd branches below are defence-in-depth — earlier
+    # parsing already enforces these via fixed-width struct unpacks and
+    # the FountainEncoder sanity checks (Finding 9.1). They re-check
+    # post-parse so a future refactor that removes a parse-time check
+    # can't silently regress past them. Coverage rationale recorded in
+    # tests/test_decompression_bomb.py docstring (Finding 13).
     if orig_len > MAX_ORIG_LEN:  # pragma: no cover
         raise ValueError(f"Manifest orig_len too large ({orig_len} > {MAX_ORIG_LEN})")
     if comp_len > MAX_COMP_LEN:  # pragma: no cover
@@ -1738,6 +1745,9 @@ def unpack_manifest(b: bytes) -> Manifest:
     if ephemeral_public_key is not None and ephemeral_public_key == b"\x00" * 32:
         raise ValueError("Manifest ephemeral public key is all-zero (likely corrupted)")
     if pq_ciphertext is not None and len(pq_ciphertext) not in (1088, 1568):  # pragma: no cover
+        # Defence-in-depth: parser already validates length via the fixed
+        # ML-KEM-{768,1088}/1024-{1568} struct layouts; this re-check
+        # protects against a future parse-time regression. (Finding 13.)
         raise ValueError(
             f"Manifest PQ ciphertext wrong size ({len(pq_ciphertext)}, "
             f"expected 1088 (ML-KEM-768) or 1568 (ML-KEM-1024))"

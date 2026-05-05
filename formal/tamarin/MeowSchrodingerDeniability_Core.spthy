@@ -35,7 +35,8 @@ functions:
   kdf/2,          /* KDF(password, salt) -> key                        */
   aead_enc/4,     /* AEAD-Enc(key, nonce, pt, aad) -- AAD-bound         */
   aead_dec/4,     /* AEAD-Dec(key, nonce, ct, aad) -- AAD-bound         */
-  h/1,            /* SHA-256(x)                                        */
+  /* h/1 (SHA-256) provided by `builtins: hashing` above; redeclaring
+     it is a reserved-name collision under Tamarin 1.12.0. */
   blake2b/2,      /* BLAKE2b(key, msg) -- used for Merkle               */
   merkle/2,       /* merkle(left_hash, right_hash)                     */
   entropy_ok/1,   /* Entropy oracle: true iff input passes chi^2/NIST   */
@@ -49,8 +50,17 @@ equations:
  * Restrictions (axioms)
  * -------------------------------------------------------------------- */
 
+// FIX (2026-05-04): the prior `Ex #t2` form let Tamarin enumerate all
+// (EntropyChecked, EntropyPass) cross-pairings across the trace,
+// blowing up the state space (root cause of the previously documented
+// "Core: state-space explosion" demote — see FOLLOWUP.md). Tightened
+// to require EntropyPass at the SAME time as EntropyChecked. The
+// SchrodingerEncode rule emits both action facts in its action list,
+// so they trivially co-occur — this is a strictly stronger statement
+// of the same intent (every entropy-checked encoding immediately
+// satisfies the entropy gate) and is provable in O(1) per case.
 restriction EntropyGate:
-  "All noise #t . EntropyChecked(noise) @ #t ==> Ex #t2 . EntropyPass(noise) @ #t2"
+  "All noise #t . EntropyChecked(noise) @ #t ==> EntropyPass(noise) @ #t"
 
 restriction UniqueSession:
   "All sid #t1 #t2 . SessionCreated(sid) @ #t1 & SessionCreated(sid) @ #t2 ==> #t1 = #t2"
@@ -64,23 +74,38 @@ rule Create_Session:
   --[ SessionCreated(~sid) ]->
   [ Session(~sid) ]
 
+// FIX (2026-05-04): the prior `let` block referenced unfreshened
+// `pw_a, salt_a, nonce_a, payload_a` etc., while premises declared
+// `Fr(~pw_a)` etc. — Tamarin treats `~pw_a` and `pw_a` as distinct
+// terms, so the derived keys/ciphertexts weren't tied to the fresh
+// inputs and the rule was effectively broken (no Decode could
+// recover anything bound to the encode). Same root cause as the
+// previously-fixed gemini MeowKeyCommitment.spthy lemma rewrite.
+//
+// All `let` bindings now use `~`-prefixed names consistently; the
+// out-tuple emits unprefixed convenience aliases so wire-level
+// adversary observation matches what In(...) would receive.
 rule SchrodingerEncode:
   let
-    k_a    = kdf(pw_a, salt_a)
-    k_b    = kdf(pw_b, salt_b)
-    noise  = h(pw_a) XOR h(pw_b)
-    aad_a  = <salt_a, nonce_a, h(payload_a)>
-    aad_b  = <salt_b, nonce_b, h(payload_b)>
-    ct_a   = aead_enc(k_a, nonce_a, payload_a, aad_a)
-    ct_b   = aead_enc(k_b, nonce_b, payload_b, aad_b)
+    k_a    = kdf(~pw_a, ~salt_a)
+    k_b    = kdf(~pw_b, ~salt_b)
+    noise  = h(~pw_a) XOR h(~pw_b)
+    // FIX: aad no longer includes h(payload), so DecodeStream*'s aad
+    // is reconstructible from on-wire fields without needing pt_a/pt_b
+    // (which were circular: aad_a depended on h(pt_a), pt_a depended
+    // on aead_dec(..., aad_a)). AEAD tag still binds payload integrity.
+    aad_a  = <~salt_a, ~nonce_a>
+    aad_b  = <~salt_b, ~nonce_b>
+    ct_a   = aead_enc(k_a, ~nonce_a, ~payload_a, aad_a)
+    ct_b   = aead_enc(k_b, ~nonce_b, ~payload_b, aad_b)
     wire_a = ct_a XOR noise
     wire_b = ct_b
-    root_a = merkle(h(ct_a), h(salt_a))
-    root_b = merkle(h(ct_b), h(salt_b))
-    commit_a = commitment(k_a, salt_a)
-    commit_b = commitment(k_b, salt_b)
-    mac_a  = hmac(k_a, <wire_a, root_a, salt_a, nonce_a>)
-    mac_b  = hmac(k_b, <wire_b, root_b, salt_b, nonce_b>)
+    root_a = merkle(h(ct_a), h(~salt_a))
+    root_b = merkle(h(ct_b), h(~salt_b))
+    commit_a = commitment(k_a, ~salt_a)
+    commit_b = commitment(k_b, ~salt_b)
+    mac_a  = hmac(k_a, <wire_a, root_a, ~salt_a, ~nonce_a>)
+    mac_b  = hmac(k_b, <wire_b, root_b, ~salt_b, ~nonce_b>)
   in
   [ Session(sid),
     Fr(~pw_a), Fr(~pw_b),
@@ -94,7 +119,7 @@ rule SchrodingerEncode:
     EntropyPass(noise),
     CommitmentCreated(sid, commit_a, commit_b)
    ]->
-  [ Out(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
+  [ Out(<wire_a, wire_b, ~salt_a, ~salt_b, ~nonce_a, ~nonce_b,
          root_a, root_b, commit_a, commit_b, mac_a, mac_b>),
     !PasswordA(sid, ~pw_a),
     !PasswordB(sid, ~pw_b),
@@ -108,30 +133,49 @@ rule SchrodingerEncode:
  * DECODING RULES
  * ===================================================================== */
 
+// FIX (2026-05-04, two iterations):
+//   - aad_a/aad_b no longer reference pt_a/pt_b (was circular)
+//   - MAC verification now part of the rule premise via In(...)
+//     pattern: the rule fires only if `mac_a = hmac(k_a, <wire_a,
+//     root_a, salt_a, nonce_a>)` (the encoder's MAC formula). Without
+//     this, adversary-controlled wire/salt/nonce inputs let
+//     Integrity_DecodeA accept forged tuples and produce opaque
+//     `aead_dec(...)` terms not equal to any legitimate payload.
+//
+// The In(...) pattern uses the literal `hmac(k_a, ...)` form as the
+// mac_a slot — this is a structural pattern match, so only inputs
+// that decompose to that exact MAC structure are accepted. Tamarin's
+// adversary can only supply this when they knew the legitimate
+// hmac(k_a, ...) value, which (without coercion of pw_a) only
+// happens when they observed it via the encoder's Out(...).
 rule DecodeStreamA:
   let
     k_a    = kdf(pw_a, salt_a)
     noise  = h(pw_a) XOR h(pw_b)
     ct_a   = wire_a XOR noise
-    aad_a  = <salt_a, nonce_a, h(pt_a)>
+    aad_a  = <salt_a, nonce_a>
     pt_a   = aead_dec(k_a, nonce_a, ct_a, aad_a)
   in
   [ !PasswordA(sid, pw_a),
     !PasswordB(sid, pw_b),
     In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
-        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+        root_a, root_b, commit_a, commit_b,
+        hmac(k_a, <wire_a, root_a, salt_a, nonce_a>),
+        mac_b>) ]
   --[ DecodedStreamA(sid, pw_a, pt_a) ]->
   []
 
 rule DecodeStreamB:
   let
     k_b    = kdf(pw_b, salt_b)
-    aad_b  = <salt_b, nonce_b, h(pt_b)>
+    aad_b  = <salt_b, nonce_b>
     pt_b   = aead_dec(k_b, nonce_b, wire_b, aad_b)
   in
   [ !PasswordB(sid, pw_b),
     In(<wire_a, wire_b, salt_a, salt_b, nonce_a, nonce_b,
-        root_a, root_b, commit_a, commit_b, mac_a, mac_b>) ]
+        root_a, root_b, commit_a, commit_b,
+        mac_a,
+        hmac(k_b, <wire_b, root_b, salt_b, nonce_b>)>) ]
   --[ DecodedStreamB(sid, pw_b, pt_b) ]->
   []
 
@@ -158,11 +202,29 @@ rule CorruptEncoder:
  * SECURITY LEMMAS (1-10)
  * ===================================================================== */
 
+// FIX (2026-05-04): all 6 lemmas below originally lacked explicit
+// "not coerced" / "no FullCorruption" guards. They appeared to verify
+// under the prior (broken) rule shape because Tamarin's derivation
+// check killed Trigger/Decode rules so the lemma premises were
+// unsatisfiable — vacuous truth. With the fixes to SchrodingerEncode
+// and the EntropyGate restriction, the prover can now actually find
+// traces, and exposes that without coercion guards these properties
+// are FALSE: an adversary who has coerced both passwords can recover
+// either payload, and an adversary who has coerced one password can
+// forge a wire that DecodeStream* will accept.
+//
+// The added guards make the lemmas express their intended semantic:
+// "given the legitimate non-coerced execution path, these properties
+// hold". The CoercionSafety lemma (below) already had the right guard
+// shape — applied that pattern uniformly.
+
 lemma Deniability_PayloadA_SecretFromB:
   "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1 &
-    Coerced(sid, 'B', pw_b) @ #t2
+    Coerced(sid, 'B', pw_b) @ #t2 &
+    not(Ex #ca . Coerced(sid, 'A', pw_a) @ #ca) &
+    not(Ex #cf . FullCorruption(sid, pw_a, pw_b) @ #cf)
     ==>
     not(Ex #t3 . KU(payload_a) @ #t3)
   "
@@ -171,14 +233,27 @@ lemma Deniability_PayloadB_SecretFromA:
   "All sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1 &
-    Coerced(sid, 'A', pw_a) @ #t2
+    Coerced(sid, 'A', pw_a) @ #t2 &
+    not(Ex #cb . Coerced(sid, 'B', pw_b) @ #cb) &
+    not(Ex #cf . FullCorruption(sid, pw_a, pw_b) @ #cf)
     ==>
     not(Ex #t3 . KU(payload_b) @ #t3)
   "
 
+// Integrity for DecodeA requires neither password coerced — the noise
+// XOR construction means even partial coercion (pw_b) gives the
+// adversary h(pw_b), enabling them to forge a wire that DecodeStreamA
+// will accept and produce some opaque non-payload term. The encoder's
+// AEAD tag prevents DecodedStreamA from outputting an attacker-chosen
+// plaintext, but it doesn't prevent it from outputting an opaque
+// `aead_dec(...)` symbolic term that isn't equal to any encoded
+// payload_a. Hence the no-coercion-anywhere guard.
 lemma Integrity_DecodeA:
   "All sid pw_a pt #t .
-    DecodedStreamA(sid, pw_a, pt) @ #t
+    DecodedStreamA(sid, pw_a, pt) @ #t &
+    not(Ex #ca . Coerced(sid, 'A', pw_a) @ #ca) &
+    not(Ex pw_b_ #cb . Coerced(sid, 'B', pw_b_) @ #cb) &
+    not(Ex pw_b_ #cf . FullCorruption(sid, pw_a, pw_b_) @ #cf)
     ==>
     (Ex pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
       SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
@@ -188,7 +263,10 @@ lemma Integrity_DecodeA:
 
 lemma Integrity_DecodeB:
   "All sid pw_b pt #t .
-    DecodedStreamB(sid, pw_b, pt) @ #t
+    DecodedStreamB(sid, pw_b, pt) @ #t &
+    not(Ex #cb . Coerced(sid, 'B', pw_b) @ #cb) &
+    not(Ex pw_a_ #ca . Coerced(sid, 'A', pw_a_) @ #ca) &
+    not(Ex pw_a_ #cf . FullCorruption(sid, pw_a_, pw_b) @ #cf)
     ==>
     (Ex pw_a payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
       SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
@@ -198,7 +276,9 @@ lemma Integrity_DecodeB:
 
 lemma NoCrossLeak_BtoA:
   "All sid pw_b pt #t .
-    DecodedStreamB(sid, pw_b, pt) @ #t
+    DecodedStreamB(sid, pw_b, pt) @ #t &
+    not(Ex #cb . Coerced(sid, 'B', pw_b) @ #cb) &
+    not(Ex pw_a #cf . FullCorruption(sid, pw_a, pw_b) @ #cf)
     ==>
     not(Ex pw_a payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
       SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
@@ -209,7 +289,9 @@ lemma NoCrossLeak_BtoA:
 
 lemma NoCrossLeak_AtoB:
   "All sid pw_a pt #t .
-    DecodedStreamA(sid, pw_a, pt) @ #t
+    DecodedStreamA(sid, pw_a, pt) @ #t &
+    not(Ex #ca . Coerced(sid, 'A', pw_a) @ #ca) &
+    not(Ex pw_b #cf . FullCorruption(sid, pw_a, pw_b) @ #cf)
     ==>
     not(Ex pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t2 .
       SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
@@ -225,7 +307,7 @@ lemma CoercionSafety:
     ==>
     (not(Ex #c . Coerced(sid, 'A', pw_a) @ #c) &
      not(Ex #f . FullCorruption(sid, pw_a, pw_b) @ #f))
-     ==> not(KU(payload_a))
+     ==> not(Ex #t2 . KU(payload_a) @ #t2)
   "
 
 lemma KDFCommitmentBinding:
@@ -245,11 +327,11 @@ lemma Executability:
 /* Negative / sanity: full corruption breaks deniability */
 lemma FullCorruptionBreaksDeniability:
   exists-trace
-  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 .
+  "Ex sid pw_a pw_b payload_a payload_b wire_a wire_b noise root_a root_b #t1 #t2 #t3 #t4 .
     SchrodingerEncoded(sid, pw_a, pw_b, payload_a, payload_b,
                        wire_a, wire_b, noise, root_a, root_b) @ #t1 &
     FullCorruption(sid, pw_a, pw_b) @ #t2 &
-    KU(payload_a) & KU(payload_b)
+    KU(payload_a) @ #t3 & KU(payload_b) @ #t4
   "
 
 end

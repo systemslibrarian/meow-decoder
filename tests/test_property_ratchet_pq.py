@@ -179,7 +179,7 @@ class TestMasterRatchetInvariants:
             pytest.skip("MasterRatchet not available")
 
     def test_emergency_wipe_zeros_all_state(self):
-        """Emergency wipe must zero chain_key and master_salt."""
+        """Emergency wipe must drop chain handle, zero salt, reset generation."""
         try:
             from meow_decoder.master_ratchet import MasterRatchet
 
@@ -187,12 +187,18 @@ class TestMasterRatchetInvariants:
             ratchet.ratchet()
             ratchet.ratchet()
 
+            pre_wipe_handle = ratchet._state.chain_handle
+            assert pre_wipe_handle is not None
+
             # Wipe
             result = ratchet.emergency_wipe()
             assert result is True
 
-            # Verify zeroed
-            assert ratchet._state.chain_key == bytes(32)
+            # Chain handle dropped (Rust SecretKey zeroized via Drop), salt
+            # zeroed in Python (defense-in-depth — salt is non-secret),
+            # generation reset.
+            assert ratchet._state.chain_handle is None
+            assert not ratchet._hb.exists(pre_wipe_handle)
             assert ratchet._state.master_salt == bytes(32)
             assert ratchet._state.generation == 0
         except (ImportError, RuntimeError):
@@ -529,3 +535,230 @@ class TestDualStreamInvariants:
             pass  # Expected for garbage input
         except (ImportError, RuntimeError):
             pytest.skip("DualStreamManifest not available")
+
+
+# =============================================================================
+# DECODER ROLLBACK INVARIANTS — Bug #1 + Bug #2 from gemini_suggestions_v2.md
+# =============================================================================
+#
+# Hypothesis-driven hardening for the speculative-state rollback pattern
+# introduced in commit 8a3bb48 (see docs/audits/RATCHET_SPECULATIVE_ROLLBACK.md).
+#
+# The deterministic regression tests in test_ratchet.py::TestSpeculativeStateRollback
+# cover the two specific failure modes. These property tests randomize the
+# tampering location across many trials to catch any edge case where state
+# is not preserved on failure.
+
+
+class TestDecoderRollbackInvariants:
+    """Property-based asserts for the rollback invariants (I-1 ... I-6 in
+    docs/audits/RATCHET_SPECULATIVE_ROLLBACK.md)."""
+
+    @given(
+        total=st.integers(min_value=4, max_value=12),
+        target_idx=st.integers(min_value=0, max_value=11),
+        tamper_offset_seed=st.integers(min_value=0, max_value=10000),
+    )
+    @settings(
+        max_examples=40,
+        deadline=20000,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+    )
+    def test_tampered_frame_does_not_burn_cached_key(self, total, target_idx, tamper_offset_seed):
+        """For any fountain-style frame layout, tampering with a frame whose
+        key was previously cached (out-of-order receive) must not invalidate
+        the cache: a clean re-scan of the same frame_index must succeed.
+
+        Random parameters: total frames, the index we'll tamper with, and a
+        deterministic offset seed for the tamper location inside the frame
+        body.
+        """
+        from meow_decoder.ratchet import (
+            EncoderRatchet,
+            DecoderRatchet,
+            FRAME_INDEX_SIZE,
+            COMMIT_TAG_SIZE,
+            GCM_TAG_SIZE,
+        )
+
+        assume(target_idx < total)
+        # We need at least one frame strictly LESS than the first decode
+        # target so the loop in _advance_to caches a key before our tampered
+        # scan; otherwise Case 1 path is never exercised.
+        assume(target_idx > 0)
+
+        root_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+        encrypted = []
+        for i in range(total):
+            data = f"frame_{i:04d}".encode()
+            encrypted.append(encoder.encrypt_next(data))
+        encoder.finalize()
+
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+
+        # Decrypt a later frame first to populate the skipped-keys cache
+        # for [0, target_idx-1] (and beyond, up to the first decoded one).
+        first_decode = total - 1
+        decoder.decrypt(encrypted[first_decode])
+        # `target_idx` should now be in the skipped-keys cache.
+        assume(target_idx in decoder._skipped_keys)
+
+        # Tamper with the target frame body. Pick an offset deterministically
+        # from the hypothesis-supplied seed, well inside the AEAD-protected
+        # body so commitment / GCM both fail.
+        tampered = bytearray(encrypted[target_idx])
+        body_start = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE
+        body_room = len(tampered) - body_start - GCM_TAG_SIZE
+        assume(body_room > 0)
+        offset = body_start + (tamper_offset_seed % max(body_room, 1))
+        tampered[offset] ^= 0x42
+
+        # The tampered scan must raise...
+        with pytest.raises(Exception):
+            decoder.decrypt(bytes(tampered))
+
+        # ... and the cached key must still be present (Bug #2 invariant).
+        assert target_idx in decoder._skipped_keys, (
+            f"Cached msg-key for frame {target_idx} was burned by a "
+            f"tampered scan (offset={offset}). Regression of bug #2 / "
+            "the speculative cache pattern in decrypt()."
+        )
+
+        # The clean re-scan must succeed.
+        plaintext = decoder.decrypt(encrypted[target_idx])
+        assert plaintext == f"frame_{target_idx:04d}".encode()
+
+        decoder.finalize()
+
+    @given(
+        rekey_interval=st.integers(min_value=2, max_value=4),
+        total=st.integers(min_value=6, max_value=10),
+        tamper_offset_seed=st.integers(min_value=0, max_value=10000),
+    )
+    @settings(
+        max_examples=20,
+        deadline=30000,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+    )
+    def test_tampered_rekey_frame_preserves_state(self, rekey_interval, total, tamper_offset_seed):
+        """For an asymmetric rekey frame whose body has been tampered with,
+        the decoder's root_key/chain_key/position/epoch must be identical
+        before and after the failed decrypt — invariant I-3 from the
+        cryptographer-review brief.
+        """
+        import meow_crypto_rs
+
+        from meow_decoder.ratchet import (
+            EncoderRatchet,
+            DecoderRatchet,
+            FRAME_INDEX_SIZE,
+            COMMIT_TAG_SIZE,
+            GCM_TAG_SIZE,
+            REKEY_BEACON_SIZE,
+        )
+
+        assume(rekey_interval < total)
+
+        receiver_priv, receiver_pub = meow_crypto_rs.x25519_generate_keypair()
+        root_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+
+        encoder = EncoderRatchet(
+            root_key,
+            salt,
+            k_blocks=2,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey_interval,
+            receiver_public_key=receiver_pub,
+        )
+        decoder = DecoderRatchet(
+            root_key,
+            salt,
+            k_blocks=2,
+            block_size=200,
+            total_frames=total,
+            rekey_interval=rekey_interval,
+            receiver_private_key=receiver_priv,
+        )
+
+        # Burn through frames up to (but not including) the first rekey.
+        for i in range(rekey_interval):
+            d = secrets.token_bytes(80)
+            assert decoder.decrypt(encoder.encrypt_next(d)) == d
+
+        # Snapshot pre-rekey state.
+        pre_state = (
+            decoder._state.root_key,
+            decoder._state.chain_key,
+            decoder._state.position,
+            decoder._state.epoch,
+        )
+
+        # Build the rekey frame, tamper inside its body.
+        clean_payload = b"clean rekey payload"
+        rekey_frame = encoder.encrypt_next(clean_payload)
+        tampered = bytearray(rekey_frame)
+        body_start = FRAME_INDEX_SIZE + COMMIT_TAG_SIZE + REKEY_BEACON_SIZE
+        body_room = len(tampered) - body_start - GCM_TAG_SIZE
+        assume(body_room > 0)
+        offset = body_start + (tamper_offset_seed % max(body_room, 1))
+        tampered[offset] ^= 0x80
+
+        with pytest.raises(Exception):
+            decoder.decrypt(bytes(tampered))
+
+        # Invariants:
+        # - state restored exactly to snapshot
+        # - _pending_rollback drained
+        post_state = (
+            decoder._state.root_key,
+            decoder._state.chain_key,
+            decoder._state.position,
+            decoder._state.epoch,
+        )
+        assert post_state == pre_state, (
+            f"Decoder state mutated by tampered rekey frame (offset={offset}). "
+            f"pre={pre_state} post={post_state}. Regression of bug #1 / "
+            "the speculative-rekey rollback pattern."
+        )
+        assert decoder._pending_rollback is None, (
+            "_pending_rollback should be cleared after a failed decrypt; " "found stale snapshot."
+        )
+
+        encoder.finalize()
+        decoder.finalize()
+
+    @given(n_decrypts=st.integers(min_value=1, max_value=5))
+    @settings(
+        max_examples=15,
+        deadline=15000,
+        suppress_health_check=[HealthCheck.too_slow, HealthCheck.function_scoped_fixture],
+    )
+    def test_no_pending_rollback_after_clean_decrypts(self, n_decrypts):
+        """After every clean decrypt, _pending_rollback must be None.
+        _commit_rekey() drains it on the success path; this property test
+        asserts the drain is not skipped on any non-rekey frame.
+        """
+        from meow_decoder.ratchet import EncoderRatchet, DecoderRatchet
+
+        root_key = secrets.token_bytes(32)
+        salt = secrets.token_bytes(16)
+        total = max(n_decrypts + 1, 4)
+
+        encoder = EncoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+        decoder = DecoderRatchet(root_key, salt, k_blocks=3, block_size=200, total_frames=total)
+
+        for i in range(n_decrypts):
+            d = secrets.token_bytes(80)
+            decoder.decrypt(encoder.encrypt_next(d))
+            assert decoder._pending_rollback is None, (
+                f"_pending_rollback non-None after clean non-rekey "
+                f"decrypt #{i}: {decoder._pending_rollback}"
+            )
+
+        encoder.finalize()
+        decoder.finalize()

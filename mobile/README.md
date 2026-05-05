@@ -12,6 +12,25 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 
 **No network. No cloud. No traces.**
 
+## Best Starting Path
+
+If you are new to Meow Capture, use the default receiver flow:
+
+1. Open the sender transfer on desktop.
+2. Open Meow Capture.
+3. Tap **Scan Sender Screen**.
+4. Hold steady until the app says capture is complete.
+5. Export the capture.
+6. Recover the original file on desktop.
+
+That is the path this app is most ready to support end to end.
+
+| Maturity | What belongs here |
+|----------|-------------------|
+| Recommended | Scan sender screen, guided capture, standard export |
+| Advanced | Request QR import, JSON import, diagnostics, multi-device merge |
+| Experimental | Hidden or feature-flagged transport and specialist workflows |
+
 ---
 
 ## 📥 Download & Install
@@ -20,8 +39,10 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 
 | Version | Download | Notes |
 |---------|----------|-------|
-| **v3.2.2** (latest) | [⬇ Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) | Bug fixes: capture init + camera guard |
-| v3.2.0 | [Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk) | — |
+| **v3.2.1** (latest sideload) | [⬇ Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk) | Capture init + camera guard fixes |
+| v3.2.0 | [Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk) | Initial v3.2 line |
+
+> Future APKs will be published as GitHub Releases / Play Store (see [Trust Center](../docs/TRUST_CENTER.md) for the maturity tier). The in-tree `releases/android/` raw URLs above are a sideload convenience for the current pre-store window.
 
 **Sideload instructions:**
 
@@ -30,7 +51,7 @@ Optical air-gap file transfer companion for [meow-decoder](../README.md). Scans 
 3. Open the downloaded `.apk` and tap **Install**.
 4. Launch **Meow Capture** and grant camera permission when prompted.
 5. On your desktop, run `meow-encode` (or open the web demo) and display the QR code on screen.
-6. In the app, tap **Scan Request QR** or **Import Capture Request (JSON)** to begin.
+6. In the app, tap **Scan Sender Screen** to begin. Use **Scan Request QR** or **Import Capture Request (JSON)** only when you specifically need the advanced setup path.
 
 > **Google Play Store listing coming soon** — sideloading is the only install method for now.
 
@@ -111,7 +132,7 @@ npx react-native run-android
                      ▼
 ┌─────────────────────────────────────────────────────────┐
 │  MeowCapture (this app)                                 │
-│  1. Home  — load capture request JSON (session params)  │
+│  1. Home  — tap Scan Sender Screen                      │
 │  2. Camera — aim at screen, app scans QR frames         │
 │     • Single QR: immediately captured & complete        │
 │     • Fountain GIF: scan until progress bar fills       │
@@ -127,15 +148,13 @@ npx react-native run-android
 
 ### Step-by-step
 
-1. **Open the web demo** on the desktop (`examples/wasm_browser_example.html` or
-   `web_demo/wasm_browser_example_FULL.html`). Choose any encryption mode:
-   Standard, Forward Secrecy, Schrödinger, Post-Quantum, or Duress.
+1. **Open the sender flow** on desktop using the CLI or web demo. The recommended first transfer is the standard encrypted flow.
 
-2. **Encrypt** a file or message in the demo. For multi-frame (animated QR),
-   the payload is too large for one code and will be fountain-coded automatically.
-   For single-frame, a static QR appears.
+2. **Start the transfer** and keep the sender screen visible. For multi-frame (animated QR), the payload is too large for one code and will be fountain-coded automatically. For single-frame, a static QR appears.
 
-3. **Generate a capture request** (or enter manually in the app):
+3. **Scan with the app** by tapping **Scan Sender Screen**. In the normal path you do not need to enter session metadata manually.
+
+4. **Use a capture request only when needed**:
    - Multi-frame: set `expected_frames` to the droplet count shown in the demo log.
    - Single-frame: set `expected_frames: 1`.
    ```bash
@@ -143,32 +162,31 @@ npx react-native run-android
    meow-encode --print-request -i file.pdf
    ```
 
-4. **Load the request** in the app — tap "Load JSON File" on the Home screen, or
-   enter the session UUID and frame count manually.
+5. **Load the request** in the app only if you are using that advanced setup path — tap "Load JSON File" on the Home screen, or enter the session UUID and frame count manually.
 
-5. **Point your camera** at the QR on screen. The app shows a **Calibration Wizard**
+6. **Point your camera** at the QR on screen. The app shows a **Calibration Wizard**
    first — a quick 5-step preflight that verifies camera permission, QR readability,
    light conditions, screen brightness, and device temperature. You can skip it if
    conditions are clearly good.
    - **Single-frame modes**: app captures the QR and immediately completes.
    - **Fountain animated GIF**: hold steady until the progress bar reaches 100%.
 
-6. **Confirm & Export** — tap **Confirm & Export** on the Export screen.
+7. **Confirm & Export** — tap **Confirm & Export** on the Export screen.
    If Face ID / fingerprint is enrolled, biometric confirmation is required before
    any data is written to disk. Transfer `meow_capture_<session_id>.json`
    back to the desktop via USB.
 
-7. **Debug bundle** (optional) — from the Export screen, tap **Export Debug Bundle**
+8. **Debug bundle** (optional) — from the Export screen, tap **Export Debug Bundle**
    to generate a sanitized diagnostics file. This contains only metadata (app version,
    device info, capture stats, error history) — no payloads, passwords, or sensitive
    content. Safe to share for troubleshooting.
 
-8. **Decrypt** — paste the captured JSON into the web demo's decrypt tab, or use the CLI:
+9. **Decrypt** — paste the captured JSON into the web demo's decrypt tab, or use the CLI:
    ```bash
    meow-decode-gif -i meow_capture_<session_id>.json -p "password"
    ```
 
-9. **Multi-device merge (optional)** — if multiple phones captured the same transfer:
+10. **Multi-device merge (optional)** — if multiple phones captured the same transfer:
    ```bash
    # Merge two captures for maximum frame coverage before decoding
    python -m meow_decoder.merge \

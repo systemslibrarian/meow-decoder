@@ -203,14 +203,24 @@ def encode_page():
             stego_level_val = 0
 
             if mode == "cat":
-                # Cat mode: use bundled carrier image
+                # Cat mode: use bundled carrier image. encode_file now
+                # auto-clamps stego_level to 1 when output is GIF (palette
+                # quantisation can't preserve lsb_bits >= 2), so passing a
+                # higher value is harmless — the user just gets a warning.
+                # Pick level 2 (SUBTLE) here so the request to the encoder
+                # documents intent; the actual embedding falls back to
+                # VISIBLE for GIF output.
                 cat_carrier = Path(__file__).parent.parent / "assets" / "demo_logo_eyes.gif"
                 if cat_carrier.exists():
                     carrier_images = [cat_carrier]
-                    stego_level_val = 2  # Default subtle steganography
+                    stego_level_val = 2
                 else:
                     flash("Warning: Cat carrier image not found, using plain QR codes", "warning")
             elif mode == "duress":
+                # Duress + password-only is now supported via FIX-D3
+                # mode_byte dispatch in unpack_manifest. Require the
+                # duress password field; everything else uses the same
+                # path as normal mode.
                 use_duress = True
                 if not duress_password:
                     flash("Duress mode requires a duress password", "error")

@@ -185,6 +185,21 @@ pub mod pure_crypto;
 #[cfg(feature = "wasm")]
 pub mod wasm;
 
+/// Luby Transform fountain code (pure deterministic Rust).
+///
+/// Designed to produce byte-identical droplets to
+/// `meow_decoder/fountain.py` for the 16 golden vectors under
+/// `tests/golden/fountain/`. See `docs/FOUNTAIN_RUST_WASM_MIGRATION.md`
+/// for the unification plan and acceptance criteria.
+///
+/// Requires the `fountain` feature:
+/// ```toml
+/// [dependencies]
+/// crypto_core = { version = "0.2", features = ["fountain"] }
+/// ```
+#[cfg(feature = "fountain")]
+pub mod meow_fountain;
+
 // ============================================================================
 // Re-exports (Core)
 // ============================================================================

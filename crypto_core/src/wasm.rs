@@ -1415,6 +1415,143 @@ pub fn derive_key(_p: &[u8], _s: &[u8], _m: Option<u32>, _i: Option<u32>) -> Was
     }
 }
 
+// =============================================================================
+// Fountain (Luby Transform) — Phase 3 of the Rust+WASM unification.
+// Browsers `import init, { WasmFountainEncoder, WasmFountainDecoder,
+// WasmDroplet } from './crypto_core.js'` and call them directly.
+// =============================================================================
+
+#[cfg(all(feature = "wasm", feature = "fountain"))]
+mod fountain {
+    use crate::meow_fountain::decoder::FountainDecoder as RustDecoder;
+    use crate::meow_fountain::encoder::FountainEncoder as RustEncoder;
+    use crate::meow_fountain::wire::Droplet as RustDroplet;
+    use wasm_bindgen::prelude::*;
+
+    /// Browser-visible droplet — exposes (seed, block_indices, data)
+    /// to the JS side. The JS shim translates this into its existing
+    /// `Droplet` shape so callers don't change.
+    #[wasm_bindgen]
+    pub struct WasmDroplet {
+        inner: RustDroplet,
+    }
+
+    #[wasm_bindgen]
+    impl WasmDroplet {
+        #[wasm_bindgen(getter)]
+        pub fn seed(&self) -> u32 {
+            self.inner.seed
+        }
+
+        /// Indices as a `Uint16Array` view on the JS side.
+        #[wasm_bindgen(getter, js_name = blockIndices)]
+        pub fn block_indices(&self) -> Vec<u16> {
+            self.inner.block_indices.clone()
+        }
+
+        #[wasm_bindgen(getter)]
+        pub fn data(&self) -> Vec<u8> {
+            self.inner.data.clone()
+        }
+
+        /// Wire-format bytes (matches `pack_droplet` in the Python encoder).
+        #[wasm_bindgen(js_name = toWire)]
+        pub fn to_wire(&self) -> Vec<u8> {
+            self.inner.to_wire()
+        }
+
+        /// Parse a droplet from wire bytes.
+        #[wasm_bindgen(js_name = fromWire)]
+        pub fn from_wire(buf: &[u8], block_size: usize) -> Result<WasmDroplet, JsValue> {
+            RustDroplet::from_wire(buf, block_size)
+                .map(|inner| WasmDroplet { inner })
+                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        }
+    }
+
+    #[wasm_bindgen]
+    pub struct WasmFountainEncoder {
+        inner: RustEncoder,
+    }
+
+    #[wasm_bindgen]
+    impl WasmFountainEncoder {
+        #[wasm_bindgen(constructor)]
+        pub fn new(
+            data: &[u8],
+            k_blocks: usize,
+            block_size: usize,
+        ) -> Result<WasmFountainEncoder, JsValue> {
+            RustEncoder::new(data, k_blocks, block_size)
+                .map(|inner| WasmFountainEncoder { inner })
+                .map_err(|e| JsValue::from_str(&format!("{:?}", e)))
+        }
+
+        #[wasm_bindgen(getter, js_name = kBlocks)]
+        pub fn k_blocks(&self) -> usize {
+            self.inner.k_blocks()
+        }
+
+        #[wasm_bindgen(getter, js_name = blockSize)]
+        pub fn block_size(&self) -> usize {
+            self.inner.block_size()
+        }
+
+        pub fn droplet(&self, seed: u32) -> WasmDroplet {
+            WasmDroplet {
+                inner: self.inner.droplet(seed),
+            }
+        }
+    }
+
+    #[wasm_bindgen]
+    pub struct WasmFountainDecoder {
+        inner: RustDecoder,
+    }
+
+    #[wasm_bindgen]
+    impl WasmFountainDecoder {
+        #[wasm_bindgen(constructor)]
+        pub fn new(k_blocks: usize, block_size: usize) -> Self {
+            Self {
+                inner: RustDecoder::new(k_blocks, block_size),
+            }
+        }
+
+        #[wasm_bindgen(getter, js_name = kBlocks)]
+        pub fn k_blocks(&self) -> usize {
+            self.inner.k_blocks()
+        }
+
+        #[wasm_bindgen(getter, js_name = blockSize)]
+        pub fn block_size(&self) -> usize {
+            self.inner.block_size()
+        }
+
+        #[wasm_bindgen(getter, js_name = decodedCount)]
+        pub fn decoded_count(&self) -> usize {
+            self.inner.decoded_count()
+        }
+
+        #[wasm_bindgen(js_name = isComplete)]
+        pub fn is_complete(&self) -> bool {
+            self.inner.is_complete()
+        }
+
+        /// Add a droplet. Returns true if decoding is complete.
+        #[wasm_bindgen(js_name = addDroplet)]
+        pub fn add_droplet(&mut self, droplet: WasmDroplet) -> bool {
+            self.inner.add_droplet(droplet.inner)
+        }
+
+        /// Recovered raw bytes, or null if incomplete.
+        #[wasm_bindgen(js_name = recoveredData)]
+        pub fn recovered_data(&self) -> Option<Vec<u8>> {
+            self.inner.recovered_data()
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -32,6 +32,10 @@ htmlcov/
 .hypothesis/
 *.cover
 coverage.xml
+lcov.info
+tarpaulin-report.json
+test-results/
+playwright-report/
 
 # Environments
 .env
@@ -56,6 +60,13 @@ node_modules/
 !examples/*.gif
 *.enc
 *.encrypted
+
+# Release artifacts — future APKs should go to GitHub Releases / Play Store,
+# not be committed to the source tree. Existing tracked APKs in
+# releases/android/ are kept for the current sideload window; this rule
+# only prevents NEW APKs from being added. (gitignore does not affect
+# already-tracked files.)
+releases/android/*.apk
 *.key
 *.keyfile
 secrets/

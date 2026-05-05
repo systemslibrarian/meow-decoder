@@ -27,6 +27,7 @@ class TestBeliefPropagationProgress:
 
     def test_degree_one_makes_progress(self):
         from meow_decoder.fountain import FountainDecoder, Droplet
+
         k, block_size = 2, 50
         decoder = FountainDecoder(k_blocks=k, block_size=block_size, original_length=100)
         assert not decoder.is_complete()
@@ -40,6 +41,7 @@ class TestBeliefPropagationProgress:
 
     def test_cascade_solve_completes_decoder(self):
         from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
         payload = secrets.token_bytes(400)
         k, block_size = 4, 100
         encoder = FountainEncoder(payload, k_blocks=k, block_size=block_size)
@@ -52,15 +54,19 @@ class TestBeliefPropagationProgress:
 
     def test_high_degree_only_no_immediate_solve(self):
         from meow_decoder.fountain import FountainDecoder, Droplet
+
         k, block_size = 4, 100
         decoder = FountainDecoder(k_blocks=k, block_size=block_size, original_length=400)
         d = Droplet(seed=99, block_indices=[0, 1, 2], data=secrets.token_bytes(block_size))
         decoder.add_droplet(d)
         assert not decoder.is_complete()
-        assert len(decoder.pending_droplets) >= 1
+        # pending_count: degree-3 droplet with no decoded blocks → lands
+        # in the BP pending queue. Backend-agnostic introspection.
+        assert decoder.pending_count >= 1
 
     def test_belief_propagation_terminates(self):
         from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
         payload = secrets.token_bytes(800)
         k, block_size = 8, 100
         encoder = FountainEncoder(payload, k_blocks=k, block_size=block_size)
@@ -72,6 +78,7 @@ class TestBeliefPropagationProgress:
 
     def test_roundtrip_preserves_exact_bytes(self):
         from meow_decoder.fountain import FountainEncoder, FountainDecoder
+
         payload = secrets.token_bytes(600)
         k, block_size = 6, 100
         encoder = FountainEncoder(payload, k_blocks=k, block_size=block_size)
@@ -94,6 +101,7 @@ class TestSchrodingerTimingIndistinguishability:
     def test_both_passwords_decode_successfully(self):
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
         from meow_decoder.schrodinger_decode import schrodinger_decode_data
+
         superpos, manifest = schrodinger_encode_data(
             b"real secret content",
             b"innocent decoy text",
@@ -106,6 +114,7 @@ class TestSchrodingerTimingIndistinguishability:
     def test_deniability_coerced_party_sees_decoy(self):
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
         from meow_decoder.schrodinger_decode import schrodinger_decode_data
+
         superpos, manifest = schrodinger_encode_data(
             b"classified data",
             b"harmless content",
@@ -117,6 +126,7 @@ class TestSchrodingerTimingIndistinguishability:
     def test_wrong_password_does_not_decode_either_secret(self):
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
         from meow_decoder.schrodinger_decode import schrodinger_decode_data
+
         superpos, manifest = schrodinger_encode_data(
             b"real", b"decoy", real_password="correctreal123", decoy_password="correctdecoy123"
         )
@@ -129,6 +139,7 @@ class TestSchrodingerTimingIndistinguishability:
     def test_no_consistent_ordering_in_timing(self):
         from meow_decoder.schrodinger_encode import schrodinger_encode_data
         from meow_decoder.schrodinger_decode import schrodinger_decode_data
+
         superpos, manifest = schrodinger_encode_data(
             b"payload A" * 4,
             b"payload B" * 4,
@@ -150,6 +161,7 @@ class TestSchrodingerTimingIndistinguishability:
 
     def test_isomorphic_code_path(self):
         import meow_decoder.schrodinger_decode as sd_module
+
         src = inspect.getsource(sd_module)
         assert (
             "if password ==" not in src and "elif password ==" not in src

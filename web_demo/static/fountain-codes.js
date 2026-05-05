@@ -453,6 +453,113 @@ class FountainDecoder {
     }
 }
 
+// ─── Phase 3: WASM-backed fountain (gemini #6 unification) ─────────────
+//
+// When the Rust+WASM crypto_core module has been loaded by the page
+// (via `import('./crypto_core.js')` in wasm_browser_example_FULL.html),
+// the WASM module exposes `WasmFountainEncoder`, `WasmFountainDecoder`,
+// and `WasmDroplet` classes. Calling `window.activateWasmFountain(mod)`
+// hot-swaps the JS classes above with WASM-backed wrappers preserving
+// the same API. Activation is idempotent and a no-op without WASM
+// support (the legacy JS classes remain in effect).
+//
+// Output guarantee: when activated, droplets are byte-identical to the
+// Python encoder's `pack_droplet()` output for the 16 golden vectors
+// under tests/golden/fountain/.
+
+(function () {
+    if (typeof window === 'undefined') return;
+
+    // Track whether WASM activation succeeded so callers can
+    // introspect (`window.fountainBackend === 'wasm' | 'js'`).
+    window.fountainBackend = 'js';
+
+    window.activateWasmFountain = async function (wasmModule) {
+        if (!wasmModule || !wasmModule.WasmFountainEncoder) {
+            console.warn('[fountain] WASM activation skipped: missing exports');
+            return false;
+        }
+
+        // Replace the class implementations on the global scope with
+        // WASM-backed wrappers. The wrappers preserve the legacy API
+        // (camelCase methods + same constructor signatures).
+        window.FountainEncoder = class FountainEncoderWasm {
+            constructor(data, kBlocks, blockSize) {
+                this.kBlocks = kBlocks;
+                this.blockSize = blockSize;
+                // Pad with zeros up to kBlocks * blockSize (matches the
+                // Python encoder's behaviour for short input).
+                const total = kBlocks * blockSize;
+                let padded = data;
+                if (data.length < total) {
+                    padded = new Uint8Array(total);
+                    padded.set(data);
+                }
+                this._wasm = new wasmModule.WasmFountainEncoder(padded, kBlocks, blockSize);
+                this.dropletCount = 0;
+            }
+            // Legacy API name from the original JS impl.
+            generateDroplet(seed) {
+                if (seed === undefined || seed === null) {
+                    seed = this.dropletCount;
+                }
+                this.dropletCount += 1;
+                const w = this._wasm.droplet(seed >>> 0);
+                // Materialise into a plain Droplet so callers can
+                // serialise/inspect without keeping the WASM handle.
+                const d = new Droplet(seed, Array.from(w.blockIndices), w.data);
+                w.free();
+                return d;
+            }
+        };
+
+        window.FountainDecoder = class FountainDecoderWasm {
+            constructor(kBlocks, blockSize, originalLength = null) {
+                this.kBlocks = kBlocks;
+                this.blockSize = blockSize;
+                this.originalLength = originalLength;
+                this._wasm = new wasmModule.WasmFountainDecoder(kBlocks, blockSize);
+            }
+            get decodedCount() { return this._wasm.decodedCount; }
+            isComplete() { return this._wasm.isComplete(); }
+            addDroplet(droplet) {
+                // Build wire bytes (BE u32 seed + BE u16 count + indices + data)
+                // and let the WASM side parse — keeps the FFI surface narrow.
+                const indices = Array.isArray(droplet.blockIndices)
+                    ? droplet.blockIndices
+                    : Array.from(droplet.blockIndices);
+                const buf = new Uint8Array(4 + 2 + 2 * indices.length + droplet.data.length);
+                const dv = new DataView(buf.buffer);
+                dv.setUint32(0, droplet.seed >>> 0, false); // big-endian
+                dv.setUint16(4, indices.length, false);
+                for (let i = 0; i < indices.length; i++) {
+                    dv.setUint16(6 + 2 * i, indices[i], false);
+                }
+                buf.set(droplet.data, 6 + 2 * indices.length);
+                const w = wasmModule.WasmDroplet.fromWire(buf, this.blockSize);
+                return this._wasm.addDroplet(w);
+            }
+            getData(originalLength = null) {
+                if (!this.isComplete()) {
+                    throw new Error(
+                        `Decoding incomplete: ${this.decodedCount}/${this.kBlocks} blocks decoded`
+                    );
+                }
+                if (originalLength === null) originalLength = this.originalLength;
+                if (originalLength === null) {
+                    throw new Error('originalLength must be provided');
+                }
+                const full = this._wasm.recoveredData();
+                return full.slice(0, originalLength);
+            }
+        };
+
+        window.fountainBackend = 'wasm';
+        console.log('[fountain] WASM backend active — byte-identical to Python encoder');
+        return true;
+    };
+})();
+
 // Export for use in other modules
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {

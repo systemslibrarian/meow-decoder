@@ -119,8 +119,8 @@ function deriveHints(
   if (hints.length === 0) {
     if (safeToStop) {
       hints.push({
-        icon: '😸',
-        text: 'All done! You can tap Done to finish.',
+        icon: '✓',
+        text: 'Safe to stop — tap to finish',
         severity: 'ok',
       });
     } else if (decodeRate >= 3.0) {
@@ -132,7 +132,7 @@ function deriveHints(
     } else {
       hints.push({
         icon: '📡',
-        text: 'Receiving data — keep camera pointed at the screen',
+        text: 'Receiving — keep camera pointed at the sender screen',
         severity: 'info',
       });
     }

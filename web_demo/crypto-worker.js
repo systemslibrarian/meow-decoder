@@ -12,6 +12,24 @@
 
 let wasm = null;
 let wasmReady = false;
+let initFailed = false;
+let initError = null;
+// Messages received before WASM finishes loading are queued, then drained
+// once init completes. Without this, any caller posting immediately after
+// `new Worker(...)` gets a `type:'error'` reply that promise machinery
+// listening for `type:'result'` ignores — the caller's await hangs forever.
+const pendingMessages = [];
+
+// Surface async / promise errors that would otherwise vanish silently and
+// leave pending request promises unresolved. Convert them into a generic
+// `type:'result'` failure so callers' rejection paths fire.
+self.addEventListener('unhandledrejection', (event) => {
+    postMessage({
+        type: 'result',
+        success: false,
+        error: `Worker unhandled rejection: ${event.reason && event.reason.message ? event.reason.message : String(event.reason)}`
+    });
+});
 
 // Initialize WASM module inside the worker
 async function initWasm() {
@@ -24,31 +42,56 @@ async function initWasm() {
         await wasmModule.default();
         wasm = wasmModule;
         wasmReady = true;
-        
+
         postMessage({ type: 'ready', success: true });
+
+        // Drain any messages that arrived before init finished.
+        const queued = pendingMessages.splice(0);
+        for (const e of queued) handleMessage(e);
     } catch (err) {
-        postMessage({ 
-            type: 'ready', 
-            success: false, 
-            error: `Failed to load WASM in worker: ${err.message}` 
+        initFailed = true;
+        initError = `Failed to load WASM in worker: ${err.message}`;
+        postMessage({
+            type: 'ready',
+            success: false,
+            error: initError
         });
+        // Reject every queued and future request with the load error so
+        // pending caller promises don't hang forever.
+        const queued = pendingMessages.splice(0);
+        for (const e of queued) {
+            const id = e.data && e.data.id;
+            postMessage({ type: 'result', id, success: false, error: initError });
+        }
     }
 }
 
-// Handle incoming messages from main thread
-self.onmessage = async function(e) {
-    const { type, id, payload } = e.data;
-    
-    // Wait for WASM if not ready yet
-    if (!wasmReady && type !== 'ping') {
-        postMessage({ 
-            type: 'error', 
-            id, 
-            error: 'WASM not initialized yet' 
-        });
+// Handle incoming messages from main thread. Routes ping straight through,
+// rejects messages on a permanently-failed init, queues pre-ready ones,
+// and otherwise dispatches to handleMessage.
+self.onmessage = function(e) {
+    const { type } = e.data || {};
+
+    if (type === 'ping') {
+        return handleMessage(e);
+    }
+
+    if (initFailed) {
+        const id = e.data && e.data.id;
+        postMessage({ type: 'result', id, success: false, error: initError });
         return;
     }
-    
+
+    if (!wasmReady) {
+        pendingMessages.push(e);
+        return;
+    }
+
+    return handleMessage(e);
+};
+
+async function handleMessage(e) {
+    const { type, id, payload } = e.data;
     try {
         switch (type) {
             case 'ping':
@@ -347,20 +390,25 @@ self.onmessage = async function(e) {
             }
             
             default:
-                postMessage({ 
-                    type: 'error', 
-                    id, 
-                    error: `Unknown message type: ${type}` 
+                // Use type:'result' rather than type:'error' so caller
+                // promise machinery (which usually only listens for
+                // type:'result') rejects cleanly instead of hanging.
+                postMessage({
+                    type: 'result',
+                    id,
+                    success: false,
+                    error: `Unknown message type: ${type}`
                 });
         }
     } catch (err) {
-        postMessage({ 
-            type: 'error', 
-            id, 
-            error: err.message || 'Unknown error in worker' 
+        postMessage({
+            type: 'result',
+            id,
+            success: false,
+            error: err.message || 'Unknown error in worker'
         });
     }
-};
+}
 
 // Start WASM initialization immediately
 initWasm();

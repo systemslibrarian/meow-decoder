@@ -378,25 +378,31 @@ def purr_log(message: str, category: str = "process"):
 # === 3. CAT PROGRESS BARS ===
 
 
+def _cat_tqdm_fallback(iterable):
+    """Tiny fallback iterator that prints a paw every 10 items."""
+    count = 0
+    for item in iterable:
+        count += 1
+        if count % 10 == 0:
+            print("🐾", end="", flush=True)
+        yield item
+    print()  # Newline
+
+
 def cat_tqdm(iterable=None, desc=None, total=None, **kwargs):
     """
     Cat-themed progress bar with evolving emoji.
 
     Falls back gracefully if tqdm not installed.
+
+    Note: split into a helper generator so the tqdm path can `return` a
+    real iterator. A single function that mixes `yield` and `return value`
+    becomes a generator and silently never yields tqdm's items.
     """
     if not HAS_TQDM:
-        # Fallback: print dots
-        if iterable:
-            count = 0
-            for item in iterable:
-                count += 1
-                if count % 10 == 0:
-                    print("🐾", end="", flush=True)
-                yield item
-            print()  # Newline
-            return
-        else:
-            return range(total) if total else []
+        if iterable is not None:
+            return _cat_tqdm_fallback(iterable)
+        return iter(range(total) if total else [])
 
     # Use regular tqdm with cat emoji prefix
     cat_emoji = "🐾"
