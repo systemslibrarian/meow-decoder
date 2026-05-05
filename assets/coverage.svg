@@ -1,5 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="168" height="20" role="img" aria-label="Rust Combined: 84.29%">
-  <title>Rust Combined Coverage: 84.29%</title>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="168" height="20" role="img" aria-label="Rust Combined: 81.79%">
+  <title>Rust Combined Coverage: 81.79%</title>
   <linearGradient id="s" x2="0" y2="100%">
     <stop offset="0" stop-color="#bbb" stop-opacity=".1"/>
     <stop offset="1" stop-opacity=".1"/>
@@ -15,7 +15,7 @@
   <g fill="#fff" text-anchor="middle" font-family="Verdana,Geneva,DejaVu Sans,sans-serif" text-rendering="geometricPrecision" font-size="110">
     <text aria-hidden="true" x="610" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="1100">Rust Combined</text>
     <text x="610" y="140" transform="scale(.1)" fill="#fff" textLength="1100">Rust Combined</text>
-    <text aria-hidden="true" x="1430" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="380">84.29%</text>
-    <text x="1430" y="140" transform="scale(.1)" fill="#fff" textLength="380">84.29%</text>
+    <text aria-hidden="true" x="1430" y="150" fill="#010101" fill-opacity=".3" transform="scale(.1)" textLength="380">81.79%</text>
+    <text x="1430" y="140" transform="scale(.1)" fill="#fff" textLength="380">81.79%</text>
   </g>
 </svg>
