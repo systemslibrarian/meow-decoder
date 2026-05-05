@@ -5,16 +5,19 @@
 {% block content %}
 <div style="text-align: center; padding: 20px 0;">
     <div style="font-size: 4em; margin-bottom: 20px;">✅</div>
-    <h2 style="color: #28a745; margin-bottom: 10px;">Encoding Complete!</h2>
-    <p style="color: #666; font-size: 1.1em;">Your file has been successfully encoded into an animated GIF.</p>
+    <h2 style="color: #28a745; margin-bottom: 10px;">Transfer Ready</h2>
+    <p style="color: #555; font-size: 1.1em; line-height: 1.5;">
+        Download the transfer below and keep it visible on screen so the receiver app
+        can scan it. The receiver will tell you when it is safe to stop.
+    </p>
 </div>
 
 {% if mode == 'cat' %}
 <div class="cat-highlight" style="margin: 30px 0;">
-    <h3>😻 Cat Mode Activated!</h3>
-    <p>Your QR codes are camouflaged in photographic cat imagery.</p>
+    <h3>😻 Cat Mode Activated</h3>
+    <p>Your QR codes are camouflaged in photographic cat imagery (experimental).</p>
     <p style="font-size: 0.9em; margin-top: 10px; color: #666;">
-        This provides aesthetic steganography and plausible deniability.
+        Cosmetic camouflage only. Not forensic-grade steganography.
     </p>
 </div>
 {% endif %}
@@ -56,25 +59,23 @@
 
 <div style="text-align: center; margin: 30px 0;">
     <a href="{{ url_for('download_file', token=download_token) }}" class="btn" style="display: inline-block; text-decoration: none;">
-        ⬇️ Download Animated GIF
+        ⬇️ Download Transfer (animated GIF)
     </a>
 </div>
 
 <div style="margin-top: 40px; padding: 20px; background: #e7f3ff; border-left: 4px solid #2196f3; border-radius: 6px;">
-    <h4 style="margin-bottom: 10px; color: #1976d2;">📱 Next Steps: Capture with Phone Camera</h4>
+    <h4 style="margin-bottom: 10px; color: #1976d2;">📱 Show this transfer to the receiver</h4>
     <ol style="line-height: 1.8; padding-left: 20px; color: #333;">
-        <li>Download the GIF to your computer</li>
-        <li>Open the GIF in full-screen mode</li>
-        <li>Use the <strong>Decode</strong> page on your phone's browser</li>
-        <li>Point your phone camera at the animated QR codes</li>
-        <li>The decoder will automatically capture frames as they loop</li>
-        <li>Once enough frames are captured (≈67% with 1.5× redundancy), decoding completes</li>
+        <li>Open the downloaded GIF in full-screen view.</li>
+        <li>Open Meow Capture on the receiver phone and tap <strong>Scan Sender Screen</strong>.</li>
+        <li>Hold the phone steady. The receiver tells you when it is safe to stop.</li>
+        <li>Export the captured transfer and recover the file on the receiving desktop.</li>
     </ol>
-    
+
     {% if mode == 'cat' %}
     <p style="margin-top: 15px; padding: 15px; background: #fff9e6; border-radius: 6px; color: #d63031;">
-        <strong>😻 Cat Mode Note:</strong> The QR codes are embedded in cat photos, so they'll look like
-        adorable cat pictures while still being perfectly scannable by the decoder!
+        <strong>😻 Cat Mode note:</strong> the QR codes are camouflaged inside cat photos.
+        Scannability is preserved; the camouflage is cosmetic.
     </p>
     {% endif %}
 </div>

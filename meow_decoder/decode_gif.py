@@ -209,56 +209,13 @@ def decode_gif(
     if verbose:
         print(f"  Total QR codes read: {len(qr_data_list)}")
 
-    if not qr_data_list:
-        # --- Stego fallback: try LSB extraction at multiple depths ---
-        if verbose:
-            print("  ⚠️  No QR codes found directly; trying stego LSB extraction...")
-        try:
-            from .stego_advanced import decode_with_stego
-
-            for lsb_bits in (2, 1, 3):
-                extracted_frames = decode_with_stego(frames, lsb_bits=lsb_bits)
-                for frame_idx, extracted in enumerate(extracted_frames):
-                    qr_data = qr_reader.read_image(extracted)
-                    if qr_data:
-                        for qd in qr_data:
-                            qr_data_list.append(qd)
-                            qr_frame_indices.append(frame_idx)
-                if qr_data_list:
-                    if verbose:
-                        print(
-                            f"  ✅ Stego extraction succeeded (LSB depth={lsb_bits}): "
-                            f"{len(qr_data_list)} QR codes recovered"
-                        )
-                    break
-        except Exception as e:
-            if verbose:
-                print(f"  ⚠️  Stego extraction failed: {e}")
-
-    if not qr_data_list:
-        raise ValueError("No QR codes found in GIF")
-
-    # First QR is manifest - try to unpack with MAC verification
-    if verbose:
-        print("\nParsing manifest with MAC verification...")
-
-    # Try to parse manifest directly (it might not have MAC if it's old format)
-    manifest_raw = qr_data_list[0]
-
-    # CRITICAL: Verify manifest frame decoded correctly from QR/GIF
-    # Legacy base (mode_byte=0): 115 bytes
-    # New base (mode_byte!=0, FIX-D3): 116 bytes (+1 for mode_byte)
-    # Optional trailers: ephemeral = +32, duress = +32, frame MAC = +8
-    # PQ ciphertext: ML-KEM-768 = +1088, ML-KEM-1024 = +1568
-    #
-    # Legacy (mode_byte=0, backward compat):
-    #   115, 123(+MAC), 147(+eph), 155(+eph+MAC), 179(+eph+dur), 187(+eph+dur+MAC)
-    # New (mode_byte!=0):
-    #   116, 124(+MAC), 148(+eph), 156(+eph+MAC), 180(+eph+dur), 188(+eph+dur+MAC)
-    # PQ ML-KEM-768 (new only): 1236, 1244(+MAC), 1268(+dur), 1276(+dur+MAC)
-    # PQ ML-KEM-1024 (new only): 1716, 1724(+MAC), 1748(+dur), 1756(+dur+MAC)
-    # Legacy PQ ML-KEM-768: 1235, 1243, 1267, 1275
-    expected_lengths = [
+    # Manifest size whitelist — see comment block below for derivation.
+    # Defined here so the stego fallback can prefer the depth that yields
+    # a valid manifest size, instead of locking onto the first lsb depth
+    # that returns *anything* (which produces garbage at higher depths
+    # where GIF quantization corrupts the LSB precision but still leaves
+    # a QR-shaped pattern the reader picks up).
+    expected_lengths = {
         # Legacy (no mode_byte)
         115,
         123,
@@ -287,7 +244,90 @@ def decode_gif(
         1724,
         1748,
         1756,
-    ]
+    }
+
+    if not qr_data_list:
+        # --- Stego fallback: try LSB extraction at multiple depths ---
+        # Try every depth and *prefer* the one whose first QR (the manifest)
+        # has a valid length. Without this preference, the previous code
+        # locked onto the first depth that returned anything: at lsb_bits=2,
+        # GIF palette quantization corrupts the LSBs but leaves a QR-shaped
+        # pattern, so the reader returns garbage (e.g. 915 bytes) and the
+        # manifest-length check downstream rejects the whole decode.
+        if verbose:
+            print("  ⚠️  No QR codes found directly; trying stego LSB extraction...")
+        try:
+            from .stego_advanced import decode_with_stego
+
+            best_attempt = None  # (lsb_bits, qr_data_list, qr_frame_indices, score)
+            for lsb_bits in (1, 2, 3):
+                attempt_qr_data: list[bytes] = []
+                attempt_indices: list[int] = []
+                extracted_frames = decode_with_stego(frames, lsb_bits=lsb_bits)
+                for frame_idx, extracted in enumerate(extracted_frames):
+                    qr_data = qr_reader.read_image(extracted)
+                    if qr_data:
+                        for qd in qr_data:
+                            attempt_qr_data.append(qd)
+                            attempt_indices.append(frame_idx)
+                if not attempt_qr_data:
+                    continue
+
+                # Score this attempt: prefer attempts whose manifest size
+                # is in the whitelist; among those, prefer more QR codes
+                # recovered.
+                manifest_ok = len(attempt_qr_data[0]) in expected_lengths
+                score = (1 if manifest_ok else 0, len(attempt_qr_data))
+                if best_attempt is None or score > best_attempt[3]:
+                    best_attempt = (lsb_bits, attempt_qr_data, attempt_indices, score)
+                    # Once we find a depth with a valid-length manifest AND
+                    # decoded multiple frames, we're done — no need to try
+                    # higher (more lossy) depths.
+                    if manifest_ok and len(attempt_qr_data) >= 2:
+                        break
+
+            if best_attempt is not None:
+                lsb_bits, qr_data_list, qr_frame_indices, _ = best_attempt
+                if verbose:
+                    manifest_status = (
+                        "valid manifest length"
+                        if len(qr_data_list[0]) in expected_lengths
+                        else f"manifest length {len(qr_data_list[0])} not in whitelist"
+                    )
+                    print(
+                        f"  ✅ Stego extraction succeeded (LSB depth={lsb_bits}): "
+                        f"{len(qr_data_list)} QR codes recovered ({manifest_status})"
+                    )
+        except Exception as e:
+            if verbose:
+                print(f"  ⚠️  Stego extraction failed: {e}")
+
+    if not qr_data_list:
+        raise ValueError("No QR codes found in GIF")
+
+    # First QR is manifest - try to unpack with MAC verification
+    if verbose:
+        print("\nParsing manifest with MAC verification...")
+
+    # Try to parse manifest directly (it might not have MAC if it's old format)
+    manifest_raw = qr_data_list[0]
+
+    # CRITICAL: Verify manifest frame decoded correctly from QR/GIF
+    # Legacy base (mode_byte=0): 115 bytes
+    # New base (mode_byte!=0, FIX-D3): 116 bytes (+1 for mode_byte)
+    # Optional trailers: ephemeral = +32, duress = +32, frame MAC = +8
+    # PQ ciphertext: ML-KEM-768 = +1088, ML-KEM-1024 = +1568
+    #
+    # Legacy (mode_byte=0, backward compat):
+    #   115, 123(+MAC), 147(+eph), 155(+eph+MAC), 179(+eph+dur), 187(+eph+dur+MAC)
+    # New (mode_byte!=0):
+    #   116, 124(+MAC), 148(+eph), 156(+eph+MAC), 180(+eph+dur), 188(+eph+dur+MAC)
+    # PQ ML-KEM-768 (new only): 1236, 1244(+MAC), 1268(+dur), 1276(+dur+MAC)
+    # PQ ML-KEM-1024 (new only): 1716, 1724(+MAC), 1748(+dur), 1756(+dur+MAC)
+    # Legacy PQ ML-KEM-768: 1235, 1243, 1267, 1275
+    # `expected_lengths` is defined above as a set so the stego fallback
+    # can score depths by manifest validity. Keep these comments here as
+    # the canonical reference for the size table.
 
     if len(manifest_raw) not in expected_lengths:
         raise ValueError(

@@ -447,9 +447,12 @@ class EnvironmentSafety:
                 (r"C:\sandbox", RiskCategory.SANDBOX, "Sandbox directory"),
             ]
         else:
+            # Sandbox-fingerprint paths we *check for existence* — never
+            # write to them. The /tmp/* entries are sandbox detection
+            # signals, not temp-file targets.
             suspicious_paths = [
-                ("/tmp/sample", RiskCategory.SANDBOX, "Sandbox sample directory"),
-                ("/tmp/malware", RiskCategory.SANDBOX, "Malware analysis directory"),
+                ("/tmp/sample", RiskCategory.SANDBOX, "Sandbox sample directory"),  # nosec B108
+                ("/tmp/malware", RiskCategory.SANDBOX, "Malware analysis directory"),  # nosec B108
                 ("/home/sandbox", RiskCategory.SANDBOX, "Sandbox user directory"),
                 ("/home/cuckoo", RiskCategory.SANDBOX, "Cuckoo sandbox directory"),
             ]

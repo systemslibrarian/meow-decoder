@@ -797,7 +797,13 @@ class TestV2FixD3ManifestModeByte:
         assert len(packed) == 148  # 147 + 1 mode byte
 
     def test_mode_byte_mismatch_rejected(self):
-        """Mode byte saying MEOW2 but with ephemeral key → rejected."""
+        """Mode byte saying MEOW2 but with trailing 32 bytes (would be ephemeral key) → rejected.
+
+        Since the unpack_manifest fix that disambiguates MEOW2+Duress from MEOW3,
+        an explicit MEOW2 mode byte makes the parser skip ephemeral parsing and
+        treat trailing 32 bytes as a duress_tag. The mismatch is now caught by
+        the "lacks duress flag but duress tag is present" check instead.
+        """
         from meow_decoder.crypto import (
             Manifest,
             pack_manifest,
@@ -820,7 +826,7 @@ class TestV2FixD3ManifestModeByte:
             mode_byte=MODE_MEOW2,
         )
         packed = pack_manifest(m)
-        with pytest.raises(ValueError, match="MEOW2.*ephemeral"):
+        with pytest.raises(ValueError, match="lacks duress flag but duress tag is present"):
             unpack_manifest(packed)
 
     def test_invalid_mode_byte_rejected(self):

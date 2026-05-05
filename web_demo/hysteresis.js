@@ -55,8 +55,16 @@ class SchmittTrigger {
     setThresholds(threshold, margin = 0.1) {
         this.centerThreshold = threshold;
         this.margin = margin;
-        this.low = threshold * (1 - margin);
-        this.high = threshold * (1 + margin);
+        // Use a half-band based on |threshold| so:
+        //  - negative thresholds (possible after gradient compensation
+        //    detrends a signal) don't invert low/high and silently break
+        //    the hysteresis logic, and
+        //  - thresholds near zero still get a usable band rather than
+        //    collapsing to ~0 width.
+        // Falls back to a small absolute floor so the band is never zero.
+        const halfBand = Math.max(Math.abs(threshold) * margin, 1e-6);
+        this.low = threshold - halfBand;
+        this.high = threshold + halfBand;
     }
     
     /**
@@ -160,9 +168,16 @@ class AdaptiveHysteresis {
      * @returns {object} Update result
      */
     update(value, adaptiveThreshold) {
-        // Check if threshold changed significantly (> 1%)
-        const thresholdChanged = Math.abs(this.schmitt.centerThreshold - adaptiveThreshold) > adaptiveThreshold * 0.01;
-        
+        // Check if threshold changed significantly (> 1%). Use absolute
+        // threshold magnitude as the basis so a small / negative
+        // adaptiveThreshold doesn't make the comparator effectively
+        // detect every tiny noise wiggle as a change (which then thrashes
+        // thresholdHistory and forces a setThresholds() recompute every
+        // frame).
+        const refScale = Math.max(Math.abs(adaptiveThreshold), 1e-6);
+        const thresholdChanged = Math.abs(this.schmitt.centerThreshold - adaptiveThreshold) > refScale * 0.01;
+
+
         if (thresholdChanged) {
             this.schmitt.setThresholds(adaptiveThreshold, this.margin);
             this.thresholdHistory.push(adaptiveThreshold);
@@ -223,27 +238,33 @@ class AdaptiveHysteresis {
  */
 function calculateOptimalMargin(values, threshold) {
     if (values.length < 10) return 0.1; // Default 10%
-    
-    // Find values near threshold (within ±20%)
+
+    // Find values near threshold (within ±20% of |threshold|, with a small
+    // absolute floor for thresholds near zero — division by `threshold`
+    // would produce NaN otherwise on dark / silent video).
+    const refScale = Math.max(Math.abs(threshold), 1e-6);
     const nearThreshold = values.filter(v => {
-        const dist = Math.abs(v - threshold) / threshold;
+        const dist = Math.abs(v - threshold) / refScale;
         return dist < 0.2;
     });
-    
+
     if (nearThreshold.length === 0) {
         // No values near threshold - can use smaller margin
         return 0.05; // 5%
     }
-    
+
     // Calculate variance of near-threshold values
     const mean = nearThreshold.reduce((a, b) => a + b, 0) / nearThreshold.length;
     const variance = nearThreshold.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / nearThreshold.length;
     const stdDev = Math.sqrt(variance);
-    
-    // Margin = 2 * coefficient of variation (CV)
-    const cv = stdDev / mean;
+
+    // Margin = 2 * coefficient of variation (CV).
+    // Guard mean → 0 (all near-threshold values clustered at zero) so the
+    // CV doesn't go to Infinity and the final clamp doesn't return NaN.
+    const cv = Math.abs(mean) > 1e-6 ? stdDev / Math.abs(mean) : 0.1;
+    if (!Number.isFinite(cv)) return 0.1;
     const margin = Math.min(Math.max(cv * 2, 0.05), 0.3); // Clamp to 5-30%
-    
+
     return margin;
 }
 

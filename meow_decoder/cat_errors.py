@@ -243,9 +243,13 @@ def pounce_on_errors(
                     if attempt == lives - 1:
                         if reraise:
                             raise
-            # Should not reach here, but just in case
-            if last_exc is not None:
+                        return None
+            # All attempts exhausted with reraise=True; the inner `raise`
+            # already fired, so this is unreachable. Keep as a safety net
+            # only when reraise is True.
+            if reraise and last_exc is not None:
                 raise last_exc
+            return None
 
         return wrapper  # type: ignore[return-value]
 
@@ -402,7 +406,16 @@ def cat_nap_timeout(seconds: float):
     """
     😴 Decorator factory: raise NapInterruptError after timeout.
 
-    Note: Uses signal.alarm on Unix, no-op on Windows.
+    Uses signal.setitimer (sub-second resolution) on the main thread of
+    POSIX systems. Falls back to a no-op on Windows or when invoked from
+    a worker thread, since signal handlers can only be installed from
+    the main thread.
+
+    Sub-second values like ``cat_nap_timeout(0.5)`` work — the previous
+    implementation used ``signal.alarm(int(seconds))`` which truncated
+    fractional values to 0 and silently disabled the alarm. The previous
+    version also crashed with ``ValueError: signal only works in main
+    thread`` when invoked from a worker thread.
 
     Example:
         @cat_nap_timeout(30.0)
@@ -414,22 +427,28 @@ def cat_nap_timeout(seconds: float):
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             import signal
+            import threading
 
             def _handler(signum, frame):
                 raise NapInterruptError(
                     f"Operation took longer than {seconds}s — the cat fell asleep!"
                 )
 
-            if hasattr(signal, "SIGALRM"):
+            on_main_thread = threading.current_thread() is threading.main_thread()
+            if hasattr(signal, "SIGALRM") and on_main_thread:
                 old = signal.signal(signal.SIGALRM, _handler)
-                signal.alarm(int(seconds))
+                # setitimer accepts a float, so 0.5s really fires after
+                # 0.5s. signal.alarm() truncates to int and silently
+                # disables sub-second timeouts.
+                signal.setitimer(signal.ITIMER_REAL, max(seconds, 1e-3))
                 try:
                     return func(*args, **kwargs)
                 finally:
-                    signal.alarm(0)
+                    signal.setitimer(signal.ITIMER_REAL, 0)
                     signal.signal(signal.SIGALRM, old)
             else:
-                # Windows: no alarm, just run normally
+                # Windows or non-main thread: signal handlers unavailable;
+                # silently run without a timeout rather than crashing.
                 return func(*args, **kwargs)
 
         return wrapper  # type: ignore[return-value]

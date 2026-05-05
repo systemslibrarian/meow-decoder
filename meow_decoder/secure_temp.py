@@ -164,13 +164,15 @@ def get_secure_temp_dir(prefix: str = "meow_") -> str:
     # Strategy: prefer /dev/shm (always tmpfs on Linux) > /tmp (if tmpfs)
     candidates = []
 
-    # 1. /dev/shm — guaranteed RAM-backed on Linux
-    if os.path.isdir("/dev/shm"):
-        candidates.append("/dev/shm")
+    # 1. /dev/shm — guaranteed RAM-backed on Linux. We mkdtemp underneath
+    #    with a random suffix; never write to the directory itself.
+    if os.path.isdir("/dev/shm"):  # nosec B108
+        candidates.append("/dev/shm")  # nosec B108
 
-    # 2. /tmp — often tmpfs on modern systems
-    if is_tmpfs("/tmp"):
-        candidates.append("/tmp")
+    # 2. /tmp — often tmpfs on modern systems. is_tmpfs() verifies the
+    #    mount before we accept it.
+    if is_tmpfs("/tmp"):  # nosec B108
+        candidates.append("/tmp")  # nosec B108
 
     # 3. XDG_RUNTIME_DIR — typically tmpfs (e.g., /run/user/1000)
     xdg_runtime = os.environ.get("XDG_RUNTIME_DIR")

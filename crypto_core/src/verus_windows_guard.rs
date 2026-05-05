@@ -130,7 +130,9 @@ pub fn check_windows_data_fits(
     requested_size: usize,
     page_size: usize,
 ) -> bool {
-    page_size > 0 && data_region_size >= requested_size && data_region_size.is_multiple_of(page_size)
+    page_size > 0
+        && data_region_size >= requested_size
+        && data_region_size.is_multiple_of(page_size)
 }
 
 /// **WG-007** Runtime check: all bytes in the slice are zero.

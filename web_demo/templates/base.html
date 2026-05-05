@@ -105,6 +105,14 @@
             color: white;
         }
 
+        .nav-divider {
+            display: flex;
+            align-items: center;
+            color: #adb5bd;
+            font-weight: 400;
+            user-select: none;
+        }
+
         .content {
             padding: 40px;
         }
@@ -290,7 +298,7 @@
     <div class="container">
         <div class="header">
             <img src="{{ url_for('static', filename='MeowDecoderDemo.png') }}" alt="Meow Decoder" class="logo">
-            <p>Quantum plausible deniability meets cat camouflage</p>
+            <p>Move files offline — show, scan, recover</p>
         </div>
 
         <div class="warning-banner">
@@ -300,12 +308,13 @@
         </div>
 
         <div class="nav">
-            <a href="{{ url_for('encode_page') }}" {% if request.endpoint == 'encode_page' %}class="active"{% endif %}>🔒 Encode</a>
-            <a href="{{ url_for('modes_page') }}" {% if request.endpoint == 'modes_page' %}class="active"{% endif %}>🎯 All Modes</a>
-            <a href="{{ url_for('cat_mode_page') }}" {% if request.endpoint == 'cat_mode_page' %}class="active"{% endif %}>😺 Cat Mode</a>
-            <a href="{{ url_for('schrodinger_page') }}" {% if request.endpoint == 'schrodinger_page' %}class="active"{% endif %}>⚛️ Schrödinger</a>
-            <a href="{{ url_for('decode_page') }}" {% if request.endpoint == 'decode_page' %}class="active"{% endif %}>🔓 Decode</a>
-            <a href="{{ url_for('webcam_page') }}" {% if request.endpoint == 'webcam_page' %}class="active"{% endif %}>📷 Webcam</a>
+            <a href="{{ url_for('encode_page') }}" {% if request.endpoint == 'encode_page' %}class="active"{% endif %} title="Recommended">🔒 Encode</a>
+            <a href="{{ url_for('decode_page') }}" {% if request.endpoint == 'decode_page' %}class="active"{% endif %} title="Recommended">🔓 Decode</a>
+            <a href="{{ url_for('webcam_page') }}" {% if request.endpoint == 'webcam_page' %}class="active"{% endif %} title="Recommended">📷 Webcam</a>
+            <span class="nav-divider" aria-hidden="true">|</span>
+            <a href="{{ url_for('modes_page') }}" {% if request.endpoint == 'modes_page' %}class="active"{% endif %} title="Advanced — see all modes">🎯 All Modes</a>
+            <a href="{{ url_for('cat_mode_page') }}" {% if request.endpoint == 'cat_mode_page' %}class="active"{% endif %} title="Experimental — cosmetic camouflage">😺 Cat Mode</a>
+            <a href="{{ url_for('schrodinger_page') }}" {% if request.endpoint == 'schrodinger_page' %}class="active"{% endif %} title="Experimental — dual-secret">⚛️ Schrödinger</a>
         </div>
 
         <div class="content">

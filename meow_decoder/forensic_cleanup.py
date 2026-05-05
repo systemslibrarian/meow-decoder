@@ -204,12 +204,13 @@ class ForensicCleaner:
             os.path.join(tmp_dir, "meow-*"),
         ]
 
-        # Also check /dev/shm
-        if os.path.isdir("/dev/shm"):
+        # Also check /dev/shm — Linux tmpfs path. We only glob meow-*/meow_*
+        # entries owned by the prior process; cleanup deletes nothing else.
+        if os.path.isdir("/dev/shm"):  # nosec B108
             patterns.extend(
                 [
-                    "/dev/shm/meow_*",
-                    "/dev/shm/meow-*",
+                    "/dev/shm/meow_*",  # nosec B108
+                    "/dev/shm/meow-*",  # nosec B108
                 ]
             )
 

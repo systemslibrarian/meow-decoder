@@ -51,10 +51,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends locales \
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 
-# Install Tamarin from official GitHub release binary
-# Using v1.10.0 — latest stable (1.8.1 never existed; went 1.8.0 → 1.10.0)
+# Install Tamarin from official GitHub release binary.
+# 1.12.0 is the first release that accepts Maude 3.5.1 — earlier 1.10.0 rejects
+# it as an "unsupported version", which causes incomplete analyses and
+# spurious lemma falsifications under AC/diff unification.
 RUN curl -sL -o /tmp/tamarin.tar.gz \
-      "https://github.com/tamarin-prover/tamarin-prover/releases/download/1.10.0/tamarin-prover-1.10.0-linux64-ubuntu.tar.gz" \
+      "https://github.com/tamarin-prover/tamarin-prover/releases/download/1.12.0/tamarin-prover-1.12.0-linux64-ubuntu.tar.gz" \
     && tar xzf /tmp/tamarin.tar.gz -C /usr/local/bin/ \
     && chmod +x /usr/local/bin/tamarin-prover \
     && rm /tmp/tamarin.tar.gz \

@@ -1,14 +1,214 @@
 /* @ts-self-types="./crypto_core.d.ts" */
 
-//#region exports
+/**
+ * Browser-visible droplet — exposes (seed, block_indices, data)
+ * to the JS side. The JS shim translates this into its existing
+ * `Droplet` shape so callers don't change.
+ */
+export class WasmDroplet {
+    static __wrap(ptr) {
+        ptr = ptr >>> 0;
+        const obj = Object.create(WasmDroplet.prototype);
+        obj.__wbg_ptr = ptr;
+        WasmDropletFinalization.register(obj, obj.__wbg_ptr, obj);
+        return obj;
+    }
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmDropletFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmdroplet_free(ptr, 0);
+    }
+    /**
+     * Indices as a `Uint16Array` view on the JS side.
+     * @returns {Uint16Array}
+     */
+    get blockIndices() {
+        const ret = wasm.wasmdroplet_blockIndices(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
+     * @returns {Uint8Array}
+     */
+    get data() {
+        const ret = wasm.wasmdroplet_data(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+    /**
+     * Parse a droplet from wire bytes.
+     * @param {Uint8Array} buf
+     * @param {number} block_size
+     * @returns {WasmDroplet}
+     */
+    static fromWire(buf, block_size) {
+        const ptr0 = passArray8ToWasm0(buf, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmdroplet_fromWire(ptr0, len0, block_size);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        return WasmDroplet.__wrap(ret[0]);
+    }
+    /**
+     * @returns {number}
+     */
+    get seed() {
+        const ret = wasm.wasmdroplet_seed(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * Wire-format bytes (matches `pack_droplet` in the Python encoder).
+     * @returns {Uint8Array}
+     */
+    toWire() {
+        const ret = wasm.wasmdroplet_toWire(this.__wbg_ptr);
+        var v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        return v1;
+    }
+}
+if (Symbol.dispose) WasmDroplet.prototype[Symbol.dispose] = WasmDroplet.prototype.free;
+
+export class WasmFountainDecoder {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmFountainDecoderFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmfountaindecoder_free(ptr, 0);
+    }
+    /**
+     * Add a droplet. Returns true if decoding is complete.
+     * @param {WasmDroplet} droplet
+     * @returns {boolean}
+     */
+    addDroplet(droplet) {
+        _assertClass(droplet, WasmDroplet);
+        var ptr0 = droplet.__destroy_into_raw();
+        const ret = wasm.wasmfountaindecoder_addDroplet(this.__wbg_ptr, ptr0);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get blockSize() {
+        const ret = wasm.wasmfountaindecoder_blockSize(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get decodedCount() {
+        const ret = wasm.wasmfountaindecoder_decodedCount(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @returns {boolean}
+     */
+    isComplete() {
+        const ret = wasm.wasmfountaindecoder_isComplete(this.__wbg_ptr);
+        return ret !== 0;
+    }
+    /**
+     * @returns {number}
+     */
+    get kBlocks() {
+        const ret = wasm.wasmfountaindecoder_kBlocks(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} k_blocks
+     * @param {number} block_size
+     */
+    constructor(k_blocks, block_size) {
+        const ret = wasm.wasmfountaindecoder_new(k_blocks, block_size);
+        this.__wbg_ptr = ret >>> 0;
+        WasmFountainDecoderFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+    /**
+     * Recovered raw bytes, or null if incomplete.
+     * @returns {Uint8Array | undefined}
+     */
+    recoveredData() {
+        const ret = wasm.wasmfountaindecoder_recoveredData(this.__wbg_ptr);
+        let v1;
+        if (ret[0] !== 0) {
+            v1 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+            wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+        }
+        return v1;
+    }
+}
+if (Symbol.dispose) WasmFountainDecoder.prototype[Symbol.dispose] = WasmFountainDecoder.prototype.free;
+
+export class WasmFountainEncoder {
+    __destroy_into_raw() {
+        const ptr = this.__wbg_ptr;
+        this.__wbg_ptr = 0;
+        WasmFountainEncoderFinalization.unregister(this);
+        return ptr;
+    }
+    free() {
+        const ptr = this.__destroy_into_raw();
+        wasm.__wbg_wasmfountainencoder_free(ptr, 0);
+    }
+    /**
+     * @returns {number}
+     */
+    get blockSize() {
+        const ret = wasm.wasmfountainencoder_blockSize(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {number} seed
+     * @returns {WasmDroplet}
+     */
+    droplet(seed) {
+        const ret = wasm.wasmfountainencoder_droplet(this.__wbg_ptr, seed);
+        return WasmDroplet.__wrap(ret);
+    }
+    /**
+     * @returns {number}
+     */
+    get kBlocks() {
+        const ret = wasm.wasmfountainencoder_kBlocks(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
+     * @param {Uint8Array} data
+     * @param {number} k_blocks
+     * @param {number} block_size
+     */
+    constructor(data, k_blocks, block_size) {
+        const ptr0 = passArray8ToWasm0(data, wasm.__wbindgen_malloc);
+        const len0 = WASM_VECTOR_LEN;
+        const ret = wasm.wasmfountainencoder_new(ptr0, len0, k_blocks, block_size);
+        if (ret[2]) {
+            throw takeFromExternrefTable0(ret[1]);
+        }
+        this.__wbg_ptr = ret[0] >>> 0;
+        WasmFountainEncoderFinalization.register(this, this.__wbg_ptr, this);
+        return this;
+    }
+}
+if (Symbol.dispose) WasmFountainEncoder.prototype[Symbol.dispose] = WasmFountainEncoder.prototype.free;
 
 /**
  * WASM result type for JavaScript interop
  */
 export class WasmResult {
-    constructor() {
-        throw new Error('cannot invoke `new` directly');
-    }
     static __wrap(ptr) {
         ptr = ptr >>> 0;
         const obj = Object.create(WasmResult.prototype);
@@ -31,8 +231,6 @@ export class WasmResult {
      * @returns {Uint8Array}
      */
     get data() {
-        if (this.__wbg_ptr == 0) throw new Error('Attempt to use a moved value');
-        _assertNum(this.__wbg_ptr);
         const ret = wasm.wasmresult_data(this.__wbg_ptr);
         return ret;
     }
@@ -41,8 +239,6 @@ export class WasmResult {
      * @returns {string | undefined}
      */
     get error() {
-        if (this.__wbg_ptr == 0) throw new Error('Attempt to use a moved value');
-        _assertNum(this.__wbg_ptr);
         const ret = wasm.wasmresult_error(this.__wbg_ptr);
         let v1;
         if (ret[0] !== 0) {
@@ -56,8 +252,6 @@ export class WasmResult {
      * @returns {boolean}
      */
     get success() {
-        if (this.__wbg_ptr == 0) throw new Error('Attempt to use a moved value');
-        _assertNum(this.__wbg_ptr);
         const ret = wasm.wasmresult_success(this.__wbg_ptr);
         return ret !== 0;
     }
@@ -95,8 +289,6 @@ export class WasmX25519KeyPair {
      * @returns {Uint8Array}
      */
     get public_key() {
-        if (this.__wbg_ptr == 0) throw new Error('Attempt to use a moved value');
-        _assertNum(this.__wbg_ptr);
         const ret = wasm.wasmx25519keypair_public_key(this.__wbg_ptr);
         return ret;
     }
@@ -175,6 +367,33 @@ export function decrypt(ciphertext, key, nonce, aad) {
 }
 
 /**
+ * Hybrid decryption: X25519 + ML-KEM-1024 + AES-256-GCM
+ *
+ * Input:
+ * - encrypted: x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
+ * - x25519_secret: Recipient's X25519 secret key (32 bytes)
+ * - mlkem_secret: Recipient's ML-KEM secret key (3168 bytes)
+ * - password: Password used during encryption
+ * @param {Uint8Array} encrypted
+ * @param {Uint8Array} x25519_secret
+ * @param {Uint8Array} mlkem_secret
+ * @param {string} password
+ * @returns {WasmResult}
+ */
+export function decrypt_hybrid_pq(encrypted, x25519_secret, mlkem_secret, password) {
+    const ptr0 = passArray8ToWasm0(encrypted, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(x25519_secret, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(mlkem_secret, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(password, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.decrypt_hybrid_pq(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    return WasmResult.__wrap(ret);
+}
+
+/**
  * Decrypt with forward secrecy using X25519
  *
  * # Arguments
@@ -226,12 +445,6 @@ export function derive_key(password, salt, memory_kib, iterations) {
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passArray8ToWasm0(salt, wasm.__wbindgen_malloc);
     const len1 = WASM_VECTOR_LEN;
-    if (!isLikeNone(memory_kib)) {
-        _assertNum(memory_kib);
-    }
-    if (!isLikeNone(iterations)) {
-        _assertNum(iterations);
-    }
     const ret = wasm.derive_key(ptr0, len0, ptr1, len1, isLikeNone(memory_kib) ? 0x100000001 : (memory_kib) >>> 0, isLikeNone(iterations) ? 0x100000001 : (iterations) >>> 0);
     return WasmResult.__wrap(ret);
 }
@@ -260,9 +473,6 @@ export function encode_data(data, password, block_size) {
     const len0 = WASM_VECTOR_LEN;
     const ptr1 = passStringToWasm0(password, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
     const len1 = WASM_VECTOR_LEN;
-    if (!isLikeNone(block_size)) {
-        _assertNum(block_size);
-    }
     const ret = wasm.encode_data(ptr0, len0, ptr1, len1, isLikeNone(block_size) ? 0x100000001 : (block_size) >>> 0);
     return WasmResult.__wrap(ret);
 }
@@ -296,6 +506,38 @@ export function encrypt(plaintext, key, nonce, aad) {
     var ptr3 = isLikeNone(aad) ? 0 : passArray8ToWasm0(aad, wasm.__wbindgen_malloc);
     var len3 = WASM_VECTOR_LEN;
     const ret = wasm.encrypt(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
+    return WasmResult.__wrap(ret);
+}
+
+/**
+ * Hybrid encryption: X25519 + ML-KEM-1024 + AES-256-GCM
+ *
+ * Provides security if EITHER classical OR post-quantum crypto holds.
+ *
+ * Input:
+ * - plaintext: Data to encrypt
+ * - x25519_recipient_public: Recipient's X25519 public key (32 bytes)
+ * - mlkem_recipient_public: Recipient's ML-KEM public key (1568 bytes)
+ * - password: Optional additional password
+ *
+ * Output:
+ * x25519_ephemeral_public (32) || mlkem_ciphertext (1568) || nonce (12) || aes_ciphertext
+ * @param {Uint8Array} plaintext
+ * @param {Uint8Array} x25519_recipient_public
+ * @param {Uint8Array} mlkem_recipient_public
+ * @param {string} password
+ * @returns {WasmResult}
+ */
+export function encrypt_hybrid_pq(plaintext, x25519_recipient_public, mlkem_recipient_public, password) {
+    const ptr0 = passArray8ToWasm0(plaintext, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(x25519_recipient_public, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ptr2 = passArray8ToWasm0(mlkem_recipient_public, wasm.__wbindgen_malloc);
+    const len2 = WASM_VECTOR_LEN;
+    const ptr3 = passStringToWasm0(password, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    const len3 = WASM_VECTOR_LEN;
+    const ret = wasm.encrypt_hybrid_pq(ptr0, len0, ptr1, len1, ptr2, len2, ptr3, len3);
     return WasmResult.__wrap(ret);
 }
 
@@ -370,7 +612,6 @@ export function hkdf(input_key_material, salt, info, length) {
     var len1 = WASM_VECTOR_LEN;
     const ptr2 = passArray8ToWasm0(info, wasm.__wbindgen_malloc);
     const len2 = WASM_VECTOR_LEN;
-    _assertNum(length);
     const ret = wasm.hkdf(ptr0, len0, ptr1, len1, ptr2, len2, length);
     return WasmResult.__wrap(ret);
 }
@@ -398,6 +639,61 @@ export function init() {
 }
 
 /**
+ * Decapsulate using ML-KEM-1024 secret key
+ *
+ * Input: secret_key (3168 bytes), ciphertext (1568 bytes)
+ * Returns: shared_secret (32 bytes)
+ * @param {Uint8Array} secret_key
+ * @param {Uint8Array} ciphertext
+ * @returns {WasmResult}
+ */
+export function mlkem_decapsulate(secret_key, ciphertext) {
+    const ptr0 = passArray8ToWasm0(secret_key, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ptr1 = passArray8ToWasm0(ciphertext, wasm.__wbindgen_malloc);
+    const len1 = WASM_VECTOR_LEN;
+    const ret = wasm.mlkem_decapsulate(ptr0, len0, ptr1, len1);
+    return WasmResult.__wrap(ret);
+}
+
+/**
+ * Encapsulate using ML-KEM-1024 public key
+ *
+ * Input: public_key (1568 bytes)
+ * Returns: ciphertext (1568 bytes) || shared_secret (32 bytes)
+ * @param {Uint8Array} public_key
+ * @returns {WasmResult}
+ */
+export function mlkem_encapsulate(public_key) {
+    const ptr0 = passArray8ToWasm0(public_key, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.mlkem_encapsulate(ptr0, len0);
+    return WasmResult.__wrap(ret);
+}
+
+/**
+ * Generate ML-KEM-1024 key pair for post-quantum encryption
+ *
+ * Returns: secret_key || public_key (3168 + 1568 = 4736 bytes)
+ *
+ * ML-KEM-1024 provides NIST Level 5 security against quantum computers.
+ * @returns {WasmResult}
+ */
+export function mlkem_generate_keypair() {
+    const ret = wasm.mlkem_generate_keypair();
+    return WasmResult.__wrap(ret);
+}
+
+/**
+ * Get ML-KEM key sizes for JavaScript
+ * @returns {WasmResult}
+ */
+export function mlkem_key_sizes() {
+    const ret = wasm.mlkem_key_sizes();
+    return WasmResult.__wrap(ret);
+}
+
+/**
  * Check if post-quantum features are available
  * @returns {boolean}
  */
@@ -414,7 +710,6 @@ export function pq_available() {
  * @returns {WasmResult}
  */
 export function random(length) {
-    _assertNum(length);
     const ret = wasm.random(length);
     return WasmResult.__wrap(ret);
 }
@@ -497,79 +792,73 @@ export function x25519_generate_keypair() {
     return WasmResult.__wrap(ret);
 }
 
-//#endregion
-
-//#region wasm imports
-
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
-        __wbg___wbindgen_copy_to_typed_array_281f659934f5228b: function(arg0, arg1, arg2) {
+        __wbg___wbindgen_copy_to_typed_array_2f7503a7f71d6632: function(arg0, arg1, arg2) {
             new Uint8Array(arg2.buffer, arg2.byteOffset, arg2.byteLength).set(getArrayU8FromWasm0(arg0, arg1));
         },
-        __wbg___wbindgen_is_function_18bea6e84080c016: function(arg0) {
+        __wbg___wbindgen_is_function_2a95406423ea8626: function(arg0) {
             const ret = typeof(arg0) === 'function';
-            _assertBoolean(ret);
             return ret;
         },
-        __wbg___wbindgen_is_object_8d3fac158b36498d: function(arg0) {
+        __wbg___wbindgen_is_object_59a002e76b059312: function(arg0) {
             const val = arg0;
             const ret = typeof(val) === 'object' && val !== null;
-            _assertBoolean(ret);
             return ret;
         },
-        __wbg___wbindgen_is_string_4d5f2c5b2acf65b0: function(arg0) {
+        __wbg___wbindgen_is_string_624d5244bb2bc87c: function(arg0) {
             const ret = typeof(arg0) === 'string';
-            _assertBoolean(ret);
             return ret;
         },
-        __wbg___wbindgen_is_undefined_4a711ea9d2e1ef93: function(arg0) {
+        __wbg___wbindgen_is_undefined_87a3a837f331fef5: function(arg0) {
             const ret = arg0 === undefined;
-            _assertBoolean(ret);
             return ret;
         },
-        __wbg___wbindgen_throw_df03e93053e0f4bc: function(arg0, arg1) {
+        __wbg___wbindgen_throw_5549492daedad139: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
-        __wbg_call_85e5437fa1ab109d: function() { return handleError(function (arg0, arg1, arg2) {
+        __wbg_call_8f5d7bb070283508: function() { return handleError(function (arg0, arg1, arg2) {
             const ret = arg0.call(arg1, arg2);
             return ret;
         }, arguments); },
-        __wbg_crypto_38df2bab126b63dc: function() { return logError(function (arg0) {
+        __wbg_crypto_38df2bab126b63dc: function(arg0) {
             const ret = arg0.crypto;
             return ret;
+        },
+        __wbg_getRandomValues_ab1935b403569652: function() { return handleError(function (arg0, arg1) {
+            globalThis.crypto.getRandomValues(getArrayU8FromWasm0(arg0, arg1));
         }, arguments); },
         __wbg_getRandomValues_c44a50d8cfdaebeb: function() { return handleError(function (arg0, arg1) {
             arg0.getRandomValues(arg1);
         }, arguments); },
-        __wbg_length_5e07cf181b2745fb: function() { return logError(function (arg0) {
+        __wbg_length_e6e1633fbea6cfa9: function(arg0) {
             const ret = arg0.length;
-            _assertNum(ret);
             return ret;
-        }, arguments); },
-        __wbg_msCrypto_bd5a034af96bcba6: function() { return logError(function (arg0) {
+        },
+        __wbg_msCrypto_bd5a034af96bcba6: function(arg0) {
             const ret = arg0.msCrypto;
             return ret;
-        }, arguments); },
-        __wbg_new_from_slice_e98c2bb0a59c32a0: function() { return logError(function (arg0, arg1) {
+        },
+        __wbg_new_from_slice_0bc58e36f82a1b50: function(arg0, arg1) {
             const ret = new Uint8Array(getArrayU8FromWasm0(arg0, arg1));
             return ret;
-        }, arguments); },
-        __wbg_new_with_length_9b57e4a9683723fa: function() { return logError(function (arg0) {
+        },
+        __wbg_new_with_length_0f3108b57e05ed7c: function(arg0) {
             const ret = new Uint8Array(arg0 >>> 0);
             return ret;
-        }, arguments); },
-        __wbg_node_84ea875411254db1: function() { return logError(function (arg0) {
+        },
+        __wbg_node_84ea875411254db1: function(arg0) {
             const ret = arg0.node;
             return ret;
-        }, arguments); },
-        __wbg_process_44c7a14e11e9f69e: function() { return logError(function (arg0) {
+        },
+        __wbg_process_44c7a14e11e9f69e: function(arg0) {
             const ret = arg0.process;
             return ret;
-        }, arguments); },
-        __wbg_prototypesetcall_d1a7133bc8d83aa9: function() { return logError(function (arg0, arg1, arg2) {
+        },
+        __wbg_prototypesetcall_3875d54d12ef2eec: function(arg0, arg1, arg2) {
             Uint8Array.prototype.set.call(getArrayU8FromWasm0(arg0, arg1), arg2);
-        }, arguments); },
+        },
         __wbg_randomFillSync_6c25eac9869eb53c: function() { return handleError(function (arg0, arg1) {
             arg0.randomFillSync(arg1);
         }, arguments); },
@@ -577,40 +866,40 @@ function __wbg_get_imports() {
             const ret = module.require;
             return ret;
         }, arguments); },
-        __wbg_static_accessor_GLOBAL_THIS_6614f2f4998e3c4c: function() { return logError(function () {
-            const ret = typeof globalThis === 'undefined' ? null : globalThis;
-            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        }, arguments); },
-        __wbg_static_accessor_GLOBAL_d8e8a2fefe80bc1d: function() { return logError(function () {
+        __wbg_static_accessor_GLOBAL_8dfb7f5e26ebe523: function() {
             const ret = typeof global === 'undefined' ? null : global;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        }, arguments); },
-        __wbg_static_accessor_SELF_e29eaf7c465526b1: function() { return logError(function () {
+        },
+        __wbg_static_accessor_GLOBAL_THIS_941154efc8395cdd: function() {
+            const ret = typeof globalThis === 'undefined' ? null : globalThis;
+            return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
+        },
+        __wbg_static_accessor_SELF_58dac9af822f561f: function() {
             const ret = typeof self === 'undefined' ? null : self;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        }, arguments); },
-        __wbg_static_accessor_WINDOW_66e7ca3eef30585a: function() { return logError(function () {
+        },
+        __wbg_static_accessor_WINDOW_ee64f0b3d8354c0b: function() {
             const ret = typeof window === 'undefined' ? null : window;
             return isLikeNone(ret) ? 0 : addToExternrefTable0(ret);
-        }, arguments); },
-        __wbg_subarray_f36da54ffa7114f5: function() { return logError(function (arg0, arg1, arg2) {
+        },
+        __wbg_subarray_035d32bb24a7d55d: function(arg0, arg1, arg2) {
             const ret = arg0.subarray(arg1 >>> 0, arg2 >>> 0);
             return ret;
-        }, arguments); },
-        __wbg_versions_276b2795b1c6a219: function() { return logError(function (arg0) {
+        },
+        __wbg_versions_276b2795b1c6a219: function(arg0) {
             const ret = arg0.versions;
             return ret;
-        }, arguments); },
-        __wbindgen_cast_0000000000000001: function() { return logError(function (arg0, arg1) {
+        },
+        __wbindgen_cast_0000000000000001: function(arg0, arg1) {
             // Cast intrinsic for `Ref(Slice(U8)) -> NamedExternref("Uint8Array")`.
             const ret = getArrayU8FromWasm0(arg0, arg1);
             return ret;
-        }, arguments); },
-        __wbindgen_cast_0000000000000002: function() { return logError(function (arg0, arg1) {
+        },
+        __wbindgen_cast_0000000000000002: function(arg0, arg1) {
             // Cast intrinsic for `Ref(String) -> Externref`.
             const ret = getStringFromWasm0(arg0, arg1);
             return ret;
-        }, arguments); },
+        },
         __wbindgen_init_externref_table: function() {
             const table = wasm.__wbindgen_externrefs;
             const offset = table.grow(4);
@@ -627,8 +916,15 @@ function __wbg_get_imports() {
     };
 }
 
-
-//#endregion
+const WasmDropletFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmdroplet_free(ptr >>> 0, 1));
+const WasmFountainDecoderFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmfountaindecoder_free(ptr >>> 0, 1));
+const WasmFountainEncoderFinalization = (typeof FinalizationRegistry === 'undefined')
+    ? { register: () => {}, unregister: () => {} }
+    : new FinalizationRegistry(ptr => wasm.__wbg_wasmfountainencoder_free(ptr >>> 0, 1));
 const WasmResultFinalization = (typeof FinalizationRegistry === 'undefined')
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmresult_free(ptr >>> 0, 1));
@@ -636,22 +932,21 @@ const WasmX25519KeyPairFinalization = (typeof FinalizationRegistry === 'undefine
     ? { register: () => {}, unregister: () => {} }
     : new FinalizationRegistry(ptr => wasm.__wbg_wasmx25519keypair_free(ptr >>> 0, 1));
 
-
-//#region intrinsics
 function addToExternrefTable0(obj) {
     const idx = wasm.__externref_table_alloc();
     wasm.__wbindgen_externrefs.set(idx, obj);
     return idx;
 }
 
-function _assertBoolean(n) {
-    if (typeof(n) !== 'boolean') {
-        throw new Error(`expected a boolean argument, found ${typeof(n)}`);
+function _assertClass(instance, klass) {
+    if (!(instance instanceof klass)) {
+        throw new Error(`expected instance of ${klass.name}`);
     }
 }
 
-function _assertNum(n) {
-    if (typeof(n) !== 'number') throw new Error(`expected a number argument, found ${typeof(n)}`);
+function getArrayU16FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
 }
 
 function getArrayU8FromWasm0(ptr, len) {
@@ -662,6 +957,14 @@ function getArrayU8FromWasm0(ptr, len) {
 function getStringFromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return decodeText(ptr, len);
+}
+
+let cachedUint16ArrayMemory0 = null;
+function getUint16ArrayMemory0() {
+    if (cachedUint16ArrayMemory0 === null || cachedUint16ArrayMemory0.byteLength === 0) {
+        cachedUint16ArrayMemory0 = new Uint16Array(wasm.memory.buffer);
+    }
+    return cachedUint16ArrayMemory0;
 }
 
 let cachedUint8ArrayMemory0 = null;
@@ -685,22 +988,6 @@ function isLikeNone(x) {
     return x === undefined || x === null;
 }
 
-function logError(f, args) {
-    try {
-        return f.apply(this, args);
-    } catch (e) {
-        let error = (function () {
-            try {
-                return e instanceof Error ? `${e.message}\n\nStack:\n${e.stack}` : e.toString();
-            } catch(_) {
-                return "<failed to stringify thrown value>";
-            }
-        }());
-        console.error("wasm-bindgen: imported JS function that was not marked as `catch` threw an error:", error);
-        throw e;
-    }
-}
-
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;
     getUint8ArrayMemory0().set(arg, ptr / 1);
@@ -709,7 +996,6 @@ function passArray8ToWasm0(arg, malloc) {
 }
 
 function passStringToWasm0(arg, malloc, realloc) {
-    if (typeof(arg) !== 'string') throw new Error(`expected a string argument, found ${typeof(arg)}`);
     if (realloc === undefined) {
         const buf = cachedTextEncoder.encode(arg);
         const ptr = malloc(buf.length, 1) >>> 0;
@@ -737,7 +1023,7 @@ function passStringToWasm0(arg, malloc, realloc) {
         ptr = realloc(ptr, len, len = offset + arg.length * 3, 1) >>> 0;
         const view = getUint8ArrayMemory0().subarray(ptr + offset, ptr + len);
         const ret = cachedTextEncoder.encodeInto(arg, view);
-        if (ret.read !== arg.length) throw new Error('failed to pass whole string');
+
         offset += ret.written;
         ptr = realloc(ptr, len, offset, 1) >>> 0;
     }
@@ -781,14 +1067,11 @@ if (!('encodeInto' in cachedTextEncoder)) {
 
 let WASM_VECTOR_LEN = 0;
 
-
-//#endregion
-
-//#region wasm loading
 let wasmModule, wasm;
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
+    cachedUint16ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     wasm.__wbindgen_start();
     return wasm;
@@ -876,5 +1159,3 @@ async function __wbg_init(module_or_path) {
 }
 
 export { initSync, __wbg_init as default };
-//#endregion
-export { wasm as __wasm }

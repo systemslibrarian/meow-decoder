@@ -61,7 +61,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **Canonical AAD**: Deterministic `version_byte || fields` construction (`canonical_aad.py`) (MT-1)
 - [x] **Tamper Timeline**: Frame-by-frame MAC report with cluster detection (`tamper_report.py`) (MT-7)
 - [x] **Mobile Bridge Protocol**: JSON-over-WebSocket phone→CLI bridge (`mobile/bridge/protocol.py`) (MT-8)
-- [x] **Meow Capture v3.2**: Production-ready React Native companion app ([mobile/README.md](../mobile/README.md)) — CaptureCoachPanel, CalibrationWizard, DiagnosticsPanel, SettingsScreen (Strict/Convenience mode), SHA-256 export verify, multi-device merge CLI (`meow_decoder/merge.py`), accessibility announcements. **[📥 Download APK v3.2.2](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk)** — iOS & store listings coming soon.
+- [x] **Meow Capture v3.2**: Production-ready React Native companion app ([mobile/README.md](../mobile/README.md)) — CaptureCoachPanel, CalibrationWizard, DiagnosticsPanel, SettingsScreen (Strict/Convenience mode), SHA-256 export verify, multi-device merge CLI (`meow_decoder/merge.py`), accessibility announcements. **[📥 Download APK v3.2.1](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk)** — iOS & Play Store listings coming soon.
 - [x] **Self-Test CLI**: `meow-encode --self-test` verifies backend, roundtrip, fountain (ST-6)
 - [x] **Duplicate Quarantine**: Deprecated paths moved to `meow_decoder/experimental/` (ST-1)
 - [x] **CLI Hardware Flags**: `--hsm-slot`, `--tpm-seal`, `--hardware-auto` wired (ST-8)
@@ -158,8 +158,127 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ---
 
+## Product And UX Track (2026-05-04)
+
+This roadmap started as a security roadmap and remains the source of truth for protocol and hardening work. The sections below add the current product and UX track so roadmap planning stays in one canonical document.
+
+### Product Direction
+
+Meow Decoder is close to 10/10 technically, but not yet as an app.
+
+The next quality leap is mostly about product shape, not new crypto modes:
+
+- make the safest path the simplest path
+- reduce user-visible operational complexity
+- make sender and receiver roles obvious
+- improve trust packaging and distribution maturity
+- separate recommended, advanced, and experimental workflows
+
+### Highest-Leverage Product Priorities
+
+#### 1. One Golden Workflow
+
+Default path across web, CLI, and mobile:
+
+- choose file
+- choose password
+- show transfer
+- scan with phone
+- export capture
+- recover file
+
+Everything else should move behind Advanced or Experimental.
+
+#### 2. Zero-Setup Pairing
+
+The phone should not require users to reason about capture requests, expected frame counts, or session metadata in the happy path.
+
+#### 3. Certainty Instead Of Statistics
+
+Translate internal transfer heuristics into plain-language states:
+
+- keep scanning
+- almost done
+- safe to stop
+- ready to export
+
+#### 4. Receiver Experience Completion
+
+The mobile app should feel like a complete receiver, not just a capture utility.
+
+#### 5. Trust And Distribution
+
+High-value maturity work:
+
+- signed desktop builds
+- Play Store release
+- App Store release
+- third-party audit
+- clearer end-user trust communication
+
+### Product Workstreams
+
+#### Positioning And Narrative
+
+- Rewrite public-facing docs around the default transfer story
+- Lead with offline transfer outcome, not protocol mechanism
+- Reduce early self-disqualification language in core surfaces
+
+#### Web Default Flow Simplification
+
+- Simplify sender-side encode flow
+- Move mode sprawl behind advanced options
+- Improve transfer-ready and stop-condition guidance
+
+#### Mobile Receiver Simplification
+
+- Make scan sender screen the obvious primary action
+- Demote manual and JSON-first workflows into fallback tools
+- Strengthen completion and export states
+
+#### Trust Surface And Feature Taxonomy
+
+- Distinguish Recommended, Advanced, and Experimental features
+- Make trust boundaries understandable without reading deep threat-model docs
+
+### Suggested Milestone Sequence
+
+#### Milestone A: Message And Default Flow ✅ Shipped (2026-05-04)
+
+- [x] README and landing-copy rewrite — outcome-led lede, recommended path elevated, soft "best fit / less ideal" framing
+- [x] web default-flow simplification — Standard mode default, Recommended/Experimental optgroups, nav re-grouped, outcome-led tagline
+- [x] mobile primary-action simplification — Scan Sender Screen promoted to primary; JSON / Video import / manual entry demoted into an Advanced Setup section
+
+Tracking branch: `audit/cat-mode-fixes` (PR #172). See CHANGELOG entry "Product & UX track — Milestones A and B".
+
+#### Milestone B: Receiver Experience ✅ Shipped (2026-05-05)
+
+- [x] capture-state language rewrite — milestone toasts and status labels use spec-aligned situational language ("Keep scanning", "Almost done", "Safe to stop") instead of leading percentages; CaptureCoachPanel safe-to-stop hint aligned
+- [x] export-state completion redesign — ExportScreen title becomes "Transfer captured" with the spec's mandated subtitle; recovery estimates lead with "Ready to export"; section headings reframed away from artifact-led ADB / JSON copy
+- [x] onboarding focused on first-transfer success — OnboardingScreen subtitle, three-step copy, and security bullets rewritten around the default-transfer story; implementation specifics (GIF, ADB, JSON-to-Downloads) dropped from the first-run flow
+- [x] web parity — `result.html` reframed as "Transfer Ready" (Show Transfer state); `decode.html` reframed as "Recover File"
+
+#### Milestone C: Trust And Market Readiness 🟢 In-house deliverables shipped (2026-05-05)
+
+- [x] trust-center style documentation (`docs/TRUST_CENTER.md`) — plain-language trust framing with the Recommended / Advanced / Experimental taxonomy
+- [x] packaging and release maturity communication — per-artifact maturity tier (CLI, web, Android APK, iOS, Rust crate), signing posture, distribution channel, and verification recipe documented in `docs/RELEASE_MATURITY.md`
+- [x] external audit readiness — `docs/AUDIT_READINESS.md` is the one-stop pre-audit checklist (scope, threat model, protocol, test coverage, fuzzing, formal methods, hardware paths, recently closed findings, supply-chain posture, known gaps to look at)
+
+**Out of in-house scope** (depend on external parties / market timing): signed desktop builds beyond the existing Sigstore-cosigned wheel pipeline, Play Store + App Store listings, a contracted third-party security audit (Phase 10 of the security roadmap), and a published CVE process. These are now blocked only on external engagement — the in-house artifacts an external party needs are in place.
+
+### Supporting Planning Docs
+
+- `docs/TRUST_CENTER.md`
+- `docs/DEFAULT_WORKFLOW_SPEC.md`
+- `gemini_suggetions.md`
+- `gemini_suggestions_v2.md`
+
+These supporting docs are working notes and planning artifacts. This roadmap remains the canonical high-level summary.
+
+---
+
 For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible disclosure.
 
 ---
 
-*Last Updated: February 25, 2026*
+*Last Updated: May 4, 2026*

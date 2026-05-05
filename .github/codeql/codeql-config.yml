@@ -1,0 +1,33 @@
+name: "Meow Decoder CodeQL config"
+
+# CodeQL's default queries flag patterns that are routine in test code:
+#   * Hard-coded keys / nonces in unit tests (deterministic test vectors).
+#   * Permissive "extract this token from our own template" regexes used
+#     for assertion plumbing, not for sanitising adversary input.
+# Excluding test directories from analysis keeps the alert stream focused
+# on production code paths where these patterns are real findings.
+
+paths-ignore:
+  # Python test suites
+  - "tests/**"
+  - "fuzz/**"
+  - "scripts/**"
+
+  # Rust unit + integration tests (lib `mod tests` blocks remain inside
+  # crate sources, but anything under `tests/` is integration-only).
+  - "crypto_core/tests/**"
+  - "rust_crypto/tests/**"
+
+  # Web demo & mobile companion test specs
+  - "web_demo/tests/**"
+  - "web_demo/**/*.spec.js"
+  - "mobile/**/*.test.*"
+  - "mobile/**/__tests__/**"
+
+  # Historical snapshots — kept for reference, not built or shipped
+  - "archive/**"
+
+  # Vendored / generated artifacts
+  - "node_modules/**"
+  - "target/**"
+  - "**/*.min.js"

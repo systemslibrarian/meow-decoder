@@ -317,7 +317,12 @@ async def run_websocket_bridge(
             except Exception as e:
                 await websocket.send(Error(code="INTERNAL", message=str(e)).to_json())
 
-    async with websockets.serve(handler, "0.0.0.0", port):
+    # Bind 0.0.0.0 because the mobile bridge exists specifically so the
+    # React Native app on a separate device (over LAN/USB tether) can
+    # connect to the decoder running on the developer's host. A loopback
+    # bind would defeat the purpose. Authentication is handled per-message
+    # via the protocol — bandit B104 doesn't apply to this use case.
+    async with websockets.serve(handler, "0.0.0.0", port):  # nosec B104
         print(f"Mobile bridge WebSocket server listening on ws://0.0.0.0:{port}")
         print("Waiting for mobile app connection...")
         await asyncio.Future()  # Run forever

@@ -183,6 +183,10 @@ tokio = { version = "1.52", features = ["rt-multi-thread", "macros"] }
 # Hex encoding for test vectors
 hex = "0.4"
 
+# JSON parsing for fountain golden-vector manifest (test-only).
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
 [features]
 # ============================================
 # Feature Flags (Modular Compilation)
@@ -258,12 +262,22 @@ wasm = [
 # NOTE: ml-kem is pure Rust and fully WASM-compatible
 wasm-pq = ["wasm", "ml-kem", "kem"]
 
+# WebAssembly with Luby Transform fountain code (Phase 3 of the
+# Rust+WASM unification — see docs/FOUNTAIN_RUST_WASM_MIGRATION.md).
+wasm-fountain = ["wasm", "fountain"]
+
 # ============================================
 # Meta Features
 # ============================================
 
+# Luby Transform fountain code — pure deterministic Rust, no crypto deps.
+# Implementation must produce byte-identical droplets to the existing
+# Python encoder (meow_decoder/fountain.py) for the 16 golden vectors
+# under tests/golden/fountain/. See docs/FOUNTAIN_RUST_WASM_MIGRATION.md.
+fountain = []
+
 # Everything except hardware (for cross-compilation)
-full-software = ["pure-crypto", "pq-crypto"]
+full-software = ["pure-crypto", "pq-crypto", "fountain"]
 
 # Everything (requires native platform)
 full = ["full-software", "hardware-full"]

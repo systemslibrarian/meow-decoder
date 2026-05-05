@@ -10,7 +10,10 @@ branch = true
 source =
     meow_decoder
 omit =
-    # Archived (non-production) modules
+    # Archived (non-production) modules — moved to top-level archive/ in
+    # commit on audit/cat-mode-fixes; keep the legacy path glob too in case
+    # a stale checkout still has it.
+    archive/*
     meow_decoder/_archive/*
     # Debug/verbose variants
     meow_decoder/*_DEBUG.py

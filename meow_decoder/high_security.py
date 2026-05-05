@@ -441,10 +441,11 @@ def generate_innocuous_filename() -> str:
 
     years = ["2024", "2025", "2026"]
 
-    import random
-
-    prefix = random.choice(prefixes)
-    year = random.choice(years)
+    # Use secrets, not random — this filename is meant to give an attacker
+    # who sees the carrier name no useful signal. random.choice is seeded
+    # from time and predictable; secrets.choice draws from the OS CSPRNG.
+    prefix = secrets.choice(prefixes)
+    year = secrets.choice(years)
 
     return f"{prefix}_{year}.gif"
 

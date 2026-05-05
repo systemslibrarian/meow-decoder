@@ -20,7 +20,8 @@ def pre_mutation(context):
         "examples/",
         "fuzz/",
         "scripts/",
-        "meow_decoder/_archive",
+        "archive/",
+        "meow_decoder/_archive",  # legacy path — kept for stale checkouts
         "meow_decoder/progress",
         "meow_decoder/webcam",
         "meow_decoder/profiling",

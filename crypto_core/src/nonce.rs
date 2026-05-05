@@ -128,6 +128,9 @@ impl NonceGenerator {
     /// Panics if system RNG fails (should never happen on modern systems).
     pub fn new() -> Self {
         let mut session_id = [0u8; 4];
+        // System RNG failure here means the OS cannot provide entropy; the
+        // process cannot safely continue generating nonces, so panic.
+        #[allow(clippy::expect_used)]
         getrandom::fill(&mut session_id)
             .expect("System RNG failed - cannot generate secure nonces");
 

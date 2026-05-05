@@ -9,11 +9,11 @@ Features:
 - Efficient block management
 """
 
+import math
 import struct
 import random
 from typing import List, Tuple, Optional, Set
 from dataclasses import dataclass
-import numpy as np
 
 
 @dataclass
@@ -71,7 +71,11 @@ class RobustSolitonDistribution:
             rho[i] = 1.0 / (i * (i - 1))
 
         # Robust part (τ)
-        R = self.c * np.log(k / self.delta) * np.sqrt(k)
+        # math.log + math.sqrt are bit-equivalent to numpy.log/sqrt
+        # for f64 inputs on every libm we ship against; dropping
+        # numpy means fountain.py no longer drags in a 30 MB native
+        # dependency just for two scalar calls.
+        R = self.c * math.log(k / self.delta) * math.sqrt(k)
         tau = [0.0] * (k + 1)
 
         # Clamp spike index to valid range [1, k]
@@ -81,7 +85,7 @@ class RobustSolitonDistribution:
 
         for i in range(1, m):
             tau[i] = R / (i * k)
-        tau[m] = R * np.log(R / self.delta) / k
+        tau[m] = R * math.log(R / self.delta) / k
 
         # Combine ρ and τ
         mu = [rho[i] + tau[i] for i in range(k + 1)]
@@ -118,11 +122,41 @@ class RobustSolitonDistribution:
         return 1
 
 
+# ── Rust encoder backend (Phase 2b of the migration plan) ───────────────────
+#
+# `meow_crypto_rs.FountainEncoder` is the pure-Rust LT encoder under
+# `crypto_core::meow_fountain`. It produces droplets byte-identical to the
+# legacy Python encoder for the 16 golden vectors under
+# `tests/golden/fountain/`. We feature-detect at import time so a stale wheel
+# without the fountain symbols still works (falls back to the pure-Python
+# encoder defined below).
+try:
+    from meow_crypto_rs import (
+        FountainEncoder as _RustFountainEncoder,
+        FountainDecoder as _RustFountainDecoder,
+        Droplet as _RustDroplet,
+    )
+
+    _RUST_FOUNTAIN_AVAILABLE = True
+except ImportError:
+    _RUST_FOUNTAIN_AVAILABLE = False
+
+
 class FountainEncoder:
     """
     Fountain code encoder using Luby Transform codes.
 
-    Generates an endless stream of encoded droplets from source blocks.
+    Phase 2b of the Rust+WASM unification (see
+    docs/FOUNTAIN_RUST_WASM_MIGRATION.md): when meow_crypto_rs is
+    available with the fountain feature, this class delegates to the
+    Rust core for byte-identical droplet generation; the pure-Python
+    fallback below preserves the legacy behaviour for environments
+    without the binding.
+
+    The public API and droplet wire format are unchanged. The
+    ``data``, ``blocks``, ``distribution``, and ``droplet_count``
+    attributes are still exposed for tests that inspect encoder
+    internals.
     """
 
     def __init__(self, data: bytes, k_blocks: int, block_size: int):
@@ -147,14 +181,30 @@ class FountainEncoder:
             raise ValueError(f"fountain: total_size {total_size} exceeds 10 GiB sanity ceiling")
         self.data = data + b"\x00" * (total_size - len(data))
 
-        # Split into blocks
+        # Split into blocks (kept around so tests / introspection still
+        # see the per-block view; the Rust encoder works on its own
+        # internal copy).
         self.blocks = [self.data[i * block_size : (i + 1) * block_size] for i in range(k_blocks)]
 
-        # Initialize distribution
+        # Initialize distribution (still Python — exposes
+        # `.distribution` and `.sample_degree(rng)` for tests).
         self.distribution = RobustSolitonDistribution(k_blocks)
 
         # Droplet counter
         self.droplet_count = 0
+
+        # Rust encoder, if available. Constructed lazily on the
+        # *padded* `self.data` so its internal blocks match the
+        # Python-side `self.blocks`.
+        if _RUST_FOUNTAIN_AVAILABLE:
+            try:
+                self._rust = _RustFountainEncoder(bytes(self.data), k_blocks, block_size)
+            except (ValueError, RuntimeError):
+                # Defensive — should only happen if the Rust side
+                # disagrees on shape, which we already validated.
+                self._rust = None
+        else:
+            self._rust = None
 
     def droplet(self, seed: Optional[int] = None) -> Droplet:
         """
@@ -171,26 +221,32 @@ class FountainEncoder:
 
         self.droplet_count += 1
 
-        # For small k (and especially in tests), it's valuable to make early droplets
-        # systematic (degree-1). This dramatically improves decode reliability under
-        # loss without weakening confidentiality (payload is already high-entropy).
+        # ── Fast path: delegate to the Rust encoder ──
+        # The Rust impl handles both the systematic (seed < 2*k) and
+        # the Robust-Soliton paths in a single byte-identical
+        # implementation. Translate the returned droplet into the
+        # canonical Python dataclass.
+        if self._rust is not None and 0 <= seed <= 0xFFFF_FFFF:
+            d = self._rust.droplet(seed)
+            return Droplet(
+                seed=int(d.seed),
+                block_indices=list(d.block_indices),
+                data=bytes(d.data),
+            )
+
+        # ── Pure-Python fallback (legacy path) ──
+        # For small k (and especially in tests), it's valuable to make
+        # early droplets systematic (degree-1).
         if seed < (2 * self.k_blocks):
             block_idx = seed % self.k_blocks
             block_indices = [block_idx]
             xor_data = bytearray(self.blocks[block_idx])
         else:
-            # Use a local RNG instance to avoid mutating global random state
-            # (thread safety + prevents interference from other code)
+            # Local RNG instance to avoid mutating global random state.
             rng = random.Random(seed)
-
-            # Sample degree
             degree = self.distribution.sample_degree(rng)
-
-            # Select random blocks
             block_indices = rng.sample(range(self.k_blocks), min(degree, self.k_blocks))
             block_indices.sort()
-
-            # XOR selected blocks
             xor_data = bytearray(self.block_size)
             for idx in block_indices:
                 block_data = self.blocks[idx]
@@ -216,7 +272,21 @@ class FountainDecoder:
     """
     Fountain code decoder using belief propagation.
 
-    Reconstructs original data from received droplets.
+    Phase 2b of the Rust+WASM unification: when meow_crypto_rs is
+    available, delegates to the Rust BP decoder; pure-Python fallback
+    retained for environments without the binding.
+
+    The public API is unchanged: ``add_droplet(droplet) -> bool``,
+    ``is_complete()``, ``get_data(original_length=None) -> bytes``,
+    plus ``k_blocks``, ``block_size``, ``original_length``,
+    ``decoded_count`` attributes.
+
+    Whitebox internals from the legacy implementation
+    (``decoder.blocks``, ``decoder.decoded``, ``decoder.pending_droplets``,
+    ``decoder._reduce_droplet``, ``decoder._process_pending``) are NO
+    LONGER exposed when the Rust backend is in use. The two whitebox
+    tests in ``tests/test_fountain.py`` were rewritten as black-box
+    tests against the public API in commit on this branch.
     """
 
     def __init__(self, k_blocks: int, block_size: int, original_length: Optional[int] = None):
@@ -226,23 +296,49 @@ class FountainDecoder:
         Args:
             k_blocks: Number of source blocks
             block_size: Size of each block in bytes
-            original_length: Original data length (before padding). Optional; can be provided later to get_data()
+            original_length: Original data length (before padding).
+                Optional; can be provided later to get_data().
         """
         self.k_blocks = k_blocks
         self.block_size = block_size
         self.original_length = original_length
 
-        # Decoded blocks
-        self.blocks = [None] * k_blocks
-        self.decoded = [False] * k_blocks
-        self.decoded_count = 0
+        if _RUST_FOUNTAIN_AVAILABLE:
+            self._rust = _RustFountainDecoder(k_blocks, block_size)
+            # Mirror minimal Python-side state for the legacy attribute
+            # surface — `decoded_count` is read by production callers
+            # (decode_gif.py:808). We keep it in sync from the Rust
+            # side after every `add_droplet` call.
+            self._rust_active = True
+        else:
+            self._rust = None
+            self._rust_active = False
+            # Legacy Python state.
+            self.blocks = [None] * k_blocks
+            self.decoded = [False] * k_blocks
+            self.pending_droplets: List[Droplet] = []
 
-        # Pending droplets (cannot be decoded yet)
-        self.pending_droplets: List[Droplet] = []
+        # `decoded_count` is exposed regardless of backend.
+        self.decoded_count = 0
 
     def is_complete(self) -> bool:
         """Check if decoding is complete."""
+        if self._rust_active:
+            return self._rust.is_complete()
         return self.decoded_count == self.k_blocks
+
+    @property
+    def pending_count(self) -> int:
+        """Number of droplets currently in the BP pending queue.
+
+        Replaces direct `len(decoder.pending_droplets)` access from the
+        legacy Python decoder. Both backends expose it as a property so
+        introspection-style tests (Schrödinger DoS bound check, fuzz-
+        progress invariants) work uniformly.
+        """
+        if self._rust_active:
+            return self._rust.pending_count
+        return len(self.pending_droplets)
 
     def add_droplet(self, droplet: Droplet) -> bool:
         """
@@ -254,44 +350,41 @@ class FountainDecoder:
         Returns:
             True if decoding is complete
         """
-        # Reduce droplet using already-decoded blocks
+        if self._rust_active:
+            # Translate the Python `Droplet` dataclass into the Rust
+            # `Droplet` type. The Rust class accepts (seed, indices, data)
+            # in its constructor.
+            rust_droplet = _RustDroplet(
+                int(droplet.seed),
+                list(droplet.block_indices),
+                bytes(droplet.data),
+            )
+            done = self._rust.add_droplet(rust_droplet)
+            self.decoded_count = self._rust.decoded_count
+            return done
+
+        # ── Pure-Python fallback (legacy path) ──
         droplet = self._reduce_droplet(droplet)
 
         if len(droplet.block_indices) == 0:
-            # Droplet is redundant
             return self.is_complete()
 
         if len(droplet.block_indices) == 1:
-            # Degree-1 droplet - can decode immediately
             block_idx = droplet.block_indices[0]
             self._decode_block(block_idx, droplet.data)
-
-            # Process pending droplets (belief propagation)
             self._process_pending()
         else:
-            # Degree > 1 - add to pending
             self.pending_droplets.append(droplet)
 
         return self.is_complete()
 
     def _reduce_droplet(self, droplet: Droplet) -> Droplet:
-        """
-        Reduce droplet by XORing out already-decoded blocks.
-
-        Args:
-            droplet: Original droplet
-
-        Returns:
-            Reduced droplet
-        """
-        # Find unknown blocks
+        """Pure-Python BP reduce. Only used in the no-Rust fallback path."""
         unknown_indices = [idx for idx in droplet.block_indices if not self.decoded[idx]]
 
         if len(unknown_indices) == len(droplet.block_indices):
-            # No decoded blocks - return original
             return droplet
 
-        # XOR out decoded blocks
         reduced_data = bytearray(droplet.data)
         for idx in droplet.block_indices:
             if self.decoded[idx]:
@@ -301,25 +394,14 @@ class FountainDecoder:
         return Droplet(seed=droplet.seed, block_indices=unknown_indices, data=bytes(reduced_data))
 
     def _decode_block(self, block_idx: int, block_data: bytes):
-        """
-        Decode a block.
-
-        Args:
-            block_idx: Block index
-            block_data: Block data
-        """
+        """Pure-Python decode. Only used in the no-Rust fallback path."""
         if not self.decoded[block_idx]:
             self.blocks[block_idx] = block_data
             self.decoded[block_idx] = True
             self.decoded_count += 1
 
     def _process_pending(self):
-        """
-        Process pending droplets using belief propagation.
-
-        This is called after decoding a block to check if any
-        pending droplets can now be decoded.
-        """
+        """Pure-Python BP. Only used in the no-Rust fallback path."""
         made_progress = True
 
         while made_progress:
@@ -327,19 +409,15 @@ class FountainDecoder:
             new_pending = []
 
             for droplet in self.pending_droplets:
-                # Reduce droplet
                 reduced = self._reduce_droplet(droplet)
 
                 if len(reduced.block_indices) == 0:
-                    # Redundant - skip
                     continue
                 elif len(reduced.block_indices) == 1:
-                    # Can decode now
                     block_idx = reduced.block_indices[0]
                     self._decode_block(block_idx, reduced.data)
                     made_progress = True
                 else:
-                    # Still pending
                     new_pending.append(reduced)
 
             self.pending_droplets = new_pending
@@ -350,7 +428,7 @@ class FountainDecoder:
 
         Args:
             original_length: Original data length (before padding).
-                           If None, uses length provided to __init__.
+                If None, uses length provided to __init__.
 
         Returns:
             Reconstructed data
@@ -364,17 +442,17 @@ class FountainDecoder:
                 f"Decoding incomplete: {self.decoded_count}/{self.k_blocks} blocks decoded"
             )
 
-        # Use provided length, or fall back to stored length
         if original_length is None:
             original_length = self.original_length
 
         if original_length is None:
             raise ValueError("original_length must be provided either to __init__ or get_data()")
 
-        # Concatenate blocks
-        full_data = b"".join(self.blocks)
+        if self._rust_active:
+            full_data = self._rust.recovered_data()
+        else:
+            full_data = b"".join(self.blocks)
 
-        # Remove padding
         return full_data[:original_length]
 
 

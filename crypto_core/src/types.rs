@@ -143,6 +143,9 @@ impl AssociatedData {
 /// Prefer `AssociatedData::new()` when handling untrusted input.
 impl From<&[u8]> for AssociatedData {
     fn from(bytes: &[u8]) -> Self {
+        // Documented panic for trusted-input `From` impl; untrusted callers
+        // must use `AssociatedData::new()` and handle the `Err` branch.
+        #[allow(clippy::expect_used)]
         Self::new(bytes.to_vec())
             .expect("AAD from slice exceeds MAX_LEN; use TryFrom for untrusted input")
     }

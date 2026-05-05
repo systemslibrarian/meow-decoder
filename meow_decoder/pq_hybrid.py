@@ -33,7 +33,7 @@ import secrets
 import struct
 from typing import Tuple, Optional
 
-from .crypto_backend import get_default_backend, get_handle_backend
+from .crypto_backend import get_default_backend, get_handle_backend, secure_zero_memory
 from .security_warnings import warn_pq_experimental
 
 # ── ML-KEM variant constants ─────────────────────────────────────────────────
@@ -189,6 +189,24 @@ class HybridKeyPair:
             )
         """
         return self._classical_public_bytes
+
+    def __del__(self):
+        """Best-effort zeroization of secret material on collection.
+
+        Python doesn't guarantee __del__ runs (cycles, interpreter exit),
+        and bytes objects are immutable so we can't overwrite in place —
+        but we can copy into a bytearray and zero that. Catches the
+        common case where the keypair drops out of scope normally.
+        """
+        for attr in ("_classical_private_bytes", "_pq_secret_bytes"):
+            buf = getattr(self, attr, None)
+            if buf:
+                try:
+                    mut = bytearray(buf)
+                    secure_zero_memory(mut)
+                except Exception:
+                    pass
+                setattr(self, attr, None)
 
 
 def _compute_transcript_hash(

@@ -13,7 +13,7 @@ crate-type = ["cdylib", "lib"]
 
 [dependencies]
 # Verified crypto primitives (local crate with Verus proofs)
-crypto_core = { version = "1.0.0", path = "../crypto_core" }
+crypto_core = { version = "1.0.0", path = "../crypto_core", features = ["fountain"] }
 
 # PyO3 for Python bindings (upgrade to address RUSTSEC-2026-0013)
 # Made optional so cargo-tarpaulin can run without Python linking

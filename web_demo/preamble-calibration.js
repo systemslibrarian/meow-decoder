@@ -164,7 +164,11 @@ function detectPreamble(frames, minTransitionRate = 0.7, minDuration = 0.8, opti
                 // run seen so far. Once we have a few single-bit runs as the
                 // reference, a 2-bit or 7-bit data run will trip this and end
                 // the preamble region at the correct spot.
-                if (alternations >= 4 && runLen > minInteriorLen * 1.75) {
+                // Tie the early-termination probe count to the caller's
+                // minAlternations so short-video mode (low minAlternations)
+                // doesn't have its search undermined by a hard-coded 4.
+                const probeMin = Math.max(2, Math.min(4, minAlternations - 1));
+                if (alternations >= probeMin && runLen > minInteriorLen * 1.75) {
                     break;
                 }
                 alternations++;
@@ -287,7 +291,12 @@ function learnFromPreamble(frames, preambleRegion) {
     // In the alternating preamble 1010..., each bit occupies one full
     // period and toggles state at the boundary. The interval between
     // successive transitions IS the bit period (not half of it).
-    const medianInterval = median(intervals);
+    //
+    // Require at least 3 intervals before trusting the median. Otherwise a
+    // single stray transition (jitter, one decode glitch) sets bitRate to
+    // a millisecond-scale value and the NRZ decoder samples thousands of
+    // bits into a few ms of video — pure garbage.
+    const medianInterval = intervals.length >= 3 ? median(intervals) : 0;
     const bitRate = medianInterval > 0 ? medianInterval : null;
 
     NRZ_DEBUG && console.log(`📊 [Preamble] Learned: on=${onMean.toFixed(3)}±${onStd.toFixed(3)}, off=${offMean.toFixed(3)}±${offStd.toFixed(3)}, threshold=${threshold.toFixed(3)}, bitRate=${bitRate ? (bitRate * 1000).toFixed(1) + 'ms' : 'N/A'}`);
@@ -336,6 +345,20 @@ function detectPreambleWithFallback(frames, uiSpeedMs, allScores) {
 
     // FALLBACK: Use UI speed + percentile threshold
     NRZ_DEBUG && console.log('⚠️ [Preamble] Not detected - using fallback (UI speed + percentile threshold)');
+
+    // Empty / very short allScores would make the percentile lookups return
+    // `undefined`, propagating NaN/undefined into the NRZ decoder's
+    // threshold checks. Surface the failure cleanly instead.
+    if (!allScores || allScores.length === 0) {
+        return {
+            found: false,
+            preamble: null,
+            threshold: 0.5,
+            bitRate: uiSpeedMs / 1000,
+            learned: null,
+            error: 'no_samples'
+        };
+    }
 
     const sorted = allScores.slice().sort((a, b) => a - b);
     const p5 = sorted[Math.floor(sorted.length * 0.05)];

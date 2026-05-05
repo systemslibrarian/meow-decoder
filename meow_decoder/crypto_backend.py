@@ -15,6 +15,7 @@ Usage:
 
 import os
 import secrets
+import threading
 from typing import Optional, Tuple, Union, Literal
 from dataclasses import dataclass
 
@@ -299,13 +300,21 @@ class CryptoBackend:
 
 # Module-level convenience functions using default backend
 _default_backend: Optional[CryptoBackend] = None
+_default_backend_lock = threading.Lock()
 
 
 def get_default_backend() -> CryptoBackend:
-    """Get the default crypto backend (Rust-only)."""
+    """Get the default crypto backend (Rust-only).
+
+    Locked to prevent two callers from simultaneously creating distinct
+    CryptoBackend instances under the singleton — the second instance
+    would silently leak its initialization work and any subsequent state.
+    """
     global _default_backend
     if _default_backend is None:
-        _default_backend = CryptoBackend()
+        with _default_backend_lock:
+            if _default_backend is None:
+                _default_backend = CryptoBackend()
     return _default_backend
 
 
@@ -460,6 +469,16 @@ class HandleBackend:
     def hmac_sha256_verify(self, key_handle: int, message: bytes, expected_tag: bytes) -> bool:
         """Verify HMAC-SHA256 constant-time using key handle."""
         return self._rs.handle_hmac_sha256_verify(key_handle, message, expected_tag)
+
+    def hmac_sha256_to_handle(self, key_handle: int, message: bytes) -> int:
+        """Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+        as a new SymmetricKey handle. Derived bytes never cross FFI.
+
+        Use for derived sub-keys whose lifetime extends past the HMAC call
+        (e.g. stego per-payload `enc_key`). Avoids the round-trip via
+        bytes → import_key.
+        """
+        return self._rs.handle_hmac_sha256_to_handle(key_handle, message)
 
     def hmac_sha256_prefixed(self, key_handle: int, prefix: bytes, message: bytes) -> bytes:
         """Compute HMAC-SHA256 with effective key = prefix || handle_key.
@@ -635,6 +654,31 @@ class HandleBackend:
         """Zeroize and free a handle."""
         self._rs.handle_drop(handle_id)
 
+    def seal_key(
+        self,
+        payload_handle: int,
+        encryption_key_handle: int,
+        nonce: bytes,
+        aad: Optional[bytes] = None,
+    ) -> bytes:
+        """Seal payload handle's key bytes under encryption_key_handle (AES-256-GCM).
+
+        Both keys remain in Rust; only the AEAD ciphertext (32-byte key + 16-byte
+        tag = 48 bytes) crosses the FFI. Use for encrypted-at-rest persistence
+        of long-lived keys without ever exposing plaintext to Python.
+        """
+        return self._rs.handle_seal_key(payload_handle, encryption_key_handle, nonce, aad)
+
+    def unseal_key(
+        self,
+        ciphertext: bytes,
+        encryption_key_handle: int,
+        nonce: bytes,
+        aad: Optional[bytes] = None,
+    ) -> int:
+        """Unseal a sealed key blob to a new SymmetricKey handle. Fail-closed."""
+        return self._rs.handle_unseal_key(ciphertext, encryption_key_handle, nonce, aad)
+
     def export_key(self, handle_id: int) -> bytes:
         """PRODUCTION-FORBIDDEN: Export raw key bytes from handle.
 
@@ -666,13 +710,19 @@ class HandleBackend:
 
 
 _default_handle_backend: Optional[HandleBackend] = None
+_default_handle_backend_lock = threading.Lock()
 
 
 def get_handle_backend() -> HandleBackend:
-    """Get the default handle-based crypto backend."""
+    """Get the default handle-based crypto backend.
+
+    Same singleton-init race protection as get_default_backend().
+    """
     global _default_handle_backend
     if _default_handle_backend is None:
-        _default_handle_backend = HandleBackend()
+        with _default_handle_backend_lock:
+            if _default_handle_backend is None:
+                _default_handle_backend = HandleBackend()
     return _default_handle_backend
 
 

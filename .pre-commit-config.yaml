@@ -4,3 +4,28 @@ repos:
     hooks:
       - id: black
         language_version: python3
+
+  # Secret scanning — Finding 12.2. detect-secrets is the most actively
+  # maintained option that runs without external services.
+  # Generate the baseline once with:
+  #   pip install detect-secrets
+  #   detect-secrets scan > .secrets.baseline
+  # Then commit .secrets.baseline alongside this config.
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        args: ["--baseline", ".secrets.baseline"]
+        # Skip files known to contain non-credential high-entropy strings
+        # (test fixtures, formal-verification model outputs, etc).
+        exclude: |
+          (?x)^(
+            tests/.*\.txt|
+            formal/.*|
+            target/.*|
+            .*\.(spthy|pv|tla|lean)|
+            package-lock\.json|
+            web_demo/package-lock\.json|
+            crypto_core/Cargo\.lock|
+            rust_crypto/Cargo\.lock
+          )$

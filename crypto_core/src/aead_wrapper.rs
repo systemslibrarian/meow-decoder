@@ -138,6 +138,9 @@ impl NonceManager {
     pub fn new() -> Self {
         // Generate random prefix using system RNG
         let mut random_prefix = [0u8; 4];
+        // System RNG failure here means the OS cannot provide entropy; the
+        // process cannot safely continue with crypto operations, so panic.
+        #[allow(clippy::expect_used)]
         getrandom::fill(&mut random_prefix).expect("Failed to get random bytes");
 
         NonceManager {
@@ -188,6 +191,9 @@ impl NonceManager {
         // Track allocation in debug builds
         #[cfg(debug_assertions)]
         {
+            // Mutex poisoning means another thread panicked while holding the
+            // lock — propagating that panic is correct for a crypto invariant.
+            #[allow(clippy::unwrap_used)]
             let mut allocated = self.allocated.lock().unwrap();
             assert!(
                 !allocated.contains(&nonce),

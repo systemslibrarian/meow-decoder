@@ -10,6 +10,7 @@ import os
 import pytest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+JS_DIR = os.path.join(ROOT, "scripts", "dev")
 
 
 class TestCatBinaryJS:
@@ -18,7 +19,7 @@ class TestCatBinaryJS:
     def test_cat_binary_roundtrip(self):
         """Execute test_cat_binary.js and verify all 6 tests pass."""
         result = subprocess.run(
-            ["node", os.path.join(ROOT, "test_cat_binary.js")],
+            ["node", os.path.join(JS_DIR, "test_cat_binary.js")],
             capture_output=True,
             text=True,
             timeout=30,
@@ -37,22 +38,13 @@ class TestCatBinaryJS:
 class TestCat5SpeedsJS:
     """Run test_cat_5speeds.js (full encode→signal→decode pipeline at 5 speeds)."""
 
-    # Preamble-calibration overshoots duration by ~8 bits because the sync word
-    # uses the same alternating pattern as the preamble. NRZ then locks onto
-    # the sync inside the preamble, skipping data by one byte (decoded byte[0]
-    # is 0xca — the second half of magic 0xfe 0xca — instead of 0xfe).
-    # Reproduces on bare main without audit changes. Fix requires preamble-
-    # calibration to stop at expected 16-bit boundary instead of measuring by
-    # alternation extent. Tracked in FOLLOWUP.md.
-    @pytest.mark.xfail(
-        reason="pre-existing preamble/sync overlap in JS pipeline; "
-        "owner: cat-mode encoder/decoder maintainers",
-        strict=False,
-    )
+    # Previously xfail'd for preamble/sync overlap (NRZ would skip 8 bits and
+    # decode byte[0] as 0xca instead of 0xfe). Verified passing 5/5 runs after
+    # the cat-mode audit fixes (623bdd9, 06ad9dc) — xfail removed.
     def test_cat_5speeds_pipeline(self):
         """Execute test_cat_5speeds.js and verify all 5 speeds pass."""
         result = subprocess.run(
-            ["node", os.path.join(ROOT, "test_cat_5speeds.js")],
+            ["node", os.path.join(JS_DIR, "test_cat_5speeds.js")],
             capture_output=True,
             text=True,
             timeout=60,

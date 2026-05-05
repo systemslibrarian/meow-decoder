@@ -45,24 +45,28 @@ rule InitHeaderKeys:
   --[ InitHeader(~root_key) ]->
   [ !HeaderKey($Sender, hkdf(~root_key, ~salt, 'header'), ~root_key) ]
 
-/* Sender emits a frame with encrypted index */
+/* Sender emits a frame with encrypted index. The action fact carries
+   the header key `hk` so security lemmas can quantify over the SPECIFIC
+   header key used to mask this frame (Tamarin 1.12.0 wellformedness
+   requires every lemma-quantified variable to be bound by a premise). */
 rule SendFrame:
   let hk      = hkdf(root_key, salt, 'header')
       enc_idx = xor_mask(hk, idx)
   in
   [ !HeaderKey($Sender, hk, root_key),
     Fr(~idx), Fr(~payload) ]
-  --[ SentFrameWithIdx($Sender, ~idx, enc_idx, ~payload) ]->
+  --[ SentFrameWithIdx($Sender, ~idx, enc_idx, ~payload, hk) ]->
   [ Out(<enc_idx, ~payload>) ]
 
-/* Receiver decrypts header */
+/* Receiver decrypts header. Same — `hk` is exposed in the action fact
+   so HeaderAuthentication can talk about "this specific header key". */
 rule RecvFrame:
   let hk  = hkdf(root_key, salt, 'header')
       idx = unmask(hk, enc_idx)
   in
   [ !HeaderKey($Receiver, hk, root_key),
     In(<enc_idx, pl>) ]
-  --[ ReceivedFrameWithIdx($Receiver, idx, enc_idx, pl) ]->
+  --[ ReceivedFrameWithIdx($Receiver, idx, enc_idx, pl, hk) ]->
   []
 
 /* Adversary cannot forge a valid encrypted index without the header key */
@@ -86,7 +90,9 @@ rule AdversaryForgeHeader:
  */
 lemma HeaderIndistinguishability:
   "All sender idx enc_idx payload hk #t .
-    SentFrameWithIdx(sender, idx, enc_idx, payload) @ #t
+    /* SentFrameWithIdx/5 binds hk so it is no longer unguarded
+       (1.12.0 wellformedness — gemini #2 / FOLLOWUP MEDIUM). */
+    SentFrameWithIdx(sender, idx, enc_idx, payload, hk) @ #t
     ==>
     /* Adversary cannot learn idx from enc_idx without the header key */
     (not (Ex #t2 . KU(idx) @ #t2)) |
@@ -102,15 +108,19 @@ lemma HeaderIndistinguishability:
  * sender (i.e., no forged header can be accepted).
  */
 lemma HeaderAuthentication:
-  "All receiver idx enc_idx pl #t .
-    ReceivedFrameWithIdx(receiver, idx, enc_idx, pl) @ #t
+  "All receiver idx enc_idx pl recv_hk #t .
+    /* recv_hk binds the receiver's specific header key (no longer
+       unguarded under 1.12.0 wellformedness). */
+    ReceivedFrameWithIdx(receiver, idx, enc_idx, pl, recv_hk) @ #t
     ==>
     /* Either a legitimate sender sent this frame ... */
-    (Ex sender payload #t2 .
-      SentFrameWithIdx(sender, idx, enc_idx, payload) @ #t2 & #t2 < #t
+    (Ex sender payload sender_hk #t2 .
+      SentFrameWithIdx(sender, idx, enc_idx, payload, sender_hk) @ #t2
+      & #t2 < #t
     ) |
-    /* ... or the adversary knows the header key (and can forge) */
-    (Ex hk #t3 . KU(hk) @ #t3)
+    /* ... or the adversary knows the receiver's header key (so a forged
+       enc_idx could decrypt to a chosen idx). */
+    (Ex #t3 . KU(recv_hk) @ #t3)
   "
 
 /*
@@ -121,9 +131,9 @@ lemma HeaderAuthentication:
  * expected next frame.
  */
 lemma ReplayRejection:
-  "All sender receiver idx enc_idx1 enc_idx2 payload1 payload2 #t1 #t2 .
-    SentFrameWithIdx(sender, idx, enc_idx1, payload1) @ #t1 &
-    SentFrameWithIdx(sender, idx, enc_idx2, payload2) @ #t2 &
+  "All sender receiver idx enc_idx1 enc_idx2 payload1 payload2 hk1 hk2 #t1 #t2 .
+    SentFrameWithIdx(sender, idx, enc_idx1, payload1, hk1) @ #t1 &
+    SentFrameWithIdx(sender, idx, enc_idx2, payload2, hk2) @ #t2 &
     #t1 < #t2
     ==>
     enc_idx1 = enc_idx2   /* same idx always produces same masked form */
@@ -134,8 +144,8 @@ lemma ReplayRejection:
  */
 lemma Executability:
   exists-trace
-  "Ex sender idx enc_idx payload #t .
-    SentFrameWithIdx(sender, idx, enc_idx, payload) @ #t
+  "Ex sender idx enc_idx payload hk #t .
+    SentFrameWithIdx(sender, idx, enc_idx, payload, hk) @ #t
   "
 
 end

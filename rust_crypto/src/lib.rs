@@ -20,6 +20,8 @@
 //! file are thin wrappers over the pure functions.
 
 // Pure Rust crypto module (testable without Python)
+#[cfg(feature = "python")]
+pub mod fountain;
 pub mod pure;
 
 // Opaque handle registry (all secrets Rust-owned)
@@ -971,6 +973,14 @@ fn handle_hmac_sha256_verify(
     handles::handle_hmac_sha256_verify(key_handle, message, expected_tag).map_err(handle_err_to_py)
 }
 
+/// Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+/// as a new SymmetricKey handle (no plaintext crosses FFI).
+#[cfg(feature = "python")]
+#[pyfunction]
+fn handle_hmac_sha256_to_handle(key_handle: u64, message: &[u8]) -> PyResult<u64> {
+    handles::handle_hmac_sha256_to_handle(key_handle, message).map_err(handle_err_to_py)
+}
+
 /// Compute HMAC-SHA256 with prefixed key: effective key = prefix || handle_key.
 /// Enables domain-separated HMAC (e.g. manifest auth) without exporting the secret.
 #[cfg(feature = "python")]
@@ -1214,6 +1224,40 @@ fn handle_export_key<'py>(py: Python<'py>, id: u64) -> PyResult<Bound<'py, PyByt
     Ok(PyBytes::new(py, &bytes))
 }
 
+/// Seal one handle's key bytes with another handle's key (AES-256-GCM).
+/// Both keys remain in Rust; only the AEAD ciphertext crosses the FFI.
+/// Designed for encrypted-at-rest persistence of long-lived secret keys.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (payload_handle, encryption_key_handle, nonce, aad=None))]
+fn handle_seal_key<'py>(
+    py: Python<'py>,
+    payload_handle: u64,
+    encryption_key_handle: u64,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let ct = handles::handle_seal_key(payload_handle, encryption_key_handle, nonce, aad)
+        .map_err(handle_err_to_py)?;
+    Ok(PyBytes::new(py, &ct))
+}
+
+/// Unseal a sealed key blob into a new SymmetricKey handle.
+/// The plaintext key bytes never cross the FFI. Fail-closed on AEAD auth failure
+/// or non-32-byte plaintext.
+#[cfg(feature = "python")]
+#[pyfunction]
+#[pyo3(signature = (ciphertext, encryption_key_handle, nonce, aad=None))]
+fn handle_unseal_key(
+    ciphertext: &[u8],
+    encryption_key_handle: u64,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> PyResult<u64> {
+    handles::handle_unseal_key(ciphertext, encryption_key_handle, nonce, aad)
+        .map_err(handle_err_to_py)
+}
+
 /// Check if a handle exists (for testing only).
 #[cfg(feature = "python")]
 #[pyfunction]
@@ -1329,6 +1373,45 @@ fn stego_derive_walk_seed<'py>(
 ) -> PyResult<Bound<'py, PyBytes>> {
     let seed = stego::derive_walk_seed(master_key, frame_idx)
         .map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
+/// gemini #1: handle-based wrappers — derive seeds from a master key
+/// HANDLE rather than master_key bytes crossing the FFI on every call.
+/// Implementation extracts the key bytes inside Rust (never crossing
+/// FFI) and feeds them to the existing pure derivation function.
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn stego_derive_frame_seed_from_handle<'py>(
+    py: Python<'py>,
+    master_handle: u64,
+    frame_idx: u32,
+    channel_id: u8,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut master_bytes = handles::handle_export_key(master_handle).map_err(handle_err_to_py)?;
+    let seed_result = stego::derive_frame_seed(&master_bytes, frame_idx, channel_id);
+    // Zeroize the briefly-exported key bytes immediately. (Keeps the
+    // "key never crosses FFI in Python" invariant — the bytes existed
+    // only as a Rust-internal Vec<u8> for the duration of the derive.)
+    use zeroize::Zeroize;
+    master_bytes.zeroize();
+    let seed = seed_result.map_err(|e| PyValueError::new_err(e.to_string()))?;
+    Ok(PyBytes::new(py, &seed))
+}
+
+#[cfg(feature = "python")]
+#[pyfunction]
+fn stego_derive_walk_seed_from_handle<'py>(
+    py: Python<'py>,
+    master_handle: u64,
+    frame_idx: u32,
+) -> PyResult<Bound<'py, PyBytes>> {
+    let mut master_bytes = handles::handle_export_key(master_handle).map_err(handle_err_to_py)?;
+    let seed_result = stego::derive_walk_seed(&master_bytes, frame_idx);
+    use zeroize::Zeroize;
+    master_bytes.zeroize();
+    let seed = seed_result.map_err(|e| PyValueError::new_err(e.to_string()))?;
     Ok(PyBytes::new(py, &seed))
 }
 
@@ -1635,6 +1718,7 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_aes_gcm_decrypt, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_verify, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_hmac_sha256_to_handle, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed, m)?)?;
     m.add_function(wrap_pyfunction!(handle_hmac_sha256_prefixed_verify, m)?)?;
     m.add_function(wrap_pyfunction!(handle_x25519_generate, m)?)?;
@@ -1659,6 +1743,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(handle_hkdf_two_handles, m)?)?;
     m.add_function(wrap_pyfunction!(handle_drop, m)?)?;
     m.add_function(wrap_pyfunction!(handle_export_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_seal_key, m)?)?;
+    m.add_function(wrap_pyfunction!(handle_unseal_key, m)?)?;
     m.add_function(wrap_pyfunction!(handle_pqxdh_encapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_pqxdh_decapsulate, m)?)?;
     m.add_function(wrap_pyfunction!(handle_exists, m)?)?;
@@ -1667,6 +1753,8 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // Steganography primitives
     m.add_function(wrap_pyfunction!(stego_derive_frame_seed, m)?)?;
     m.add_function(wrap_pyfunction!(stego_derive_walk_seed, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_derive_frame_seed_from_handle, m)?)?;
+    m.add_function(wrap_pyfunction!(stego_derive_walk_seed_from_handle, m)?)?;
     m.add_function(wrap_pyfunction!(stego_generate_pixel_walk, m)?)?;
     m.add_function(wrap_pyfunction!(stego_stc_encode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_stc_decode, m)?)?;
@@ -1676,6 +1764,12 @@ fn meow_crypto_rs(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(stego_palette_encode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_palette_decode, m)?)?;
     m.add_function(wrap_pyfunction!(stego_count_changes, m)?)?;
+
+    // Fountain (Luby Transform) — Phase 2 of the Rust+WASM unification
+    // (docs/FOUNTAIN_RUST_WASM_MIGRATION.md). FountainEncoder /
+    // FountainDecoder / Droplet types backed by the Rust core in
+    // crypto_core::meow_fountain.
+    fountain::register(m)?;
 
     Ok(())
 }

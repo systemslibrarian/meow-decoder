@@ -218,6 +218,8 @@ lazy_static::lazy_static! {
 }
 
 fn insert_handle(payload: HandlePayload) -> Result<HandleId, HandleError> {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     if reg.len() >= MAX_HANDLES {
         return Err(HandleError::RegistryFull);
@@ -228,6 +230,8 @@ fn insert_handle(payload: HandlePayload) -> Result<HandleId, HandleError> {
 }
 
 fn remove_handle(id: HandleId) -> Result<HandlePayload, HandleError> {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     reg.remove(&id).ok_or(HandleError::InvalidHandle)
 }
@@ -236,6 +240,8 @@ fn with_handle<F, R>(id: HandleId, f: F) -> Result<R, HandleError>
 where
     F: FnOnce(&HandlePayload) -> Result<R, HandleError>,
 {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     let payload = reg.get(&id).ok_or(HandleError::InvalidHandle)?;
     f(payload)
@@ -245,6 +251,8 @@ fn with_handle_mut<F, R>(id: HandleId, f: F) -> Result<R, HandleError>
 where
     F: FnOnce(&mut HandlePayload) -> Result<R, HandleError>,
 {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let mut reg = REGISTRY.lock().unwrap();
     let payload = reg.get_mut(&id).ok_or(HandleError::InvalidHandle)?;
     f(payload)
@@ -560,6 +568,33 @@ pub fn handle_hmac_sha256_verify(
         return Ok(false);
     }
     Ok(computed.as_slice().ct_eq(expected_tag).into())
+}
+
+/// Compute HMAC-SHA256(key_handle, message) and import the 32-byte tag
+/// as a new SymmetricKey handle. The derived bytes never cross the FFI
+/// boundary.
+///
+/// Use case: derived sub-keys whose lifetime extends past the HMAC call
+/// (e.g. stego per-payload `enc_key` that's used for AES-GCM later).
+/// Avoids the round-trip via `handle_hmac_sha256` → Python bytes →
+/// `handle_import_key`.
+pub fn handle_hmac_sha256_to_handle(
+    key_handle: HandleId,
+    message: &[u8],
+) -> Result<HandleId, HandleError> {
+    let mut tag = handle_hmac_sha256(key_handle, message)?;
+    if tag.len() != 32 {
+        tag.zeroize();
+        return Err(HandleError::InvalidKeyLength {
+            expected: 32,
+            got: tag.len(),
+        });
+    }
+    let mut key_bytes = [0u8; 32];
+    key_bytes.copy_from_slice(&tag);
+    tag.zeroize();
+    let key = SecretKey { bytes: key_bytes };
+    insert_handle(HandlePayload::SymmetricKey(key))
 }
 
 /// Compute HMAC-SHA256 with the effective key = `prefix || handle_key_bytes`.
@@ -1067,12 +1102,16 @@ pub fn handle_drop(id: HandleId) -> Result<(), HandleError> {
 
 /// Check if a handle exists (for testing).
 pub fn handle_exists(id: HandleId) -> bool {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     reg.contains_key(&id)
 }
 
 /// Get current handle count (for testing / bounds checking).
 pub fn handle_count() -> usize {
+    #[allow(clippy::unwrap_used)]
+    // Mutex poisoning means another thread panicked while holding the lock; propagating is correct.
     let reg = REGISTRY.lock().unwrap();
     reg.len()
 }
@@ -1095,6 +1134,118 @@ pub fn handle_export_key(id: HandleId) -> Result<Vec<u8>, HandleError> {
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
     })
+}
+
+/// Seal (AES-256-GCM encrypt) the bytes of `payload_handle` using the key
+/// inside `encryption_key_handle`. Both keys remain in Rust; only the
+/// ciphertext (with tag) crosses the FFI boundary.
+///
+/// Designed for encrypted-at-rest persistence of long-lived keys
+/// (e.g. master ratchet chain key) so the plaintext key never enters Python.
+pub fn handle_seal_key(
+    payload_handle: HandleId,
+    encryption_key_handle: HandleId,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> Result<Vec<u8>, HandleError> {
+    if nonce.len() != 12 {
+        return Err(HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        });
+    }
+
+    // Copy payload key bytes into a Vec we explicitly zeroize before return.
+    let mut payload_bytes = with_handle(payload_handle, |p| match p {
+        HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
+        HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
+        HandlePayload::Session(s) => Ok(s.enc_key.as_bytes().to_vec()),
+        _ => Err(HandleError::HandleTypeMismatch),
+    })?;
+
+    let result = with_handle(encryption_key_handle, |p| {
+        let key_bytes = match p {
+            HandlePayload::SymmetricKey(k) => k.as_bytes(),
+            HandlePayload::Session(s) => s.enc_key.as_bytes(),
+            _ => return Err(HandleError::HandleTypeMismatch),
+        };
+        let cipher =
+            Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::EncryptionFailed)?;
+        let nonce_arr = Nonce::from_slice(nonce);
+        let ct = if let Some(aad_data) = aad {
+            cipher.encrypt(
+                nonce_arr,
+                Payload {
+                    msg: &payload_bytes,
+                    aad: aad_data,
+                },
+            )
+        } else {
+            cipher.encrypt(nonce_arr, payload_bytes.as_slice())
+        };
+        ct.map_err(|_| HandleError::EncryptionFailed)
+    });
+
+    payload_bytes.zeroize();
+    result
+}
+
+/// Unseal (AES-256-GCM decrypt) a sealed key blob using `encryption_key_handle`.
+/// Imports the recovered 32-byte key as a new SymmetricKey handle.
+///
+/// The plaintext key bytes never cross the FFI boundary. Fail-closed on
+/// authentication failure or non-32-byte plaintext.
+pub fn handle_unseal_key(
+    ciphertext: &[u8],
+    encryption_key_handle: HandleId,
+    nonce: &[u8],
+    aad: Option<&[u8]>,
+) -> Result<HandleId, HandleError> {
+    if nonce.len() != 12 {
+        return Err(HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        });
+    }
+    if ciphertext.len() < 16 {
+        return Err(HandleError::CiphertextTooShort);
+    }
+
+    let mut plaintext = with_handle(encryption_key_handle, |p| {
+        let key_bytes = match p {
+            HandlePayload::SymmetricKey(k) => k.as_bytes(),
+            HandlePayload::Session(s) => s.enc_key.as_bytes(),
+            _ => return Err(HandleError::HandleTypeMismatch),
+        };
+        let cipher =
+            Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::DecryptionFailed)?;
+        let nonce_arr = Nonce::from_slice(nonce);
+        let pt = if let Some(aad_data) = aad {
+            cipher.decrypt(
+                nonce_arr,
+                Payload {
+                    msg: ciphertext,
+                    aad: aad_data,
+                },
+            )
+        } else {
+            cipher.decrypt(nonce_arr, ciphertext)
+        };
+        pt.map_err(|_| HandleError::DecryptionFailed)
+    })?;
+
+    if plaintext.len() != 32 {
+        plaintext.zeroize();
+        return Err(HandleError::InvalidKeyLength {
+            expected: 32,
+            got: plaintext.len(),
+        });
+    }
+    let mut key_bytes = [0u8; 32];
+    key_bytes.copy_from_slice(&plaintext);
+    plaintext.zeroize();
+    let key = SecretKey { bytes: key_bytes };
+    insert_handle(HandlePayload::SymmetricKey(key))
 }
 
 // ─── Public API: Stream chunk operations ────────────────────────────────────
@@ -1530,4 +1681,12 @@ mod tests {
             handle_drop(h).unwrap();
         }
     }
+
+    // NOTE (2026-05-04): the seal/unseal/hmac-to-handle test cases that
+    // used to live here have moved to `rust_crypto/tests/seal_unseal_hmac_
+    // tests.rs`. They use deterministic 12-byte nonce fixtures which
+    // CodeQL's "Hard-coded cryptographic value" query flags inside lib
+    // `mod tests` blocks. The integration-test directory is excluded from
+    // CodeQL via `.github/codeql/codeql-config.yml`'s
+    // `rust_crypto/tests/**` paths-ignore entry.
 }

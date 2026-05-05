@@ -3,8 +3,19 @@ Surface area regression test — ensures production only imports from the allowl
 
 Enforces:
 1. Static AST reachability from entrypoints stays within the production allowlist.
-2. No production module imports from meow_decoder._archive.
-3. _archive is excluded from package metadata (setuptools config).
+2. No production module imports from `archive/` (top-level), `meow_decoder._archive`,
+   or `meow_decoder.experimental`.
+3. `archive/` is not packaged as a `meow_decoder*` subpackage and is excluded
+   from setuptools discovery.
+4. `import archive` raises ImportError — the directory exists for reference
+   only, not as a runtime package.
+
+Note on history: archive code originally lived at `meow_decoder/_archive/`.
+It was moved to repo-root `archive/` (commit on audit/cat-mode-fixes) so
+bandit / mypy / pytest no longer walk it during package scans. The
+legacy `meow_decoder._archive` namespace is still listed in
+FORBIDDEN_PREFIXES as a defensive guard against accidental
+re-introduction.
 """
 
 import ast
@@ -67,7 +78,8 @@ PRODUCTION_ALLOWLIST = frozenset(
 )
 
 FORBIDDEN_PREFIXES = (
-    "meow_decoder._archive",
+    "archive",
+    "meow_decoder._archive",  # legacy path — guards against re-introduction
     "meow_decoder.experimental",
 )
 
@@ -208,26 +220,86 @@ class TestProductionImportBoundary:
         )
 
     def test_no_production_imports_archive(self):
-        """No production module may import from _archive or experimental."""
+        """No production module may import from archive/, _archive, or experimental.
+
+        AST scan over every file under meow_decoder/ rejects any
+        `import archive*`, `from archive*`, `import meow_decoder._archive*`,
+        or experimental. Walking the AST not the runtime catches imports
+        guarded by ``if False:`` and similar.
+        """
         violations = []
         for py_file in _get_production_files():
-            imports = _get_imports(py_file)
-            for imp in imports:
-                if any(imp.startswith(prefix) for prefix in FORBIDDEN_PREFIXES):
-                    violations.append(f"{_file_to_module(py_file)} imports {imp}")
-        assert not violations, f"Production code imports from forbidden packages:\n" + "\n".join(
+            try:
+                source = py_file.read_text(encoding="utf-8")
+                tree = ast.parse(source, filename=str(py_file))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if any(alias.name.startswith(p) for p in FORBIDDEN_PREFIXES):
+                            violations.append(f"{_file_to_module(py_file)} imports {alias.name}")
+                elif isinstance(node, ast.ImportFrom):
+                    mod = node.module or ""
+                    if any(mod.startswith(p) for p in FORBIDDEN_PREFIXES):
+                        violations.append(f"{_file_to_module(py_file)} imports {mod}")
+        assert not violations, "Production code imports from forbidden packages:\n" + "\n".join(
             f"  - {v}" for v in violations
         )
 
-    def test_archive_not_in_package_config(self):
-        """_archive must be excluded from setuptools package discovery."""
+    def test_archive_not_in_meow_decoder_package(self):
+        """archive/ must not live inside meow_decoder/ — it would be packaged."""
+        legacy = WORKSPACE / "meow_decoder" / "_archive"
+        assert not legacy.exists(), (
+            f"meow_decoder/_archive/ should have been moved to top-level archive/. "
+            f"Found at {legacy}. setuptools.packages.find with include=['meow_decoder*'] "
+            f"would package it as meow_decoder._archive — undoing the surface-area cut."
+        )
+
+    def test_archive_lives_at_repo_root(self):
+        """archive/ exists at repo root — sanity check the move landed."""
+        archive_root = WORKSPACE / "archive"
+        assert archive_root.is_dir(), (
+            f"archive/ directory missing at repo root ({archive_root}). "
+            "It should hold non-production reference modules outside the "
+            "meow_decoder package."
+        )
+
+    def test_archive_excluded_from_setuptools(self):
+        """setuptools.packages.find must not pull archive/ or _archive/ in.
+
+        The `include = ["meow_decoder*"]` pattern already forbids top-level
+        `archive*`, but the explicit `exclude` list documents intent.
+        """
         pyproject = WORKSPACE / "pyproject.toml"
         content = pyproject.read_text(encoding="utf-8")
-        assert (
-            "meow_decoder._archive" in content
-        ), "pyproject.toml must exclude meow_decoder._archive from packaging"
+        assert "archive*" in content, (
+            "pyproject.toml [tool.setuptools.packages.find] must list "
+            "'archive*' in exclude (defensive against future include broadening)."
+        )
+        assert "meow_decoder._archive*" in content, (
+            "pyproject.toml must list 'meow_decoder._archive*' in exclude as a "
+            "guard against re-introducing the legacy path."
+        )
 
-    def test_archive_init_raises_importerror(self):
-        """Importing meow_decoder._archive must raise ImportError."""
+    def test_archive_import_raises(self):
+        """Importing the top-level archive package must raise ImportError.
+
+        archive/__init__.py raises ImportError explicitly so an accidental
+        `import archive` in production fails fast rather than silently
+        wiring stale modules into the runtime graph.
+        """
+        # Clear any stale cached entry from a sibling test
+        import sys
+
+        sys.modules.pop("archive", None)
         with pytest.raises(ImportError, match="archive"):
+            import archive  # noqa: F401
+
+    def test_legacy_meow_decoder_archive_not_importable(self):
+        """The legacy `meow_decoder._archive` namespace is gone."""
+        import sys
+
+        sys.modules.pop("meow_decoder._archive", None)
+        with pytest.raises(ImportError):
             import meow_decoder._archive  # noqa: F401

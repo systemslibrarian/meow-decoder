@@ -90,13 +90,18 @@ class TestTemporalChannelEncoder:
     """Test suite for inter-frame temporal delta embedding."""
 
     def test_init(self):
-        """TemporalChannelEncoder initializes with keyed channel key."""
+        """TemporalChannelEncoder initializes with a keyed channel key.
+
+        After gemini #1 the channel key is a Rust handle ID rather than
+        bytes. Verify the handle was created and has a stable fingerprint.
+        """
         key = make_key()
         config = make_config()
         enc = TemporalChannelEncoder(key, config)
         assert enc.master_key == key
-        assert enc._channel_key is not None
-        assert len(enc._channel_key) == 32
+        assert enc._channel_key_handle is not None
+        # Fingerprint is HMAC(handle, _meow_stego_test_kfp_v1) — 32 bytes.
+        assert len(enc.key_fingerprint()) == 32
 
     def test_embed_extract_roundtrip_small(self):
         """Small payload embeds and extracts correctly."""
@@ -270,12 +275,16 @@ class TestAdversarialPerturbationLayer:
     """Test suite for anti-steganalysis adversarial perturbation."""
 
     def test_init(self):
-        """Layer initializes with keyed perturbation key."""
+        """Layer initializes with a keyed perturbation key.
+
+        After gemini #1 the perturb key lives as a Rust handle ID;
+        verify via a stable HMAC fingerprint instead of bytes equality.
+        """
         key = make_key()
         config = make_config()
         layer = AdversarialPerturbationLayer(key, config)
-        assert layer._perturb_key is not None
-        assert len(layer._perturb_key) == 32
+        assert layer._perturb_key_handle is not None
+        assert len(layer.key_fingerprint()) == 32
 
     def test_strength_off_returns_unchanged(self):
         """Strength=0 returns frames unchanged."""
@@ -459,12 +468,16 @@ class TestProceduralCatGenerator:
     """Test suite for procedural cat carrier generation."""
 
     def test_init(self):
-        """Generator initializes with seed key."""
+        """Generator initializes with a seed key.
+
+        After gemini #1 the seed key lives as a Rust handle ID;
+        verify via a stable HMAC fingerprint instead of bytes equality.
+        """
         key = make_key()
         config = make_config()
         gen = ProceduralCatGenerator(key, config)
-        assert gen._seed_key is not None
-        assert len(gen._seed_key) == 32
+        assert gen._seed_key_handle is not None
+        assert len(gen.key_fingerprint()) == 32
 
     def test_generate_default(self):
         """Generates correct number of frames from config defaults."""

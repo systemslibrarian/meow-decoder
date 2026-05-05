@@ -53,8 +53,8 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
       <ScrollView contentContainerStyle={styles.scroll} bounces={false}>
         {/* Hero */}
         <Image source={meowLogo} style={styles.heroLogo} resizeMode="contain" />
-        <Text style={styles.title}>Welcome to meow-decoder</Text>
-        <Text style={styles.subtitle}>Your optical air-gap capture companion</Text>
+        <Text style={styles.title}>Welcome to Meow Capture</Text>
+        <Text style={styles.subtitle}>Move files offline — the phone is the bridge.</Text>
 
         {/* How it works */}
         <View style={styles.section}>
@@ -85,8 +85,8 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
         {/* Camera permission rationale */}
         <View style={styles.section}>
           <Text style={styles.permissionRationale}>
-            This app needs camera access to scan the animated QR codes.
-            No images are stored, transmitted, or shared. Camera is the{' '}
+            The camera is how the phone reads the transfer from the sender screen.
+            Nothing is stored, transmitted, or shared. Camera is the{' '}
             <Text style={styles.bold}>only</Text> permission requested.
           </Text>
         </View>
@@ -127,24 +127,24 @@ export function OnboardingScreen({ navigation }: OnboardingScreenProps) {
 const STEPS = [
   {
     number: '1',
-    title: 'Encrypt on your computer',
-    body: 'Use meow-decoder CLI to encrypt a file into an animated QR GIF.',
+    title: 'Open the sender on your computer',
+    body: 'Encrypt a file with meow-decoder (CLI or web demo). The sender will show a transfer on screen.',
   },
   {
     number: '2',
-    title: 'Point your phone',
-    body: 'Display the GIF on screen. This app captures each QR frame automatically.',
+    title: 'Scan the sender screen',
+    body: 'Tap Scan Sender Screen, point your phone at the QR, and hold steady. The app will tell you when capture is complete.',
   },
   {
     number: '3',
-    title: 'Export via USB',
-    body: 'Frames are saved as JSON to Downloads. Pull with ADB and decode on the trusted computer.',
+    title: 'Export and recover',
+    body: 'Export the captured transfer, then move it to your receiving computer to recover the original file.',
   },
 ];
 
 const SECURITY_POINTS = [
-  'No decryption on device — phone is a "dumb sensor"',
-  'No network access — zero network permissions',
+  'No decryption on device — the phone is a sensor, not a trust anchor',
+  'No network access — the app makes no outbound connections',
   'Frame data cleared on app background or cancel',
   'Keys and passwords never touch this device',
 ];

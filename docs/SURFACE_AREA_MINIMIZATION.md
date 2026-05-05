@@ -166,3 +166,64 @@ If an archived module is needed in production:
 3. Run `pytest tests/test_production_import_boundary.py` to verify
 4. Move its tests from `tests/_archive/` back to `tests/`
 5. If the test file was mixed, strip imports of still-archived modules before restoring
+
+## Tracked Build Artifacts and Sideload Assets (gemini #7)
+
+Some non-Python binary artifacts are intentionally tracked in the
+source tree. They are not "code" — they are checked-in build output
+or sideload payloads that exist so a fresh clone can run examples
+and install the mobile app without first building from source.
+
+### `examples/crypto_core_bg.wasm` and web_demo copies (~273 KB ×3)
+
+Three identical copies live at:
+
+- `examples/crypto_core_bg.wasm` (+ `crypto_core.js` glue)
+- `web_demo/static/crypto_core_bg.wasm` (+ `crypto_core.js` glue)
+- `web_demo/crypto_core_bg.wasm` (+ `crypto_core.js` glue)
+
+**Why tracked:** the example HTML pages and Flask web demo load these
+directly. Without the checked-in copies, every `git clone` would
+need a working `wasm-pack` toolchain and a `scripts/build_wasm.sh`
+run before the demos could start.
+
+**How to regenerate:** `scripts/build_wasm.sh` rebuilds and copies
+to all three locations. The script gates on `wasm-pack`; install via
+`cargo install wasm-pack` first.
+
+**When to update:** any change to `crypto_core/src/**.rs` that
+affects the wasm build surface (PQ, fountain, or AES-CTR primitives
+exposed to the browser). The build script bundles the
+`wasm-pq wasm-fountain` features by default.
+
+**Bandit / scanner exclusion:** these files are binary; bandit
+already skips them via file-extension defaults.
+
+### `releases/android/*.apk` (~60 MB each)
+
+Pre-store sideload APKs for the Meow Capture mobile app live under
+`releases/android/`. Currently tracked: `meow-decoder-v3.2.0-release.apk`
+and `meow-decoder-v3.2.1-release.apk`.
+
+**Why tracked (historical):** before the Play Store listing exists,
+the README's install path needs a stable, self-hosted download URL.
+The `https://github.com/.../raw/main/releases/android/...` URL
+satisfies that.
+
+**Going forward:** `releases/android/*.apk` is now in `.gitignore`,
+so future APKs will not be committed (the gitignore rule does not
+affect already-tracked files). New APKs should be published to
+GitHub Releases / Play Store and the README links updated to point
+there. See `docs/TRUST_CENTER.md` for the maturity tier.
+
+**Migration path (when ready):**
+
+1. Upload the APK as a GitHub Release asset (matching tag, e.g. `v3.3.0`).
+2. Update the four README references (`README.md`, `mobile/README.md`,
+   `docs/ROADMAP.md`, `QUICKSTART.md`) to point at the
+   `https://github.com/.../releases/download/<tag>/...` URL.
+3. (Optional) `git rm` the old in-tree APKs in a follow-up commit.
+   Note that this does not reduce repo size on disk for existing
+   clones — it only stops tracking. A real size reduction needs
+   `git filter-repo` or BFG, which is a destructive history rewrite
+   and out of scope for routine maintenance.

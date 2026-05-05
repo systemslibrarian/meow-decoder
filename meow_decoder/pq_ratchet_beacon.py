@@ -93,6 +93,23 @@ class PQBeaconKeyPair:
         """Export public key for distribution."""
         return self.public_key
 
+    def __del__(self):
+        """Best-effort secret zeroization on collection.
+
+        bytes are immutable; we copy into a bytearray and zero that
+        as a defensive overwrite on the duplicated copy. The original
+        immutable secret_key bytes object will be GC'd normally.
+        """
+        sk = getattr(self, "secret_key", None)
+        if sk:
+            try:
+                from .crypto_backend import secure_zero_memory
+
+                secure_zero_memory(bytearray(sk))
+            except Exception:
+                pass
+            self.secret_key = b""
+
 
 def _mlkem1024_keygen() -> Tuple[bytes, bytes]:
     """Generate ML-KEM-1024 keypair."""
