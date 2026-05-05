@@ -72,7 +72,26 @@
 
 **📜 Intended Use:** Designed for legal privacy needs, such as journalist-source protection under First Amendment or equivalent laws. Not for illegal activities. Consult legal experts if uncertain about your jurisdiction.
 
-**Honest disclaimer:** This is a **developer/research tool**. It requires Python, command-line comfort, and understanding of what you're doing.
+**Honest disclaimer:** This is a security-focused tool with a clear recommended path and a larger set of advanced and experimental modes. The default transfer flow is the safest place to start. Some features still assume Python, command-line comfort, and careful threat-model reading.
+
+## Recommended Starting Path
+
+If you are new to Meow Decoder, start with the standard encrypted transfer flow:
+
+1. Encode on the sender desktop.
+2. Capture with Meow Capture or the browser receiver flow.
+3. Export the capture artifact.
+4. Recover and decrypt on the receiving desktop.
+
+That path is what the project is most ready to support end-to-end.
+
+| Maturity | What belongs here |
+|----------|-------------------|
+| Recommended | Standard encrypted offline transfer, guided mobile capture, standard export and desktop recovery |
+| Advanced | Redundancy tuning, diagnostics, alternate receiver workflows, hardware-backed security paths |
+| Experimental | Schrodinger mode, camouflage and stego presentation layers, deniability and duress-heavy workflows |
+
+Recommended means the project should optimize for it. Advanced means useful power-user capability. Experimental means the feature may still be valuable, but it should not be mistaken for the default product promise.
 
 ## 📱 Mobile Companion App — Download Now
 

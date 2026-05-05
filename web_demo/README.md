@@ -1,12 +1,31 @@
 # 😻 Meow Decoder Web Demo
 
-A minimal Flask web interface for Meow Decoder featuring **Cat Mode** as a flagship demonstration of steganographic QR code camouflage and optical ciphertext transport.
+A Flask web interface for Meow Decoder that supports the standard offline sender and recovery flow, with advanced and experimental modes available for exploration.
+
+## Best Starting Path
+
+If you are new to the web demo, start with the standard encrypted transfer flow:
+
+1. Upload a file or message.
+2. Enter a password.
+3. Generate the transfer.
+4. Keep the transfer visible while the receiver scans it.
+5. Export the captured transfer from the receiver.
+6. Recover the original file on desktop.
+
+That is the default story this demo supports best.
+
+| Maturity | What belongs here |
+|----------|-------------------|
+| Recommended | Standard encrypted sender flow and desktop recovery |
+| Advanced | Fountain tuning, alternate modes, diagnostics and deployment options |
+| Experimental | Cat Mode camouflage, duress-heavy or deniability-focused workflows |
 
 ## Features
 
 - **🔒 Encode Files**: Upload any file (up to 8 MB) and convert to animated GIF
 - **🔓 Decode GIFs**: Recover original files from Meow Decoder GIFs
-- **😻 Cat Mode**: Cat-image camouflage plus a separate blinking-eye transport for password-encrypted ciphertext
+- **😻 Cat Mode**: Optional experimental camouflage and blinking-eye transport demos
 - **⚠️ Duress Mode**: Dual-password plausible deniability
 - **📊 Fountain Codes**: Configurable redundancy for frame loss tolerance
 - **🔐 AES-256-GCM**: Military-grade encryption with Argon2id key derivation
@@ -168,6 +187,8 @@ cleanup_old_files(max_age_minutes=60)  # 1 hour
 To disable Schrödinger or Duress modes server-side, edit `templates/encode.html` and remove the corresponding `<option>` tags from the mode selector dropdown.
 
 ## Cat Mode 😻
+
+Cat Mode is an optional advanced or experimental surface. It should not be mistaken for the default product story of the web demo.
 
 Cat Mode in this web demo has **two related presentations** built on the same core password-based encryption:
 

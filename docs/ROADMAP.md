@@ -158,8 +158,122 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 
 ---
 
+## Product And UX Track (2026-05-04)
+
+This roadmap started as a security roadmap and remains the source of truth for protocol and hardening work. The sections below add the current product and UX track so roadmap planning stays in one canonical document.
+
+### Product Direction
+
+Meow Decoder is close to 10/10 technically, but not yet as an app.
+
+The next quality leap is mostly about product shape, not new crypto modes:
+
+- make the safest path the simplest path
+- reduce user-visible operational complexity
+- make sender and receiver roles obvious
+- improve trust packaging and distribution maturity
+- separate recommended, advanced, and experimental workflows
+
+### Highest-Leverage Product Priorities
+
+#### 1. One Golden Workflow
+
+Default path across web, CLI, and mobile:
+
+- choose file
+- choose password
+- show transfer
+- scan with phone
+- export capture
+- recover file
+
+Everything else should move behind Advanced or Experimental.
+
+#### 2. Zero-Setup Pairing
+
+The phone should not require users to reason about capture requests, expected frame counts, or session metadata in the happy path.
+
+#### 3. Certainty Instead Of Statistics
+
+Translate internal transfer heuristics into plain-language states:
+
+- keep scanning
+- almost done
+- safe to stop
+- ready to export
+
+#### 4. Receiver Experience Completion
+
+The mobile app should feel like a complete receiver, not just a capture utility.
+
+#### 5. Trust And Distribution
+
+High-value maturity work:
+
+- signed desktop builds
+- Play Store release
+- App Store release
+- third-party audit
+- clearer end-user trust communication
+
+### Product Workstreams
+
+#### Positioning And Narrative
+
+- Rewrite public-facing docs around the default transfer story
+- Lead with offline transfer outcome, not protocol mechanism
+- Reduce early self-disqualification language in core surfaces
+
+#### Web Default Flow Simplification
+
+- Simplify sender-side encode flow
+- Move mode sprawl behind advanced options
+- Improve transfer-ready and stop-condition guidance
+
+#### Mobile Receiver Simplification
+
+- Make scan sender screen the obvious primary action
+- Demote manual and JSON-first workflows into fallback tools
+- Strengthen completion and export states
+
+#### Trust Surface And Feature Taxonomy
+
+- Distinguish Recommended, Advanced, and Experimental features
+- Make trust boundaries understandable without reading deep threat-model docs
+
+### Suggested Milestone Sequence
+
+#### Milestone A: Message And Default Flow
+
+- README and landing-copy rewrite
+- web default-flow simplification
+- mobile primary-action simplification
+
+#### Milestone B: Receiver Experience
+
+- capture-state language rewrite
+- export-state completion redesign
+- onboarding focused on first-transfer success
+
+#### Milestone C: Trust And Market Readiness
+
+- trust-center style documentation
+- packaging and release maturity communication
+- external audit readiness
+
+### Supporting Planning Docs
+
+- `docs/TRUST_CENTER.md`
+- `docs/DEFAULT_WORKFLOW_SPEC.md`
+- `gemini_suggetions.md`
+- `gemini_suggestions_v2.md`
+
+These supporting docs are working notes and planning artifacts. This roadmap remains the canonical high-level summary.
+
+---
+
 For security vulnerabilities, see [SECURITY.md](../SECURITY.md) for responsible disclosure.
 
 ---
 
-*Last Updated: February 25, 2026*
+*Last Updated: May 4, 2026*
