@@ -160,7 +160,7 @@ jobs:
 
       - name: Upload crash artifacts
         if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: long-fuzz-crashes-${{ matrix.shard_key }}-${{ github.run_id }}
           path: fuzz/crashes/
@@ -168,7 +168,7 @@ jobs:
 
       - name: Upload corpus (for corpus sharing with main fuzz.yml)
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: long-fuzz-corpus-${{ matrix.shard_key }}-${{ github.run_id }}
           path: fuzz/corpus/

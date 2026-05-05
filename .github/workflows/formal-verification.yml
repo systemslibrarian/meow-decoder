@@ -278,7 +278,7 @@ jobs:
 
       - name: Upload ProVerif Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: proverif-results-${{ matrix.shard_key }}
           path: |
@@ -418,7 +418,7 @@ jobs:
 
       - name: Upload TLA+ Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: tla-results-${{ matrix.shard_key }}
           path: |
@@ -517,7 +517,7 @@ jobs:
 
       - name: Upload Lean Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: lean-results-${{ matrix.shard_key }}
           path: |
@@ -696,7 +696,7 @@ jobs:
 
       - name: Upload Tamarin Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: tamarin-results-${{ matrix.shard_key }}
           path: |
@@ -743,7 +743,7 @@ jobs:
 
       - name: Upload Verus Results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: verus-results
           path: verus_output.txt
@@ -799,7 +799,7 @@ jobs:
 
       - name: Upload timing results
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v4.6.0
         with:
           name: constant-time-stats
           path: crypto_core/ct_bench_output.txt
