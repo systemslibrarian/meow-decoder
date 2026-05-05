@@ -3,15 +3,11 @@
 {% block title %}Encode File - Meow Decoder 😻{% endblock %}
 
 {% block content %}
-<h2 style="margin-bottom: 25px; color: #333;">🔒 Encode Your File</h2>
-
-<div class="cat-highlight">
-    <h3>😻 Cat Mode Available!</h3>
-    <p>Hide your secrets in photographic cat images for maximum plausible deniability.</p>
-    <p style="font-size: 0.9em; margin-top: 10px; color: #666;">
-        (Cosmetic camouflage feature — makes QR codes look like cat photos!)
-    </p>
-</div>
+<h2 style="margin-bottom: 10px; color: #333;">🔒 Start an Offline Transfer</h2>
+<p style="margin-bottom: 25px; color: #555; line-height: 1.5;">
+    Choose a file, set a password, and show the transfer on screen. Scan it with the
+    receiver app to recover the file on the other side — no network required.
+</p>
 
 <form method="POST" enctype="multipart/form-data">
     <div class="form-group">
@@ -33,12 +29,16 @@
     <div class="form-group">
         <label for="mode">🎨 Encoding Mode</label>
         <select id="mode" name="mode" required onchange="updateModeUI()">
-            <option value="normal">🔒 Normal (Standard QR codes)</option>
-            <option value="cat" selected>😻 Cat Mode (Photographic camouflage) ⭐ FLAGSHIP</option>
-            <option value="duress">⚠️ Duress (Dual-password plausible deniability)</option>
-            <option value="schrodinger" disabled>⚛️ Schrödinger (Quantum superposition - CLI only)</option>
+            <optgroup label="Recommended">
+                <option value="normal" selected>🔒 Standard — encrypted QR transfer</option>
+            </optgroup>
+            <optgroup label="Experimental">
+                <option value="cat">😻 Cat Mode — camouflage carrier (cosmetic)</option>
+                <option value="duress">⚠️ Duress — dual-password decoy content</option>
+                <option value="schrodinger" disabled>⚛️ Schrödinger — dual-secret superposition (CLI only)</option>
+            </optgroup>
         </select>
-        <small id="mode-description">Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage.</small>
+        <small id="mode-description">Standard mode generates a straightforward encrypted QR transfer. This is the recommended path.</small>
     </div>
 
     <div class="form-group" id="duress-password-group" style="display: none;">
@@ -80,22 +80,22 @@ function updateModeUI() {
 
     if (mode === 'cat') {
         duressGroup.style.display = 'none';
-        description.textContent = '😻 Cat Mode hides QR codes in realistic cat photos for aesthetic camouflage and plausible deniability.';
+        description.textContent = 'Experimental: hides QR codes in cat photos for aesthetic camouflage. Cosmetic only — not forensic-grade steganography.';
         description.style.color = '#d63031';
         description.style.fontWeight = '600';
     } else if (mode === 'duress') {
         duressGroup.style.display = 'block';
-        description.textContent = '⚠️ Duress mode requires two passwords: one for real content, one for decoy content.';
+        description.textContent = 'Experimental: requires two passwords — one reveals real content, the other reveals decoy content.';
         description.style.color = '#e17055';
         description.style.fontWeight = '600';
     } else if (mode === 'normal') {
         duressGroup.style.display = 'none';
-        description.textContent = 'Normal mode generates standard QR codes without camouflage.';
-        description.style.color = '#6c757d';
-        description.style.fontWeight = 'normal';
+        description.textContent = 'Standard mode generates a straightforward encrypted QR transfer. This is the recommended path.';
+        description.style.color = '#28a745';
+        description.style.fontWeight = '600';
     } else if (mode === 'schrodinger') {
         duressGroup.style.display = 'none';
-        description.textContent = '⚛️ Schrödinger mode requires advanced CLI (quantum superposition not yet supported in web demo).';
+        description.textContent = 'Experimental: dual-secret superposition is CLI-only — not available in the web demo.';
         description.style.color = '#6c5ce7';
         description.style.fontWeight = '600';
     }
