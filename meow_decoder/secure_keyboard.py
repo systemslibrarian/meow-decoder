@@ -476,6 +476,7 @@ def timing_normalized_input(
     prompt: str = "Password: ",
     min_keystroke_ms: int = 50,
     max_keystroke_ms: int = 200,
+    simulated_chars: int = 32,
 ) -> str:
     """
     Get password input with timing normalization.
@@ -483,26 +484,38 @@ def timing_normalized_input(
     Adds artificial keystroke timing to defeat timing analysis.
     Uses getpass for secure input without echo.
 
+    The post-input delay is computed from the **constant**
+    `simulated_chars`, never from the actual password length. An
+    observer measuring wall time therefore learns nothing about how
+    many characters the user typed.
+
+    (gemini-recommendations3.md critical fix: the previous version
+    multiplied the delay by `len(password)`, which exposed the
+    password's character length as a side channel.)
+
     Args:
         prompt: Prompt to display.
-        min_keystroke_ms: Minimum time per keystroke.
-        max_keystroke_ms: Maximum time per keystroke.
+        min_keystroke_ms: Minimum time per simulated keystroke.
+        max_keystroke_ms: Maximum time per simulated keystroke.
+        simulated_chars: Fixed number of simulated keystrokes used for
+            the post-input delay. Must be a compile-time-style constant
+            (never derived from user input) to preserve the no-leak
+            property. Default 32 simulates a long password.
 
     Returns:
         Password string.
     """
     import getpass
 
-    # Add initial timing jitter
+    # Initial timing jitter — independent of any user input.
     time.sleep(secrets.randbelow(500) / 1000.0)
 
-    # Get password
     password = getpass.getpass(prompt)
 
-    # Add final timing jitter based on simulated keystroke timing
-    simulated_time = len(password) * (
-        secrets.randbelow(max_keystroke_ms - min_keystroke_ms) + min_keystroke_ms
-    )
+    # Post-input delay using ONLY the `simulated_chars` constant.
+    # Do NOT use len(password) here — it leaks length as wall time.
+    keystroke_range = max(1, max_keystroke_ms - min_keystroke_ms)
+    simulated_time = simulated_chars * (secrets.randbelow(keystroke_range) + min_keystroke_ms)
     actual_delay = secrets.randbelow(simulated_time // 2 + 1)
     time.sleep(actual_delay / 1000.0)
 
