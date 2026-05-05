@@ -422,7 +422,9 @@ def derive_frame_seed_from_handle(master_handle: int, frame_idx: int, channel_id
     the derive call. Output (the seed) is intentionally plaintext: it is
     a per-frame derivation input, not a key.
     """
-    return bytes(meow_crypto_rs.stego_derive_frame_seed_from_handle(master_handle, frame_idx, channel_id))
+    return bytes(
+        meow_crypto_rs.stego_derive_frame_seed_from_handle(master_handle, frame_idx, channel_id)
+    )
 
 
 def derive_walk_seed_from_handle(master_handle: int, frame_idx: int) -> bytes:
