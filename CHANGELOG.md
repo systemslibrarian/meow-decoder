@@ -10,6 +10,103 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Product & UX track — Milestones A and B (2026-05-04 → 2026-05-05) 🐾
+
+Tracking branch: `audit/cat-mode-fixes` (PR #172). Establishes the
+product/UX track in the roadmap and ships the first two milestones
+of the new default-flow story across docs, web demo, and the mobile
+receiver. No protocol or crypto changes — only user-facing copy,
+information architecture, and one structural mobile reorder. See
+`docs/ROADMAP.md` Product & UX Track and the supporting docs
+(`docs/TRUST_CENTER.md`, `docs/DEFAULT_WORKFLOW_SPEC.md`) for the
+spec these commits implement.
+
+#### Foundation
+- **`docs/ROADMAP.md`** — adds Product & UX Track section
+  (direction, priorities, workstreams, milestone sequence A/B/C,
+  supporting-doc index).
+- **`docs/TRUST_CENTER.md`** *(new)* — plain-language trust
+  framing with the Recommended / Advanced / Experimental taxonomy.
+- **`docs/DEFAULT_WORKFLOW_SPEC.md`** *(new)* — narrow, opinionated
+  default-workflow spec with per-state copy guidance.
+- **`gemini_suggetions.md` / `gemini_suggestions_v2.md`** — strategic
+  notes reconciled against current branch state.
+
+#### Milestone A — Message and default flow
+- **`README.md`** — outcome-led lede ("Move files offline — show,
+  scan, recover") replaces mechanism-led copy. Recommended Starting
+  Path elevated above the legal/disclaimer block. The four-row
+  "This IS / This is NOT for you" exclusion table is reframed as
+  softer "Best fit / Less ideal" lists. Maturity table links into
+  `TRUST_CENTER.md`.
+- **`web_demo/templates/encode.html`** — page title becomes "Start
+  an Offline Transfer". Mode dropdown gets `<optgroup>` grouping
+  (Recommended / Experimental). Standard is the new default;
+  Cat Mode loses its "FLAGSHIP" tag and the top "Cat Mode Available"
+  highlight box is removed.
+- **`web_demo/templates/base.html`** — tagline becomes "Move files
+  offline — show, scan, recover". Nav splits Recommended (Encode /
+  Decode / Webcam) from Experimental (Cat Mode / Schrödinger /
+  All Modes) with a visual divider.
+- **`web_demo/templates/demo.html`** — closing CTA reframed around
+  the outcome ("Ready to Move a File Offline?") instead of mode
+  advertising.
+- **`mobile/src/screens/HomeScreen.tsx`** — restructured so the
+  camera scan path is the obvious primary action. "📷 Scan Sender
+  Screen" becomes the single full-width primary button in a
+  "Start Capture" card. JSON import + Video import drop into a
+  clearly-marked "ADVANCED SETUP" section. Manual session entry
+  toggle relabeled and grouped with the advanced fallbacks. QR
+  scanner modal title and helper copy aligned. File header
+  docstring rewritten.
+- **`mobile/README.md` / `web_demo/README.md`** — added
+  Recommended Starting Path + maturity tables.
+
+#### Milestone B — Receiver experience
+- **`mobile/src/screens/OnboardingScreen.tsx`** — hero subtitle
+  rewritten ("Move files offline — the phone is the bridge.").
+  Steps rewritten so the user learns: open the sender → scan the
+  sender screen → export and recover. Drops "GIF", "ADB", and
+  "JSON to Downloads" implementation specifics from the first-run
+  flow. Security bullets reframed around the "phone is a sensor,
+  not a trust anchor" model.
+- **`mobile/src/screens/CaptureScreen.tsx`** — status labels and
+  milestone toasts use the spec's situational/outcome language
+  instead of leading percentages ("25% captured" → "Keep
+  scanning — good start"; "All expected frames captured!" →
+  "Transfer captured — safe to stop now."). COMPLETE label
+  becomes "Transfer captured — preparing for export…". Stop
+  button on safe-to-stop reads "✓ Safe to stop".
+- **`mobile/src/components/CaptureCoachPanel.tsx`** — safe-to-stop
+  hint becomes "Safe to stop — tap to finish"; "Receiving data"
+  hint uses the spec's "sender screen" terminology.
+- **`mobile/src/screens/ExportScreen.tsx`** — title becomes
+  "✓ Transfer captured" with the spec's mandated subtitle.
+  Recovery-estimate strings lead with "Ready to export" instead
+  of probabilistic hedging. Primary button: "Export Transfer".
+  Section headings: "Verification details" / "Receive on the
+  desktop" replace artifact-led "Verify on desktop" / "Retrieve
+  with ADB".
+- **`web_demo/templates/result.html`** — title "Encoding
+  Complete!" → "Transfer Ready" with support copy that tells
+  the user what to do next: keep the screen visible, the
+  receiver tells you when it's safe to stop. "Next Steps" list
+  rewritten around the Scan Sender Screen flow.
+- **`web_demo/templates/decode.html`** — title "Decode Your GIF"
+  → "Recover File"; lead and submit-button copy aligned with
+  spec state 6.
+
+#### Verification
+- Web demo smoke-tested via Flask test client: `/`, `/encode`,
+  `/decode`, `/webcam`, `/cat-mode`, `/schrodinger`, `/modes`
+  all return 200 / 302 with the new defaults rendering.
+- Mobile: no behavior changes; only user-visible string edits and
+  one structural reorder of the Home screen card. No mobile tests
+  reference the renamed labels.
+- Security CI flake (`test_dual_runs_random` Z=-4.08, run
+  `25334582217`) confirmed as a one-off — both subsequent re-runs
+  on this branch are green (`25353137409`, `25353181241`).
+
 ### Audit-followup hardening (2026-05-03) 🔒
 
 Tracking branch: `audit/cat-mode-fixes`. Closes the

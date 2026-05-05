@@ -243,23 +243,26 @@ High-value maturity work:
 
 ### Suggested Milestone Sequence
 
-#### Milestone A: Message And Default Flow
+#### Milestone A: Message And Default Flow ✅ Shipped (2026-05-04)
 
-- README and landing-copy rewrite
-- web default-flow simplification
-- mobile primary-action simplification
+- [x] README and landing-copy rewrite — outcome-led lede, recommended path elevated, soft "best fit / less ideal" framing
+- [x] web default-flow simplification — Standard mode default, Recommended/Experimental optgroups, nav re-grouped, outcome-led tagline
+- [x] mobile primary-action simplification — Scan Sender Screen promoted to primary; JSON / Video import / manual entry demoted into an Advanced Setup section
 
-#### Milestone B: Receiver Experience
+Tracking branch: `audit/cat-mode-fixes` (PR #172). See CHANGELOG entry "Product & UX track — Milestones A and B".
 
-- capture-state language rewrite
-- export-state completion redesign
-- onboarding focused on first-transfer success
+#### Milestone B: Receiver Experience ✅ Shipped (2026-05-05)
 
-#### Milestone C: Trust And Market Readiness
+- [x] capture-state language rewrite — milestone toasts and status labels use spec-aligned situational language ("Keep scanning", "Almost done", "Safe to stop") instead of leading percentages; CaptureCoachPanel safe-to-stop hint aligned
+- [x] export-state completion redesign — ExportScreen title becomes "Transfer captured" with the spec's mandated subtitle; recovery estimates lead with "Ready to export"; section headings reframed away from artifact-led ADB / JSON copy
+- [x] onboarding focused on first-transfer success — OnboardingScreen subtitle, three-step copy, and security bullets rewritten around the default-transfer story; implementation specifics (GIF, ADB, JSON-to-Downloads) dropped from the first-run flow
+- [x] web parity — `result.html` reframed as "Transfer Ready" (Show Transfer state); `decode.html` reframed as "Recover File"
 
-- trust-center style documentation
-- packaging and release maturity communication
-- external audit readiness
+#### Milestone C: Trust And Market Readiness 🔄 In Progress
+
+- [x] trust-center style documentation (`docs/TRUST_CENTER.md`) — plain-language trust framing with the Recommended / Advanced / Experimental taxonomy
+- [ ] packaging and release maturity communication — per-artifact maturity tier (CLI, web, Android APK, iOS) and signing posture documented
+- [ ] external audit readiness — see Phase 10 in the security roadmap above
 
 ### Supporting Planning Docs
 
