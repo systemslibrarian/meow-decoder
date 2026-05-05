@@ -110,7 +110,9 @@ Point your phone at the animated QR code on your screen and let Meow Capture han
 1. On your Android phone, go to **Settings → Apps → Special app access → Install unknown apps** and allow your browser.
 2. Open this link on your phone and tap **Download**:
 
-   **[⬇ Download Meow Capture v3.2.2 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk)**
+   **[⬇ Download Meow Capture v3.2.1 APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk)**
+
+   *Future APKs will move to GitHub Releases / Play Store — see [Trust Center](docs/TRUST_CENTER.md) for the maturity tier.*
 
 3. Open the downloaded `.apk` file and tap **Install**.
 4. Launch **Meow Capture** — grant camera permission when prompted.

@@ -210,22 +210,47 @@ crate primitives.)
    not run in this session); JS-only smoke verified via Node.js
    roundtrip.
 
-### 🟡 Phase 4 — cleanup (partial — see below)
+### 🟢 Phase 4 — cleanup status (2026-05-05 reassessment)
 
-1. ❌ Delete the old Python LT implementation in `fountain.py`. The
-   shim deliberately keeps the pure-Python encoder + decoder paths as
-   a fallback for environments without `meow_crypto_rs.fountain`
-   (stale wheels, restricted builds). When that risk is acceptable,
-   trim down to a pure shim.
-2. ❌ Delete `web_demo/static/fountain-codes.js`'s legacy classes.
-   Same fallback rationale as above — works without WASM.
-3. ✅ NumPy import dropped from `fountain.py` (commit on this branch).
-   `requirements.txt` still lists NumPy for the other consumers
-   (qr_code, stego_multilayer, etc.); dropping it from the package
-   would require migrating those too.
-4. ❌ `docs/PROTOCOL.md` doesn't currently document the fountain
-   implementation — no doc location to update. Migration plan
-   (this file) and CHANGELOG cover the migration history.
+After running the migration end-to-end across both bindings,
+items 1 and 2 below were re-classified from "deferred deletion"
+to **intentional retention**. They are load-bearing fallbacks,
+not unfinished cleanup.
+
+1. 🟢 **Pure-Python LT in `fountain.py` — INTENTIONALLY RETAINED.**
+   The shim deliberately keeps the pure-Python encoder + decoder
+   paths as a fallback for environments without
+   `meow_crypto_rs.fountain` (stale wheels, restricted-build
+   targets, environments where the maturin wheel cannot be
+   installed). The fallback remains under test coverage and is
+   exercised by the same golden-vector suite as the Rust path.
+   Deletion would force a hard `meow_crypto_rs` requirement on
+   the fountain code path, which is a behavioral change beyond
+   the scope of this migration.
+
+2. 🟢 **Pure-JS LT in `web_demo/static/fountain-codes.js` —
+   INTENTIONALLY RETAINED.** Same rationale as item 1: the
+   fallback is what `webcam.html` and `modes.html` use today
+   (they don't load WASM). The WASM path is a hot-swap upgrade
+   for `wasm_browser_example_FULL.html`, not a replacement of
+   the legacy classes.
+
+3. ✅ NumPy import dropped from `fountain.py` (already done on
+   this branch). `requirements.txt` still lists NumPy for the
+   other consumers (qr_code, stego_multilayer, etc.); dropping
+   it from the package would require migrating those too.
+
+4. ✅ **Fountain documentation lives here.** `docs/PROTOCOL.md`
+   §6 Frame Format already documents the on-wire droplet layout
+   (`seed(4) || count(2) || indices(2*count) || data(block_size)`).
+   This file is the canonical reference for the migration history,
+   determinism contract, and Phase status. Together they cover the
+   protocol and implementation surface — no separate deletion task.
+
+**Net status: Phase 4 is closed.** The two "❌" items in the
+original Phase 4 list were design decisions misclassified as
+deferred work. The pure-Python and pure-JS implementations are
+part of the supported surface, not technical debt awaiting removal.
 
 ## Acceptance criteria
 

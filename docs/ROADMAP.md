@@ -61,7 +61,7 @@ This document outlines security improvements. Internal milestone labels (v5.x) a
 - [x] **Canonical AAD**: Deterministic `version_byte || fields` construction (`canonical_aad.py`) (MT-1)
 - [x] **Tamper Timeline**: Frame-by-frame MAC report with cluster detection (`tamper_report.py`) (MT-7)
 - [x] **Mobile Bridge Protocol**: JSON-over-WebSocket phone→CLI bridge (`mobile/bridge/protocol.py`) (MT-8)
-- [x] **Meow Capture v3.2**: Production-ready React Native companion app ([mobile/README.md](../mobile/README.md)) — CaptureCoachPanel, CalibrationWizard, DiagnosticsPanel, SettingsScreen (Strict/Convenience mode), SHA-256 export verify, multi-device merge CLI (`meow_decoder/merge.py`), accessibility announcements. **[📥 Download APK v3.2.2](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk)** — iOS & store listings coming soon.
+- [x] **Meow Capture v3.2**: Production-ready React Native companion app ([mobile/README.md](../mobile/README.md)) — CaptureCoachPanel, CalibrationWizard, DiagnosticsPanel, SettingsScreen (Strict/Convenience mode), SHA-256 export verify, multi-device merge CLI (`meow_decoder/merge.py`), accessibility announcements. **[📥 Download APK v3.2.1](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk)** — iOS & Play Store listings coming soon.
 - [x] **Self-Test CLI**: `meow-encode --self-test` verifies backend, roundtrip, fountain (ST-6)
 - [x] **Duplicate Quarantine**: Deprecated paths moved to `meow_decoder/experimental/` (ST-1)
 - [x] **CLI Hardware Flags**: `--hsm-slot`, `--tpm-seal`, `--hardware-auto` wired (ST-8)

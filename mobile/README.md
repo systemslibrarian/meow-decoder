@@ -39,8 +39,10 @@ That is the path this app is most ready to support end to end.
 
 | Version | Download | Notes |
 |---------|----------|-------|
-| **v3.2.2** (latest) | [⬇ Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) | Bug fixes: capture init + camera guard |
-| v3.2.0 | [Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk) | — |
+| **v3.2.1** (latest sideload) | [⬇ Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk) | Capture init + camera guard fixes |
+| v3.2.0 | [Download APK](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.0-release.apk) | Initial v3.2 line |
+
+> Future APKs will be published as GitHub Releases / Play Store (see [Trust Center](../docs/TRUST_CENTER.md) for the maturity tier). The in-tree `releases/android/` raw URLs above are a sideload convenience for the current pre-store window.
 
 **Sideload instructions:**
 

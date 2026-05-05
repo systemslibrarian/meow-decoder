@@ -29,7 +29,7 @@ Current summary by item:
 - Item 3: fixed for the specific dependency issues that motivated the original note
 - Item 4: fixed for the identified hotspots
 - Item 5: strategically useful; the technical MP4 path is shipped and the broader product/UX work this item gestured at is now the dedicated Product & UX track in `docs/ROADMAP.md` (Milestones A and B shipped 2026-05-04 → 05)
-- Item 6: substantially done in staged form
+- Item 6: closed (Phase 4 reassessment 2026-05-05 — fallbacks are load-bearing, not technical debt)
 - Item 7: still strategically useful
 
 A separate Product & UX track now lives in `docs/ROADMAP.md`, with supporting specs in `docs/TRUST_CENTER.md` and `docs/DEFAULT_WORKFLOW_SPEC.md`. Several "broader product polish" themes implicit in this document (especially Item 5) are now tracked there as concrete milestones rather than as adjacent commentary in this strategic note.
@@ -70,22 +70,31 @@ Original direction:
 - modernize `tpm.rs`
 - ensure hardware-backed security paths are trustworthy across targets
 
-Current status: substantially advanced.
+Current status: substantially advanced. The integration code is
+shipped and the test matrix is now explicitly documented.
 
 What is already true in the repo:
 
 - The roadmap marks HSM, YubiKey, and TPM integration as complete
 - The branch follow-up records multiple TPM hardening and panic-removal fixes
 - The current branch also records API migration work against `tss-esapi 7.6.0`
+- `docs/HARDWARE_TEST_MATRIX.md` (new, 2026-05-05) honestly enumerates
+  what's covered by mock providers in CI vs. what still needs
+  real-hardware validation, per device class
 
 What remains open in practice:
 
-- Hardware support is the sort of surface that always needs ongoing compatibility maintenance
-- Cryptographer and platform validation still matter for confidence, especially across real devices and driver environments
+- Real-hardware validation runs (SoftHSM2, swtpm, YubiKey 5) are
+  the next concrete step — those rows in the test matrix are
+  currently marked ⚪ and should turn ✅ as devices are exercised
+- One TPM cryptographer-review item (`Context::create()`
+  `SensitiveData` slot, commit `e43577e`) is flagged in the matrix
+- Driver and OS-version coverage will always be ongoing maintenance
 
 Verdict:
 
-- Useful ongoing quality area
+- Useful ongoing quality area, with the open work now itemized
+  per-device in `docs/HARDWARE_TEST_MATRIX.md`
 - Not a missing foundational architecture item anymore
 
 ## 3. Zero-Tolerance for Dependency Vulnerabilities
@@ -173,7 +182,9 @@ Original direction:
 - expose it to Python and browser surfaces
 - remove logic drift between Python and JavaScript implementations
 
-Current status: substantially done in staged form.
+Current status: closed. The migration shipped end-to-end and the
+remaining Phase 4 "cleanup" items were reassessed as intentional
+retention rather than deferred work.
 
 What is already true in the repo:
 
@@ -182,16 +193,22 @@ What is already true in the repo:
 - WASM-backed activation exists for the web demo
 - The Python fountain layer is now a thin shim around Rust for the main path
 - The JS fallback remains intentional for environments without WASM
+- Phase 4 reassessment (2026-05-05) reframes the pure-Python and
+  pure-JS implementations as load-bearing fallbacks that are part
+  of the supported surface, not technical debt awaiting removal
 
 What remains open:
 
-- Cleanup of legacy fallback implementations remains intentionally deferred
-- Some downstream docs and cleanup items are still incomplete
+- Nothing scoped under this item. Future fountain changes go
+  through the standard Rust + bindings path (`crypto_core`).
 
 Verdict:
 
-- Excellent direction
-- No longer a hypothetical migration
+- Excellent direction, fully realized
+- The migration is no longer "in progress" — it is shipped, with
+  the supported surfaces (Rust, Python shim, WASM hot-swap, JS
+  fallback) all documented in
+  `docs/FOUNTAIN_RUST_WASM_MIGRATION.md`
 
 ## 7. Clean the Litter Box (Technical Debt)
 

@@ -4,7 +4,7 @@
 **What you'll do:** Encode → Capture → Decode
 **Equipment needed:** Computer + phone (the cat cam 📹) — use **[Meow Capture](mobile/README.md)** for the fastest capture experience
 
-> 📥 **Get the app:** [Download Meow Capture v3.2.2 for Android (APK)](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.2-release.apk) · iOS & store listings coming soon
+> 📥 **Get the app:** [Download Meow Capture v3.2.1 for Android (APK)](https://github.com/systemslibrarian/meow-decoder/raw/main/releases/android/meow-decoder-v3.2.1-release.apk) · iOS & Play Store listings coming soon
 
 ---
 
