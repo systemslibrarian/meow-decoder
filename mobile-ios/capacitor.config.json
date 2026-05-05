@@ -1,0 +1,12 @@
+{
+  "appId": "com.systemslibrarian.meowdecoder",
+  "appName": "Meow Decoder",
+  "webDir": "dist",
+  "ios": {
+    "contentInset": "always",
+    "limitsNavigationsToAppBoundDomains": true
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

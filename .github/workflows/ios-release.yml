@@ -1,0 +1,222 @@
+name: Release iOS to TestFlight
+
+# Adapted from the cipher-mix release.yml pattern. Pins all paths to
+# mobile-ios/ so the existing repo layout (Python crypto core, Rust crate,
+# RN receiver app at mobile/) is untouched.
+#
+# Triggers:
+#   - push of a tag matching `v*-ios` (e.g. `git tag v0.1.0-ios && git push --tags`)
+#   - manual dispatch from the Actions tab (useful for the first run)
+#
+# Secrets required (see mobile-ios/STORES.md "Setting up secrets"):
+#   BUILD_CERTIFICATE_BASE64   — base64 of your Apple Distribution .p12
+#   P12_PASSWORD               — password for that .p12
+#   BUILD_PROVISION_PROFILE_BASE64 — base64 of the App Store profile
+#   KEYCHAIN_PASSWORD          — random string, used only by CI
+#   ASC_KEY_ID                 — App Store Connect API Key ID
+#   ASC_ISSUER_ID              — App Store Connect API Issuer ID
+#   ASC_PRIVATE_KEY            — base64 of the .p8 private key
+#   APPLE_TEAM_ID              — 10-char team identifier (e.g. ABCDE12345)
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: 'Optional build number override (auto-set to run number otherwise)'
+        required: false
+  push:
+    tags:
+      - 'v*-ios'
+
+# Only one release at a time per ref.
+concurrency:
+  group: release-ios-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ios:
+    name: Archive + upload iOS app
+    runs-on: macos-26
+    timeout-minutes: 60
+
+    defaults:
+      run:
+        working-directory: mobile-ios
+
+    env:
+      BUNDLE_ID: com.systemslibrarian.meowdecoder
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: mobile-ios/package-lock.json
+
+      - name: Install npm dependencies
+        run: npm install
+
+      # The web bundle depends on a built Rust→WASM crypto_core. Rebuild it
+      # on the runner rather than relying on whatever happens to be checked
+      # in, so signed builds always reflect the source.
+      - name: Install wasm-pack
+        run: |
+          curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
+
+      - name: Build crypto_core WASM
+        working-directory: ${{ github.workspace }}/crypto_core
+        run: wasm-pack build --target web --out-dir pkg --release
+
+      - name: Stage web bundle into mobile-ios/dist/
+        run: npm run build:native
+
+      - name: Sync web bundle into ios/
+        run: npx cap sync ios
+
+      - name: Pick Xcode
+        run: |
+          # macos-26 ships several Xcode versions; pin to the most recent
+          # stable release available on the runner.
+          sudo xcode-select -s /Applications/Xcode_26.app 2>/dev/null \
+              || sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Import signing certificate
+        env:
+          BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
+          P12_PASSWORD:             ${{ secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD:        ${{ secrets.KEYCHAIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+
+          echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain    -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$P12_PASSWORD" \
+              -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list \
+              -S apple-tool:,apple:,codesign: \
+              -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Defensive: also drop the WWDR intermediate into the temp keychain
+          # so the chain resolves without depending on system state.
+          WWDR="$RUNNER_TEMP/AppleWWDRCAG3.cer"
+          curl -fsSL -o "$WWDR" \
+              https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer
+          security import "$WWDR" -k "$KEYCHAIN_PATH" -A -t cert 2>&1 \
+              | grep -v "already exists" || true
+
+          security default-keychain -s "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain \
+              /Library/Keychains/System.keychain
+
+      - name: Debug — list signing identities visible to codesign
+        run: |
+          security find-identity -p codesigning -v
+          echo "---"
+          security find-certificate -a -c "Apple Distribution" -p \
+              "$RUNNER_TEMP/build.keychain-db" 2>&1 \
+              | openssl x509 -noout -subject -dates 2>&1 || true
+
+      - name: Install provisioning profile
+        id: profile
+        env:
+          BUILD_PROVISION_PROFILE_BASE64: ${{ secrets.BUILD_PROVISION_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILE_PATH="$RUNNER_TEMP/profile.mobileprovision"
+          echo -n "$BUILD_PROVISION_PROFILE_BASE64" | base64 --decode --output "$PROFILE_PATH"
+
+          PROFILE_PLIST="$RUNNER_TEMP/profile.plist"
+          security cms -D -i "$PROFILE_PATH" > "$PROFILE_PLIST"
+          PROFILE_UUID=$(/usr/libexec/PlistBuddy -c "Print :UUID" "$PROFILE_PLIST")
+          PROFILE_NAME=$(/usr/libexec/PlistBuddy -c "Print :Name" "$PROFILE_PLIST")
+
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp "$PROFILE_PATH" "$HOME/Library/MobileDevice/Provisioning Profiles/$PROFILE_UUID.mobileprovision"
+
+          echo "uuid=$PROFILE_UUID" >> "$GITHUB_OUTPUT"
+          echo "name=$PROFILE_NAME" >> "$GITHUB_OUTPUT"
+          echo "Installed profile: $PROFILE_NAME ($PROFILE_UUID)"
+
+      - name: Render ExportOptions.plist
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PROFILE_UUID:  ${{ steps.profile.outputs.uuid }}
+          BUNDLE_ID:     ${{ env.BUNDLE_ID }}
+        run: |
+          set -euo pipefail
+          envsubst < ios/App/ExportOptions.plist.tmpl > ios/App/ExportOptions.plist
+          echo "--- ExportOptions.plist ---"
+          cat ios/App/ExportOptions.plist
+
+      - name: Bump build number
+        env:
+          BUILD_NUMBER: ${{ inputs.build_number || github.run_number }}
+        run: |
+          /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER}" \
+              ios/App/App/Info.plist
+
+      - name: Archive
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          PROFILE_UUID:  ${{ steps.profile.outputs.uuid }}
+        run: |
+          set -euo pipefail
+          xcodebuild -project ios/App/App.xcodeproj \
+              -scheme App \
+              -configuration Release \
+              -archivePath "$RUNNER_TEMP/App.xcarchive" \
+              -destination 'generic/platform=iOS' \
+              -skipPackagePluginValidation \
+              CODE_SIGN_STYLE=Manual \
+              DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+              PROVISIONING_PROFILE_SPECIFIER="$PROFILE_UUID" \
+              CODE_SIGN_IDENTITY="Apple Distribution" \
+              OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/build.keychain-db" \
+              archive
+
+      - name: Export IPA
+        run: |
+          set -euo pipefail
+          xcodebuild -exportArchive \
+              -archivePath "$RUNNER_TEMP/App.xcarchive" \
+              -exportOptionsPlist ios/App/ExportOptions.plist \
+              -exportPath "$RUNNER_TEMP/ipa"
+          ls -la "$RUNNER_TEMP/ipa"
+
+      - name: Upload to TestFlight
+        env:
+          ASC_KEY_ID:      ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID:   ${{ secrets.ASC_ISSUER_ID }}
+          ASC_PRIVATE_KEY: ${{ secrets.ASC_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          IPA_PATH="$(find "$RUNNER_TEMP/ipa" -name '*.ipa' | head -1)"
+          if [ -z "$IPA_PATH" ]; then
+            echo "No IPA produced" >&2; exit 1
+          fi
+          mkdir -p ~/.private_keys
+          echo -n "$ASC_PRIVATE_KEY" | base64 --decode > ~/.private_keys/AuthKey_${ASC_KEY_ID}.p8
+          xcrun altool --upload-app \
+              -f "$IPA_PATH" \
+              -t ios \
+              --apiKey "$ASC_KEY_ID" \
+              --apiIssuer "$ASC_ISSUER_ID"
+
+      - name: Upload IPA as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: meow-decoder-ios-ipa
+          path: ${{ runner.temp }}/ipa/*.ipa
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,22 @@
+{
+  "name": "meow-decoder-ios",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Capacitor iOS wrapper for the Meow Decoder web demo (encode + decode + cat-mode + Schrödinger). Pairs with the React Native receiver app under mobile/.",
+  "scripts": {
+    "build:native": "bash scripts/build-web.sh",
+    "cap:sync": "npm run build:native && cap sync",
+    "cap:sync:ios": "npm run build:native && cap sync ios",
+    "cap:open:ios": "cap open ios",
+    "cap:icons": "capacitor-assets generate --assetPath resources",
+    "test": "node scripts/verify-bundle.mjs"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.3.1"
+  },
+  "dependencies": {
+    "@capacitor/core": "^8.3.1",
+    "@capacitor/ios": "^8.3.1"
+  }
+}
