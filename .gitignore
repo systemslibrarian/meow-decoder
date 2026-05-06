@@ -5,6 +5,10 @@
 # mobile-ios/scripts/bootstrap-apple.py.
 apple-bootstrap-out/
 
+# Claude Code local state — per-user, not shared.
+.claude/settings.local.json
+.claude/scheduled_tasks.lock
+
 # Python
 __pycache__/
 *.py[cod]
