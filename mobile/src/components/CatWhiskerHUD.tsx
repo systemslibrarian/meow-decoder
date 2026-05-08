@@ -45,15 +45,17 @@ type SvgEllipseProps = {
   stroke?: string; strokeWidth?: number | string; fill?: string; opacity?: number;
 };
 
-// Create animated versions of the SVG primitives we need to drive on UI thread
+// Create animated versions of the SVG primitives we need to drive on UI thread.
+// Cast to ComponentClass (not ComponentType) — createAnimatedComponent's overloads
+// resolve only on FunctionComponent or ComponentClass; the union breaks inference.
 const AnimatedLine = Animated.createAnimatedComponent(
-  Line as React.ComponentType<SvgLineProps>,
+  Line as unknown as React.ComponentClass<SvgLineProps>,
 );
 const AnimatedCircle = Animated.createAnimatedComponent(
-  Circle as React.ComponentType<SvgCircleProps>,
+  Circle as unknown as React.ComponentClass<SvgCircleProps>,
 );
 const AnimatedEllipse = Animated.createAnimatedComponent(
-  Ellipse as React.ComponentType<SvgEllipseProps>,
+  Ellipse as unknown as React.ComponentClass<SvgEllipseProps>,
 );
 
 // ── Props ─────────────────────────────────────────────────────────────────────

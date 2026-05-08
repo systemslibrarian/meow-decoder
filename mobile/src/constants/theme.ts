@@ -23,6 +23,7 @@ export const Colors = {
   // Accent
   catGold: '#FFC820',
   catGoldDark: '#D4A800',
+  accent: '#4A90E2',
 
   // Status colours
   success: '#34C759',     // iOS green — "recoverable"
