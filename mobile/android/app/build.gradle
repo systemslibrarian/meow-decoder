@@ -64,8 +64,8 @@ android {
         applicationId "com.meowdecodermobile"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "3.2.2"
+        versionCode 4
+        versionName "3.2.3"
     }
 
     signingConfigs {
@@ -76,10 +76,19 @@ android {
             keyPassword 'android'
         }
         release {
-            storeFile file('release.keystore')
-            storePassword 'meowdecoder'
-            keyAlias 'meow-release'
-            keyPassword 'meowdecoder'
+            // Credentials are read from gradle.properties (in ~/.gradle/ or via -P),
+            // or from environment variables in CI. Never commit these to the repo.
+            def storeFilePath = project.findProperty('MEOW_STORE_FILE') ?: System.getenv('MEOW_STORE_FILE')
+            def storePass     = project.findProperty('MEOW_STORE_PASSWORD') ?: System.getenv('MEOW_STORE_PASSWORD')
+            def alias         = project.findProperty('MEOW_KEY_ALIAS') ?: System.getenv('MEOW_KEY_ALIAS') ?: 'meow-release'
+            def keyPass       = project.findProperty('MEOW_KEY_PASSWORD') ?: System.getenv('MEOW_KEY_PASSWORD')
+
+            if (storeFilePath) {
+                storeFile     file(storeFilePath)
+                storePassword storePass
+                keyAlias      alias
+                keyPassword   keyPass
+            }
         }
     }
 
@@ -88,7 +97,12 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.release
+            // Only attach the release signing config when credentials are actually
+            // present. Without this guard, an unsigned local build would crash with
+            // a confusing "Keystore file null not found" error.
+            if (project.hasProperty('MEOW_STORE_FILE') || System.getenv('MEOW_STORE_FILE')) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled enableProguardInReleaseBuilds
             shrinkResources true
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"

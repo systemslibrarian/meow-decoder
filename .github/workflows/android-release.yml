@@ -1,0 +1,185 @@
+name: Release Android to Google Play
+
+# Builds a signed App Bundle (.aab) for Meow Capture and uploads it to the
+# Google Play Internal Testing track. Mirrors the iOS release pattern so the
+# two stores are kept in lockstep.
+#
+# Triggers:
+#   - push of a tag matching `v*-android` (e.g. `git tag v3.2.3-android && git push --tags`)
+#   - manual dispatch from the Actions tab
+#
+# Required GitHub Actions secrets:
+#   ANDROID_KEYSTORE_BASE64   — base64 of meow-decoder-release.jks
+#   ANDROID_KEYSTORE_PASSWORD — keystore password
+#   ANDROID_KEY_ALIAS         — usually "meow-release"
+#   ANDROID_KEY_PASSWORD      — key password
+#
+# Optional (only required for auto-upload to Play; otherwise the AAB is just
+# published as a workflow artifact for manual upload via Play Console):
+#   PLAY_SERVICE_ACCOUNT_JSON — JSON for a Play Developer API service account
+#                                with Release Manager rights on the app
+
+on:
+  workflow_dispatch:
+    inputs:
+      track:
+        description: 'Play track (internal | alpha | beta | production)'
+        required: false
+        default: 'internal'
+      build_number:
+        description: 'Optional versionCode override'
+        required: false
+  push:
+    tags:
+      - 'v*-android'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-release-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-aab:
+    name: Build signed AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install JS dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Type-check (TS strict)
+        run: npx tsc --noEmit
+
+      - name: Lint (ESLint --max-warnings 0)
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm test -- --ci --reporters=default --silent
+
+      - name: Decode keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error ::ANDROID_KEYSTORE_BASE64 secret is not set"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > /tmp/release.jks
+          echo "Decoded keystore: $(stat -c%s /tmp/release.jks) bytes"
+
+      - name: Override versionCode (optional)
+        if: ${{ inputs.build_number != '' }}
+        run: |
+          sed -i "s/versionCode .*/versionCode ${{ inputs.build_number }}/" android/app/build.gradle
+          grep versionCode android/app/build.gradle
+
+      - name: Build release AAB
+        env:
+          MEOW_STORE_FILE: /tmp/release.jks
+          MEOW_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MEOW_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MEOW_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          ./gradlew bundleRelease --no-daemon -x lint --stacktrace
+
+      - name: Verify AAB exists
+        run: |
+          AAB=mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if [ ! -f "../$AAB" ]; then
+            echo "::error ::AAB not produced at $AAB"
+            ls -R android/app/build/outputs || true
+            exit 1
+          fi
+          ls -lh "../$AAB"
+          sha256sum "../$AAB"
+
+      - name: Verify APK signing (sanity)
+        run: |
+          ./gradlew :app:assembleRelease --no-daemon -x lint
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | head -10
+        env:
+          MEOW_STORE_FILE: /tmp/release.jks
+          MEOW_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          MEOW_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MEOW_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Upload AAB as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meow-capture-android-aab
+          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload APK as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meow-capture-android-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: warn
+          retention-days: 30
+
+  publish-play:
+    name: Upload to Google Play
+    needs: build-aab
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.track != '') }}
+    timeout-minutes: 15
+    env:
+      TRACK: ${{ inputs.track || 'internal' }}
+
+    steps:
+      - name: Download AAB
+        uses: actions/download-artifact@v4
+        with:
+          name: meow-capture-android-aab
+          path: ./
+
+      - name: Skip if no Play service-account secret is configured
+        id: gate
+        env:
+          PLAY_SA: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ -z "$PLAY_SA" ]; then
+            echo "::warning ::PLAY_SERVICE_ACCOUNT_JSON not set — AAB will need to be uploaded manually via Play Console."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Upload via r0adkll/upload-google-play
+        if: steps.gate.outputs.skip == 'false'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.meowdecodermobile
+          releaseFiles: app-release.aab
+          track: ${{ env.TRACK }}
+          status: completed
+          inAppUpdatePriority: 2

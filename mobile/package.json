@@ -1,6 +1,6 @@
 {
   "name": "meow-decoder-mobile",
-  "version": "3.2.0",
+  "version": "3.2.3",
   "description": "Optical air-gap QR capture app for meow-decoder",
   "private": true,
   "scripts": {
