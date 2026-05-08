@@ -143,16 +143,16 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [scanningRequest],
     ),
-    onError: useCallback(
-      (error: Error) => {
-        // ML Kit barcode module not yet downloaded — stop scanning spam and show message
-        if (error.message?.toLowerCase().includes('module') || error.message?.toLowerCase().includes('download')) {
-          setBarcodeModulePending(true);
-        }
-      },
-      [],
-    ),
   });
+
+  // CodeScanner config in vision-camera 4.x has no onError hook — surface
+  // ML-Kit-module-pending errors via the parent <Camera onError> prop instead.
+  const onCameraError = useCallback((error: Error) => {
+    const msg = error.message?.toLowerCase() ?? '';
+    if (msg.includes('module') || msg.includes('download')) {
+      setBarcodeModulePending(true);
+    }
+  }, []);
 
   const openRequestQrScanner = useCallback(async () => {
     // Guard: no point opening the scanner if there's no physical rear camera.
@@ -489,7 +489,8 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                   style={styles.qrCamera}
                   device={device}
                   isActive={scanningRequest && !barcodeModulePending}
-                  codeScanner={scanningRequest ? requestCodeScanner : undefined}
+                  onError={onCameraError}
+                  {...(scanningRequest ? { codeScanner: requestCodeScanner } : {})}
                 />
               )
             ) : (
@@ -649,27 +650,27 @@ function LabelledInput({
 
 const inputStyles = StyleSheet.create({
   container: { marginBottom: Spacing.md },
+  input: {
+    backgroundColor: Colors.backgroundTertiary,
+    borderColor: Colors.surfaceBorder,
+    borderRadius: Radius.sm,
+    borderWidth: 1,
+    color: Colors.textPrimary,
+    fontSize: Typography.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
   label: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
     marginBottom: Spacing.xxs,
-  },
-  input: {
-    color: Colors.textPrimary,
-    fontSize: Typography.md,
-    backgroundColor: Colors.backgroundTertiary,
-    borderRadius: Radius.sm,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
-    borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
   },
 });
 
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: Colors.background },
+  safe: { backgroundColor: Colors.background, flex: 1 },
   flex: { flex: 1 },
   scroll: { padding: Spacing.lg, paddingBottom: Spacing.xxxl },
   title: {
@@ -681,41 +682,41 @@ const styles = StyleSheet.create({
   subtitle: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
-    textAlign: 'left',
     marginTop: 2,
+    textAlign: 'left',
   },
   headerRow: {
     alignItems: 'center',
-    marginTop: Spacing.xl,
     marginBottom: Spacing.xs,
+    marginTop: Spacing.xl,
   },
   headerLogo: {
-    width: 160,
     height: 160,
     marginBottom: Spacing.sm,
+    width: 160,
   },
   headerTitleBlock: {
     alignItems: 'center',
   },
   domainText: {
-    color: Colors.accent ?? '#4A90E2',
-    fontSize: Typography.xs ?? 11,
-    opacity: 0.5,
-    marginTop: 2,
+    color: Colors.accent,
+    fontSize: Typography.xs,
     marginBottom: 2,
+    marginTop: 2,
+    opacity: 0.5,
   },
   settingsGear: {
-    position: 'absolute',
-    top: 0,
-    right: 0,
     padding: 4,
+    position: 'absolute',
+    right: 0,
+    top: 0,
   },
   settingsGearText: {
     fontSize: 22,
   },
   versionCorner: {
-    position: 'absolute',
     bottom: 8,
+    position: 'absolute',
     right: 12,
   },
   versionBadge: {
@@ -725,11 +726,11 @@ const styles = StyleSheet.create({
   },
   errorBanner: {
     backgroundColor: 'rgba(255,59,48,0.15)',
-    borderRadius: Radius.md,
-    borderLeftWidth: 3,
     borderLeftColor: Colors.danger,
-    padding: Spacing.md,
+    borderLeftWidth: 3,
+    borderRadius: Radius.md,
     marginBottom: Spacing.md,
+    padding: Spacing.md,
   },
   errorText: {
     color: Colors.danger,
@@ -738,8 +739,8 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: Radius.lg,
-    padding: Spacing.lg,
     marginBottom: Spacing.lg,
+    padding: Spacing.lg,
     ...Shadows.subtle,
   },
   cardTitle: {
@@ -751,18 +752,18 @@ const styles = StyleSheet.create({
   cardBody: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
-    marginBottom: Spacing.lg,
     lineHeight: Typography.sm * 1.5,
+    marginBottom: Spacing.lg,
   },
   code: {
     color: Colors.catOrangeLight,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
   },
   primaryButton: {
-    backgroundColor: Colors.catOrange,
-    paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
     alignItems: 'center',
+    backgroundColor: Colors.catOrange,
+    borderRadius: Radius.full,
+    paddingVertical: Spacing.md,
   },
   primaryButtonText: {
     color: Colors.textPrimary,
@@ -770,9 +771,9 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
   },
   dividerLine: {
+    backgroundColor: Colors.surfaceBorder,
     flex: 1,
     height: 1,
-    backgroundColor: Colors.surfaceBorder,
   },
   manualToggle: { alignItems: 'center', marginVertical: Spacing.md },
   manualToggleText: {
@@ -781,22 +782,22 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
   },
   footer: {
-    marginTop: Spacing.xl,
     alignItems: 'center',
+    marginTop: Spacing.xl,
   },
   footerText: {
     color: Colors.textTertiary,
     fontSize: Typography.xs,
-    textAlign: 'center',
     lineHeight: Typography.xs * 1.6,
+    textAlign: 'center',
   },
   resumeBanner: {
     backgroundColor: 'rgba(255,200,50,0.12)',
-    borderRadius: Radius.lg,
-    borderLeftWidth: 3,
     borderLeftColor: Colors.catGold,
-    padding: Spacing.md,
+    borderLeftWidth: 3,
+    borderRadius: Radius.lg,
     marginBottom: Spacing.md,
+    padding: Spacing.md,
   },
   resumeTitle: {
     color: Colors.catGold,
@@ -806,8 +807,8 @@ const styles = StyleSheet.create({
   },
   resumeDetail: {
     color: Colors.textSecondary,
-    fontSize: Typography.sm,
     fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    fontSize: Typography.sm,
     marginBottom: Spacing.xs,
   },
   resumeSecurityNote: {
@@ -818,17 +819,17 @@ const styles = StyleSheet.create({
   },
   resumeActions: {
     flexDirection: 'row',
-    gap: Spacing.sm,
     flexWrap: 'wrap',
+    gap: Spacing.sm,
   },
   resumeReopenBtn: {
-    flex: 2,
+    alignItems: 'center',
     backgroundColor: Colors.catOrange,
     borderRadius: Radius.full,
-    paddingVertical: Spacing.xs,
-    alignItems: 'center',
-    minWidth: '100%',
+    flex: 2,
     marginBottom: Spacing.xxs,
+    minWidth: '100%',
+    paddingVertical: Spacing.xs,
   },
   resumeReopenText: {
     color: Colors.textPrimary,
@@ -836,11 +837,11 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
   },
   resumeRestartBtn: {
-    flex: 1,
+    alignItems: 'center',
     backgroundColor: 'rgba(255,200,50,0.18)',
     borderRadius: Radius.full,
+    flex: 1,
     paddingVertical: Spacing.xs,
-    alignItems: 'center',
   },
   resumeRestartText: {
     color: Colors.catGold,
@@ -848,11 +849,11 @@ const styles = StyleSheet.create({
     fontWeight: Typography.semibold,
   },
   resumeWipeBtn: {
-    flex: 1,
+    alignItems: 'center',
     backgroundColor: 'rgba(255,59,48,0.15)',
     borderRadius: Radius.full,
+    flex: 1,
     paddingVertical: Spacing.xs,
-    alignItems: 'center',
   },
   resumeWipeText: {
     color: Colors.danger,
@@ -866,13 +867,13 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
   },
   altButton: {
-    flex: 1,
+    alignItems: 'center',
     backgroundColor: Colors.backgroundTertiary,
+    borderColor: Colors.surfaceBorder,
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: Colors.surfaceBorder,
+    flex: 1,
     paddingVertical: Spacing.sm,
-    alignItems: 'center',
   },
   altButtonText: {
     color: Colors.catOrange,
@@ -882,41 +883,41 @@ const styles = StyleSheet.create({
   captureHelperText: {
     color: Colors.textSecondary,
     fontSize: Typography.xs ?? 11,
-    textAlign: 'center',
-    opacity: 0.65,
-    marginTop: Spacing.sm,
-    paddingHorizontal: Spacing.xl,
     marginBottom: Spacing.xs,
+    marginTop: Spacing.sm,
+    opacity: 0.65,
+    paddingHorizontal: Spacing.xl,
+    textAlign: 'center',
   },
   advancedHeaderRow: {
-    flexDirection: 'row',
     alignItems: 'center',
-    marginTop: Spacing.xl,
+    flexDirection: 'row',
     marginBottom: Spacing.sm,
+    marginTop: Spacing.xl,
   },
   advancedHeaderText: {
     color: Colors.textTertiary,
     fontSize: Typography.xs ?? 11,
+    letterSpacing: 1,
     marginHorizontal: Spacing.sm,
     textTransform: 'uppercase',
-    letterSpacing: 1,
   },
   advancedHelperText: {
     color: Colors.textTertiary,
     fontSize: Typography.xs ?? 11,
-    textAlign: 'center',
+    lineHeight: (Typography.xs ?? 11) * 1.5,
+    marginBottom: Spacing.md,
     opacity: 0.7,
     paddingHorizontal: Spacing.xl,
-    marginBottom: Spacing.md,
-    lineHeight: (Typography.xs ?? 11) * 1.5,
+    textAlign: 'center',
   },
   // ── Request QR scanner modal ──────────────────────────────────────────────
   qrModalContainer: {
-    flex: 1,
-    backgroundColor: Colors.background,
     alignItems: 'center',
-    paddingTop: Platform.OS === 'ios' ? 64 : 48,
+    backgroundColor: Colors.background,
+    flex: 1,
     paddingHorizontal: Spacing.lg,
+    paddingTop: Platform.OS === 'ios' ? 64 : 48,
   },
   qrModalTitle: {
     color: Colors.textPrimary,
@@ -927,25 +928,25 @@ const styles = StyleSheet.create({
   qrModalSubtitle: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
-    textAlign: 'center',
-    marginBottom: Spacing.xl,
     lineHeight: Typography.sm * 1.5,
+    marginBottom: Spacing.xl,
+    textAlign: 'center',
   },
   qrCamera: {
-    width: '100%',
     aspectRatio: 1,
     borderRadius: Radius.lg,
-    overflow: 'hidden',
     marginBottom: Spacing.xl,
+    overflow: 'hidden',
+    width: '100%',
   },
   qrCameraPlaceholder: {
-    width: '100%',
+    alignItems: 'center',
     aspectRatio: 1,
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: Radius.lg,
-    alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.xl,
+    width: '100%',
   },
   qrCameraPlaceholderText: {
     color: Colors.textTertiary,
@@ -953,9 +954,9 @@ const styles = StyleSheet.create({
   },
   qrCancelButton: {
     backgroundColor: 'rgba(255,59,48,0.85)',
+    borderRadius: Radius.full,
     paddingHorizontal: Spacing.xxxl,
     paddingVertical: Spacing.md,
-    borderRadius: Radius.full,
   },
   qrCancelText: {
     color: Colors.textPrimary,
@@ -964,18 +965,18 @@ const styles = StyleSheet.create({
   },
   // ── Video Import Info modal (F1) ──────────────────────────────────────────
   videoInfoOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    flex: 1,
+    justifyContent: 'center',
     paddingHorizontal: Spacing.lg,
   },
   videoInfoCard: {
     backgroundColor: Colors.backgroundSecondary,
     borderRadius: Radius.lg,
+    maxWidth: 380,
     padding: Spacing.xl,
     width: '100%',
-    maxWidth: 380,
     ...Shadows.subtle,
   },
   videoInfoTitle: {
@@ -991,13 +992,13 @@ const styles = StyleSheet.create({
     lineHeight: Typography.sm * 1.5,
   },
   videoInfoDismiss: {
+    alignItems: 'center',
     backgroundColor: Colors.catOrange,
     borderRadius: Radius.full,
-    paddingVertical: Spacing.sm,
-    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: Spacing.lg,
     minHeight: 44,
-    justifyContent: 'center',
+    paddingVertical: Spacing.sm,
   },
   videoInfoDismissText: {
     color: Colors.textPrimary,

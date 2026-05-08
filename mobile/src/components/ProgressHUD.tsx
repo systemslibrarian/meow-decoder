@@ -27,8 +27,23 @@ import Animated, {
 } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 
+// Local SVG-circle prop shape (react-native-svg 14.1.0 doesn't re-export
+// CircleProps from the package root). Flattened to number | string to keep
+// animatedProps inference strict-safe.
+type SvgCircleProps = {
+  cx?: number | string; cy?: number | string; r?: number | string;
+  stroke?: string; strokeWidth?: number | string; fill?: string;
+  strokeLinecap?: 'butt' | 'round' | 'square';
+  strokeDasharray?: number | string | (number | string)[];
+  strokeDashoffset?: number | string;
+  transform?: string; opacity?: number;
+};
+
 // Must be created at module level — not inside the component.
-const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// Cast to ComponentClass so createAnimatedComponent picks the correct overload.
+const AnimatedCircle = Animated.createAnimatedComponent(
+  Circle as unknown as React.ComponentClass<SvgCircleProps>,
+);
 import type { CaptureProgress } from '../types/capture';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
@@ -174,29 +189,36 @@ export const ProgressHUD = React.memo(function ProgressHUD({
 // ── Styles ─────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  container: {
-    position: 'absolute',
-    bottom: 120,
-    alignSelf: 'center',
-    alignItems: 'center',
-    backgroundColor: Colors.overlayDark,
-    borderRadius: Radius.lg,
-    paddingVertical: Spacing.md,
-    paddingHorizontal: Spacing.lg,
-    ...Shadows.medium,
-  },
-  ringWrapper: {
-    width: SVG_SIZE,
-    height: SVG_SIZE,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  svg: {
-    position: 'absolute',
-  },
   centreOverlay: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  container: {
+    alignItems: 'center',
+    alignSelf: 'center',
+    backgroundColor: Colors.overlayDark,
+    borderRadius: Radius.lg,
+    bottom: 120,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+    position: 'absolute',
+    ...Shadows.medium,
+  },
+  decodeRateText: {
+    color: Colors.textSecondary,
+    fontFamily: 'monospace' as const,
+    fontSize: Typography.xs,
+    marginTop: Spacing.xs,
+    opacity: 0.75,
+  },
+  etaText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.sm,
+  },
+  footer: {
+    flexDirection: 'row',
+    gap: Spacing.lg,
+    marginTop: Spacing.sm,
   },
   frameCount: {
     fontSize: Typography.lg,
@@ -206,22 +228,21 @@ const styles = StyleSheet.create({
   recovLabel: {
     color: Colors.textSecondary,
     fontSize: Typography.xs,
-    textAlign: 'center',
     marginTop: 2,
-  },
-  sublabel: {
-    color: Colors.textSecondary,
-    fontSize: Typography.xs,
     textAlign: 'center',
-    marginTop: Spacing.xs,
-    maxWidth: 200,
+  },
+  ringWrapper: {
+    alignItems: 'center',
+    height: SVG_SIZE,
+    justifyContent: 'center',
+    width: SVG_SIZE,
   },
   safeToStopPill: {
-    marginTop: Spacing.xs,
     backgroundColor: 'rgba(52,199,89,0.18)',
+    borderColor: 'rgba(52,199,89,0.5)',
     borderRadius: Radius.full,
     borderWidth: 1,
-    borderColor: 'rgba(52,199,89,0.5)',
+    marginTop: Spacing.xs,
     paddingHorizontal: Spacing.md,
     paddingVertical: 2,
   },
@@ -230,23 +251,17 @@ const styles = StyleSheet.create({
     fontSize: Typography.xs,
     fontWeight: Typography.semibold,
   },
-  decodeRateText: {
+  sublabel: {
     color: Colors.textSecondary,
     fontSize: Typography.xs,
-    fontFamily: 'monospace' as const,
     marginTop: Spacing.xs,
-    opacity: 0.75,
+    maxWidth: 200,
+    textAlign: 'center',
   },
-  footer: {
-    flexDirection: 'row',
-    gap: Spacing.lg,
-    marginTop: Spacing.sm,
+  svg: {
+    position: 'absolute',
   },
   timerText: {
-    color: Colors.textSecondary,
-    fontSize: Typography.sm,
-  },
-  etaText: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
   },
