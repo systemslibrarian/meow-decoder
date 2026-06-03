@@ -28,7 +28,7 @@ dead_code = "allow"
 aes-gcm = "0.10"
 
 # AES block cipher (for CTR mode)
-aes = { version = "0.8", optional = true }
+aes = { version = "0.9", optional = true }
 
 # CTR mode for streaming encryption
 ctr = { version = "0.9", optional = true }
