@@ -301,6 +301,28 @@ class TestSchrodingerNonceIsolation:
         assert len(stream_a_nonces) == 500
         assert len(stream_b_nonces) == 500
 
+    def test_transfer_nonce_disjoint_from_generate(self, root_key, manifest_hash):
+        """generate_for_transfer() must never collide with generate().
+
+        Regression: with empty additional_context the salt is byte-identical
+        to generate()'s, so without domain separation the two would produce
+        the SAME nonce under the same key — catastrophic GCM reuse.
+        """
+        gen = NonceGenerator(root_key=root_key, manifest_hash=manifest_hash)
+        plain = {gen.generate(i) for i in range(200)}
+        transfer = {gen.generate_for_transfer(i, additional_context=b"") for i in range(200)}
+        assert len(plain & transfer) == 0
+
+    def test_transfer_reuse_guard_raises(self, root_key, manifest_hash):
+        """Repeating the same (frame_counter, context) pair must be rejected."""
+        gen = NonceGenerator(root_key=root_key, manifest_hash=manifest_hash)
+        gen.generate_for_transfer(7, additional_context=b"ctx")
+        # Same pair again → reuse.
+        with pytest.raises(RuntimeError, match="Nonce reuse detected"):
+            gen.generate_for_transfer(7, additional_context=b"ctx")
+        # Same counter, different context → allowed.
+        gen.generate_for_transfer(7, additional_context=b"other")
+
 
 class TestNonceGeneratorReset:
     """Test reset behavior."""

@@ -647,20 +647,39 @@ def _decode_cat_video(video_path):
         ~75% of runs in random 2-bit data are single-blink transitions.
         These give exact bp measurements. Using their median gives a much
         more accurate bp than the 16-blink preamble alone.
+
+        Robustness: real (compressed / camera-captured) video produces spurious
+        short runs at ON/OFF transitions — VP9/H.264 inter-frame blur and rolling
+        shutter momentarily push a transitioning eye across the threshold. Those
+        sub-blink runs were polluting the single-blink set and dragging the median
+        well below the true period (observed: a correct 5.94-frame preamble
+        estimate collapsing to 4.0 on VP9 video, inflating the decoded bit count
+        ~1.5×). Two guards prevent that:
+          1. Only count runs inside a plausible single-blink band around the
+             current estimate, excluding the tiny transition artifacts.
+          2. Never let the refined value stray far from the preamble-derived
+             estimate, which is reliable (it spans exactly 16 known blinks).
         """
         bp = initial_bp
-        for iteration in range(3):
-            single_blink_lengths = []
-            for i in range(start_idx, end_idx):
-                _, _, length = runs_list[i]
-                n_blinks = max(1, int(length / bp + 0.5))
-                if n_blinks == 1:
-                    single_blink_lengths.append(length)
-            if len(single_blink_lengths) >= 10:
-                single_blink_lengths.sort()
-                bp = single_blink_lengths[len(single_blink_lengths) // 2]
-            else:
+        for _ in range(3):
+            lo, hi = 0.5 * bp, 1.5 * bp  # plausible single-blink window
+            single_blink_lengths = [
+                runs_list[i][2]
+                for i in range(start_idx, end_idx)
+                if lo <= runs_list[i][2] <= hi
+            ]
+            if len(single_blink_lengths) < 10:
                 break
+            single_blink_lengths.sort()
+            new_bp = single_blink_lengths[len(single_blink_lengths) // 2]
+            # Reject refinements that drift implausibly far from the reliable
+            # preamble estimate — that only happens when artifacts dominate.
+            if not (0.7 * initial_bp <= new_bp <= 1.4 * initial_bp):
+                break
+            if abs(new_bp - bp) < 1e-6:
+                bp = float(new_bp)
+                break
+            bp = float(new_bp)
         return float(bp)
 
     def whiten(binary_str):

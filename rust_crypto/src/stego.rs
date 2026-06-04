@@ -727,11 +727,13 @@ pub fn timing_encode(
         // Pseudorandom base jitter (adds unpredictability)
         let jitter = rng.next_bounded(2) as u16; // 0 or 1 cs random base
 
-        // Delay = base + jitter + encoded value
-        let delay = base_delay + jitter + (value as u16);
+        // Delay = base + jitter + encoded value.
+        // Saturating: a large caller-supplied base_delay must not overflow
+        // u16 (debug panic / release wrap) before the clamp below runs.
+        let delay = base_delay.saturating_add(jitter).saturating_add(value as u16);
 
         // Clamp to reasonable range
-        let delay = delay.min(base_delay + max_offset + 2);
+        let delay = delay.min(base_delay.saturating_add(max_offset).saturating_add(2));
         delays.push(delay);
     }
 

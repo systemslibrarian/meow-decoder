@@ -71,9 +71,29 @@ impl FountainDecoder {
         self.pending.len()
     }
 
+    /// True if a droplet is structurally compatible with this decoder:
+    /// every block index is in range and the data is exactly one block
+    /// wide. The XOR/index math below assumes both; a droplet parsed for
+    /// a different `(k_blocks, block_size)` (or a corrupted one that still
+    /// slipped past an upstream MAC) must be rejected here rather than
+    /// panicking with an out-of-bounds index — in wasm (`panic=abort`)
+    /// that panic is an unrecoverable crash / DoS.
+    fn droplet_is_valid(&self, droplet: &Droplet) -> bool {
+        droplet.data.len() == self.block_size
+            && droplet
+                .block_indices
+                .iter()
+                .all(|&idx| (idx as usize) < self.k_blocks)
+    }
+
     /// Add a droplet. Returns true if the decoder is complete after
     /// this insertion. Mirrors `FountainDecoder.add_droplet`.
     pub fn add_droplet(&mut self, droplet: Droplet) -> bool {
+        // Defense-in-depth: ignore droplets that don't match this
+        // decoder's geometry instead of indexing out of bounds.
+        if !self.droplet_is_valid(&droplet) {
+            return self.is_complete();
+        }
         let reduced = self.reduce_droplet(droplet);
         match reduced.block_indices.len() {
             0 => {} // redundant — drop
@@ -235,5 +255,37 @@ mod tests {
     fn incomplete_returns_none_from_recovered_data() {
         let dec = FountainDecoder::new(5, 32);
         assert!(dec.recovered_data().is_none());
+    }
+
+    #[test]
+    fn out_of_range_block_index_is_ignored_not_panic() {
+        // A droplet whose index exceeds k_blocks (corrupted, or built for
+        // a different stream) must be rejected, not panic with an
+        // out-of-bounds index.
+        let mut dec = FountainDecoder::new(2, 4);
+        let bad = Droplet {
+            seed: 0,
+            block_indices: vec![1000],
+            data: vec![0u8; 4],
+        };
+        assert!(!dec.add_droplet(bad)); // ignored; not complete; no panic
+        assert_eq!(dec.decoded_count(), 0);
+    }
+
+    #[test]
+    fn wrong_data_length_is_ignored_not_panic() {
+        // A droplet whose data is narrower than the decoder's block_size
+        // must be rejected before the XOR-reduction loop indexes past its
+        // end.
+        let mut dec = FountainDecoder::new(2, 8);
+        // Decode block 0 first so reduction would run against it.
+        let good = Droplet { seed: 0, block_indices: vec![0], data: vec![7u8; 8] };
+        dec.add_droplet(good);
+        let short = Droplet {
+            seed: 1,
+            block_indices: vec![0, 1],
+            data: vec![0u8; 3], // shorter than block_size
+        };
+        assert!(!dec.add_droplet(short)); // ignored; no panic
     }
 }
