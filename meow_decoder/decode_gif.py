@@ -693,7 +693,11 @@ def decode_gif(
 
                 mac_stats.record_valid()
                 if tamper_report is not None:  # pragma: no cover
-                    tamper_report.record(idx + 1, True)
+                    # Use actual_frame_idx (the true GIF frame index) to match
+                    # the invalid-frame path above; idx+1 is the QR-list
+                    # position, which diverges when stego skips unreadable
+                    # frames, mixing two index spaces in the tamper report.
+                    tamper_report.record(actual_frame_idx, True)
             else:
                 droplet_bytes = qr_data
 
@@ -749,7 +753,7 @@ def decode_gif(
                 except ValueError as ve:
                     droplets_rejected += 1
                     if verbose and droplets_rejected <= 5:
-                        print(f"  ⚠️  Frame {idx + 1}: Ratchet decrypt failed: {ve}")
+                        print(f"  ⚠️  Frame {actual_frame_idx}: Ratchet decrypt failed: {ve}")
                     continue
 
             # Unpack droplet from verified bytes
