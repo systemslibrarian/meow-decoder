@@ -584,7 +584,16 @@ class EnvironmentSafety:
             # A non-zero return code or unexpected output may indicate ptrace issues.
             # For a deeper check, also scan running processes for known debugger names.
             if result.returncode != 0:
-                report.add_warning("macOS sysctl ptrace check returned non-zero exit code")
+                # SafetyReport has no add_warning(); use add_risk. The old call
+                # raised AttributeError that was swallowed by the caller's
+                # broad except, silently disabling this macOS detection path.
+                report.add_risk(
+                    Risk(
+                        category=RiskCategory.DEBUGGER,
+                        description="macOS sysctl ptrace check returned non-zero exit code",
+                        severity="medium",
+                    )
+                )
         except (subprocess.SubprocessError, OSError):
             pass
 

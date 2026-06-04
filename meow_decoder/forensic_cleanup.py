@@ -161,7 +161,9 @@ class ForensicCleaner:
                     result["error"] = str(e)
 
         result["items_cleaned"] = cleaned
-        result["success"] = True
+        # Don't report success if a delete failed — for a forensic-cleanup
+        # feature, masking a failure is the dangerous direction.
+        result["success"] = result.get("error") is None
         return result
 
     def _clean_recent_files(self) -> dict:
@@ -318,8 +320,11 @@ def clean_clipboard() -> dict:
         else:
             result["success"] = True
     except Exception as e:
+        # Report the failure truthfully. Clipboard clearing is best-effort and
+        # callers may treat it as non-fatal, but success must not be True when
+        # an error was recorded.
         result["error"] = str(e)
-        result["success"] = True  # Non-fatal
+        result["success"] = False
 
     return result
 

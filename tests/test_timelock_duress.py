@@ -111,7 +111,31 @@ def test_timelock_puzzle_memory_hard_branch_short_iterations():
 
     recovered = puzzle.decrypt_secret(encrypted, state.puzzle_target_hash)
     assert recovered == secret
-    assert len(puzzle_data) == 40
+    # puzzle_data is 41 bytes: >32sQ (start_hash + iterations) + 1 flag byte
+    # carrying use_memory_hard so solve_puzzle can reproduce the construction.
+    assert len(puzzle_data) == 41
+
+
+def test_timelock_memory_hard_roundtrip_through_solve():
+    """Regression: memory-hard puzzles must be solvable+decryptable.
+
+    Previously solve_puzzle had no memory-hard branch and puzzle_data carried
+    no flag, so create()'s memory-hard target could never be reproduced and the
+    secret was permanently lost. Uses >=1000 iters so the memory-hard loop runs
+    at least one round (the old test used 500 -> 0 rounds, hiding the bug).
+    """
+    cfg = TimeLockConfig(
+        lock_duration_seconds=1,
+        hash_iterations_per_second=3000,
+        use_memory_hard=True,
+    )
+    puzzle = TimeLockPuzzle(cfg)
+    secret = b"top-secret-key!!"
+
+    encrypted, puzzle_data, _state = puzzle.create_puzzle(secret)
+    solution, _ = puzzle.solve_puzzle(puzzle_data)
+    recovered = puzzle.decrypt_secret(encrypted, solution)
+    assert recovered == secret
 
 
 def test_timelock_solve_without_state(monkeypatch):
@@ -283,7 +307,7 @@ def test_encode_decode_with_timelock_returns_key(monkeypatch):
         lock_duration_seconds=0,
     )
 
-    assert len(puzzle_data) == 40
+    assert len(puzzle_data) == 41  # 40-byte core + 1 memory-hard flag byte
     assert state.total_iterations == 0
 
     recovered_key = decode_with_timelock(encoded, "password")

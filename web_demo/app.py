@@ -257,13 +257,14 @@ def encode_page():
 
             # Generate download token
             token = str(uuid.uuid4())
-            download_tokens[token] = {
-                "path": output_path,
-                "filename": output_filename,
-                "created": datetime.now(),
-                "mode": mode,
-                "original_filename": filename,
-            }
+            with download_tokens_lock:
+                download_tokens[token] = {
+                    "path": output_path,
+                    "filename": output_filename,
+                    "created": datetime.now(),
+                    "mode": mode,
+                    "original_filename": filename,
+                }
 
             # Success! Show result page
             file_size = output_path.stat().st_size
@@ -1262,11 +1263,12 @@ def schrodinger_page():
 
             # Create download token
             token = str(uuid.uuid4())
-            download_tokens[token] = {
-                "path": output_path,
-                "filename": "schrodinger_quantum.gif",
-                "created": datetime.now(),
-            }
+            with download_tokens_lock:
+                download_tokens[token] = {
+                    "path": output_path,
+                    "filename": "schrodinger_quantum.gif",
+                    "created": datetime.now(),
+                }
 
             flash(f"✅ Schrödinger encoding complete! Quantum superposition created.", "success")
             return redirect(url_for("download_file", token=token))
@@ -1349,11 +1351,12 @@ def decode_page():
 
             # Generate download token
             token = str(uuid.uuid4())
-            download_tokens[token] = {
-                "path": output_path,
-                "filename": actual_filename,
-                "created": datetime.now(),
-            }
+            with download_tokens_lock:
+                download_tokens[token] = {
+                    "path": output_path,
+                    "filename": actual_filename,
+                    "created": datetime.now(),
+                }
 
             # Success!
             file_size = output_path.stat().st_size
@@ -1435,11 +1438,12 @@ def decode_webcam():
 
         # Generate download token
         token = str(uuid.uuid4())
-        download_tokens[token] = {
-            "path": output_path,
-            "filename": actual_filename,
-            "created": datetime.now(),
-        }
+        with download_tokens_lock:
+            download_tokens[token] = {
+                "path": output_path,
+                "filename": actual_filename,
+                "created": datetime.now(),
+            }
 
         # Success!
         file_size = output_path.stat().st_size

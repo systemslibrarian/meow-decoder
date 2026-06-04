@@ -238,6 +238,12 @@ def pad_frame_count(frames: List[bytes], target_count: int) -> List[bytes]:
     if len(frames) >= target_count:
         return frames
 
+    # Decoy size is taken from an existing frame; with no real frames there is
+    # no reference size, so fail with a clear error instead of an opaque
+    # IndexError on frames[0].
+    if not frames:
+        raise ValueError("Cannot pad an empty frame list — no reference frame size available")
+
     # Generate decoy frames
     decoy_count = target_count - len(frames)
     decoys = [secrets.token_bytes(len(frames[0])) for _ in range(decoy_count)]
