@@ -157,6 +157,7 @@ jobs:
             tests/test_asymmetric_rekey.py \
             tests/test_audit_fixes.py \
             tests/test_bridge_protocol.py \
+            tests/test_cat_blink.py \
             tests/test_cat_errors.py \
             tests/test_cat_js_runner.py \
             tests/test_cat_utils.py \

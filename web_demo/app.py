@@ -8,6 +8,7 @@ import base64
 import logging
 from meow_decoder.crypto_backend import get_handle_backend
 from meow_decoder.crypto import encrypt_file_bytes_production, decrypt_to_raw_production
+from meow_decoder.cat_blink import refine_blink_period
 from meow_decoder.config import EncodingConfig, DecodingConfig
 from meow_decoder.decode_gif import decode_gif
 from meow_decoder.encode import encode_file
@@ -432,49 +433,10 @@ def cat_mode_decode_video():
         return json.dumps({"error": "Video decode failed"}), 500, {"Content-Type": "application/json"}
 
 
-def _refine_blink_period(runs_list, start_idx, end_idx, initial_bp):
-    """Refine blink period estimate using median of single-blink run lengths.
-
-    ~75% of runs in random 2-bit data are single-blink transitions. These give
-    exact bp measurements, so their median is a much more accurate bp than the
-    16-blink preamble alone.
-
-    Robustness: real (compressed / camera-captured) video produces spurious
-    short runs at ON/OFF transitions — VP9/H.264 inter-frame blur and rolling
-    shutter momentarily push a transitioning eye across the threshold. Those
-    sub-blink runs were polluting the single-blink set and dragging the median
-    well below the true period (observed: a correct 5.94-frame preamble estimate
-    collapsing to 4.0 on VP9 video, inflating the decoded bit count ~1.5×). Two
-    guards prevent that:
-      1. Only count runs inside a plausible single-blink band around the current
-         estimate, excluding the tiny transition artifacts.
-      2. Never let the refined value stray far from the preamble-derived
-         estimate, which is reliable (it spans exactly 16 known blinks).
-
-    Module-level (not a closure) so the regression guard in
-    web_demo/test_cat_mode_refine_bp.py can exercise the real implementation.
-    """
-    bp = initial_bp
-    for _ in range(3):
-        lo, hi = 0.5 * bp, 1.5 * bp  # plausible single-blink window
-        single_blink_lengths = [
-            runs_list[i][2]
-            for i in range(start_idx, end_idx)
-            if lo <= runs_list[i][2] <= hi
-        ]
-        if len(single_blink_lengths) < 10:
-            break
-        single_blink_lengths.sort()
-        new_bp = single_blink_lengths[len(single_blink_lengths) // 2]
-        # Reject refinements that drift implausibly far from the reliable
-        # preamble estimate — that only happens when artifacts dominate.
-        if not (0.7 * initial_bp <= new_bp <= 1.4 * initial_bp):
-            break
-        if abs(new_bp - bp) < 1e-6:
-            bp = float(new_bp)
-            break
-        bp = float(new_bp)
-    return float(bp)
+# Blink-period refinement lives in the dependency-free meow_decoder.cat_blink
+# module so its decode-reliability guard runs in CI (tests/test_cat_blink.py).
+# _refine_blink_period kept as a backward-compatible alias for local web_demo tests.
+_refine_blink_period = refine_blink_period
 
 
 def _decode_cat_video(video_path):
