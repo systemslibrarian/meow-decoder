@@ -48,6 +48,13 @@ from .crypto_backend import get_default_backend, get_handle_backend
 # Domain separator — MUST be unique to this module
 NONCE_DOMAIN_INFO = b"aes-gcm-nonce-v1"
 
+# Distinct domain for context-bound transfer nonces. Using a separate info
+# string guarantees generate_for_transfer() outputs can NEVER collide with
+# generate() outputs — even when additional_context is empty, where the salt
+# would otherwise be byte-identical (which would be catastrophic GCM nonce
+# reuse under the same key).
+NONCE_TRANSFER_DOMAIN_INFO = b"aes-gcm-nonce-transfer-v1"
+
 # Maximum frame counter (u64)
 MAX_FRAME_COUNTER = (1 << 64) - 1
 
@@ -78,6 +85,10 @@ class NonceGenerator:
         self._lock = threading.Lock()
         self._high_water_mark = -1  # highest frame_counter seen
         self._used_counters: set = set()
+        # Reuse guard for generate_for_transfer(), keyed on the full
+        # (frame_counter, additional_context) pair — two sub-streams may
+        # legitimately share a frame_counter as long as their context differs.
+        self._used_transfer: set = set()
 
     def generate(self, frame_counter: int) -> bytes:
         """Generate a deterministic 12-byte nonce for a given frame.
@@ -140,16 +151,31 @@ class NonceGenerator:
         if frame_counter < 0:
             raise ValueError(f"frame_counter must be non-negative, got {frame_counter}")
         if frame_counter > MAX_FRAME_COUNTER:
-            raise ValueError(f"frame_counter exceeds u64 max")
+            raise ValueError(f"frame_counter exceeds u64 max ({MAX_FRAME_COUNTER})")
+
+        with self._lock:
+            # Reuse guard keyed on the full (counter, context) pair. Distinct
+            # sub-streams may reuse a frame_counter with a different context,
+            # but the SAME pair twice would reuse a nonce under the same key.
+            key = (frame_counter, additional_context)
+            if key in self._used_transfer:
+                raise RuntimeError(
+                    f"Nonce reuse detected: frame_counter={frame_counter} with this "
+                    "additional_context already used. AES-GCM nonce reuse breaks all security."
+                )
+            self._used_transfer.add(key)
+            self._high_water_mark = max(self._high_water_mark, frame_counter)
 
         salt = struct.pack(">Q", frame_counter) + self._manifest_hash + additional_context
 
+        # Use the transfer-specific domain so these nonces are guaranteed
+        # disjoint from generate()'s, even when additional_context is empty.
         if isinstance(self._root_key, int):
             hb = get_handle_backend()
-            nonce = hb.derive_key_hkdf_bytes(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
+            nonce = hb.derive_key_hkdf_bytes(self._root_key, salt, NONCE_TRANSFER_DOMAIN_INFO, 12)
         else:
             backend = get_default_backend()
-            nonce = backend.derive_key_hkdf(self._root_key, salt, NONCE_DOMAIN_INFO, 12)
+            nonce = backend.derive_key_hkdf(self._root_key, salt, NONCE_TRANSFER_DOMAIN_INFO, 12)
 
         return nonce
 

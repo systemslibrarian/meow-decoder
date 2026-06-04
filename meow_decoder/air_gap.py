@@ -49,7 +49,12 @@ class AirGapStatus:
 
     @property
     def air_gapped(self) -> bool:
-        """True if all checks passed (no network detected)."""
+        """True if no check actively failed (None = unknown, not failing).
+
+        Note: this is vacuously True when nothing could be checked; callers
+        must consult ``unknown`` to distinguish "verified air-gapped" from
+        "couldn't verify". This split is intentional and covered by tests.
+        """
         # None = could not check; treat as ambiguous (not failing)
         return all(v is True for v in self.checks.values() if v is not None)
 

@@ -82,9 +82,14 @@ def select_size_class(data_len: int, size_class: Optional[int] = None) -> int:
         ValueError: If data exceeds all size classes.
     """
     if size_class is not None:
-        if size_class < data_len:
+        # Must leave room for the PADDING_HEADER_SIZE-byte length prefix that
+        # pad_to_size_class prepends — otherwise the explicit class passes here
+        # but pad_to_size_class fails with a confusing negative-padding error.
+        # Mirrors the auto-select branch below.
+        if size_class < data_len + PADDING_HEADER_SIZE:
             raise ValueError(
-                f"Explicit size class {size_class} too small for data ({data_len} bytes)"
+                f"Explicit size class {size_class} too small for data ({data_len} bytes) "
+                f"plus {PADDING_HEADER_SIZE}-byte length header"
             )
         return size_class
 

@@ -247,10 +247,14 @@ def cmd_renew(args):
     with open(state_file, "r") as f:
         state = json.load(f)
 
-    # Calculate new deadline
+    # Calculate new deadline. Include the grace period so renew matches the
+    # window DeadManSwitchState.save() uses (interval + grace); using interval
+    # alone silently shortens the deadline by the grace period, so the switch
+    # can fire earlier than configured.
     interval = state["checkin_interval_seconds"]
+    grace = state.get("grace_period_seconds", 0)
     now = datetime.now()
-    deadline = now + timedelta(seconds=interval)
+    deadline = now + timedelta(seconds=interval + grace)
 
     # Update state
     state["last_checkin"] = now.isoformat()

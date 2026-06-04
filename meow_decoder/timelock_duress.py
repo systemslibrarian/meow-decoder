@@ -207,8 +207,13 @@ class TimeLockPuzzle:
             unlock_timestamp=now + self.config.lock_duration_seconds,
         )
 
-        # Puzzle data (public)
-        puzzle_data = struct.pack(">32sQ", start_hash, iterations)
+        # Puzzle data (public). Carry the memory-hard flag so solve_puzzle can
+        # reproduce the exact construction used here — without it, solve always
+        # ran the plain SHA-256 chain and could never recover a memory-hard
+        # puzzle's target (the secret became permanently undecryptable).
+        puzzle_data = struct.pack(
+            ">32sQB", start_hash, iterations, 1 if self.config.use_memory_hard else 0
+        )
 
         print(f"   ✅ Puzzle created!")
 
@@ -231,6 +236,33 @@ class TimeLockPuzzle:
         # Parse puzzle data
         start_hash = puzzle_data[:32]
         iterations = struct.unpack(">Q", puzzle_data[32:40])[0]
+        # Memory-hard flag (byte 40); absent in legacy 40-byte puzzles.
+        memory_hard = len(puzzle_data) >= 41 and puzzle_data[40] == 1
+
+        if memory_hard:
+            # Mirror create_puzzle's memory-hard construction exactly. This path
+            # recomputes from scratch (no resume) — the round count is only
+            # iterations // 1000, so resume is unnecessary.
+            _backend = _get_backend()
+            current = start_hash
+            for i in range(iterations // 1000):
+                current = _backend.sha256(TIMELOCK_DOMAIN + current + struct.pack(">Q", i))
+                if progress_callback and i % 100 == 0:
+                    progress_callback(i * 1000, iterations)
+            if state is None:
+                state = TimeLockState(
+                    puzzle_start_hash=start_hash,
+                    puzzle_target_hash=current,
+                    total_iterations=iterations,
+                    iterations_completed=iterations,
+                    start_timestamp=time.time(),
+                    unlock_timestamp=time.time(),
+                )
+            else:
+                state.puzzle_target_hash = current
+                state.iterations_completed = iterations
+            print(f"   ✅ Puzzle solved!")
+            return current, state
 
         # Initialize or resume state
         if state is None:

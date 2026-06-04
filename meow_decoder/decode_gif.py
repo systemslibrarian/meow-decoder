@@ -239,10 +239,18 @@ def decode_gif(
         1244,
         1268,
         1276,
-        # PQ ML-KEM-1024 (new)
+        # PQ ML-KEM-1024 (legacy / new). Mirror crypto.unpack_manifest's
+        # legacy_sizes {1715, 1747} | new_sizes {+1}, plus the +8 frame-MAC
+        # variants — matching the pattern used for ML-KEM-768 above. Omitting
+        # the legacy 1715/1747 (and MAC'd 1723/1755) made legacy ML-KEM-1024
+        # GIFs fail this gatekeeper even though unpack_manifest accepts them.
+        1715,
         1716,
+        1723,
         1724,
+        1747,
         1748,
+        1755,
         1756,
     }
 
@@ -344,7 +352,11 @@ def decode_gif(
     has_frame_macs = False
     manifest_bytes = manifest_raw
 
-    mac_sizes = [123, 155, 187, 124, 156, 188, 1243, 1275, 1244, 1276, 1724, 1756]
+    # Frame-MAC'd manifest sizes (base + 8). Includes legacy ML-KEM-1024
+    # 1723/1755 (1715+8 / 1747+8) alongside the new-format 1724/1756 so a
+    # legacy ML-KEM-1024 manifest's 8-byte MAC is stripped instead of being
+    # passed through to unpack_manifest (which would reject the wrong length).
+    mac_sizes = [123, 155, 187, 124, 156, 188, 1243, 1275, 1244, 1276, 1723, 1724, 1755, 1756]
     if len(manifest_raw) in mac_sizes:
         # Might have frame MAC, but we need password to verify
         # For now, skip MAC verification on manifest (we'll do full manifest HMAC)
@@ -681,7 +693,11 @@ def decode_gif(
 
                 mac_stats.record_valid()
                 if tamper_report is not None:  # pragma: no cover
-                    tamper_report.record(idx + 1, True)
+                    # Use actual_frame_idx (the true GIF frame index) to match
+                    # the invalid-frame path above; idx+1 is the QR-list
+                    # position, which diverges when stego skips unreadable
+                    # frames, mixing two index spaces in the tamper report.
+                    tamper_report.record(actual_frame_idx, True)
             else:
                 droplet_bytes = qr_data
 
@@ -737,7 +753,7 @@ def decode_gif(
                 except ValueError as ve:
                     droplets_rejected += 1
                     if verbose and droplets_rejected <= 5:
-                        print(f"  ⚠️  Frame {idx + 1}: Ratchet decrypt failed: {ve}")
+                        print(f"  ⚠️  Frame {actual_frame_idx}: Ratchet decrypt failed: {ve}")
                     continue
 
             # Unpack droplet from verified bytes
