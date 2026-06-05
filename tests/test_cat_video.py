@@ -35,8 +35,13 @@ def _hex_to_bits(hex_str):
     return "".join(bin(int(c, 16))[2:].zfill(4) for c in hex_str)
 
 
+# Only constant-frame-rate (60/1) fixtures are used: the decode goes through
+# ffmpeg's VFR->CFR resampling, which differs across ffmpeg versions and makes
+# variable-frame-rate fixtures flaky in CI. A 60/1 fixture makes `ffmpeg -r 60`
+# a no-op, so every environment reads identical frames. Keep ≥6 frames/blink
+# (e.g. 100ms @ 60fps) for margin.
 @pytest.mark.skipif(not (_HAS_CV2 and _HAS_FFMPEG), reason="needs cv2 + ffmpeg")
-@pytest.mark.parametrize("fixture", ["cat_emptyhash_100ms.webm", "cat_emptyhash_50ms.webm"])
+@pytest.mark.parametrize("fixture", ["cat_emptyhash_100ms.webm"])
 def test_python_golden_video_decodes_to_known_payload(fixture):
     """A real browser-captured cat video decodes to the exact empty-hash payload."""
     from meow_decoder.cat_video import decode_cat_video

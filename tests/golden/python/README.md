@@ -29,7 +29,12 @@ timing jitter is a separate, capture-quality concern).
 | File | Blink speed | Payload | Expected decoded bits |
 |------|-------------|---------|-----------------------|
 | `cat_emptyhash_100ms.webm` | 100 ms | SHA-256("") | `e3b0c442…b855` (256 bits) |
-| `cat_emptyhash_50ms.webm`  | 50 ms  | SHA-256("") | `e3b0c442…b855` (256 bits) |
+
+**Determinism requirement:** fixtures must be **constant frame rate (60/1)** with
+**≥6 video frames per blink** (i.e. ≥100 ms at 60 fps). Decode goes through
+ffmpeg's VFR→CFR resampling, which differs across ffmpeg versions; a 60/1 fixture
+makes `ffmpeg -r 60` a no-op so every environment reads identical frames. A 50 ms
+(3 frames/blink) VFR capture decoded locally but flaked in CI, so it was dropped.
 
 `_decode_cat_video` returns the de-whitened payload bits; the test asserts they
 equal the binary expansion of the empty-string SHA-256.
