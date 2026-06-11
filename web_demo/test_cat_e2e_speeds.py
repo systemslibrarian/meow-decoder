@@ -14,6 +14,7 @@ Simulates the user's exact flow:
 """
 
 import os
+import re
 import sys
 import struct
 import time
@@ -26,6 +27,15 @@ from PIL import Image
 BASE_URL = "http://localhost:5000"
 MESSAGE = "Hello from E2E Cat Mode test!"
 PASSWORD = "testpassword123"
+
+_CSRF_META_RE = re.compile(r'name="csrf-token" content="([0-9a-f]+)"')
+
+
+def fetch_csrf_token(session: "requests.Session") -> str:
+    """GET the cat-mode page to establish a session and read its CSRF token."""
+    resp = session.get(f"{BASE_URL}/cat-mode")
+    match = _CSRF_META_RE.search(resp.text)
+    return match.group(1) if match else ""
 
 SPEEDS_MS = [200, 150, 100, 83, 50]
 TRIALS = 3
@@ -207,9 +217,11 @@ def run_single_test(speed_ms, trial, frames_dict):
     try:
         # ===== STEP 1: Encrypt via server =====
         session_encode = requests.Session()
+        encode_csrf = fetch_csrf_token(session_encode)
         resp = session_encode.post(
             f"{BASE_URL}/cat-mode-encrypt-server",
             data={"message": MESSAGE, "password": PASSWORD},
+            headers={"X-CSRF-Token": encode_csrf},
         )
         if resp.status_code != 200:
             result["error"] = f"Encrypt failed: HTTP {resp.status_code}"
@@ -248,12 +260,15 @@ def run_single_test(speed_ms, trial, frames_dict):
             result["error"] = f"Refresh failed: HTTP {refresh_resp.status_code}"
             os.unlink(video_path)
             return result
+        match = _CSRF_META_RE.search(refresh_resp.text)
+        decode_csrf = match.group(1) if match else ""
 
         # ===== STEP 5: Upload video for decode =====
         with open(video_path, "rb") as f:
             resp_video = session_decode.post(
                 f"{BASE_URL}/cat-mode-decode-video",
                 files={"video": ("test_transmission.avi", f, "video/x-msvideo")},
+                headers={"X-CSRF-Token": decode_csrf},
             )
         os.unlink(video_path)
 
@@ -289,6 +304,7 @@ def run_single_test(speed_ms, trial, frames_dict):
                 "binary": decoded_binary,
                 "password": PASSWORD,
                 "encryption_mode": "server",
+                "csrf_token": decode_csrf,
             },
             allow_redirects=False,  # Don't follow redirect so we can check flash
         )

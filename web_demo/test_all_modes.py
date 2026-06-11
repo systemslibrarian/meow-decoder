@@ -55,7 +55,7 @@ class TestResult:
     error: Optional[str] = None
 
 
-def test_normal_mode(run_number: int, verbose: bool = False) -> TestResult:
+def check_normal_mode(run_number: int, verbose: bool = False) -> TestResult:
     """Test normal mode encoding/decoding."""
     start_time = time.time()
 
@@ -132,7 +132,7 @@ def test_normal_mode(run_number: int, verbose: bool = False) -> TestResult:
             )
 
 
-def test_cat_mode(run_number: int, verbose: bool = False) -> TestResult:
+def check_cat_mode(run_number: int, verbose: bool = False) -> TestResult:
     """Test cat mode encoding/decoding with steganography."""
     start_time = time.time()
 
@@ -226,7 +226,7 @@ def test_cat_mode(run_number: int, verbose: bool = False) -> TestResult:
             )
 
 
-def test_duress_mode(run_number: int, verbose: bool = False) -> TestResult:
+def check_duress_mode(run_number: int, verbose: bool = False) -> TestResult:
     """Test duress mode encoding/decoding."""
     start_time = time.time()
 
@@ -327,7 +327,7 @@ def test_duress_mode(run_number: int, verbose: bool = False) -> TestResult:
             )
 
 
-def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> TestResult:
+def check_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> TestResult:
     """
     Test Cat Mode server-side encryption API (simulates /cat-mode-encrypt-server).
 
@@ -432,7 +432,7 @@ def test_cat_mode_server_encryption(run_number: int, verbose: bool = False) -> T
         )
 
 
-def test_forward_secrecy_mode(run_number: int, verbose: bool = False) -> TestResult:
+def check_forward_secrecy_mode(run_number: int, verbose: bool = False) -> TestResult:
     """
     Test Forward Secrecy (MEOW3) encoding/decoding.
 
@@ -529,7 +529,7 @@ def test_forward_secrecy_mode(run_number: int, verbose: bool = False) -> TestRes
             )
 
 
-def test_schrodinger_mode(run_number: int, verbose: bool = False) -> TestResult:
+def check_schrodinger_mode(run_number: int, verbose: bool = False) -> TestResult:
     """
     Test Schrödinger Mode dual-secret encoding/decoding.
 
@@ -701,7 +701,7 @@ def main():
     print("📦 Testing Normal Mode...")
     normal_results = []
     for i in range(1, num_runs + 1):
-        result = test_normal_mode(i, verbose)
+        result = check_normal_mode(i, verbose)
         normal_results.append(result)
         print_result(result, verbose)
     all_results.extend(normal_results)
@@ -711,7 +711,7 @@ def main():
     print("\n😺 Testing Cat Mode (GIF encoding)...")
     cat_results = []
     for i in range(1, num_runs + 1):
-        result = test_cat_mode(i, verbose)
+        result = check_cat_mode(i, verbose)
         cat_results.append(result)
         print_result(result, verbose)
     all_results.extend(cat_results)
@@ -721,7 +721,7 @@ def main():
     print("\n🔐 Testing Cat Mode Server Encryption API...")
     cat_server_results = []
     for i in range(1, num_runs + 1):
-        result = test_cat_mode_server_encryption(i, verbose)
+        result = check_cat_mode_server_encryption(i, verbose)
         cat_server_results.append(result)
         print_result(result, verbose)
     all_results.extend(cat_server_results)
@@ -731,7 +731,7 @@ def main():
     print("\n🚨 Testing Duress Mode...")
     duress_results = []
     for i in range(1, num_runs + 1):
-        result = test_duress_mode(i, verbose)
+        result = check_duress_mode(i, verbose)
         duress_results.append(result)
         print_result(result, verbose)
     all_results.extend(duress_results)
@@ -741,7 +741,7 @@ def main():
     print("\n🔐 Testing Forward Secrecy Mode (X25519)...")
     fs_results = []
     for i in range(1, num_runs + 1):
-        result = test_forward_secrecy_mode(i, verbose)
+        result = check_forward_secrecy_mode(i, verbose)
         fs_results.append(result)
         print_result(result, verbose)
     all_results.extend(fs_results)
@@ -751,7 +751,7 @@ def main():
     print("\n⚛️  Testing Schrödinger Mode (dual-secret)...")
     schrodinger_results = []
     for i in range(1, num_runs + 1):
-        result = test_schrodinger_mode(i, verbose)
+        result = check_schrodinger_mode(i, verbose)
         schrodinger_results.append(result)
         print_result(result, verbose)
     all_results.extend(schrodinger_results)

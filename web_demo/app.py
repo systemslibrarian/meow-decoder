@@ -22,7 +22,7 @@ import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
-from flask import Flask, render_template, request, redirect, url_for, send_file, send_from_directory, flash
+from flask import Flask, abort, render_template, request, redirect, url_for, send_file, send_from_directory, flash, session
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,34 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)  # For flash messages
+app.secret_key = os.urandom(24)  # For flash messages and CSRF tokens
+
+
+# ─── CSRF protection (session-bound token, double-submit) ──────────────────
+# Forms embed the token via the csrf_token() template global; JS fetch()
+# callers read it from the <meta name="csrf-token"> tag in base.html and send
+# it as the X-CSRF-Token header.
+
+def generate_csrf_token() -> str:
+    """Return the session's CSRF token, creating it on first use."""
+    if "_csrf_token" not in session:
+        session["_csrf_token"] = secrets.token_hex(32)
+    return session["_csrf_token"]
+
+
+app.jinja_env.globals["csrf_token"] = generate_csrf_token
+
+
+@app.before_request
+def csrf_protect():
+    """Reject state-changing requests that lack a valid CSRF token."""
+    if request.method != "POST" or app.config.get("TESTING"):
+        return
+    expected = session.get("_csrf_token")
+    supplied = request.form.get("csrf_token") or request.headers.get("X-CSRF-Token")
+    if not expected or not supplied or not secrets.compare_digest(supplied, expected):
+        logger.warning("CSRF validation failed for %s", request.path)
+        abort(403, description="CSRF token missing or invalid")
 
 
 @app.route('/assets/<path:filename>')

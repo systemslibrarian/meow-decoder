@@ -12,6 +12,7 @@ implementation in CI. ``web_demo/app.py`` imports ``refine_blink_period`` from
 here for the server-side video decoder.
 """
 
+import statistics
 from typing import List, Sequence, Tuple
 
 # A run is (state, start_index, length); only length (index 2) is used here.
@@ -61,8 +62,7 @@ def refine_blink_period(
         ]
         if len(single_blink_lengths) < 10:
             break
-        single_blink_lengths.sort()
-        new_bp = single_blink_lengths[len(single_blink_lengths) // 2]
+        new_bp = statistics.median(single_blink_lengths)
         # Reject refinements that drift implausibly far from the reliable
         # preamble estimate — that only happens when artifacts dominate.
         if not (0.7 * initial_bp <= new_bp <= 1.4 * initial_bp):

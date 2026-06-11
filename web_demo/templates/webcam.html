@@ -196,6 +196,7 @@
 
 <!-- Hidden form for server-side decryption -->
 <form id="serverDecryptForm" action="{{ url_for('decode_webcam') }}" method="POST" style="display: none;">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" id="collectedPayload" name="payload">
     <input type="hidden" id="serverPassword" name="password">
 </form>

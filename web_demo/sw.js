@@ -3,18 +3,20 @@
  *
  * Caches WASM modules and static assets for instant loading on repeat visits.
  * This is a performance optimization only - no crypto operations happen here.
+ *
+ * Served from /web_demo/ — the scope of wasm_browser_example_FULL.html,
+ * which registers it.
  */
 
-const CACHE_NAME = 'meow-decoder-v2';
+const CACHE_NAME = 'meow-decoder-v3';
 
-// Assets to cache on install
+// Assets to cache on install (paths resolve relative to this script's URL)
 const PRECACHE_ASSETS = [
-    './',
-    './index.html',
+    './wasm_browser_example_FULL.html',
     './crypto-worker.js',
     './crypto_core.js',
     './crypto_core_bg.wasm',
-    './assets/meow-decoder-logo.svg'
+    '../assets/meow-decoder-logo.svg'
 ];
 
 // Install event - cache critical assets
@@ -68,8 +70,8 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
     const url = new URL(event.request.url);
 
-    // Only cache same-origin requests
-    if (url.origin !== location.origin) {
+    // Only cache same-origin GET requests (share_target POSTs must pass through)
+    if (url.origin !== location.origin || event.request.method !== 'GET') {
         return;
     }
 

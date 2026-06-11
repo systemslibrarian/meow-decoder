@@ -2,7 +2,7 @@
   "name": "Meow Decoder",
   "short_name": "Meow",
   "description": "Secure optical air-gap file transfer via animated QR codes",
-  "start_url": "./wasm_browser_example.html",
+  "start_url": "./wasm_browser_example_FULL.html",
   "display": "standalone",
   "background_color": "#1a1a2e",
   "theme_color": "#00ff88",
@@ -38,7 +38,7 @@
     }
   ],
   "share_target": {
-    "action": "./wasm_browser_example.html",
+    "action": "./wasm_browser_example_FULL.html",
     "method": "POST",
     "enctype": "multipart/form-data",
     "params": {

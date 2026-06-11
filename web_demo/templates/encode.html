@@ -10,6 +10,7 @@
 </p>
 
 <form method="POST" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="form-group">
         <label for="file">📁 Select File to Encode</label>
         <input type="file" id="file" name="file" required accept=".txt,.pdf,.png,.jpg,.jpeg,.gif,.bin,.zip,.doc,.docx">

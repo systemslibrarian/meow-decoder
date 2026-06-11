@@ -32,6 +32,7 @@
     </div>
 
     <form method="POST" enctype="multipart/form-data" onsubmit="return validateForm()">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div class="step" style="background: linear-gradient(135deg, rgba(118, 75, 162, 0.05), rgba(102, 126, 234, 0.05)); border: 2px solid #764ba2; padding: 25px; margin: 20px 0; border-radius: 12px;">
             <h3 style="margin-bottom: 20px; color: #764ba2;">📄 Reality A (Real Secret)</h3>
             

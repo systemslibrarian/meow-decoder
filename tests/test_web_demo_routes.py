@@ -58,7 +58,8 @@ def app():
 
 @pytest.fixture(scope="module")
 def client(app):
-    """Flask test client."""
+    """Flask test client (TESTING disables CSRF enforcement)."""
+    app.config["TESTING"] = True
     return app.test_client()
 
 
