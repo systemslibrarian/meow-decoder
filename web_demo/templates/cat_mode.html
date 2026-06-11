@@ -854,6 +854,14 @@ function loadSavedBinary() {
 let lastUploadObjectURL = null;
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;  // 100 MB
 
+// Escape untrusted strings (server JSON fields, error messages, file metadata)
+// before interpolating them into innerHTML.
+function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[ch]);
+}
+
 function handleVideoUpload(input) {
     const statusEl = document.getElementById('videoUploadStatus');
     const previewContainer = document.getElementById('videoPreviewContainer');
@@ -881,7 +889,7 @@ function handleVideoUpload(input) {
     }
     if (file.type && !file.type.startsWith('video/')) {
         statusEl.style.display = 'block';
-        statusEl.innerHTML = `❌ Not a video file (got "${file.type}").`;
+        statusEl.innerHTML = `❌ Not a video file (got "${escapeHtml(file.type)}").`;
         statusEl.style.background = '#f8d7da';
         statusEl.style.color = '#721c24';
         return;
@@ -923,29 +931,29 @@ function handleVideoUpload(input) {
             const diag = data.diagnostics || {};
             let diagHtml = '';
             if (diag.header_orig_len !== undefined) {
-                diagHtml = `<br><small>Header: orig_len=${diag.header_orig_len}, comp_len=${diag.header_comp_len}, ` +
-                    `expected=${diag.expected_bits} bits, actual=${diag.actual_bits} bits` +
+                diagHtml = `<br><small>Header: orig_len=${escapeHtml(diag.header_orig_len)}, comp_len=${escapeHtml(diag.header_comp_len)}, ` +
+                    `expected=${escapeHtml(diag.expected_bits)} bits, actual=${escapeHtml(diag.actual_bits)} bits` +
                     (diag.bit_diff !== 0 ? ` <strong>(${diag.bit_diff > 0 ? '+' : ''}${diag.bit_diff} diff)</strong>` : ' ✓') +
                     `</small>`;
             }
-            const methodStr = diag.method ? ` | Method: ${diag.method}` : '';
+            const methodStr = diag.method ? ` | Method: ${escapeHtml(diag.method)}` : '';
             statusEl.innerHTML =
-                `✅ <strong>Binary extracted!</strong> ${data.bits} bits from ${data.data_frames} data frames<br>` +
-                `<small>Video: ${data.total_video_frames} frames @ ${data.video_fps.toFixed(1)} FPS | ` +
-                `Blink period: ${data.blink_period}${data.auto_tuned ? ' (auto-tuned)' : ''} | ~${data.estimated_blink_ms}ms | ` +
-                `Data frames: ${data.data_start_frame || '?'}-${data.data_end_frame || '?'}${methodStr}</small>` +
+                `✅ <strong>Binary extracted!</strong> ${escapeHtml(data.bits)} bits from ${escapeHtml(data.data_frames)} data frames<br>` +
+                `<small>Video: ${escapeHtml(data.total_video_frames)} frames @ ${data.video_fps.toFixed(1)} FPS | ` +
+                `Blink period: ${escapeHtml(data.blink_period)}${data.auto_tuned ? ' (auto-tuned)' : ''} | ~${escapeHtml(data.estimated_blink_ms)}ms | ` +
+                `Data frames: ${escapeHtml(data.data_start_frame || '?')}-${escapeHtml(data.data_end_frame || '?')}${methodStr}</small>` +
                 diagHtml + `<br>` +
                 `<small>Binary pattern has been filled into the decode form below. Enter the password and click Decode.</small>`;
             statusEl.style.background = '#d4edda';
             statusEl.style.color = '#155724';
         } else {
-            statusEl.innerHTML = `❌ ${data.error || 'Unknown error during video analysis'}`;
+            statusEl.innerHTML = `❌ ${escapeHtml(data.error || 'Unknown error during video analysis')}`;
             statusEl.style.background = '#f8d7da';
             statusEl.style.color = '#721c24';
         }
     })
     .catch(err => {
-        statusEl.innerHTML = `❌ Video analysis failed: ${err.message}`;
+        statusEl.innerHTML = `❌ Video analysis failed: ${escapeHtml(err.message)}`;
         statusEl.style.background = '#f8d7da';
         statusEl.style.color = '#721c24';
     });

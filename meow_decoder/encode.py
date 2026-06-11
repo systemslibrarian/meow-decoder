@@ -692,7 +692,8 @@ def encode_file(
             carriers = []
             for img_path in carrier_images:
                 try:
-                    img = Image.open(img_path).convert("RGB")
+                    with Image.open(img_path) as src:
+                        img = src.convert("RGB")
                     carriers.append(img)
                     if verbose:
                         print(f"  🐱 Loaded carrier: {img_path.name}")

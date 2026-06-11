@@ -319,6 +319,7 @@ export class HardwareKeyManager {
         }
         
         // Zero sensitive data
+        passwordBytes.fill(0);
         passwordKey.fill(0);
         hardwareKey.fill(0);
         passwordHash.fill(0);

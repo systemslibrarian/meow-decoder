@@ -12,6 +12,7 @@
 
 let wasm = null;
 let wasmReady = false;
+let wasmInitPromise = null;
 
 // Initialize WASM module inside the worker
 async function initWasm() {
@@ -39,14 +40,20 @@ async function initWasm() {
 self.onmessage = async function(e) {
     const { type, id, payload } = e.data;
     
-    // Wait for WASM if not ready yet
+    // Wait for WASM if not ready yet — messages sent before init completes
+    // are held until it resolves instead of being rejected.
     if (!wasmReady && type !== 'ping') {
-        postMessage({ 
-            type: 'error', 
-            id, 
-            error: 'WASM not initialized yet' 
-        });
-        return;
+        if (wasmInitPromise) {
+            await wasmInitPromise;
+        }
+        if (!wasmReady) {
+            postMessage({
+                type: 'error',
+                id,
+                error: 'WASM failed to initialize'
+            });
+            return;
+        }
     }
     
     try {
@@ -363,4 +370,4 @@ self.onmessage = async function(e) {
 };
 
 // Start WASM initialization immediately
-initWasm();
+wasmInitPromise = initWasm();

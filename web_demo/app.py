@@ -521,6 +521,14 @@ def decode_cat_binary():
             flash("Binary pattern and password are required", "error")
             return redirect(url_for("cat_mode_page"))
 
+        # Bound the input before scanning/converting it: a cat-mode
+        # transmission is at most a few thousand bits, so anything huge is
+        # garbage and only serves to burn memory/CPU.
+        MAX_BINARY_CHARS = 4 * 1024 * 1024  # 4M bits = 512 KB of payload
+        if len(binary) > MAX_BINARY_CHARS:
+            flash("Binary pattern too large", "error")
+            return redirect(url_for("cat_mode_page"))
+
         # Validate binary
         if not all(c in "01" for c in binary):
             flash("Invalid binary pattern (must contain only 0s and 1s)", "error")

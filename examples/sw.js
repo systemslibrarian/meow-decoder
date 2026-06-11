@@ -81,7 +81,8 @@ self.addEventListener('fetch', (event) => {
                     if (response.ok) {
                         const responseClone = response.clone();
                         caches.open(CACHE_NAME)
-                            .then((cache) => cache.put(event.request, responseClone));
+                            .then((cache) => cache.put(event.request, responseClone))
+                            .catch((err) => console.warn('[SW] Cache update failed:', err.message));
                     }
                     return response;
                 })
@@ -110,7 +111,8 @@ self.addEventListener('fetch', (event) => {
                             if (response.ok) {
                                 const responseClone = response.clone();
                                 caches.open(CACHE_NAME)
-                                    .then((cache) => cache.put(event.request, responseClone));
+                                    .then((cache) => cache.put(event.request, responseClone))
+                                    .catch((err) => console.warn('[SW] Cache write failed:', err.message));
                             }
                             return response;
                         });
@@ -135,7 +137,8 @@ function updateCache(request) {
         .then((response) => {
             if (response.ok) {
                 caches.open(CACHE_NAME)
-                    .then((cache) => cache.put(request, response));
+                    .then((cache) => cache.put(request, response))
+                    .catch((err) => console.warn('[SW] Cache revalidate failed:', err.message));
             }
         })
         .catch(() => {

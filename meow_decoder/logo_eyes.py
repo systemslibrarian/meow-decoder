@@ -114,8 +114,8 @@ class LogoEyesEncoder:
 
         for path in possible_paths:
             if path and Path(path).exists():
-                logo = Image.open(path).convert("RGBA")
-                return logo
+                with Image.open(path) as src:
+                    return src.convert("RGBA")
 
         # If no logo found, create a simple placeholder
         print("⚠️  Warning: Could not find meow-decoder-logo.png, using placeholder")

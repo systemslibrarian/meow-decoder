@@ -130,7 +130,7 @@
         Ready to generate golden video. Click "Generate" to start.
     </div>
     
-    <script src="cat-mode-protocol.js"></script>
+    <script src="../web_demo/cat-mode-protocol.js"></script>
     <script>
         // ====================================================================
         // Test Payloads
@@ -142,8 +142,8 @@
             
             // Short test pattern
             short: '0123456789abcdef0123456789abcdef',
-            
-            // Long test pattern (64 bytes)
+
+            // Long test pattern (85 bytes)
             long: 'The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs!'
         };
         
@@ -262,38 +262,13 @@
         // Payload Encoding
         // ====================================================================
         
-        function hexToBinary(hexString) {
-            let binary = '';
-            for (let i = 0; i < hexString.length; i++) {
-                const hex = hexString[i];
-                const bin = parseInt(hex, 16).toString(2).padStart(4, '0');
-                binary += bin;
+        function encodePayloadToBits(payload) {
+            if (typeof CatProtocol === 'undefined') {
+                throw new Error('CatProtocol not loaded — serve this page from the repo root so ../web_demo/cat-mode-protocol.js resolves');
             }
-            return binary;
-        }
-        
-        function stringToBinary(str) {
-            const encoder = new TextEncoder();
-            const bytes = encoder.encode(str);
-            let binary = '';
-            for (const byte of bytes) {
-                binary += byte.toString(2).padStart(8, '0');
-            }
-            return binary;
-        }
-        
-        function encodePayloadToBits(payload, payloadType) {
-            let bits = '';
-            
-            if (payloadType === 'empty_hash') {
-                // Hex string to binary
-                bits = hexToBinary(payload);
-            } else {
-                // Text string to binary
-                bits = stringToBinary(payload);
-            }
-            
-            // Add protocol framing using CatProtocol
+
+            // Payload is transmitted as its UTF-8 text bytes (the golden test
+            // in tests/test_cat_mode_golden.html compares the decoded text).
             const payloadBytes = new TextEncoder().encode(payload);
             const sessionId = 0x12345678; // Fixed session for golden video
             const packets = CatProtocol.encodeMessage(payloadBytes, sessionId);
@@ -334,10 +309,12 @@
                 const height = parseInt(document.getElementById('canvasHeight').value);
                 const payloadType = document.getElementById('payloadType').value;
                 const payload = TEST_PAYLOADS[payloadType];
-                
+
                 // Encode payload to bits
-                const bits = encodePayloadToBits(payload, payloadType);
-                status.innerHTML = `📊 Encoded ${bits.length} bits from payload<br>Rendering ${bits.length} frames...`;
+                const bits = encodePayloadToBits(payload);
+                const framesPerBit = Math.max(1, Math.round(targetFps * (bitSpeed / 1000)));
+                const totalFrames = bits.length * framesPerBit;
+                status.innerHTML = `📊 Encoded ${bits.length} bits from payload<br>Rendering ${totalFrames} frames...`;
                 
                 await new Promise(r => setTimeout(r, 100)); // Let UI update
                 
@@ -364,16 +341,17 @@
                 mediaRecorder.onstop = () => {
                     const blob = new Blob(chunks, { type: 'video/webm' });
                     const url = URL.createObjectURL(blob);
-                    
+
                     // Download golden video
                     const a = document.createElement('a');
                     a.href = url;
                     a.download = `cat_mode_golden_${payloadType}_${bitSpeed}ms.webm`;
                     a.click();
-                    
+                    setTimeout(() => URL.revokeObjectURL(url), 60000);
+
                     status.innerHTML = `✅ Golden video generated!<br>
                         File: ${a.download}<br>
-                        Frames: ${bits.length}<br>
+                        Frames: ${frameCount} (${bits.length} bits)<br>
                         Duration: ${(bits.length * bitSpeed / 1000).toFixed(1)}s<br>
                         Size: ${(blob.size / 1024).toFixed(1)} KB<br><br>
                         <strong>Next steps:</strong><br>
@@ -385,28 +363,37 @@
                 
                 // Start recording
                 mediaRecorder.start();
-                
-                // Render frames
-                const framesPerBit = Math.max(1, Math.round(targetFps * (bitSpeed / 1000)));
+
+                // Render frames. Pace against absolute deadlines rather than
+                // sleeping a fixed 1000/fps per frame: setTimeout overhead
+                // otherwise accumulates and stretches every bit period past
+                // bitSpeed, which skews the recorded timing (the original
+                // cause of flaky 50ms fixtures).
                 let frameCount = 0;
-                
+                const startTime = performance.now();
+
                 for (let i = 0; i < bits.length; i++) {
                     const bit = bits[i];
                     const eyeColor = bit === '1' ? '#00ff00' : '#003300';
-                    
+
                     // Render this bit for required number of frames
                     for (let f = 0; f < framesPerBit; f++) {
                         renderer.drawCatFace(eyeColor);
                         frameCount++;
-                        
+
                         // Progress update every 50 frames
                         if (frameCount % 50 === 0) {
-                            status.innerHTML = `🎬 Rendering frame ${frameCount} / ${bits.length * framesPerBit}<br>Bit ${i} / ${bits.length}`;
+                            status.innerHTML = `🎬 Rendering frame ${frameCount} / ${totalFrames}<br>Bit ${i + 1} / ${bits.length}`;
+                        }
+
+                        // Wait until this frame's deadline
+                        const deadline = startTime + frameCount * (1000 / targetFps);
+                        const wait = deadline - performance.now();
+                        if (wait > 0) {
+                            await new Promise(r => setTimeout(r, wait));
+                        } else if (frameCount % 10 === 0) {
                             await new Promise(r => setTimeout(r, 0)); // Yield to UI
                         }
-                        
-                        // Wait for frame timing
-                        await new Promise(r => setTimeout(r, 1000 / targetFps));
                     }
                 }
                 
