@@ -17,5 +17,5 @@ pip-licenses==5.5.5
 cyclonedx-bom==7.3.0
 toml==0.10.2
 hypothesis==6.152.4
-cryptography==46.0.7
+cryptography==48.0.0
 argon2-cffi==25.1.0
