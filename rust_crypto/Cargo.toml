@@ -23,7 +23,7 @@ pyo3 = { version = "0.28.3", features = ["extension-module"], optional = true }
 argon2 = "0.5"   # Argon2id KDF (password hashing)
 aes-gcm = "0.10" # AES-256-GCM AEAD encryption
 aes = "0.9"      # AES block cipher (for CTR mode)
-ctr = "0.9"      # CTR mode for streaming encryption
+ctr = "0.10"      # CTR mode for streaming encryption
 cipher = "0.5"   # Cipher traits
 hkdf = "0.13"    # HKDF key derivation (RFC 5869)
 hmac = "0.13"    # HMAC-SHA256 authentication
