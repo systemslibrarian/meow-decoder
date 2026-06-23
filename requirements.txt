@@ -14,7 +14,7 @@ argon2-cffi>=25.1.0         # Argon2id key derivation
 pynacl>=1.6.2               # Ed25519/X25519 conversion (spec v1.2+)
 
 # Multi-layer steganography (optional, for timing/palette channels)
-imageio>=2.34.0             # Animated GIF read/write with palette/timing preservation
+imageio>=2.37.3             # Animated GIF read/write with palette/timing preservation
 
 # Platform-specific notes:
 # - pyzbar requires zbar library:
