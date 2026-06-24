@@ -87,11 +87,44 @@ adb install -r ./_apk/app-release.apk
 
 Launch **Meow Capture** from the app drawer.
 
+### Alternative: connect over Wi-Fi (Wireless debugging) — ✅ the route that worked
+
+If USB keeps showing `unauthorized` (common on Samsung), pair over Wi-Fi
+instead. Phone and computer must be on the **same network**.
+
+**On the phone:** Settings → Developer options → **Wireless debugging → ON** →
+tap **“Pair device with pairing code.”** It shows a **6-digit code** and an
+**IP address & port** (the *pairing* port, e.g. `192.168.4.32:45889`).
+
+**On the computer** (PowerShell, from the repo root):
+```powershell
+$adb = "$env:LOCALAPPDATA\Android\platform-tools\adb.exe"
+
+# 1. Pair using the pairing IP:port + the 6-digit code (code expires fast — do this quickly)
+& $adb pair 192.168.4.32:45889 566939
+
+# 2. Connect. Easiest is to let mDNS find the *connect* port (different from the pairing port):
+& $adb mdns services        # shows e.g.  ..._adb-tls-connect._tcp  192.168.4.32:39625
+& $adb connect 192.168.4.32:39625
+#   (or: & $adb connect adb-<SERIAL>-xxxx._adb-tls-connect._tcp )
+
+& $adb devices -l           # should now show the device as "device"
+
+# 3. Install
+& $adb install -r .\_apk\app-release.apk
+```
+
+> The pairing port (from the popup) and the connect port (main Wireless
+> debugging screen / `adb mdns services`) are **different**, and both change
+> every time you toggle Wireless debugging. Pair once, then reconnect with
+> `adb connect <ip>:<connect-port>` until the phone reboots or drops off.
+
 ### Troubleshooting
 | Symptom | Fix |
 | --- | --- |
 | `adb: command not found` | Platform-tools not on `PATH` — see step B1. |
-| device shows `unauthorized` | Accept the USB-debugging prompt on the phone; re-run `adb devices`. |
+| device shows `unauthorized` (USB) | Accept the USB-debugging prompt on the phone; re-run `adb devices`. If it never appears, **Revoke USB debugging authorizations** in Developer options and replug — or use the Wi-Fi route above. |
+| device shows `offline` (Wi-Fi) | You paired but didn't connect to the *connect* port. Run `adb mdns services` and `adb connect <ip>:<connect-port>`. |
 | device not listed at all | Use a data-capable USB cable; try another port; on Windows install the OEM USB driver. |
 | `INSTALL_FAILED_UPDATE_INCOMPATIBLE` / signature mismatch | A build signed with a different key is installed. Remove it first: `adb uninstall com.meowdecodermobile`, then `adb install`. (This deletes the app's data.) |
 | `INSTALL_FAILED_USER_RESTRICTED` (Xiaomi/MIUI etc.) | In Developer options, enable **Install via USB** / disable MIUI optimizations. |
