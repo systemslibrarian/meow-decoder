@@ -17,13 +17,13 @@ crypto_core = { version = "1.0.0", path = "../crypto_core", features = ["fountai
 
 # PyO3 for Python bindings (upgrade to address RUSTSEC-2026-0013)
 # Made optional so cargo-tarpaulin can run without Python linking
-pyo3 = { version = "0.28.3", features = ["extension-module"], optional = true }
+pyo3 = { version = "0.29", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
 argon2 = "0.5"   # Argon2id KDF (password hashing)
 aes-gcm = "0.10" # AES-256-GCM AEAD encryption
 aes = "0.9"      # AES block cipher (for CTR mode)
-ctr = "0.10"      # CTR mode for streaming encryption
+ctr = "0.10"      # CTR mode for streaming encryption (cipher 0.5, matches aes 0.9)
 cipher = "0.5"   # Cipher traits
 hkdf = "0.13"    # HKDF key derivation (RFC 5869)
 hmac = "0.13"    # HMAC-SHA256 authentication

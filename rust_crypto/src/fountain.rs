@@ -61,7 +61,9 @@ fn map_wire_err(e: WireError) -> PyErr {
 
 /// Python-visible droplet. Mirrors `meow_decoder.fountain.Droplet`
 /// (seed: int, block_indices: list[int], data: bytes).
-#[pyclass(name = "Droplet", module = "meow_crypto_rs")]
+// `from_py_object` opts in to the derived FromPyObject impl that pyo3 0.29
+// made opt-in for Clone-able pyclasses; `add_droplet` takes PyDroplet by value.
+#[pyclass(name = "Droplet", module = "meow_crypto_rs", from_py_object)]
 #[derive(Clone)]
 pub struct PyDroplet {
     inner: RustDroplet,
