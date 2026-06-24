@@ -138,3 +138,9 @@ formal/lean/.lake/
 
 web_demo/instance/
 mobile/android/app/release.keystore
+
+# Built release APKs/AABs are large binaries — publish them as CI artifacts /
+# GitHub Releases instead of committing them (they bloated git history to
+# ~860 MB across 17 copies). Keep them out of the tree going forward.
+releases/android/*.apk
+releases/android/*.aab
