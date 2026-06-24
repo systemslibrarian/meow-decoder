@@ -123,9 +123,12 @@ jobs:
 
       - name: Verify APK signing (sanity)
         run: |
+          # gradlew lives in mobile/android (the job's working-directory is
+          # mobile), so cd in first — matching the "Build release AAB" step.
+          cd android
           ./gradlew :app:assembleRelease --no-daemon -x lint
-          APK=android/app/build/outputs/apk/release/app-release.apk
-          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
+          APK=app/build/outputs/apk/release/app-release.apk
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | tail -1)
           "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | head -10
         env:
           MEOW_STORE_FILE: /tmp/release.jks
