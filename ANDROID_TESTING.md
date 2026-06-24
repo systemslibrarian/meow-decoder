@@ -8,8 +8,62 @@ There are two ways to test:
 
 - **A. Play internal testing** — closest to the real install experience; needed
   before promoting to production. Installs through the Play Store.
-- **B. Sideload via USB (`adb install`)** — fastest for your own connected
-  phone; installs the signed APK directly, no Play account needed.
+- **B. Sideload via `adb` (USB *or* Wi-Fi)** — fastest for your own phone;
+  installs the signed APK directly, no Play account needed. See the Quick start.
+
+---
+
+## ⚡ Quick start — install on your phone (Windows + Wi-Fi, the proven path)
+
+This is the exact end-to-end flow that worked, copy-paste into **PowerShell**
+from the repo root. Wi-Fi pairing is used because USB stays `unauthorized` on
+Samsung; phone and PC must be on the **same network**. (USB and the
+step-by-step explanations are in Part B below.)
+
+```powershell
+# ── 0) ONE-TIME: install adb (Android platform-tools) ─────────────────────────
+# Download once: https://dl.google.com/android/repository/platform-tools-latest-windows.zip
+Expand-Archive "$env:USERPROFILE\Downloads\platform-tools-latest-windows.zip" `
+  -DestinationPath "$env:LOCALAPPDATA\Android" -Force
+$adb = "$env:LOCALAPPDATA\Android\platform-tools\adb.exe"
+# add to PATH permanently (so future terminals find `adb`)
+[Environment]::SetEnvironmentVariable("Path",
+  [Environment]::GetEnvironmentVariable("Path","User") + ";$env:LOCALAPPDATA\Android\platform-tools", "User")
+& $adb version
+
+# ── 1) download the signed APK from the latest successful release run ─────────
+$run = gh run list --workflow=android-release.yml `
+  --json databaseId,conclusion -q '[.[]|select(.conclusion=="success")][0].databaseId'
+gh run download $run -n meow-capture-android-apk -D .\_apk    # -> .\_apk\app-release.apk
+
+# ── 2) pair over Wi-Fi ────────────────────────────────────────────────────────
+# On phone: Settings → Developer options → Wireless debugging → ON
+#           → "Pair device with pairing code"  (shows a 6-digit code + IP:PORT)
+& $adb pair <PAIRING_IP:PORT> <6-DIGIT-CODE>      # e.g.  192.168.4.32:45889  566939
+
+# ── 3) connect (the *connect* port differs from the pairing port) ─────────────
+& $adb mdns services                              # shows ..._adb-tls-connect._tcp  IP:PORT
+& $adb connect <CONNECT_IP:PORT>                  # e.g.  192.168.4.32:39625
+& $adb devices -l                                 # should show your phone as "device"
+
+# ── 4) install + launch ───────────────────────────────────────────────────────
+& $adb install -r .\_apk\app-release.apk          # "Success"
+& $adb shell monkey -p com.meowdecodermobile -c android.intent.category.LAUNCHER 1
+```
+
+**Reinstall a later build** (already paired): re-toggle Wireless debugging if it
+dropped, then:
+```powershell
+& $adb connect <CONNECT_IP:PORT>
+gh run download <RUN_ID> -n meow-capture-android-apk -D .\_apk   # only for a new build
+& $adb install -r .\_apk\app-release.apk
+```
+
+> The pairing code is single-use and the **pairing port ≠ connect port**, and
+> both change every time you toggle Wireless debugging. If `adb connect` fails or
+> shows `offline`, re-run `adb mdns services` for the current connect port (or
+> re-pair). Signature-mismatch on install → `adb uninstall com.meowdecodermobile`
+> first (wipes app data), then install.
 
 ---
 
