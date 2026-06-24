@@ -28,10 +28,12 @@ dead_code = "allow"
 aes-gcm = "0.10"
 
 # AES block cipher (for CTR mode)
-aes = { version = "0.8", optional = true }
+# 0.9 tracks the cipher 0.5 trait crate; must move in lockstep with ctr 0.10.
+aes = { version = "0.9", optional = true }
 
 # CTR mode for streaming encryption
-ctr = { version = "0.9", optional = true }
+# 0.10 tracks cipher 0.5 to match aes 0.9 (older 0.9 used cipher 0.4 → trait mismatch).
+ctr = { version = "0.10", optional = true }
 
 # Cipher traits (BlockEncrypt etc.)
 cipher = { version = "0.5", optional = true }
