@@ -16,7 +16,7 @@
  * CaptureScreen, showing clear field-level errors on failure.
  */
 
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
@@ -70,6 +70,16 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
   const [scanningRequest, setScanningRequest] = useState(false);
   const [barcodeModulePending, setBarcodeModulePending] = useState(false);
   const qrHandledRef = useRef(false); // prevent double-fire in the modal
+  // Live feedback so the scanner never looks like a dead "Cancel-only" screen:
+  //   'searching' → camera up, nothing seen yet
+  //   'foreign'   → saw a QR, but it wasn't a capture request
+  //   'slow'      → several seconds with nothing found → show a concrete tip
+  const [scanFeedback, setScanFeedback] = useState<'searching' | 'foreign' | 'slow'>('searching');
+  const scanFeedbackRef = useRef<'searching' | 'foreign' | 'slow'>('searching');
+  const setScanFeedbackBoth = useCallback((f: 'searching' | 'foreign' | 'slow') => {
+    scanFeedbackRef.current = f;
+    setScanFeedback(f);
+  }, []);
 
   // ── Diagnostics panel ─────────────────────────────────────────────────────
   const [showDiagnostics, setShowDiagnostics] = useState(false);
@@ -137,7 +147,9 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           });
           navigateToCapture(request);
         } catch {
-          // Not a valid request QR — keep scanning silently
+          // Saw a QR, but it wasn't a capture request — tell the user rather
+          // than silently ignoring it (a common source of "it just sits there").
+          if (scanFeedbackRef.current !== 'foreign') setScanFeedbackBoth('foreign');
         }
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -172,8 +184,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
     }
     qrHandledRef.current = false;
     setBarcodeModulePending(false);
+    setScanFeedbackBoth('searching');
     setScanningRequest(true);
-  }, [device, hasPermission, requestPermission]);
+  }, [device, hasPermission, requestPermission, setScanFeedbackBoth]);
+
+  // After a few seconds with nothing found, upgrade the hint to a concrete tip
+  // instead of leaving the user staring at an apparently-dead camera.
+  useEffect(() => {
+    if (!scanningRequest) return;
+    const timer = setTimeout(() => {
+      if (scanFeedbackRef.current === 'searching') setScanFeedbackBoth('slow');
+    }, 6_000);
+    return () => clearTimeout(timer);
+  }, [scanningRequest, setScanFeedbackBoth]);
 
   // Clear stale error and surface any interrupted session on focus
   useFocusEffect(
@@ -499,6 +522,27 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               </View>
             )}
 
+            {/* Live feedback — so an empty frame never reads as a dead screen */}
+            {device && !barcodeModulePending && (
+              <View
+                style={styles.qrFeedbackRow}
+                accessibilityLiveRegion="polite"
+                accessibilityLabel={scanFeedbackMessage(scanFeedback)}
+              >
+                {scanFeedback === 'searching' && (
+                  <ActivityIndicator color={Colors.catOrange} size="small" />
+                )}
+                <Text
+                  style={[
+                    styles.qrFeedbackText,
+                    scanFeedback === 'foreign' && styles.qrFeedbackWarn,
+                  ]}
+                >
+                  {scanFeedbackMessage(scanFeedback)}
+                </Text>
+              </View>
+            )}
+
             <TouchableOpacity
               style={styles.qrCancelButton}
               onPress={() => setScanningRequest(false)}
@@ -627,6 +671,20 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
       />
     </SafeAreaView>
   );
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function scanFeedbackMessage(state: 'searching' | 'foreign' | 'slow'): string {
+  switch (state) {
+    case 'foreign':
+      return "That QR isn't a capture request — point at the small setup QR the sender shows first.";
+    case 'slow':
+      return 'Still looking… make sure the sender\'s setup QR is on screen and fills the frame, with good light and no glare.';
+    case 'searching':
+    default:
+      return '🔍 Looking for the sender\'s QR code…';
+  }
 }
 
 // ── Sub-component ─────────────────────────────────────────────────────────────
@@ -951,6 +1009,24 @@ const styles = StyleSheet.create({
   qrCameraPlaceholderText: {
     color: Colors.textTertiary,
     fontSize: Typography.md,
+  },
+  qrFeedbackRow: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: Spacing.sm,
+    justifyContent: 'center',
+    marginBottom: Spacing.lg,
+    minHeight: 24,
+    paddingHorizontal: Spacing.lg,
+  },
+  qrFeedbackText: {
+    color: Colors.textSecondary,
+    flexShrink: 1,
+    fontSize: Typography.sm,
+    textAlign: 'center',
+  },
+  qrFeedbackWarn: {
+    color: Colors.catGold,
   },
   qrCancelButton: {
     backgroundColor: 'rgba(255,59,48,0.85)',

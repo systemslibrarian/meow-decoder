@@ -7,9 +7,10 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import type { CaptureRequest, CaptureResponse, CaptureProgress } from '../types/capture';
+import type { CaptureRequest, CaptureResponse, CaptureProgress, CapturedFrame } from '../types/capture';
 import { useCapture } from './useCapture';
 import { useQRScanner } from './useQRScanner';
+import { useLoopDetector } from './useLoopDetector';
 import { useStabilityMonitor } from './useStabilityMonitor';
 import { MILESTONE_THRESHOLDS, FOUNTAIN_OVERHEAD, MEMORY_WARN_FRAME_COUNT } from '../constants/config';
 import type { MilestoneThreshold } from '../constants/config';
@@ -29,6 +30,13 @@ export interface SessionManagerReturn {
   decodeRate: number;
   /** Fraction of all QR scans that were duplicates (0–1) */
   duplicateRate: number;
+  // Loop detection (looping QR animation)
+  /** Number of full animation loops observed this session */
+  loopsCompleted: number;
+  /** Distinct new frames discovered during the most recently completed loop */
+  lastLoopNewFrames: number;
+  /** True once a full loop completed yielding no new frames (whole loop seen) */
+  loopExhausted: boolean;
   // Stability
   isStable: boolean;
   shakeMagnitude: number;
@@ -67,17 +75,43 @@ export function useSessionManager(): SessionManagerReturn {
 
   const { isStable, shakeMagnitude } = useStabilityMonitor();
 
+  // ── Loop detection ─────────────────────────────────────────────────────────
+  // Observe every parsed frame index (including repeats) to reconstruct the
+  // "animation has looped" signal that the optical channel does not carry.
+  const {
+    loopsCompleted,
+    lastLoopNewFrames,
+    exhausted: loopExhausted,
+    observe: observeLoop,
+    reset: resetLoop,
+  } = useLoopDetector();
+
+  const handleFrame = useCallback(
+    (frame: CapturedFrame) => {
+      observeLoop(frame.index);
+      onFrameScanned(frame);
+    },
+    [observeLoop, onFrameScanned],
+  );
+
   const { codeScanner, decodeRate, duplicateRate } = useQRScanner({
     // exactOptionalPropertyTypes: only pass sessionId when it is a string,
     // never pass the property as `undefined` (that would fail the strict check).
     ...(state.request?.session_id !== undefined
       ? { sessionId: state.request.session_id }
       : {}),
-    onFrame: onFrameScanned,
+    onFrame: handleFrame,
     onGifDetected,
     // Disable scanner when paused so the UI thread isn't processing frames.
     enabled: state.status === 'AWAITING_GIF' || state.status === 'CAPTURING',
   });
+
+  // Reset loop state whenever a fresh session begins.
+  useEffect(() => {
+    if (state.status === 'IDLE' || state.status === 'AWAITING_GIF') {
+      resetLoop();
+    }
+  }, [state.status, resetLoop]);
 
   // ── Elapsed time ticker ───────────────────────────────────────────────────
   const [elapsedMs, setElapsedMs] = useState(0);
@@ -161,6 +195,9 @@ export function useSessionManager(): SessionManagerReturn {
     capturedCount: state.frames.size,
     decodeRate,
     duplicateRate,
+    loopsCompleted,
+    lastLoopNewFrames,
+    loopExhausted,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,

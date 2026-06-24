@@ -70,6 +70,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     capturedCount,
     decodeRate,
     duplicateRate,
+    loopsCompleted,
+    loopExhausted,
     isStable,
     shakeMagnitude,
     isNearMemoryLimit,
@@ -299,6 +301,58 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     AccessibilityInfo.announceForAccessibility(a11yMsg);
   }, [lastMilestone, showToast]);
 
+  // ── Loop completion feedback ───────────────────────────────────────────────
+  // The optical channel carries no "the animation has finished a cycle" signal,
+  // so useLoopDetector reconstructs it from the frame-index stream. Surface two
+  // honest events: the first completed loop, and "whole loop seen but frames
+  // are still missing" (which means frames are being physically dropped).
+  const loopToastFiredRef = useRef(false);
+  useEffect(() => {
+    if (status !== 'CAPTURING') return;
+    if (loopsCompleted >= 1 && !loopToastFiredRef.current) {
+      loopToastFiredRef.current = true;
+      ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
+      showToast({
+        message: '🔁 The animation has looped once. Keep holding steady — extra passes fill in any frames missed the first time.',
+        type: 'info',
+        durationMs: 5_000,
+      });
+    }
+  }, [loopsCompleted, status, showToast]);
+
+  const exhaustedToastFiredRef = useRef(false);
+  useEffect(() => {
+    if (status !== 'CAPTURING') return;
+    if (!loopExhausted || exhaustedToastFiredRef.current) return;
+    exhaustedToastFiredRef.current = true;
+    if (progress?.isRecoverable) {
+      // Whole loop seen and we already have enough — nudge them to finish.
+      showToast({
+        message: '✓ You have now seen the whole animation and captured enough to recover the file. Tap Done whenever you are ready.',
+        type: 'success',
+        durationMs: 6_000,
+      });
+      AccessibilityInfo.announceForAccessibility('Whole animation seen. Enough frames captured. Safe to stop.');
+    } else {
+      // Seen every frame the loop offers, yet still short — frames are dropping.
+      ReactNativeHapticFeedback.trigger('notificationWarning', HAPTIC_OPTIONS);
+      showToast({
+        message: 'You have seen the whole animation, but some frames are still being missed. Move a little closer, hold steadier, or add light — then keep scanning to catch them on the next pass.',
+        type: 'info',
+        durationMs: 8_000,
+      });
+      AccessibilityInfo.announceForAccessibility('Whole animation seen but frames are still missing. Adjust position and keep scanning.');
+    }
+  }, [loopExhausted, status, progress, showToast]);
+
+  // Reset loop-event latches when a new capture session starts.
+  useEffect(() => {
+    if (status === 'AWAITING_GIF' || status === 'IDLE') {
+      loopToastFiredRef.current = false;
+      exhaustedToastFiredRef.current = false;
+    }
+  }, [status]);
+
   // ── Memory pressure warning ────────────────────────────────────────────────
   const memoryWarnFiredRef = useRef(false);
   useEffect(() => {
@@ -381,6 +435,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           elapsedMs={elapsedMs}
           decodeRate={decodeRate}
           duplicateRate={duplicateRate}
+          loopsCompleted={loopsCompleted}
         />
       )}
 

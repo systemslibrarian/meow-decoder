@@ -66,6 +66,8 @@ interface ProgressHUDProps {
   decodeRate?: number;
   /** Duplicate scan fraction 0–1 (from useQRScanner) */
   duplicateRate?: number;
+  /** Full animation loops observed this session (from useLoopDetector) */
+  loopsCompleted?: number;
 }
 
 // ── Ring geometry constants ───────────────────────────────────────────────────
@@ -83,6 +85,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   elapsedMs,
   decodeRate,
   duplicateRate,
+  loopsCompleted,
 }: ProgressHUDProps) {
   // Animate the fill fraction (0–1, capped at 1 for display)
   const fillFraction = useSharedValue(0);
@@ -173,6 +176,16 @@ export const ProgressHUD = React.memo(function ProgressHUD({
         </Text>
       )}
 
+      {/* ── Loop counter (shown once the animation has wrapped at least once) ── */}
+      {loopsCompleted !== undefined && loopsCompleted > 0 && (
+        <Text
+          style={styles.loopText}
+          accessibilityLabel={`Animation looped ${loopsCompleted} ${loopsCompleted === 1 ? 'time' : 'times'}`}
+        >
+          🔁 Loop {loopsCompleted}
+        </Text>
+      )}
+
       {/* ── Footer row: elapsed + ETA ───────────────────────────────── */}
       {isActiveCapture && (
         <View style={styles.footer}>
@@ -214,6 +227,12 @@ const styles = StyleSheet.create({
   etaText: {
     color: Colors.textSecondary,
     fontSize: Typography.sm,
+  },
+  loopText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs,
+    marginTop: 2,
+    opacity: 0.75,
   },
   footer: {
     flexDirection: 'row',
