@@ -84,11 +84,20 @@ class NonceGenerator:
         self._manifest_hash = manifest_hash
         self._lock = threading.Lock()
         self._high_water_mark = -1  # highest frame_counter seen
-        self._used_counters: set = set()
-        # Reuse guard for generate_for_transfer(), keyed on the full
-        # (frame_counter, additional_context) pair — two sub-streams may
-        # legitimately share a frame_counter as long as their context differs.
-        self._used_transfer: set = set()
+        # Reuse guard. Storing every counter ever seen grew without bound on
+        # long streaming feeds (millions of frames). Instead we track a
+        # contiguous "floor" (every counter in [0, floor] has been seen) plus a
+        # set of out-of-order counters seen above the floor — a SACK-style
+        # acknowledgement window. Reuse is still detected exactly
+        # (c is reused iff c <= floor or c in seen_above), but for a monotonic
+        # counter stream the floor advances each step and the set stays empty,
+        # so memory is O(reordering distance), not O(stream length).
+        self._counter_floor = -1
+        self._counter_seen_above: set = set()
+        # Same scheme per additional_context for generate_for_transfer():
+        # context -> [floor, seen_above]. Distinct sub-streams may legitimately
+        # reuse a frame_counter as long as their context differs.
+        self._transfer_state: dict = {}
 
     def generate(self, frame_counter: int) -> bytes:
         """Generate a deterministic 12-byte nonce for a given frame.
@@ -110,13 +119,18 @@ class NonceGenerator:
             raise ValueError(f"frame_counter exceeds u64 max ({MAX_FRAME_COUNTER})")
 
         with self._lock:
-            # Reuse guard: reject duplicate frame counters
-            if frame_counter in self._used_counters:
+            # Reuse guard: reject duplicate frame counters (bounded SACK window).
+            if frame_counter <= self._counter_floor or frame_counter in self._counter_seen_above:
                 raise RuntimeError(
                     f"Nonce reuse detected: frame_counter={frame_counter} already used. "
                     "This is a CRITICAL error — AES-GCM nonce reuse breaks all security."
                 )
-            self._used_counters.add(frame_counter)
+            self._counter_seen_above.add(frame_counter)
+            # Advance the contiguous floor, dropping now-contiguous entries so
+            # the set collapses to empty for an in-order stream.
+            while (self._counter_floor + 1) in self._counter_seen_above:
+                self._counter_floor += 1
+                self._counter_seen_above.discard(self._counter_floor)
             self._high_water_mark = max(self._high_water_mark, frame_counter)
 
         # Construct salt: frame_counter (u64 BE) || manifest_hash
@@ -154,16 +168,25 @@ class NonceGenerator:
             raise ValueError(f"frame_counter exceeds u64 max ({MAX_FRAME_COUNTER})")
 
         with self._lock:
-            # Reuse guard keyed on the full (counter, context) pair. Distinct
-            # sub-streams may reuse a frame_counter with a different context,
-            # but the SAME pair twice would reuse a nonce under the same key.
-            key = (frame_counter, additional_context)
-            if key in self._used_transfer:
+            # Per-context bounded reuse guard. Distinct sub-streams may reuse a
+            # frame_counter with a different context, but the SAME pair twice
+            # would reuse a nonce under the same key. Each context keeps its own
+            # SACK-style (floor, seen_above) window so a monotonic sub-stream
+            # stays O(1) in memory.
+            state = self._transfer_state.get(additional_context)
+            if state is None:
+                state = [-1, set()]
+                self._transfer_state[additional_context] = state
+            floor, seen_above = state
+            if frame_counter <= floor or frame_counter in seen_above:
                 raise RuntimeError(
                     f"Nonce reuse detected: frame_counter={frame_counter} with this "
                     "additional_context already used. AES-GCM nonce reuse breaks all security."
                 )
-            self._used_transfer.add(key)
+            seen_above.add(frame_counter)
+            while (state[0] + 1) in seen_above:
+                state[0] += 1
+                seen_above.discard(state[0])
             self._high_water_mark = max(self._high_water_mark, frame_counter)
 
         salt = struct.pack(">Q", frame_counter) + self._manifest_hash + additional_context
@@ -192,7 +215,9 @@ class NonceGenerator:
         """
         with self._lock:
             self._high_water_mark = -1
-            self._used_counters.clear()
+            self._counter_floor = -1
+            self._counter_seen_above.clear()
+            self._transfer_state.clear()
 
 
 def derive_transfer_nonce(

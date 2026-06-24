@@ -377,7 +377,7 @@ def dual_stream_encode(
     for h in (master_a, master_b, enc_key_a, enc_key_b, hmac_key_a, hmac_key_b):
         try:
             hb.drop(h)
-        except Exception:
+        except (ValueError, RuntimeError):
             pass
 
     manifest = DualStreamManifest(
@@ -493,7 +493,7 @@ def dual_stream_try_decode_stream(
         for h in handles_to_drop:
             try:
                 hb.drop(h)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
 
 
@@ -576,14 +576,14 @@ def secure_decode_and_zeroize(
             try:
                 _ = hb.aes_gcm_decrypt(enc_key_a, manifest.nonce_a, manifest.metadata_a, None)
                 result = (collapse_to_reality(interleaved, 0), 0)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
 
         if result is None and matched_b:
             try:
                 _ = hb.aes_gcm_decrypt(enc_key_b, manifest.nonce_b, manifest.metadata_b, None)
                 result = (collapse_to_reality(interleaved, 1), 1)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
 
         return result
@@ -593,7 +593,7 @@ def secure_decode_and_zeroize(
         for h in handles_to_drop:
             try:
                 hb.drop(h)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
 
         # ── Zeroize password buffer in Python ──

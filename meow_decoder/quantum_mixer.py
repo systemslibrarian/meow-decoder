@@ -66,6 +66,62 @@ def collapse_to_reality(superposition: bytes, reality_index: int) -> bytes:
         return superposition[1::2]
 
 
+def verify_indistinguishability(
+    data_a: bytes, data_b: bytes, threshold: float = 0.01
+) -> Tuple[bool, dict]:
+    """
+    Verify two byte sequences are statistically indistinguishable.
+
+    Performs lightweight statistical tests (Shannon entropy and byte-frequency
+    distribution) to confirm two halves of a superposition carry no obvious
+    forensic markers. Intended for testing/verification, not production
+    encode/decode.
+
+    Args:
+        data_a: First data sequence.
+        data_b: Second data sequence.
+        threshold: Maximum allowed difference (0.01 = 1%).
+
+    Returns:
+        Tuple of (is_indistinguishable, test_results) where test_results
+        carries entropy_a, entropy_b, entropy_diff, max_freq_diff and the
+        per-test/overall pass flags.
+    """
+    import math
+    from collections import Counter
+
+    def _entropy(data: bytes) -> float:
+        if not data:
+            return 0.0
+        length = len(data)
+        return -sum(
+            (count / length) * math.log2(count / length) for count in Counter(data).values()
+        )
+
+    results: dict = {}
+
+    entropy_a = _entropy(data_a)
+    entropy_b = _entropy(data_b)
+    entropy_diff = abs(entropy_a - entropy_b)
+    results["entropy_a"] = entropy_a
+    results["entropy_b"] = entropy_b
+    results["entropy_diff"] = entropy_diff
+    results["entropy_pass"] = entropy_diff < threshold
+
+    len_a, len_b = len(data_a), len(data_b)
+    prob_a = {k: v / len_a for k, v in Counter(data_a).items()} if len_a else {}
+    prob_b = {k: v / len_b for k, v in Counter(data_b).items()} if len_b else {}
+    all_bytes = set(prob_a) | set(prob_b)
+    max_diff = (
+        max(abs(prob_a.get(b, 0.0) - prob_b.get(b, 0.0)) for b in all_bytes) if all_bytes else 0.0
+    )
+    results["max_freq_diff"] = max_diff
+    results["freq_pass"] = max_diff < threshold
+
+    results["indistinguishable"] = results["entropy_pass"] and results["freq_pass"]
+    return results["indistinguishable"], results
+
+
 # Constants for yarn metaphor
 YARN_REALITY_A = 0  # Red yarn - first reality
 YARN_REALITY_B = 1  # Blue yarn - second reality

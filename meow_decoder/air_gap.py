@@ -30,9 +30,27 @@ Limitations:
 
 import os
 import platform
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Dict, Optional, Any
+
+# Trusted absolute locations for the system networking tools we shell out to.
+# Resolving against a fixed search path (instead of the inherited $PATH)
+# prevents a tampered PATH from substituting a malicious "ip"/"rfkill"
+# binary into a privileged-looking air-gap check (Bandit B607).
+_TRUSTED_BIN_DIRS = ("/usr/sbin", "/sbin", "/usr/bin", "/bin")
+
+
+def _resolve_tool(name: str) -> Optional[str]:
+    """Return the absolute path to a system tool from trusted dirs, or None.
+
+    Falls back to None (rather than a bare name) so callers fail closed —
+    the surrounding FileNotFoundError handling reports the tool as
+    unavailable instead of executing whatever PATH happens to resolve.
+    """
+    return shutil.which(name, path=os.pathsep.join(_TRUSTED_BIN_DIRS))
+
 
 __all__ = [
     "verify_air_gap",
@@ -108,8 +126,11 @@ def verify_air_gap() -> AirGapStatus:
 def _check_network_interfaces(status: AirGapStatus) -> None:
     """Check for active non-loopback network interfaces."""
     try:
+        ip_bin = _resolve_tool("ip")
+        if ip_bin is None:
+            raise FileNotFoundError("ip")
         result = subprocess.run(
-            ["ip", "-o", "link", "show", "up"],
+            [ip_bin, "-o", "link", "show", "up"],
             capture_output=True,
             text=True,
             timeout=5,
@@ -181,8 +202,11 @@ def _check_wifi(status: AirGapStatus) -> None:
         # Also check rfkill for WiFi
         if not wireless_found:
             try:
+                rfkill_bin = _resolve_tool("rfkill")
+                if rfkill_bin is None:
+                    raise FileNotFoundError("rfkill")
                 result = subprocess.run(
-                    ["rfkill", "list", "wifi"],
+                    [rfkill_bin, "list", "wifi"],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -213,8 +237,11 @@ def _check_bluetooth(status: AirGapStatus) -> None:
         # Also check rfkill for Bluetooth
         if not bt_found:
             try:
+                rfkill_bin = _resolve_tool("rfkill")
+                if rfkill_bin is None:
+                    raise FileNotFoundError("rfkill")
                 result = subprocess.run(
-                    ["rfkill", "list", "bluetooth"],
+                    [rfkill_bin, "list", "bluetooth"],
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -235,8 +262,11 @@ def _check_bluetooth(status: AirGapStatus) -> None:
 def _check_default_route(status: AirGapStatus) -> None:
     """Check for a default network route."""
     try:
+        ip_bin = _resolve_tool("ip")
+        if ip_bin is None:
+            raise FileNotFoundError("ip")
         result = subprocess.run(
-            ["ip", "route", "show", "default"],
+            [ip_bin, "route", "show", "default"],
             capture_output=True,
             text=True,
             timeout=5,

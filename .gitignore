@@ -78,6 +78,9 @@ node_modules/
 releases/android/*.apk
 *.key
 *.keyfile
+# IDE-saved API key files sometimes get a .txt suffix, which *.key misses.
+china.key.txt
+*.key.txt
 secrets/
 test_output/
 *.log

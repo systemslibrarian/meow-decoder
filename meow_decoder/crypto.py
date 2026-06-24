@@ -478,7 +478,7 @@ def derive_key(password: str, salt: bytes, keyfile: Optional[bytes] = None) -> b
     finally:
         try:
             hb.drop(handle)
-        except Exception:
+        except (ValueError, RuntimeError):
             pass
 
 
@@ -1039,7 +1039,7 @@ def encrypt_file_bytes_production(
         if key_handle is not None and _handle_owned:
             try:
                 hb.drop(key_handle)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
         raise
 

@@ -207,7 +207,7 @@ class DuressHandler:
                         # Generate random bytes but don't write them
                         for _ in range(passes):
                             _ = secrets.token_bytes(min(size, 4096))
-                    except Exception:
+                    except OSError:
                         pass
 
     def execute_emergency_response(
@@ -291,8 +291,8 @@ class DuressHandler:
                     # Delete the file
                     file_path.unlink()
                     wiped_count += 1
-                except Exception:  # pragma: no cover
-                    pass  # Best effort
+                except OSError:  # pragma: no cover
+                    pass  # Best effort — file vanished or is unwritable
 
         return wiped_count
 
@@ -363,27 +363,24 @@ def generate_deterministic_decoy(size: int, salt: bytes) -> bytes:
 
     Uses salt to seed generation so the same prompt produces same decoy,
     preventing suspicion from changing output.
+
+    Security: the decoy is meant to imitate high-entropy AES-GCM ciphertext.
+    The previous implementation seeded Python's Mersenne Twister
+    (``random.Random`` + ``randbytes``), whose output is statistically
+    distinguishable from random — an entropy/structure analysis would unmask
+    the decoy and defeat plausible deniability (Bandit B311). SHAKE-256 is a
+    cryptographic extendable-output function: deterministic from the salt
+    (same prompt -> same decoy) yet computationally indistinguishable from
+    random, so it withstands the entropy analysis a real ciphertext would.
     """
-    import random
+    import hashlib
 
-    # Use salt to seed PRNG for determinism
-    seed = int.from_bytes(_get_backend().sha256(salt), "big")
-    # Create isolated RNG instance
-    rng = random.Random(seed)
+    if size <= 0:
+        return b""
 
-    # Generate convincing filler
-    # We'll generate a fake binary format that looks like compressed data
-    chunks = []
-    generated = 0
-
-    while generated < size:
-        chunk_size = min(4096, size - generated)
-        # Generate semi-random bytes using isolated RNG
-        chunk = rng.randbytes(chunk_size)
-        chunks.append(chunk)
-        generated += len(chunk)
-
-    return b"".join(chunks)
+    # Domain-separated XOF stream keyed on the salt. digest(size) yields
+    # exactly `size` cryptographically pseudorandom, deterministic bytes.
+    return hashlib.shake_256(b"meow_duress_decoy_v1" + salt).digest(size)
 
 
 # Backwards compatibility wrappers for test suite

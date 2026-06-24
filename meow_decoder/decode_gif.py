@@ -943,7 +943,7 @@ def decode_gif(
                 from .crypto_backend import get_handle_backend as _ghb2
 
                 _ghb2().drop(pq_precomputed_key_handle)
-            except Exception:
+            except (ValueError, RuntimeError):
                 pass
         raise RuntimeError(f"Decryption failed: {e}")
 

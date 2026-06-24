@@ -59,6 +59,14 @@ class MemoryGuardWarning(UserWarning):
     pass
 
 
+# Exceptions the low-level ctypes / libc / kernel32 memory calls below can
+# raise. Catching this narrow set instead of a bare ``Exception`` keeps the
+# best-effort hardening (mlock, madvise, VirtualLock, free, ...) from silently
+# swallowing systemic failures such as MemoryError (Bandit B110). ctypes
+# surfaces FFI problems as OSError / ValueError / ArgumentError / TypeError;
+# AttributeError covers a missing libc/kernel32 symbol.
+_FFI_ERRORS = (OSError, ValueError, TypeError, AttributeError, ctypes.ArgumentError)
+
 # Module-level state
 _guard_status: Optional[Dict[str, bool]] = None
 _guard_activated: bool = False
@@ -143,7 +151,7 @@ def _disable_core_dumps() -> bool:
                 SEM_FLAGS = 0x0001 | 0x0002 | 0x8000
                 kernel32.SetErrorMode(SEM_FLAGS)
                 return True
-        except Exception:
+        except _FFI_ERRORS:
             pass
         return False
     else:
@@ -237,7 +245,7 @@ def _windows_set_privilege() -> bool:
 
         # Check if privilege was actually enabled
         return result != 0 and kernel32.GetLastError() == 0
-    except Exception:
+    except _FFI_ERRORS:
         return False
 
 
@@ -262,7 +270,7 @@ def virtual_lock_buffer(buf: bytearray) -> bool:
             if kernel32:
                 addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
                 return kernel32.VirtualLock(ctypes.c_void_p(addr), len(buf)) != 0
-        except Exception:
+        except _FFI_ERRORS:
             pass
         return False
     else:
@@ -271,7 +279,7 @@ def virtual_lock_buffer(buf: bytearray) -> bool:
             try:
                 addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
                 return libc.mlock(ctypes.c_void_p(addr), len(buf)) == 0
-            except Exception:
+            except _FFI_ERRORS:
                 pass
         return False
 
@@ -295,7 +303,7 @@ def virtual_unlock_buffer(buf: bytearray) -> bool:
             if kernel32:
                 addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
                 return kernel32.VirtualUnlock(ctypes.c_void_p(addr), len(buf)) != 0
-        except Exception:
+        except _FFI_ERRORS:
             pass
         return False
     else:
@@ -304,7 +312,7 @@ def virtual_unlock_buffer(buf: bytearray) -> bool:
             try:
                 addr = ctypes.addressof(ctypes.c_char.from_buffer(buf))
                 return libc.munlock(ctypes.c_void_p(addr), len(buf)) == 0
-            except Exception:
+            except _FFI_ERRORS:
                 pass
         return False
 
@@ -410,7 +418,7 @@ class GuardedBuffer:
                     si = SYSTEM_INFO()
                     kernel32.GetSystemInfo(ctypes.byref(si))
                     return si.dwPageSize
-            except Exception:
+            except _FFI_ERRORS:
                 pass
             return 4096  # Default
         else:
@@ -456,7 +464,7 @@ class GuardedBuffer:
             try:
                 MADV_DONTDUMP = 16
                 libc.madvise(ct.c_void_p(data_ptr), self._data_region_size, MADV_DONTDUMP)
-            except Exception:
+            except _FFI_ERRORS:
                 pass  # Best-effort
 
         return base, data_ptr
@@ -515,7 +523,7 @@ class GuardedBuffer:
                         )
                         != 0
                     )
-            except Exception:
+            except _FFI_ERRORS:
                 pass
             return False
         else:
@@ -523,7 +531,7 @@ class GuardedBuffer:
             if libc:
                 try:
                     return libc.mlock(ctypes.c_void_p(self._data_ptr), self._data_region_size) == 0
-                except Exception:
+                except _FFI_ERRORS:
                     pass
             return False
 
@@ -606,7 +614,7 @@ class GuardedBuffer:
         # Step 1: Zeroize data
         try:
             ctypes.memset(self._data_ptr, 0, self._data_region_size)
-        except Exception:
+        except _FFI_ERRORS:
             pass
 
         # Step 2: Unlock
@@ -618,14 +626,14 @@ class GuardedBuffer:
                         kernel32.VirtualUnlock(
                             ctypes.c_void_p(self._data_ptr), self._data_region_size
                         )
-                except Exception:
+                except _FFI_ERRORS:
                     pass
             else:
                 libc = _get_libc()
                 if libc:
                     try:
                         libc.munlock(ctypes.c_void_p(self._data_ptr), self._data_region_size)
-                    except Exception:
+                    except _FFI_ERRORS:
                         pass
 
         # Step 3: Free entire region
@@ -635,14 +643,14 @@ class GuardedBuffer:
                 if kernel32:
                     MEM_RELEASE = 0x8000
                     kernel32.VirtualFree(ctypes.c_void_p(self._base), 0, MEM_RELEASE)
-            except Exception:
+            except _FFI_ERRORS:
                 pass
         else:
             libc = _get_libc()
             if libc:
                 try:
                     libc.munmap(ctypes.c_void_p(self._base), self._total_size)
-                except Exception:
+                except _FFI_ERRORS:
                     pass
 
     def __enter__(self):
@@ -656,7 +664,7 @@ class GuardedBuffer:
         if not getattr(self, "_closed", True):
             try:
                 self.close()
-            except Exception:
+            except _FFI_ERRORS:
                 pass
 
     def __repr__(self) -> str:

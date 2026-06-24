@@ -184,7 +184,9 @@ def fur_ball_error(error_key: str, suggestion: bool = True, **kwargs) -> str:
     template = _CAT_ERROR_MESSAGES.get(error_key, _CAT_ERROR_MESSAGES["unknown"])
     msg = template.format(**kwargs) if kwargs else template
     if suggestion:
-        msg += f"\n{random.choice(_CAT_SUGGESTIONS)}"
+        # nosec B311 — cosmetic selection of a cat-themed hint for a
+        # human-readable error string; no security/cryptographic purpose.
+        msg += f"\n{random.choice(_CAT_SUGGESTIONS)}"  # nosec B311
     return msg
 
 
