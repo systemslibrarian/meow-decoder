@@ -22,7 +22,18 @@ import threading
 from pathlib import Path
 from datetime import datetime, timedelta
 from werkzeug.utils import secure_filename
-from flask import Flask, abort, render_template, request, redirect, url_for, send_file, send_from_directory, flash, session
+from flask import (
+    Flask,
+    abort,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    send_file,
+    send_from_directory,
+    flash,
+    session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +49,7 @@ app.secret_key = os.urandom(24)  # For flash messages and CSRF tokens
 # Forms embed the token via the csrf_token() template global; JS fetch()
 # callers read it from the <meta name="csrf-token"> tag in base.html and send
 # it as the X-CSRF-Token header.
+
 
 def generate_csrf_token() -> str:
     """Return the session's CSRF token, creating it on first use."""
@@ -61,12 +73,16 @@ def csrf_protect():
         abort(403, description="CSRF token missing or invalid")
 
 
-@app.route('/assets/<path:filename>')
+@app.route("/assets/<path:filename>")
 def serve_asset(filename):
     """Serve files from the top-level assets/ directory."""
-    assets_dir = Path(__file__).parent.parent / 'assets'
+    assets_dir = Path(__file__).parent.parent / "assets"
     return send_from_directory(assets_dir, filename)
-app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB limit (iPhone HD video + uncompressed test videos)
+
+
+app.config["MAX_CONTENT_LENGTH"] = (
+    500 * 1024 * 1024
+)  # 500 MB limit (iPhone HD video + uncompressed test videos)
 
 # Directories
 INSTANCE_DIR = Path(__file__).parent / "instance"
@@ -111,7 +127,8 @@ def cleanup_old_files(max_age_minutes=5):
     cutoff_dt = datetime.now() - timedelta(minutes=max_age_minutes)
     with download_tokens_lock:
         stale_tokens = [
-            t for t, info in download_tokens.items()
+            t
+            for t, info in download_tokens.items()
             if info.get("created", datetime.min) < cutoff_dt
         ]
         for t in stale_tokens:
@@ -144,7 +161,7 @@ def get_request_dir(base_dir):
 @app.after_request
 def set_security_headers(response):
     """Set security headers on every response (WD-04)."""
-    response.headers['Content-Security-Policy'] = (
+    response.headers["Content-Security-Policy"] = (
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; "
         "style-src 'self' 'unsafe-inline'; "
@@ -153,10 +170,10 @@ def set_security_headers(response):
         "worker-src 'self' blob:; "
         "frame-ancestors 'none';"
     )
-    response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-Content-Type-Options'] = 'nosniff'
-    response.headers['Referrer-Policy'] = 'no-referrer'
-    response.headers['Permissions-Policy'] = 'camera=(), microphone=()'
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=()"
     return response
 
 
@@ -195,11 +212,12 @@ def encode_page():
             password = request.form.get("password", "")
             duress_password = request.form.get("duress_password", "")
             mode = request.form.get("mode", "normal")
-            redundancy = float(request.form.get("redundancy", "1.5"))
+            redundancy = float(request.form.get("redundancy", "2.5"))
 
-            # Validate redundancy
-            if not (1.2 <= redundancy <= 2.0):
-                flash("Redundancy must be between 1.2 and 2.0", "error")
+            # Validate redundancy. 2.5 default emits coded (Robust Soliton)
+            # droplets for drop-resilient optical capture; allow up to 3.0.
+            if not (1.2 <= redundancy <= 3.0):
+                flash("Redundancy must be between 1.2 and 3.0", "error")
                 return redirect(request.url)
 
             # Setup directories
@@ -379,7 +397,7 @@ def cat_mode_video_download(token, filename):
     from flask import send_file
 
     # WD-10: Validate token is hex (matches secrets.token_hex(16) format)
-    if not token or not all(c in '0123456789abcdef' for c in token):
+    if not token or not all(c in "0123456789abcdef" for c in token):
         return "Invalid token", 400
     filename = secure_filename(filename)
     if not filename:
@@ -443,8 +461,12 @@ def cat_mode_decode_video():
         except (subprocess.CalledProcessError, FileNotFoundError) as e:
             # If ffmpeg fails, try OpenCV directly as fallback
             # WARNING: OpenCV WebM/VP9 support is unreliable and drops frames!
-            print(f"⚠️  ffmpeg conversion failed ({type(e).__name__}), falling back to OpenCV direct read")
-            print("   Install ffmpeg for reliable Cat Mode video decoding: sudo apt-get install -y ffmpeg")
+            print(
+                f"⚠️  ffmpeg conversion failed ({type(e).__name__}), falling back to OpenCV direct read"
+            )
+            print(
+                "   Install ffmpeg for reliable Cat Mode video decoding: sudo apt-get install -y ffmpeg"
+            )
             avi_path = tmp_path
 
         try:
@@ -457,13 +479,18 @@ def cat_mode_decode_video():
 
     except Exception as e:
         logger.exception("Cat mode video decode failed")
-        return json.dumps({"error": "Video decode failed"}), 500, {"Content-Type": "application/json"}
+        return (
+            json.dumps({"error": "Video decode failed"}),
+            500,
+            {"Content-Type": "application/json"},
+        )
 
 
 # The cat-mode video decoder lives in the dependency-free
 # meow_decoder.cat_video module so it (and its golden fixtures) can be tested
 # in CI without Flask. Alias kept for the route and web_demo integration tests.
 _decode_cat_video = decode_cat_video
+
 
 @app.route("/cat-mode-encrypt-server", methods=["POST"])
 def cat_mode_encrypt_server():
@@ -562,7 +589,7 @@ def decode_cat_binary():
             return redirect(url_for("cat_mode_page"))
 
         # Convert binary to bytes (direct - each 8 bits = 1 byte)
-        byte_chunks = [binary[i: i + 8] for i in range(0, len(binary), 8)]
+        byte_chunks = [binary[i : i + 8] for i in range(0, len(binary), 8)]
         raw_bytes = bytes(int(byte, 2) for byte in byte_chunks if len(byte) == 8)
 
         try:
@@ -580,6 +607,7 @@ def decode_cat_binary():
             # audit-phase-5-fix 5.5: reject absurd lengths before they reach the
             # decompression-limit calculation (avoids 40 GiB allocation ceiling).
             from meow_decoder.crypto import MAX_ORIG_LEN, MAX_COMP_LEN
+
             if orig_len > MAX_ORIG_LEN or comp_len > MAX_COMP_LEN:
                 flash("Invalid encrypted payload (length bounds exceeded)", "error")
                 return redirect(url_for("cat_mode_page"))
@@ -665,7 +693,7 @@ def schrodinger_page():
             decoy_file.save(decoy_path)
 
             # Encode with Schrödinger mode
-            config = EncodingConfig(fps=10, redundancy=1.5)
+            config = EncodingConfig(fps=10, redundancy=2.5)
 
             schrodinger_encode_file(
                 real_input=real_path,
@@ -933,6 +961,7 @@ def format_size(size_bytes):
 
 if __name__ == "__main__":
     import subprocess as _sp
+
     print("🐱 Meow Decoder Web Demo Starting...")
     print(f"   Instance directory: {INSTANCE_DIR.absolute()}")
     print(f"   Max file size: 8 MB (encode), 200 MB (video upload)")

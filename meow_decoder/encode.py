@@ -1021,7 +1021,10 @@ Examples:
         "--block-size", type=int, default=512, help="Fountain code block size (default: 512)"
     )
     parser.add_argument(
-        "--redundancy", type=float, default=1.5, help="Redundancy factor (default: 1.5)"
+        "--redundancy",
+        type=float,
+        default=2.5,
+        help="Redundancy factor (default: 2.5 — emits coded droplets for drop-resilient capture; <2.0 is all degree-1 systematic with no erasure resilience)",
     )
     parser.add_argument(
         "--fps",

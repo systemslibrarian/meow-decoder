@@ -442,3 +442,48 @@ class TestFountainCoverageGaps:
         assert decoder.is_complete()
         recovered = decoder.get_data()
         assert recovered == block0_data + block1_data + (b"C" * 10)
+
+
+class TestEncoderResilience:
+    """Gold-standard erasure resilience: the default 2.5× redundancy must emit
+    coded (degree ≥ 2) droplets so a lossy optical capture still decodes.
+
+    Regression guard for the degree-1-only fragility: at 1.5× every droplet was
+    degree-1 systematic, so a single persistently-dropped frame lost its block
+    irrecoverably. The encoder emits systematic droplets for seeds < 2*k and
+    Robust-Soliton coded droplets for seeds ≥ 2*k, so redundancy ≥ ~2.1× is
+    required to reach the coded region.
+    """
+
+    def _encoder(self, k=44, block_size=600):
+        data = secrets.token_bytes(k * block_size - 17)
+        return FountainEncoder(data, k, block_size), data, k, block_size
+
+    def test_default_redundancy_emits_coded_droplets(self):
+        enc, _data, k, _bs = self._encoder()
+        n = int(k * 2.5)  # the new default redundancy
+        droplets = [enc.droplet(i) for i in range(n)]
+        coded = [d for d in droplets if len(d.block_indices) >= 2]
+        assert coded, "2.5× redundancy must include coded (degree ≥ 2) droplets"
+
+    def test_low_redundancy_is_all_systematic(self):
+        # Documents the fragility we fixed: 1.5× is degree-1 only (no resilience).
+        enc, _data, k, _bs = self._encoder()
+        droplets = [enc.droplet(i) for i in range(int(k * 1.5))]
+        assert all(len(d.block_indices) == 1 for d in droplets)
+
+    def test_decodes_despite_dropped_frames(self):
+        """Drop two single-occurrence systematic frames + 18% random loss; the
+        coded droplets at 2.5× must still reconstruct the original bytes."""
+        enc, data, k, bs = self._encoder()
+        n = int(k * 2.5)
+        droplets = [enc.droplet(i) for i in range(n)]
+        rng = __import__("random").Random(7)
+        kept = [d for d in droplets if d.seed not in (22, 41) and rng.random() >= 0.18]
+        dec = FountainDecoder(k, bs, len(data))
+        for d in kept:
+            dec.add_droplet(d)
+            if dec.is_complete():
+                break
+        assert dec.is_complete(), "should decode despite dropped frames at 2.5×"
+        assert dec.get_data(len(data)) == data

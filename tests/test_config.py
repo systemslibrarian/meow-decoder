@@ -48,7 +48,7 @@ def test_duress_config_custom():
 def test_encoding_config_defaults():
     config = EncodingConfig()
     assert config.block_size == 512
-    assert config.redundancy == 1.5
+    assert config.redundancy == 2.5  # resilient default (emits coded droplets ≥2×k)
     assert config.qr_error_correction == "H"
     assert config.qr_box_size == 14
     assert config.fps == 2

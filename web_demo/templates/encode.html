@@ -53,9 +53,9 @@
     </div>
 
     <div class="form-group">
-        <label for="redundancy">📊 Fountain Code Redundancy: <span class="range-display" id="redundancy-display">1.5×</span></label>
-        <input type="range" id="redundancy" name="redundancy" min="1.2" max="2.0" step="0.1" value="1.5" oninput="updateRedundancy()">
-        <small>Higher redundancy = more frame loss tolerance. 1.5× tolerates 33% frame loss, 2.0× tolerates 50% loss.</small>
+        <label for="redundancy">📊 Fountain Code Redundancy: <span class="range-display" id="redundancy-display">2.5×</span></label>
+        <input type="range" id="redundancy" name="redundancy" min="1.2" max="3.0" step="0.1" value="2.5" oninput="updateRedundancy()">
+        <small>Higher redundancy = more frame-loss tolerance. <strong>≥2.5× is recommended</strong> for phone capture: it adds coded droplets that can rebuild any missing frame. Below 2.0× the frames are all degree-1 (systematic) with little erasure resilience — a single persistently-blurred frame can prevent decoding.</small>
     </div>
 
     <button type="submit" class="btn">🐱 Encode to Animated GIF</button>

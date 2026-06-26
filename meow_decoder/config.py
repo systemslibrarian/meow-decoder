@@ -59,7 +59,14 @@ class EncodingConfig:
     """Configuration for encoding operations."""
 
     block_size: int = 512  # Fountain code block size
-    redundancy: float = 1.5  # Redundancy factor (1.5 = 150% of k_blocks)
+    # Redundancy factor (× k_blocks droplets generated). 2.5 is the resilient
+    # default: the encoder emits systematic degree-1 droplets for seeds < 2*k
+    # (each block covered twice) and ROBUST-SOLITON CODED droplets for seeds ≥ 2*k.
+    # Below 2.0 the animation is all degree-1 systematic with NO coded droplets —
+    # a single persistently-dropped frame then loses its block irrecoverably.
+    # 2.5 → every block has 2 systematic copies PLUS coded droplets that can
+    # rebuild any missing block, so partial/lossy optical capture still decodes.
+    redundancy: float = 2.5
     qr_error_correction: str = "H"  # QR error correction (L/M/Q/H) - H for GIF
     qr_box_size: int = 14  # QR box size in pixels - 14 for GIF readability
     qr_border: int = 4  # QR border size
