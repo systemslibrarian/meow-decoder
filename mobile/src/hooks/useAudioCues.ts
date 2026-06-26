@@ -81,16 +81,15 @@ let Sound: any = null;
 let soundAvailable = false;
 
 function tryLoadSound(): boolean {
-  if (Sound !== null) return soundAvailable;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    Sound = require('react-native-sound');
-    Sound.setCategory('Playback', true); // mix with other audio
-    soundAvailable = true;
-  } catch {
-    Sound = {};
-    soundAvailable = false;
-  }
+  // react-native-sound is intentionally NOT a dependency of this build, and no
+  // cue assets are bundled. A static require('react-native-sound') is resolved
+  // by Metro at build time; with the package absent the release bundle throws
+  // "Requiring unknown module 'undefined'" at runtime and crashes the capture
+  // screen on mount. So audio cues are hard-disabled here (the hook degrades to
+  // a no-op). To re-enable: add react-native-sound + the cue assets, then
+  // restore the guarded require below.
+  Sound = {};
+  soundAvailable = false;
   return soundAvailable;
 }
 

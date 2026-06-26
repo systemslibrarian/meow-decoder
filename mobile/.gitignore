@@ -10,6 +10,8 @@ android/local.properties
 # Keystores — NEVER commit these; back them up offline
 android/app/debug.keystore
 android/app/release.keystore
+android/app/*.keystore
+*.keystore
 
 # iOS build artifacts
 ios/build/

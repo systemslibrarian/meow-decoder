@@ -28,6 +28,8 @@ export type RootStackParamList = {
     /** The validated capture request loaded from JSON file or manual entry */
     request: CaptureRequest;
   };
+  /** Live Cat Mode blink capture (optical brightness channel) */
+  CatCapture: undefined;
   /** Results review + export screen */
   Export: {
     /** The completed capture response to export */
@@ -44,6 +46,7 @@ export type OnboardingScreenProps = NativeStackScreenProps<RootStackParamList, '
 export type HomeScreenProps = NativeStackScreenProps<RootStackParamList, 'Home'>;
 export type SettingsScreenProps = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 export type CaptureScreenProps = NativeStackScreenProps<RootStackParamList, 'Capture'>;
+export type CatCaptureScreenProps = NativeStackScreenProps<RootStackParamList, 'CatCapture'>;
 export type ExportScreenProps = NativeStackScreenProps<RootStackParamList, 'Export'>;
 
 // ── Navigation Prop Shortcuts ─────────────────────────────────────────────────

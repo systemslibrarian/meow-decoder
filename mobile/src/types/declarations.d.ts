@@ -123,6 +123,18 @@ declare module '@react-native-clipboard/clipboard' {
   export default Clipboard;
 }
 
+// ── react-native-worklets-core ────────────────────────────────────────────────
+// Minimal stub for the worklets runtime used by the Cat Mode frame-processor
+// sampler (useCatBlinkSampler). The real package ships full types once linked in
+// a device build; this only needs to satisfy `tsc --noEmit` in the source-only
+// dev environment. createRunOnJS returns a worklet-callable proxy that invokes
+// the given function back on the JS thread.
+declare module 'react-native-worklets-core' {
+  export const Worklets: {
+    createRunOnJS<C extends (...args: never[]) => void>(fn: C): C;
+  };
+}
+
 // ── React Native runtime globals ──────────────────────────────────────────────
 // __DEV__ is injected by Metro / Hermes at bundle time to indicate whether the
 // app is running in development mode. TypeScript needs an ambient declaration

@@ -13,6 +13,7 @@ import { SplashScreen } from '../screens/SplashScreen';
 import { OnboardingScreen } from '../screens/OnboardingScreen';
 import { HomeScreen } from '../screens/HomeScreen';
 import { CaptureScreen } from '../screens/CaptureScreen';
+import { CatCaptureScreen } from '../screens/CatCaptureScreen';
 import { ExportScreen } from '../screens/ExportScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { Colors } from '../constants/theme';
@@ -60,6 +61,16 @@ export function AppNavigator({
         component={CaptureScreen}
         options={{
           // Disable swipe-back on CaptureScreen — accidental swipe loses frames
+          gestureEnabled: false,
+          animation: 'slide_from_bottom',
+        }}
+      />
+
+      <Stack.Screen
+        name="CatCapture"
+        component={CatCaptureScreen}
+        options={{
+          // Disable swipe-back mid-scan, like the QR capture screen.
           gestureEnabled: false,
           animation: 'slide_from_bottom',
         }}

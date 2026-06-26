@@ -242,6 +242,30 @@ export function isMeowQRPayload(qrValue: string): boolean {
 // ── Internal Helpers ──────────────────────────────────────────────────────────
 
 /**
+ * Derive how many source frames to expect from a single scanned transfer frame,
+ * so capture can start straight from a looping animation without a setup/request
+ * QR. Returns null if the QR isn't a recognised meow transfer frame.
+ *
+ * Counts by format:
+ *   - FOUNTAIN:<k>:<blockSize>:<len>:<b64>  → k (source block count)
+ *   - MEOW-N/total: / DURESS-N/total:       → total (chunk count)
+ *   - MEOW:/FS:/QUANTUM:/HYBRID-PQ:/DURESS: → 1 (single-frame transfer)
+ */
+export function deriveExpectedFramesFromFrame(value: string): number | null {
+  if (value.startsWith(QR_PREFIXES.FOUNTAIN)) {
+    const k = parseInt(value.split(':')[1] ?? '', 10);
+    return Number.isFinite(k) && k > 0 ? Math.min(k, 10_000) : null;
+  }
+  const chunked = /^(?:MEOW|DURESS)-\d+\/(\d+):/.exec(value);
+  if (chunked) {
+    const total = parseInt(chunked[1] ?? '', 10);
+    return Number.isFinite(total) && total > 0 ? Math.min(total, 10_000) : null;
+  }
+  if (/^(?:MEOW|FS|QUANTUM|HYBRID-PQ|DURESS):/.test(value)) return 1;
+  return null;
+}
+
+/**
  * Fast non-cryptographic string hash (djb2 variant).
  * Used only for synthetic index generation — NOT for security purposes.
  */

@@ -106,7 +106,25 @@ export type MilestoneThreshold = typeof MILESTONE_THRESHOLDS[number];
 export const FEATURE_FLAGS = {
   /** Video/GIF import via native frame extraction bridge (TurboModule stub) */
   VIDEO_IMPORT: false,
+  /**
+   * Live Cat Mode blink capture (optical brightness channel). Requires the
+   * react-native-worklets-core native module to be linked in the build (the
+   * frame-processor sampler depends on it). Keep false until a device build
+   * includes that dependency, then flip to true to surface the entry point.
+   */
+  CAT_MODE: true,
 } as const;
+
+// ── Cat Mode Capture ──────────────────────────────────────────────────────────
+
+/**
+ * Maximum time (ms) a live Cat Mode blink capture will keep recording without
+ * recovering a complete payload before giving up. A full transmission of a
+ * modest payload at the slow 200 ms blink rate runs ~1–2 minutes, so 3 minutes
+ * leaves headroom for aiming and a few missed passes while still bounding how
+ * long the camera can run if the signal is never decodable.
+ */
+export const CAT_CAPTURE_TIMEOUT_MS = 180_000 as const;
 
 // ── App Version ───────────────────────────────────────────────────────────────
 

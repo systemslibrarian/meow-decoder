@@ -33,7 +33,6 @@ import {
 } from 'react-native-vision-camera';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
-import { useAdaptiveFPS } from '../hooks/useAdaptiveFPS';
 
 // Animated Camera lets us drive the `zoom` prop from a shared value
 // on the UI thread — no JS-thread round-trip per gesture event.
@@ -80,7 +79,6 @@ export const CameraPreview = React.memo(function CameraPreview({
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  const adaptiveFPS = useAdaptiveFPS(device);
   const [torch, setTorch] = useState<'off' | 'on'>('off');
   const [exposureBias, setExposureBias] = useState(0);
   // Track native camera errors (e.g. EncoderProfiles NullPointerException on
@@ -189,11 +187,20 @@ export const CameraPreview = React.memo(function CameraPreview({
            * inside VisionCamera's native layer. Showing this instead of crashing. */
           <View style={[StyleSheet.absoluteFill, styles.centered]} accessible accessibilityRole="alert">
             <Text style={styles.permissionIcon} importantForAccessibility="no">📷</Text>
-            <Text style={styles.permissionTitle} accessibilityRole="header">Camera unavailable</Text>
+            <Text style={styles.permissionTitle} accessibilityRole="header">Camera couldn’t start</Text>
             <Text style={styles.permissionBody}>
-              The camera could not start on this device.
-              {__DEV__ ? ` (${cameraError})` : ' Try on a physical device.'}
+              This is usually temporary — another part of the app may have just been using
+              the camera. Tap Retry.
+              {__DEV__ ? ` (${cameraError})` : ''}
             </Text>
+            <TouchableOpacity
+              style={styles.permissionButton}
+              onPress={() => setCameraError(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Retry starting the camera"
+            >
+              <Text style={styles.permissionButtonText}>↻ Retry</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <AnimatedCamera
@@ -201,7 +208,9 @@ export const CameraPreview = React.memo(function CameraPreview({
             device={device}
             isActive={isActive}
             codeScanner={codeScanner}
-            fps={adaptiveFPS}
+            // NOTE: do NOT set `fps` without also setting `format` — VisionCamera 4
+            // throws PropRequiresFormatToBeNonNullError and the camera never starts.
+            // The device-default frame rate is fine for QR scanning.
             pixelFormat="yuv"
             torch={torch}
             enableZoomGesture={false}  // handled via GestureDetector above

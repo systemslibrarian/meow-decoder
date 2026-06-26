@@ -46,6 +46,8 @@ import {
   validateRequestFromString,
   firstErrorMessage,
 } from '../services/requestValidator';
+import { deriveExpectedFramesFromFrame } from '../services/qrDecoder';
+import { makeSessionId } from '../utils/session';
 import { useVideoImport } from '../hooks/useVideoImport';
 import { DiagnosticsPanel } from '../components/DiagnosticsPanel';
 import type { CaptureRequest } from '../types/capture';
@@ -137,6 +139,7 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
           try { json = decodeURIComponent(value.slice('meow-request://'.length)); }
           catch { return; }
         }
+        // 1. Preferred: a setup/capture-request QR (carries session + frame count).
         try {
           const request = validateRequestFromString(json);
           qrHandledRef.current = true;
@@ -146,11 +149,34 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
             ignoreAndroidSystemSettings: false,
           });
           navigateToCapture(request);
+          return;
         } catch {
-          // Saw a QR, but it wasn't a capture request — tell the user rather
-          // than silently ignoring it (a common source of "it just sits there").
-          if (scanFeedbackRef.current !== 'foreign') setScanFeedbackBoth('foreign');
+          // not a request — fall through to direct-frame handling
         }
+
+        // 2. No setup QR? Start capture straight from the looping transfer frames.
+        //    The frame itself tells us how many source frames to expect, and the
+        //    capture screen auto-stops once it has seen the whole loop and
+        //    captured enough to recover (loop-exhausted / fountain-complete).
+        const expected = deriveExpectedFramesFromFrame(value);
+        if (expected !== null) {
+          qrHandledRef.current = true;
+          setScanningRequest(false);
+          ReactNativeHapticFeedback.trigger('notificationSuccess', {
+            enableVibrateFallback: true,
+            ignoreAndroidSystemSettings: false,
+          });
+          navigateToCapture({
+            action: 'capture',
+            session_id: makeSessionId(),
+            expected_frames: expected,
+            timeout_seconds: DEFAULT_TIMEOUT_SECONDS,
+          });
+          return;
+        }
+
+        // 3. A QR, but not a meow transfer — tell the user rather than sitting silent.
+        if (scanFeedbackRef.current !== 'foreign') setScanFeedbackBoth('foreign');
       },
       // eslint-disable-next-line react-hooks/exhaustive-deps
       [scanningRequest],
@@ -461,6 +487,19 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
                 <Text style={styles.altButtonText}>📂 Import request (JSON)</Text>
               )}
             </TouchableOpacity>
+
+            {/* ── Cat Mode (beta) — hidden unless the native sampler is built ── */}
+            {FEATURE_FLAGS.CAT_MODE && (
+              <TouchableOpacity
+                style={styles.altButton}
+                onPress={() => navigation.navigate('CatCapture')}
+                accessibilityRole="button"
+                accessibilityLabel="Capture a Cat Mode blinking-eye transmission"
+                accessibilityHint="Opens the camera to decode the blinking cat animation into a binary pattern"
+              >
+                <Text style={styles.altButtonText}>😺 Cat Mode</Text>
+              </TouchableOpacity>
+            )}
 
             {/* ── Import Video / GIF — hidden when feature flag is off ── */}
             {FEATURE_FLAGS.VIDEO_IMPORT && (

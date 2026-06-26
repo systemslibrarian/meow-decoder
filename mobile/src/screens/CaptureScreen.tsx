@@ -41,7 +41,8 @@ import { useLowLightDetector } from '../hooks/useLowLightDetector';
 import { useAudioCues } from '../hooks/useAudioCues';
 import { useCameraHealthCheck } from '../hooks/useCameraHealthCheck';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
-import { formatCountdown } from '../utils/formatters';
+import { formatCountdown, recoveryConfidenceLabel } from '../utils/formatters';
+import { isCalibrationEnabled } from '../utils/captureSettings';
 import { PURR_HAPTIC_INTERVAL_MS } from '../constants/config';
 import type { CaptureScreenProps } from '../types/navigation';
 
@@ -55,7 +56,10 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const { play: playAudioCue } = useAudioCues();
 
   // ── Calibration wizard state ───────────────────────────────────────────────
-  const [showCalibration, setShowCalibration] = useState(true);
+  // Off by default: the wizard opens its own camera, which on single-camera
+  // devices collides with the capture camera ("camera could not start").
+  // Opt in via Settings. When skipped, the request is loaded directly on mount.
+  const [showCalibration, setShowCalibration] = useState(() => isCalibrationEnabled());
   const calibrationCompleteRef = useRef(false);
 
   // ── Security: privacy overlay + FLAG_SECURE (Android via MainActivity.kt) ──
@@ -104,6 +108,16 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     loadRequest(request);
   };
 
+  // When calibration is skipped (default), load the request once on mount so
+  // capture starts immediately and the camera opens cleanly (single instance).
+  useEffect(() => {
+    if (!showCalibration && !calibrationCompleteRef.current) {
+      calibrationCompleteRef.current = true;
+      loadRequest(request);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ── Navigate on terminal states ────────────────────────────────────────────
   useEffect(() => {
     if (status === 'COMPLETE' || status === 'TIMED_OUT') {
@@ -143,6 +157,20 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     ReactNativeHapticFeedback.trigger('impactMedium', HAPTIC_OPTIONS);
     cancel();
     navigation.goBack();
+  };
+
+  // Always-visible Home button. Confirms before discarding an active capture,
+  // otherwise returns straight to the main menu.
+  const handleHomePress = () => {
+    if (status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') {
+      Alert.alert('Leave capture?', 'All captured frames will be lost.', [
+        { text: 'Stay', style: 'cancel' },
+        { text: 'Leave', style: 'destructive', onPress: handleCancel },
+      ]);
+    } else {
+      cancel();
+      navigation.replace('Home');
+    }
   };
 
   // Android hardware back button — confirm before discarding active capture
@@ -325,14 +353,14 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     if (status !== 'CAPTURING') return;
     if (!loopExhausted || exhaustedToastFiredRef.current) return;
     exhaustedToastFiredRef.current = true;
-    if (progress?.isRecoverable) {
-      // Whole loop seen and we already have enough — nudge them to finish.
+    if (progress && progress.captured >= progress.expected) {
+      // Whole loop seen and every block captured — finishing automatically.
       showToast({
-        message: '✓ You have now seen the whole animation and captured enough to recover the file. Tap Done whenever you are ready.',
+        message: '✓ You have now captured every frame of the animation. Finishing up…',
         type: 'success',
         durationMs: 6_000,
       });
-      AccessibilityInfo.announceForAccessibility('Whole animation seen. Enough frames captured. Safe to stop.');
+      AccessibilityInfo.announceForAccessibility('All frames captured. Finishing up.');
     } else {
       // Seen every frame the loop offers, yet still short — frames are dropping.
       ReactNativeHapticFeedback.trigger('notificationWarning', HAPTIC_OPTIONS);
@@ -344,6 +372,13 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       AccessibilityInfo.announceForAccessibility('Whole animation seen but frames are still missing. Adjust position and keep scanning.');
     }
   }, [loopExhausted, status, progress, showToast]);
+
+  // NOTE: no loopExhausted-based auto-stop. The loop detector keys off repeated
+  // frame indices, so re-scanning the SAME on-screen frame (animation paused, or
+  // a slow frame held under the camera) looks like an "exhausted loop" and would
+  // end capture after a single frame. Capture now ends only on the fountain
+  // threshold (useCapture auto-completes), the session timeout, or a manual tap.
+  // loopExhausted is kept purely for the coaching toast below.
 
   // Reset loop-event latches when a new capture session starts.
   useEffect(() => {
@@ -403,9 +438,22 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         duplicateRate={duplicateRate}
         shakeMagnitude={shakeMagnitude}
         exposureBias={exposureBias}
-        safeToStop={progress?.isFountainComplete ?? false}
+        safeToStop={
+          !!progress && recoveryConfidenceLabel(progress.captured, progress.expected).safeToStop
+        }
         visible={status === 'CAPTURING' || status === 'AWAITING_GIF'}
       />
+
+      {/* Always-visible Home button (top-left) */}
+      <TouchableOpacity
+        style={styles.homeButton}
+        onPress={handleHomePress}
+        accessibilityRole="button"
+        accessibilityLabel="Back to main menu"
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+      >
+        <Text style={styles.homeButtonText}>🏠</Text>
+      </TouchableOpacity>
 
       {/* Status bar at top */}
       <View style={styles.statusBar}>
@@ -475,21 +523,26 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           </TouchableOpacity>
         )}
 
-        {(status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') && (
+        {(status === 'CAPTURING' || status === 'AWAITING_GIF' || status === 'PAUSED') && (() => {
+          // "Done" (green) uses the SAME signal as the ProgressHUD's
+          // "✓ Safe to stop — tap Done" pill (recoveryConfidenceLabel.safeToStop),
+          // so the guidance and the button can never disagree. NOT loopExhausted
+          // (which can fire after a single re-scanned frame).
+          const allCaptured =
+            !!progress && recoveryConfidenceLabel(progress.captured, progress.expected).safeToStop;
+          return (
           <TouchableOpacity
-            style={[
-              styles.stopButton,
-              progress?.isRecoverable && styles.stopButtonReady,
-            ]}
+            style={[styles.stopButton, allCaptured && styles.stopButtonReady]}
             onPress={handleStop}
             accessibilityRole="button"
-            accessibilityLabel="Stop capture and export"
+            accessibilityLabel={allCaptured ? 'All frames captured — finish and export' : 'Stop capture and export'}
           >
             <Text style={styles.buttonText}>
-              {progress?.isFountainComplete ? '✓ Safe to stop' : '🐾 Stop'}
+              {allCaptured ? '✓ Done' : '🐾 Stop'}
             </Text>
           </TouchableOpacity>
-        )}
+          );
+        })()}
       </View>
 
       {/* Pre-scan calibration wizard (shown on mount, before capture begins) */}
@@ -519,6 +572,19 @@ function statusLabel(status: string): string {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  homeButton: {
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 56 : 36,
+    left: Spacing.lg,
+    width: 44,
+    height: 44,
+    borderRadius: Radius.full,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+  },
+  homeButtonText: { fontSize: 22 },
   statusBar: {
     position: 'absolute',
     top: Platform.OS === 'ios' ? 60 : 40,

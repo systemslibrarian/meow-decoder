@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { SecurityMode, useSecurityMode } from '../hooks/useSecurityMode';
 import { isSoundEnabled, setSoundEnabled } from '../hooks/useAudioCues';
+import { isCalibrationEnabled, setCalibrationEnabled } from '../utils/captureSettings';
 import { Typography } from '../constants/theme';
 import { APP_VERSION } from '../constants/config';
 import type { SettingsScreenProps } from '../types/navigation';
@@ -103,6 +104,7 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
   const navigation = useNavigation();
   const { mode, setMode } = useSecurityMode();
   const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const [calibrationOn, setCalibrationOn] = useState(() => isCalibrationEnabled());
 
   const handleSelectMode = useCallback(
     (next: SecurityMode) => {
@@ -245,6 +247,34 @@ export const SettingsScreen: React.FC<SettingsScreenProps> = () => {
             accessibilityLabel="Sound effects"
             accessibilityState={{ checked: soundOn }}
             accessibilityHint="Toggle audio feedback during capture milestones"
+            style={styles.soundSwitch}
+          />
+        </View>
+
+        {/* Capture calibration settings */}
+        <Text style={styles.sectionLabel} accessibilityRole="header">CAPTURE</Text>
+        <View style={styles.soundRow}>
+          <View style={styles.soundLabelRow}>
+            <Text style={styles.soundLabel} maxFontSizeMultiplier={1.4}>
+              Pre-capture calibration
+            </Text>
+            <Text style={styles.soundDescription} maxFontSizeMultiplier={1.4}>
+              Show the guided light/distance check before each capture. Off by default —
+              on some phones it can briefly tie up the camera and delay the start of capture.
+            </Text>
+          </View>
+          <Switch
+            value={calibrationOn}
+            onValueChange={(v) => {
+              setCalibrationOn(v);
+              setCalibrationEnabled(v);
+            }}
+            trackColor={{ false: colors.border, true: colors.catGoldMuted }}
+            thumbColor={calibrationOn ? colors.catGold : '#ccc'}
+            accessibilityRole="switch"
+            accessibilityLabel="Pre-capture calibration"
+            accessibilityState={{ checked: calibrationOn }}
+            accessibilityHint="Toggle the guided calibration step before capture"
             style={styles.soundSwitch}
           />
         </View>

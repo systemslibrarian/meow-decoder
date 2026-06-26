@@ -1,7 +1,10 @@
 buildscript {
     ext {
         buildToolsVersion = "35.0.0"
-        minSdkVersion = 24
+        // 26 (Android 8.0) is required by VisionCamera's Frame.toArrayBuffer(),
+        // used by the Cat Mode blink sampler to read eye-region luminance.
+        // Android 7.x is <1% of devices and below this air-gap app's bar anyway.
+        minSdkVersion = 26
         compileSdkVersion = 35
         targetSdkVersion = 35
         ndkVersion = "26.1.10909125"
