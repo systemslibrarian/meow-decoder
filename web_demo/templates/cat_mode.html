@@ -59,6 +59,47 @@
         animation: pulse 2s infinite;
     }
 
+    /* Fullscreen "stage" — lets a phone capture the blinking eyes large, with
+       Start/Stop controls overlaid so you can drive the transmission in
+       fullscreen. */
+    #catStage {
+        position: relative;
+        display: inline-block;
+        max-width: 600px;
+        width: 100%;
+    }
+    #catStage:fullscreen {
+        max-width: none;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+    }
+    #catStage:fullscreen #catCanvas {
+        max-width: 100vw;
+        max-height: 100vh;
+        width: auto;
+        height: auto;
+    }
+    #catFsControls {
+        display: none;
+    }
+    #catStage:fullscreen #catFsControls {
+        display: flex;
+        gap: 12px;
+        position: absolute;
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+    #catStage:fullscreen #catFsControls .btn {
+        font-size: 1.15em;
+        padding: 14px 32px;
+    }
+
     @keyframes pulse {
         0%, 100% { box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
         50% { box-shadow: 0 0 20px rgba(0,255,136,0.5); }
@@ -135,11 +176,20 @@
                    crossorigin="anonymous">
                 <source src="/assets/CatVideo.mp4" type="video/mp4">
             </video>
-            <canvas id="catCanvas" width="743" height="417"></canvas>
+            <div id="catStage">
+                <canvas id="catCanvas" width="743" height="417"></canvas>
+                <!-- Overlay controls, visible only in fullscreen so you can
+                     Start/Stop the transmission while the cat fills the screen. -->
+                <div id="catFsControls">
+                    <button class="btn" onclick="catModeEncode()">😺 Start</button>
+                    <button class="btn secondary" onclick="catModeStop()">⏹️ Stop</button>
+                </div>
+            </div>
 
             <div class="action-buttons" style="margin-top: 10px;">
                 <button id="catQrBtn" class="btn" onclick="catModeEncode()" style="font-size: 1.1em; padding: 12px 30px;">😺 Start Transmitting</button>
                 <button id="catStopBtn" class="btn secondary" style="display:none; font-size: 1.1em; padding: 12px 30px;" onclick="catModeStop()">⏹️ Stop</button>
+                <button id="catFsBtn" class="btn secondary" onclick="toggleCatFullscreen()" style="font-size: 1.1em; padding: 12px 30px;">⛶ Fullscreen Cat</button>
                 <a id="videoDownloadLink" style="display:none; margin-left:10px;" class="btn secondary" target="_blank">⬇️ Download Video</a>
             </div>
 
@@ -658,6 +708,16 @@ async function catModeEncode() {
     const dataFrames = Math.ceil(catBinaryData.length / 2);
     const totalFrames = PREAMBLE_LEN + dataFrames + POSTAMBLE_LEN;
 
+    // ── Continuous loop framing ───────────────────────────────────────────────
+    // The transmission repeats forever (until Stop) so a phone receiver can
+    // catch a full preamble→data cycle no matter when it starts scanning. A
+    // short OFF guard before each preamble keeps the sync ON-run clean (exactly
+    // PREAMBLE_ON frames), and the postamble is omitted in the loop so the
+    // data→preamble seam never creates an over-long ON run that would corrupt
+    // the receiver's blink-period estimate.
+    const LOOP_GUARD_OFF = 6;
+    const loopLen = LOOP_GUARD_OFF + PREAMBLE_LEN + dataFrames;
+
     let frameStartTime = null;
     let frameIndex = 0;
 
@@ -703,28 +763,41 @@ async function catModeEncode() {
             return;
         }
 
-        while (frameIndex < totalFrames && timestamp - frameStartTime >= speed) {
+        // Advance unbounded; the loop position is frameIndex % loopLen.
+        while (timestamp - frameStartTime >= speed) {
             frameStartTime += speed;
             frameIndex++;
         }
 
-        if (!catTransmitting || frameIndex >= totalFrames) {
+        if (!catTransmitting) {
             catModeStop();
             return;
         }
 
-        const [leftOn, rightOn] = getFrameState(frameIndex);
+        // Map the running counter into one loop cycle: an OFF guard, then the
+        // preamble, then the data (no postamble — see loopLen above).
+        const loopIdx = frameIndex % loopLen;
+        let leftOn, rightOn;
+        if (loopIdx < LOOP_GUARD_OFF) {
+            leftOn = false;
+            rightOn = false;
+        } else {
+            [leftOn, rightOn] = getFrameState(loopIdx - LOOP_GUARD_OFF);
+        }
         drawWithGreenBlink(leftOn, rightOn);
 
         if (frameIndex % 5 === 0) {
+            const cyclePos = loopIdx >= LOOP_GUARD_OFF ? loopIdx - LOOP_GUARD_OFF : 0;
             let progressText;
-            if (frameIndex < PREAMBLE_LEN) {
-                progressText = `Sync preamble (${frameIndex}/${PREAMBLE_LEN})...`;
+            if (loopIdx < LOOP_GUARD_OFF) {
+                progressText = '🔁 Looping — sync gap…';
+            } else if (cyclePos < PREAMBLE_LEN) {
+                progressText = `🔁 Looping — sync preamble (${cyclePos}/${PREAMBLE_LEN})…`;
             } else {
-                const dataIdx = frameIndex - PREAMBLE_LEN;
+                const dataIdx = cyclePos - PREAMBLE_LEN;
                 const progress = (dataIdx / dataFrames) * 100;
                 document.getElementById('catProgressBar').style.width = progress + '%';
-                progressText = `Frame ${dataIdx} of ${dataFrames} (${progress.toFixed(1)}%) • ${catBinaryData.length} bits, 2 per frame`;
+                progressText = `🔁 Looping — frame ${dataIdx} of ${dataFrames} (${progress.toFixed(1)}%) • point your phone and Start scanning`;
             }
             document.getElementById('catProgressText').textContent = progressText;
         }
@@ -732,9 +805,10 @@ async function catModeEncode() {
         catBlinkInterval = requestAnimationFrame(transmitFrame);
     }
 
-    // Sync video playback to run exactly once for the full transmission duration
+    // The transmission loops until Stop, so loop the background cat video too.
     if (catBgVideo && catBgVideo.readyState >= 1) {
-        const transmissionDuration = totalFrames * speed / 1000; // seconds
+        const transmissionDuration = loopLen * speed / 1000; // seconds per cycle
+        catBgVideo.loop = true;
         catBgVideo.currentTime = 0;
         if (catBgVideo.duration && catBgVideo.duration > 0) {
             catBgVideo.playbackRate = Math.min(
@@ -820,6 +894,23 @@ function stringToBinary(str) {
         binary += str.charCodeAt(i).toString(2).padStart(8, '0');
     }
     return binary;
+}
+
+function toggleCatFullscreen() {
+    const stage = document.getElementById('catStage');
+    if (!stage) return;
+    const fsElement = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!fsElement) {
+        const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+        if (req) {
+            req.call(stage).catch((e) => console.warn('Fullscreen request failed:', e));
+        } else {
+            alert('Fullscreen is not supported in this browser.');
+        }
+    } else {
+        const exit = document.exitFullscreen || document.webkitExitFullscreen;
+        if (exit) exit.call(document);
+    }
 }
 
 function copyBinary() {
