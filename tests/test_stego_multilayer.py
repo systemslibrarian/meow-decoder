@@ -289,6 +289,55 @@ class TestPayloadPrep:
         assert not mac_valid
 
 
+class TestFailClosedDegradation:
+    """Audit #1/#5: stego crypto must fail closed in production rather than
+    silently degrade to the non-constant-time Python fallback or ship an
+    unencrypted payload."""
+
+    def test_seed_walk_fail_closed_without_rust(self, master_key, monkeypatch):
+        """Seed/walk derivation aborts when Rust is unavailable in strict mode."""
+        import meow_decoder.stego_multilayer as s
+
+        monkeypatch.setattr(s, "_RUST_AVAILABLE", False)
+        monkeypatch.setattr(s, "_STEGO_REQUIRE_RUST", True)
+
+        with pytest.raises(s.SecurityDegradationError):
+            s.derive_frame_seed(master_key, 0, 1)
+        with pytest.raises(s.SecurityDegradationError):
+            s.derive_walk_seed(master_key, 0)
+        with pytest.raises(s.SecurityDegradationError):
+            s.generate_pixel_walk(b"s" * 32, 16)
+
+    def test_fallback_allowed_when_not_strict(self, master_key, monkeypatch):
+        """Non-production (relaxed) mode still permits the Python fallback."""
+        import meow_decoder.stego_multilayer as s
+
+        monkeypatch.setattr(s, "_RUST_AVAILABLE", False)
+        monkeypatch.setattr(s, "_STEGO_REQUIRE_RUST", False)
+
+        assert len(s.derive_frame_seed(master_key, 0, 1)) == 32
+        assert len(s.derive_walk_seed(master_key, 0)) == 32
+        assert len(s.generate_pixel_walk(b"s" * 32, 16)) == 16
+
+    def test_encrypt_false_forbidden_in_strict_mode(self, master_key, monkeypatch):
+        """prepare_payload(encrypt=False) is refused in production."""
+        import meow_decoder.stego_multilayer as s
+
+        monkeypatch.setattr(s, "_STEGO_REQUIRE_RUST", True)
+        with pytest.raises(s.SecurityDegradationError):
+            s.prepare_payload(b"secret", master_key, encrypt=False)
+
+    def test_encrypt_false_allowed_when_not_strict(self, master_key, monkeypatch):
+        """encrypt=False remains usable for non-production tests/dev."""
+        import meow_decoder.stego_multilayer as s
+
+        monkeypatch.setattr(s, "_STEGO_REQUIRE_RUST", False)
+        prepared = s.prepare_payload(b"secret", master_key, encrypt=False)
+        recovered, mac_valid = unpack_payload(prepared, master_key)
+        assert mac_valid
+        assert recovered == b"secret"
+
+
 # ---------------------------------------------------------------------------
 # Test: Primary Channel
 # ---------------------------------------------------------------------------
@@ -741,3 +790,144 @@ class TestRustBackend:
         # Verify fewer changes
         changes = meow_crypto_rs.stego_count_changes(cover, stego)
         assert changes <= 50  # Should be fewer than payload bits
+
+
+# ---------------------------------------------------------------------------
+# Test: Cross-channel binding (audit #4)
+# ---------------------------------------------------------------------------
+
+
+class TestCrossChannelBinding:
+    """The comment channel's own HMAC is only an extraction hint; the outer
+    payload HMAC over the full reassembly is the authoritative authenticator.
+
+    This defeats a *shadowing* attack: an attacker harvests a MAC-valid comment
+    block from another message encrypted under the same key and injects it ahead
+    of the real one. With the old break-on-first-valid logic the decoder would
+    pick the stale block, fail the outer HMAC, and report mac_valid=False even
+    though the real payload is fully recoverable (a denial of service). The
+    decoder must instead select the comment candidate that satisfies the outer
+    HMAC.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _need_imageio(self):
+        try:
+            import imageio  # noqa: F401
+        except ImportError:
+            try:
+                import imageio.v3  # noqa: F401
+            except ImportError:
+                pytest.skip("imageio not available")
+
+    @staticmethod
+    def _make_carrier(path, n_frames=24):
+        # Solid per-frame colours keep palette/shape consistent so imageio reads
+        # all frames back at the same size even after the disposal channel edits
+        # GCE disposal methods (random frames read back with mismatched shapes).
+        frames = [
+            Image.fromarray(np.full((24, 24, 3), (c * 9) % 256, dtype=np.uint8))
+            for c in range(n_frames)
+        ]
+        frames[0].save(str(path), save_all=True, append_images=frames[1:], duration=100, loop=0)
+
+    @staticmethod
+    def _binary_channel_config():
+        # comment + disposal are pure GIF-binary channels (read straight from the
+        # GIF bytes via GifBinaryEditor, independent of the pixel decoder), so the
+        # payload overflows comment into disposal. primary off => GIF output
+        # (primary would force an APNG switch that drops GIF-only channels).
+        return MultiLayerConfig(
+            enable_primary=False,
+            enable_secondary=False,
+            enable_temporal=False,
+            enable_tertiary=False,
+            enable_disposal=True,
+            enable_comment=True,
+            compress=False,
+            encrypt=True,
+        )
+
+    @staticmethod
+    def _stub_frame_reader(monkeypatch, n_frames=24):
+        """Make decode()'s imageio frame read deterministic.
+
+        With primary/secondary/temporal disabled, decode() only uses the decoded
+        frames for a count — the comment and disposal channels are parsed from the
+        GIF *bytes* via GifBinaryEditor. imageio's GIF frame compositing is flaky
+        once the disposal channel rewrites GCE disposal methods (frames come back
+        with mismatched shapes, nondeterministically), so we stub the reader to
+        isolate the channel-selection logic under test.
+        """
+        import meow_decoder.stego_multilayer as s
+
+        class _FakeIIO:
+            @staticmethod
+            def imread(path, index=None):
+                return np.zeros((n_frames, 24, 24, 3), dtype=np.uint8)
+
+            @staticmethod
+            def immeta(path):
+                return {"duration": 100}
+
+        monkeypatch.setattr(s, "iio", _FakeIIO)
+
+    def _encode_gif(self, payload, key, carrier, out):
+        encoder = MultiLayerStegoEncoder(self._binary_channel_config(), key)
+        meta = encoder.encode(payload, carrier, out)  # uses the real imageio reader
+        return Path(meta["output_path"]), meta
+
+    def test_comment_plus_disposal_roundtrip(self, master_key, tmp_path, monkeypatch):
+        """Sanity: a message spanning comment + disposal decodes authentically."""
+        carrier = tmp_path / "carrier.gif"
+        self._make_carrier(carrier)
+        payload = bytes((i * 7) % 256 for i in range(120))  # > comment capacity
+
+        out, meta = self._encode_gif(payload, master_key, carrier, tmp_path / "a.gif")
+        assert out.suffix == ".gif", "primary-disabled output must stay GIF"
+        assert "comment" in meta["channels_used"]
+        assert "disposal" in meta["channels_used"], "payload should overflow into disposal"
+
+        self._stub_frame_reader(monkeypatch)
+        decoder = MultiLayerStegoDecoder(self._binary_channel_config(), master_key)
+        result = decoder.decode(out)
+        assert result.mac_valid
+        assert result.payload_bytes == payload
+
+    def test_shadow_comment_does_not_dos_decode(self, master_key, tmp_path, monkeypatch):
+        """A stale MAC-valid comment injected ahead of the real one must not
+        prevent recovery of the genuine payload."""
+        from meow_decoder.stego_gif_binary import GifBinaryEditor
+
+        carrier = tmp_path / "carrier.gif"
+        self._make_carrier(carrier)
+
+        payload_a = bytes((i * 7) % 256 for i in range(120))
+        payload_b = bytes((i * 11 + 3) % 256 for i in range(120))
+
+        gif_a, _ = self._encode_gif(payload_a, master_key, carrier, tmp_path / "a.gif")
+        gif_b, _ = self._encode_gif(payload_b, master_key, carrier, tmp_path / "b.gif")
+
+        # Harvest B's raw (encrypted) comment block — MAC-valid under the same key.
+        b_comment = GifBinaryEditor.extract_comments(GifBinaryEditor.parse(gif_b.read_bytes()))[0]
+
+        # Rebuild A's GIF with B's stale comment placed FIRST, then A's real one.
+        struct_a = GifBinaryEditor.parse(gif_a.read_bytes())
+        a_comment = GifBinaryEditor.extract_comments(struct_a)[0]
+        assert a_comment != b_comment
+        struct_a = GifBinaryEditor.remove_comments(struct_a)
+        struct_a = GifBinaryEditor.inject_comment(struct_a, b_comment)  # stale, first
+        struct_a = GifBinaryEditor.inject_comment(struct_a, a_comment)  # real, second
+
+        shadow = tmp_path / "shadow.gif"
+        shadow.write_bytes(GifBinaryEditor.to_bytes(struct_a))
+
+        # Confirm the stale block really is first (worst case for break-on-first).
+        comments = GifBinaryEditor.extract_comments(GifBinaryEditor.parse(shadow.read_bytes()))
+        assert comments[0] == b_comment
+
+        self._stub_frame_reader(monkeypatch)
+        decoder = MultiLayerStegoDecoder(self._binary_channel_config(), master_key)
+        result = decoder.decode(shadow)
+        assert result.mac_valid, "outer HMAC must authenticate the real combination"
+        assert result.payload_bytes == payload_a, "must recover A, not the shadow B"

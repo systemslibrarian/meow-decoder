@@ -82,6 +82,54 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
+# Fail-closed degradation guard (audit #1)
+# ---------------------------------------------------------------------------
+# The pure-Python fallbacks below produce byte-identical output to the Rust
+# backend (same HKDF-SHA256 derivation), but they are NOT constant-time. In a
+# production deployment the constant-time Rust path MUST be used; silently
+# degrading to the Python path would weaken the side-channel guarantees the
+# embedding relies on.
+#
+# Policy mirrors crypto_backend._PRODUCTION_MODE: strict (fail-closed) by
+# default in production, relaxed when MEOW_PRODUCTION_MODE=0 (the test/dev
+# convention set in tests/conftest.py). Set MEOW_STEGO_REQUIRE_RUST explicitly
+# to override either way.
+_STEGO_REQUIRE_RUST_ENV = os.environ.get("MEOW_STEGO_REQUIRE_RUST", "").lower()
+if _STEGO_REQUIRE_RUST_ENV in ("1", "true", "yes"):
+    _STEGO_REQUIRE_RUST = True
+elif _STEGO_REQUIRE_RUST_ENV in ("0", "false", "no"):
+    _STEGO_REQUIRE_RUST = False
+else:
+    # Default: follow the production-mode flag (production => fail-closed).
+    _STEGO_REQUIRE_RUST = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
+
+
+class SecurityDegradationError(RuntimeError):
+    """Raised when a security-sensitive stego op would silently fall back to
+    the non-constant-time Python path while strict mode is in effect."""
+
+
+def _require_rust_or_fail(operation: str) -> None:
+    """Fail closed and loudly if the constant-time Rust stego backend is
+    unavailable while strict mode is in effect.
+
+    Called by the embedding seed/walk derivation dispatchers so that a missing
+    or ABI-mismatched ``meow_crypto_rs`` aborts the operation instead of
+    degrading to the timing-unsafe Python fallback.
+    """
+    if _RUST_AVAILABLE or not _STEGO_REQUIRE_RUST:
+        return
+    raise SecurityDegradationError(
+        f"Cryptographic degradation refused: '{operation}' requires the "
+        "constant-time Rust stego backend (meow_crypto_rs), which is "
+        "unavailable. Refusing the non-constant-time Python fallback "
+        "(fail-closed policy). Build the backend with "
+        "`cd rust_crypto && maturin develop --release`, or set "
+        "MEOW_STEGO_REQUIRE_RUST=0 to allow the fallback in non-production use."
+    )
+
+
+# ---------------------------------------------------------------------------
 # Per-channel sub-key derivation via Rust handle backend (gemini #1).
 # Channels keep their derived sub-keys as opaque handle IDs so the bytes
 # never live as long-running Python instance attributes. The HMAC-SHA256
@@ -210,6 +258,11 @@ STEGO_VERSION = 3  # Bumped for Phase 1 additions
 
 # Comment channel magic
 COMMENT_MAGIC = b"MSCM"  # Meow Stego Comment Magic
+
+# Upper bound on comment blocks the decoder will consider as candidates when
+# selecting the one that satisfies the outer payload HMAC (audit #4). Bounds the
+# work an attacker can force by injecting many MAC-valid comment blocks.
+_MAX_COMMENT_CANDIDATES = 16
 
 # Domain separation strings for new channels
 DOMAIN_DISPOSAL = b"meow_stego_disposal_gce_v1"
@@ -405,6 +458,7 @@ def derive_frame_seed(master_key: bytes, frame_idx: int, channel_id: int) -> byt
     """Derive per-frame, per-channel 32-byte seed."""
     if _RUST_AVAILABLE:
         return bytes(meow_crypto_rs.stego_derive_frame_seed(master_key, frame_idx, channel_id))
+    _require_rust_or_fail("derive_frame_seed")
     return _py_derive_frame_seed(master_key, frame_idx, channel_id)
 
 
@@ -412,6 +466,7 @@ def derive_walk_seed(master_key: bytes, frame_idx: int) -> bytes:
     """Derive walk seed for pixel permutation."""
     if _RUST_AVAILABLE:
         return bytes(meow_crypto_rs.stego_derive_walk_seed(master_key, frame_idx))
+    _require_rust_or_fail("derive_walk_seed")
     return _py_derive_walk_seed(master_key, frame_idx)
 
 
@@ -439,6 +494,7 @@ def generate_pixel_walk(walk_seed: bytes, num_pixels: int) -> List[int]:
     """Generate pseudorandom pixel visit order."""
     if _RUST_AVAILABLE:
         return list(meow_crypto_rs.stego_generate_pixel_walk(walk_seed, num_pixels))
+    _require_rust_or_fail("generate_pixel_walk")
     return _py_generate_pixel_walk(walk_seed, num_pixels)
 
 
@@ -493,6 +549,19 @@ def prepare_payload(
         Prepared payload bytes ready for channel distribution
     """
     payload = data
+
+    # Audit #5: encryption is mandatory in production. Stego is an obfuscation
+    # layer, not a confidentiality/integrity primitive — those come from
+    # AES-256-GCM + the outer HMAC below. Disabling encryption is only allowed
+    # in non-production (test/dev) builds. Mirrors the MEOW_PRODUCTION_MODE
+    # convention used by crypto_backend and the strict stego guard above.
+    if not encrypt and _STEGO_REQUIRE_RUST:
+        raise SecurityDegradationError(
+            "prepare_payload(encrypt=False) is forbidden in production: stego "
+            "channels do not provide confidentiality on their own. Leave "
+            "encrypt=True, or set MEOW_PRODUCTION_MODE=0 / "
+            "MEOW_STEGO_REQUIRE_RUST=0 for non-production use only."
+        )
 
     flags = 0
     if compress:
@@ -3205,15 +3274,30 @@ class MultiLayerStegoDecoder:
         # (Palette extraction requires original permutable set knowledge)
 
         # --- Extract from comment channel (GIF-only) ---
+        # Audit #4 (cross-channel binding): the comment channel's own HMAC is
+        # only an *extraction hint*, NOT the authentication boundary. The single
+        # authoritative authenticator is the outer payload HMAC over the full
+        # reassembled blob (verified below). We therefore collect ALL MAC-valid
+        # comment candidates and let the outer HMAC pick the one that actually
+        # belongs to this message. Trusting the first MAC-valid block (the old
+        # break-on-first behaviour) let an attacker shadow the real comment with
+        # a stale-but-MAC-valid block harvested from another same-key message —
+        # a DoS, plus a cross-message linkability oracle.
+        comment_candidates: List[bytes] = []
         if self.config.enable_comment and is_gif and gif_structure is not None:
             comment_decoder = CommentChannelEncoder(active_key, self.config)
             comments = GifBinaryEditor.extract_comments(gif_structure)
-            for comment_data in comments:
+            for comment_data in comments[:_MAX_COMMENT_CANDIDATES]:
                 decoded, mac_ok = comment_decoder.decode(comment_data)
                 if mac_ok and decoded:
-                    raw_chunks["comment"] = decoded
-                    channel_sources.append("comment")
-                    break  # Use first valid comment block
+                    comment_candidates.append(decoded)
+            if len(comments) > _MAX_COMMENT_CANDIDATES:
+                logger.warning(
+                    "Comment channel: %d blocks present; only first %d considered "
+                    "as candidates (bound on attacker-injected blocks).",
+                    len(comments),
+                    _MAX_COMMENT_CANDIDATES,
+                )
 
         # --- Extract from secondary channel (timing) ---
         if self.config.enable_secondary and len(delays_cs) > 0:
@@ -3236,18 +3320,54 @@ class MultiLayerStegoDecoder:
                 raw_chunks["disposal"] = _bits_to_bytes(disposal_bits)
                 channel_sources.append("disposal")
 
-        # Reassemble payload from chunks in distribution order
-        reassembled = b""
-        for ch in ["primary", "comment", "secondary", "temporal", "disposal", "tertiary"]:
-            if ch in raw_chunks:
-                reassembled += raw_chunks[ch]
+        # Reassemble payload from chunks in canonical distribution order and
+        # select the comment candidate (if any) that makes the OUTER HMAC
+        # verify. The outer HMAC — not any single channel's MAC — is the sole
+        # authentication boundary, so the *combination* of channels is what gets
+        # authenticated. This is the cross-channel binding (audit #4): an
+        # attacker cannot mix in a channel from another message, because only
+        # the combination whose outer HMAC checks out is accepted.
+        def _reassemble(comment_chunk: Optional[bytes]) -> bytes:
+            out = b""
+            for ch in ["primary", "comment", "secondary", "temporal", "disposal", "tertiary"]:
+                if ch == "comment":
+                    if comment_chunk is not None:
+                        out += comment_chunk
+                elif ch in raw_chunks:
+                    out += raw_chunks[ch]
+            return out
 
-        # Try to unpack and verify
-        if len(reassembled) >= 14 + 32:
-            payload, mac_valid = unpack_payload(reassembled, active_key)
-        else:
-            payload = reassembled
-            mac_valid = False
+        # Try each MAC-valid comment candidate first, then the no-comment case
+        # (covers messages without a comment channel and rejects injected blocks
+        # that don't belong to this message).
+        comment_options: List[Optional[bytes]] = list(comment_candidates) + [None]
+
+        payload = b""
+        mac_valid = False
+        chosen_comment: Optional[bytes] = None
+        for candidate in comment_options:
+            reassembled = _reassemble(candidate)
+            if len(reassembled) < 14 + 32:
+                continue
+            cand_payload, cand_valid = unpack_payload(reassembled, active_key)
+            if cand_valid:
+                payload, mac_valid, chosen_comment = cand_payload, True, candidate
+                break
+
+        if not mac_valid:
+            # Nothing authenticated. Best-effort fallback: prefer the first
+            # MAC-valid comment block so callers can still inspect data, but
+            # mac_valid stays False so it is never trusted.
+            chosen_comment = comment_candidates[0] if comment_candidates else None
+            reassembled = _reassemble(chosen_comment)
+            if len(reassembled) >= 14 + 32:
+                payload, _ = unpack_payload(reassembled, active_key)
+            else:
+                payload = reassembled
+
+        if chosen_comment is not None:
+            raw_chunks["comment"] = chosen_comment
+            channel_sources.append("comment")
 
         return StegoExtractionResult(
             payload_bytes=payload,

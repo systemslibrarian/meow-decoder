@@ -9,8 +9,8 @@ import tempfile
 from pathlib import Path
 import sys
 
-# Add parent to path
-sys.path.insert(0, str(Path(__file__).parent))
+# Add repo root (the parent of examples/) to path so `meow_decoder` imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from meow_decoder.schrodinger_encode import schrodinger_encode_data
 from meow_decoder.decoy_generator import generate_convincing_decoy
