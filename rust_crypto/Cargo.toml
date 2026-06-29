@@ -21,7 +21,7 @@ pyo3 = { version = "0.29", features = ["extension-module"], optional = true }
 
 # Core cryptography - all audited, production-ready crates
 argon2 = "0.5"   # Argon2id KDF (password hashing)
-aes-gcm = "0.10" # AES-256-GCM AEAD encryption
+aes-gcm = "0.11" # AES-256-GCM AEAD encryption
 aes = "0.9"      # AES block cipher (for CTR mode)
 ctr = "0.10"      # CTR mode for streaming encryption (cipher 0.5, matches aes 0.9)
 cipher = "0.5"   # Cipher traits
