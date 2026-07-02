@@ -63,19 +63,46 @@ def decode_cat_video(video_path):
             "Could not detect cat eye regions in video. Ensure the cat image with green eyes is visible."
         )
 
-    # Step 2: Read all frames and measure green intensity per eye
-    cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+    # Step 2: Read all frames and measure green intensity per eye, keeping
+    # each frame's presentation timestamp. MediaRecorder WebM (and anything
+    # re-encoded by messaging apps) is variable-frame-rate: a run's length in
+    # FRAMES is meaningless as a duration there, so wall-clock timestamps are
+    # the only reliable clock.
+    #
+    # Re-open instead of seeking: CAP_PROP_POS_FRAMES=0 silently fails to
+    # rewind VFR WebM/VP8 with OpenCV's ffmpeg backend, leaving the read
+    # positioned mid-stream after the eye-detection scan above.
+    cap.release()
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError("Could not re-open video file for intensity pass")
     left_intensities = []
     right_intensities = []
+    timestamps_ms = []
 
-    for i in range(total_frames):
+    # Read to EOF rather than trusting the container's frame count — VFR WebM
+    # headers routinely under-report (observed: header 1801, readable 1870),
+    # which would silently drop the postamble tail.
+    hard_cap = 1_000_000
+    while len(left_intensities) < hard_cap:
         ret, frame = cap.read()
         if not ret:
             break
+        timestamps_ms.append(float(cap.get(cv2.CAP_PROP_POS_MSEC)))
         left_intensities.append(_measure_green_intensity(frame, left_box))
         right_intensities.append(_measure_green_intensity(frame, right_box))
 
     cap.release()
+
+    # Resample onto a uniform 60 fps grid when frame timing is non-uniform.
+    # This is exactly what the server's `ffmpeg -r 60` conversion does (hold
+    # the last frame until the next timestamp), but works without ffmpeg and
+    # therefore also on direct VFR reads.
+    left_intensities, right_intensities, resampled = _resample_uniform(
+        left_intensities, right_intensities, timestamps_ms
+    )
+    if resampled:
+        fps = 60.0
 
     n_frames = len(left_intensities)
     if n_frames < 30:
@@ -377,6 +404,21 @@ def decode_cat_video(video_path):
 
     # Refine bp using median of single-blink runs (much more accurate than preamble)
     bp_refined = refine_bp(runs_db, ds_db, de_db, bp_db)
+
+    # Fractional fine-pass: the median of integer run lengths quantizes to a
+    # whole frame, and when the true period sits between two integers (e.g.
+    # 11.5 after VFR resampling) that half-frame error compounds across
+    # multi-blink runs and mis-rounds them. The mean of in-band single-blink
+    # runs recovers the fractional period.
+    _single = [
+        runs_db[i][2]
+        for i in range(ds_db, de_db)
+        if 0.75 * bp_refined <= runs_db[i][2] <= 1.25 * bp_refined
+    ]
+    if len(_single) >= 5:
+        _bp_mean = sum(_single) / len(_single)
+        if 0.8 * bp_refined <= _bp_mean <= 1.2 * bp_refined:
+            bp_refined = _bp_mean
     bp_center = bp_refined
     bp_min = max(0.5, bp_center - 1.5)
     bp_max = bp_center + 1.5
@@ -492,6 +534,7 @@ def decode_cat_video(video_path):
         diag["actual_bits"] = len(best_binary)
         diag["bit_diff"] = len(best_binary) - hdr[2]
     diag["debounce_min_run"] = min_run
+    diag["vfr_resampled"] = resampled
     diag["raw_runs"] = len(runs_cal)
     diag["debounced_runs"] = len(runs_db)
     diag["bp_from_preamble"] = round(bp_db, 3)
@@ -521,6 +564,63 @@ def decode_cat_video(video_path):
         "auto_tuned": best_bp != bp_db,
         "diagnostics": diag,
     }
+
+
+def _resample_uniform(left, right, timestamps_ms, grid_fps=60.0):
+    """Resample intensity series onto a uniform time grid via hold-last-value.
+
+    Returns (left, right, resampled_flag). Only resamples when the container
+    timestamps are usable (monotonic non-decreasing, positive span) AND frame
+    timing is meaningfully non-uniform — constant-frame-rate input passes
+    through untouched so existing CFR behavior (and its test coverage) is
+    bit-identical.
+    """
+    n = len(timestamps_ms)
+    if n < 30 or len(left) != n or len(right) != n:
+        return left, right, False
+
+    # Timestamp sanity: strictly usable clocks only. Some backends report 0
+    # for every frame — that must fall back to frame-index timing.
+    span = timestamps_ms[-1] - timestamps_ms[0]
+    if span <= 0:
+        return left, right, False
+    deltas = []
+    for i in range(1, n):
+        d = timestamps_ms[i] - timestamps_ms[i - 1]
+        if d < 0:
+            return left, right, False
+        if d > 0:
+            deltas.append(d)
+    if len(deltas) < n // 2:
+        return left, right, False
+
+    deltas.sort()
+    med = deltas[len(deltas) // 2]
+    if med <= 0:
+        return left, right, False
+
+    # Uniform enough already? (VFR shows up as max delta >> median — a held
+    # frame spanning several blink periods.)
+    if deltas[-1] <= med * 1.5 and deltas[0] >= med * 0.5:
+        return left, right, False
+
+    step = 1000.0 / grid_fps
+    t0 = timestamps_ms[0]
+    grid_n = int(span / step) + 1
+    # Refuse absurd expansion (corrupt timestamps could ask for hours of grid).
+    if grid_n > 500_000 or grid_n < 30:
+        return left, right, False
+
+    out_left = []
+    out_right = []
+    src = 0
+    for g in range(grid_n):
+        t = t0 + g * step
+        while src + 1 < n and timestamps_ms[src + 1] <= t:
+            src += 1
+        out_left.append(left[src])
+        out_right.append(right[src])
+    return out_left, out_right, True
 
 
 def _detect_eye_regions_cv(frame):
@@ -566,28 +666,72 @@ def _detect_eye_regions_cv(frame):
             min_count = count
             split_x = x
 
-    # Build bounding boxes with padding
-    pad = 5
+    # Build eye boxes robustly. The cat artwork is full of green that is NOT
+    # an eye — glowing ear tips, a green cap logo, circuit traces — so a naive
+    # min/max bounding box balloons to cover half the face (the "two giant
+    # green circles" bug). Instead locate the densest green blob on each side
+    # (the eye), keep only nearby pixels, take a percentile box, and clamp the
+    # size so scattered outliers can't inflate it.
     left_mask = xs < split_x
     right_mask = xs >= split_x
-
     if np.sum(left_mask) < 10 or np.sum(right_mask) < 10:
         return None, None
 
-    left_box = (
-        max(0, int(np.min(xs[left_mask])) - pad),
-        max(0, int(np.min(ys[left_mask])) - pad),
-        min(w, int(np.max(xs[left_mask])) + pad),
-        min(h, int(np.max(ys[left_mask])) + pad),
-    )
-    right_box = (
-        max(0, int(np.min(xs[right_mask])) - pad),
-        max(0, int(np.min(ys[right_mask])) - pad),
-        min(w, int(np.max(xs[right_mask])) + pad),
-        min(h, int(np.max(ys[right_mask])) + pad),
-    )
+    left_box = _eye_box_from_points(xs[left_mask], ys[left_mask], w, h)
+    right_box = _eye_box_from_points(xs[right_mask], ys[right_mask], w, h)
+    if left_box is None or right_box is None:
+        return None, None
 
     return left_box, right_box
+
+
+def _eye_box_from_points(xs, ys, w, h):
+    """Tight, size-clamped eye box around the densest green cluster.
+
+    xs/ys are the green-pixel coordinates on one side of the split. Returns
+    (x1, y1, x2, y2) or None. Shared logic with the transmitter's JS
+    autoDetectEyeRegions so transmit overlay and receiver sampling agree.
+    """
+    import numpy as np
+
+    if len(xs) < 10:
+        return None
+
+    max_w = max(24, round(w * 0.16))
+    max_h = max(24, round(h * 0.18))
+
+    # Coarse 16px density grid → peak cell locates the eye and rejects the
+    # scattered circuitry/ear/cap green that wrecks min/max.
+    cell = 16
+    gx = (xs // cell).astype(np.int64)
+    gy = (ys // cell).astype(np.int64)
+    keys = gx * 100000 + gy
+    uniq, counts = np.unique(keys, return_counts=True)
+    peak = uniq[int(np.argmax(counts))]
+    pcx = (peak // 100000) * cell + cell / 2
+    pcy = (peak % 100000) * cell + cell / 2
+
+    near = (np.abs(xs - pcx) <= max_w) & (np.abs(ys - pcy) <= max_h)
+    nx = xs[near]
+    ny = ys[near]
+    if len(nx) < 10:
+        nx, ny = xs, ys
+
+    x1, x2 = float(np.percentile(nx, 10)), float(np.percentile(nx, 90))
+    y1, y2 = float(np.percentile(ny, 10)), float(np.percentile(ny, 90))
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+    if x2 - x1 > max_w:
+        x1, x2 = cx - max_w / 2, cx + max_w / 2
+    if y2 - y1 > max_h:
+        y1, y2 = cy - max_h / 2, cy + max_h / 2
+
+    pad = 4
+    return (
+        max(0, int(round(x1 - pad))),
+        max(0, int(round(y1 - pad))),
+        min(w, int(round(x2 + pad))),
+        min(h, int(round(y2 + pad))),
+    )
 
 
 def _measure_green_intensity(frame, box):

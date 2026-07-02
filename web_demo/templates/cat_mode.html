@@ -363,6 +363,8 @@ let mediaStream = null;       // The captureStream so we can stop tracks on clea
 let recordedChunks = [];
 let videoBlob = null;
 let encryptAbortController = null;  // Aborts in-flight encryption when user clicks Stop or restarts.
+let catTransmitStartTs = 0;  // performance.now() when the blink loop started.
+let catCycleMs = 0;          // Duration of one full guard+preamble+data cycle.
 
 document.addEventListener('DOMContentLoaded', async () => {
     catCanvas = document.getElementById('catCanvas');
@@ -455,8 +457,8 @@ function autoDetectEyeRegions(imageData) {
     const greenPixels = [];
 
     for (let i = 0; i < data.length; i += 4) {
-        const r = data[i], g = data[i + 1], a = data[i + 3];
-        if (g > 100 && g > r * 1.3 && a > 100) {
+        const r = data[i], g = data[i + 1], b = data[i + 2], a = data[i + 3];
+        if (g > 100 && g > r * 1.3 && g > b * 1.1 && a > 100) {
             const idx = i / 4;
             const px = idx % w, py = Math.floor(idx / w);
             if (py < h * 0.65) greenPixels.push({ x: px, y: py });
@@ -486,21 +488,59 @@ function autoDetectEyeRegions(imageData) {
 
     const leftPx = greenPixels.filter(p => p.x < splitX);
     const rightPx = greenPixels.filter(p => p.x >= splitX);
-    const pad = 5;
 
-    function boundingBox(pixels) {
-        if (pixels.length === 0) return null;
-        const bxs = pixels.map(p => p.x), bys = pixels.map(p => p.y);
+    // The cat artwork is full of green that is NOT an eye (glowing ear tips,
+    // the green cap logo, circuit traces). A naive min/max box therefore
+    // balloons to cover half the face — the "two giant green circles" bug.
+    // Instead locate the densest green blob on each side (the eye), keep only
+    // nearby pixels, take a percentile box, and clamp its size so scattered
+    // outliers can't inflate it. Mirrors _eye_box_from_points in cat_video.py
+    // so the transmitter overlay and the receiver's sampling agree.
+    const maxW = Math.max(24, Math.round(w * 0.16));
+    const maxH = Math.max(24, Math.round(h * 0.18));
+
+    function pct(sortedArr, p) {
+        const i = Math.min(sortedArr.length - 1, Math.max(0, Math.floor(p * (sortedArr.length - 1))));
+        return sortedArr[i];
+    }
+
+    function eyeBox(pixels) {
+        if (pixels.length < 10) return null;
+        // Coarse 16px density grid → peak cell locates the eye.
+        const cell = 16;
+        const grid = new Map();
+        for (const p of pixels) {
+            const key = Math.floor(p.x / cell) + ',' + Math.floor(p.y / cell);
+            grid.set(key, (grid.get(key) || 0) + 1);
+        }
+        let peakKey = null, peak = -1;
+        for (const [k, c] of grid) { if (c > peak) { peak = c; peakKey = k; } }
+        const parts = peakKey.split(',');
+        const pcx = parseInt(parts[0], 10) * cell + cell / 2;
+        const pcy = parseInt(parts[1], 10) * cell + cell / 2;
+
+        let near = pixels.filter(p => Math.abs(p.x - pcx) <= maxW && Math.abs(p.y - pcy) <= maxH);
+        if (near.length < 10) near = pixels;
+
+        const nx = near.map(p => p.x).sort((a, b) => a - b);
+        const ny = near.map(p => p.y).sort((a, b) => a - b);
+        let x1 = pct(nx, 0.10), x2 = pct(nx, 0.90);
+        let y1 = pct(ny, 0.10), y2 = pct(ny, 0.90);
+        const cx = (x1 + x2) / 2, cy = (y1 + y2) / 2;
+        if (x2 - x1 > maxW) { x1 = cx - maxW / 2; x2 = cx + maxW / 2; }
+        if (y2 - y1 > maxH) { y1 = cy - maxH / 2; y2 = cy + maxH / 2; }
+
+        const pad = 4;
         return [
-            Math.max(0, Math.min(...bxs) - pad),
-            Math.max(0, Math.min(...bys) - pad),
-            Math.min(w, Math.max(...bxs) + pad),
-            Math.min(h, Math.max(...bys) + pad)
+            Math.max(0, Math.round(x1 - pad)),
+            Math.max(0, Math.round(y1 - pad)),
+            Math.min(w, Math.round(x2 + pad)),
+            Math.min(h, Math.round(y2 + pad))
         ];
     }
 
-    const left = boundingBox(leftPx);
-    const right = boundingBox(rightPx);
+    const left = eyeBox(leftPx);
+    const right = eyeBox(rightPx);
 
     if (!left || !right) return null;
     return { left, right };
@@ -622,6 +662,11 @@ async function catModeEncode() {
     // recordedChunks=[] reset above can clobber chunks still being
     // delivered by the old recorder's ondataavailable.
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        // This recorder is being torn down mid-flight (double-Start) — its
+        // blob is a fragment of a transmission and must never be uploaded.
+        // These fragments were the 12-byte/1-KB corrupt .webm files that
+        // made downloaded cat videos undecodable.
+        mediaRecorder._discard = true;
         try { mediaRecorder.stop(); } catch (_) {}
     }
     if (mediaStream) {
@@ -659,6 +704,27 @@ async function catModeEncode() {
             if (mediaStream === recorder.stream) {
                 try { mediaStream.getTracks().forEach(t => t.stop()); } catch (_) {}
                 mediaStream = null;
+            }
+
+            // Never upload aborted or fragmentary recordings. A usable
+            // recording contains at least one full preamble+data cycle;
+            // aborted double-Start / tab-hidden fragments are 12 B – 1 KB of
+            // invalid WebM that no decoder can open. 50 KB is far below any
+            // real cycle (~200 KB+) but far above every observed fragment.
+            const MIN_USABLE_BYTES = 50 * 1024;
+            if (recorder._discard || recorder._tooShort || videoBlob.size < MIN_USABLE_BYTES) {
+                console.warn(
+                    `🎥 Recording discarded (${recorder._discard ? 'aborted' : recorder._tooShort ? 'stopped before one full cycle' : 'too small: ' + videoBlob.size + ' bytes'}) — not saved.`
+                );
+                if (!recorder._discard) {
+                    const progressEl = document.getElementById('catProgressText');
+                    if (progressEl) {
+                        progressEl.textContent =
+                            '⚠️ Recording too short to decode — let the animation loop at least once before stopping.';
+                    }
+                }
+                videoBlob = null;
+                return;
             }
 
             // Auto-save to server and show download link
@@ -718,6 +784,12 @@ async function catModeEncode() {
     const LOOP_GUARD_OFF = 6;
     const loopLen = LOOP_GUARD_OFF + PREAMBLE_LEN + dataFrames;
 
+    // A decodable recording needs at least one full cycle (Stop paints the
+    // eyes solid ON, which serves as the end anchor). Used by catModeStop to
+    // discard too-early stops with a helpful message.
+    catCycleMs = loopLen * speed;
+    catTransmitStartTs = performance.now();
+
     let frameStartTime = null;
     let frameIndex = 0;
 
@@ -754,6 +826,8 @@ async function catModeEncode() {
         // them — they need to redo the recording with the tab visible.
         if (typeof document !== 'undefined' && document.hidden) {
             console.warn('Tab hidden during transmission — aborting; recorded video would be unusable.');
+            // The partial recording is unusable — never upload it.
+            if (mediaRecorder) mediaRecorder._discard = true;
             catTransmitting = false;
             const progressEl = document.getElementById('catProgressText');
             if (progressEl) {
@@ -846,6 +920,11 @@ function catModeStop() {
     // Stop video recording. Note: the recorder's onstop handler also
     // stops the underlying MediaStream tracks, so we don't double-stop here.
     if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+        // Stopped before one full preamble+data cycle played? The recording
+        // cannot contain a complete transmission — discard it and say why.
+        if (catCycleMs > 0 && performance.now() - catTransmitStartTs < catCycleMs) {
+            mediaRecorder._tooShort = true;
+        }
         mediaRecorder.stop();
         console.log('🎥 Recording stopped');
     }

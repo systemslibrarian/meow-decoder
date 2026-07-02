@@ -66,3 +66,28 @@ def test_python_golden_video_decodes_to_known_payload(fixture):
     expected = _hex_to_bits(EMPTY_SHA256_HEX)
     assert result["binary"] == expected
     assert result["bits"] == len(expected) == 256
+
+
+@pytest.mark.skipif(not _HAS_CV2, reason="needs cv2")
+@pytest.mark.parametrize("fixture", ["cat_emptyhash_100ms.webm", "cat_emptyhash_200ms.webm"])
+def test_python_golden_video_decodes_directly_without_ffmpeg(fixture):
+    """The raw variable-frame-rate WebM decodes with NO ffmpeg conversion.
+
+    MediaRecorder WebM is VFR, so run lengths in frames are not durations.
+    decode_cat_video resamples per-frame timestamps onto a uniform grid
+    (diagnostics["vfr_resampled"] is True), replacing the external
+    `ffmpeg -r 60` dependency. Regression test for the bug where every
+    ffmpeg-less decode of a real recording produced garbage bits.
+    """
+    from meow_decoder.cat_video import decode_cat_video
+
+    video = GOLDEN_DIR / fixture
+    if not video.exists():
+        pytest.skip(f"golden fixture missing: {video}")
+
+    result = decode_cat_video(str(video))
+
+    expected = _hex_to_bits(EMPTY_SHA256_HEX)
+    assert result["diagnostics"]["vfr_resampled"] is True
+    assert result["binary"] == expected
+    assert result["bits"] == len(expected) == 256
