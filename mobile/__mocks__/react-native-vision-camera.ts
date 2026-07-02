@@ -23,6 +23,8 @@ module.exports = {
     hasPermission: true,
     requestPermission: jest.fn(() => Promise.resolve(true)),
   })),
+  // Format selection — returns undefined (device-default) in tests
+  useCameraFormat: jest.fn(() => undefined),
   // VisionCamera v4 native code scanner — used by useQRScanner
   useCodeScanner: jest.fn(({ onCodeScanned }: { onCodeScanned: (...args: unknown[]) => void }) => ({
     __type: 'CodeScanner',

@@ -86,10 +86,19 @@ export function roiMeanLuminance(
 }
 
 /**
- * Default eye regions for the on-screen reticle: two boxes in the upper-middle
- * band of the frame, matching how a cat's eyes sit when the animation fills the
- * scan area. The user aligns the reticle to the eyes; these are the starting
- * positions and the regions the sampler reads.
+ * Default eye regions for the on-screen reticle, in frame-normalized coords.
+ *
+ * These are anchored to the actual eye positions of the default web-demo cat
+ * (web_demo/templates/cat_mode.html draws assets/CatVideo.mp4 into a 743×417
+ * 16:9 canvas). Sampling the green-eye glow across that video puts the eye
+ * centres at roughly screen-x 0.24 / 0.78 and y ≈ 0.33 — i.e. WIDE apart in the
+ * upper third, not the narrow central pair the earlier defaults assumed. With
+ * the 16:9 framing guide lined up on the other screen, these boxes land on the
+ * eyes with no dragging for the standard cat. (A custom transmitter video may
+ * place its eyes elsewhere — the boxes stay draggable for that case.)
+ *
+ * Boxes are deliberately generous (~0.28×0.26) because the cat's eyes glow
+ * large; a bigger ROI averages more of the eye and tolerates slight misframing.
  */
-export const DEFAULT_LEFT_EYE_ROI: NormalizedRoi = { x: 0.24, y: 0.2, w: 0.2, h: 0.18 };
-export const DEFAULT_RIGHT_EYE_ROI: NormalizedRoi = { x: 0.56, y: 0.2, w: 0.2, h: 0.18 };
+export const DEFAULT_LEFT_EYE_ROI: NormalizedRoi = { x: 0.1, y: 0.2, w: 0.28, h: 0.26 };
+export const DEFAULT_RIGHT_EYE_ROI: NormalizedRoi = { x: 0.64, y: 0.22, w: 0.28, h: 0.26 };

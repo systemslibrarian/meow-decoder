@@ -31,7 +31,6 @@ import Animated, {
   clamp,
   runOnJS,
 } from 'react-native-reanimated';
-import Svg, { G, Path, Ellipse } from 'react-native-svg';
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useCatSession } from '../hooks/useCatSession';
 import { useCatBlinkSampler } from '../hooks/useCatBlinkSampler';
@@ -75,7 +74,9 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
     progress,
     capturedBits,
     expectedBits,
+    stoppedEarly,
     onSample,
+    finish,
     reset,
   } = useCatSession({ active: true, scanning: started });
 
@@ -162,6 +163,11 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
     setStarted(false);
   }, [reset]);
 
+  const handleFinish = useCallback(() => {
+    ReactNativeHapticFeedback.trigger('impactMedium', HAPTIC_OPTIONS);
+    finish();
+  }, [finish]);
+
   const handleCancel = useCallback(() => {
     reset();
     navigation.goBack();
@@ -219,6 +225,8 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
   const showComplete = status === 'complete';
   const showTimeout = status === 'timeout';
   const showOverlay = showComplete || showTimeout;
+  // A manual Finish that ended before the full payload arrived — honest labelling.
+  const isPartial = showComplete && stoppedEarly && expectedBits > 0 && bits < expectedBits;
 
   const remainingFrames = expectedBits > 0 ? Math.max(0, (expectedBits - capturedBits) / 2) : 0;
   const etaSec = blinkPeriodMs > 0 ? Math.round((remainingFrames * blinkPeriodMs) / 1000) : 0;
@@ -321,7 +329,16 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
       {/* Completion panel */}
       {showComplete && (
         <View style={styles.resultPanel}>
-          <Text style={styles.resultTitle}>✅ Captured {bits} bits</Text>
+          <Text style={styles.resultTitle}>
+            {isPartial ? `⏹ Stopped — ${bits} bits` : `✅ Captured ${bits} bits`}
+          </Text>
+          {isPartial && (
+            <Text style={styles.partialWarn}>
+              ⚠️ Partial: {Math.round(capturedBits / 8)} of {Math.round(expectedBits / 8)} bytes.
+              A partial pattern usually won’t decrypt — scan again from the start of the
+              animation to capture the rest. Saved anyway in case it’s useful.
+            </Text>
+          )}
           <Text style={styles.resultHint}>
             Paste this into the web demo Cat Mode “Binary Pattern” field, or save it for the
             desktop CLI. The phone does not decrypt.
@@ -369,6 +386,19 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
           </TouchableOpacity>
         )}
 
+        {/* SCANNING: manual finish — acknowledge the transmission is done so the
+            phone finalizes with what it has instead of scanning until timeout. */}
+        {started && !showOverlay && (
+          <TouchableOpacity
+            style={styles.finishBtn}
+            onPress={handleFinish}
+            accessibilityRole="button"
+            accessibilityLabel="Finish — transmission is done, use what was received"
+          >
+            <Text style={styles.controlText}>✓ Finish</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Terminal: scan again */}
         {showOverlay && (
           <TouchableOpacity style={styles.restartBtn} onPress={handleRestart}>
@@ -381,7 +411,8 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
       {!started && !showOverlay && (
         <View style={styles.readyHint} pointerEvents="none">
           <Text style={styles.readyHintText}>
-            Drag the L / R boxes onto the cat’s eyes. When the cat starts blinking, tap Start.
+            Line the cat screen up inside the 16:9 frame. The L / R boxes sit on the eyes
+            automatically — only drag them if your cat video differs. When it starts blinking, tap Start.
           </Text>
         </View>
       )}
@@ -403,29 +434,18 @@ function EyeMeter({ label, value }: { label: string; value: number }) {
   );
 }
 
-/** Dashed cat-face silhouette — a framing guide to line the phone up with the
- *  cat's head. Purely visual; the actual sampling uses the draggable L/R boxes. */
+/**
+ * 16:9 framing guide that mirrors the web demo's transmit canvas (743×417).
+ * The web "cat" is a 16:9 video, so lining the other screen up inside this frame
+ * puts its eyes where the pre-placed L/R boxes already sit — no dragging needed
+ * for the standard cat. Purely visual; the actual sampling uses the L/R boxes. */
 function CatFaceGuide() {
   return (
     <View style={styles.faceGuide} pointerEvents="none">
-      <Svg viewBox="0 0 100 100" width="100%" height="100%">
-        <G
-          stroke={Colors.catOrange}
-          strokeWidth={1.6}
-          fill="none"
-          strokeDasharray="5 5"
-          opacity={0.5}
-        >
-          {/* ears */}
-          <Path d="M22 34 L31 7 L47 31 Z" />
-          <Path d="M78 34 L69 7 L53 31 Z" />
-          {/* head */}
-          <Ellipse cx={50} cy={58} rx={40} ry={36} />
-          {/* eye guides */}
-          <Ellipse cx={35} cy={55} rx={7} ry={9} />
-          <Ellipse cx={65} cy={55} rx={7} ry={9} />
-        </G>
-      </Svg>
+      <View style={styles.canvasFrame} />
+      <Text style={styles.canvasCaption}>
+        Line the cat screen up inside this 16:9 frame — the L / R boxes are already on its eyes
+      </Text>
     </View>
   );
 }
@@ -475,20 +495,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  container: { backgroundColor: Colors.background, flex: 1 },
-  homeButton: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.55)',
+  canvasCaption: {
+    backgroundColor: Colors.overlayDark,
     borderRadius: Radius.full,
-    height: 44,
-    justifyContent: 'center',
-    left: Spacing.lg,
-    position: 'absolute',
-    top: Platform.OS === 'ios' ? 56 : 36,
-    width: 44,
-    zIndex: 20,
+    color: Colors.textPrimary,
+    fontSize: Typography.xs,
+    marginTop: Spacing.sm,
+    overflow: 'hidden',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 2,
+    textAlign: 'center',
   },
-  homeButtonText: { fontSize: 22 },
+  canvasFrame: {
+    aspectRatio: 16 / 9,
+    borderColor: Colors.catOrange,
+    borderRadius: Radius.md,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    opacity: 0.55,
+    width: '92%',
+  },
+  container: { backgroundColor: Colors.background, flex: 1 },
+  controlText: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
+  controls: {
+    bottom: Platform.OS === 'ios' ? 48 : 32,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    left: 0,
+    paddingHorizontal: Spacing.xl,
+    position: 'absolute',
+    right: 0,
+  },
   diag: {
     alignItems: 'center',
     left: 0,
@@ -507,22 +544,18 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   faceGuide: {
-    aspectRatio: 1,
-    left: '11%',
-    position: 'absolute',
-    top: '4%',
-    width: '78%',
-  },
-  controls: {
-    bottom: Platform.OS === 'ios' ? 48 : 32,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+    alignItems: 'center',
     left: 0,
-    paddingHorizontal: Spacing.xl,
     position: 'absolute',
     right: 0,
+    top: '11%',
   },
-  controlText: { color: Colors.textPrimary, fontSize: Typography.md, fontWeight: Typography.bold },
+  finishBtn: {
+    backgroundColor: 'rgba(52,199,89,0.9)',
+    borderRadius: Radius.full,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
   gate: {
     alignItems: 'center',
     backgroundColor: Colors.background,
@@ -544,6 +577,19 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     textAlign: 'center',
   },
+  homeButton: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: Radius.full,
+    height: 44,
+    justifyContent: 'center',
+    left: Spacing.lg,
+    position: 'absolute',
+    top: Platform.OS === 'ios' ? 56 : 36,
+    width: 44,
+    zIndex: 20,
+  },
+  homeButtonText: { fontSize: 22 },
   linkBtn: { marginTop: Spacing.lg },
   linkText: { color: Colors.textSecondary, fontSize: Typography.sm },
   meterCol: { alignItems: 'center' },
@@ -558,6 +604,11 @@ const styles = StyleSheet.create({
     width: 14,
   },
   meters: { flexDirection: 'row', gap: Spacing.sm, position: 'absolute', right: Spacing.lg, top: '42%' },
+  partialWarn: {
+    color: Colors.catGold,
+    fontSize: Typography.sm,
+    marginBottom: Spacing.sm,
+  },
   primaryBtn: {
     backgroundColor: Colors.catOrange,
     borderRadius: Radius.full,
@@ -600,20 +651,6 @@ const styles = StyleSheet.create({
     padding: Spacing.sm,
     textAlign: 'center',
   },
-  reticle: {
-    alignItems: 'center',
-    backgroundColor: 'rgba(255,140,66,0.10)',
-    borderColor: Colors.catOrange,
-    borderRadius: Radius.md,
-    borderWidth: 2,
-    justifyContent: 'center',
-    position: 'absolute',
-  },
-  reticleLabel: { color: Colors.catOrange, fontSize: Typography.lg, fontWeight: Typography.bold, opacity: 0.8 },
-  reticleLocked: {
-    backgroundColor: 'rgba(52,199,89,0.12)',
-    borderColor: 'rgba(52,199,89,0.95)',
-  },
   restartBtn: {
     backgroundColor: 'rgba(90,120,200,0.85)',
     borderRadius: Radius.full,
@@ -636,6 +673,20 @@ const styles = StyleSheet.create({
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
     marginBottom: Spacing.xs,
+  },
+  reticle: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,140,66,0.10)',
+    borderColor: Colors.catOrange,
+    borderRadius: Radius.md,
+    borderWidth: 2,
+    justifyContent: 'center',
+    position: 'absolute',
+  },
+  reticleLabel: { color: Colors.catOrange, fontSize: Typography.lg, fontWeight: Typography.bold, opacity: 0.8 },
+  reticleLocked: {
+    backgroundColor: 'rgba(52,199,89,0.12)',
+    borderColor: 'rgba(52,199,89,0.95)',
   },
   startBtn: {
     backgroundColor: 'rgba(52,199,89,0.9)',

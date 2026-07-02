@@ -235,10 +235,11 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           durationMs: 6_000,
         });
       } else if (stallCountRef.current === 2) {
-        // Auto-nudge exposure up half a stop and inform user
-        autoRecoveryRef.current?.(0.5);
+        // Do NOT auto-brighten: when scanning a bright emissive screen the usual
+        // cause is glare/over-exposure, and raising exposure washes the QR out
+        // further. Steer the user to the right manual control instead.
         showToast({
-          message: 'Adjusting brightness automatically. If there is glare on the screen, try tilting your phone slightly.',
+          message: 'Still stalled. If the QR looks washed out, tap ☀− to cut glare; if it looks dim, tap ☀+. A slight tilt also clears reflections.',
           type: 'info',
           durationMs: 6_000,
         });
@@ -266,14 +267,15 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const [torchOn, setTorchOn] = useState(false);
   const handleTorchChange = useRef((on: boolean) => setTorchOn(on)).current;
 
-  // ── Proactive low-light auto-nudge (F2) ────────────────────────────────────
+  // ── Proactive "not decoding" coaching (F2) ─────────────────────────────────
+  // No automatic exposure change — see useLowLightDetector header for why
+  // auto-brightening a bright-screen scan keeps decode rate pinned at 0.
   useLowLightDetector({
     decodeRate,
     exposureBias,
     torchOn,
     active: status === 'CAPTURING',
     showHint: (message: string) => showToast({ message, type: 'info', durationMs: 4_000 }),
-    nudgeExposure: (delta: number) => autoRecoveryRef.current?.(delta),
   });
 
   // ── Camera health self-test (F7) ──────────────────────────────────────────

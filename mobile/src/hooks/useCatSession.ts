@@ -51,8 +51,17 @@ export interface UseCatSessionReturn {
   capturedBits: number;
   /** Total payload bits expected (0 until the header is read). */
   expectedBits: number;
+  /** True when capture was ended by the user's manual Finish (not auto-detect). */
+  stoppedEarly: boolean;
   /** Pass this to useCatBlinkSampler's onSample. */
   onSample: (sample: BrightnessSample) => void;
+  /**
+   * Manually end capture and finalize with whatever is buffered. Runs one last
+   * decode: if a usable pattern was recovered it lands on 'complete' (Copy/Save
+   * available, possibly partial); if nothing locked it lands on 'timeout'. Lets
+   * the user acknowledge "the transmission is done" when auto-detect never fires.
+   */
+  finish: () => void;
   /** Clear all buffered samples and results for a fresh capture. */
   reset: () => void;
 }
@@ -91,6 +100,7 @@ export function useCatSession({
   const [result, setResult] = useState<CatDecodeResult | null>(null);
   const [status, setStatus] = useState<CatSessionStatus>('idle');
   const [everLocked, setEverLocked] = useState(false);
+  const [stoppedEarly, setStoppedEarly] = useState(false);
   // Latch completion so a later partial decode can't regress a finished capture.
   const completedRef = useRef(false);
 
@@ -118,7 +128,26 @@ export function useCatSession({
     setSignal({ left: 0, right: 0 });
     setResult(null);
     setEverLocked(false);
+    setStoppedEarly(false);
     setStatus('idle');
+  }, []);
+
+  // Manual finish: the user acknowledges the transmission is over. Finalize with
+  // whatever is buffered instead of forcing them to wait for the exact-match
+  // auto-detect (which a lossy optical stream may never satisfy) or to Cancel
+  // and lose everything.
+  const finish = useCallback(() => {
+    if (completedRef.current) return;
+    completedRef.current = true;
+    setStoppedEarly(true);
+    const buf = bufferRef.current;
+    const decoded = buf.length >= 64 ? decodeCatBlink(buf) : null;
+    if (decoded) {
+      setResult(decoded);
+      if (decoded.blinkPeriodMs > 0) setEverLocked(true);
+    }
+    // 'complete' when we have bits worth showing (Copy/Save), else 'timeout'.
+    setStatus(decoded && decoded.bits > 0 ? 'complete' : 'timeout');
   }, []);
 
   // Live signal + sample-count ticker (throttled, independent of decode cost).
@@ -179,7 +208,9 @@ export function useCatSession({
     progress,
     capturedBits,
     expectedBits,
+    stoppedEarly,
     onSample,
+    finish,
     reset,
   };
 }

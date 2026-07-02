@@ -28,6 +28,7 @@ import Animated, {
 import {
   Camera,
   useCameraDevice,
+  useCameraFormat,
   useCameraPermission,
   type CodeScanner,
 } from 'react-native-vision-camera';
@@ -79,6 +80,19 @@ export const CameraPreview = React.memo(function CameraPreview({
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+
+  // ── Scanner format ─────────────────────────────────────────────────────────
+  // The native code scanner reads the camera's VIDEO stream. VisionCamera's
+  // default format is frequently 1280×720, which does not resolve the fine
+  // modules of a dense fountain QR — MLKit then returns no code at all, even in
+  // bright light. Request a high-resolution format so there are enough pixels on
+  // the QR to decode. Prefer continuous autofocus for close-range screen
+  // scanning. Falls back to the device default when nothing matches.
+  const format = useCameraFormat(device, [
+    { videoResolution: { width: 1920, height: 1080 } },
+    { autoFocusSystem: 'contrast-detection' },
+  ]);
+
   const [torch, setTorch] = useState<'off' | 'on'>('off');
   const [exposureBias, setExposureBias] = useState(0);
   // Track native camera errors (e.g. EncoderProfiles NullPointerException on
@@ -208,6 +222,11 @@ export const CameraPreview = React.memo(function CameraPreview({
             device={device}
             isActive={isActive}
             codeScanner={codeScanner}
+            // High-resolution format so dense fountain QR resolves (see above).
+            // Spread conditionally: `format` may be undefined when no format
+            // matches, and exactOptionalPropertyTypes forbids passing undefined;
+            // omitting the prop lets VisionCamera fall back to its default — safe.
+            {...(format ? { format } : {})}
             // NOTE: do NOT set `fps` without also setting `format` — VisionCamera 4
             // throws PropRequiresFormatToBeNonNullError and the camera never starts.
             // The device-default frame rate is fine for QR scanning.
