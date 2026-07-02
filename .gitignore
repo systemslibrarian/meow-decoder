@@ -144,3 +144,7 @@ mobile/android/app/release.keystore
 # ~860 MB across 17 copies). Keep them out of the tree going forward.
 releases/android/*.apk
 releases/android/*.aab
+
+# Session build artifacts (do not commit)
+.venv-win/
+_apk/
