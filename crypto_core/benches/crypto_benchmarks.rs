@@ -30,7 +30,7 @@ fn bench_aes_gcm(c: &mut Criterion) {
     };
 
     let key = [0u8; 32];
-    let nonce = Nonce::from_slice(&[0u8; 12]);
+    let nonce = Nonce::from([0u8; 12]);
     let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
 
     let mut group = c.benchmark_group("aes_gcm");
@@ -44,18 +44,18 @@ fn bench_aes_gcm(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("encrypt", size), size, |b, _| {
             b.iter(|| {
                 cipher
-                    .encrypt(nonce, black_box(plaintext.as_slice()))
+                    .encrypt(&nonce, black_box(plaintext.as_slice()))
                     .unwrap()
             })
         });
 
         // Pre-encrypt for decrypt benchmark
-        let ciphertext = cipher.encrypt(nonce, plaintext.as_slice()).unwrap();
+        let ciphertext = cipher.encrypt(&nonce, plaintext.as_slice()).unwrap();
 
         group.bench_with_input(BenchmarkId::new("decrypt", size), size, |b, _| {
             b.iter(|| {
                 cipher
-                    .decrypt(nonce, black_box(ciphertext.as_slice()))
+                    .decrypt(&nonce, black_box(ciphertext.as_slice()))
                     .unwrap()
             })
         });

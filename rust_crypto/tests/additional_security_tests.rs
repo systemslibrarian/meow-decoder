@@ -175,7 +175,7 @@ mod aes_gcm_failure_tests {
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
         let ciphertext = cipher
             .encrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: plaintext,
                     aad,
@@ -185,7 +185,7 @@ mod aes_gcm_failure_tests {
 
         let short_aad = &aad[..10];
         let result = cipher.decrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &ciphertext,
                 aad: short_aad,
@@ -196,7 +196,7 @@ mod aes_gcm_failure_tests {
         let mut long_aad = aad.to_vec();
         long_aad.extend_from_slice(b"_extra");
         let result = cipher.decrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &ciphertext,
                 aad: &long_aad,
