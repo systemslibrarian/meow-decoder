@@ -81,7 +81,12 @@ jobs:
           pip install --require-hashes -r requirements.lock
           pip install --require-hashes -r requirements-dev.lock
           pip install --require-hashes -r requirements-ci.lock
-          pip install mutmut
+          # Pin to mutmut 2.x: this job's CLI (--paths-to-mutate, --runner),
+          # `mutmut results` output parsing, `.mutmut-cache/` dir, and the
+          # [tool.mutmut] config in pyproject.toml are all the 2.x format.
+          # mutmut 3.x is a breaking rewrite (unpinned installs of it fail in
+          # config load with "can only concatenate list (not str) to list").
+          pip install 'mutmut<3'
 
       - uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
         with:
