@@ -405,7 +405,7 @@ mod stego_coverage {
         let mut costs = vec![1.0f64; 100];
         stego::compute_adaptive_costs(&seed, &cover_bits, &pixels, &mut costs);
         // With medium texture, some costs get texture_factor=1.0 (unchanged) plus jitter
-        assert!(costs.iter().any(|&c| c >= 0.9 && c <= 1.1));
+        assert!(costs.iter().any(|&c| (0.9..=1.1).contains(&c)));
     }
 }
 
