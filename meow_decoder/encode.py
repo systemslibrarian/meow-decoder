@@ -417,21 +417,34 @@ def encode_file(
             _public_key = _keypair.export_public_key()
             _sig_bytes = _signature.to_bytes()
 
-            # SECURITY (L8) — PARTIAL: compute the INV-041 public-key commitment
-            # (previously dead code) so the signer's in-band public key can be
-            # pinned. The REAL fix is to bind this commitment into the
-            # password-keyed manifest HMAC core (crypto.pack_manifest_core) and
-            # constant-time-compare it on decode, so an attacker who rewrites the
-            # artifact cannot re-sign a tampered manifest with their own fresh
-            # in-band key. That binding CANNOT be landed from these files alone:
-            # the decoder (decode_gif.py, owned by another agent) recomputes the
-            # HMAC over the manifest core and would reject EVERY existing +
-            # newly-encoded artifact if the encoder silently folded the
-            # commitment in, breaking backward compatibility. Tracked as PARTIAL
-            # (see report). TODO(L8): once decode_gif.py + pack_manifest_core are
-            # updated in lockstep behind a manifest-version bump, fold
-            # `_pk_commitment` into the HMAC-covered core and verify on decode.
+            # SECURITY (L8 / INV-041): bind the signer's in-band public key to
+            # the password-derived key material so it cannot be substituted. We
+            # MAC the public-key commitment (previously dead code) with a key
+            # derived from the same handle that frame-MACs the signature-chunk
+            # transport, and append the 32-byte tag to the signature blob. The
+            # tag is detected purely by blob length on decode, so this needs no
+            # signature/manifest format-version bump and stays backward
+            # compatible (old artifacts have no tag; old decoders ignore it). An
+            # attacker who rewrites the artifact and re-signs with a fresh
+            # keypair cannot recompute a valid tag without the password/key
+            # handle, so the decoder rejects the substituted key (fail-closed).
             _pk_commitment = _ms.compute_public_key_commitment(_public_key)
+
+            # Use encode.py's module-global compute_manifest_hmac_from_handle /
+            # get_handle_backend (both are imported at module top and are the
+            # references unit tests monkeypatch); derive_frame_master_key_handle
+            # is resolved from the frame_mac module at call time (also patchable).
+            from .frame_mac import derive_frame_master_key_handle as _derive_fmk
+
+            _hb_l8 = get_handle_backend()
+            _commit_key_handle = _derive_fmk(key_handle, salt)
+            try:
+                _commitment_tag = compute_manifest_hmac_from_handle(
+                    _commit_key_handle, salt, _pk_commitment
+                )
+            finally:
+                _hb_l8.drop(_commit_key_handle)
+
             if verbose:
                 print(f"  🔒 Signer pk commitment (INV-041): {_pk_commitment.hex()[:16]}…")
 
@@ -441,6 +454,7 @@ def encode_file(
                 + struct.pack(">HH", len(_public_key), len(_sig_bytes))
                 + _public_key
                 + _sig_bytes
+                + _commitment_tag  # SECURITY (L8): 32-byte INV-041 pk-commitment tag
             )
 
             _chunk_size = 900

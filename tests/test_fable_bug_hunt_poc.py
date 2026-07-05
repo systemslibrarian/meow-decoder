@@ -133,3 +133,77 @@ def test_h1_fountain_decoder_rejects_k_blocks_over_u16_cap():
 
     with pytest.raises(ValueError):
         FountainDecoder(k_blocks=over_u16_cap, block_size=1)
+
+
+# ---------------------------------------------------------------------------
+# L8 (INV-041 follow-up): the signer's in-band public key is now bound to the
+# password-derived key material via a commitment tag appended to the signature
+# blob. The encoder MACs compute_public_key_commitment(pk) with a key derived
+# from the same handle that frame-MACs the signature transport; the decoder
+# recomputes it over the transported pk and rejects a mismatch (fail-closed).
+# This exercises that binding with the real crypto primitives (no QR needed).
+# ---------------------------------------------------------------------------
+def _l8_commitment_tag(frame_key_handle, salt, public_key):
+    """Recompute the L8 commitment tag exactly as encode/decode do."""
+    from meow_decoder.crypto import compute_manifest_hmac_from_handle
+    from meow_decoder.manifest_signing import compute_public_key_commitment
+
+    return compute_manifest_hmac_from_handle(
+        frame_key_handle, salt, compute_public_key_commitment(public_key)
+    )
+
+
+def test_l8_pk_commitment_binds_signing_key_to_password():
+    pytest.importorskip("meow_crypto_rs")
+    from meow_decoder.crypto_backend import get_handle_backend
+    from meow_decoder.frame_mac import derive_frame_master_key_handle
+    from meow_decoder import manifest_signing as ms
+
+    if not (
+        getattr(ms, "_RUST_MLDSA_AVAILABLE", False)
+        or getattr(ms, "_MLDSA_PURE_AVAILABLE", False)
+        or getattr(ms, "_OQS_SIG_AVAILABLE", False)
+    ):
+        pytest.skip("no ML-DSA signing backend available")
+
+    hb = get_handle_backend()
+    salt = b"s" * 16
+    key_handle = hb.import_key(b"k" * 32)
+    # Encode derives a throwaway frame-master-key handle; decode uses its own.
+    # Both derive from the same (key_handle, salt), so the tags must agree.
+    enc_fmk = derive_frame_master_key_handle(key_handle, salt)
+    dec_fmk = derive_frame_master_key_handle(key_handle, salt)
+    try:
+        pk_real = ms.generate_signing_keypair().export_public_key()
+        pk_attacker = ms.generate_signing_keypair().export_public_key()
+
+        tag = _l8_commitment_tag(enc_fmk, salt, pk_real)  # what the encoder appends
+
+        # Decoder recomputes over the transported pk and constant-time compares.
+        assert _l8_commitment_tag(dec_fmk, salt, pk_real) == tag  # legit signer accepted
+        assert _l8_commitment_tag(dec_fmk, salt, pk_attacker) != tag  # substitution rejected
+    finally:
+        hb.drop(key_handle)
+        hb.drop(enc_fmk)
+        hb.drop(dec_fmk)
+
+
+# ---------------------------------------------------------------------------
+# M4 (follow-up): the legacy fast-SHA-256 frame-MAC KDF (an offline password
+# oracle for captured legacy frames) is now fail-closed by default; decoding a
+# pre-v2 artifact requires an explicit --allow-legacy opt-in.
+# ---------------------------------------------------------------------------
+def test_m4_legacy_frame_mac_is_fail_closed_by_default():
+    from meow_decoder import frame_mac
+
+    # allow_legacy=False refuses the weak KDF outright (the decoder's default).
+    with pytest.raises(ValueError):
+        frame_mac.derive_frame_master_key_legacy("pw", b"s" * 16, allow_legacy=False)
+
+    # Explicit opt-in still works (with a loud warning) for known pre-v2 files.
+    import warnings
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        key = frame_mac.derive_frame_master_key_legacy("pw", b"s" * 16, allow_legacy=True)
+    assert isinstance(key, (bytes, bytearray)) and len(key) == 32

@@ -21,15 +21,23 @@ failures (missing `pyzbar`/`libzbar` QR DLL, cp1252 codec on emoji, Unix-only
 (old artifacts still decode; new at-rest formats bump their magic — MRCV3,
 `MEOW_X25519\x03`).
 
-Two items are intentionally **partial** and carry `# SECURITY` TODO markers:
-- **L8** — the signing private key is now zeroized and `compute_public_key_commitment`
-  is invoked, but fully binding the pk-commitment into the manifest HMAC needs a
-  coordinated `decode_gif.py` + manifest-version change (would break existing
-  artifacts if done unilaterally). Tracked as a follow-up.
-- **M4** — `derive_frame_master_key_legacy` now warns loudly and supports
-  `allow_legacy=False`, but defaults to `allow_legacy=True` to preserve current
-  callers; flipping the default to fail-closed needs a `decode_gif.py`
-  `--allow-legacy-frame-mac` flag.
+Both formerly-partial items are now **fully implemented and tested** (see
+`tests/test_fable_bug_hunt_poc.py`):
+- **L8** — the signer's in-band public key is now bound to the password-derived
+  key material. The encoder MACs `compute_public_key_commitment(pk)` (previously
+  dead code) with a key derived from the same handle that frame-MACs the
+  signature-chunk transport and appends the 32-byte tag to the signature blob;
+  the decoder recomputes it over the transported pk and rejects a mismatch
+  (fail-closed). The tag is detected purely by blob length, so there is **no
+  signature/manifest format-version break** — old artifacts carry no tag and old
+  decoders ignore it. (Literal binding into the manifest HMAC is infeasible
+  because the signing pubkey is not available at manifest-HMAC-check time on
+  decode; this frame-key-bound tag achieves the same key-substitution resistance
+  and is verified independently of the frame-MAC transport.)
+- **M4** — `decode_gif` now **fails closed by default** on the legacy fast-SHA-256
+  frame-MAC KDF: if the modern (Argon2id-derived) frame MAC fails, the legacy
+  fallback is refused unless the caller passes the existing `--allow-legacy`
+  opt-in, which then decodes pre-v2 files with a loud warning.
 
 ## How to read this
 

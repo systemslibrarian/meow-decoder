@@ -592,8 +592,30 @@ def decode_gif(
         )
 
         if not manifest_valid:
-            # Legacy compatibility: pre-v2 files derived MAC key from password only
-            legacy_master_key = frame_mac.derive_frame_master_key_legacy(password, manifest.salt)
+            # SECURITY (M4): the legacy (pre-v2) frame-MAC key derivation is a
+            # fast SHA-256 of the password with no Argon2id protection, so a
+            # captured legacy frame plus its public 8-byte MAC is an offline
+            # password oracle. This fallback is now FAIL-CLOSED by default; the
+            # caller must explicitly opt in via allow_legacy (CLI: --allow-legacy)
+            # to decode known pre-v2 artifacts.
+            if not allow_legacy:
+                hb.drop(frame_master_key_handle)
+                hb.drop(key_handle)
+                if tamper_report is not None:
+                    tamper_report.record(
+                        0, False, "manifest MAC invalid (legacy frame-MAC disabled)"
+                    )
+                raise ValueError(
+                    "Frame MAC verification failed with the modern (Argon2id-derived) "
+                    "key, and legacy pre-v2 frame-MAC derivation is disabled. Legacy "
+                    "frame MACs use a fast SHA-256 password KDF (a captured frame is an "
+                    "offline password oracle). If this is a known pre-v2 artifact, "
+                    "re-run decoding with --allow-legacy."
+                )
+            # Legacy compatibility: pre-v2 files derived MAC key from password only.
+            legacy_master_key = frame_mac.derive_frame_master_key_legacy(
+                password, manifest.salt, allow_legacy=True
+            )
             manifest_valid_legacy, _ = frame_mac.unpack_frame_with_mac(
                 manifest_raw, legacy_master_key, 0, manifest.salt
             )
@@ -801,6 +823,35 @@ def decode_gif(
 
         signature = ManifestSignature.from_bytes(signature_bytes)
         verify_manifest_signature(public_key, manifest_bytes, signature, context=b"manifest-v1")
+
+        # SECURITY (L8 / INV-041): if the signer bound a public-key commitment
+        # tag (present iff there are 32 trailing bytes past pk+sig), verify it
+        # against the password-derived frame-MAC key. This authenticates the
+        # in-band signing public key to the password: an attacker who re-signs a
+        # tampered manifest with their own fresh keypair cannot recompute a valid
+        # tag, so key substitution is rejected (fail-closed). Older artifacts
+        # carry no tag and are unaffected.
+        _tag_off = 9 + pk_len + sig_len
+        _commitment_tag = sig_blob[_tag_off : _tag_off + 32]
+        if len(_commitment_tag) == 32:
+            if not has_frame_macs:
+                raise ValueError(
+                    "Manifest signature carries a pk-commitment tag but the artifact "
+                    "has no frame MACs to key it — inconsistent, possible tampering."
+                )
+            from .manifest_signing import compute_public_key_commitment as _cpc
+            from .crypto import compute_manifest_hmac_from_handle as _commit_mac
+            from .constant_time import constant_time_compare as _ctc
+
+            _expected_tag = _commit_mac(frame_master_key_handle, manifest.salt, _cpc(public_key))
+            if not _ctc(_expected_tag, _commitment_tag):
+                raise ValueError(
+                    "Manifest signer public-key commitment mismatch (INV-041) — the "
+                    "signing key does not match the password-bound commitment; "
+                    "possible key-substitution attack."
+                )
+            if verbose:
+                print("  ✓ Signer pk commitment verified (INV-041)")
         if verbose:
             print("  ✓ Manifest signature verified")
     else:
