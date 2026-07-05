@@ -199,19 +199,22 @@ pub fn aes_gcm_encrypt(
         got: key.len(),
     })?;
 
-    let nonce_arr = Nonce::from_slice(nonce);
+    let nonce_arr = Nonce::try_from(nonce).map_err(|_| CryptoError::InvalidNonceLength {
+        expected: 12,
+        got: nonce.len(),
+    })?;
 
     // Encrypt with AAD if provided
     let ciphertext = if let Some(aad_data) = aad {
         cipher.encrypt(
-            nonce_arr,
+            &nonce_arr,
             Payload {
                 msg: plaintext,
                 aad: aad_data,
             },
         )
     } else {
-        cipher.encrypt(nonce_arr, plaintext)
+        cipher.encrypt(&nonce_arr, plaintext)
     };
 
     ciphertext.map_err(|_| CryptoError::EncryptionFailed)
@@ -251,19 +254,22 @@ pub fn aes_gcm_decrypt(
         got: key.len(),
     })?;
 
-    let nonce_arr = Nonce::from_slice(nonce);
+    let nonce_arr = Nonce::try_from(nonce).map_err(|_| CryptoError::InvalidNonceLength {
+        expected: 12,
+        got: nonce.len(),
+    })?;
 
     // Decrypt with AAD if provided
     let plaintext = if let Some(aad_data) = aad {
         cipher.decrypt(
-            nonce_arr,
+            &nonce_arr,
             Payload {
                 msg: ciphertext,
                 aad: aad_data,
             },
         )
     } else {
-        cipher.decrypt(nonce_arr, ciphertext)
+        cipher.decrypt(&nonce_arr, ciphertext)
     };
 
     plaintext.map_err(|_| CryptoError::DecryptionFailed)

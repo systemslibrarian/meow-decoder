@@ -88,7 +88,7 @@ proptest! {
 
         let ciphertext = cipher
             .encrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: &plaintext,
                     aad: &aad1,
@@ -97,7 +97,7 @@ proptest! {
             .unwrap();
 
         let result = cipher.decrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &ciphertext,
                 aad: &aad2,

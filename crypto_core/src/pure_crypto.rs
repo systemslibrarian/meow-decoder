@@ -250,16 +250,16 @@ pub fn aes_gcm_encrypt(
     let cipher = Aes256Gcm::new_from_slice(key.as_bytes())
         .map_err(|e| CryptoError::EncryptionFailed(e.to_string()))?;
 
-    let gcm_nonce = GcmNonce::from_slice(nonce.as_bytes());
+    let gcm_nonce = GcmNonce::from(*nonce.as_bytes());
 
     let ciphertext = if let Some(aad_data) = aad {
         let payload = Payload {
             msg: plaintext,
             aad: aad_data,
         };
-        cipher.encrypt(gcm_nonce, payload)
+        cipher.encrypt(&gcm_nonce, payload)
     } else {
-        cipher.encrypt(gcm_nonce, plaintext)
+        cipher.encrypt(&gcm_nonce, plaintext)
     }
     .map_err(|_| CryptoError::EncryptionFailed("GCM encryption failed".into()))?;
 
@@ -282,16 +282,16 @@ pub fn aes_gcm_decrypt(
     let cipher =
         Aes256Gcm::new_from_slice(key.as_bytes()).map_err(|_e| CryptoError::DecryptionFailed)?;
 
-    let gcm_nonce = GcmNonce::from_slice(nonce.as_bytes());
+    let gcm_nonce = GcmNonce::from(*nonce.as_bytes());
 
     let plaintext = if let Some(aad_data) = aad {
         let payload = Payload {
             msg: ciphertext,
             aad: aad_data,
         };
-        cipher.decrypt(gcm_nonce, payload)
+        cipher.decrypt(&gcm_nonce, payload)
     } else {
-        cipher.decrypt(gcm_nonce, ciphertext)
+        cipher.decrypt(&gcm_nonce, ciphertext)
     }
     .map_err(|_| CryptoError::DecryptionFailed)?;
 

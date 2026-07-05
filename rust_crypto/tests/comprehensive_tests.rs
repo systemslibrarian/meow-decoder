@@ -397,7 +397,7 @@ mod aes_gcm_tests {
         let cipher = Aes256Gcm::new_from_slice(&key).unwrap();
         let ciphertext = cipher
             .encrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: plaintext,
                     aad,
@@ -407,7 +407,7 @@ mod aes_gcm_tests {
 
         let short_aad = &aad[..10];
         let result = cipher.decrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &ciphertext,
                 aad: short_aad,
@@ -962,7 +962,7 @@ mod integration_tests {
         let aad1 = b"filesize:1024";
         let ct = cipher
             .encrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: plaintext,
                     aad: aad1,
@@ -972,7 +972,7 @@ mod integration_tests {
 
         let dec = cipher
             .decrypt(
-                Nonce::from_slice(&nonce),
+                &Nonce::from(nonce),
                 Payload {
                     msg: &ct,
                     aad: aad1,
@@ -984,7 +984,7 @@ mod integration_tests {
         // Wrong AAD should fail
         let aad2 = b"filesize:2048";
         let result = cipher.decrypt(
-            Nonce::from_slice(&nonce),
+            &Nonce::from(nonce),
             Payload {
                 msg: &ct,
                 aad: aad2,

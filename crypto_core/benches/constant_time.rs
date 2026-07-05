@@ -121,7 +121,7 @@ fn aes_gcm_ct_bench(c: &mut Criterion) {
     let fixed_key = [0u8; 32];
     let fixed_nonce_bytes = [0u8; 12];
     let fixed_cipher = Aes256Gcm::new_from_slice(&fixed_key).unwrap();
-    let fixed_nonce = Nonce::from_slice(&fixed_nonce_bytes);
+    let fixed_nonce = Nonce::from(fixed_nonce_bytes);
     let plaintext = [0u8; 64];
 
     // Class 1: random key + nonce (re-keyed lazily per bench invocation)
@@ -144,7 +144,7 @@ fn aes_gcm_ct_bench(c: &mut Criterion) {
         (0..12).map(|i| ((seed >> (i % 8)) & 0xff) as u8).collect()
     });
     let random_cipher = Aes256Gcm::new_from_slice(rk).unwrap();
-    let random_nonce = Nonce::from_slice(rn.as_slice());
+    let random_nonce = Nonce::try_from(rn.as_slice()).unwrap();
 
     // ── Criterion comparison benchmarks ──────────────────────────────────────
     let mut group = c.benchmark_group("constant_time_aes_gcm");
@@ -153,7 +153,7 @@ fn aes_gcm_ct_bench(c: &mut Criterion) {
     group.bench_function(BenchmarkId::new("encrypt", "fixed_key_zero_nonce"), |b| {
         b.iter(|| {
             fixed_cipher
-                .encrypt(fixed_nonce, criterion::black_box(plaintext.as_slice()))
+                .encrypt(&fixed_nonce, criterion::black_box(plaintext.as_slice()))
                 .unwrap()
         })
     });
@@ -163,7 +163,7 @@ fn aes_gcm_ct_bench(c: &mut Criterion) {
         |b| {
             b.iter(|| {
                 random_cipher
-                    .encrypt(random_nonce, criterion::black_box(plaintext.as_slice()))
+                    .encrypt(&random_nonce, criterion::black_box(plaintext.as_slice()))
                     .unwrap()
             })
         },
@@ -180,11 +180,11 @@ fn aes_gcm_ct_bench(c: &mut Criterion) {
     let (t0, t1) = collect_timing_samples(|class| {
         let _ = if class == 0 {
             fixed_cipher
-                .encrypt(fixed_nonce, criterion::black_box(plaintext.as_slice()))
+                .encrypt(&fixed_nonce, criterion::black_box(plaintext.as_slice()))
                 .unwrap()
         } else {
             random_cipher
-                .encrypt(random_nonce, criterion::black_box(plaintext.as_slice()))
+                .encrypt(&random_nonce, criterion::black_box(plaintext.as_slice()))
                 .unwrap()
         };
     });

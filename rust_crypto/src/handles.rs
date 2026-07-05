@@ -467,18 +467,21 @@ pub fn handle_aes_gcm_encrypt(
 
         let cipher =
             Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::EncryptionFailed)?;
-        let nonce_arr = Nonce::from_slice(nonce);
+        let nonce_arr = Nonce::try_from(nonce).map_err(|_| HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        })?;
 
         let result = if let Some(aad_data) = aad {
             cipher.encrypt(
-                nonce_arr,
+                &nonce_arr,
                 Payload {
                     msg: plaintext,
                     aad: aad_data,
                 },
             )
         } else {
-            cipher.encrypt(nonce_arr, plaintext)
+            cipher.encrypt(&nonce_arr, plaintext)
         };
 
         result.map_err(|_| HandleError::EncryptionFailed)
@@ -512,18 +515,21 @@ pub fn handle_aes_gcm_decrypt(
 
         let cipher =
             Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::DecryptionFailed)?;
-        let nonce_arr = Nonce::from_slice(nonce);
+        let nonce_arr = Nonce::try_from(nonce).map_err(|_| HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        })?;
 
         let result = if let Some(aad_data) = aad {
             cipher.decrypt(
-                nonce_arr,
+                &nonce_arr,
                 Payload {
                     msg: ciphertext,
                     aad: aad_data,
                 },
             )
         } else {
-            cipher.decrypt(nonce_arr, ciphertext)
+            cipher.decrypt(&nonce_arr, ciphertext)
         };
 
         result.map_err(|_| HandleError::DecryptionFailed)
@@ -1171,17 +1177,20 @@ pub fn handle_seal_key(
         };
         let cipher =
             Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::EncryptionFailed)?;
-        let nonce_arr = Nonce::from_slice(nonce);
+        let nonce_arr = Nonce::try_from(nonce).map_err(|_| HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        })?;
         let ct = if let Some(aad_data) = aad {
             cipher.encrypt(
-                nonce_arr,
+                &nonce_arr,
                 Payload {
                     msg: &payload_bytes,
                     aad: aad_data,
                 },
             )
         } else {
-            cipher.encrypt(nonce_arr, payload_bytes.as_slice())
+            cipher.encrypt(&nonce_arr, payload_bytes.as_slice())
         };
         ct.map_err(|_| HandleError::EncryptionFailed)
     });
@@ -1219,17 +1228,20 @@ pub fn handle_unseal_key(
         };
         let cipher =
             Aes256Gcm::new_from_slice(key_bytes).map_err(|_| HandleError::DecryptionFailed)?;
-        let nonce_arr = Nonce::from_slice(nonce);
+        let nonce_arr = Nonce::try_from(nonce).map_err(|_| HandleError::InvalidNonceLength {
+            expected: 12,
+            got: nonce.len(),
+        })?;
         let pt = if let Some(aad_data) = aad {
             cipher.decrypt(
-                nonce_arr,
+                &nonce_arr,
                 Payload {
                     msg: ciphertext,
                     aad: aad_data,
                 },
             )
         } else {
-            cipher.decrypt(nonce_arr, ciphertext)
+            cipher.decrypt(&nonce_arr, ciphertext)
         };
         pt.map_err(|_| HandleError::DecryptionFailed)
     })?;

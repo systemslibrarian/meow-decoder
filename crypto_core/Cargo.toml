@@ -25,7 +25,7 @@ dead_code = "allow"
 
 [dependencies]
 # AES-GCM implementation (pure Rust, constant-time)
-aes-gcm = "0.10"
+aes-gcm = "0.11"
 
 # AES block cipher (for CTR mode)
 # 0.9 tracks the cipher 0.5 trait crate; must move in lockstep with ctr 0.10.
@@ -120,7 +120,9 @@ oqs = { version = "0.11", optional = true }
 subtle = { version = "2.5", optional = true }
 
 # Random number generation traits
-rand_core = { version = "0.6", optional = true }
+# `getrandom` provides OsRng. aes-gcm 0.11 (aead 0.6) no longer enables this
+# transitively the way 0.10 (aead 0.5) did, so declare it explicitly.
+rand_core = { version = "0.6", optional = true, features = ["getrandom"] }
 
 # ============================================
 # Hardware Security Dependencies

@@ -433,14 +433,14 @@ impl AeadWrapper {
 
         let cipher = Aes256Gcm::new_from_slice(&self.key).map_err(|_| AeadError::InvalidKey)?;
 
-        let nonce = Nonce::from_slice(nonce);
+        let nonce = Nonce::from(*nonce);
         let payload = Payload {
             msg: plaintext,
             aad,
         };
 
         cipher
-            .encrypt(nonce, payload)
+            .encrypt(&nonce, payload)
             .map_err(|_| AeadError::AuthenticationFailed)
     }
 
@@ -459,14 +459,14 @@ impl AeadWrapper {
 
         let cipher = Aes256Gcm::new_from_slice(&self.key).map_err(|_| AeadError::InvalidKey)?;
 
-        let nonce = Nonce::from_slice(nonce);
+        let nonce = Nonce::from(*nonce);
         let payload = Payload {
             msg: ciphertext_with_tag,
             aad,
         };
 
         cipher
-            .decrypt(nonce, payload)
+            .decrypt(&nonce, payload)
             .map_err(|_| AeadError::AuthenticationFailed)
     }
 
