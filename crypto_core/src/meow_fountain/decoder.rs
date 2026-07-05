@@ -381,7 +381,11 @@ mod tests {
         // end.
         let mut dec = FountainDecoder::new(2, 8).unwrap();
         // Decode block 0 first so reduction would run against it.
-        let good = Droplet { seed: 0, block_indices: vec![0], data: vec![7u8; 8] };
+        let good = Droplet {
+            seed: 0,
+            block_indices: vec![0],
+            data: vec![7u8; 8],
+        };
         dec.add_droplet(good);
         let short = Droplet {
             seed: 1,

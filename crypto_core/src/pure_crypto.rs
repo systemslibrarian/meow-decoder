@@ -712,9 +712,10 @@ pub mod pq {
         #[allow(deprecated)] // from_expanded_bytes deprecated but needed for serialization roundtrip
         pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
             // Convert slice to Array using TryFrom
-            let mut dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into().map_err(|_| {
-                CryptoError::KeyDerivationFailed("Invalid secret key length".into())
-            })?;
+            let mut dk_array: ml_kem::array::Array<u8, _> =
+                secret_key.try_into().map_err(|_| {
+                    CryptoError::KeyDerivationFailed("Invalid secret key length".into())
+                })?;
             // ml-kem 0.3.0-rc.0: use from_expanded_bytes instead of from_encoded_bytes
             let dk = DecapsulationKey::from_expanded_bytes(&dk_array)
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;

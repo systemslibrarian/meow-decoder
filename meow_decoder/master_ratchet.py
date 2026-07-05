@@ -581,7 +581,7 @@ def _read_generation_watermark(state_file: Path) -> Optional[int]:
     if len(raw) < 8:
         return None
     try:
-        return struct.unpack("<Q", raw[:8])[0]
+        return int(struct.unpack("<Q", raw[:8])[0])
     except struct.error:
         return None
 

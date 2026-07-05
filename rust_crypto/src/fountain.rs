@@ -19,8 +19,8 @@ use pyo3::types::PyBytes;
 
 use crypto_core::meow_fountain::{
     decoder::DecoderError, decoder::FountainDecoder as RustDecoder, distribution::RobustSoliton,
-    encoder::EncoderError,
-    encoder::FountainEncoder as RustEncoder, wire::Droplet as RustDroplet, wire::WireError,
+    encoder::EncoderError, encoder::FountainEncoder as RustEncoder, wire::Droplet as RustDroplet,
+    wire::WireError,
 };
 
 fn map_encoder_err(e: EncoderError) -> PyErr {

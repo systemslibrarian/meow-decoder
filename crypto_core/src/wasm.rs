@@ -553,16 +553,17 @@ pub fn encrypt_with_forward_secrecy(
 
     // SECURITY (L2): memory-hard stretch the password with Argon2id before
     // folding it into the HKDF IKM (see `l2_stretch_password`).
-    let stretched = match l2_stretch_password(password, ephemeral_public.as_bytes(), b"meow-fs-argon2") {
-        Ok(k) => k,
-        Err(e) => {
-            return WasmResult {
-                success: false,
-                data: vec![],
-                error: Some(format!("Password stretch failed: {:?}", e)),
+    let stretched =
+        match l2_stretch_password(password, ephemeral_public.as_bytes(), b"meow-fs-argon2") {
+            Ok(k) => k,
+            Err(e) => {
+                return WasmResult {
+                    success: false,
+                    data: vec![],
+                    error: Some(format!("Password stretch failed: {:?}", e)),
+                }
             }
-        }
-    };
+        };
 
     // Derive encryption key: HKDF(shared_secret || argon2id(password)).
     // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers so
@@ -684,7 +685,8 @@ pub fn decrypt_with_forward_secrecy(
 
     // SECURITY (L2): derive the same Argon2id-stretched password used on the
     // encrypt side (salt bound to the public ephemeral key).
-    let stretched = match l2_stretch_password(password, &ephemeral_public_bytes, b"meow-fs-argon2") {
+    let stretched = match l2_stretch_password(password, &ephemeral_public_bytes, b"meow-fs-argon2")
+    {
         Ok(k) => k,
         Err(e) => {
             return WasmResult {
@@ -1192,20 +1194,17 @@ pub fn decrypt_hybrid_pq(
     // 3. Hybrid key derivation
     // SECURITY (L2): derive the same Argon2id-stretched password used on the
     // encrypt side (salt bound to the public X25519 ephemeral key).
-    let stretched = match l2_stretch_password(
-        password,
-        &x25519_ephemeral_public,
-        b"meow-pq-hybrid-argon2",
-    ) {
-        Ok(k) => k,
-        Err(e) => {
-            return WasmResult {
-                success: false,
-                data: vec![],
-                error: Some(format!("Password stretch failed: {:?}", e)),
+    let stretched =
+        match l2_stretch_password(password, &x25519_ephemeral_public, b"meow-pq-hybrid-argon2") {
+            Ok(k) => k,
+            Err(e) => {
+                return WasmResult {
+                    success: false,
+                    data: vec![],
+                    error: Some(format!("Password stretch failed: {:?}", e)),
+                }
             }
-        }
-    };
+        };
 
     // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers.
     let mut ikm = Zeroizing::new(Vec::<u8>::with_capacity(64 + 32));
