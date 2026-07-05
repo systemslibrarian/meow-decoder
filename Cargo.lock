@@ -238,11 +238,11 @@ dependencies = [
 
 [[package]]
 name = "block-padding"
-version = "0.3.3"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a8894febbff9f758034a5b8e12d87918f56dfc64a8e1fe757d65e29041538d93"
+checksum = "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b"
 dependencies = [
- "generic-array",
+ "hybrid-array",
 ]
 
 [[package]]
@@ -274,11 +274,11 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cbc"
-version = "0.1.2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26b52a9543ae338f279b96b0b9fed9c8093744685043739079ce85cd58f289a6"
+checksum = "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896"
 dependencies = [
- "cipher 0.4.4",
+ "cipher 0.5.2",
 ]
 
 [[package]]
@@ -627,11 +627,11 @@ dependencies = [
 
 [[package]]
 name = "ctap-hid-fido2"
-version = "3.5.9"
+version = "3.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f627e32f65861a302a6329f136d3d3d9dacab2d90ce1cd8d3a23b3705508eb93"
+checksum = "e75cc091f4eab3642ecf7f413f71342ac2b6bc1264fba4ce166de1c2d286e3ab"
 dependencies = [
- "aes 0.8.4",
+ "aes 0.9.1",
  "anyhow",
  "base64 0.22.1",
  "byteorder",
@@ -1098,9 +1098,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hidapi"
-version = "2.6.5"
+version = "2.6.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d1b71e1f4791fb9e93b9d7ee03d70b501ab48f6151432fbcadeabc30fe15396e"
+checksum = "c78dadfc12f865bc3fcac3897e64533b930737ceb9ef245c8277de98d0b010e9"
 dependencies = [
  "cc",
  "cfg-if",
@@ -1185,7 +1185,6 @@ version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "879f10e63c20629ecabbb64a8010319738c66a5cd0c29b02d63d272b03751d01"
 dependencies = [
- "block-padding",
  "generic-array",
 ]
 
@@ -1195,6 +1194,7 @@ version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4250ce6452e92010fdf7268ccc5d14faa80bb12fc741938534c58f16804e03c7"
 dependencies = [
+ "block-padding",
  "hybrid-array",
 ]
 
