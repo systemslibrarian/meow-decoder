@@ -105,6 +105,22 @@ class EncodingConfig:
     # Performance
     enable_profiling: bool = False  # Enable performance profiling
 
+    def __post_init__(self):
+        # SECURITY (L11): reject a redundancy that cannot yield a decodable
+        # artifact. num_droplets = int(k_blocks * redundancy); with redundancy
+        # < 1.0 this is fewer droplets than source blocks (mathematically
+        # undecodable), and combined with --wipe-source (auto-set by
+        # --high-security) it would destroy the only plaintext copy. Require a
+        # small safety margin above 1.0. encode_file additionally enforces a
+        # per-encode k_blocks-based droplet floor.
+        if self.redundancy < 1.1:
+            raise ValueError(
+                f"redundancy must be >= 1.1 for a decodable artifact (got {self.redundancy}); "
+                f"values below 1.0 produce fewer droplets than source blocks."
+            )
+        if self.block_size <= 0:
+            raise ValueError(f"block_size must be positive (got {self.block_size})")
+
 
 @dataclass
 class DecodingConfig:

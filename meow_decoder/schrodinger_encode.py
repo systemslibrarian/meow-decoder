@@ -36,7 +36,13 @@ from .crypto import (
     ARGON2_MEMORY,
     ARGON2_ITERATIONS,
     ARGON2_PARALLELISM,
+    MAX_K_BLOCKS,
+    MAX_BLOCK_SIZE,
 )
+
+# SECURITY (H1): total-size ceiling for the fountain layer (mirrors the ~10 GiB
+# ceiling used in crypto.FountainEncoder / fountain.FountainDecoder).
+_SCHRODINGER_MAX_TOTAL_SIZE = 10 * 1024 * 1024 * 1024
 from .crypto_backend import get_handle_backend, get_default_backend
 from .fountain import FountainEncoder, pack_droplet
 from .qr_code import QRCodeGenerator
@@ -193,6 +199,28 @@ class SchrodingerManifest:
             ">IIQ", data[offset : offset + 16]
         )
         offset += 16
+
+        # SECURITY (H1): block_count/block_size are UNAUTHENTICATED here (the
+        # manifest is parsed before any password check) and flow straight into
+        # FountainDecoder(block_count, block_size), which allocates
+        # vec![None; block_count]. Without bounds an attacker-declared
+        # block_count (~4.29e9 via the u32 field) forces a ~100 GB allocation
+        # (OOM DoS). Reject out-of-range values at parse time.
+        if block_count == 0 or block_count > MAX_K_BLOCKS:
+            raise ValueError(
+                f"Schrödinger manifest block_count out of range "
+                f"({block_count}, valid: 1–{MAX_K_BLOCKS})"
+            )
+        if block_size == 0 or block_size > MAX_BLOCK_SIZE:
+            raise ValueError(
+                f"Schrödinger manifest block_size out of range "
+                f"({block_size}, valid: 1–{MAX_BLOCK_SIZE})"
+            )
+        if block_count * block_size > _SCHRODINGER_MAX_TOTAL_SIZE:
+            raise ValueError(
+                f"Schrödinger manifest total size {block_count * block_size} exceeds the "
+                f"{_SCHRODINGER_MAX_TOTAL_SIZE}-byte (10 GiB) sanity ceiling"
+            )
 
         if version == 0x08:
             # v0x08: first 16 bytes of old-reserved = frame_mac_seed

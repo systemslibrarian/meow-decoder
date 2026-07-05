@@ -812,8 +812,13 @@ pub fn palette_encode(
         ));
     }
 
-    // Maximum bits encodable: floor(log2(n!))
-    let max_bits = factorial_bits(n);
+    // Maximum bits encodable: floor(log2(n!)).
+    // SECURITY (L7): the Lehmer index is packed into a single u64, so cap the
+    // capacity at 63 bits. For n >= 21, factorial_bits(n) > 64 and the raw value
+    // would overflow the `1u64 << i` shift (debug panic under panic="abort",
+    // silent masking in release). Capping is safe: n < 21 yields <= 61 bits, so
+    // valid inputs are unaffected.
+    let max_bits = factorial_bits(n).min(63);
     if max_bits == 0 {
         return Err(StegoError::CapacityExceeded {
             available: 0,
@@ -825,7 +830,8 @@ pub fn palette_encode(
     let use_bits = payload_bits.len().min(max_bits);
     let mut perm_number: u64 = 0;
     for (i, &bit) in payload_bits.iter().enumerate().take(use_bits) {
-        if bit & 1 == 1 {
+        // SECURITY (L7): guard the shift; use_bits <= max_bits <= 63 < 64.
+        if bit & 1 == 1 && i < 64 {
             perm_number |= 1u64 << i;
         }
     }
@@ -876,7 +882,9 @@ pub fn palette_decode(
         return Err(StegoError::InvalidParams("Mismatched index lengths".into()));
     }
 
-    let max_bits = factorial_bits(n);
+    // SECURITY (L7): cap capacity at 63 bits to match palette_encode; for
+    // n >= 21 the full Lehmer index exceeds u64.
+    let max_bits = factorial_bits(n).min(63);
     if max_bits == 0 {
         return Ok(vec![]);
     }
@@ -889,17 +897,34 @@ pub fn palette_decode(
         base_order.swap(i, j);
     }
 
-    // Convert observed_order back to Lehmer code → number
+    // Convert observed_order back to Lehmer code → number.
+    // SECURITY (L7): use checked arithmetic. For n >= 21 the running
+    // `multiplier` (and the accumulated `number`) exceed u64; unchecked `*=`/`+=`
+    // would panic in debug (panic="abort") or silently wrap in release. Once the
+    // accumulator would overflow we stop folding in higher Lehmer digits, which
+    // matches the 63-bit capacity cap applied in palette_encode.
     let mut remaining = base_order;
     let mut number: u64 = 0;
     let mut multiplier: u64 = 1;
+    let mut overflowed = false;
 
     for &item in observed_order {
         let pos = remaining.iter().position(|&x| x == item);
         match pos {
             Some(idx) => {
-                number += idx as u64 * multiplier;
-                multiplier *= remaining.len() as u64;
+                if !overflowed {
+                    match (idx as u64)
+                        .checked_mul(multiplier)
+                        .and_then(|term| number.checked_add(term))
+                    {
+                        Some(next) => number = next,
+                        None => overflowed = true,
+                    }
+                    match multiplier.checked_mul(remaining.len() as u64) {
+                        Some(next) => multiplier = next,
+                        None => overflowed = true,
+                    }
+                }
                 remaining.remove(idx);
             }
             None => {
@@ -913,7 +938,12 @@ pub fn palette_decode(
     // Convert number to bits
     let mut bits = Vec::with_capacity(max_bits);
     for i in 0..max_bits {
-        bits.push(((number >> i) & 1) as u8);
+        // SECURITY (L7): guard the shift; max_bits <= 63 < 64.
+        if i < 64 {
+            bits.push(((number >> i) & 1) as u8);
+        } else {
+            bits.push(0);
+        }
     }
 
     Ok(bits)

@@ -328,6 +328,16 @@ def save_receiver_keypair(
     """
     hb = get_handle_backend()
 
+    # SECURITY (M7): an empty-string password is the classic "pressed Enter
+    # twice" trap — the old `if password:` treated "" as "no password" and
+    # silently wrote a PLAINTEXT key while the CLI claimed it was encrypted.
+    # Refuse it. Callers that genuinely want plaintext must pass password=None.
+    if password is not None and password == "":
+        raise ValueError(
+            "Refusing to store the private key with an empty password. "
+            "Pass password=None to explicitly request unencrypted (plaintext) storage."
+        )
+
     # Save public key (raw bytes)
     with open(public_key_file, "wb") as f:
         f.write(public_key)
@@ -341,18 +351,20 @@ def save_receiver_keypair(
         private_key_bytes = bytearray(private_key)
 
     # Save private key (optionally encrypted with AES-256-GCM via handle backend)
-    _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"  # 12 bytes
+    _MAGIC_ENCRYPTED_ARGON2 = b"MEOW_X25519\x03"  # 12 bytes — Argon2id storage KEK
     _MAGIC_PLAIN = b"MEOW_X25519\x01"  # 12 bytes
 
     try:
         if password:
             salt = secrets.token_bytes(16)
-            # Derive storage key entirely inside Rust
-            storage_key_handle = hb.derive_key_hkdf_raw(
+            # SECURITY (M7): derive the at-rest storage key with memory-hard
+            # Argon2id (inside Rust, returns a handle) instead of a single
+            # HKDF-SHA256 pass. A stolen key file is no longer brute-forceable
+            # at HKDF speed. New files carry the v3 magic; v2 (HKDF) files are
+            # still readable by load_x25519_private_key_pem().
+            storage_key_handle = hb.derive_key_argon2id(
                 password.encode("utf-8"),
                 salt,
-                b"meow_x25519_key_storage_v2",
-                32,
             )
             nonce = secrets.token_bytes(12)
             encrypted = hb.aes_gcm_encrypt(
@@ -360,7 +372,7 @@ def save_receiver_keypair(
             )
             hb.drop(storage_key_handle)
             with open(private_key_file, "wb") as f:
-                f.write(_MAGIC_ENCRYPTED + salt + nonce + encrypted)
+                f.write(_MAGIC_ENCRYPTED_ARGON2 + salt + nonce + encrypted)
         else:
             with open(private_key_file, "wb") as f:
                 f.write(_MAGIC_PLAIN + bytes(private_key_bytes))
@@ -385,40 +397,58 @@ def load_x25519_private_key_pem(
         Opaque handle (int) to the X25519 private key in Rust.
         Falls back to raw bytes if HandleBackend is unavailable.
     """
-    _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"
+    _MAGIC_ENCRYPTED_ARGON2 = b"MEOW_X25519\x03"  # Argon2id storage KEK (M7)
+    _MAGIC_ENCRYPTED = b"MEOW_X25519\x02"  # legacy HKDF storage KEK
     _MAGIC_PLAIN = b"MEOW_X25519\x01"
 
     hb = get_handle_backend()
 
-    if pem_data[:12] == _MAGIC_ENCRYPTED:
+    magic = pem_data[:12]
+    if magic == _MAGIC_ENCRYPTED_ARGON2 or magic == _MAGIC_ENCRYPTED:
         if not password:
             raise ValueError("Private key is encrypted, password required")
         salt = pem_data[12:28]
         nonce = pem_data[28:40]
         encrypted = pem_data[40:]
-        # Derive decryption key inside Rust
-        storage_key_handle = hb.derive_key_hkdf_raw(
-            password.encode("utf-8"),
-            salt,
-            b"meow_x25519_key_storage_v2",
-            32,
-        )
+        if magic == _MAGIC_ENCRYPTED_ARGON2:
+            # SECURITY (M7): new-format files derive the storage key with
+            # memory-hard Argon2id (inside Rust, returns a handle).
+            storage_key_handle = hb.derive_key_argon2id(
+                password.encode("utf-8"),
+                salt,
+            )
+        else:
+            # BACKWARD-COMPAT: legacy v2 files used a single HKDF pass.
+            storage_key_handle = hb.derive_key_hkdf_raw(
+                password.encode("utf-8"),
+                salt,
+                b"meow_x25519_key_storage_v2",
+                32,
+            )
         raw_private = hb.aes_gcm_decrypt(storage_key_handle, nonce, encrypted, None)
         hb.drop(storage_key_handle)
-        # Import decrypted private key into Rust handle immediately
-        handle = hb.import_x25519_private(raw_private)
-        # Zero transient copy
-        if isinstance(raw_private, bytearray):
+        # SECURITY (L12): aes_gcm_decrypt returns immutable bytes; coerce to a
+        # bytearray so the transient decrypted private key is actually wiped
+        # (rebinding/branching on bytearray-ness left it un-zeroed before).
+        raw_private = bytearray(raw_private)
+        try:
+            # Import decrypted private key into Rust handle immediately.
+            # SECURITY (L12): the FFI requires immutable `bytes`, so pass a
+            # short-lived bytes() view; the long-lived decrypted buffer is the
+            # bytearray, which we wipe below.
+            handle = hb.import_x25519_private(bytes(raw_private))
+        finally:
+            # Zero transient copy unconditionally
             for i in range(len(raw_private)):
                 raw_private[i] = 0
         return handle
-    elif pem_data[:12] == _MAGIC_PLAIN:
+    elif magic == _MAGIC_PLAIN:
         raw_private = pem_data[12:44]
         return hb.import_x25519_private(raw_private)
     else:
         raise ValueError(
-            "Unsupported key format. Expected MEOW_X25519 format (magic: MEOW_X25519\\x01 or "
-            "MEOW_X25519\\x02). Legacy PEM keys are no longer supported. "
+            "Unsupported key format. Expected MEOW_X25519 format (magic: MEOW_X25519\\x01, "
+            "MEOW_X25519\\x02, or MEOW_X25519\\x03). Legacy PEM keys are no longer supported. "
             "Please re-generate your keypair with save_receiver_keypair() in MEOW_X25519 format."
         )
 
@@ -480,6 +510,15 @@ def generate_receiver_keys_cli(output_dir: str = ".", password: Optional[str] = 
             confirm = getpass("Confirm password: ")
         if password != confirm:
             raise ValueError("Passwords don't match")
+
+    # SECURITY (M7): never store a plaintext key while telling the user it is
+    # "encrypted with your password". An empty password is refused here so the
+    # success message below is always accurate.
+    if not password:
+        raise ValueError(
+            "Empty password is not allowed. Provide a non-empty password to "
+            "encrypt the private key."
+        )
 
     private_key, public_key = generate_receiver_keypair()
 

@@ -1519,6 +1519,26 @@ def pack_manifest(m: Manifest) -> bytes:
     Returns:
         Serialized manifest bytes
     """
+    # SECURITY (C1): reject a mode/field-inconsistent manifest at pack time so a
+    # structurally broken (undecodable) artifact can never be serialized. Without
+    # this, encode_file(use_pq=True) with no receiver keys produces a MEOW4/5
+    # manifest whose pq_ciphertext is None; unpack_manifest hard-rejects exactly
+    # that shape, and under --high-security the source is wiped afterwards. Fail
+    # closed here (before any GIF/wipe) mirroring unpack_manifest's own checks.
+    if m.mode_byte != 0:
+        _base_version = m.mode_byte & 0x6F  # strip duress (0x80) and ratchet (0x10)
+        if _base_version in (MODE_MEOW3, MODE_MEOW4, MODE_MEOW5) and m.ephemeral_public_key is None:
+            raise ValueError(
+                f"Manifest mode byte 0x{m.mode_byte:02x} requires an ephemeral public key "
+                f"(forward secrecy) but none is present — refusing to serialize an "
+                f"undecodable manifest"
+            )
+        if _base_version in (MODE_MEOW4, MODE_MEOW5) and m.pq_ciphertext is None:
+            raise ValueError(
+                f"Manifest mode byte 0x{m.mode_byte:02x} (PQ hybrid) requires a PQ ciphertext "
+                f"but none is present — refusing to serialize an undecodable manifest"
+            )
+
     base = MAGIC
     # FIX-D3: Include mode byte for non-legacy manifests
     if m.mode_byte != 0:

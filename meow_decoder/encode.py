@@ -252,10 +252,21 @@ def encode_file(
                 "receiver_pq_public being provided. This indicates a bug in hybrid_encapsulate_handle()."
             )
     elif use_pq:
-        if verbose:
-            print(
-                f"  ⚠️  PQ mode requested but no receiver public key; using password-only encryption"
-            )
+        # SECURITY (C1): PQ mode (MEOW4/5) was requested but no receiver public
+        # key is available, so no PQ/FS encapsulation happens and pq_ciphertext
+        # stays None. The manifest_version selected above is still MEOW4/5, so
+        # pack_manifest() will FAIL CLOSED (ValueError) rather than emit an
+        # undecodable artifact that --high-security would then wipe the source
+        # for. Emit the downgrade/refusal notice UNCONDITIONALLY (stderr), never
+        # gated behind --verbose (void/high-security modes silence stdout).
+        print(
+            "⚠️  SECURITY: Post-quantum mode (--pq/--high-security) was requested "
+            "but no receiver public key was provided. A PQ artifact cannot be "
+            "produced without receiver keys and will be REFUSED (fail-closed) to "
+            "avoid emitting an undecodable file. Provide --receiver-pubkey AND "
+            "--receiver-pq-pubkey, or drop --pq.",
+            file=sys.stderr,
+        )
 
     comp, sha256, salt, nonce, cipher, ephemeral_public_key, key_handle = (
         encrypt_file_bytes_production(**encrypt_kwargs)
@@ -273,7 +284,34 @@ def encode_file(
 
     # Calculate fountain code parameters
     k_blocks = (len(cipher) + config.block_size - 1) // config.block_size
+
+    # SECURITY (M5): droplet block indices are serialized as u16 (see
+    # fountain.pack_droplet), so k_blocks must fit in u16. Beyond 65535 the Rust
+    # encoder's KBlocksOverflowU16 guard was previously swallowed and the
+    # pure-Python fallback crashed with struct.error ~65k frames in (after
+    # Argon2 + tens of thousands of QR renders). Fail fast with a clear message.
+    if k_blocks > 0xFFFF:
+        raise ValueError(
+            f"Input too large for block size: k_blocks={k_blocks} exceeds the u16 "
+            f"limit (65535). Increase --block-size (currently {config.block_size} "
+            f"bytes) so fewer blocks are needed."
+        )
+
     num_droplets = int(k_blocks * config.redundancy)
+
+    # SECURITY (L11): guarantee enough droplets to actually decode. A too-low
+    # redundancy can make num_droplets < k_blocks, producing a mathematically
+    # undecodable GIF; combined with --wipe-source (auto-set by --high-security)
+    # this destroys the only plaintext copy. EncodingConfig.__post_init__ already
+    # enforces redundancy >= 1.1 (which guarantees num_droplets >= k_blocks) for
+    # constructed configs; this is a defence-in-depth floor that also catches a
+    # redundancy mutated after construction (web form / decorrelation paths).
+    if num_droplets < k_blocks:
+        raise ValueError(
+            f"redundancy {config.redundancy} yields only {num_droplets} droplets for "
+            f"{k_blocks} block(s) — fewer than k_blocks makes the artifact "
+            f"mathematically undecodable. Increase --redundancy (must be >= 1.1)."
+        )
 
     if verbose:
         print(f"\nFountain encoding:")
@@ -337,18 +375,17 @@ def encode_file(
     # (for testing/offline scenarios). Unsigned manifests are a security risk.
     manifest_sig_chunks: List[bytes] = []
     _signing_policy = os.environ.get("MEOW_MANIFEST_SIGNING", "on").lower()
-    _production_mode = os.environ.get("MEOW_PRODUCTION_MODE", "1") != "0"
-    _test_mode = os.environ.get("MEOW_TEST_MODE", "").lower() in ("1", "true", "yes")
     if _signing_policy == "off":
-        # FIX: Refuse to disable signing in production mode.  An attacker with
-        # env-var control (shared hosting, container escape) could silently
-        # strip ML-DSA authentication.  Only allow in test mode.
-        if _production_mode and not _test_mode:
-            raise RuntimeError(
-                "MEOW_MANIFEST_SIGNING=off is FORBIDDEN in production mode. "
-                "Manifest signing is mandatory for tamper protection. "
-                "Set MEOW_TEST_MODE=1 or MEOW_PRODUCTION_MODE=0 to disable."
-            )
+        # SECURITY (L9): the previous production gate derived its override
+        # permission from OTHER env vars (MEOW_PRODUCTION_MODE / MEOW_TEST_MODE),
+        # so the very env-var attacker it claimed to stop could satisfy it
+        # (`MEOW_MANIFEST_SIGNING=off MEOW_TEST_MODE=1`). That guard was security
+        # theater — it added nothing against its stated threat model. We no
+        # longer derive trust from sibling env vars. Disabling signing now ALWAYS
+        # emits a loud, unconditional stderr downgrade warning and records the
+        # downgrade in the artifact by leaving manifest_sig_chunks empty (the
+        # decoder observes an unsigned manifest), so the downgrade is never
+        # silent regardless of --verbose / void mode.
         import sys as _sys
 
         print(
@@ -357,6 +394,7 @@ def encode_file(
             file=_sys.stderr,
         )
     else:
+        _keypair = None  # SECURITY (L8): defined up-front so `finally` can zeroize
         try:
             from . import manifest_signing as _ms
 
@@ -378,6 +416,24 @@ def encode_file(
             _signature = _ms.sign_manifest(_keypair, manifest_bytes, context=b"manifest-v1")
             _public_key = _keypair.export_public_key()
             _sig_bytes = _signature.to_bytes()
+
+            # SECURITY (L8) — PARTIAL: compute the INV-041 public-key commitment
+            # (previously dead code) so the signer's in-band public key can be
+            # pinned. The REAL fix is to bind this commitment into the
+            # password-keyed manifest HMAC core (crypto.pack_manifest_core) and
+            # constant-time-compare it on decode, so an attacker who rewrites the
+            # artifact cannot re-sign a tampered manifest with their own fresh
+            # in-band key. That binding CANNOT be landed from these files alone:
+            # the decoder (decode_gif.py, owned by another agent) recomputes the
+            # HMAC over the manifest core and would reject EVERY existing +
+            # newly-encoded artifact if the encoder silently folded the
+            # commitment in, breaking backward compatibility. Tracked as PARTIAL
+            # (see report). TODO(L8): once decode_gif.py + pack_manifest_core are
+            # updated in lockstep behind a manifest-version bump, fold
+            # `_pk_commitment` into the HMAC-covered core and verify on decode.
+            _pk_commitment = _ms.compute_public_key_commitment(_public_key)
+            if verbose:
+                print(f"  🔒 Signer pk commitment (INV-041): {_pk_commitment.hex()[:16]}…")
 
             _blob = (
                 MANIFEST_SIG_BLOB_MAGIC
@@ -407,6 +463,21 @@ def encode_file(
         except Exception as _sig_err:
             # Re-raise as a runtime error to ensure fail-closed behavior
             raise RuntimeError(f"Mandatory manifest signing failed: {_sig_err}") from _sig_err
+        finally:
+            # SECURITY (L8): best-effort zeroization of the ephemeral signing
+            # private key material. Python `bytes` are immutable so we cannot
+            # guarantee the original heap buffers are wiped, but we overwrite the
+            # dataclass fields and drop our reference so the secret keys are not
+            # retained on the (short-lived, GC-reachable) keypair object.
+            if _keypair is not None:
+                for _sk_attr in ("ed25519_sk", "mldsa65_sk"):
+                    _sk_val = getattr(_keypair, _sk_attr, None)
+                    if _sk_val:
+                        try:
+                            setattr(_keypair, _sk_attr, b"\x00" * len(_sk_val))
+                        except Exception:
+                            pass
+                _keypair = None
 
     if verbose:
         if ephemeral_public_key:
@@ -630,9 +701,19 @@ def encode_file(
                 else:
                     print(f"  👁️ QR codes visible in animated cat eyes!")
         except Exception as e:
-            if verbose:
-                print(f"  ⚠️ Logo-eyes/cat-eyes-blink failed: {e}")
-                print(f"  Falling back to plain QR codes")
+            # SECURITY (M6): logo-eyes / cat-eyes-blink concealment was EXPLICITLY
+            # requested. Silently falling back to plain visible QR codes destroys
+            # the advertised stealth property while reporting success. Fail closed
+            # with an UNCONDITIONAL stderr notice (never gated behind --verbose).
+            print(
+                f"❌ SECURITY: requested logo-eyes/cat-eyes-blink concealment could "
+                f"not be applied ({e}). Refusing to silently emit plain, non-concealed "
+                f"QR codes.",
+                file=sys.stderr,
+            )
+            raise RuntimeError(
+                f"Requested logo-eyes/cat-eyes concealment could not be applied: {e}"
+            ) from e
 
     # Apply steganography if enabled (TIER 3 - optional feature)
     elif stego_level > 0:  # pragma: no cover
@@ -749,9 +830,19 @@ def encode_file(
                 if carriers:
                     print(f"  🐱 QR codes hidden in your cat photos!")
         except Exception as e:
-            if verbose:
-                print(f"  ⚠️ Steganography failed: {e}")
-                print(f"  Falling back to plain QR codes")
+            # SECURITY (M6): steganography (stego_level>0) was EXPLICITLY requested
+            # (void mode even forces level 4 AND verbose=False). Silently falling
+            # back to plain visible QR codes drops the advertised "paranoid stealth"
+            # while the CLI reports success. Fail closed with an UNCONDITIONAL
+            # stderr notice (never gated behind --verbose).
+            print(
+                f"❌ SECURITY: requested steganography (level {stego_level}) could not "
+                f"be applied ({e}). Refusing to silently emit plain, non-stego QR codes.",
+                file=sys.stderr,
+            )
+            raise RuntimeError(
+                f"Requested steganography level {stego_level} could not be applied: {e}"
+            ) from e
 
     # Drop frame master key handle (no longer needed after all QR frames built)
     hb.drop(frame_master_key_handle)
@@ -1602,7 +1693,11 @@ Nothing to see here. 😶‍🌫️
                 print(f"Error: Failed to collect gesture password: {e}", file=sys.stderr)
                 sys.exit(1)
 
-        if not secrets.compare_digest(password, password_confirm):
+        # SECURITY (L10): secrets.compare_digest on `str` raises TypeError for
+        # non-ASCII input ("comparing strings with non-ASCII characters is not
+        # supported"). Compare UTF-8 byte encodings instead — still constant-time
+        # over the encoded bytes and works for any Unicode password.
+        if not secrets.compare_digest(password.encode("utf-8"), password_confirm.encode("utf-8")):
             hiss_error("The collar tags don't match! Passwords must be identical.")
             sys.exit(1)
 

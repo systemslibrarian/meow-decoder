@@ -20,17 +20,6 @@ dependencies = [
 
 [[package]]
 name = "aes"
-version = "0.8.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b169f7a6d4742236a0a00c541b845991d0ac43e546831af1249753ab4c3aa3a0"
-dependencies = [
- "cfg-if",
- "cipher 0.4.4",
- "cpufeatures 0.2.17",
-]
-
-[[package]]
-name = "aes"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f1fc76eaeac4c9164506c466d4ffdd8ec9d0c5bf57ee97177c4d8eceb3a0e138"
@@ -47,7 +36,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdf011db2e21ce0d575593d749db5554b47fed37aff429e4dc50bc91ac93a028"
 dependencies = [
  "aead",
- "aes 0.9.1",
+ "aes",
  "cipher 0.5.2",
  "ctr",
  "ghash",
@@ -556,7 +545,7 @@ dependencies = [
 name = "crypto_core"
 version = "1.0.0"
 dependencies = [
- "aes 0.9.1",
+ "aes",
  "aes-gcm",
  "argon2",
  "cipher 0.5.2",
@@ -630,7 +619,7 @@ version = "3.5.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e75cc091f4eab3642ecf7f413f71342ac2b6bc1264fba4ce166de1c2d286e3ab"
 dependencies = [
- "aes 0.9.1",
+ "aes",
  "anyhow",
  "base64 0.22.1",
  "byteorder",
@@ -1333,7 +1322,7 @@ checksum = "f8ca58f447f06ed17d5fc4043ce1b10dd205e060fb3ce5b979b8ed8e59ff3f79"
 name = "meow_crypto_rs"
 version = "1.0.0"
 dependencies = [
- "aes 0.9.1",
+ "aes",
  "aes-gcm",
  "argon2",
  "cipher 0.5.2",
