@@ -28,7 +28,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, cast
 
 # OpenAI-compatible endpoint. See https://api-docs.deepseek.com/
 DEFAULT_BASE_URL = "https://api.deepseek.com"
@@ -131,7 +131,7 @@ class DeepSeekClient:
             thinking=thinking,
             reasoning_effort=reasoning_effort,
         )
-        return data["choices"][0]["message"]["content"]
+        return cast(str, data["choices"][0]["message"]["content"])
 
     def complete(
         self,
@@ -169,7 +169,7 @@ class DeepSeekClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                return cast(dict, json.loads(resp.read().decode("utf-8")))
         except urllib.error.HTTPError as exc:
             detail = exc.read().decode("utf-8", errors="replace")
             raise DeepSeekError(f"DeepSeek API returned HTTP {exc.code}: {detail}") from exc
