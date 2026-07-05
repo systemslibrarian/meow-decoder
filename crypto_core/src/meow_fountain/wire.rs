@@ -221,7 +221,7 @@ mod tests {
         buf.extend_from_slice(&0u32.to_be_bytes());
         buf.extend_from_slice(&1u16.to_be_bytes());
         buf.extend_from_slice(&0u16.to_be_bytes());
-        buf.extend(std::iter::repeat(0xFFu8).take(99));
+        buf.extend(std::iter::repeat_n(0xFFu8, 99));
         assert!(matches!(
             Droplet::from_wire(&buf, 100),
             Err(WireError::DataLengthMismatch {
@@ -240,7 +240,7 @@ mod tests {
         buf.extend_from_slice(&3u16.to_be_bytes());
         buf.extend_from_slice(&1u16.to_be_bytes());
         buf.extend_from_slice(&2u16.to_be_bytes());
-        buf.extend(std::iter::repeat(0u8).take(32));
+        buf.extend(std::iter::repeat_n(0u8, 32));
         assert!(matches!(
             Droplet::from_wire(&buf, 32),
             Err(WireError::UnsortedOrDuplicateIndices)
@@ -254,7 +254,7 @@ mod tests {
         buf.extend_from_slice(&2u16.to_be_bytes());
         buf.extend_from_slice(&5u16.to_be_bytes());
         buf.extend_from_slice(&5u16.to_be_bytes());
-        buf.extend(std::iter::repeat(0u8).take(32));
+        buf.extend(std::iter::repeat_n(0u8, 32));
         assert!(matches!(
             Droplet::from_wire(&buf, 32),
             Err(WireError::UnsortedOrDuplicateIndices)

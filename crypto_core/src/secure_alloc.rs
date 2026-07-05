@@ -238,7 +238,7 @@ impl<T: Zeroize> SecureBox<T> {
         };
 
         // Round data up to page boundary
-        let data_pages = (data_size + page_size - 1) / page_size;
+        let data_pages = data_size.div_ceil(page_size);
         let data_region_size = data_pages * page_size;
         // Total: guard_before + data + guard_after
         let total_size = data_region_size + 2 * page_size;

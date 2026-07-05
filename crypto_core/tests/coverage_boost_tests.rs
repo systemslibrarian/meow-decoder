@@ -72,7 +72,7 @@ mod secure_alloc_coverage {
     fn test_secure_box_deref_mut() {
         let mut sbox = SecureBox::new([0u8; 32]).expect("alloc failed");
         // Exercise DerefMut
-        let data: &mut [u8; 32] = &mut *sbox;
+        let data: &mut [u8; 32] = &mut sbox;
         data[0] = 0xFF;
         data[31] = 0xAA;
         assert_eq!(sbox[0], 0xFF);

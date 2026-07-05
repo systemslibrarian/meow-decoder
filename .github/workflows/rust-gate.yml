@@ -1,0 +1,86 @@
+# Rust Gate — a required, always-reporting status check for Rust quality.
+#
+# Why this exists:
+#   The comprehensive Rust workflows (rust-crypto.yml, rust-security-suite.yml)
+#   are path-filtered to rust_crypto/** and crypto_core/**. A path-filtered
+#   workflow that is made a *required* status check deadlocks every PR that does
+#   NOT touch those paths — the check never runs, so the PR waits forever.
+#
+#   This workflow has NO path filter, so it always runs and always reports a
+#   conclusion, making it safe to require in branch protection. It does the
+#   expensive work (clippy + crypto_core tests) only when Rust sources actually
+#   changed; otherwise it passes trivially and fast.
+#
+# Detection is fail-safe: if the diff can't be computed for any reason, the
+# checks RUN (a slightly slower pass) rather than being skipped, so real Rust
+# changes can never slip through un-linted.
+
+name: Rust Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rust-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rust-gate:
+    name: Rust Gate (clippy + tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Detect Rust source changes
+        id: changes
+        run: |
+          run_rust=true
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if git fetch --no-tags origin "${{ github.base_ref }}" 2>/dev/null; then
+              diff=$(git diff --name-only "origin/${{ github.base_ref }}...HEAD" 2>/dev/null || echo "__ERR__")
+              if [ "$diff" != "__ERR__" ]; then
+                if echo "$diff" | grep -qE '^(rust_crypto|crypto_core)/'; then
+                  run_rust=true
+                else
+                  run_rust=false
+                fi
+              fi
+            fi
+          fi
+          echo "rust=$run_rust" >> "$GITHUB_OUTPUT"
+          if [ "$run_rust" = "true" ]; then
+            echo "::notice::Rust sources changed (or detection inconclusive) — running clippy + crypto_core tests."
+          else
+            echo "::notice::No Rust source changes — gate passes without building."
+          fi
+
+      - name: Install Rust toolchain
+        if: steps.changes.outputs.rust == 'true'
+        uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Install system dependencies
+        if: steps.changes.outputs.rust == 'true'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libssl-dev pkg-config libpcsclite-dev libudev-dev
+
+      - name: Clippy (deny warnings)
+        if: steps.changes.outputs.rust == 'true'
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: crypto_core tests
+        if: steps.changes.outputs.rust == 'true'
+        run: cargo test -p crypto_core
