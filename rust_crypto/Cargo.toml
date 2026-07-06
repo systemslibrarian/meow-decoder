@@ -30,7 +30,7 @@ hmac = "0.13"    # HMAC-SHA256 authentication
 sha2 = "0.11"    # SHA-256/SHA-512 hashing
 
 # X25519 key exchange
-x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+x25519-dalek = { version = "3.0", features = ["static_secrets"] }
 
 # Side-channel resistance
 subtle = "2.5"                                       # Constant-time operations
