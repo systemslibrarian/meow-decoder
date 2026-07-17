@@ -111,6 +111,9 @@ export const CameraPreview = React.memo(function CameraPreview({
   // Track native camera errors (e.g. EncoderProfiles NullPointerException on
   // some Android emulators/devices). Show a friendly fallback instead of crashing.
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Bumped on Retry: remounts the native Camera view so no stale session
+  // state (e.g. a previously-requested use-case set) survives the rebind.
+  const [cameraKey, setCameraKey] = useState(0);
 
   // ── Pinch-to-zoom ─────────────────────────────────────────────────────────
   const zoomSV = useSharedValue(device?.neutralZoom ?? 1);
@@ -222,7 +225,10 @@ export const CameraPreview = React.memo(function CameraPreview({
             </Text>
             <TouchableOpacity
               style={styles.permissionButton}
-              onPress={() => setCameraError(null)}
+              onPress={() => {
+                setCameraError(null);
+                setCameraKey((k) => k + 1);
+              }}
               accessibilityRole="button"
               accessibilityLabel="Retry starting the camera"
             >
@@ -231,11 +237,16 @@ export const CameraPreview = React.memo(function CameraPreview({
           </View>
         ) : (
           <AnimatedCamera
+            key={cameraKey}
             style={StyleSheet.absoluteFill}
             device={device}
             isActive={isActive}
             codeScanner={codeScanner}
-            {...(frameProcessor ? { frameProcessor } : {})}
+            // Diagnostics sampler only on FULL-hardware-level cameras: the
+            // extra ImageAnalysis stream exceeds LIMITED devices' supported
+            // surface combinations (verified on the A17: 'No supported
+            // surface combination ... too many use cases').
+            {...(frameProcessor && device.hardwareLevel === 'full' ? { frameProcessor } : {})}
             // High-resolution format so dense fountain QR resolves (see above).
             // Spread conditionally: `format` may be undefined when no format
             // matches, and exactOptionalPropertyTypes forbids passing undefined;
