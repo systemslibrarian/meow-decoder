@@ -370,19 +370,55 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
         .cat-canvas-stage:fullscreen,
-        .cat-canvas-stage:-webkit-full-screen {
+        .cat-canvas-stage:-webkit-full-screen,
+        .cat-canvas-stage.fullscreen-fallback {
             width: 100vw;
             max-width: none;
             height: 100vh;
             background: #050816;
             padding: 16px;
         }
+        .cat-canvas-stage.fullscreen-fallback {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+        }
         .cat-canvas-stage:fullscreen #catCanvas,
-        .cat-canvas-stage:-webkit-full-screen #catCanvas {
+        .cat-canvas-stage:-webkit-full-screen #catCanvas,
+        .cat-canvas-stage.fullscreen-fallback #catCanvas {
             width: min(92vw, 92vh);
             max-width: min(92vw, 92vh);
+        }
+        .cat-fs-controls {
+            align-items: center;
+            background: rgba(5, 8, 22, 0.94);
+            border: 1px solid rgba(0, 204, 255, 0.65);
+            border-radius: 8px;
+            bottom: 18px;
+            display: none;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+            left: 50%;
+            max-width: calc(100vw - 32px);
+            padding: 10px;
+            position: absolute;
+            transform: translateX(-50%);
+            z-index: 3;
+        }
+        .cat-canvas-stage:fullscreen .cat-fs-controls,
+        .cat-canvas-stage:-webkit-full-screen .cat-fs-controls,
+        .cat-canvas-stage.fullscreen-fallback .cat-fs-controls {
+            display: flex;
+        }
+        .cat-fs-state {
+            color: #d7f7ff;
+            flex-basis: 100%;
+            font-size: 0.85rem;
+            text-align: center;
         }
         .cat-reaction {
             font-size: 1.5em;
@@ -1150,6 +1186,12 @@
                 <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
                     <div id="catCanvasStage" class="cat-canvas-stage">
                         <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                        <div id="catFsControls" class="cat-fs-controls">
+                            <div id="catFsState" class="cat-fs-state" aria-live="polite">Idle — ready to transmit</div>
+                            <button id="catFsStartBtn" onclick="catModeEncode()">▶ Start Transmitting</button>
+                            <button id="catFsStopBtn" class="secondary" onclick="catModeStop()">■ Stop</button>
+                            <button id="catFsExitBtn" class="secondary" onclick="toggleCatFullscreen()">⛶ Exit Fullscreen</button>
+                        </div>
                     </div>
                     <div style="flex:1; min-width:260px;">
                         <label for="catMessage">🔒 Secret Message:</label>
@@ -4169,8 +4211,28 @@
             const btn = document.getElementById('catFullscreenBtn');
             if (!btn) return;
             const stage = document.getElementById('catCanvasStage');
-            const isFullscreen = document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+            const isFullscreen = document.fullscreenElement === stage ||
+                document.webkitFullscreenElement === stage ||
+                stage.classList.contains('fullscreen-fallback');
             btn.textContent = isFullscreen ? '🡼 Exit Fullscreen' : '⛶ Fullscreen Cat';
+        }
+
+        function enterCatFullscreenFallback(reason) {
+            const stage = document.getElementById('catCanvasStage');
+            const state = document.getElementById('catFsState');
+            stage.classList.add('fullscreen-fallback');
+            document.body.style.overflow = 'hidden';
+            if (state) {
+                state.textContent = reason
+                    ? `Fullscreen unavailable — using full-window mode (${reason})`
+                    : 'Fullscreen unavailable — using full-window mode';
+            }
+        }
+
+        function exitCatFullscreenFallback() {
+            const stage = document.getElementById('catCanvasStage');
+            stage.classList.remove('fullscreen-fallback');
+            document.body.style.overflow = '';
         }
 
         window.toggleCatFullscreen = async function() {
@@ -4178,7 +4240,12 @@
             if (!stage) return;
 
             try {
+                const usingFallback = stage.classList.contains('fullscreen-fallback');
                 const isFullscreen = document.fullscreenElement === stage || document.webkitFullscreenElement === stage;
+                if (usingFallback) {
+                    exitCatFullscreenFallback();
+                    return;
+                }
                 if (isFullscreen) {
                     if (document.exitFullscreen) {
                         await document.exitFullscreen();
@@ -4188,16 +4255,23 @@
                 } else if (stage.requestFullscreen) {
                     await stage.requestFullscreen();
                 } else if (stage.webkitRequestFullscreen) {
-                    stage.webkitRequestFullscreen();
+                    await stage.webkitRequestFullscreen();
                 } else {
-                    alert('Fullscreen mode is not supported in this browser.');
+                    enterCatFullscreenFallback('browser does not support element fullscreen');
                 }
             } catch (err) {
                 log('⚠️ [Cat Mode] Fullscreen request failed: ' + err.message);
+                // iOS Safari does not support Fullscreen API requests on ordinary
+                // elements. Keep the optical stage usable with a fixed full-window
+                // fallback rather than leaving the user without controls.
+                enterCatFullscreenFallback(err.message || 'request rejected');
             } finally {
                 updateCatFullscreenButton();
             }
         };
+
+        document.addEventListener('fullscreenchange', updateCatFullscreenButton);
+        document.addEventListener('webkitfullscreenchange', updateCatFullscreenButton);
 
         // Pre-load cat image and draw on canvas
         async function initCatCanvas() {
