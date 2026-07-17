@@ -58,3 +58,25 @@ class TestCat5SpeedsJS:
             f"{result.stdout}\n{result.stderr}"
         )
         assert "All 5 speeds passed" in result.stdout
+
+
+class TestCatBlinkV2JS:
+    """Run the Cat Blink v2 fountain-codec round-trip (JS reference)."""
+
+    def test_blink_v2_roundtrip(self):
+        """Execute test_cat_blink_v2_roundtrip.mjs and verify all cases pass."""
+        result = subprocess.run(
+            ["node", os.path.join(ROOT, "tests", "test_cat_blink_v2_roundtrip.mjs")],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=ROOT,
+        )
+        print(result.stdout)
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+        assert result.returncode == 0, (
+            f"test_cat_blink_v2_roundtrip.mjs failed (exit {result.returncode}):\n"
+            f"{result.stdout}\n{result.stderr}"
+        )
+        assert "0 failed" in result.stdout
