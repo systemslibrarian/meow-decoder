@@ -115,27 +115,26 @@ fn bench_argon2id(c: &mut Criterion) {
 
 #[cfg(feature = "x25519-dalek")]
 fn bench_x25519(c: &mut Criterion) {
-    use rand_core::OsRng;
     use x25519_dalek::{EphemeralSecret, PublicKey};
 
     let mut group = c.benchmark_group("x25519");
 
     group.bench_function("keypair_generate", |b| {
         b.iter(|| {
-            let secret = EphemeralSecret::random_from_rng(OsRng);
+            let secret = EphemeralSecret::random();
             let _public = PublicKey::from(&secret);
         })
     });
 
     // Pre-generate keys for DH benchmark
-    let _alice_secret = EphemeralSecret::random_from_rng(OsRng);
-    let bob_secret = EphemeralSecret::random_from_rng(OsRng);
+    let _alice_secret = EphemeralSecret::random();
+    let bob_secret = EphemeralSecret::random();
     let bob_public = PublicKey::from(&bob_secret);
 
     group.bench_function("diffie_hellman", |b| {
         b.iter(|| {
             // Note: EphemeralSecret is consumed, so we benchmark the pattern
-            let secret = EphemeralSecret::random_from_rng(OsRng);
+            let secret = EphemeralSecret::random();
             secret.diffie_hellman(black_box(&bob_public))
         })
     });

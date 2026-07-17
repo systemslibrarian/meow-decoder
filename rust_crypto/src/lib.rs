@@ -222,20 +222,20 @@ fn aes_gcm_encrypt<'py>(
     let cipher =
         Aes256Gcm::new_from_slice(key).map_err(|_| PyValueError::new_err("Invalid key"))?;
 
-    let nonce_arr = Nonce::from_slice(nonce);
+    let nonce_arr = Nonce::try_from(nonce).map_err(|_| PyValueError::new_err("Invalid nonce"))?;
 
     // Encrypt with AAD if provided
     let ciphertext = if let Some(aad_data) = aad {
         use aes_gcm::aead::Payload;
         cipher.encrypt(
-            nonce_arr,
+            &nonce_arr,
             Payload {
                 msg: plaintext,
                 aad: aad_data,
             },
         )
     } else {
-        cipher.encrypt(nonce_arr, plaintext)
+        cipher.encrypt(&nonce_arr, plaintext)
     };
 
     let ciphertext = ciphertext.map_err(|_| PyValueError::new_err("Encryption failed"))?;
@@ -288,20 +288,20 @@ fn aes_gcm_decrypt<'py>(
     let cipher =
         Aes256Gcm::new_from_slice(key).map_err(|_| PyValueError::new_err("Invalid key"))?;
 
-    let nonce_arr = Nonce::from_slice(nonce);
+    let nonce_arr = Nonce::try_from(nonce).map_err(|_| PyValueError::new_err("Invalid nonce"))?;
 
     // Decrypt with AAD if provided
     let plaintext = if let Some(aad_data) = aad {
         use aes_gcm::aead::Payload;
         cipher.decrypt(
-            nonce_arr,
+            &nonce_arr,
             Payload {
                 msg: ciphertext,
                 aad: aad_data,
             },
         )
     } else {
-        cipher.decrypt(nonce_arr, ciphertext)
+        cipher.decrypt(&nonce_arr, ciphertext)
     };
 
     let plaintext =
@@ -402,9 +402,8 @@ fn sha256<'py>(py: Python<'py>, data: &[u8]) -> PyResult<Bound<'py, PyBytes>> {
 fn x25519_generate_keypair<'py>(
     py: Python<'py>,
 ) -> PyResult<(Bound<'py, PyBytes>, Bound<'py, PyBytes>)> {
-    use rand_core::OsRng;
 
-    let secret = StaticSecret::random_from_rng(OsRng);
+    let secret = StaticSecret::random();
     let public = PublicKey::from(&secret);
 
     Ok((

@@ -1307,7 +1307,8 @@ pub fn version() -> String {
 ///
 /// * `data` - Raw file data
 /// * `password` - Encryption password
-/// * `block_size` - Fountain code block size (default: 512)
+/// * `block_size` - Accepted for API compatibility but currently unused:
+///   this path emits a single encrypted packet (no fountain coding).
 ///
 /// # Returns
 ///
@@ -1319,7 +1320,7 @@ pub fn encode_data(data: &[u8], password: &str, block_size: Option<u32>) -> Wasm
     use flate2::Compression;
     use std::io::Write;
 
-    let block_size = block_size.unwrap_or(512) as usize;
+    let _block_size = block_size.unwrap_or(512) as usize;
 
     // 1. Compress
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::best());

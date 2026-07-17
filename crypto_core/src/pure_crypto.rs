@@ -506,7 +506,7 @@ impl X25519KeyPair {
     #[cfg(feature = "pure-crypto")]
     pub fn generate() -> Result<Self, CryptoError> {
         // Use StaticSecret which exposes bytes (EphemeralSecret doesn't)
-        let static_secret = StaticSecret::random_from_rng(OsRng);
+        let static_secret = StaticSecret::random();
         let public = PublicKey::from(&static_secret);
 
         Ok(Self {
