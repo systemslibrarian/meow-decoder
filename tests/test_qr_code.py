@@ -119,6 +119,26 @@ def test_qr_reader_read_frame_grayscale(monkeypatch):
     assert results == [payload]
 
 
+def test_qr_reader_uses_opencv_when_zbar_is_unavailable(monkeypatch):
+    payload = b"opencv fallback"
+    encoded = base64.b85encode(payload)
+
+    def unavailable():
+        raise OSError("zbar runtime missing")
+
+    monkeypatch.setattr(qr_code, "_ensure_pyzbar", unavailable)
+    monkeypatch.setattr(
+        QRCodeReader,
+        "_decode_with_opencv",
+        staticmethod(lambda _image: [encoded]),
+    )
+
+    reader = QRCodeReader(preprocessing="normal")
+    results = reader._decode_array(np.zeros((10, 10), dtype=np.uint8))
+
+    assert results == [payload]
+
+
 def test_preprocess_normal_and_aggressive():
     pytest.importorskip("cv2")
     reader = QRCodeReader(preprocessing="normal")
