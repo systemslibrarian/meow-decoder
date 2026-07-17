@@ -137,7 +137,7 @@ jobs:
           MEOW_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload AAB as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: meow-capture-android-aab
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
@@ -145,7 +145,7 @@ jobs:
           retention-days: 30
 
       - name: Upload APK as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: meow-capture-android-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
