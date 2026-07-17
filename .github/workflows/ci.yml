@@ -567,6 +567,17 @@ jobs:
           sudo apt-get install -y libzbar0 libgl1 libglib2.0-0
           python -m pip install -e ".[dev]"
 
+      - uses: dtolnay/rust-toolchain@d0592fe69e35bc8f12e3dbaf9ad2694d976cb8e3 # stable
+        with:
+          toolchain: stable
+
+      - name: Build and install Rust crypto backend
+        # RUST_BACKEND_REQUIRED=1 (workflow env) makes pytest exit unless
+        # the meow_crypto_rs wheel is importable.
+        run: |
+          python -m pip install "maturin==1.14.1"
+          cd rust_crypto && maturin build --release --out dist && pip install --force-reinstall --no-deps dist/*.whl && cd ..
+
       - name: Install browser harness
         run: |
           npm ci
