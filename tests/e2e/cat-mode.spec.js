@@ -94,9 +94,46 @@ async function main() {
       { timeout: 120_000 },
     );
 
+    // Recommended-path control: Cat changes must not break a plain MEOW QR.
+    await page.fill('#secretMessage', 'Plain QR control');
+    await page.fill('#encryptPassword', TEST_PASSWORD);
+    await page.waitForFunction(
+      () => !document.getElementById('encryptBtn')?.disabled,
+      undefined,
+      { timeout: 30_000 },
+    );
+    await page.click('#encryptBtn');
+    await page.waitForFunction(
+      () => window.currentPayload?.startsWith('MEOW:') &&
+        Boolean(document.querySelector('#qrcode canvas')),
+      undefined,
+      { timeout: 120_000 },
+    );
+    assert(await page.locator('#qrcode canvas').isVisible(), 'Standard MEOW QR did not render');
+
     await page.click('#tab-cat');
     await page.fill('#catMessage', TEST_MESSAGE);
     await page.fill('#catPassword', TEST_PASSWORD);
+
+    // iOS Safari-style path: ordinary elements expose no fullscreen method.
+    await page.evaluate(() => {
+      const stage = document.getElementById('catCanvasStage');
+      Object.defineProperty(stage, 'requestFullscreen', { value: undefined, configurable: true });
+      Object.defineProperty(stage, 'webkitRequestFullscreen', { value: undefined, configurable: true });
+    });
+    await page.click('#catFullscreenBtn');
+    await page.waitForFunction(
+      () => document.getElementById('catCanvasStage')?.classList.contains('fullscreen-fallback'),
+      undefined,
+      { timeout: 5_000 },
+    );
+    assert(await page.locator('#catFsStartBtn').isVisible(), 'Start is missing in full-window fallback');
+    await page.click('#catFsExitBtn');
+    await page.evaluate(() => {
+      const stage = document.getElementById('catCanvasStage');
+      delete stage.requestFullscreen;
+      delete stage.webkitRequestFullscreen;
+    });
 
     await page.click('#catFullscreenBtn');
     await page.waitForFunction(() => {
