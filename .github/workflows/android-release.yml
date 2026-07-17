@@ -55,13 +55,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
       - name: Set up Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: npm
@@ -137,7 +137,7 @@ jobs:
           MEOW_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
       - name: Upload AAB as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: meow-capture-android-aab
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
@@ -145,7 +145,7 @@ jobs:
           retention-days: 30
 
       - name: Upload APK as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: meow-capture-android-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk

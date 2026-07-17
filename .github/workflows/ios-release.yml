@@ -51,7 +51,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: npm
@@ -214,7 +214,7 @@ jobs:
 
       - name: Upload IPA as workflow artifact
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: meow-decoder-ios-ipa
           path: ${{ runner.temp }}/ipa/*.ipa
