@@ -52,8 +52,9 @@ getrandom = { version = "0.4", features = ["std"] }
 # ============================================
 
 # X25519 key agreement (widely audited)
-x25519-dalek = { version = "2.0", optional = true, features = [
+x25519-dalek = { version = "3.0", optional = true, features = [
     "static_secrets",
+    "getrandom",
 ] }
 
 # Argon2id password hashing (memory-hard)

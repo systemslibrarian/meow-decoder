@@ -144,8 +144,6 @@ class QRCodeReader:
         Note:
             Automatically decodes base85-encoded QR data back to binary.
         """
-        import base64
-
         # Convert PIL to numpy array
         img_array = np.array(image)
 
@@ -155,27 +153,7 @@ class QRCodeReader:
         elif self.preprocessing == "normal":
             img_array = self._preprocess_normal(img_array)
 
-        # Decode QR codes
-        _ensure_pyzbar()
-        assert pyzbar is not None
-        decoded_objects = pyzbar.decode(img_array)
-
-        # Extract data and decode base85
-        results = []
-        for obj in decoded_objects:
-            try:
-                # Decode as ASCII string first, then base85 decode to binary
-                if isinstance(obj.data, bytes):
-                    ascii_str = obj.data.decode("ascii")
-                else:
-                    ascii_str = obj.data
-                binary_data = base64.b85decode(ascii_str)
-                results.append(binary_data)
-            except Exception:
-                # Fall back to raw bytes (old format or non-base85 data)
-                results.append(obj.data if isinstance(obj.data, bytes) else obj.data.encode())
-
-        return results
+        return self._decode_array(img_array)
 
     def read_frame(self, frame: np.ndarray) -> List[bytes]:
         """
@@ -190,35 +168,64 @@ class QRCodeReader:
         Note:
             Automatically decodes base85-encoded QR data back to binary.
         """
-        import base64
-
         # Apply preprocessing
         if self.preprocessing == "aggressive":
             frame = self._preprocess_aggressive(frame)
         elif self.preprocessing == "normal":
             frame = self._preprocess_normal(frame)
 
-        # Decode QR codes
-        _ensure_pyzbar()
-        assert pyzbar is not None
-        decoded_objects = pyzbar.decode(frame)
+        return self._decode_array(frame)
 
-        # Extract data and decode base85
-        results = []
-        for obj in decoded_objects:
-            try:
-                # Decode as ASCII string first, then base85 decode to binary
-                if isinstance(obj.data, bytes):
-                    ascii_str = obj.data.decode("ascii")
-                else:
-                    ascii_str = obj.data
-                binary_data = base64.b85decode(ascii_str)
-                results.append(binary_data)
-            except Exception:
-                # Fall back to raw bytes (old format or non-base85 data)
-                results.append(obj.data if isinstance(obj.data, bytes) else obj.data.encode())
+    def _decode_array(self, image: np.ndarray) -> List[bytes]:
+        """Decode with zbar when available, otherwise use OpenCV's QR detector."""
+        raw_values: List[bytes] = []
+        try:
+            _ensure_pyzbar()
+            assert pyzbar is not None
+            raw_values = [
+                obj.data if isinstance(obj.data, bytes) else obj.data.encode()
+                for obj in pyzbar.decode(image)
+            ]
+        except (ImportError, OSError):
+            # pyzbar's Python wheel still needs a platform zbar runtime. Windows
+            # commonly lacks libzbar/libiconv; OpenCV is already a project
+            # dependency and provides a deterministic local fallback.
+            raw_values = []
 
-        return results
+        if not raw_values:
+            raw_values = self._decode_with_opencv(image)
+
+        return [self._decode_base85_or_raw(value) for value in raw_values]
+
+    @staticmethod
+    def _decode_with_opencv(image: np.ndarray) -> List[bytes]:
+        _ensure_cv2()
+        assert cv2 is not None
+        detector = cv2.QRCodeDetector()
+
+        try:
+            detected, values, _, _ = detector.detectAndDecodeMulti(image)
+            if detected:
+                decoded = [value.encode("utf-8") for value in values if value]
+                if decoded:
+                    return decoded
+        except (cv2.error, ValueError):
+            pass
+
+        try:
+            value, _, _ = detector.detectAndDecode(image)
+        except (cv2.error, ValueError):
+            return []
+        return [value.encode("utf-8")] if value else []
+
+    @staticmethod
+    def _decode_base85_or_raw(value: bytes) -> bytes:
+        import base64
+
+        try:
+            return base64.b85decode(value.decode("ascii"))
+        except (UnicodeDecodeError, ValueError):
+            return value
 
     def _preprocess_normal(self, img: np.ndarray) -> np.ndarray:
         """

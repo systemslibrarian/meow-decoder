@@ -15,7 +15,7 @@ hmac = "0.13"
 sha2 = "0.11"
 rand = "0.8.6"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
-x25519-dalek = { version = "2.0", features = ["static_secrets"] }
+x25519-dalek = { version = "3.0", features = ["static_secrets", "getrandom"] }
 thiserror = "1.0"
 # Force minimum version for transitive dependencies with known vulnerabilities
 # RUSTSEC-2026-0009: time local offset issue - requires >=0.3.47
