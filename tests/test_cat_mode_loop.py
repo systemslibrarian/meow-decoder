@@ -51,7 +51,13 @@ def cat_mode_capture(tmp_path_factory: pytest.TempPathFactory) -> tuple[dict, li
     if node is None:
         pytest.fail("Node.js is required for the Cat Mode Playwright harness")
 
-    capture_dir = tmp_path_factory.mktemp("cat-mode-browser")
+    configured_capture_dir = os.environ.get("MEOW_CAT_CAPTURE_DIR")
+    capture_dir = (
+        Path(configured_capture_dir)
+        if configured_capture_dir
+        else tmp_path_factory.mktemp("cat-mode-browser")
+    )
+    capture_dir.mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
     env["MEOW_CAT_CAPTURE_DIR"] = str(capture_dir)
     result = subprocess.run(
