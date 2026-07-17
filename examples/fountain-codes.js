@@ -118,8 +118,8 @@ class RobustSolitonDistribution {
         return cumulative;
     }
     
-    sampleDegree() {
-        const r = Math.random();
+    sampleDegree(rng = null) {
+        const r = rng ? rng.next() : Math.random();
         for (let i = 0; i < this.cumulative.length; i++) {
             if (r < this.cumulative[i]) {
                 return Math.max(1, i);
@@ -252,7 +252,7 @@ class FountainEncoder {
         const rng = new SeededRandom(seed);
         
         // Sample degree from distribution
-        const degree = this.distribution.sampleDegree();
+        const degree = this.distribution.sampleDegree(rng);
         
         // Select random blocks
         const blockIndices = rng.sample(

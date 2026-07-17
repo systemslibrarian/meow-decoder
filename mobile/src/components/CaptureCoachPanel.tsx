@@ -24,6 +24,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { SHAKE_THRESHOLD_MS2 } from '../constants/config';
+import type { ZeroDecodeDiagnosis } from '../services/captureDiagnostics';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,6 +41,8 @@ interface CaptureCoachPanelProps {
   safeToStop: boolean;
   /** Whether the panel should render at all */
   visible: boolean;
+  /** Measured reason for a sustained zero-decode period. */
+  zeroDecodeDiagnosis: ZeroDecodeDiagnosis | null;
 }
 
 // ── Hint derivation ───────────────────────────────────────────────────────────
@@ -56,8 +59,13 @@ function deriveHints(
   shakeMagnitude: number,
   exposureBias: number,
   safeToStop: boolean,
+  zeroDecodeDiagnosis: ZeroDecodeDiagnosis | null,
 ): Hint[] {
   const hints: Hint[] = [];
+
+  if (zeroDecodeDiagnosis) {
+    return [{ icon: '!', text: zeroDecodeDiagnosis.message, severity: 'crit' }];
+  }
 
   // ── No signal at all ──────────────────────────────────────────────────────
   if (decodeRate < 0.1) {
@@ -159,10 +167,18 @@ export const CaptureCoachPanel = React.memo(function CaptureCoachPanel({
   exposureBias,
   safeToStop,
   visible,
+  zeroDecodeDiagnosis,
 }: CaptureCoachPanelProps) {
   if (!visible) return null;
 
-  const hints = deriveHints(decodeRate, duplicateRate, shakeMagnitude, exposureBias, safeToStop);
+  const hints = deriveHints(
+    decodeRate,
+    duplicateRate,
+    shakeMagnitude,
+    exposureBias,
+    safeToStop,
+    zeroDecodeDiagnosis,
+  );
 
   return (
     <View

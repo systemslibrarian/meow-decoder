@@ -167,7 +167,7 @@ export const LOW_LIGHT_RATE_THRESHOLD = 1.0 as const;
 
 /**
  * Milliseconds the decode rate must stay below LOW_LIGHT_RATE_THRESHOLD before
- * the first coaching hint fires. Prevents false positives during brief pauses.
+ * measured capture diagnostics appear. Prevents false positives during pauses.
  */
-export const LOW_LIGHT_DETECT_DELAY_MS = 2_000 as const;
+export const LOW_LIGHT_DETECT_DELAY_MS = 3_000 as const;
 

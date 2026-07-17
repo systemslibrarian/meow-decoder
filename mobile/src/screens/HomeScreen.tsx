@@ -488,16 +488,16 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               )}
             </TouchableOpacity>
 
-            {/* ── Cat Mode (beta) — hidden unless the native sampler is built ── */}
+            {/* Cat presentation uses the same native fountain QR scanner as the recommended path. */}
             {FEATURE_FLAGS.CAT_MODE && (
               <TouchableOpacity
                 style={styles.altButton}
-                onPress={() => navigation.navigate('CatCapture')}
+                onPress={() => void openRequestQrScanner()}
                 accessibilityRole="button"
-                accessibilityLabel="Capture a Cat Mode blinking-eye transmission"
-                accessibilityHint="Opens the camera to decode the blinking cat animation into a binary pattern"
+                accessibilityLabel="Scan an Experimental Cat Mode fountain transmission"
+                accessibilityHint="Opens the native QR scanner and collects encrypted fountain droplets"
               >
-                <Text style={styles.altButtonText}>😺 Cat Mode</Text>
+                <Text style={styles.altButtonText}>😺 Cat Mode · Experimental</Text>
               </TouchableOpacity>
             )}
 

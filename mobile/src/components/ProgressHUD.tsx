@@ -48,10 +48,10 @@ import type { CaptureProgress } from '../types/capture';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius, Shadows } from '../constants/theme';
 import { progressColor } from '../constants/theme';
+import { FOUNTAIN_OVERHEAD } from '../constants/config';
 import {
   formatFrameCount,
   formatElapsed,
-  estimateETA,
   recoveryConfidenceLabel,
   decodeRateDisplay,
 } from '../utils/formatters';
@@ -63,9 +63,13 @@ interface ProgressHUDProps {
   status: CaptureState;
   elapsedMs: number;
   /** Fresh decoded droplets per second (from useQRScanner) */
-  decodeRate?: number;
+  decodeRate: number;
   /** Duplicate scan fraction 0–1 (from useQRScanner) */
-  duplicateRate?: number;
+  duplicateRate: number;
+  /** Camera frames sampled by the diagnostics processor. */
+  framesSeen: number;
+  /** QR values decoded by the native scanner, including repeats. */
+  qrDecodedCount: number;
   /** Full animation loops observed this session (from useLoopDetector) */
   loopsCompleted?: number;
 }
@@ -85,6 +89,8 @@ export const ProgressHUD = React.memo(function ProgressHUD({
   elapsedMs,
   decodeRate,
   duplicateRate,
+  framesSeen,
+  qrDecodedCount,
   loopsCompleted,
 }: ProgressHUDProps) {
   // Animate the fill fraction (0–1, capped at 1 for display)
@@ -105,7 +111,11 @@ export const ProgressHUD = React.memo(function ProgressHUD({
 
   const ringColor = progressColor(progress.percentRecoverable);
 
-  const eta = estimateETA(progress.captured, progress.expected, elapsedMs);
+  const dropletTarget = Math.ceil(progress.expected * FOUNTAIN_OVERHEAD);
+  const dropletsNeeded = Math.max(0, dropletTarget - progress.captured);
+  const eta = decodeRate > 0
+    ? formatElapsed((dropletsNeeded / decodeRate) * 1_000)
+    : null;
   const confidence = recoveryConfidenceLabel(progress.captured, progress.expected);
 
   const isActiveCapture =
@@ -115,7 +125,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
     <View
       style={styles.container}
       accessible={true}
-      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent. ${confidence.label}. ${confidence.sublabel}${confidence.safeToStop ? '. Safe to stop now.' : ''}`}
+      accessibilityLabel={`Capture progress: ${Math.round(progress.percentRecoverable)} percent. ${progress.captured} unique droplets. ${dropletsNeeded} droplets needed. ${qrDecodedCount} QR codes decoded. ${confidence.label}. ${confidence.sublabel}${confidence.safeToStop ? '. Safe to stop now.' : ''}`}
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: Math.round(progress.percentRecoverable) }}
       accessibilityLiveRegion="polite"
@@ -155,9 +165,9 @@ export const ProgressHUD = React.memo(function ProgressHUD({
         {/* ── Centred frame count overlay ──────────────────────────── */}
         <View style={styles.centreOverlay} pointerEvents="none">
           <Text style={[styles.frameCount, { color: ringColor }]}>
-            {formatFrameCount(progress.captured, progress.expected)}
+            {formatFrameCount(progress.captured, dropletTarget)}
           </Text>
-          <Text style={styles.recovLabel}>{confidence.label}</Text>
+          <Text style={styles.recovLabel}>unique / target</Text>
         </View>
       </View>
 
@@ -169,12 +179,16 @@ export const ProgressHUD = React.memo(function ProgressHUD({
         </View>
       )}
 
-      {/* ── Decode rate row (shown once signal established) ─────────── */}
-      {decodeRate !== undefined && duplicateRate !== undefined && decodeRate > 0 && (
-        <Text style={styles.decodeRateText}>
-          {decodeRateDisplay(decodeRate, duplicateRate)}
-        </Text>
-      )}
+      <View style={styles.telemetryGrid} importantForAccessibility="no-hide-descendants">
+        <Text style={styles.metricText}>Frames seen {framesSeen}</Text>
+        <Text style={styles.metricText}>QRs decoded {qrDecodedCount}</Text>
+        <Text style={styles.metricText}>Unique {progress.captured}</Text>
+        <Text style={styles.metricText}>Needed {dropletsNeeded}</Text>
+        <Text style={styles.metricText}>Duplicates {Math.round(duplicateRate * 100)}%</Text>
+      </View>
+      <Text style={styles.decodeRateText}>
+        {decodeRateDisplay(decodeRate, duplicateRate)}
+      </Text>
 
       {/* ── Loop counter (shown once the animation has wrapped at least once) ── */}
       {loopsCompleted !== undefined && loopsCompleted > 0 && (
@@ -190,9 +204,7 @@ export const ProgressHUD = React.memo(function ProgressHUD({
       {isActiveCapture && (
         <View style={styles.footer}>
           <Text style={styles.timerText}>{formatElapsed(elapsedMs)}</Text>
-          {eta !== null && (
-            <Text style={styles.etaText}>ETA {eta}</Text>
-          )}
+          <Text style={styles.etaText}>ETA {eta === null ? 'waiting for signal' : eta}</Text>
         </View>
       )}
     </View>
@@ -212,6 +224,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.overlayDark,
     borderRadius: Radius.lg,
     bottom: 120,
+    minWidth: 280,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     position: 'absolute',
@@ -228,12 +241,6 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontSize: Typography.sm,
   },
-  loopText: {
-    color: Colors.textSecondary,
-    fontSize: Typography.xs,
-    marginTop: 2,
-    opacity: 0.75,
-  },
   footer: {
     flexDirection: 'row',
     gap: Spacing.lg,
@@ -243,6 +250,18 @@ const styles = StyleSheet.create({
     fontSize: Typography.lg,
     fontWeight: Typography.bold,
     textAlign: 'center',
+  },
+  loopText: {
+    color: Colors.textSecondary,
+    fontSize: Typography.xs,
+    marginTop: 2,
+    opacity: 0.75,
+  },
+  metricText: {
+    color: Colors.textPrimary,
+    fontFamily: 'monospace' as const,
+    fontSize: Typography.xs,
+    width: '50%',
   },
   recovLabel: {
     color: Colors.textSecondary,
@@ -279,6 +298,13 @@ const styles = StyleSheet.create({
   },
   svg: {
     position: 'absolute',
+  },
+  telemetryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: Spacing.sm,
+    rowGap: 3,
+    width: 240,
   },
   timerText: {
     color: Colors.textSecondary,

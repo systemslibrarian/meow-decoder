@@ -162,7 +162,34 @@ FRAME = MAC(8) || FRAME_DATA
 
 ### Frame data
 - **Frame 0:** Manifest bytes.
-- **Frame 1+:** Droplet bytes: `seed(4) || count(2) || indices(2*count) || data(block_size)`.
+- **Optional signature metadata frames:** MAC'd `MSGC` chunks immediately after frame 0.
+- **Remaining frames:** Droplet bytes: `seed(4) || count(2) || indices(2*count) || data(block_size)`.
+
+The Python QR renderer encodes each binary frame as Base85 ASCII. The Python QR
+reader reverses Base85 before applying this byte-level contract. Base85 is a QR
+presentation encoding, not an additional protocol field.
+
+### Browser/mobile fountain text envelope
+
+The web demo and Meow Capture use this ASCII QR envelope for animated browser
+payloads, including Cat Mode:
+
+```text
+FOUNTAIN:<k_blocks>:<block_size>:<original_length>:<droplet_b64>
+```
+
+- Numeric fields are unsigned decimal ASCII.
+- `droplet_b64` is RFC 4648 Base64 of the same packed droplet layout above.
+- `original_length` is the exact byte length before fountain zero-padding.
+- A receiver MUST reject invalid numeric fields, invalid Base64, inconsistent
+  parameters within one session, and truncated droplets.
+- A receiver deduplicates by droplet seed or stable droplet content and stops
+  only when fountain reconstruction completes.
+
+For the web demo, reconstructed bytes are an already-encrypted `MEOW:` text
+payload. This browser envelope is not a MEOW2/3/4/5 manifest and MUST NOT be
+treated as frame 0 of the signed CLI/GIF protocol. It does not disable or
+downgrade mandatory manifest signing for core artifacts.
 
 ---
 

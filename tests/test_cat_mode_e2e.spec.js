@@ -162,7 +162,7 @@ async function main() {
             return new Promise(async (resolve, reject) => {
                 try {
                     // Call the encode function and wait for the binary to be stored
-                    await window.catModeEncode();
+                    await window.catLegacyBlinkEncode();
                     // Return the binary data from sessionStorage
                     const binary = sessionStorage.getItem('meow_cat_binary');
                     const speed = sessionStorage.getItem('meow_cat_speed_ms');
@@ -297,7 +297,7 @@ async function main() {
         const encResult2 = await page.evaluate(() => {
             return new Promise(async (resolve, reject) => {
                 try {
-                    await window.catModeEncode();
+                    await window.catLegacyBlinkEncode();
                     const binary = sessionStorage.getItem('meow_cat_binary');
                     resolve(binary);
                 } catch (err) {
@@ -351,7 +351,7 @@ async function main() {
         const encSpecial = await page.evaluate(() => {
             return new Promise(async (resolve, reject) => {
                 try {
-                    await window.catModeEncode();
+                    await window.catLegacyBlinkEncode();
                     resolve(sessionStorage.getItem('meow_cat_binary'));
                 } catch (err) {
                     reject(err.message);
@@ -402,7 +402,7 @@ async function main() {
         const stableBinary = await page.evaluate(() => {
             return new Promise(async (resolve, reject) => {
                 try {
-                    await window.catModeEncode();
+                    await window.catLegacyBlinkEncode();
                     resolve(sessionStorage.getItem('meow_cat_binary'));
                 } catch (err) {
                     reject(err.message);

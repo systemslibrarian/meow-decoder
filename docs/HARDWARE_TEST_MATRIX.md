@@ -130,6 +130,65 @@ If you have a device and want to record a validation run:
 3. If the run failed, change the row to ❌ and open an issue
    (or note in `FOLLOWUP.md`) with the failure mode.
 
+## Cat Mode optical channel (real display + phone camera)
+
+Automated screenshot/degradation coverage is documented in `docs/CAT_MODE.md`.
+It does not substitute for a physical display, lens, autofocus system, rolling
+shutter, or ambient reflections. No row below had been run as of 2026-07-17.
+
+### Fixed procedure
+
+1. Record the tested commit, phone model, OS, Meow Capture version, display
+  model, native resolution, refresh rate, and display scaling.
+2. Disable adaptive screen brightness, night mode, HDR enhancement, and phone
+  auto-rotate. Clean both the display and camera lens.
+3. Measure ambient illuminance at the phone position with a lux meter. Record
+  the measured value; do not substitute a room-light setting name.
+4. In the web demo, select Cat Mode and transmit the ASCII text
+  `CAT-HW-0123456789abcdef` repeated 24 times with password
+  `cat-hardware-test-2026`. Use the default 500 ms frame interval.
+5. Enter fullscreen, place the phone camera lens at the specified straight-line
+  distance from the display, and set the specified horizontal viewing angle.
+6. In Meow Capture, select **Cat Mode · Experimental**. Start during the
+  countdown and do not move the phone during a trial.
+7. Record frames seen, QRs decoded, unique droplets, duplicate rate, completion
+  time, loops required, and every three-second diagnostic shown.
+8. Export the capture and verify that the reconstructed encrypted payload
+  decrypts to the exact 552-byte test text. A wrong password must not report
+  success.
+9. Repeat each row three times. Run Standard animated QR under the same
+  conditions as a control; any Standard regression fails the row.
+
+### Pass criteria
+
+A row passes only when all three Cat trials:
+
+- auto-complete within three full transmit loops;
+- reconstruct and decrypt to the exact test text;
+- emit no false completion and no incorrect plaintext;
+- keep the entire QR and quiet zone in frame; and
+- leave Standard animated QR passing three of three control trials.
+
+Record partial outcomes numerically. Do not replace a failed trial with an
+adjective such as "mostly reliable."
+
+### Required matrix
+
+| Case | Distance | Horizontal angle | Ambient light | Display brightness | Phone / display | Cat passes | Median QR read rate | Median completion | Standard control | Status |
+|---|---:|---:|---:|---:|---|---:|---:|---:|---:|---|
+| Baseline | 45 cm | 0° | 300 ± 50 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Near | 30 cm | 0° | 300 ± 50 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Far | 60 cm | 0° | 300 ± 50 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Slight angle | 45 cm | 15° | 300 ± 50 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Oblique | 45 cm | 30° | 300 ± 50 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Dim room | 45 cm | 0° | 100 ± 25 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Bright room | 45 cm | 0° | 700 ± 75 lux | 100% | — | —/3 | — | — | —/3 | ⚪ Not run |
+| Reduced display | 45 cm | 0° | 300 ± 50 lux | 50% | — | —/3 | — | — | —/3 | ⚪ Not run |
+
+For a failed row, attach the mobile debug bundle and note whether the dominant
+failure was no QR geometry, too-small/too-large QR bounds, luminance threshold,
+motion, duplicate saturation, or fountain incompleteness.
+
 ## Related documents
 
 - `docs/THREAT_MODEL.md` — what the hardware integration is meant to
@@ -140,3 +199,4 @@ If you have a device and want to record a validation run:
 - `meow_decoder/hardware_integration.py` — Python API surface.
 - `FOLLOWUP.md` — closed audit findings on hardware paths
   (Findings 6.2, 6.3, 6.6, 7.1, 12.6).
+- `docs/CAT_MODE.md` — Cat optical design, automated measurements, and limits.

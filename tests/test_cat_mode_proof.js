@@ -117,18 +117,18 @@ async function main() {
             await page.fill('#catMessage', message);
             await page.fill('#catPassword', password);
 
-            // Encode via the real catModeEncode() and grab binary from sessionStorage
-            info('Calling catModeEncode()...');
+            // Encode through the preserved legacy blink path and grab its bits.
+            info('Calling catLegacyBlinkEncode()...');
             var encodeResult = await page.evaluate(async function() {
                 try {
-                    await window.catModeEncode();
+                    await window.catLegacyBlinkEncode();
                 } catch (e) {
                     return { binary: null, length: 0, error: e.message };
                 }
                 var binary = sessionStorage.getItem('meow_cat_binary');
                 return { binary: binary, length: binary ? binary.length : 0 };
             });
-            info('catModeEncode() returned');
+            info('catLegacyBlinkEncode() returned');
 
             if (!encodeResult.binary || encodeResult.binary.length === 0) {
                 fail('Encode produced empty binary');

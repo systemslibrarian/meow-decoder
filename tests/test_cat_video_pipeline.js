@@ -224,7 +224,7 @@ async function main() {
                 // Don't await directly since it involves rAF animation.
                 // Instead, fire it and then wait for the binary to appear.
                 page.evaluate(() => {
-                    window._catEncodePromise = window.catModeEncode();
+                    window._catEncodePromise = window.catLegacyBlinkEncode();
                 });
 
                 // Wait for binary to be stored in sessionStorage
