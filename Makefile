@@ -1,6 +1,8 @@
 # 🐱 Meow Decoder - Makefile
 
-.PHONY: help install dev test test-rust test-rust-coverage lint format clean build publish \
+PYTHON ?= python
+
+.PHONY: help install dev test test-cat-mode test-rust test-rust-coverage lint format clean build publish \
 	formal-proverif formal-proverif-html formal-tla formal-tla-fountain formal-tla-streaming \
 	formal-tamarin formal-tamarin-duress formal-tamarin-pq formal-tamarin-docker \
 	formal-verus formal-verus-docker formal-lean formal-lean-sorry formal-all formal-ci \
@@ -13,6 +15,7 @@ help:
 	@echo "  make install     - Install dependencies"
 	@echo "  make dev         - Install dev dependencies"
 	@echo "  make test        - Run Python tests"
+	@echo "  make test-cat-mode - Run Cat Mode browser + optical-channel tests"
 	@echo "  make test-rust   - Run Rust tests (no coverage)"
 	@echo "  make lint        - Lint code"
 	@echo "  make format      - Format code"
@@ -71,6 +74,9 @@ dev:
 
 test:
 	pytest tests/ -v --cov=meow_decoder
+
+test-cat-mode:
+	$(PYTHON) -m pytest -o addopts= tests/test_cat_mode_loop.py -v --tb=short
 
 test-security:
 	@echo "🐾 Running security coverage gate (TIER 1 modules, ≥85% required)..."
