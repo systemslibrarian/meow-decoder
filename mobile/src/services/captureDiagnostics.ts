@@ -23,8 +23,8 @@ export type ZeroDecodeReason =
 export interface ZeroDecodeInputs {
   decodeRate: number;
   zeroDecodeMs: number;
-  /** Mean sampled Y-plane luminance, 0-255. */
-  luminance: number;
+  /** Mean sampled Y-plane luminance, 0-255, or null when no sample exists. */
+  luminance: number | null;
   /** Accelerometer movement magnitude in m/s^2. */
   shakeMagnitude: number;
   /** Largest QR dimension divided by the corresponding scanner-frame dimension. */
@@ -53,13 +53,15 @@ export function diagnoseZeroDecode({
       message: 'Moving too much: hold the phone still or rest it on a surface.',
     };
   }
-  if (luminance < DARK_LUMINANCE_MAX) {
+  // A dead/absent luminance sampler must not be diagnosed as darkness or
+  // glare — without a measurement we fall through to the honest fallbacks.
+  if (luminance !== null && luminance < DARK_LUMINANCE_MAX) {
     return {
       reason: 'too-dark',
       message: 'Image is too dark: raise the sender screen brightness.',
     };
   }
-  if (luminance > GLARE_LUMINANCE_MIN) {
+  if (luminance !== null && luminance > GLARE_LUMINANCE_MIN) {
     return {
       reason: 'glare',
       message: 'Screen is too bright or has glare: tilt the phone and lower exposure.',

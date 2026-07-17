@@ -75,9 +75,21 @@ export function parseFountainPayload(qrValue: string): QRFramePayload | null {
   if (parts.length < 5) return null;
 
   const kBlocks = parseInt(parts[1] ?? '', 10);
+  const blockSize = parseInt(parts[2] ?? '', 10);
+  const originalLength = parseInt(parts[3] ?? '', 10);
   const dropletB64 = parts.slice(4).join(':'); // re-join in case base64 contains ':'
 
-  if (!Number.isFinite(kBlocks) || kBlocks <= 0) return null;
+  // PROTOCOL.md: receivers reject invalid numeric fields. Bounds mirror the
+  // wire format (k_blocks is u16) and the desktop decoder's sanity ceilings.
+  if (!Number.isFinite(kBlocks) || kBlocks <= 0 || kBlocks > 65_535) return null;
+  if (!Number.isFinite(blockSize) || blockSize <= 0 || blockSize > 1_048_576) return null;
+  if (
+    !Number.isFinite(originalLength) ||
+    originalLength <= 0 ||
+    originalLength > kBlocks * blockSize
+  ) {
+    return null;
+  }
   if (!dropletB64 || !isValidBase64(dropletB64)) return null;
 
   // Derive a stable dedup index from the droplet content.

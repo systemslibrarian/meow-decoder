@@ -59,7 +59,7 @@ pub struct Droplet {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WireError {
     /// Header would not fit in the buffer at all.
-    /// Need at least 10 bytes (8 seed + 2 block_count).
+    /// Need at least 6 bytes (4 seed + 2 block_count).
     HeaderTooShort { got: usize },
     /// `block_count` field claims more indices than the buffer can hold.
     IndicesOverflow {

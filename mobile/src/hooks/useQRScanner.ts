@@ -61,6 +61,8 @@ export function useQRScanner({
   const lastTimestampRef = useRef<number>(0);
   const recentCodesRef = useRef<Array<{ value: string; time: number }>>([]);
   const gifDetectedRef = useRef<boolean>(false);
+  // First-seen FOUNTAIN "<k>:<block_size>:<original_length>" for this session.
+  const fountainHeaderRef = useRef<string | null>(null);
 
   // ── Decode-rate tracking ─────────────────────────────────────────────────
   // Ring buffers: timestamps of all QR callbacks vs fresh (non-dup) frames.
@@ -82,6 +84,7 @@ export function useQRScanner({
       lastTimestampRef.current = 0;
       recentCodesRef.current = [];
       gifDetectedRef.current = false;
+      fountainHeaderRef.current = null;
       freshTimestampsRef.current = [];
       allScanTimestampsRef.current = [];
       qrDecodedCountRef.current = 0;
@@ -132,21 +135,9 @@ export function useQRScanner({
         const qrData = codes[0]?.value;
         if (!qrData || qrData.length === 0) return;
 
-        const now = Date.now();
-        // ── Dedup: skip identical payload within the dedup window ───────────
-        if (
-          qrData === lastScannedRef.current &&
-          now - lastTimestampRef.current < QR_DEDUP_INTERVAL_MS
-        ) {
-          // Still counts as a scan for duplicate-rate — same frame seen again
-          allScanTimestampsRef.current.push(now);
-          return;
-        }
-
-        lastScannedRef.current = qrData;
-        lastTimestampRef.current = now;
-
         // ── Fast prefix filter — discard non-meow QR codes immediately ──────
+        // Runs BEFORE dedup so foreign codes never touch dedup state or the
+        // duplicate-rate metric.
         // IMPORTANT: keep in sync with QR_PREFIXES in qrDecoder.ts and
         // isMeowQRPayload(). Any new prefix added there must be added here too.
         const isMeow =
@@ -162,9 +153,40 @@ export function useQRScanner({
 
         if (!isMeow) return;
 
+        const now = Date.now();
+        // ── Dedup: sliding window. A continuously displayed frame keeps
+        // refreshing the window and never re-passes, so it can't fake loop
+        // completions or inflate the fresh-decode rate; a genuine loop wrap
+        // (different codes in between) resets lastScannedRef and passes. ──
+        if (
+          qrData === lastScannedRef.current &&
+          now - lastTimestampRef.current < QR_DEDUP_INTERVAL_MS
+        ) {
+          lastTimestampRef.current = now;
+          // Still counts as a scan for duplicate-rate — same frame seen again
+          allScanTimestampsRef.current.push(now);
+          return;
+        }
+
+        lastScannedRef.current = qrData;
+        lastTimestampRef.current = now;
+
         // Only count meow QR events toward duplicate-rate tracking so that
         // accidentally-scanned non-meow codes don't inflate the metric.
         allScanTimestampsRef.current.push(now);
+
+        // ── FOUNTAIN session consistency (PROTOCOL.md): droplets from a
+        // different transfer (changed k/block_size/original_length — e.g. the
+        // sender restarted with new content mid-scan) must not mix into this
+        // session's frame set, or the export becomes silently undecodable. ──
+        if (qrData.startsWith('FOUNTAIN:')) {
+          const header = qrData.split(':', 4).slice(1).join(':');
+          if (fountainHeaderRef.current === null) {
+            fountainHeaderRef.current = header;
+          } else if (fountainHeaderRef.current !== header) {
+            return;
+          }
+        }
 
         // ── GIF auto-detection heuristic ─────────────────────────────────────
         if (!gifDetectedRef.current) {

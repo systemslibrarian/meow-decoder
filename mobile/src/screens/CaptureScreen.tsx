@@ -93,12 +93,22 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     codeScanner,
   } = useSessionManager();
 
+  // Dropped permanently for the session after a native camera error: the
+  // extra ImageAnalysis use case can exceed LIMITED-level Android surface
+  // combinations, and Retry must rebind without it to keep QR scanning alive.
+  const [diagnosticsBlocked, setDiagnosticsBlocked] = useState(false);
+  const handleCameraError = useRef(() => setDiagnosticsBlocked(true)).current;
+
   const {
     frameProcessor: captureFrameProcessor,
     framesSeen,
     luminance,
   } = useCaptureFrameMetrics({
-    enabled: status === 'AWAITING_GIF' || status === 'CAPTURING',
+    // PAUSED stays enabled so pause/resume doesn't detach the frame
+    // processor and force a full camera unbind/rebind cycle.
+    enabled:
+      !diagnosticsBlocked &&
+      (status === 'AWAITING_GIF' || status === 'CAPTURING' || status === 'PAUSED'),
   });
 
   // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
@@ -433,6 +443,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         isBackgrounding={isBackgrounding}
         onAutoRecoveryRef={autoRecoveryRef}
         onExposureBiasChange={handleExposureBiasChange}
+        onCameraError={handleCameraError}
       />
 
       {/* Scan region + status badges */}

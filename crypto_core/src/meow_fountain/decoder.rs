@@ -100,12 +100,15 @@ impl FountainDecoder {
         if k_blocks > u16::MAX as usize {
             return Err(DecoderError::KBlocksOverflowU16 { k_blocks });
         }
-        let total = (k_blocks as u64) * (block_size as u64);
-        if total > MAX_TOTAL_SIZE {
-            return Err(DecoderError::TotalSizeExceeded {
-                total,
-                ceiling: MAX_TOTAL_SIZE,
-            });
+        // checked_mul: a wrapping product could sneak under the ceiling.
+        match (k_blocks as u64).checked_mul(block_size as u64) {
+            Some(total) if total <= MAX_TOTAL_SIZE => {}
+            other => {
+                return Err(DecoderError::TotalSizeExceeded {
+                    total: other.unwrap_or(u64::MAX),
+                    ceiling: MAX_TOTAL_SIZE,
+                });
+            }
         }
         Ok(Self {
             k_blocks,

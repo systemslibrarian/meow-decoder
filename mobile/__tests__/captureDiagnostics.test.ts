@@ -41,4 +41,13 @@ describe('diagnoseZeroDecode', () => {
   it('uses an honest framing fallback before QR bounds are available', () => {
     expect(diagnoseZeroDecode(BASE)).toMatchObject({ reason: 'no-geometry' });
   });
+
+  it('never claims darkness or glare when no luminance sample exists', () => {
+    expect(diagnoseZeroDecode({ ...BASE, luminance: null })).toMatchObject({
+      reason: 'no-geometry',
+    });
+    expect(
+      diagnoseZeroDecode({ ...BASE, luminance: null, qrCoverage: 0.12 }),
+    ).toMatchObject({ reason: 'too-far' });
+  });
 });

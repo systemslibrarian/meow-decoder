@@ -131,7 +131,7 @@ async function encodeThenRecord(page, message, password, speed, dualEye) {
     }, { s: speed, dual: dualEye });
 
     info('Encoding...');
-    page.evaluate(() => { window._p = window.catModeEncode(); });
+    page.evaluate(() => { window._p = window.catLegacyBlinkEncode(); });
 
     await page.waitForFunction(
         () => sessionStorage.getItem('meow_cat_binary')?.length > 0,

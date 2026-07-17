@@ -81,18 +81,31 @@ impl FountainEncoder {
         if k_blocks > u16::MAX as usize {
             return Err(EncoderError::KBlocksOverflowU16 { k_blocks });
         }
-        let total = (k_blocks as u64) * (block_size as u64);
-        if total > MAX_TOTAL_SIZE {
-            return Err(EncoderError::TotalSizeExceeded {
-                total,
-                ceiling: MAX_TOTAL_SIZE,
-            });
-        }
+        // checked_mul: a wrapping product could sneak under the ceiling, and
+        // on 32-bit targets `total as usize` would truncate — both must fail.
+        let total_u64 = match (k_blocks as u64).checked_mul(block_size as u64) {
+            Some(total) if total <= MAX_TOTAL_SIZE => total,
+            other => {
+                return Err(EncoderError::TotalSizeExceeded {
+                    total: other.unwrap_or(u64::MAX),
+                    ceiling: MAX_TOTAL_SIZE,
+                });
+            }
+        };
+        let total = match usize::try_from(total_u64) {
+            Ok(total) => total,
+            Err(_) => {
+                return Err(EncoderError::TotalSizeExceeded {
+                    total: total_u64,
+                    ceiling: MAX_TOTAL_SIZE,
+                });
+            }
+        };
         // Pad with zeros up to total_size.
-        let mut padded = Vec::with_capacity(total as usize);
+        let mut padded = Vec::with_capacity(total);
         padded.extend_from_slice(data);
-        if (data.len() as u64) < total {
-            padded.resize(total as usize, 0);
+        if data.len() < total {
+            padded.resize(total, 0);
         }
 
         let mut blocks = Vec::with_capacity(k_blocks);

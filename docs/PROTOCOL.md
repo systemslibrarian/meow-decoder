@@ -181,10 +181,17 @@ FOUNTAIN:<k_blocks>:<block_size>:<original_length>:<droplet_b64>
 - Numeric fields are unsigned decimal ASCII.
 - `droplet_b64` is RFC 4648 Base64 of the same packed droplet layout above.
 - `original_length` is the exact byte length before fountain zero-padding.
-- A receiver MUST reject invalid numeric fields, invalid Base64, inconsistent
-  parameters within one session, and truncated droplets.
-- A receiver deduplicates by droplet seed or stable droplet content and stops
-  only when fountain reconstruction completes.
+- A receiver MUST reject invalid numeric fields, invalid Base64, and
+  inconsistent parameters within one session. (Meow Capture validates all
+  three numeric fields and drops droplets whose
+  `<k_blocks>:<block_size>:<original_length>` header differs from the first
+  accepted frame; it does not unpack droplet bytes, so truncation inside
+  `droplet_b64` is caught later by the reconstructing decoder.)
+- A receiver deduplicates by droplet seed or stable droplet content. A
+  reconstructing receiver (web demo) stops when fountain reconstruction
+  completes; a collecting receiver (Meow Capture) stops at the
+  `ceil(1.5 x k_blocks)` unique-droplet threshold and defers reconstruction
+  to the desktop decoder.
 
 For the web demo, reconstructed bytes are an already-encrypted `MEOW:` text
 payload. This browser envelope is not a MEOW2/3/4/5 manifest and MUST NOT be

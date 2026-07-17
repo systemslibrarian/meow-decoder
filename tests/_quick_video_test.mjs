@@ -55,7 +55,7 @@ await page.fill('#catPassword', 'video-test-pw-2024');
 await page.evaluate(() => { document.getElementById('catBlinkSpeed').value = '500'; });
 
 // Start encode  
-page.evaluate(() => { window._p = window.catModeEncode(); });
+page.evaluate(() => { window._p = window.catLegacyBlinkEncode(); });
 await page.waitForFunction(() => {
     const b = sessionStorage.getItem('meow_cat_binary');
     return b && b.length > 0;

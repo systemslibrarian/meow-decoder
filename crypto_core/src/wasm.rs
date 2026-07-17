@@ -360,6 +360,14 @@ pub struct WasmX25519KeyPair {
     public: [u8; 32],
 }
 
+/// The secret must not linger in wasm linear memory after drop.
+#[cfg(all(feature = "wasm", feature = "pure-crypto"))]
+impl Drop for WasmX25519KeyPair {
+    fn drop(&mut self) {
+        self.secret.zeroize();
+    }
+}
+
 #[cfg(all(feature = "wasm", feature = "pure-crypto"))]
 #[wasm_bindgen]
 impl WasmX25519KeyPair {

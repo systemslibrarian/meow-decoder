@@ -446,6 +446,14 @@ fn x25519_exchange<'py>(
     // Zeroize private key copy
     priv_bytes.zeroize();
 
+    // Reject low-order points that produce an all-zero shared secret
+    // (same guard as X25519Private::exchange in handles.rs).
+    if shared.as_bytes().iter().all(|&b| b == 0) {
+        return Err(PyValueError::new_err(
+            "X25519 produced an all-zero shared secret (low-order point)",
+        ));
+    }
+
     Ok(PyBytes::new(py, shared.as_bytes()))
 }
 

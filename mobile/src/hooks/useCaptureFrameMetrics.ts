@@ -13,8 +13,8 @@ export interface CaptureFrameMetrics {
   frameProcessor: ReadonlyFrameProcessor | undefined;
   /** Camera frames sampled by this diagnostics processor. */
   framesSeen: number;
-  /** Mean Y-plane luminance, 0-255. */
-  luminance: number;
+  /** Mean Y-plane luminance, 0-255, or null before any sample arrives. */
+  luminance: number | null;
 }
 
 interface UseCaptureFrameMetricsOptions {
@@ -29,12 +29,14 @@ export function useCaptureFrameMetrics({
   maxSamples = 512,
 }: UseCaptureFrameMetricsOptions): CaptureFrameMetrics {
   const [framesSeen, setFramesSeen] = useState(0);
-  const [luminance, setLuminance] = useState(0);
+  // null (not 0) until a real sample arrives: a dead sampler must read as
+  // "no measurement", never as pitch-black.
+  const [luminance, setLuminance] = useState<number | null>(null);
 
   useEffect(() => {
     if (!enabled) {
       setFramesSeen(0);
-      setLuminance(0);
+      setLuminance(null);
     }
   }, [enabled]);
 
