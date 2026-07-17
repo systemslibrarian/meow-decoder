@@ -436,23 +436,25 @@
         .cat-canvas-stage:fullscreen .cat-optical-layer,
         .cat-canvas-stage:-webkit-full-screen .cat-optical-layer,
         .cat-canvas-stage.fullscreen-fallback .cat-optical-layer {
+            /* Anchor the inset slightly below center so more of the cat face
+               shows above the QR; keep 112px clear for the fs controls. */
+            top: 22vh;
             bottom: 112px;
         }
-        .cat-canvas-stage.optical-active #catCanvas {
-            opacity: 0.34;
-        }
+        /* Blended presentation: the cat stays fully visible during optical
+           transmission (no dimming) and blinks with each frame advance. */
         .cat-qr-shell {
             aspect-ratio: 1 / 1;
             background: #fff;
             border: 4px solid #fff;
             box-shadow: 0 0 0 3px #050816, 0 0 0 6px #00ccff;
             position: relative;
-            width: min(88%, 560px);
+            width: min(72%, 400px);
         }
         .cat-canvas-stage:fullscreen .cat-qr-shell,
         .cat-canvas-stage:-webkit-full-screen .cat-qr-shell,
         .cat-canvas-stage.fullscreen-fallback .cat-qr-shell {
-            width: min(72vw, 72vh, 560px);
+            width: min(58vw, 58vh, 480px);
         }
         #catQrCanvas {
             display: block;
@@ -1249,8 +1251,8 @@
         <div id="catMode" class="mode-content" role="tabpanel" aria-labelledby="tab-cat" aria-hidden="true">
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">1</span>
-                <h2>😺 Cat Mode: Optical Data Transmission <span style="font-size:0.55em; color:#ffb347;">Experimental</span></h2>
-                <p class="step-desc">The cat presents a high-contrast fountain QR inset so Meow Capture can recover encrypted droplets through an ordinary phone camera.</p>
+                <h2>😺 Cat Mode 2 · Blended <span style="font-size:0.55em; color:#ffb347;">Experimental</span></h2>
+                <p class="step-desc">The cat stays fully visible and blinks its eyes with each transmitted frame while the high-contrast QR inset carries the encrypted fountain droplets to Meow Capture.</p>
                 <p style="color:#d7f7ff; font-size:0.9em; margin:10px 0 15px 0; padding:10px; background:rgba(0,60,90,0.35); border-radius:6px; border-left:3px solid #00ccff;">
                     🔐 <b>Transport + Encryption used here:</b> password-based <b>AES-256-GCM</b> with <b>Argon2id</b> key derivation. Fountain coding is applied only after encryption. Cat Mode remains an Experimental presentation layer and does <b>not</b> add forward secrecy or post-quantum encryption.
                 </p>
@@ -5166,6 +5168,39 @@
             }
         }
 
+        // Blended presentation: a purely cosmetic eye blink on #catCanvas that
+        // fires on every optical frame advance — the transfer's visible
+        // heartbeat. It reuses the legacy eye-region drawing routine
+        // (drawWithGreenBlink toggles only the detected green eye pixels),
+        // carries NO data, and never touches #catQrCanvas. Errors are
+        // swallowed so a cosmetic failure can never break transmission.
+        let catCosmeticBlinkTimer = null;
+        function triggerCatCosmeticBlink() {
+            try {
+                if (!catOriginalImageData) return;
+                if (catCosmeticBlinkTimer !== null) {
+                    clearTimeout(catCosmeticBlinkTimer);
+                    catCosmeticBlinkTimer = null;
+                }
+                drawWithGreenBlink(false); // eyes closed (green pixels dark)
+                catCosmeticBlinkTimer = setTimeout(() => {
+                    catCosmeticBlinkTimer = null;
+                    try {
+                        drawWithGreenBlink(true); // restore the base cat (eyes open)
+                    } catch (_) { /* cosmetic only */ }
+                }, 130);
+            } catch (_) { /* cosmetic only */ }
+        }
+        function cancelCatCosmeticBlink() {
+            if (catCosmeticBlinkTimer !== null) {
+                clearTimeout(catCosmeticBlinkTimer);
+                catCosmeticBlinkTimer = null;
+            }
+            try {
+                if (catOriginalImageData) drawWithGreenBlink(true);
+            } catch (_) { /* cosmetic only */ }
+        }
+
         function drawCatOpticalFrame(index) {
             const frame = catOpticalFrames[index];
             if (!frame) return;
@@ -5181,6 +5216,7 @@
             state.frameIndex = index;
             state.framePayload = frame.payload;
             state.frameSerial += 1;
+            triggerCatCosmeticBlink();
             updateCatOpticalUi();
         }
 
@@ -5222,6 +5258,12 @@
             state.loopCount = 0;
             state.frameSerial = 0;
             catTransmitting = true;
+            // Blended presentation: make sure the base cat is on #catCanvas
+            // before the QR loop starts (a prior legacy run may have left the
+            // eyes dark). Cosmetic only — never allowed to break transmission.
+            try {
+                if (catOriginalImageData) drawWithGreenBlink(true);
+            } catch (_) { /* cosmetic only */ }
             drawCatOpticalFrame(0);
 
             let nextDeadline = null;
@@ -5366,6 +5408,7 @@
             if (catOpticalCountdownRaf !== null) cancelAnimationFrame(catOpticalCountdownRaf);
             catOpticalRaf = null;
             catOpticalCountdownRaf = null;
+            cancelCatCosmeticBlink();
             document.getElementById('catCountdown').classList.remove('active');
             const state = window.catModeTransmission;
             state.status = 'idle';

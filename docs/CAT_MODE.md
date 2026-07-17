@@ -5,9 +5,9 @@
 **Automated optical status:** Passing on 2026-07-17  
 **Real-device status:** No controlled phone/display measurements recorded yet
 
-Cat Mode is a presentation layer for the web demo's encrypted payload. The cat remains visible behind a high-contrast QR inset; Meow Capture reads the inset with its normal native QR scanner and collects fountain droplets until the transfer threshold is reached.
+Cat Mode is a presentation layer for the web demo's encrypted payload. In the current **Blended** presentation ("Cat Mode 2 · Blended") the cat stays fully visible — no dimming — behind a high-contrast QR inset, and the cat's eyes perform a brief cosmetic blink on every optical frame advance, making the blink the visible heartbeat of the transfer. Meow Capture reads the inset with its normal native QR scanner and collects fountain droplets until the transfer threshold is reached.
 
-Cat Mode no longer uses blinking eyes for the user-facing transfer. The old blink encoder and decoder remain available only for compatibility with previously recorded research artifacts.
+Cat Mode no longer uses blinking eyes as the data channel for the user-facing transfer: the blink is purely cosmetic and carries no bits. The old blink encoder and decoder remain available only for compatibility with previously recorded research artifacts. A roadmap for restoring true blink transport as an optional slow mode is in [CAT_MODE_BLINK_ROADMAP.md](CAT_MODE_BLINK_ROADMAP.md).
 
 ## End-to-end flow
 
@@ -42,6 +42,8 @@ The web stage displays the parameters it actually uses, plus frame number, total
 ### Fullscreen behavior
 
 Cat Mode requests element fullscreen through the standard Fullscreen API, with the WebKit-prefixed method as a compatibility fallback. If an element fullscreen request is unsupported or rejected, including non-video elements on iOS Safari, the stage switches to a fixed full-window fallback. Start, Stop, current frame, loop count, and Exit controls remain inside either presentation.
+
+In the Blended presentation the cat canvas is rendered at full opacity throughout transmission. The QR inset is sized to keep the cat prominent while remaining reliably scannable: `min(72%, 400px)` of the stage in the normal view, and `min(58vw, 58vh, 480px)` in fullscreen, where it is anchored slightly below center so more of the cat face shows above the inset. The white shell and quiet zone are never overlapped, and the calibration corners remain at the shell edges.
 
 The controls reserve 112 CSS pixels below the optical layer. They do not cover the QR quiet zone or finder patterns.
 
@@ -136,5 +138,5 @@ The required matrix and pass criteria are in `docs/HARDWARE_TEST_MATRIX.md`. Unt
 - QR version is selected by the browser QR library from frame content; the 560-pixel raster and 128-byte blocks preserve larger modules than the previous 256-byte experiment.
 - Fullscreen enlarges the rendered inset but does not create optical guarantees. Display pixel density, camera focus, rolling shutter, PWM, reflections, and physical distance still require hardware measurement.
 - Sending through messaging-app recompression is outside the live camera path and may fail.
-- The legacy blinking-eye receiver does not collect droplets and is not the current Cat Mode workflow.
+- The legacy blinking-eye receiver does not collect droplets and is not the current Cat Mode workflow. The Blended presentation's eye blink is cosmetic only; restoring true blink→app transport as an optional slow mode is tracked in [CAT_MODE_BLINK_ROADMAP.md](CAT_MODE_BLINK_ROADMAP.md).
 - Standard animated QR remains the Recommended tier and should be used when camouflage is not required.
