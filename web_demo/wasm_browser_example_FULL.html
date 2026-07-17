@@ -365,6 +365,7 @@
         }
         .cat-canvas-stage {
             flex: 1 1 320px;
+            aspect-ratio: 1 / 1;
             width: min(100%, 400px);
             margin: 0 auto;
             display: flex;
@@ -419,6 +420,79 @@
             flex-basis: 100%;
             font-size: 0.85rem;
             text-align: center;
+        }
+        .cat-optical-layer {
+            align-items: center;
+            display: none;
+            inset: 0;
+            justify-content: center;
+            pointer-events: none;
+            position: absolute;
+            z-index: 2;
+        }
+        .cat-canvas-stage.optical-active .cat-optical-layer {
+            display: flex;
+        }
+        .cat-canvas-stage:fullscreen .cat-optical-layer,
+        .cat-canvas-stage:-webkit-full-screen .cat-optical-layer,
+        .cat-canvas-stage.fullscreen-fallback .cat-optical-layer {
+            bottom: 112px;
+        }
+        .cat-canvas-stage.optical-active #catCanvas {
+            opacity: 0.34;
+        }
+        .cat-qr-shell {
+            aspect-ratio: 1 / 1;
+            background: #fff;
+            border: 4px solid #fff;
+            box-shadow: 0 0 0 3px #050816, 0 0 0 6px #00ccff;
+            position: relative;
+            width: min(88%, 560px);
+        }
+        .cat-canvas-stage:fullscreen .cat-qr-shell,
+        .cat-canvas-stage:-webkit-full-screen .cat-qr-shell,
+        .cat-canvas-stage.fullscreen-fallback .cat-qr-shell {
+            width: min(72vw, 72vh, 560px);
+        }
+        #catQrCanvas {
+            display: block;
+            height: 100%;
+            image-rendering: pixelated;
+            width: 100%;
+        }
+        .cat-calibration-corner {
+            border-color: #00ccff;
+            height: 22px;
+            position: absolute;
+            width: 22px;
+        }
+        .cat-calibration-corner.tl { border-left: 5px solid; border-top: 5px solid; left: -13px; top: -13px; }
+        .cat-calibration-corner.tr { border-right: 5px solid; border-top: 5px solid; right: -13px; top: -13px; }
+        .cat-calibration-corner.bl { border-bottom: 5px solid; border-left: 5px solid; bottom: -13px; left: -13px; }
+        .cat-calibration-corner.br { border-bottom: 5px solid; border-right: 5px solid; bottom: -13px; right: -13px; }
+        .cat-countdown {
+            align-items: center;
+            background: rgba(5, 8, 22, 0.9);
+            color: #fff;
+            display: none;
+            font-size: 5rem;
+            font-weight: 800;
+            inset: 0;
+            justify-content: center;
+            position: absolute;
+        }
+        .cat-countdown.active {
+            display: flex;
+        }
+        .cat-tx-params {
+            background: rgba(0, 204, 255, 0.08);
+            border-left: 3px solid #00ccff;
+            color: #b9d7e2;
+            font-family: monospace;
+            font-size: 0.78rem;
+            line-height: 1.5;
+            margin-top: 12px;
+            padding: 8px 10px;
         }
         .cat-reaction {
             font-size: 1.5em;
@@ -1175,17 +1249,27 @@
         <div id="catMode" class="mode-content" role="tabpanel" aria-labelledby="tab-cat" aria-hidden="true">
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">1</span>
-                <h2>😺 Cat Mode: Optical Data Transmission</h2>
-                <p class="step-desc">Transmit encrypted messages through the cat's blinking eyes! Each eye carries a separate bit — left eye and right eye blink independently for 2× speed. Green = 1, dark = 0.</p>
+                <h2>😺 Cat Mode: Optical Data Transmission <span style="font-size:0.55em; color:#ffb347;">Experimental</span></h2>
+                <p class="step-desc">The cat presents a high-contrast fountain QR inset so Meow Capture can recover encrypted droplets through an ordinary phone camera.</p>
                 <p style="color:#d7f7ff; font-size:0.9em; margin:10px 0 15px 0; padding:10px; background:rgba(0,60,90,0.35); border-radius:6px; border-left:3px solid #00ccff;">
-                    🔐 <b>Transport + Encryption used here:</b> password-based <b>AES-256-GCM</b> with <b>Argon2id</b> key derivation. Cat Mode is only the optical transport layer for the encrypted payload. It uses the selected security preset and does <b>not</b> add forward secrecy or post-quantum encryption.
+                    🔐 <b>Transport + Encryption used here:</b> password-based <b>AES-256-GCM</b> with <b>Argon2id</b> key derivation. Fountain coding is applied only after encryption. Cat Mode remains an Experimental presentation layer and does <b>not</b> add forward secrecy or post-quantum encryption.
                 </p>
                 <p style="color:#888; font-size:0.85em; margin:10px 0 15px 0; padding:8px; background:rgba(0,204,255,0.1); border-radius:6px; border-left:3px solid #00ccff;">
-                    💡 <b>Note:</b> The green flashing in the eye regions during transmission is intentional — that's the binary data being transmitted! Left eye = even bits, right eye = odd bits. 2 bits per blink interval.
+                    💡 <b>Capture:</b> Open <b>Scan Sender Screen</b> in Meow Capture, fill the guide with the white QR inset, then keep the phone steady while the frames loop.
                 </p>
                 <div style="display: flex; gap: 30px; align-items: flex-start; flex-wrap: wrap;">
                     <div id="catCanvasStage" class="cat-canvas-stage">
                         <canvas id="catCanvas" width="400" height="400" style="background:transparent; border-radius: 12px; box-shadow: 0 2px 8px #0003;"></canvas>
+                        <div id="catOpticalLayer" class="cat-optical-layer">
+                            <div class="cat-qr-shell">
+                                <canvas id="catQrCanvas" width="560" height="560" aria-label="Cat Mode fountain QR frame"></canvas>
+                                <span class="cat-calibration-corner tl"></span>
+                                <span class="cat-calibration-corner tr"></span>
+                                <span class="cat-calibration-corner bl"></span>
+                                <span class="cat-calibration-corner br"></span>
+                                <div id="catCountdown" class="cat-countdown" aria-live="assertive"></div>
+                            </div>
+                        </div>
                         <div id="catFsControls" class="cat-fs-controls">
                             <div id="catFsState" class="cat-fs-state" aria-live="polite">Idle — ready to transmit</div>
                             <button id="catFsStartBtn" onclick="catModeEncode()">▶ Start Transmitting</button>
@@ -1204,19 +1288,21 @@
                             <label for="showCatPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
                         </div>
 
-                        <label for="catBlinkSpeed">⚡ Blink Speed:</label>
+                        <label for="catBlinkSpeed">⚡ QR frame interval:</label>
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
-                            <option value="200" selected>200ms — proven reliable</option>
+                            <option value="500" selected>500ms — 2 frames/second</option>
+                            <option value="750">750ms — 1.3 frames/second</option>
+                            <option value="1000">1000ms — 1 frame/second</option>
                         </select>
 
-                        <div style="margin-bottom: 10px;">
+                        <div style="display:none; margin-bottom: 10px;">
                             <input type="checkbox" id="catDualEye">
-                            <label for="catDualEye" style="display: inline; color: #888; font-size: 0.9em;">👁️👁️ Dual-eye mode — 2× faster but less reliable on phone cameras</label>
+                            <label for="catDualEye">Legacy blink transport</label>
                         </div>
 
-                        <div style="margin-bottom: 15px;">
-                            <input type="checkbox" id="catRedundancy" checked>
-                            <label for="catRedundancy" style="display: inline; color: #888; font-size: 0.9em;">🛡️ Send 2× (gap-resilient) — doubles time but survives brief interruptions</label>
+                        <div style="margin-bottom: 15px; color:#888; font-size:0.9em;">
+                            🛡️ Fixed 3.0× fountain redundancy for up to 40% simulated frame loss.
+                            <input type="checkbox" id="catRedundancy" checked style="display:none;">
                         </div>
 
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
@@ -1224,6 +1310,7 @@
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
 
                         <p style="color:#888; font-size:0.82em; margin: 4px 0 0 0;">On phones, use fullscreen before transmitting so the cat stays as large as possible for optical capture.</p>
+                        <div id="catTxParams" class="cat-tx-params">Idle — parameters appear after encryption.</div>
 
                         <div id="catProgress" style="margin-top: 15px; display: none;">
                             <div style="background: #333; border-radius: 8px; height: 20px; overflow: hidden;">
@@ -4986,6 +5073,295 @@
             document.getElementById('catCanvas').classList.remove('transmitting', 'success', 'error');
             log('⏹️ [Cat Mode] Stopped');
         };
+
+        // Preserve the historical blinking-eye implementation for old saved
+        // videos and protocol tests. The user-facing Cat Mode now uses the same
+        // FOUNTAIN envelope understood by Meow Capture's QR scanner.
+        window.catLegacyBlinkEncode = window.catModeEncode;
+        window.catLegacyBlinkStop = window.catModeStop;
+
+        const CAT_OPTICAL_BLOCK_SIZE = 128;
+        const CAT_OPTICAL_REDUNDANCY = 3.0;
+        const CAT_OPTICAL_MIN_FRAMES = 8;
+        const CAT_OPTICAL_QR_PIXELS = 560;
+        const CAT_OPTICAL_QR_MARGIN = 4;
+        const CAT_OPTICAL_ERROR_CORRECTION = 'H';
+        const CAT_OPTICAL_COUNTDOWN_SECONDS = 3;
+
+        let catOpticalFrames = [];
+        let catOpticalRaf = null;
+        let catOpticalCountdownRaf = null;
+        let catOpticalRunId = 0;
+
+        window.catModeTransmission = {
+            status: 'idle',
+            scheduler: 'requestAnimationFrame',
+            targetIntervalMs: 500,
+            frameIndex: 0,
+            frameCount: 0,
+            frameSerial: 0,
+            framePayload: '',
+            loopCount: 0,
+            encryptedPayload: '',
+            kBlocks: 0,
+            blockSize: CAT_OPTICAL_BLOCK_SIZE,
+            redundancy: CAT_OPTICAL_REDUNDANCY,
+            qrPixels: CAT_OPTICAL_QR_PIXELS,
+            quietZoneModules: CAT_OPTICAL_QR_MARGIN,
+            errorCorrection: CAT_OPTICAL_ERROR_CORRECTION,
+        };
+
+        function updateCatOpticalUi() {
+            const state = window.catModeTransmission;
+            const active = state.status === 'preparing' || state.status === 'countdown' || state.status === 'transmitting';
+            const stage = document.getElementById('catCanvasStage');
+            const mainStart = document.getElementById('catQrBtn');
+            const mainStop = document.getElementById('catStopBtn');
+            const fsStart = document.getElementById('catFsStartBtn');
+            const fsStop = document.getElementById('catFsStopBtn');
+            const fsState = document.getElementById('catFsState');
+            const progress = document.getElementById('catProgress');
+            const progressBar = document.getElementById('catProgressBar');
+            const progressText = document.getElementById('catProgressText');
+            const params = document.getElementById('catTxParams');
+
+            stage.classList.toggle('optical-active', active);
+            document.getElementById('catCanvas').classList.toggle('transmitting', state.status === 'transmitting');
+            mainStart.style.display = active ? 'none' : 'inline-block';
+            mainStop.style.display = active ? 'inline-block' : 'none';
+            fsStart.disabled = active;
+            fsStop.disabled = !active;
+            progress.style.display = active ? 'block' : 'none';
+
+            const frameNumber = state.frameCount > 0 ? state.frameIndex + 1 : 0;
+            const stateText = state.status === 'transmitting'
+                ? `Transmitting — frame ${frameNumber} of ${state.frameCount} — loop ${state.loopCount + 1}`
+                : state.status === 'countdown'
+                    ? 'Countdown — aim Meow Capture at the QR target'
+                    : state.status === 'preparing'
+                        ? 'Preparing encrypted fountain frames…'
+                        : state.status === 'error'
+                            ? 'Transmission failed — see the result below'
+                            : 'Idle — ready to transmit';
+            fsState.textContent = stateText;
+
+            if (state.frameCount > 0) {
+                const percent = state.status === 'transmitting'
+                    ? ((state.frameIndex + 1) / state.frameCount) * 100
+                    : 0;
+                progressBar.style.width = `${percent.toFixed(1)}%`;
+                progressText.textContent = stateText;
+                params.textContent = `${state.targetIntervalMs}ms/frame | rAF drift correction | ` +
+                    `${state.frameCount} frames | ${state.kBlocks} source blocks × ${state.blockSize}B | ` +
+                    `${state.redundancy.toFixed(1)}× redundancy | QR ${state.errorCorrection} | ` +
+                    `${state.quietZoneModules}-module quiet zone | ${state.qrPixels}px raster`;
+            } else {
+                progressBar.style.width = '0%';
+                progressText.textContent = stateText;
+            }
+        }
+
+        function drawCatOpticalFrame(index) {
+            const frame = catOpticalFrames[index];
+            if (!frame) return;
+            const output = document.getElementById('catQrCanvas');
+            output.width = frame.canvas.width;
+            output.height = frame.canvas.height;
+            const context = output.getContext('2d');
+            context.imageSmoothingEnabled = false;
+            context.clearRect(0, 0, output.width, output.height);
+            context.drawImage(frame.canvas, 0, 0);
+
+            const state = window.catModeTransmission;
+            state.frameIndex = index;
+            state.framePayload = frame.payload;
+            state.frameSerial += 1;
+            updateCatOpticalUi();
+        }
+
+        function runCatOpticalCountdown(seconds, runId) {
+            const overlay = document.getElementById('catCountdown');
+            const state = window.catModeTransmission;
+            state.status = 'countdown';
+            overlay.classList.add('active');
+            updateCatOpticalUi();
+
+            return new Promise((resolve, reject) => {
+                let startedAt = null;
+                function tick(timestamp) {
+                    if (runId !== catOpticalRunId) {
+                        overlay.classList.remove('active');
+                        reject(new Error('Transmission cancelled'));
+                        return;
+                    }
+                    if (startedAt === null) startedAt = timestamp;
+                    const elapsed = timestamp - startedAt;
+                    const remaining = Math.max(0, Math.ceil(seconds - elapsed / 1000));
+                    overlay.textContent = remaining > 0 ? String(remaining) : 'SCAN';
+                    if (elapsed >= seconds * 1000) {
+                        overlay.classList.remove('active');
+                        catOpticalCountdownRaf = null;
+                        resolve();
+                        return;
+                    }
+                    catOpticalCountdownRaf = requestAnimationFrame(tick);
+                }
+                catOpticalCountdownRaf = requestAnimationFrame(tick);
+            });
+        }
+
+        function startCatOpticalLoop(runId) {
+            const state = window.catModeTransmission;
+            state.status = 'transmitting';
+            state.frameIndex = 0;
+            state.loopCount = 0;
+            state.frameSerial = 0;
+            catTransmitting = true;
+            drawCatOpticalFrame(0);
+
+            let nextDeadline = null;
+            function transmitFrame(timestamp) {
+                if (runId !== catOpticalRunId || !catTransmitting) return;
+                if (document.hidden) {
+                    nextDeadline = null;
+                    catOpticalRaf = requestAnimationFrame(transmitFrame);
+                    return;
+                }
+                if (nextDeadline === null) nextDeadline = timestamp + state.targetIntervalMs;
+
+                let nextIndex = state.frameIndex;
+                while (timestamp >= nextDeadline) {
+                    nextDeadline += state.targetIntervalMs;
+                    nextIndex += 1;
+                    if (nextIndex >= state.frameCount) {
+                        nextIndex = 0;
+                        state.loopCount += 1;
+                    }
+                }
+                if (nextIndex !== state.frameIndex) drawCatOpticalFrame(nextIndex);
+                catOpticalRaf = requestAnimationFrame(transmitFrame);
+            }
+            catOpticalRaf = requestAnimationFrame(transmitFrame);
+        }
+
+        window.catModeEncode = async function() {
+            const message = document.getElementById('catMessage').value;
+            const password = document.getElementById('catPassword').value;
+            const resultEl = document.getElementById('catModeResult');
+            if (!message) { alert('Enter a message to transmit'); return; }
+            if (!password) { alert('Enter a password'); return; }
+
+            window.catModeStop();
+            const runId = ++catOpticalRunId;
+            const state = window.catModeTransmission;
+            const testConfig = window.__MEOW_CAT_TEST_CONFIG__ || {};
+            state.status = 'preparing';
+            state.targetIntervalMs = Number(testConfig.targetIntervalMs) ||
+                Number(document.getElementById('catBlinkSpeed').value) || 500;
+            state.frameCount = 0;
+            state.frameSerial = 0;
+            state.framePayload = '';
+            state.encryptedPayload = '';
+            updateCatOpticalUi();
+
+            try {
+                if (!QRCode) await loadQRCode();
+                if (!QRCode || typeof QRCode.toCanvas !== 'function') {
+                    throw new Error('Local QR renderer is unavailable');
+                }
+
+                const saltResult = await crypto.generateSalt();
+                const nonceResult = await crypto.generateNonce();
+                if (!saltResult.success || !nonceResult.success) {
+                    throw new Error('Failed to generate encryption parameters');
+                }
+                const security = getSecurityParams();
+                const keyResult = await crypto.deriveKey(
+                    encoder.encode(password),
+                    saltResult.data,
+                    security.memoryKib,
+                    security.iterations,
+                );
+                if (!keyResult.success) throw new Error(keyResult.error || 'Key derivation failed');
+                const cipherResult = await crypto.encrypt(
+                    encoder.encode(message),
+                    keyResult.data,
+                    nonceResult.data,
+                    null,
+                );
+                if (!cipherResult.success) throw new Error(cipherResult.error || 'Encryption failed');
+
+                const packed = packPayload(saltResult.data, nonceResult.data, cipherResult.data, null);
+                const encryptedPayload = `MEOW:${bytesToBase64(packed)}`;
+                const payloadBytes = encoder.encode(encryptedPayload);
+                const kBlocks = Math.ceil(payloadBytes.length / CAT_OPTICAL_BLOCK_SIZE);
+                const frameCount = Math.max(
+                    CAT_OPTICAL_MIN_FRAMES,
+                    Math.ceil(kBlocks * CAT_OPTICAL_REDUNDANCY),
+                );
+                const fountain = new FountainEncoder(
+                    payloadBytes,
+                    kBlocks,
+                    CAT_OPTICAL_BLOCK_SIZE,
+                );
+
+                const frames = [];
+                for (let index = 0; index < frameCount; index++) {
+                    if (runId !== catOpticalRunId) throw new Error('Transmission cancelled');
+                    const droplet = fountain.generateDroplet(index);
+                    const framePayload = `FOUNTAIN:${kBlocks}:${CAT_OPTICAL_BLOCK_SIZE}:` +
+                        `${payloadBytes.length}:${bytesToBase64(droplet.pack())}`;
+                    const canvas = document.createElement('canvas');
+                    await QRCode.toCanvas(canvas, framePayload, {
+                        width: CAT_OPTICAL_QR_PIXELS,
+                        margin: CAT_OPTICAL_QR_MARGIN,
+                        color: { dark: '#000000', light: '#ffffff' },
+                        errorCorrectionLevel: CAT_OPTICAL_ERROR_CORRECTION,
+                    });
+                    frames.push({ canvas, payload: framePayload });
+                }
+
+                catOpticalFrames = frames;
+                state.encryptedPayload = encryptedPayload;
+                state.kBlocks = kBlocks;
+                state.frameCount = frameCount;
+                state.blockSize = CAT_OPTICAL_BLOCK_SIZE;
+                state.redundancy = CAT_OPTICAL_REDUNDANCY;
+                drawCatOpticalFrame(0);
+
+                const countdownSeconds = Number(testConfig.countdownSeconds) ||
+                    CAT_OPTICAL_COUNTDOWN_SECONDS;
+                resultEl.innerHTML = '<span style="color:#00ccff">Aim Meow Capture at the QR target. Transmission starts after the countdown.</span>';
+                await runCatOpticalCountdown(countdownSeconds, runId);
+                if (runId !== catOpticalRunId) return;
+                startCatOpticalLoop(runId);
+                resultEl.innerHTML = '<span style="color:#00ff88">Transmitting encrypted fountain frames. Keep scanning until Meow Capture reports completion.</span>';
+                log(`📡 [Cat Mode] ${frameCount} fountain QR frames, ${kBlocks} × ${CAT_OPTICAL_BLOCK_SIZE}B blocks, ${state.targetIntervalMs}ms/frame`);
+            } catch (error) {
+                if (error.message === 'Transmission cancelled') return;
+                state.status = 'error';
+                catTransmitting = false;
+                updateCatOpticalUi();
+                resultEl.innerHTML = `<span style="color:#f44336">❌ ${escapeHtml(error.message)}</span>`;
+                log(`❌ [Cat Mode] ${error.message}`);
+            }
+        };
+
+        window.catModeStop = function() {
+            catOpticalRunId += 1;
+            catTransmitting = false;
+            if (catOpticalRaf !== null) cancelAnimationFrame(catOpticalRaf);
+            if (catOpticalCountdownRaf !== null) cancelAnimationFrame(catOpticalCountdownRaf);
+            catOpticalRaf = null;
+            catOpticalCountdownRaf = null;
+            document.getElementById('catCountdown').classList.remove('active');
+            const state = window.catModeTransmission;
+            state.status = 'idle';
+            updateCatOpticalUi();
+            log('⏹️ [Cat Mode] Fountain transmission stopped');
+        };
+
+        updateCatOpticalUi();
 
         // Download the recorded canvas video (native format — Safari MP4
         // or Chromium/Firefox WebM).

@@ -11,7 +11,8 @@ const ROOT = resolve(HERE, '..', '..');
 const OUTPUT_DIR = resolve(
   process.env.MEOW_CAT_CAPTURE_DIR || join(ROOT, 'test-results', 'cat-mode'),
 );
-const TEST_MESSAGE = process.env.MEOW_CAT_TEST_MESSAGE || 'Cat optical loop closure';
+const TEST_MESSAGE = process.env.MEOW_CAT_TEST_MESSAGE ||
+  'Cat optical loop closure 0123456789abcdef '.repeat(16);
 const TEST_PASSWORD = process.env.MEOW_CAT_TEST_PASSWORD || 'cat-mode-test-password';
 
 function assert(condition, message) {

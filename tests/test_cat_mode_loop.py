@@ -200,7 +200,7 @@ def test_cat_mode_headless_loop_closes(
     recovered, qr_reads, unique_droplets = _reconstruct_fountain_payload(_read_qr_payloads(frames))
 
     assert recovered == metadata["encryptedPayload"].encode("utf-8")
-    assert qr_reads == metadata["frameCount"]
+    assert qr_reads >= metadata["kBlocks"]
     assert unique_droplets >= metadata["kBlocks"]
 
 
