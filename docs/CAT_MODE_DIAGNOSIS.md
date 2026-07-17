@@ -4,6 +4,31 @@
 **Branch inspected:** `security/fable-bug-hunt-fixes`  
 **Scope:** Current source only. No Cat Mode implementation changes preceded this report.
 
+> **Evidence baseline:** The findings below describe commit `f122d54`, before
+> remediation. They are intentionally retained as the Phase 1 record. Current
+> behavior is documented in `docs/CAT_MODE.md`.
+
+## Remediation status
+
+- `66b94a9` keeps Start/Stop/state controls inside fullscreen and adds the
+	explicit iOS-compatible full-window fallback.
+- `e930fc7` replaces the user-facing blink stream with a high-contrast fountain
+	QR inset while retaining the cat presentation.
+- `d4a7531` makes coded-droplet degree selection seed-reproducible and raises
+	Cat-only redundancy from the failing 3.0x profile to measured 4.0x.
+- `704cb29` keeps the existing Python QR reader usable through OpenCV when a
+	platform zbar runtime is absent.
+- `39c82ef` adds live mobile metrics and measured three-second failure reasons.
+- `b4ac727` routes the visible Experimental Cat receiver through native fountain
+	capture instead of the incompatible legacy eye sampler.
+- `1a8cb7d` makes the Playwright-to-Python loop and degradation matrix a gating
+	CI job.
+
+Final automated result: five tests pass, including reconstruction after the
+defined severe degradation pipeline and deterministic 40% frame drops. No
+controlled real-phone distance/lux trial has been recorded; the required matrix
+in `docs/HARDWARE_TEST_MATRIX.md` remains explicitly unrun.
+
 ## Executive finding
 
 The requested flow cannot close today, even through a perfect optical channel. The repository has two incompatible Cat Mode wire protocols:

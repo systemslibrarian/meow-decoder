@@ -190,36 +190,41 @@ To disable Schrödinger or Duress modes server-side, edit `templates/encode.html
 
 Cat Mode is an optional advanced or experimental surface. It should not be mistaken for the default product story of the web demo.
 
-Cat Mode in this web demo has **two related presentations** built on the same core password-based encryption:
+Cat-related experiments have three distinct presentations:
 
-1. **Cat carrier mode** hides QR codes in cat imagery for camouflage.
-2. **Blinking-eye mode** sends ciphertext optically as green/dark eye states.
+1. **Cat optical mode** presents `FOUNTAIN:` QR frames over the cat carrier for live Meow Capture scanning.
+2. **Cat carrier stego** hides QR data in cat imagery and uses lossless APNG output.
+3. **Legacy blinking-eye mode** sends ciphertext as green/dark eye states for old research recordings.
 
-Both use **AES-256-GCM + Argon2id** for the payload first. The cat visuals change the transport or presentation layer; they do not replace the cryptography.
+The active optical page uses **AES-256-GCM + Argon2id** before fountain coding. Cat visuals change presentation; they do not replace encryption.
 
-For the carrier-image path:
+### Active optical Cat Mode
 
-1. **Encoder** uses bundled cat carrier images (`assets/demo_logo_eyes.gif`)
-2. **QR codes** are embedded steganographically in photographic cat images
-3. **Output uses APNG** (lossless animated PNG) — GIF palette quantization destroys LSB stego data
-4. **Decoder** automatically detects and extracts QR codes from cat camouflage via LSB extraction fallback
-5. **UI** displays Cat Mode badge (😻) on encoded files
+- **Receiver:** Meow Capture's native QR/fountain scanner
+- **Block size:** 128 bytes
+- **Redundancy:** 4.0×, isolated to Cat Mode
+- **QR rendering:** H error correction, four-module quiet zone, 560-pixel backing raster
+- **Pacing:** 500 ms per frame through `requestAnimationFrame` with deadline correction
+- **Fullscreen:** Fullscreen API with a fixed full-window fallback for rejected or unsupported element fullscreen
+- **Status:** Experimental; Standard animated QR remains Recommended
 
-### How Cat Mode Works
+See `../docs/CAT_MODE.md` for measured synthetic-channel results and `../docs/HARDWARE_TEST_MATRIX.md` for the unrun physical-device matrix.
 
-- **Steganography Level**: Defaults to level 2 (balanced visibility/capacity)
-- **Carrier Images**: Bundled cat photos from `assets/` directory
-- **Output Format**: APNG (`.png`) — lossless pixel preservation for stego fidelity
-- **Redundancy**: 2.5× fountain code redundancy (compensates for any stego channel noise)
-- **Plausible Deniability**: QR codes look like cat photos at casual inspection
-- **Scanning**: Decoder auto-detects stego mode and extracts LSBs before QR scanning
+### Carrier stego
 
-### Blinking-Eye Cat Mode
+1. **Encoder** uses bundled cat carrier images (`assets/demo_logo_eyes.gif`).
+2. **QR data** is embedded steganographically in photographic cat images.
+3. **Output uses APNG** because GIF palette quantization destroys LSB data.
+4. **Decoder** attempts LSB extraction when direct QR scanning fails.
 
-- **Crypto**: AES-256-GCM + Argon2id before visual transmission
-- **Transport**: Eye color encodes ciphertext bits (green = 1, dark = 0)
-- **Server route**: The Flask Cat Mode page uses the production Argon2id preset and password-only mode
-- **Mode scope**: No forward secrecy or post-quantum mode on the blinking-eye route
+Carrier stego defaults to level 2 and the core 2.5× fountain redundancy. It is separate from the live optical Cat path's 4.0× schedule.
+
+### Legacy blinking-eye transport
+
+- **Crypto:** AES-256-GCM + Argon2id before visual transmission
+- **Transport:** Eye color encodes ciphertext bits (green = 1, dark = 0)
+- **Server route:** The Flask Cat page retains the production Argon2id password-only implementation
+- **Compatibility:** Retained for old video fixtures; it is not the current Meow Capture droplet workflow
 
 ### Technical Details
 
@@ -230,7 +235,7 @@ For the carrier-image path:
 ### Limitations
 
 - Cat Mode is **cosmetic camouflage** (not forensic-proof steganography)
-- Blinking-eye Cat Mode changes transport only; it is not a separate encryption mode
+- Legacy blinking-eye mode does not collect fountain droplets
 - Output is APNG format (`.png`), not GIF — some viewers may not animate APNG files
 - Best used for aesthetic purposes and casual plausible deniability
 
