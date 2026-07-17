@@ -13,7 +13,7 @@
  *             on CANCEL → Home
  */
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import { useStallDetector } from '../hooks/useStallDetector';
 import { useLowLightDetector } from '../hooks/useLowLightDetector';
 import { useAudioCues } from '../hooks/useAudioCues';
 import { useCameraHealthCheck } from '../hooks/useCameraHealthCheck';
+import { useCaptureFrameMetrics } from '../hooks/useCaptureFrameMetrics';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
 import { formatCountdown, recoveryConfidenceLabel } from '../utils/formatters';
 import { isCalibrationEnabled } from '../utils/captureSettings';
@@ -74,6 +75,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     capturedCount,
     decodeRate,
     duplicateRate,
+    qrDecodedCount,
+    qrCoverage,
     loopsCompleted,
     loopExhausted,
     isStable,
@@ -89,6 +92,14 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
     buildResponse,
     codeScanner,
   } = useSessionManager();
+
+  const {
+    frameProcessor: captureFrameProcessor,
+    framesSeen,
+    luminance,
+  } = useCaptureFrameMetrics({
+    enabled: status === 'AWAITING_GIF' || status === 'CAPTURING',
+  });
 
   // qrActive / qrActiveTimer are reserved for future QR-blink feedback;
   // omitted for now to keep strict noUnusedLocals clean.
@@ -263,19 +274,19 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
   const [exposureBias, setExposureBias] = useState(0);
   const handleExposureBiasChange = useRef((bias: number) => setExposureBias(bias)).current;
 
-  // ── Torch state tracking (for low-light detector) ─────────────────────────
-  const [torchOn, setTorchOn] = useState(false);
-  const handleTorchChange = useRef((on: boolean) => setTorchOn(on)).current;
+  const showZeroDecodeHint = useCallback(
+    (message: string) => showToast({ message, type: 'info', durationMs: 5_000 }),
+    [showToast],
+  );
 
-  // ── Proactive "not decoding" coaching (F2) ─────────────────────────────────
-  // No automatic exposure change — see useLowLightDetector header for why
-  // auto-brightening a bright-screen scan keeps decode rate pinned at 0.
-  useLowLightDetector({
+  // Read-only diagnosis: no automatic exposure or torch changes.
+  const zeroDecodeDiagnosis = useLowLightDetector({
     decodeRate,
-    exposureBias,
-    torchOn,
+    luminance,
+    shakeMagnitude,
+    qrCoverage,
     active: status === 'CAPTURING',
-    showHint: (message: string) => showToast({ message, type: 'info', durationMs: 4_000 }),
+    showHint: showZeroDecodeHint,
   });
 
   // ── Camera health self-test (F7) ──────────────────────────────────────────
@@ -418,10 +429,10 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
       <CameraPreview
         codeScanner={codeScanner}
         status={status}
+        {...(captureFrameProcessor ? { frameProcessor: captureFrameProcessor } : {})}
         isBackgrounding={isBackgrounding}
         onAutoRecoveryRef={autoRecoveryRef}
         onExposureBiasChange={handleExposureBiasChange}
-        onTorchChange={handleTorchChange}
       />
 
       {/* Scan region + status badges */}
@@ -440,6 +451,7 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
         duplicateRate={duplicateRate}
         shakeMagnitude={shakeMagnitude}
         exposureBias={exposureBias}
+        zeroDecodeDiagnosis={zeroDecodeDiagnosis}
         safeToStop={
           !!progress && recoveryConfidenceLabel(progress.captured, progress.expected).safeToStop
         }
@@ -485,6 +497,8 @@ export function CaptureScreen({ route, navigation }: CaptureScreenProps) {
           elapsedMs={elapsedMs}
           decodeRate={decodeRate}
           duplicateRate={duplicateRate}
+          framesSeen={framesSeen}
+          qrDecodedCount={qrDecodedCount}
           loopsCompleted={loopsCompleted}
         />
       )}

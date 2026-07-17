@@ -43,6 +43,10 @@ export interface UseQRScannerReturn {
   decodeRate: number;
   /** Fraction of all QR scans that were duplicates in the rolling window (0–1) */
   duplicateRate: number;
+  /** Total QR values decoded by the native scanner, including duplicates and foreign codes. */
+  qrDecodedCount: number;
+  /** Largest QR dimension as a fraction of the corresponding scanner-frame dimension. */
+  qrCoverage: number | null;
 }
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
@@ -63,15 +67,29 @@ export function useQRScanner({
   // Updated inside the hot scan callback; rates computed in a 1 Hz interval.
   const freshTimestampsRef = useRef<number[]>([]);
   const allScanTimestampsRef = useRef<number[]>([]);
+  const qrDecodedCountRef = useRef(0);
+  const qrCoverageRef = useRef<number | null>(null);
   const [decodeRate, setDecodeRate] = useState(0);
   const [duplicateRate, setDuplicateRate] = useState(0);
+  const [qrDecodedCount, setQrDecodedCount] = useState(0);
+  const [qrCoverage, setQrCoverage] = useState<number | null>(null);
 
   const RATE_WINDOW_MS = 3000; // rolling window for rate calculation
 
   useEffect(() => {
     if (!enabled) {
+      lastScannedRef.current = '';
+      lastTimestampRef.current = 0;
+      recentCodesRef.current = [];
+      gifDetectedRef.current = false;
+      freshTimestampsRef.current = [];
+      allScanTimestampsRef.current = [];
+      qrDecodedCountRef.current = 0;
+      qrCoverageRef.current = null;
       setDecodeRate(0);
       setDuplicateRate(0);
+      setQrDecodedCount(0);
+      setQrCoverage(null);
       return;
     }
     const interval = setInterval(() => {
@@ -84,6 +102,8 @@ export function useQRScanner({
       allScanTimestampsRef.current = all;
       setDecodeRate(fresh.length / (RATE_WINDOW_MS / 1000));
       setDuplicateRate(all.length > 0 ? 1 - fresh.length / all.length : 0);
+      setQrDecodedCount(qrDecodedCountRef.current);
+      setQrCoverage(qrCoverageRef.current);
     }, 1000);
     return () => clearInterval(interval);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -93,8 +113,21 @@ export function useQRScanner({
     codeTypes: ['qr'],
 
     onCodeScanned: useCallback(
-      (codes) => {
+      (codes, scannerFrame) => {
         if (!enabled) return;
+
+        qrDecodedCountRef.current += codes.filter((code) => Boolean(code.value)).length;
+        const boundedCode = codes.find((code) => code.value && code.frame);
+        if (
+          boundedCode?.frame &&
+          scannerFrame &&
+          scannerFrame.width > 0 &&
+          scannerFrame.height > 0
+        ) {
+          const widthRatio = boundedCode.frame.width / scannerFrame.width;
+          const heightRatio = boundedCode.frame.height / scannerFrame.height;
+          qrCoverageRef.current = Math.max(0, Math.min(1, Math.max(widthRatio, heightRatio)));
+        }
 
         const qrData = codes[0]?.value;
         if (!qrData || qrData.length === 0) return;
@@ -181,5 +214,5 @@ export function useQRScanner({
     ),
   });
 
-  return { codeScanner, decodeRate, duplicateRate };
+  return { codeScanner, decodeRate, duplicateRate, qrDecodedCount, qrCoverage };
 }

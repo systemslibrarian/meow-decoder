@@ -31,6 +31,7 @@ import {
   useCameraFormat,
   useCameraPermission,
   type CodeScanner,
+  type ReadonlyFrameProcessor,
 } from 'react-native-vision-camera';
 import type { CaptureState } from '../types/capture';
 import { Colors, Typography, Spacing, Radius } from '../constants/theme';
@@ -46,6 +47,8 @@ interface CameraPreviewProps {
   codeScanner: CodeScanner;
   /** Current capture status — controls isActive prop */
   status: CaptureState;
+  /** Optional read-only diagnostics sampler; QR scanning remains native. */
+  frameProcessor?: ReadonlyFrameProcessor;
   /** Show torch toggle button */
   showTorchToggle?: boolean;
   /** When true renders a solid privacy overlay (iOS task-switcher defense) */
@@ -72,6 +75,7 @@ interface CameraPreviewProps {
 export const CameraPreview = React.memo(function CameraPreview({
   codeScanner,
   status,
+  frameProcessor,
   showTorchToggle = true,
   isBackgrounding = false,
   onAutoRecoveryRef,
@@ -222,6 +226,7 @@ export const CameraPreview = React.memo(function CameraPreview({
             device={device}
             isActive={isActive}
             codeScanner={codeScanner}
+            {...(frameProcessor ? { frameProcessor } : {})}
             // High-resolution format so dense fountain QR resolves (see above).
             // Spread conditionally: `format` may be undefined when no format
             // matches, and exactOptionalPropertyTypes forbids passing undefined;

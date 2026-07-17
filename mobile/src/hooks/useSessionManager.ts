@@ -30,6 +30,10 @@ export interface SessionManagerReturn {
   decodeRate: number;
   /** Fraction of all QR scans that were duplicates (0–1) */
   duplicateRate: number;
+  /** Total QR values decoded by the native scanner, including repeats. */
+  qrDecodedCount: number;
+  /** Latest QR size relative to the scanner frame, used for distance guidance. */
+  qrCoverage: number | null;
   // Loop detection (looping QR animation)
   /** Number of full animation loops observed this session */
   loopsCompleted: number;
@@ -94,7 +98,7 @@ export function useSessionManager(): SessionManagerReturn {
     [observeLoop, onFrameScanned],
   );
 
-  const { codeScanner, decodeRate, duplicateRate } = useQRScanner({
+  const { codeScanner, decodeRate, duplicateRate, qrDecodedCount, qrCoverage } = useQRScanner({
     // exactOptionalPropertyTypes: only pass sessionId when it is a string,
     // never pass the property as `undefined` (that would fail the strict check).
     ...(state.request?.session_id !== undefined
@@ -195,6 +199,8 @@ export function useSessionManager(): SessionManagerReturn {
     capturedCount: state.frames.size,
     decodeRate,
     duplicateRate,
+    qrDecodedCount,
+    qrCoverage,
     loopsCompleted,
     lastLoopNewFrames,
     loopExhausted,
