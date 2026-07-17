@@ -224,7 +224,23 @@ jobs:
           if ! git diff --staged --quiet; then
             git commit -m "chore: update Rust coverage badge [skip ci]"
             if [ -n "$BADGE_PUSH_TOKEN" ]; then
-              git push https://x-access-token:${BADGE_PUSH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main
+              # main often advances during the ~5 min coverage run, so a
+              # plain push loses the race and reds the whole job. Rebase and
+              # retry; a stale badge is a warning, not a failure.
+              pushed=0
+              for attempt in 1 2 3 4 5; do
+                git fetch origin main
+                git rebase origin/main
+                if git push https://x-access-token:${BADGE_PUSH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main; then
+                  pushed=1
+                  break
+                fi
+                echo "Badge push rejected (attempt $attempt), rebasing and retrying"
+                sleep $((attempt * 5))
+              done
+              if [ "$pushed" -ne 1 ]; then
+                echo "::warning::Badge push failed after 5 attempts - badge will refresh on the next main run"
+              fi
             else
               echo "::warning::BADGE_PUSH_TOKEN not set - skipping push to protected branch"
             fi
