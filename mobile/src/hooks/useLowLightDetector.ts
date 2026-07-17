@@ -10,8 +10,8 @@ import {
 export interface UseLowLightDetectorOptions {
   /** Current QR decode rate (frames/s). 0 when no codes are being scanned. */
   decodeRate: number;
-  /** Mean sampled Y-plane luminance, 0-255. */
-  luminance: number;
+  /** Mean sampled Y-plane luminance, 0-255, or null when no sample exists. */
+  luminance: number | null;
   /** Accelerometer movement magnitude in m/s^2. */
   shakeMagnitude: number;
   /** Latest QR-to-scanner-frame size ratio, or null before a QR is decoded. */
@@ -34,6 +34,16 @@ export function useLowLightDetector({
   const lowSinceRef = useRef<number | null>(null);
   const announcedReasonRef = useRef<ZeroDecodeDiagnosis['reason'] | null>(null);
 
+  // Independent 1 s clock: with decodeRate pinned at 0 and static sensor
+  // inputs, no dependency changes and the evaluation effect would otherwise
+  // never re-run — the diagnosis could simply never fire.
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    if (!active) return undefined;
+    const interval = setInterval(() => setTick((t) => t + 1), 1_000);
+    return () => clearInterval(interval);
+  }, [active]);
+
   useEffect(() => {
     if (!active || decodeRate >= 0.1) {
       lowSinceRef.current = null;
@@ -55,13 +65,17 @@ export function useLowLightDetector({
       shakeMagnitude,
       qrCoverage,
     });
-    setDiagnosis(nextDiagnosis);
+    // Keep the previous object when the reason is unchanged so memoized
+    // consumers don't re-render at sensor rate.
+    setDiagnosis((prev) =>
+      prev?.reason === nextDiagnosis?.reason ? prev : nextDiagnosis,
+    );
     if (nextDiagnosis && announcedReasonRef.current !== nextDiagnosis.reason) {
       announcedReasonRef.current = nextDiagnosis.reason;
       showHint(nextDiagnosis.message);
       AccessibilityInfo.announceForAccessibility(nextDiagnosis.message);
     }
-  }, [decodeRate, luminance, shakeMagnitude, qrCoverage, active, showHint]);
+  }, [decodeRate, luminance, shakeMagnitude, qrCoverage, active, showHint, tick]);
 
   return diagnosis;
 }

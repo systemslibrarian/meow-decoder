@@ -68,6 +68,14 @@ interface CameraPreviewProps {
    * can track whether the flashlight is currently active.
    */
   onTorchChange?: (on: boolean) => void;
+  /**
+   * Called on a native camera error. CaptureScreen uses this to drop the
+   * optional diagnostics frameProcessor before the user retries: binding an
+   * extra ImageAnalysis use case can exceed the surface combinations of
+   * LIMITED-hardware-level Android devices, and retrying without it keeps
+   * native QR scanning alive.
+   */
+  onCameraError?: (message: string) => void;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -81,6 +89,7 @@ export const CameraPreview = React.memo(function CameraPreview({
   onAutoRecoveryRef,
   onExposureBiasChange,
   onTorchChange,
+  onCameraError,
 }: CameraPreviewProps) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
@@ -248,6 +257,7 @@ export const CameraPreview = React.memo(function CameraPreview({
               // JS thread does not crash — surface a recoverable UI instead.
               if (__DEV__) { console.warn('[CameraPreview] Native camera error:', e); }
               setCameraError(e.message);
+              onCameraError?.(e.message);
             }}
           />
         )}

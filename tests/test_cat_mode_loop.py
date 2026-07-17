@@ -53,7 +53,9 @@ def cat_mode_capture(tmp_path_factory: pytest.TempPathFactory) -> tuple[dict, li
 
     configured_capture_dir = os.environ.get("MEOW_CAT_CAPTURE_DIR")
     capture_dir = (
-        Path(configured_capture_dir)
+        # Anchor a relative value against ROOT: the node harness resolves it
+        # there (and runs with cwd=ROOT), while pytest's CWD can be anywhere.
+        (ROOT / configured_capture_dir).resolve()
         if configured_capture_dir
         else tmp_path_factory.mktemp("cat-mode-browser")
     )

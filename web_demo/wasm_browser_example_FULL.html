@@ -4786,14 +4786,16 @@
                     log(`👁️ [Cat Mode] Single-eye mode — both eyes blink together (most reliable)`);
                 }
 
+                // Split binary into header and payload
+                const headerLen = 8 + payloadResult.preambleBits + payloadResult.syncBits;
+
                 // Save dual-eye flag and header length for decoder self-test / video fallback comparison
+                // (must come after the headerLen declaration — a TDZ ReferenceError
+                // here was silently swallowed and header_len never got written)
                 try {
                     sessionStorage.setItem('meow_cat_dual_eye', dualEyeEnabled ? '1' : '0');
                     sessionStorage.setItem('meow_cat_header_len', String(headerLen));
                 } catch (_) {}
-
-                // Split binary into header and payload
-                const headerLen = 8 + payloadResult.preambleBits + payloadResult.syncBits;
                 let headerBinary = catBinaryData.substring(0, headerLen);
                 let payloadBinary = catBinaryData.substring(headerLen);
 
@@ -4962,7 +4964,10 @@
                         }
                         // Clean up visibility change listener
                         document.removeEventListener('visibilitychange', visibilityHandler);
-                        catModeStop();
+                        // Late-bound `catModeStop()` would resolve to the NEW
+                        // fountain stop and cancel a concurrent fountain run;
+                        // the legacy path must stop through its own alias.
+                        window.catLegacyBlinkStop();
 
                         // Warn if tab was backgrounded during encoding
                         const visibilityWarning = catVisibilityLost ? `
@@ -5221,7 +5226,10 @@
 
             let nextDeadline = null;
             function transmitFrame(timestamp) {
-                if (runId !== catOpticalRunId || !catTransmitting) return;
+                // runId is the sole cancellation signal — the shared legacy
+                // catTransmitting flag must not be able to halt this loop
+                // silently (catLegacyBlinkStop clears it).
+                if (runId !== catOpticalRunId) return;
                 if (document.hidden) {
                     nextDeadline = null;
                     catOpticalRaf = requestAnimationFrame(transmitFrame);
@@ -5320,6 +5328,10 @@
                     });
                     frames.push({ canvas, payload: framePayload });
                 }
+                // Re-check after the final await: a Stop (or new Start) during
+                // the last QR render must not let this stale run clobber
+                // catOpticalFrames, redraw, or restart the countdown.
+                if (runId !== catOpticalRunId) return;
 
                 catOpticalFrames = frames;
                 state.encryptedPayload = encryptedPayload;

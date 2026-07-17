@@ -35,7 +35,10 @@ class SeededRandom {
     }
     
     nextInt(max) {
-        return Math.floor(this.next() * max);
+        // next() range is [0, 1] inclusive (seed can hit 0x7fffffff), so
+        // clamp: an unclamped draw of exactly 1.0 would return `max` and
+        // index one past the end of the sampled array.
+        return Math.min(Math.floor(this.next() * max), max - 1);
     }
     
     // Fisher-Yates shuffle for sampling without replacement
