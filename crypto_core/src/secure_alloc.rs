@@ -36,6 +36,23 @@
 //! - **macOS**: Partial (no MADV_DONTDUMP, but mlock + guard pages work)
 //! - **Windows**: Full support (VirtualAlloc, VirtualLock, VirtualProtect, guard pages)
 //! - **WASM**: Not supported (no virtual memory)
+//!
+//! # ⚠️ SECURITY (L4): only inline / non-heap-owning `T` is protected
+//!
+//! `SecureBox<T>` protects exactly the `std::mem::size_of::<T>()` bytes that
+//! live **inline** inside `T`. It does **NOT** follow pointers. For a
+//! heap-indirect type such as `Vec<u8>`, `String`, `Box<[u8]>`, or any struct
+//! containing them, only the *header* (pointer + length + capacity — 24 bytes
+//! for `Vec`) sits in the guarded, `mlock`ed, `MADV_DONTDUMP` region. **The
+//! actual secret bytes live in an ordinary, swappable, core-dumpable,
+//! un-guarded heap allocation and receive none of these protections.**
+//!
+//! Only use `SecureBox` with fixed-size inline types — e.g. `[u8; 32]`,
+//! `[u8; 64]`, or a `#[repr(C)]`/`Copy` struct of such arrays. If you need a
+//! variable-length secret buffer inside the protected region, allocate a
+//! fixed-size array large enough, or build a dedicated `SecureBytes` type that
+//! stores its bytes inside the mmap region. A `debug_assert!` in `new` fires in
+//! debug builds if `T` needs a destructor (a strong signal of heap-owning `T`).
 
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -50,6 +67,11 @@ pub enum SecureAllocError {
     MprotectFailed(i32),
     /// Requested size is zero
     ZeroSize,
+    /// SECURITY (L5): `align_of::<T>()` exceeds the system page size. The
+    /// data pointer is only page-aligned, so writing/reading `T` at an
+    /// alignment greater than a page would be undefined behaviour. Rejected
+    /// fail-closed instead.
+    AlignmentExceedsPage { align: usize, page_size: usize },
 }
 
 impl std::fmt::Display for SecureAllocError {
@@ -58,6 +80,11 @@ impl std::fmt::Display for SecureAllocError {
             SecureAllocError::MmapFailed(e) => write!(f, "mmap failed (errno {})", e),
             SecureAllocError::MprotectFailed(e) => write!(f, "mprotect failed (errno {})", e),
             SecureAllocError::ZeroSize => write!(f, "cannot allocate zero-size SecureBox"),
+            SecureAllocError::AlignmentExceedsPage { align, page_size } => write!(
+                f,
+                "T alignment ({}) exceeds page size ({}); data pointer is only page-aligned",
+                align, page_size
+            ),
         }
     }
 }
@@ -113,6 +140,18 @@ impl<T: Zeroize> SecureBox<T> {
             return Err(SecureAllocError::ZeroSize);
         }
 
+        // SECURITY (L4): SecureBox only protects the inline bytes of `T`.
+        // A `T` that owns a heap buffer (Vec/String/Box) leaves its secret
+        // bytes in ordinary, unprotected heap. Such types have a destructor,
+        // so `needs_drop` is a good proxy: fire loudly in debug builds.
+        debug_assert!(
+            !std::mem::needs_drop::<T>(),
+            "SecureBox<T>: T has a destructor — likely heap-owning (Vec/String/Box). \
+             Only the {}-byte inline header is protected; the actual secret bytes \
+             live in unguarded, swappable heap. Use a fixed-size array like [u8; N].",
+            data_size
+        );
+
         let page_size_raw = unsafe { libc::sysconf(libc::_SC_PAGESIZE) };
         if page_size_raw <= 0 {
             // sysconf returned -1 (error) or 0 (invalid).  Casting -1 to
@@ -121,6 +160,16 @@ impl<T: Zeroize> SecureBox<T> {
             return Err(SecureAllocError::MmapFailed(0));
         }
         let page_size = page_size_raw as usize;
+        // SECURITY (L5): the data pointer is only page-aligned, so a `T`
+        // requiring stronger alignment than a page would make the later
+        // `ptr::write` / `NonNull::as_ref`/`as_mut` / `drop_in_place`
+        // undefined behaviour. Reject fail-closed before allocating.
+        if std::mem::align_of::<T>() > page_size {
+            return Err(SecureAllocError::AlignmentExceedsPage {
+                align: std::mem::align_of::<T>(),
+                page_size,
+            });
+        }
         // Round data up to page boundary
         let data_pages = data_size.div_ceil(page_size);
         let data_region_size = data_pages * page_size;
@@ -230,12 +279,35 @@ impl<T: Zeroize> SecureBox<T> {
             return Err(SecureAllocError::ZeroSize);
         }
 
+        // SECURITY (L4): SecureBox only protects the inline bytes of `T`.
+        // A `T` that owns a heap buffer (Vec/String/Box) leaves its secret
+        // bytes in ordinary, unprotected heap. Such types have a destructor,
+        // so `needs_drop` is a good proxy: fire loudly in debug builds.
+        debug_assert!(
+            !std::mem::needs_drop::<T>(),
+            "SecureBox<T>: T has a destructor — likely heap-owning (Vec/String/Box). \
+             Only the {}-byte inline header is protected; the actual secret bytes \
+             live in unguarded, swappable heap. Use a fixed-size array like [u8; N].",
+            data_size
+        );
+
         // Get system page size
         let page_size = unsafe {
             let mut si: SYSTEM_INFO = std::mem::zeroed();
             GetSystemInfo(&mut si);
             si.dwPageSize as usize
         };
+
+        // SECURITY (L5): the data pointer is only page-aligned, so a `T`
+        // requiring stronger alignment than a page would make the later
+        // `ptr::write` / `NonNull::as_ref`/`as_mut` / `drop_in_place`
+        // undefined behaviour. Reject fail-closed before allocating.
+        if std::mem::align_of::<T>() > page_size {
+            return Err(SecureAllocError::AlignmentExceedsPage {
+                align: std::mem::align_of::<T>(),
+                page_size,
+            });
+        }
 
         // Round data up to page boundary
         let data_pages = data_size.div_ceil(page_size);
@@ -311,8 +383,13 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             self.data.as_mut().zeroize();
         }
 
-        // Step 2: Drop the inner value so heap-allocating types (e.g. Vec<u8>)
-        // free their buffers. Must happen AFTER zeroize, BEFORE munmap.
+        // Step 2: Run T's destructor. SECURITY (L4): this only frees any
+        // heap buffer a heap-owning `T` (e.g. Vec<u8>) points at — that
+        // external buffer was NEVER inside the guarded/mlock'd/DONTDUMP
+        // region and was NOT zeroized above (only the 24-byte inline header
+        // was). Inline types like `[u8; N]` have no destructor and are fully
+        // protected; heap-owning `T` is discouraged (see module + `new` docs).
+        // Must happen AFTER zeroize, BEFORE munmap.
         unsafe {
             std::ptr::drop_in_place(self.data.as_ptr());
         }
@@ -344,8 +421,13 @@ impl<T: Zeroize> Drop for SecureBox<T> {
             self.data.as_mut().zeroize();
         }
 
-        // Step 2: Drop the inner value so heap-allocating types (e.g. Vec<u8>)
-        // free their buffers. Must happen AFTER zeroize, BEFORE VirtualFree.
+        // Step 2: Run T's destructor. SECURITY (L4): this only frees any
+        // heap buffer a heap-owning `T` (e.g. Vec<u8>) points at — that
+        // external buffer was NEVER inside the guarded/VirtualLock'd region
+        // and was NOT zeroized above (only the 24-byte inline header was).
+        // Inline types like `[u8; N]` have no destructor and are fully
+        // protected; heap-owning `T` is discouraged (see module + `new` docs).
+        // Must happen AFTER zeroize, BEFORE VirtualFree.
         unsafe {
             std::ptr::drop_in_place(self.data.as_ptr());
         }

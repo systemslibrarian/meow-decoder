@@ -68,6 +68,12 @@
         max-width: 600px;
         width: 100%;
     }
+    /* Fullscreen rules are duplicated per vendor pseudo-class. The JS enters
+       fullscreen via webkitRequestFullscreen on Safari / Chrome-mobile, which
+       matches :-webkit-full-screen (NOT :fullscreen). CSS invalidates an entire
+       selector group if ONE selector is unknown, so these cannot be combined —
+       each vendor variant must be its own rule or the fullscreen Start/Stop
+       controls stay hidden. */
     #catStage:fullscreen {
         max-width: none;
         width: 100vw;
@@ -77,7 +83,27 @@
         justify-content: center;
         background: #000;
     }
-    #catStage:fullscreen #catCanvas {
+    #catStage:-webkit-full-screen {
+        max-width: none;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+    }
+    #catStage:-moz-full-screen {
+        max-width: none;
+        width: 100vw;
+        height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #000;
+    }
+    #catStage:fullscreen #catCanvas,
+    #catStage:-webkit-full-screen #catCanvas,
+    #catStage:-moz-full-screen #catCanvas {
         max-width: 100vw;
         max-height: 100vh;
         width: auto;
@@ -95,7 +121,27 @@
         transform: translateX(-50%);
         z-index: 10;
     }
-    #catStage:fullscreen #catFsControls .btn {
+    #catStage:-webkit-full-screen #catFsControls {
+        display: flex;
+        gap: 12px;
+        position: absolute;
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+    #catStage:-moz-full-screen #catFsControls {
+        display: flex;
+        gap: 12px;
+        position: absolute;
+        bottom: 28px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 10;
+    }
+    #catStage:fullscreen #catFsControls .btn,
+    #catStage:-webkit-full-screen #catFsControls .btn,
+    #catStage:-moz-full-screen #catFsControls .btn {
         font-size: 1.15em;
         padding: 14px 32px;
     }
@@ -181,7 +227,7 @@
                 <!-- Overlay controls, visible only in fullscreen so you can
                      Start/Stop the transmission while the cat fills the screen. -->
                 <div id="catFsControls">
-                    <button class="btn" onclick="catModeEncode()">😺 Start</button>
+                    <button class="btn" onclick="catModeEncode()">😺 Start Transmitting</button>
                     <button class="btn secondary" onclick="catModeStop()">⏹️ Stop</button>
                 </div>
             </div>

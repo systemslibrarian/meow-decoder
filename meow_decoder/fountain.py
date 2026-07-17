@@ -142,6 +142,18 @@ except ImportError:
     _RUST_FOUNTAIN_AVAILABLE = False
 
 
+# SECURITY (H1): decoder-side allocation bounds. Droplet block indices are
+# serialized as u16 (see pack_droplet), so a VALID artifact never has more than
+# u16::MAX source blocks; the encoder and the Rust FountainDecoder::new enforce
+# the same ceiling. Unauthenticated callers (schrodinger_decode reads
+# block_count/block_size from an unauthenticated manifest) must not be able to
+# drive `vec![None; k_blocks]` into a multi-GB allocation (OOM DoS), so the
+# Python FountainDecoder validates these BEFORE constructing the Rust decoder.
+_DECODER_MAX_K_BLOCKS = 0xFFFF  # u16::MAX — matches encoder cap + Rust decoder
+_DECODER_MAX_BLOCK_SIZE = 65535  # u16::MAX
+_DECODER_MAX_TOTAL_SIZE = 10 * 1024 * 1024 * 1024  # 10 GiB sanity ceiling
+
+
 class FountainEncoder:
     """
     Fountain code encoder using Luby Transform codes.
@@ -199,7 +211,17 @@ class FountainEncoder:
         if _RUST_FOUNTAIN_AVAILABLE:
             try:
                 self._rust = _RustFountainEncoder(bytes(self.data), k_blocks, block_size)
-            except (ValueError, RuntimeError):
+            except (ValueError, RuntimeError) as _e:
+                # SECURITY (M5): the Rust encoder enforces k_blocks <= u16::MAX
+                # (KBlocksOverflowU16). Do NOT swallow that guard and silently
+                # fall back to the pure-Python encoder, which packs an
+                # out-of-range u16 index and crashes with struct.error ~65k
+                # frames in (after Argon2 + tens of thousands of QR renders).
+                # Let any overflow/bounds error propagate; only tolerate a
+                # genuine shape-disagreement fallback for other errors.
+                _msg = str(_e).lower()
+                if any(t in _msg for t in ("overflow", "u16", "65535", "exceed", "out of range")):
+                    raise
                 # Defensive — should only happen if the Rust side
                 # disagrees on shape, which we already validated.
                 self._rust = None
@@ -299,6 +321,30 @@ class FountainDecoder:
             original_length: Original data length (before padding).
                 Optional; can be provided later to get_data().
         """
+        # SECURITY (H1): validate BEFORE constructing the Rust decoder. The Rust
+        # FountainDecoder::new now returns a Result and may raise from PyO3;
+        # more importantly, callers like schrodinger_decode.py build this from an
+        # UNAUTHENTICATED manifest, so unbounded k_blocks/block_size is an OOM
+        # DoS (the decoder allocates vec![None; k_blocks]). Reject out-of-range
+        # values here with a clean Python ValueError so every caller is covered.
+        if not isinstance(k_blocks, int) or not isinstance(block_size, int):
+            raise ValueError("FountainDecoder: k_blocks and block_size must be integers")
+        if k_blocks <= 0 or k_blocks > _DECODER_MAX_K_BLOCKS:
+            raise ValueError(
+                f"FountainDecoder: k_blocks={k_blocks} out of range "
+                f"(valid: 1–{_DECODER_MAX_K_BLOCKS})"
+            )
+        if block_size <= 0 or block_size > _DECODER_MAX_BLOCK_SIZE:
+            raise ValueError(
+                f"FountainDecoder: block_size={block_size} out of range "
+                f"(valid: 1–{_DECODER_MAX_BLOCK_SIZE})"
+            )
+        if k_blocks * block_size > _DECODER_MAX_TOTAL_SIZE:
+            raise ValueError(
+                f"FountainDecoder: total size {k_blocks * block_size} exceeds the "
+                f"{_DECODER_MAX_TOTAL_SIZE}-byte (10 GiB) sanity ceiling"
+            )
+
         self.k_blocks = k_blocks
         self.block_size = block_size
         self.original_length = original_length
@@ -479,6 +525,16 @@ def pack_droplet(droplet: Droplet) -> bytes:
     packed += struct.pack(">H", len(droplet.block_indices))
 
     for idx in droplet.block_indices:
+        # SECURITY (M5): droplet block indices are serialized as u16; an index
+        # above 0xFFFF means k_blocks exceeded the u16 limit (should have been
+        # caught at encode time). Raise a descriptive error instead of the bare
+        # struct.error ("ushort format requires 0 <= number <= 65535").
+        if not (0 <= idx <= 0xFFFF):
+            raise ValueError(
+                f"Droplet block index {idx} exceeds the u16 range (0–65535); "
+                f"k_blocks is too large — increase --block-size to reduce the "
+                f"block count."
+            )
         packed += struct.pack(">H", idx)
 
     packed += droplet.data

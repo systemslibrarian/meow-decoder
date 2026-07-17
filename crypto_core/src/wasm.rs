@@ -38,6 +38,7 @@ use {
     js_sys::{Promise, Uint8Array},
     wasm_bindgen_futures::future_to_promise,
     x25519_dalek::{PublicKey, StaticSecret},
+    zeroize::{Zeroize, Zeroizing},
 };
 
 /// WASM result type for JavaScript interop
@@ -431,18 +432,66 @@ pub fn x25519_diffie_hellman(my_secret: &[u8], their_public: &[u8]) -> WasmResul
         };
     }
 
-    let secret_arr: [u8; 32] = my_secret.try_into().unwrap();
+    let mut secret_arr: [u8; 32] = my_secret.try_into().unwrap();
     let public_arr: [u8; 32] = their_public.try_into().unwrap();
 
     let secret = StaticSecret::from(secret_arr);
+    // SECURITY (M1): wipe the stack copy of the secret key once StaticSecret
+    // owns its own (ZeroizeOnDrop) copy.
+    secret_arr.zeroize();
     let their_pk = PublicKey::from(public_arr);
     let shared = secret.diffie_hellman(&their_pk);
+
+    // SECURITY (M2): reject low-order points that yield an all-zero shared
+    // secret (RFC 7748 §6.1), mirroring rust_crypto/src/handles.rs.
+    if shared.as_bytes().iter().all(|&b| b == 0) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some("X25519 produced an all-zero shared secret (low-order point)".into()),
+        };
+    }
 
     WasmResult {
         success: true,
         data: shared.as_bytes().to_vec(),
         error: None,
     }
+}
+
+/// SECURITY (L2): memory-hard pre-stretch of the raw password before it is
+/// folded into the HKDF IKM of the hybrid-PQ / forward-secrecy demo paths.
+///
+/// The original code fed `shared_secret || password` straight into HKDF-SHA256,
+/// so each brute-force guess cost only a couple of SHA-256 compressions. Here we
+/// run the password through Argon2id first (matching `encode_data` in this file).
+///
+/// The Argon2id salt is derived deterministically from the (public) ephemeral
+/// key so the encrypt and decrypt sides agree WITHOUT a wire-format/version
+/// change. This intentionally changes the derived key relative to the old
+/// plain-HKDF scheme; these functions have only demo/example callers with no
+/// persisted ciphertext, so no backward-compat version flag is threaded through
+/// the wire format (which would require touching JS callers / other files).
+#[cfg(all(feature = "wasm", feature = "pure-crypto"))]
+fn l2_stretch_password(
+    password: &str,
+    ephemeral_public: &[u8],
+    domain: &[u8],
+) -> Result<SecretKey, crate::pure_crypto::CryptoError> {
+    // Deterministic per-blob salt from the public ephemeral key.
+    let mut salt_input = Vec::with_capacity(domain.len() + ephemeral_public.len());
+    salt_input.extend_from_slice(domain);
+    salt_input.extend_from_slice(ephemeral_public);
+    let salt_hash = sha256(&salt_input);
+    let salt = Salt::from_bytes(&salt_hash[..16])?;
+
+    // Browser-friendly Argon2id params (match `encode_data`).
+    let params = Argon2Params {
+        memory_kib: 65536, // 64 MiB
+        time: 3,
+        parallelism: 1,
+    };
+    argon2_derive(password.as_bytes(), &salt, Some(params))
 }
 
 /// Encrypt with forward secrecy using X25519 ephemeral key exchange
@@ -480,8 +529,11 @@ pub fn encrypt_with_forward_secrecy(
             }
         }
     };
-    let ephemeral_secret_arr: [u8; 32] = ephemeral_secret_bytes.try_into().unwrap();
+    let mut ephemeral_secret_arr: [u8; 32] = ephemeral_secret_bytes.try_into().unwrap();
     let ephemeral_secret = StaticSecret::from(ephemeral_secret_arr);
+    // SECURITY (M1): wipe the stack copy of the ephemeral secret now that
+    // StaticSecret owns its own (ZeroizeOnDrop) copy.
+    ephemeral_secret_arr.zeroize();
     let ephemeral_public = PublicKey::from(&ephemeral_secret);
 
     // Perform DH
@@ -489,13 +541,39 @@ pub fn encrypt_with_forward_secrecy(
     let recipient_pk = PublicKey::from(recipient_pk_arr);
     let shared_secret = ephemeral_secret.diffie_hellman(&recipient_pk);
 
-    // Derive encryption key: HKDF(shared_secret || password)
-    let mut ikm = Vec::new();
+    // SECURITY (M2): reject low-order points that yield an all-zero shared
+    // secret (RFC 7748 §6.1), mirroring rust_crypto/src/handles.rs.
+    if shared_secret.as_bytes().iter().all(|&b| b == 0) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some("X25519 produced an all-zero shared secret (low-order point)".into()),
+        };
+    }
+
+    // SECURITY (L2): memory-hard stretch the password with Argon2id before
+    // folding it into the HKDF IKM (see `l2_stretch_password`).
+    let stretched =
+        match l2_stretch_password(password, ephemeral_public.as_bytes(), b"meow-fs-argon2") {
+            Ok(k) => k,
+            Err(e) => {
+                return WasmResult {
+                    success: false,
+                    data: vec![],
+                    error: Some(format!("Password stretch failed: {:?}", e)),
+                }
+            }
+        };
+
+    // Derive encryption key: HKDF(shared_secret || argon2id(password)).
+    // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers so
+    // they are wiped from WASM linear memory on drop.
+    let mut ikm = Zeroizing::new(Vec::<u8>::new());
     ikm.extend_from_slice(shared_secret.as_bytes());
-    ikm.extend_from_slice(password.as_bytes());
+    ikm.extend_from_slice(stretched.as_bytes());
 
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-fs-encrypt", 32) {
-        Ok(k) => k,
+        Ok(k) => Zeroizing::new(k),
         Err(e) => {
             return WasmResult {
                 success: false,
@@ -586,18 +664,47 @@ pub fn decrypt_with_forward_secrecy(
     let ciphertext = &encrypted[44..];
 
     // Perform DH
-    let my_secret_arr: [u8; 32] = my_secret.try_into().unwrap();
+    let mut my_secret_arr: [u8; 32] = my_secret.try_into().unwrap();
     let secret = StaticSecret::from(my_secret_arr);
+    // SECURITY (M1): wipe the stack copy of the long-term recipient secret now
+    // that StaticSecret owns its own (ZeroizeOnDrop) copy.
+    my_secret_arr.zeroize();
     let ephemeral_pk = PublicKey::from(ephemeral_public_bytes);
     let shared_secret = secret.diffie_hellman(&ephemeral_pk);
 
-    // Derive decryption key
-    let mut ikm = Vec::new();
+    // SECURITY (M2): reject low-order points that yield an all-zero shared
+    // secret (RFC 7748 §6.1). The attacker fully controls the embedded ephemeral
+    // public key here, so this check prevents a universal cross-recipient blob.
+    if shared_secret.as_bytes().iter().all(|&b| b == 0) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some("X25519 produced an all-zero shared secret (low-order point)".into()),
+        };
+    }
+
+    // SECURITY (L2): derive the same Argon2id-stretched password used on the
+    // encrypt side (salt bound to the public ephemeral key).
+    let stretched = match l2_stretch_password(password, &ephemeral_public_bytes, b"meow-fs-argon2")
+    {
+        Ok(k) => k,
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Password stretch failed: {:?}", e)),
+            }
+        }
+    };
+
+    // Derive decryption key.
+    // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers.
+    let mut ikm = Zeroizing::new(Vec::<u8>::new());
     ikm.extend_from_slice(shared_secret.as_bytes());
-    ikm.extend_from_slice(password.as_bytes());
+    ikm.extend_from_slice(stretched.as_bytes());
 
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-fs-encrypt", 32) {
-        Ok(k) => k,
+        Ok(k) => Zeroizing::new(k),
         Err(e) => {
             return WasmResult {
                 success: false,
@@ -858,13 +965,26 @@ pub fn encrypt_hybrid_pq(
             }
         }
     };
-    let x25519_secret_arr: [u8; 32] = x25519_ephemeral_secret.clone().try_into().unwrap();
+    // SECURITY (M1): consume the ephemeral-secret Vec directly (no `.clone()`)
+    // and wipe the stack array once StaticSecret owns its own copy.
+    let mut x25519_secret_arr: [u8; 32] = x25519_ephemeral_secret.try_into().unwrap();
     let x25519_secret = StaticSecret::from(x25519_secret_arr);
+    x25519_secret_arr.zeroize();
     let x25519_ephemeral_public = PublicKey::from(&x25519_secret);
 
     let x25519_recipient_arr: [u8; 32] = x25519_recipient_public.try_into().unwrap();
     let x25519_recipient_pk = PublicKey::from(x25519_recipient_arr);
     let x25519_shared = x25519_secret.diffie_hellman(&x25519_recipient_pk);
+
+    // SECURITY (M2): reject low-order points that yield an all-zero X25519
+    // shared secret (RFC 7748 §6.1), mirroring rust_crypto/src/handles.rs.
+    if x25519_shared.as_bytes().iter().all(|&b| b == 0) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some("X25519 produced an all-zero shared secret (low-order point)".into()),
+        };
+    }
 
     // 2. ML-KEM encapsulation
     let mlkem_ek_array: ml_kem::array::Array<u8, _> = match mlkem_recipient_public.try_into() {
@@ -889,14 +1009,32 @@ pub fn encrypt_hybrid_pq(
     };
     let (mlkem_ciphertext, mlkem_shared) = mlkem_ek.encapsulate();
 
-    // 3. Hybrid key derivation: HKDF(x25519_shared || mlkem_shared || password)
-    let mut ikm = Vec::with_capacity(64 + password.len());
+    // 3. Hybrid key derivation: HKDF(x25519_shared || mlkem_shared || argon2id(password))
+    // SECURITY (L2): memory-hard stretch the password with Argon2id before
+    // folding it into the HKDF IKM (see `l2_stretch_password`).
+    let stretched = match l2_stretch_password(
+        password,
+        x25519_ephemeral_public.as_bytes(),
+        b"meow-pq-hybrid-argon2",
+    ) {
+        Ok(k) => k,
+        Err(e) => {
+            return WasmResult {
+                success: false,
+                data: vec![],
+                error: Some(format!("Password stretch failed: {:?}", e)),
+            }
+        }
+    };
+
+    // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers.
+    let mut ikm = Zeroizing::new(Vec::<u8>::with_capacity(64 + 32));
     ikm.extend_from_slice(x25519_shared.as_bytes());
     ikm.extend_from_slice(mlkem_shared.as_slice());
-    ikm.extend_from_slice(password.as_bytes());
+    ikm.extend_from_slice(stretched.as_bytes());
 
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-pq-hybrid-encrypt", 32) {
-        Ok(k) => k,
+        Ok(k) => Zeroizing::new(k),
         Err(e) => {
             return WasmResult {
                 success: false,
@@ -997,10 +1135,24 @@ pub fn decrypt_hybrid_pq(
     let ciphertext = &encrypted[1612..];
 
     // 1. X25519 key exchange
-    let x25519_secret_arr: [u8; 32] = x25519_secret.try_into().unwrap();
+    let mut x25519_secret_arr: [u8; 32] = x25519_secret.try_into().unwrap();
     let x25519_sk = StaticSecret::from(x25519_secret_arr);
+    // SECURITY (M1): wipe the stack copy of the long-term recipient secret now
+    // that StaticSecret owns its own (ZeroizeOnDrop) copy.
+    x25519_secret_arr.zeroize();
     let x25519_ephemeral_pk = PublicKey::from(x25519_ephemeral_public);
     let x25519_shared = x25519_sk.diffie_hellman(&x25519_ephemeral_pk);
+
+    // SECURITY (M2): reject low-order points that yield an all-zero X25519
+    // shared secret (RFC 7748 §6.1). The attacker controls the embedded
+    // ephemeral public key, so this prevents a universal cross-recipient blob.
+    if x25519_shared.as_bytes().iter().all(|&b| b == 0) {
+        return WasmResult {
+            success: false,
+            data: vec![],
+            error: Some("X25519 produced an all-zero shared secret (low-order point)".into()),
+        };
+    }
 
     // 2. ML-KEM decapsulation
     let dk_array: ml_kem::array::Array<u8, _> = match mlkem_secret.try_into() {
@@ -1040,13 +1192,28 @@ pub fn decrypt_hybrid_pq(
     let mlkem_shared = dk.decapsulate(&ct_array);
 
     // 3. Hybrid key derivation
-    let mut ikm = Vec::with_capacity(64 + password.len());
+    // SECURITY (L2): derive the same Argon2id-stretched password used on the
+    // encrypt side (salt bound to the public X25519 ephemeral key).
+    let stretched =
+        match l2_stretch_password(password, &x25519_ephemeral_public, b"meow-pq-hybrid-argon2") {
+            Ok(k) => k,
+            Err(e) => {
+                return WasmResult {
+                    success: false,
+                    data: vec![],
+                    error: Some(format!("Password stretch failed: {:?}", e)),
+                }
+            }
+        };
+
+    // SECURITY (M1): keep the IKM and derived key bytes in Zeroizing buffers.
+    let mut ikm = Zeroizing::new(Vec::<u8>::with_capacity(64 + 32));
     ikm.extend_from_slice(x25519_shared.as_bytes());
     ikm.extend_from_slice(mlkem_shared.as_slice());
-    ikm.extend_from_slice(password.as_bytes());
+    ikm.extend_from_slice(stretched.as_bytes());
 
     let key_bytes = match hkdf_derive(&ikm, None, b"meow-pq-hybrid-encrypt", 32) {
-        Ok(k) => k,
+        Ok(k) => Zeroizing::new(k),
         Err(e) => {
             return WasmResult {
                 success: false,
@@ -1511,11 +1678,16 @@ mod fountain {
 
     #[wasm_bindgen]
     impl WasmFountainDecoder {
+        // SECURITY (H1): fallible constructor. `k_blocks`/`block_size`
+        // come straight from a scanned `FOUNTAIN:` QR string (attacker
+        // controlled, pre-auth), so surface the decoder's bounds-check
+        // error as a JS exception instead of allocating unbounded memory.
         #[wasm_bindgen(constructor)]
-        pub fn new(k_blocks: usize, block_size: usize) -> Self {
-            Self {
-                inner: RustDecoder::new(k_blocks, block_size),
-            }
+        pub fn new(k_blocks: usize, block_size: usize) -> Result<WasmFountainDecoder, JsValue> {
+            Ok(Self {
+                inner: RustDecoder::new(k_blocks, block_size)
+                    .map_err(|e| JsValue::from_str(&e.to_string()))?,
+            })
         }
 
         #[wasm_bindgen(getter, js_name = kBlocks)]

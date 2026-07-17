@@ -172,9 +172,13 @@ def _mlkem1024_decapsulate(sk: bytes, ct: bytes) -> bytes:
         return kem.decaps(sk, ct)
 
     if _OQS_AVAILABLE:
-        with oqs.KeyEncapsulation("Kyber1024") as kem:
-            # Need to set secret key manually
-            kem._secret_key = sk
+        # SECURITY (M8): liboqs-python stores the decapsulation key in
+        # ``self.secret_key`` (settable only via the constructor). The prior
+        # ``kem._secret_key = sk`` assignment left ``self.secret_key`` unset,
+        # so ``decap_secret`` raised AttributeError and OQS-only installs could
+        # never decode. Pass the key through the constructor to match the
+        # keygen/encapsulate paths above.
+        with oqs.KeyEncapsulation("Kyber1024", secret_key=sk) as kem:
             return kem.decap_secret(ct)
 
     raise RuntimeError(

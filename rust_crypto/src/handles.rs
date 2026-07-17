@@ -23,7 +23,7 @@ use hmac::{digest::KeyInit as HmacKeyInit, Hmac, Mac as HmacMac};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 use x25519_dalek::{PublicKey, StaticSecret};
-use zeroize::Zeroize;
+use zeroize::{Zeroize, Zeroizing};
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -300,16 +300,19 @@ pub fn handle_derive_hkdf(
     info: &[u8],
     output_len: usize,
 ) -> Result<HandleId, HandleError> {
-    let ikm_bytes = with_handle(ikm_handle, |payload| match payload {
+    // SECURITY (L3): wrap the copied IKM in Zeroizing so it is wiped on every
+    // return path (including the `?` early error returns below), matching the
+    // module's "all secret material is zeroized on drop" contract.
+    let ikm_bytes = Zeroizing::new(with_handle(ikm_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::Session(s) => Ok(s.enc_key.as_bytes().to_vec()),
         HandlePayload::Ratchet(r) => Ok(r.chain_key.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
     let salt_opt: Option<&[u8]> = if salt.is_empty() { None } else { Some(salt) };
-    let hkdf = Hkdf::<Sha256>::new(salt_opt, &ikm_bytes);
+    let hkdf = Hkdf::<Sha256>::new(salt_opt, ikm_bytes.as_slice());
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
@@ -395,16 +398,18 @@ pub fn handle_derive_hkdf_bytes(
     info: &[u8],
     output_len: usize,
 ) -> Result<Vec<u8>, HandleError> {
-    let ikm_bytes = with_handle(ikm_handle, |payload| match payload {
+    // SECURITY (L3): wrap the copied IKM in Zeroizing so it is wiped on every
+    // return path (including the `?` early error return below).
+    let ikm_bytes = Zeroizing::new(with_handle(ikm_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::Session(s) => Ok(s.enc_key.as_bytes().to_vec()),
         HandlePayload::Ratchet(r) => Ok(r.chain_key.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
     let salt_opt: Option<&[u8]> = if salt.is_empty() { None } else { Some(salt) };
-    let hkdf = Hkdf::<Sha256>::new(salt_opt, &ikm_bytes);
+    let hkdf = Hkdf::<Sha256>::new(salt_opt, ikm_bytes.as_slice());
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
@@ -788,7 +793,16 @@ pub fn handle_stream_new(
     }))
 }
 
-/// Stream encrypt: AES-CTR encrypt + compute HMAC over (nonce || ciphertext).
+/// Stream encrypt: AES-CTR encrypt + compute a position-bound HMAC.
+///
+/// SECURITY (M3): the MAC input is `nonce || be64(byte_offset) || ciphertext`,
+/// where `byte_offset` is this chunk's PRE-encryption stream position. Because
+/// every chunk reuses the same static stream nonce, MACing only `nonce ||
+/// ciphertext` (the old construction) made every `(ciphertext, tag)` pair valid
+/// at any position, allowing chunks to be reordered, replayed, or truncated
+/// while still verifying. Binding the byte offset ties each tag to exactly one
+/// position in the stream. The decrypt side recomputes the MAC over its OWN
+/// tracked offset, so a chunk presented out of order fails authentication.
 pub fn handle_stream_encrypt(
     stream_handle: HandleId,
     plaintext: &[u8],
@@ -799,20 +813,24 @@ pub fn handle_stream_encrypt(
             _ => return Err(HandleError::HandleTypeMismatch),
         };
 
+        // Capture the pre-encryption stream position for positional MAC binding.
+        let chunk_offset = stream.byte_offset;
+
         // AES-CTR encrypt
         let ciphertext = crypto_core::pure_crypto::aes_ctr_crypt(
             stream.enc_key.as_bytes(),
             &stream.nonce,
             plaintext,
-            stream.byte_offset,
+            chunk_offset,
         )
         .map_err(|_| HandleError::EncryptionFailed)?;
 
         stream.byte_offset += plaintext.len() as u64;
 
-        // Compute MAC over nonce || ciphertext
-        let mut mac_input = Vec::with_capacity(16 + ciphertext.len());
+        // SECURITY (M3): MAC over nonce || be64(byte_offset) || ciphertext
+        let mut mac_input = Vec::with_capacity(16 + 8 + ciphertext.len());
         mac_input.extend_from_slice(&stream.nonce);
+        mac_input.extend_from_slice(&chunk_offset.to_be_bytes());
         mac_input.extend_from_slice(&ciphertext);
 
         let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(stream.mac_key.as_bytes())
@@ -836,9 +854,16 @@ pub fn handle_stream_decrypt(
             _ => return Err(HandleError::HandleTypeMismatch),
         };
 
-        // Compute and verify MAC BEFORE decryption
-        let mut mac_input = Vec::with_capacity(16 + ciphertext.len());
+        // The chunk MUST authenticate at the receiver's own current position.
+        let chunk_offset = stream.byte_offset;
+
+        // SECURITY (M3): compute and verify MAC over nonce || be64(byte_offset)
+        // || ciphertext BEFORE decryption, using the receiver's OWN tracked
+        // offset. A chunk presented at the wrong position (reorder/replay/
+        // truncation) yields a different MAC input and fails authentication.
+        let mut mac_input = Vec::with_capacity(16 + 8 + ciphertext.len());
         mac_input.extend_from_slice(&stream.nonce);
+        mac_input.extend_from_slice(&chunk_offset.to_be_bytes());
         mac_input.extend_from_slice(ciphertext);
 
         let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(stream.mac_key.as_bytes())
@@ -856,7 +881,7 @@ pub fn handle_stream_decrypt(
             stream.enc_key.as_bytes(),
             &stream.nonce,
             ciphertext,
-            stream.byte_offset,
+            chunk_offset,
         )
         .map_err(|_| HandleError::DecryptionFailed)?;
 
@@ -997,13 +1022,15 @@ pub fn handle_hkdf_with_handle_salt(
     info: &[u8],
     output_len: usize,
 ) -> Result<HandleId, HandleError> {
-    let salt_bytes = with_handle(salt_handle, |payload| match payload {
+    // SECURITY (L3): the salt is a handle's key bytes (secret); wrap in
+    // Zeroizing so it is wiped on every return path.
+    let salt_bytes = Zeroizing::new(with_handle(salt_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
-    let hkdf = Hkdf::<Sha256>::new(Some(&salt_bytes), ikm);
+    let hkdf = Hkdf::<Sha256>::new(Some(salt_bytes.as_slice()), ikm);
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
@@ -1030,13 +1057,15 @@ pub fn handle_hkdf_expand(
     info: &[u8],
     output_len: usize,
 ) -> Result<HandleId, HandleError> {
-    let prk_bytes = with_handle(prk_handle, |payload| match payload {
+    // SECURITY (L3): the handle's key bytes act as the HKDF PRK (secret); wrap
+    // in Zeroizing so they are wiped on every return path.
+    let prk_bytes = Zeroizing::new(with_handle(prk_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
-    let prk = hkdf::Hkdf::<Sha256>::from_prk(&prk_bytes)
+    let prk = hkdf::Hkdf::<Sha256>::from_prk(prk_bytes.as_slice())
         .map_err(|e| HandleError::HkdfFailed(format!("Invalid PRK: {:?}", e)))?;
     let mut okm = vec![0u8; output_len];
     prk.expand(info, &mut okm)
@@ -1065,19 +1094,21 @@ pub fn handle_hkdf_two_handles(
     info: &[u8],
     output_len: usize,
 ) -> Result<HandleId, HandleError> {
-    let ikm_bytes = with_handle(ikm_handle, |payload| match payload {
+    // SECURITY (L3): both IKM and salt are handle key bytes (secret); wrap in
+    // Zeroizing so they are wiped on every return path.
+    let ikm_bytes = Zeroizing::new(with_handle(ikm_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
-    let salt_bytes = with_handle(salt_handle, |payload| match payload {
+    let salt_bytes = Zeroizing::new(with_handle(salt_handle, |payload| match payload {
         HandlePayload::SymmetricKey(k) => Ok(k.as_bytes().to_vec()),
         HandlePayload::HmacKey(h) => Ok(h.key.as_bytes().to_vec()),
         _ => Err(HandleError::HandleTypeMismatch),
-    })?;
+    })?);
 
-    let hkdf = Hkdf::<Sha256>::new(Some(&salt_bytes), &ikm_bytes);
+    let hkdf = Hkdf::<Sha256>::new(Some(salt_bytes.as_slice()), ikm_bytes.as_slice());
     let mut okm = vec![0u8; output_len];
     hkdf.expand(info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
@@ -1422,7 +1453,10 @@ pub fn handle_pqxdh_encapsulate(
     let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(extract_salt)
         .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
     mac.update(&combined_ikm);
-    let prk = mac.finalize().into_bytes();
+    // SECURITY (L3): the PRK is the HMAC-Extract output and is key-equivalent to
+    // the derived session key; bind it mutably so it can be zeroized on every
+    // path (including the from_prk error path below), matching the docstring.
+    let mut prk = mac.finalize().into_bytes();
     combined_ikm.zeroize();
     classical_shared.zeroize();
 
@@ -1444,8 +1478,16 @@ pub fn handle_pqxdh_encapsulate(
     info.extend_from_slice(&transcript_hash);
 
     // 7. HKDF-Expand(PRK, info, 32)
-    let hkdf = hkdf::Hkdf::<Sha256>::from_prk(&prk)
-        .map_err(|e| HandleError::HkdfFailed(format!("PRK: {:?}", e)))?;
+    let hkdf = match hkdf::Hkdf::<Sha256>::from_prk(&prk) {
+        Ok(h) => h,
+        Err(e) => {
+            // SECURITY (L3): wipe the PRK before the early error return.
+            prk.zeroize();
+            return Err(HandleError::HkdfFailed(format!("PRK: {:?}", e)));
+        }
+    };
+    // SECURITY (L3): HKDF has absorbed the PRK into its HMAC state; wipe our copy.
+    prk.zeroize();
     let mut okm = [0u8; 32];
     hkdf.expand(&info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;
@@ -1499,7 +1541,10 @@ pub fn handle_pqxdh_decapsulate(
     let mut mac = <HmacSha256 as HmacKeyInit>::new_from_slice(extract_salt)
         .map_err(|_| HandleError::HkdfFailed("HMAC init failed".into()))?;
     mac.update(&combined_ikm);
-    let prk = mac.finalize().into_bytes();
+    // SECURITY (L3): the PRK is the HMAC-Extract output and is key-equivalent to
+    // the derived session key; bind it mutably so it can be zeroized on every
+    // path (including the from_prk error path below).
+    let mut prk = mac.finalize().into_bytes();
     combined_ikm.zeroize();
     classical_shared.zeroize();
 
@@ -1521,8 +1566,16 @@ pub fn handle_pqxdh_decapsulate(
     info.extend_from_slice(&transcript_hash);
 
     // 6. HKDF-Expand
-    let hkdf = hkdf::Hkdf::<Sha256>::from_prk(&prk)
-        .map_err(|e| HandleError::HkdfFailed(format!("PRK: {:?}", e)))?;
+    let hkdf = match hkdf::Hkdf::<Sha256>::from_prk(&prk) {
+        Ok(h) => h,
+        Err(e) => {
+            // SECURITY (L3): wipe the PRK before the early error return.
+            prk.zeroize();
+            return Err(HandleError::HkdfFailed(format!("PRK: {:?}", e)));
+        }
+    };
+    // SECURITY (L3): HKDF has absorbed the PRK into its HMAC state; wipe our copy.
+    prk.zeroize();
     let mut okm = [0u8; 32];
     hkdf.expand(&info, &mut okm)
         .map_err(|e| HandleError::HkdfFailed(format!("{:?}", e)))?;

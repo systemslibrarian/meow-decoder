@@ -481,8 +481,13 @@ pub fn hkdf_derive_key(
     salt: Option<&[u8]>,
     info: &[u8],
 ) -> Result<SecretKey, CryptoError> {
-    let output = hkdf_derive(ikm, salt, info, AES_KEY_SIZE)?;
-    SecretKey::from_bytes(&output)
+    // SECURITY (L1): the plain HKDF `output` Vec holds raw key bytes. Copy it
+    // into the ZeroizeOnDrop `SecretKey`, then wipe the intermediate before it
+    // is dropped so key material does not linger in freed heap.
+    let mut output = hkdf_derive(ikm, salt, info, AES_KEY_SIZE)?;
+    let key = SecretKey::from_bytes(&output);
+    output.zeroize();
+    key
 }
 
 // ============================================================================
@@ -529,6 +534,15 @@ impl X25519KeyPair {
         let secret = StaticSecret::from(self.secret);
         let their_pk = PublicKey::from(*their_public);
         let shared = secret.diffie_hellman(&their_pk);
+        // SECURITY (M2): reject low-order points (RFC 7748 §6.1) that produce an
+        // all-zero shared secret, mirroring rust_crypto/src/handles.rs. Without
+        // this, an attacker-supplied low-order public key forces a predictable
+        // key independent of our private key.
+        if shared.as_bytes().iter().all(|&b| b == 0) {
+            return Err(CryptoError::KeyDerivationFailed(
+                "X25519 produced an all-zero shared secret (low-order point)".into(),
+            ));
+        }
         Ok(shared.to_bytes())
     }
 }
@@ -660,8 +674,15 @@ pub mod pq {
             // Generate trait method: generate() uses system RNG via getrandom feature
             let dk = DecapsulationKey::generate();
             let ek = dk.encapsulation_key();
-            // Use expanded bytes format to match from_expanded_bytes() in decapsulate
-            Ok((dk.to_expanded_bytes().to_vec(), ek.to_bytes().to_vec()))
+            // Use expanded bytes format to match from_expanded_bytes() in decapsulate.
+            // SECURITY (L1): the expanded decapsulation-key bytes are the secret
+            // key; copy them into the returned Vec, then wipe the intermediate.
+            let mut expanded = dk.to_expanded_bytes();
+            let secret_vec = expanded.to_vec();
+            for b in expanded.iter_mut() {
+                *b = 0;
+            }
+            Ok((secret_vec, ek.to_bytes().to_vec()))
         }
 
         /// Encapsulate to produce ciphertext and shared secret
@@ -691,12 +712,18 @@ pub mod pq {
         #[allow(deprecated)] // from_expanded_bytes deprecated but needed for serialization roundtrip
         pub fn decapsulate(secret_key: &[u8], ciphertext: &[u8]) -> Result<[u8; 32], CryptoError> {
             // Convert slice to Array using TryFrom
-            let dk_array: ml_kem::array::Array<u8, _> = secret_key.try_into().map_err(|_| {
-                CryptoError::KeyDerivationFailed("Invalid secret key length".into())
-            })?;
+            let mut dk_array: ml_kem::array::Array<u8, _> =
+                secret_key.try_into().map_err(|_| {
+                    CryptoError::KeyDerivationFailed("Invalid secret key length".into())
+                })?;
             // ml-kem 0.3.0-rc.0: use from_expanded_bytes instead of from_encoded_bytes
             let dk = DecapsulationKey::from_expanded_bytes(&dk_array)
                 .map_err(|_| CryptoError::KeyDerivationFailed("Invalid secret key".into()))?;
+            // SECURITY (L1): wipe the stack copy of the secret-key bytes now that
+            // the DecapsulationKey has been reconstructed from it.
+            for b in dk_array.iter_mut() {
+                *b = 0;
+            }
 
             // Convert ciphertext to Array
             let ct_array: ml_kem::array::Array<u8, _> = ciphertext.try_into().map_err(|_| {
@@ -734,7 +761,13 @@ pub mod pq {
             let sk = SigningKey::<MlDsa65>::from_seed(&seed);
             let vk = sk.verifying_key();
             let vk_encoded = vk.encode();
-            Ok((seed_bytes.to_vec(), vk_encoded.to_vec()))
+            // SECURITY (L1): copy the seed (secret) into the returned Vec, then
+            // wipe the stack buffer so the 32-byte secret does not linger.
+            let seed_vec = seed_bytes.to_vec();
+            for b in seed_bytes.iter_mut() {
+                *b = 0;
+            }
+            Ok((seed_vec, vk_encoded.to_vec()))
         }
 
         /// Sign a message with ML-DSA-65.
@@ -913,8 +946,11 @@ pub mod pq {
         mlkem_shared: &[u8; 32],
         info: &[u8],
     ) -> Result<SecretKey, CryptoError> {
-        // Combine both shared secrets
-        let mut combined = Vec::with_capacity(64);
+        // Combine both shared secrets.
+        // SECURITY (L1): the 64-byte combined IKM (x25519 || mlkem) fully
+        // determines the returned key, so wrap it in `Zeroizing` to guarantee
+        // it is wiped when it goes out of scope.
+        let mut combined = zeroize::Zeroizing::new(Vec::with_capacity(64));
         combined.extend_from_slice(x25519_shared);
         combined.extend_from_slice(mlkem_shared);
 

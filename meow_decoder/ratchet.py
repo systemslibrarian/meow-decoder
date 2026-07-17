@@ -260,7 +260,10 @@ def _mix_pq_beacon_handle(message_key_handle: int, pq_shared_secret: bytes, salt
     Returns a new handle; caller must drop the old handle.
     """
     hb = get_handle_backend()
-    return hb.mix_hkdf(message_key_handle, pq_shared_secret, salt, PQ_BEACON_MIX_INFO, 32)
+    # SECURITY (L12): callers now pass the PQ secret as a wipeable bytearray;
+    # the FFI requires immutable bytes, so convert at this boundary (the
+    # caller retains and zeroizes the bytearray copy).
+    return hb.mix_hkdf(message_key_handle, bytes(pq_shared_secret), salt, PQ_BEACON_MIX_INFO, 32)
 
 
 # NOTE: Legacy _generate_kem_beacon / _recover_kem_beacon removed.
@@ -502,8 +505,10 @@ def _fold_pq_into_root(
     """
     hb = get_handle_backend()
     epoch_info = PQ_HYBRID_REKEY_ROOT_INFO + struct.pack(">I", epoch)
-    # Import PQ shared secret as an opaque handle; Python copy will be GC'd
-    pq_handle = hb.import_key(pq_shared_bytes)
+    # Import PQ shared secret as an opaque handle; Python copy will be GC'd.
+    # SECURITY (L12): accept a wipeable bytearray but hand the FFI immutable
+    # bytes (the caller zeroizes its bytearray copy afterward).
+    pq_handle = hb.import_key(bytes(pq_shared_bytes))
     # HKDF(IKM=pq_shared, salt=x25519_root_handle, info=epoch_info, len=32)
     # Both inputs are handles — no secret bytes cross the Rust boundary
     new_root_handle = hb.hkdf_two_handles(pq_handle, post_x25519_root_handle, epoch_info, 32)
@@ -579,6 +584,23 @@ def _build_header_lookup(header_key_handle: int, total_frames: int) -> Dict[byte
     lookup: Dict[bytes, int] = {}
     for i in range(total_frames):
         enc_idx = _encrypt_index(header_key_handle, i)
+        # SECURITY (L16): _encrypt_index masks each index with a per-index HKDF
+        # value (a random function, NOT a permutation), so two distinct indices
+        # can map to the same 4-byte encrypted value. The old code inserted into
+        # a dict where the later index silently overwrote the earlier one — the
+        # collided frame then resolved to the wrong index, failed its commitment
+        # tag, and was permanently undecodable that session with no diagnostic.
+        # Detect the collision at setup and fail closed so the caller can re-salt
+        # (new session salt) rather than silently losing a frame. Non-colliding
+        # sessions (the overwhelming common case) are unaffected.
+        prior = lookup.get(enc_idx)
+        if prior is not None and prior != i:
+            raise ValueError(
+                "Encrypted-index collision detected during header lookup "
+                f"construction (frames {prior} and {i} map to the same 4-byte "
+                "value). This session salt would make a frame undecodable; "
+                "re-encode with a fresh session salt to resolve."
+            )
         lookup[enc_idx] = i
     return lookup
 
@@ -1117,18 +1139,27 @@ class EncoderRatchet:
             # to predict the new root key. The PQ ciphertext is embedded in
             # pq_beacon_header for the decoder to decapsulate.
             if self._receiver_pq_public_key is not None:
-                pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
-                pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
-                new_root_h = _fold_pq_into_root(new_root_h, pq_shared, self._state.epoch)
-                # CRITICAL: Re-derive chain from the PQ-hybrid root so that the
-                # chain key (and all subsequent message keys) depend on BOTH
-                # X25519 AND ML-KEM-1024.  Without this, the PQ fold only
-                # updates the root but the chain remains X25519-only.
-                if isinstance(new_chain_h, int):
-                    hb.drop(new_chain_h)
-                new_chain_h = _hkdf_derive_handle(new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32)
-                # Zeroize Python-side copy (handle keeps the real secret in Rust)
-                pq_shared = b"\x00" * len(pq_shared)
+                pq_ct, _pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
+                # SECURITY (L12): copy the ML-KEM shared secret into a mutable
+                # bytearray so the wipe in `finally` actually overwrites the
+                # buffer (rebinding immutable bytes is a no-op).
+                pq_shared = bytearray(_pq_shared)
+                try:
+                    pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
+                    new_root_h = _fold_pq_into_root(new_root_h, pq_shared, self._state.epoch)
+                    # CRITICAL: Re-derive chain from the PQ-hybrid root so that
+                    # the chain key (and all subsequent message keys) depend on
+                    # BOTH X25519 AND ML-KEM-1024.  Without this, the PQ fold
+                    # only updates the root but the chain remains X25519-only.
+                    if isinstance(new_chain_h, int):
+                        hb.drop(new_chain_h)
+                    new_chain_h = _hkdf_derive_handle(
+                        new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
+                    )
+                finally:
+                    # Wipe Python-side copy in-place (handle keeps the real
+                    # secret in Rust).
+                    _secure_zero(pq_shared)
 
             self._state.root_key = new_root_h
             self._state.chain_key = new_chain_h
@@ -1156,13 +1187,17 @@ class EncoderRatchet:
             and self._receiver_pq_public_key is not None
             and self._receiver_public_key is None
         ):
-            pq_ct, pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
-            new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
-            hb.drop(msg_key_handle)
-            msg_key_handle = new_mk_handle
-            pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
-            # Zeroize PQ shared secret (ephemeral, defense in depth)
-            pq_shared = b"\x00" * len(pq_shared)
+            pq_ct, _pq_shared = _mlkem1024_encapsulate(self._receiver_pq_public_key)
+            # SECURITY (L12): use a mutable bytearray so the wipe is effective.
+            pq_shared = bytearray(_pq_shared)
+            try:
+                new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
+                hb.drop(msg_key_handle)
+                msg_key_handle = new_mk_handle
+                pq_beacon_header = PQBeaconFrame(ciphertext=pq_ct).to_bytes()
+            finally:
+                # Wipe PQ shared secret in-place (ephemeral, defense in depth).
+                _secure_zero(pq_shared)
 
         commit_keys = None
         try:
@@ -1388,7 +1423,11 @@ class DecoderRatchet:
             # detection happens via commit_tag verification downstream, gated
             # by the speculative-state pattern.
             if pq_ct is not None and self._receiver_pq_keypair is not None:
-                pq_shared = _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
+                # SECURITY (L12): decapsulate into a mutable bytearray so the
+                # wipe in `finally` overwrites the real buffer.
+                pq_shared = bytearray(
+                    _mlkem1024_decapsulate(self._receiver_pq_keypair.secret_key, pq_ct)
+                )
                 try:
                     # _fold_pq_into_root drops the input post-X25519 root and
                     # returns a fresh PQ-hybrid root handle.
@@ -1402,8 +1441,8 @@ class DecoderRatchet:
                         new_root_h, self._salt, ASYM_REKEY_CHAIN_INFO, 32
                     )
                 finally:
-                    # Zeroize Python-side copy (defense in depth)
-                    pq_shared = b"\x00" * len(pq_shared)
+                    # Wipe Python-side copy in-place (defense in depth).
+                    _secure_zero(pq_shared)
         except Exception:
             # Cleanup on partial allocation failure — state has not been
             # mutated yet, so no rollback needed beyond freeing the new
@@ -1551,6 +1590,18 @@ class DecoderRatchet:
             msg_key_handle, self._state = ratchet_step(self._state)
             # Cache the skipped key handle for later out-of-order reception
             skipped_idx = self._state.position - 1
+            # SECURITY (L14): after a rekey rollback rewinds `position`, a later
+            # advance can revisit an index that already holds a cached handle.
+            # Overwriting it silently would orphan a live secret-key handle in
+            # the Rust table. Drop any pre-existing entry first (same guarded
+            # drop pattern as the L13 fix).
+            _prev_handle = self._skipped_keys.get(skipped_idx)
+            if _prev_handle is not None and _prev_handle != msg_key_handle:
+                try:
+                    hb = get_handle_backend()
+                    hb.drop(_prev_handle)
+                except Exception:
+                    pass
             self._skipped_keys[skipped_idx] = msg_key_handle
 
         # Handle rekey at the target position itself
@@ -1723,17 +1774,25 @@ class DecoderRatchet:
                 if pq_frame is not None:
                     if not is_asym_rekey:
                         # PQ-only fallback: mix PQ into message key (no root key)
-                        pq_shared = _mlkem1024_decapsulate(
-                            self._receiver_pq_keypair.secret_key,
-                            pq_frame.ciphertext,
+                        # SECURITY (L12): decapsulate into a mutable bytearray
+                        # so the wipe below overwrites the real buffer.
+                        pq_shared = bytearray(
+                            _mlkem1024_decapsulate(
+                                self._receiver_pq_keypair.secret_key,
+                                pq_frame.ciphertext,
+                            )
                         )
-                        new_mk_handle = _mix_pq_beacon_handle(msg_key_handle, pq_shared, self._salt)
-                        if owns_handle:
-                            hb.drop(msg_key_handle)
-                        msg_key_handle = new_mk_handle
-                        owns_handle = True
-                        # Zeroize Python-side copy (defense in depth)
-                        pq_shared = b"\x00" * len(pq_shared)
+                        try:
+                            new_mk_handle = _mix_pq_beacon_handle(
+                                msg_key_handle, pq_shared, self._salt
+                            )
+                            if owns_handle:
+                                hb.drop(msg_key_handle)
+                            msg_key_handle = new_mk_handle
+                            owns_handle = True
+                        finally:
+                            # Wipe Python-side copy in-place (defense in depth).
+                            _secure_zero(pq_shared)
                     # is_asym_rekey: PQ already folded into root by _execute_rekey
                     # Strip PQ beacon bytes from ciphertext body (both paths)
                     pq_total = PQBeaconFrame.header_size() + len(pq_frame.ciphertext)
@@ -1771,10 +1830,18 @@ class DecoderRatchet:
             # state to committed state, consume cache entry, mark frame
             # as replay-protected.
             if cache_idx is not None:
-                # We peeked earlier; now consume the cached handle. We
-                # take ownership and the regular finally-block drop path
-                # will free it.
-                self._skipped_keys.pop(cache_idx, None)
+                # We peeked earlier; now consume the cached handle. If a
+                # beacon/PQ mix replaced msg_key_handle with a fresh
+                # handle, the popped ORIGINAL differs from msg_key_handle
+                # and must be dropped here — the finally block only frees
+                # msg_key_handle, so the pre-mix handle would otherwise
+                # leak in the handle table until process exit.
+                cached_handle = self._skipped_keys.pop(cache_idx, None)
+                if cached_handle is not None and cached_handle != msg_key_handle:
+                    try:
+                        hb.drop(cached_handle)
+                    except Exception:
+                        pass
                 cache_idx = None
                 owns_handle = True
             self._commit_rekey()

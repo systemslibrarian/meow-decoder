@@ -319,8 +319,8 @@ class TestSaveReceiverKeypair:
 
             with open(private_file, "rb") as f:
                 file_content = f.read()
-            # New MEOW_X25519 format: encrypted marker byte is \x02
-            assert file_content[:12] == b"MEOW_X25519\x02"
+            # SECURITY (M7): encrypted-at-rest keys now use Argon2id (marker \x03).
+            assert file_content[:12] == b"MEOW_X25519\x03"
             # Must be longer than header (12) + salt (16) + nonce (12) + raw key (32)
             assert len(file_content) > 72
 

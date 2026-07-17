@@ -18,8 +18,9 @@ use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
 use crypto_core::meow_fountain::{
-    decoder::FountainDecoder as RustDecoder, distribution::RobustSoliton, encoder::EncoderError,
-    encoder::FountainEncoder as RustEncoder, wire::Droplet as RustDroplet, wire::WireError,
+    decoder::DecoderError, decoder::FountainDecoder as RustDecoder, distribution::RobustSoliton,
+    encoder::EncoderError, encoder::FountainEncoder as RustEncoder, wire::Droplet as RustDroplet,
+    wire::WireError,
 };
 
 fn map_encoder_err(e: EncoderError) -> PyErr {
@@ -35,6 +36,26 @@ fn map_encoder_err(e: EncoderError) -> PyErr {
         )),
         EncoderError::KBlocksOverflowU16 { k_blocks } => PyValueError::new_err(format!(
             "fountain: k_blocks {k_blocks} exceeds u16::MAX wire-format limit (65535)"
+        )),
+    }
+}
+
+// SECURITY (H1): map the decoder's bounds-check errors to Python
+// ValueError so an attacker-controlled `k_blocks`/`block_size` raises
+// cleanly instead of forcing an unbounded allocation.
+fn map_decoder_err(e: DecoderError) -> PyErr {
+    match e {
+        DecoderError::InvalidShape {
+            k_blocks,
+            block_size,
+        } => PyValueError::new_err(format!(
+            "invalid decoder shape: k_blocks={k_blocks}, block_size={block_size} (both must be > 0)"
+        )),
+        DecoderError::KBlocksOverflowU16 { k_blocks } => {
+            PyValueError::new_err(format!("k_blocks={k_blocks} exceeds u16::MAX (65535)"))
+        }
+        DecoderError::TotalSizeExceeded { total, ceiling } => PyValueError::new_err(format!(
+            "decoder total size {total} exceeds ceiling {ceiling}"
         )),
     }
 }
@@ -168,10 +189,10 @@ pub struct PyFountainDecoder {
 #[pymethods]
 impl PyFountainDecoder {
     #[new]
-    fn new(k_blocks: usize, block_size: usize) -> Self {
-        Self {
-            inner: RustDecoder::new(k_blocks, block_size),
-        }
+    fn new(k_blocks: usize, block_size: usize) -> PyResult<Self> {
+        Ok(Self {
+            inner: RustDecoder::new(k_blocks, block_size).map_err(map_decoder_err)?,
+        })
     }
 
     #[getter]

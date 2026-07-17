@@ -379,6 +379,12 @@ def schrodinger_decode_file(
         print(f"\n🌊 Fountain decoding {len(droplets)} droplets...")
 
     # Fountain decode
+    # SECURITY (H1): manifest.block_count/block_size come from an UNAUTHENTICATED
+    # manifest. Bounds are enforced defence-in-depth at BOTH ends —
+    # SchrodingerManifest.unpack() rejects out-of-range values at parse time, and
+    # FountainDecoder.__init__ re-validates (k_blocks<=u16::MAX, block_size, and a
+    # 10 GiB total ceiling) BEFORE allocating, raising a clean ValueError instead
+    # of driving an unbounded vec![None; block_count] allocation (OOM DoS).
     decoder = FountainDecoder(manifest.block_count, manifest.block_size)
 
     for droplet in droplets:

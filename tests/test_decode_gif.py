@@ -457,8 +457,11 @@ def test_decode_gif_frame_mac_legacy_valid(tmp_path, monkeypatch):
     monkeypatch.setattr(frame_mac, "unpack_frame_with_mac", _unpack_frame_with_mac)
 
     out_path = tmp_path / "out.bin"
+    # SECURITY (M4): the legacy (fast SHA-256) frame-MAC fallback is now
+    # fail-closed by default; decoding a pre-v2 artifact requires the explicit
+    # allow_legacy opt-in (CLI: --allow-legacy).
     stats = decode_mod.decode_gif(
-        tmp_path / "in.gif", out_path, password="password123", verbose=True
+        tmp_path / "in.gif", out_path, password="password123", verbose=True, allow_legacy=True
     )
 
     assert out_path.read_bytes() == plaintext

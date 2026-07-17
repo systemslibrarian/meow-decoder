@@ -1273,7 +1273,10 @@ fn handle_count() -> usize {
 }
 
 /// PQXDH hybrid encapsulation: full key agreement inside Rust.
-/// No secret bytes cross FFI. Returns (shared_secret_handle, ephemeral_public_bytes).
+/// No secret bytes are RETURNED across FFI (the shared secret stays behind a
+/// handle). Note: the ML-KEM `pq_shared_secret` is passed IN from Python, so
+/// that one PQ secret does transit Python-managed memory inbound.
+/// Returns (shared_secret_handle, ephemeral_public_bytes).
 #[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (receiver_classical_pub, pq_shared_secret, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]
@@ -1302,7 +1305,10 @@ fn handle_pqxdh_encapsulate<'py>(
 }
 
 /// PQXDH hybrid decapsulation: full key agreement inside Rust.
-/// No secret bytes cross FFI. Returns shared_secret_handle.
+/// No secret bytes are RETURNED across FFI (the shared secret stays behind a
+/// handle). Note: the ML-KEM `pq_shared_secret` is passed IN from Python, so
+/// that one PQ secret does transit Python-managed memory inbound.
+/// Returns shared_secret_handle.
 #[cfg(feature = "python")]
 #[pyfunction]
 #[pyo3(signature = (ephemeral_classical_pub, receiver_private_handle, pq_shared_secret, receiver_classical_pub, extract_salt, info_prefix, transcript_domain, receiver_pq_pub=None, pq_ciphertext=None))]

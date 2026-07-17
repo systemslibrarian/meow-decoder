@@ -8,19 +8,30 @@ use crypto_core::secure_alloc::SecureBox;
 /// - Zeroization: data must be cleared upon Drop
 /// - is_locked() consistency: always matches allocation state
 /// - total_size() >= data_size() invariant
+///
+/// SECURITY (L4): `SecureBox<T>` only protects `size_of::<T>()` inline
+/// bytes, so it must be used with a fixed-size, non-heap-owning `T`
+/// (e.g. `[u8; N]`) — never `Vec<u8>`/`String`, whose secret bytes live
+/// in unprotected heap. This target now fuzzes the supported `[u8; N]`
+/// shape (the previous `SecureBox<Vec<u8>>` usage was the very misuse the
+/// finding flags, and now trips the constructor's `needs_drop` assert).
 use libfuzzer_sys::fuzz_target;
+
+const N: usize = 64;
 
 fuzz_target!(|raw: &[u8]| {
     if raw.is_empty() {
         return;
     }
 
-    // Limit allocation size to avoid OOM in CI fuzzing
-    let size = (raw[0] as usize) % 64 + 1; // 1..=64 bytes
-    let alloc_data: Vec<u8> = raw.iter().take(size).copied().collect();
+    // Copy up to N fuzz bytes into a fixed-size array (zero-padded).
+    let mut alloc_data = [0u8; N];
+    for (dst, &src) in alloc_data.iter_mut().zip(raw.iter().take(N)) {
+        *dst = src;
+    }
 
     // --- Test 1: basic allocation and field access ---
-    match SecureBox::new(alloc_data.clone()) {
+    match SecureBox::new(alloc_data) {
         Ok(b) => {
             // Invariant: total_size >= data_size
             assert!(
@@ -30,32 +41,29 @@ fuzz_target!(|raw: &[u8]| {
                 b.data_size()
             );
 
-            // Invariant: data_size == size_of the stored type (Vec<u8> = 24 bytes)
-            // NOT the number of elements in the Vec
-            assert_eq!(b.data_size(), std::mem::size_of::<Vec<u8>>());
+            // Invariant: data_size == size_of the stored type ([u8; N] = N bytes).
+            assert_eq!(b.data_size(), std::mem::size_of::<[u8; N]>());
 
             // is_locked() must not panic
             let _locked = b.is_locked();
 
             // Deref must yield original data
-            let data_ref: &Vec<u8> = &*b;
-            assert_eq!(data_ref.len(), alloc_data.len());
-            for (i, &byte) in data_ref.iter().enumerate() {
-                assert_eq!(byte, alloc_data[i]);
-            }
+            let data_ref: &[u8; N] = &*b;
+            assert_eq!(&data_ref[..], &alloc_data[..]);
         }
         Err(_) => {
             // Allocation failure is acceptable (e.g., mlock limit reached)
         }
     }
 
-    // --- Test 2: empty allocation ---
-    let empty: Vec<u8> = Vec::new();
-    let _ = SecureBox::new(empty); // Must not panic regardless of outcome
+    // --- Test 2: minimal allocation (single byte payload type) ---
+    let _ = SecureBox::new(0u8); // Must not panic regardless of outcome
 
-    // --- Test 3: large-ish allocation (stress test) ---
-    let large_size = raw.len().min(4096);
-    let large_data: Vec<u8> = raw.iter().take(large_size).copied().collect();
+    // --- Test 3: larger fixed-size allocation (stress test) ---
+    let mut large_data = [0u8; 4096];
+    for (dst, &src) in large_data.iter_mut().zip(raw.iter().take(4096)) {
+        *dst = src;
+    }
     if let Ok(b) = SecureBox::new(large_data) {
         assert!(b.total_size() >= b.data_size());
         // Drop here zeroizes + munlocks

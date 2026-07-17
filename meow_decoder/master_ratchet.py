@@ -16,15 +16,25 @@ Protocol overview:
 
 Security properties:
 - Deleting chain state renders ALL past files undecryptable (plausible deniability)
-- Chain cannot be rewound (one-way hash ratchet)
+- The in-memory chain key is one-way: a compromise of the *current* key
+  cannot recover past keys (forward secrecy). NOTE: the *on-disk* state
+  file can be replaced with an older authentic copy to rewind the chain
+  (reusing past file keys) unless rollback protection is used. `load()`
+  tracks the highest generation ever observed for a state file in a
+  sidecar watermark and emits a loud warning (or refuses the load, with
+  `reject_rollback=True`) when a lower generation is presented. Superseded
+  state-file copies must still be destroyed to fully preserve the property.
 - Each file gets unique key even with same password
 
-Implementation note (gemini #1, 2026-05-04):
+Implementation note (gemini #1, 2026-05-04; updated 2026-07-05):
 The chain key never leaves Rust. `ChainState.chain_handle` is an opaque
 HandleBackend handle; HKDF derivations and AES-GCM sealing for at-rest
-persistence happen entirely in Rust. The on-disk format `MRCV2`
-supersedes the legacy `MRCV1`/`MRCX1` formats — old state files cannot
-be loaded by this version.
+persistence happen entirely in Rust. The current on-disk format is
+`MRCV3`, whose at-rest key-encryption key is stretched with Argon2id
+(salted by the per-chain `master_salt`) rather than a single unsalted
+HKDF (see SECURITY H2). Legacy `MRCV2` files (unsalted/unstretched KEK)
+are still *readable* and are transparently migrated to `MRCV3` on their
+next persist. The older `MRCV1`/`MRCX1` formats cannot be loaded.
 
 Cross-platform: Windows, Linux, macOS.
 """
@@ -37,10 +47,12 @@ import platform
 import secrets
 import struct
 import time
+import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
+from meow_decoder.argon2_presets import get_preset
 from meow_decoder.crypto_backend import HandleBackend, get_handle_backend
 
 __all__ = [
@@ -55,7 +67,12 @@ __all__ = [
 
 # ─── On-disk format constants ───────────────────────────────────────────────
 
-_FORMAT_MAGIC = b"MRCV2"
+# SECURITY (H2): MRCV3 seals the on-disk chain key under an Argon2id-stretched
+# KEK (salted by master_salt). MRCV2 is the legacy unsalted-HKDF format — kept
+# read-only for backward compatibility and migrated to MRCV3 on next persist.
+_FORMAT_MAGIC_V2 = b"MRCV2"  # legacy: unsalted, unstretched HKDF KEK (read-only)
+_FORMAT_MAGIC_V3 = b"MRCV3"  # current: Argon2id(master_salt) → HKDF KEK
+_FORMAT_MAGIC = _FORMAT_MAGIC_V3  # magic written for all new state files
 _FORMAT_AAD = b"meow_chain_state_v2"
 _SEAL_AAD = b"meow_chain_seal_v2"
 
@@ -187,12 +204,26 @@ class MasterRatchet:
         cls,
         password: str,
         state_file: Path,
+        *,
+        reject_rollback: bool = False,
     ) -> Optional["MasterRatchet"]:
         """
         Load existing ratchet from state file.
 
         Returns None on any failure (missing file, IO error, decryption
         failure, format mismatch).
+
+        Backward compatibility (SECURITY H2): both MRCV3 files (Argon2id-
+        stretched KEK) and legacy MRCV2 files (unsalted HKDF KEK) are
+        readable. A loaded MRCV2 file is transparently migrated to MRCV3 on
+        its next persist.
+
+        Rollback protection (SECURITY L15): the highest generation ever
+        observed for this state file is tracked in a sidecar watermark. If
+        the loaded generation is lower than that watermark, the state file
+        may have been replaced with an older authentic copy (rewinding the
+        chain and reusing past file keys). This always emits a loud warning;
+        with ``reject_rollback=True`` the load is refused (returns None).
         """
         if not state_file.exists():
             return None
@@ -202,10 +233,26 @@ class MasterRatchet:
         except (OSError, IOError):
             return None
 
+        # Detect on-disk format by magic before choosing the KEK derivation.
+        if len(data) != _HEADER_LEN:
+            return None
+        magic = data[:5]
+        if magic == _FORMAT_MAGIC_V3:
+            legacy_v2 = False
+        elif magic == _FORMAT_MAGIC_V2:
+            legacy_v2 = True
+        else:
+            return None
+
+        # master_salt lives in the header (offset 21:53) and salts the KEK.
+        master_salt = data[21:53]
+
         hb = get_handle_backend()
 
-        # Derive the state KEK as a handle.
-        state_key_handle = cls._derive_state_key_handle(hb, password)
+        # Derive the state KEK as a handle (Argon2id for V3, legacy HKDF for V2).
+        state_key_handle = cls._derive_state_key_handle(
+            hb, password, master_salt, legacy_v2=legacy_v2
+        )
 
         try:
             state = _decode_chain_state(data, state_key_handle, hb)
@@ -217,8 +264,36 @@ class MasterRatchet:
             hb.drop(state_key_handle)
             return None
 
+        # SECURITY (L15): compare the loaded generation against the highest
+        # generation ever seen for this file (persisted out-of-band in a
+        # sidecar). A lower generation means the state file was rewound.
+        watermark = _read_generation_watermark(state_file)
+        if watermark is not None and state.generation < watermark:
+            warnings.warn(
+                "Master ratchet rollback detected: loaded generation "
+                f"{state.generation} is lower than the highest previously "
+                f"observed generation {watermark}. The state file may have "
+                "been replaced with an older copy, rewinding the chain and "
+                "reusing past file keys (forward-secrecy violation).",
+                stacklevel=2,
+            )
+            if reject_rollback:
+                if state.chain_handle is not None:
+                    hb.drop(state.chain_handle)
+                hb.drop(state_key_handle)
+                return None
+
         ratchet = cls(state, state_file, auto_persist=True, backend=hb)
         ratchet._state_key_handle = state_key_handle
+
+        # Record the highest generation observed (monotonic watermark).
+        _update_generation_watermark(state_file, state.generation)
+
+        if legacy_v2:
+            # SECURITY (H2): migrate the KEK to the Argon2id-stretched MRCV3
+            # scheme so the next persist re-seals under the stronger KDF.
+            ratchet._derive_state_key(password)
+
         return ratchet
 
     @staticmethod
@@ -245,24 +320,61 @@ class MasterRatchet:
         return hashlib.sha256(combined).digest()
 
     @staticmethod
-    def _derive_state_key_handle(hb: HandleBackend, password: str) -> int:
-        """Derive the at-rest KEK handle from password (HKDF, no Argon2 — KEK
-        binds the on-disk state to *this* password but the KDF cost lives in
-        the chain init step which already mixed hardware entropy)."""
+    def _derive_state_key_handle(
+        hb: HandleBackend,
+        password: str,
+        master_salt: bytes,
+        *,
+        legacy_v2: bool = False,
+    ) -> int:
+        """Derive the at-rest KEK handle from the password.
+
+        SECURITY (H2): the sealed on-disk state file (MRCV3) is a per-guess
+        offline oracle (GCM tag), so its key-encryption key must be memory-
+        hard. The KEK is now derived as
+        ``HKDF(Argon2id(password, salt=master_salt), DOMAIN_STATE_KEY)`` —
+        the per-chain ``master_salt`` (already stored in the file header)
+        salts the Argon2id stretch, defeating precomputation and slowing
+        each brute-force guess to one Argon2id evaluation.
+
+        MRCV2 (legacy, read-only): the original unsalted/unstretched
+        ``HKDF-SHA256(password, salt=b"", DOMAIN_STATE_KEY)``. Retained only
+        so pre-existing state files can still be loaded; such files are
+        migrated to MRCV3 on the next persist.
+        """
         password_bytes = bytearray(password.encode("utf-8"))
         try:
-            return hb.derive_key_hkdf_raw(
-                bytes(password_bytes), b"", MasterRatchet.DOMAIN_STATE_KEY, 32
+            if legacy_v2:
+                # Legacy MRCV2 derivation — read-only compatibility path.
+                return hb.derive_key_hkdf_raw(
+                    bytes(password_bytes), b"", MasterRatchet.DOMAIN_STATE_KEY, 32
+                )
+            preset = get_preset()
+            # Argon2id requires a 16-byte salt; the per-chain master_salt is
+            # 32 bytes, so use its first 16 bytes (deterministic on save/load).
+            argon_handle = hb.derive_key_argon2id(
+                bytes(password_bytes),
+                master_salt[:16],
+                memory_kib=preset.memory_kib,
+                iterations=preset.iterations,
+                parallelism=preset.parallelism,
             )
+            try:
+                # HKDF-expand the Argon2id output with DOMAIN_STATE_KEY.
+                return hb.derive_key_hkdf(argon_handle, b"", MasterRatchet.DOMAIN_STATE_KEY, 32)
+            finally:
+                hb.drop(argon_handle)
         finally:
             _zero_bytearray(password_bytes)
 
     def _derive_state_key(self, password: str) -> None:
-        """Derive (or re-derive) the at-rest KEK handle for this ratchet."""
+        """Derive (or re-derive) the at-rest KEK handle for this ratchet (MRCV3)."""
         if self._state_key_handle is not None:
             self._hb.drop(self._state_key_handle)
             self._state_key_handle = None
-        self._state_key_handle = self._derive_state_key_handle(self._hb, password)
+        self._state_key_handle = self._derive_state_key_handle(
+            self._hb, password, self._state.master_salt
+        )
 
     def _save_state(self) -> None:
         """Save encrypted state to file. Silent on IO errors (best-effort)."""
@@ -291,6 +403,8 @@ class MasterRatchet:
         blob = meta + seal_nonce + sealed
         try:
             self._state_file.write_bytes(blob)
+            # SECURITY (L15): advance the rollback watermark on every persist.
+            _update_generation_watermark(self._state_file, self._state.generation)
         except (OSError, IOError):
             pass
 
@@ -412,6 +526,16 @@ class MasterRatchet:
             except (OSError, IOError):
                 success = False
 
+        # SECURITY (L15): remove the rollback watermark sidecar as well, so a
+        # fresh chain created later does not falsely trip the regression check.
+        if self._state_file is not None:
+            wm = _watermark_path(self._state_file)
+            if wm.exists():
+                try:
+                    wm.unlink()
+                except (OSError, IOError):
+                    success = False
+
         return success
 
     def get_chain_id(self) -> bytes:
@@ -436,13 +560,50 @@ class MasterRatchet:
             pass
 
 
+# ─── Rollback watermark sidecar (SECURITY L15) ──────────────────────────────
+# The AEAD seal authenticates the state file's contents but cannot stop a
+# wholesale replay of an *earlier authentic* blob. We record the highest
+# generation ever observed for a given state file in a small sidecar so a
+# subsequent load presenting a lower generation can be detected (warn/reject).
+
+
+def _watermark_path(state_file: Path) -> Path:
+    """Path of the highest-generation-observed sidecar for a state file."""
+    return state_file.with_name(state_file.name + ".maxgen")
+
+
+def _read_generation_watermark(state_file: Path) -> Optional[int]:
+    """Read the highest generation observed for this state file, or None."""
+    try:
+        raw = _watermark_path(state_file).read_bytes()
+    except (OSError, IOError):
+        return None
+    if len(raw) < 8:
+        return None
+    try:
+        return int(struct.unpack("<Q", raw[:8])[0])
+    except struct.error:
+        return None
+
+
+def _update_generation_watermark(state_file: Path, generation: int) -> None:
+    """Persist max(existing watermark, generation). Best-effort, monotonic."""
+    current = _read_generation_watermark(state_file)
+    if current is not None and current >= generation:
+        return
+    try:
+        _watermark_path(state_file).write_bytes(struct.pack("<Q", generation))
+    except (OSError, IOError):
+        pass
+
+
 def _decode_chain_state(
     data: bytes, state_key_handle: int, hb: HandleBackend
 ) -> Optional[ChainState]:
-    """Parse and verify an MRCV2 blob, return ChainState or None."""
+    """Parse and verify an MRCV2/MRCV3 blob, return ChainState or None."""
     if len(data) != _HEADER_LEN:
         return None
-    if data[:5] != _FORMAT_MAGIC:
+    if data[:5] not in (_FORMAT_MAGIC_V2, _FORMAT_MAGIC_V3):
         return None
 
     generation = struct.unpack("<Q", data[5:13])[0]

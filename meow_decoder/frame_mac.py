@@ -49,6 +49,7 @@ For full rationale, see: meow_decoder.security_warnings.get_frame_mac_rationale(
 
 import struct
 import secrets
+import warnings
 from typing import Tuple, Union
 
 from .crypto_backend import get_default_backend, get_handle_backend
@@ -108,13 +109,50 @@ def derive_frame_master_key_handle(key_handle: int, salt: bytes) -> int:
     return hb.derive_key_hkdf(key_handle, salt, FRAME_MAC_MASTER_INFO, 32)
 
 
-def derive_frame_master_key_legacy(password: str, salt: bytes) -> bytes:
+def derive_frame_master_key_legacy(
+    password: str, salt: bytes, *, allow_legacy: bool = True
+) -> bytes:
     """
     Legacy frame MAC key derivation (v1 compatibility).
 
     This preserves decode compatibility for existing files created prior to v2
     frame MAC master key derivation.
+
+    SECURITY (M4): this derives the frame-MAC master key as a single fast
+    ``SHA-256(password || salt || b"frame_mac_key")``. Every frame's 8-byte
+    MAC is public and the salt lives in the public manifest, so a single
+    captured legacy frame becomes an offline password oracle at ~SHA-256
+    speed — this KDF provides NO Argon2id brute-force protection. It exists
+    ONLY to decode pre-v2 artifacts; nothing should produce new files with it.
+
+    Args:
+        password: User password.
+        salt: Public per-file salt (16 bytes).
+        allow_legacy: Gate for the weak legacy derivation. When ``False`` the
+            call is refused (raises ``ValueError``). Defaults to ``True`` to
+            preserve decode compatibility for existing callers (e.g.
+            ``decode_gif.py``); RECOMMENDED stricter default is ``False`` with
+            an explicit opt-in (e.g. a ``--allow-legacy-frame-mac`` CLI flag)
+            wired through the call site. Whenever the legacy KDF is actually
+            used, a loud warning is emitted.
+
+    Raises:
+        ValueError: if ``allow_legacy`` is ``False``.
     """
+    if not allow_legacy:
+        raise ValueError(
+            "Legacy frame-MAC derivation is disabled. It uses a fast SHA-256 "
+            "password KDF with no Argon2id protection (captured frames become "
+            "an offline password oracle). Pass allow_legacy=True (e.g. via an "
+            "explicit --allow-legacy-frame-mac opt-in) to decode pre-v2 files."
+        )
+    warnings.warn(
+        "Using LEGACY frame-MAC key derivation: a fast SHA-256 of the "
+        "password with NO Argon2id protection. Frame MACs for this file offer "
+        "no brute-force resistance and a captured frame is an offline password "
+        "oracle. This path should only trigger for pre-v2 artifacts.",
+        stacklevel=2,
+    )
     return get_default_backend().sha256(password.encode("utf-8") + salt + b"frame_mac_key")
 
 

@@ -28,9 +28,21 @@
 //! └──────────────────────────────────────────────────────────────────────┘
 //! ```
 //!
-//! Any pointer arithmetic that escapes `[data_ptr, data_ptr + data_size)`
-//! lands in a `PROT_NONE` region and triggers an immediate SIGSEGV/Access Violation,
-//! catching both overflow and underflow **at the hardware level**.
+//! The guarantee is **page-granular**, not byte-granular. The data region is
+//! rounded *up* to a whole number of pages (`data_region_size`), so it is
+//! generally larger than the live object (`data_size`). Only pointer
+//! arithmetic that escapes the mapped read/write pages —
+//! `[data_ptr, data_ptr + data_region_size)` — lands in a `PROT_NONE` guard
+//! page and triggers an immediate SIGSEGV/Access Violation. Concretely, a
+//! guard page faults for offsets `>= data_region_size` (overflow) and `< 0`
+//! (underflow) at the hardware level.
+//!
+//! ⚠️ **SECURITY (L6):** an intra-page overflow into the padding —
+//! offsets in `[data_size, data_region_size)`, up to `page_size - 1` bytes past
+//! a 32-byte key — stays inside the R/W data page and does **NOT** fault. The
+//! guard pages do not catch overflow that is smaller than the page-rounding
+//! slack; they bound corruption to the data region, they do not enforce the
+//! exact object length.
 //!
 //! ## Running the proofs
 //!
@@ -235,9 +247,14 @@ proof fn lemma_guard_layout_established(
 // GB-002 — Overflow Prevention (upper guard page)
 // =========================================================================
 
-/// **Lemma GB-002**: Any write at `data_ptr + i` where `i >= data_size`
-/// lands in the trailing PROT_NONE guard page, causing a hardware fault
-/// before any memory corruption can occur.
+/// **Lemma GB-002**: A write at `data_ptr + i` lands in the trailing
+/// PROT_NONE guard page **only** once `i >= data_region_size` (the
+/// page-rounded region size), causing a hardware fault. SECURITY (L6):
+/// for `i` in `[data_size, data_region_size)` the address is still inside
+/// the writable data region — an intra-page overflow into the page-rounding
+/// padding does NOT fault. Accordingly the postcondition is the honest
+/// disjunction `in_upper_guard(...) || in_data_region(...)`, not the
+/// stronger (and false) "every `i >= data_size` faults".
 proof fn lemma_overflow_hits_upper_guard(
     mmap_base: usize,
     mmap_size: usize,
@@ -458,13 +475,21 @@ proof fn lemma_valid_access_in_data_region(
 // Combined Safety Theorem
 // =========================================================================
 
-/// **Theorem (GuardedBuffer Safety)**: Any memory access through a correctly
-/// constructed `SecureBox` either:
-///   (a) succeeds (index is within `[0, data_size)`), or
-///   (b) triggers a hardware fault (SIGSEGV/EXCEPTION_ACCESS_VIOLATION) via
-///       a guard page access.
+/// **Theorem (GuardedBuffer Safety)**: For a correctly constructed
+/// `SecureBox`, any memory access at offset `index` satisfies:
+///   (a) if `index < data_size` → the access is inside the writable data
+///       region (hardware allows it), and
+///   (b) if `index == data_size` **and** `data_size == data_region_size`
+///       (i.e. the object exactly fills its page-rounded region) → the
+///       one-past-the-end address is in the upper guard page (hardware fault).
 ///
-/// There is no silent data corruption and no "soft" out-of-bounds access.
+/// SECURITY (L6): this is the TRUE page-granular guarantee. The theorem does
+/// NOT claim that every out-of-bounds `index >= data_size` faults — it cannot,
+/// because for `index` in `[data_size, data_region_size)` the address is still
+/// inside the R/W data page (the page-rounding padding) and does not fault.
+/// Guard pages catch accesses at offsets `>= data_region_size` and `< 0`; they
+/// bound corruption to the data region rather than enforcing the exact object
+/// length, so intra-page ("soft") overflows into the padding are possible.
 proof fn theorem_guarded_buffer_safety(
     mmap_base: usize,
     mmap_size: usize,
@@ -672,8 +697,13 @@ pub fn guarded_buffer_verification_status() -> Vec<GBProperty> {
             has_verus_proof: true,
         },
         GBProperty {
+            // SECURITY (L6): page-granular, not byte-granular. Faults only at
+            // offsets >= data_region_size (the page-rounded size); an overflow
+            // into the intra-page padding [data_size, data_region_size) stays
+            // in the R/W data page and does NOT fault.
             id: "GB-002",
-            description: "Overflow prevention: index >= data_size lands in upper PROT_NONE guard",
+            description: "Overflow prevention: offset >= data_region_size (page-rounded) lands \
+                          in upper PROT_NONE guard; intra-page padding overflow does not fault",
             tool: "Verus (verus!{} lemma_overflow_hits_upper_guard)",
             has_verus_proof: true,
         },

@@ -36,8 +36,12 @@ use core::convert::TryFrom;
 /// this on `random.sample` output before serialisation).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Droplet {
-    /// PRNG seed that deterministically reconstructs the
-    /// `block_indices` list. Cross-checked at decode time. The wire
+    /// PRNG seed the encoder used to derive the `block_indices` list.
+    /// Decoders trust the wire-supplied `block_indices` and do NOT
+    /// re-derive them from the seed (matching the Python reference
+    /// decoder): the seed→indices mapping is public and deterministic,
+    /// so re-derivation would add no security — adversarial-input
+    /// filtering is the upstream frame-MAC layer's job. The wire
     /// format pins this to a u32 (4 bytes big-endian); the in-memory
     /// type is u32 to match.
     pub seed: u32,
