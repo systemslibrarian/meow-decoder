@@ -203,7 +203,7 @@ The active optical page uses **AES-256-GCM + Argon2id** before fountain coding. 
 - **Receiver:** Meow Capture's native QR/fountain scanner
 - **Block size:** 128 bytes
 - **Redundancy:** 4.0×, isolated to Cat Mode
-- **QR rendering:** H error correction, four-module quiet zone, 560-pixel backing raster
+- **QR rendering:** M error correction, four-module quiet zone, 560-pixel backing raster
 - **Pacing:** 500 ms per frame through `requestAnimationFrame` with deadline correction
 - **Fullscreen:** Fullscreen API with a fixed full-window fallback for rejected or unsupported element fullscreen
 - **Status:** Experimental; Standard animated QR remains Recommended

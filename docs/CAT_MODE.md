@@ -31,7 +31,7 @@ Cat Mode no longer uses blinking eyes for the user-facing transfer. The old blin
 | Scheduler | `requestAnimationFrame` |
 | Drift handling | Fixed-deadline increments; hidden tabs pause advancement |
 | Countdown | 3 seconds |
-| QR error correction | H |
+| QR error correction | M |
 | QR quiet zone | 4 modules |
 | QR backing raster | 560 x 560 pixels |
 | QR colors | `#000000` on `#ffffff` |
@@ -103,14 +103,16 @@ Test payload: **8 source blocks, 32 transmitted frames, 16.0-second loop**
 
 | Profile | Blur sigma | Motion kernel | Shear | JPEG quality | Brightness | Gamma | Perspective | Dropped | Received | QR reads | QR read rate | Unique consumed | Result |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---|
-| Clean | 0.00 | 1 px | 0 px | 100 | 1.00 | 1.00 | 0.0% | 0/32 | 32 | 26 | 81.3% | 15 | Pass |
-| Mild | 0.35 | 3 px | 1 px | 92 | 0.97 | 1.03 | 0.4% | 3/32 | 29 | 27 | 93.1% | 8 | Pass |
-| Moderate | 0.55 | 3 px | 2 px | 84 | 0.92 | 1.08 | 0.8% | 8/32 | 24 | 22 | 91.7% | 12 | Pass |
-| Severe | 0.75 | 5 px | 3 px | 76 | 0.86 | 1.14 | 1.2% | 12/32 | 20 | 17 | 85.0% | 10 | Pass |
+| Clean | 0.00 | 1 px | 0 px | 100 | 1.00 | 1.00 | 0.0% | 0/32 | 32 | 32 | 100.0% | 8 | Pass |
+| Mild | 0.35 | 3 px | 1 px | 92 | 0.97 | 1.03 | 0.4% | 3/32 | 29 | 27 | 93.1% | 14 | Pass |
+| Moderate | 0.55 | 3 px | 2 px | 84 | 0.92 | 1.08 | 0.8% | 8/32 | 24 | 21 | 87.5% | 13 | Pass |
+| Severe | 0.75 | 5 px | 3 px | 76 | 0.86 | 1.14 | 1.2% | 12/32 | 20 | 18 | 90.0% | 10 | Pass |
 
 `Unique consumed` stops when fountain reconstruction completes; it is not the number of all decodable frames in the sequence. Frame drops use deterministic seed `20260717`.
 
 The 3.0x schedule was rejected: with deterministic coded droplets, the severe profile reproducibly recovered only 7 of 8 source blocks from 11 unique droplets. Cat Mode therefore uses 4.0x. Plain QR mode's settings were not changed.
+
+QR error correction H was also rejected for this live-camera surface. Its denser symbol produced a fresh-payload severe run that stalled at 7 of 8 blocks despite 4.0x redundancy. Error correction M renders larger modules at the same 560-pixel raster; it passed three independent severe runs plus the complete matrix above. This changes Cat Mode only.
 
 Run the full harness with:
 
