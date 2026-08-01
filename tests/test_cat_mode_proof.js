@@ -99,6 +99,7 @@ async function main() {
             var dualEye = options.dualEye || false;
             var redundancy = options.redundancy || false;
             var wrongPassword = options.wrongPassword || null;
+            var fullscreen = options.fullscreen || false;
 
             header(label);
 
@@ -113,22 +114,84 @@ async function main() {
                 if (cb) cb.checked = r;
             }, redundancy);
 
+            // Exercise the user-facing transport selector, not only the
+            // internal compatibility alias.
+            await page.evaluate(function() {
+                var cb = document.getElementById('catLegacyBlink');
+                if (cb) cb.checked = true;
+            });
+
             // Fill in message and password
             await page.fill('#catMessage', message);
             await page.fill('#catPassword', password);
 
-            // Encode through the preserved legacy blink path and grab its bits.
-            info('Calling catLegacyBlinkEncode()...');
-            var encodeResult = await page.evaluate(async function() {
-                try {
-                    await window.catLegacyBlinkEncode();
-                } catch (e) {
-                    return { binary: null, length: 0, error: e.message };
+            // Encode through the visible Cat Mode control and grab its bits.
+            // The first case uses the actual fullscreen Start button—the phone
+            // capture workflow—rather than calling an internal function.
+            var encodeResult;
+            if (fullscreen) {
+                await page.evaluate(function() {
+                    document.getElementById('catCanvasStage').classList.add('fullscreen-fallback');
+                });
+                var fullscreenStart = page.locator('#catFsStartBtn');
+                if (!await fullscreenStart.isVisible()) {
+                    encodeResult = { binary: null, length: 0, error: 'fullscreen Start button is hidden' };
+                } else {
+                    info('Clicking the visible fullscreen Start Transmitting button...');
+                    await fullscreenStart.click();
+                    await page.waitForFunction(function() {
+                        return document.getElementById('catFsStartBtn').disabled &&
+                            sessionStorage.getItem('meow_cat_binary');
+                    }, { timeout: 120000 });
+                    encodeResult = await page.evaluate(function() {
+                        var binary = sessionStorage.getItem('meow_cat_binary');
+                        var canvas = document.getElementById('catCanvas');
+                        var pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+                        var canvasHash = 2166136261;
+                        for (var i = 0; i < pixels.length; i += 16) {
+                            canvasHash = Math.imul(canvasHash ^ pixels[i], 16777619) >>> 0;
+                        }
+                        var validUi = document.getElementById('catFsStartBtn').disabled &&
+                            !document.getElementById('catFsStopBtn').disabled &&
+                            !document.getElementById('catCanvasStage').classList.contains('optical-active') &&
+                            document.getElementById('catFsState').textContent.includes('legacy');
+                        return {
+                            binary: validUi ? binary : null,
+                            length: binary ? binary.length : 0,
+                            canvasHash: canvasHash,
+                            error: validUi ? null : 'fullscreen legacy controls did not enter transmitting state'
+                        };
+                    });
+                    // The stream begins with a dark lead-in. Wait for the
+                    // alternating preamble and prove the fullscreen canvas
+                    // actually renders a different optical frame.
+                    await page.waitForFunction(function(firstHash) {
+                        var canvas = document.getElementById('catCanvas');
+                        var pixels = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+                        var hash = 2166136261;
+                        for (var i = 0; i < pixels.length; i += 16) {
+                            hash = Math.imul(hash ^ pixels[i], 16777619) >>> 0;
+                        }
+                        return hash !== firstHash;
+                    }, encodeResult.canvasHash, { timeout: 10000 });
+                    info('Fullscreen canvas emitted distinct legacy blink frames');
+                    await page.evaluate(function() {
+                        document.getElementById('catCanvasStage').classList.remove('fullscreen-fallback');
+                    });
                 }
-                var binary = sessionStorage.getItem('meow_cat_binary');
-                return { binary: binary, length: binary ? binary.length : 0 };
-            });
-            info('catLegacyBlinkEncode() returned');
+            } else {
+                info('Calling catModeEncode() with legacy blink selected...');
+                encodeResult = await page.evaluate(async function() {
+                    try {
+                        await window.catModeEncode();
+                    } catch (e) {
+                        return { binary: null, length: 0, error: e.message };
+                    }
+                    var binary = sessionStorage.getItem('meow_cat_binary');
+                    return { binary: binary, length: binary ? binary.length : 0 };
+                });
+            }
+            info('Cat Mode legacy encode started');
 
             if (!encodeResult.binary || encodeResult.binary.length === 0) {
                 fail('Encode produced empty binary');
@@ -212,7 +275,7 @@ async function main() {
             'TEST 1: Single-eye encode -> decode',
             'Hello from single-eye mode!',
             'single-eye-pw-2024',
-            { dualEye: false, redundancy: false }
+            { dualEye: false, redundancy: false, fullscreen: true }
         );
 
         // =============================================================

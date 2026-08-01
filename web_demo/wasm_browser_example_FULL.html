@@ -1290,16 +1290,22 @@
                             <label for="showCatPassword" style="display: inline; color: #888; font-size: 0.9em;">Show password</label>
                         </div>
 
-                        <label for="catBlinkSpeed">⚡ QR frame interval:</label>
+                        <label for="catBlinkSpeed">⚡ Frame / blink interval:</label>
                         <select id="catBlinkSpeed" style="margin-bottom: 15px;">
                             <option value="500" selected>500ms — 2 frames/second</option>
                             <option value="750">750ms — 1.3 frames/second</option>
                             <option value="1000">1000ms — 1 frame/second</option>
                         </select>
 
+                        <div style="margin-bottom: 10px; padding:10px; background:rgba(0,255,136,0.08); border:1px solid rgba(0,255,136,0.3); border-radius:6px;">
+                            <input type="checkbox" id="catLegacyBlink">
+                            <label for="catLegacyBlink" style="display:inline; color:#d7ffe8;">Blink the message with the cat's eyes (legacy)</label>
+                            <div style="color:#888; font-size:0.82em; margin:5px 0 0 24px;">Slower compatibility mode: green/dark eye states carry the encrypted message instead of the QR inset.</div>
+                        </div>
+
                         <div style="display:none; margin-bottom: 10px;">
                             <input type="checkbox" id="catDualEye">
-                            <label for="catDualEye">Legacy blink transport</label>
+                            <label for="catDualEye">Use independent dual-eye encoding</label>
                         </div>
 
                         <div style="margin-bottom: 15px; color:#888; font-size:0.9em;">
@@ -4849,6 +4855,11 @@
                 // Show UI
                 document.getElementById('catQrBtn').style.display = 'none';
                 document.getElementById('catStopBtn').style.display = 'inline-block';
+                document.getElementById('catFsStartBtn').disabled = true;
+                document.getElementById('catFsStopBtn').disabled = false;
+                document.getElementById('catFsState').textContent =
+                    'Transmitting legacy message through the cat\'s eye blinks…';
+                document.getElementById('catCanvasStage').classList.remove('optical-active');
                 progressEl.style.display = 'block';
                 catTransmitting = true;
                 document.getElementById('catCanvas').classList.add('transmitting');
@@ -5058,6 +5069,7 @@
                 requestAnimationFrame(warmupRaf);
 
             } catch (err) {
+                window.catLegacyBlinkStop();
                 resultEl.innerHTML = `<span style="color:#f44336">❌ Error: ${escapeHtml(err.message)}</span>`;
                 log('❌ [Cat Mode] Error: ' + err.message);
             }
@@ -5076,6 +5088,9 @@
             drawWithGreenBlink(true); // Reset eyes to ON
             document.getElementById('catQrBtn').style.display = 'inline-block';
             document.getElementById('catStopBtn').style.display = 'none';
+            document.getElementById('catFsStartBtn').disabled = false;
+            document.getElementById('catFsStopBtn').disabled = true;
+            document.getElementById('catFsState').textContent = 'Idle — ready to transmit';
             document.getElementById('catProgress').style.display = 'none';
             document.getElementById('catCanvas').classList.remove('transmitting', 'success', 'error');
             log('⏹️ [Cat Mode] Stopped');
@@ -5295,6 +5310,11 @@
         }
 
         window.catModeEncode = async function() {
+            const legacyBlink = document.getElementById('catLegacyBlink');
+            if (legacyBlink && legacyBlink.checked) {
+                return window.catLegacyBlinkEncode();
+            }
+
             const message = document.getElementById('catMessage').value;
             const password = document.getElementById('catPassword').value;
             const resultEl = document.getElementById('catModeResult');
@@ -5402,6 +5422,11 @@
         };
 
         window.catModeStop = function() {
+            const legacyBlink = document.getElementById('catLegacyBlink');
+            if (legacyBlink && legacyBlink.checked && catTransmitting) {
+                return window.catLegacyBlinkStop();
+            }
+
             catOpticalRunId += 1;
             catTransmitting = false;
             if (catOpticalRaf !== null) cancelAnimationFrame(catOpticalRaf);
