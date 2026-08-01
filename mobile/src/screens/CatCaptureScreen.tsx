@@ -34,7 +34,7 @@ import Animated, {
 import ReactNativeHapticFeedback from 'react-native-haptic-feedback';
 import { useCatSession } from '../hooks/useCatSession';
 import { useCatBlinkSampler } from '../hooks/useCatBlinkSampler';
-import { exportCatBinary, copyCatBinary } from '../services/catBinaryExporter';
+import { exportCatBlinkV2, copyCatBlinkV2 } from '../services/catBinaryExporter';
 import {
   DEFAULT_LEFT_EYE_ROI,
   DEFAULT_RIGHT_EYE_ROI,
@@ -68,17 +68,16 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
     signalRight,
     locked,
     everLocked,
-    binary,
-    bits,
     blinkPeriodMs,
     progress,
     capturedBits,
     expectedBits,
     stoppedEarly,
+    v2,
     onSample,
     finish,
     reset,
-  } = useCatSession({ active: true, scanning: started });
+  } = useCatSession({ active: true, scanning: started, mode: 'v2' });
 
   // Derived after the hook (status is its output). The session self-stops its
   // timers on a terminal status via its internal completion latch; these gate
@@ -173,25 +172,43 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
     navigation.goBack();
   }, [reset, navigation]);
 
+  const v2Frames = useMemo(
+    () => (v2?.droplets ?? []).map((d) => ({ seed: d.seed, whitenedFrame: d.whitenedFrame })),
+    [v2],
+  );
+
   const handleCopy = useCallback(() => {
     try {
-      copyCatBinary(binary);
+      copyCatBlinkV2(v2Frames);
       ReactNativeHapticFeedback.trigger('impactLight', HAPTIC_OPTIONS);
-      Alert.alert('Copied', `${bits} bits copied to clipboard.`);
+      Alert.alert('Copied', `${v2Frames.length} droplet frames copied to clipboard.`);
     } catch (e) {
       Alert.alert('Copy failed', e instanceof Error ? e.message : 'Unknown error');
     }
-  }, [binary, bits]);
+  }, [v2Frames]);
 
   const handleSave = useCallback(async () => {
     try {
-      const res = await exportCatBinary(binary, { blinkPeriodMs });
+      if (
+        v2 === null ||
+        v2.kBlocks === null ||
+        v2.blockSize === null ||
+        v2.originalLength === null
+      ) {
+        throw new Error('No fountain parameters recovered yet.');
+      }
+      const res = await exportCatBlinkV2(v2Frames, {
+        kBlocks: v2.kBlocks,
+        blockSize: v2.blockSize,
+        originalLength: v2.originalLength,
+        blinkPeriodMs,
+      });
       ReactNativeHapticFeedback.trigger('notificationSuccess', HAPTIC_OPTIONS);
-      Alert.alert('Saved', `Binary pattern saved to:\n${res.filename}\n(${res.bits} bits)`);
+      Alert.alert('Saved', `Droplets saved to:\n${res.filename}\n(${res.frames} frames)`);
     } catch (e) {
       Alert.alert('Save failed', e instanceof Error ? e.message : 'Unknown error');
     }
-  }, [binary, blinkPeriodMs]);
+  }, [v2, v2Frames, blinkPeriodMs]);
 
   // ── Permission / device gates ──────────────────────────────────────────────
   if (!hasPermission) {
@@ -225,11 +242,24 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
   const showComplete = status === 'complete';
   const showTimeout = status === 'timeout';
   const showOverlay = showComplete || showTimeout;
-  // A manual Finish that ended before the full payload arrived — honest labelling.
-  const isPartial = showComplete && stoppedEarly && expectedBits > 0 && bits < expectedBits;
+  // v2: capturedBits/expectedBits are UNIQUE DROPLET counts (1 unit = 1 droplet).
+  const dropletsCaptured = capturedBits;
+  const dropletsTarget = expectedBits;
+  // A manual Finish that ended before enough droplets arrived — honest labelling.
+  const isPartial =
+    showComplete && stoppedEarly && dropletsTarget > 0 && dropletsCaptured < dropletsTarget;
 
-  const remainingFrames = expectedBits > 0 ? Math.max(0, (expectedBits - capturedBits) / 2) : 0;
-  const etaSec = blinkPeriodMs > 0 ? Math.round((remainingFrames * blinkPeriodMs) / 1000) : 0;
+  // ETA: droplets still needed × frame length in blinks. A v2 frame is
+  // (12 + dropletLen + 2) bytes = (14 + 6 + count*2 + blockSize) bytes; without
+  // the exact droplet length we approximate one frame ≈ header+small droplet.
+  const bytesPerFrameApprox =
+    v2 && v2.blockSize !== null ? 14 + 6 + v2.blockSize : 60;
+  const framesPerDroplet = (bytesPerFrameApprox * 8) / 2; // 2 bits per blink
+  const remainingDroplets = Math.max(0, dropletsTarget - dropletsCaptured);
+  const etaSec =
+    blinkPeriodMs > 0
+      ? Math.round((remainingDroplets * framesPerDroplet * blinkPeriodMs) / 1000)
+      : 0;
   const pctText = `${Math.round(progress * 100)}%`;
 
   return (
@@ -305,7 +335,7 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
       )}
 
       {/* Progress (scanning + locked) */}
-      {scanning && expectedBits > 0 && (
+      {scanning && dropletsTarget > 0 && (
         <View style={styles.progressWrap} pointerEvents="none">
           <View style={styles.progressBarBg}>
             <View
@@ -313,12 +343,12 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
             />
           </View>
           <Text style={styles.progressText}>
-            {pctText} received · {Math.round(capturedBits / 8)}/{Math.round(expectedBits / 8)} bytes
+            {pctText} · {dropletsCaptured}/{dropletsTarget} droplets
             {etaSec > 0 ? ` · ~${etaSec}s left` : ''}
           </Text>
         </View>
       )}
-      {scanning && expectedBits === 0 && (
+      {scanning && dropletsTarget === 0 && (
         <View style={styles.progressWrap} pointerEvents="none">
           <Text style={styles.progressText}>
             🔍 Searching for the cat’s signal… ({sampleCount} samples)
@@ -330,22 +360,24 @@ export function CatCaptureScreen({ navigation }: CatCaptureScreenProps) {
       {showComplete && (
         <View style={styles.resultPanel}>
           <Text style={styles.resultTitle}>
-            {isPartial ? `⏹ Stopped — ${bits} bits` : `✅ Captured ${bits} bits`}
+            {isPartial
+              ? `⏹ Stopped — ${dropletsCaptured} droplets`
+              : `✅ Captured ${dropletsCaptured} droplets`}
           </Text>
           {isPartial && (
             <Text style={styles.partialWarn}>
-              ⚠️ Partial: {Math.round(capturedBits / 8)} of {Math.round(expectedBits / 8)} bytes.
-              A partial pattern usually won’t decrypt — scan again from the start of the
-              animation to capture the rest. Saved anyway in case it’s useful.
+              ⚠️ Partial: {dropletsCaptured} of {dropletsTarget} droplets needed.
+              The desktop decoder needs the full set to reconstruct — scan again from the
+              start of the loop to gather the rest. Saved anyway in case it’s useful.
             </Text>
           )}
           <Text style={styles.resultHint}>
-            Paste this into the web demo Cat Mode “Binary Pattern” field, or save it for the
-            desktop CLI. The phone does not decrypt.
+            Save these fountain droplets for the desktop CLI (meow_decoder cat_blink_v2). The
+            phone collects droplets only — it does not reconstruct or decrypt.
           </Text>
           <ScrollView style={styles.binaryBox} nestedScrollEnabled>
             <Text style={styles.binaryText} selectable>
-              {binary}
+              {v2Frames.map((f) => f.whitenedFrame).join('\n')}
             </Text>
           </ScrollView>
           <View style={styles.actionRow}>

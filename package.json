@@ -9,6 +9,7 @@
     "test:golden:js": "node tests/run_golden_test.js",
     "test:errors": "python3 tests/run_error_tests.py",
     "test:errors:js": "node tests/run_error_tests.js",
+    "test:blink-v2": "node tests/test_cat_blink_v2_roundtrip.mjs",
     "test:browsers": "playwright test",
     "test:browsers:chromium": "playwright test --project=chromium",
     "test:browsers:firefox": "playwright test --project=firefox",

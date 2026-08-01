@@ -1316,6 +1316,9 @@
                         <button id="catQrBtn" onclick="catModeEncode()">😺 Start Transmitting</button>
                         <button id="catFullscreenBtn" onclick="toggleCatFullscreen()" class="secondary" type="button">⛶ Fullscreen Cat</button>
                         <button id="catStopBtn" onclick="catModeStop()" class="secondary" style="display:none;">⏹️ Stop</button>
+                        <!-- Dev-only: v2 fountain-coded BLINK transport (eyes blink the v2 bitstream). -->
+                        <button id="catBlinkV2Btn" onclick="catBlinkV2Encode()" class="secondary" type="button" style="display:none;">🔦 v2 Blink (dev)</button>
+                        <button id="catBlinkV2StopBtn" onclick="catBlinkV2Stop()" class="secondary" type="button" style="display:none;">⏹️ Stop v2 Blink</button>
 
                         <p style="color:#888; font-size:0.82em; margin: 4px 0 0 0;">On phones, use fullscreen before transmitting so the cat stays as large as possible for optical capture.</p>
                         <div id="catTxParams" class="cat-tx-params">Idle — parameters appear after encryption.</div>
@@ -1734,6 +1737,9 @@
 
     <!-- FOUNTAIN CODES - Loss-tolerant encoding for frame drops -->
     <script src="static/fountain-codes.js"></script>
+
+    <!-- CAT BLINK v2 - fountain-coded optical blink codec (needs fountain-codes.js above) -->
+    <script src="static/cat-blink-v2.js"></script>
 
     <!-- CAT MODE PROTOCOL - CRC32 packet framing -->
     <script src="cat-mode-protocol.js"></script>
@@ -5442,6 +5448,221 @@
         };
 
         updateCatOpticalUi();
+
+        // ============================================================
+        // CAT BLINK v2 — fountain-coded BLINK transport (dev/experimental)
+        //
+        // Same physical blink layer as the legacy path (eye green=1 / dark=0,
+        // single-eye, drift-corrected rAF timing, drawWithDualEyeBlink +
+        // catEyeRegions) but the bitstream is the v2 whitened fountain frames
+        // from CatBlinkV2.encode() (docs/CAT_BLINK_V2.md), concatenated with the
+        // inter-frame framing the mobile v2 sampler (scanFrames) expects.
+        //
+        // Bitstream layout emitted continuously and looped until stopped:
+        //   [leadIn(8×0)] [preamble(16, 0xAAAA)] [syncWord(16, 0xAAAA)]
+        //   then for each v2 frame:  [GUARD(8×0)] [whitened frame bits]
+        //   ...loop back to the first frame's GUARD forever.
+        //
+        // The v2 sampler locks onto the per-frame SYNC (0xB1 0x17 0x5E) and is
+        // tolerant of arbitrary inter-frame guard bits (it advances 1 bit on a
+        // miss, jumps past accepted frames), so the GUARD only has to provide a
+        // clean both-OFF quiet gap for the blink clock to re-settle between
+        // variable-length frames — it is not parsed. leadIn/preamble/syncWord
+        // are byte-identical to the legacy header so the blink-clock calibration
+        // is unchanged.
+        // ============================================================
+        const CAT_BLINK_V2_BLOCK_SIZE = 32;
+        const CAT_BLINK_V2_REDUNDANCY = 4.0;
+        const CAT_BLINK_V2_LEAD_IN = '00000000';           // 8 dark bits — clean t0 GREEN→DARK edge
+        const CAT_BLINK_V2_PREAMBLE = '1010101010101010';  // 16 bits (0xAAAA) — blink-clock calibration
+        const CAT_BLINK_V2_SYNC_WORD = '1010101010101010'; // 16 bits (0xAAAA) — header sync (legacy long form)
+        const CAT_BLINK_V2_GUARD = '00000000';             // 8 dark bits — inter-frame quiet gap (both eyes OFF)
+
+        let catBlinkV2Raf = null;
+
+        window.catBlinkV2State = {
+            status: 'idle',        // idle | preparing | transmitting | error
+            frameIndex: 0,         // current v2 frame index within the set
+            frameCount: 0,         // number of v2 fountain frames
+            kBlocks: 0,            // fountain source blocks
+            blockSize: CAT_BLINK_V2_BLOCK_SIZE,
+            redundancy: CAT_BLINK_V2_REDUNDANCY,
+            payloadBytesLen: 0,    // length of the encrypted payload bytes fed to CatBlinkV2.encode
+            loopCount: 0,          // completed passes over the whole frame set
+            bitIndex: 0,           // current position in the continuous blink schedule
+            scheduleLen: 0,        // total bits in one loop (leadIn+preamble+sync + all guarded frames)
+            targetIntervalMs: 500,
+        };
+
+        window.catBlinkV2Stop = function() {
+            window.catBlinkV2State.status = 'idle';
+            catTransmitting = false;
+            if (catBlinkV2Raf !== null) {
+                cancelAnimationFrame(catBlinkV2Raf);
+                catBlinkV2Raf = null;
+            }
+            try { if (catOriginalImageData) drawWithGreenBlink(true); } catch (_) { /* cosmetic */ }
+            const startBtn = document.getElementById('catBlinkV2Btn');
+            const stopBtn = document.getElementById('catBlinkV2StopBtn');
+            if (startBtn) startBtn.style.display = '';
+            if (stopBtn) stopBtn.style.display = 'none';
+            const canvas = document.getElementById('catCanvas');
+            if (canvas) canvas.classList.remove('transmitting');
+            log('⏹️ [Cat Blink v2] Stopped');
+        };
+
+        window.catBlinkV2Encode = async function() {
+            const message = document.getElementById('catMessage').value;
+            const password = document.getElementById('catPassword').value;
+            const resultEl = document.getElementById('catModeResult');
+            if (!message) { alert('Enter a message to transmit'); return; }
+            if (!password) { alert('Enter a password'); return; }
+            if (!window.CatBlinkV2 || typeof window.CatBlinkV2.encode !== 'function') {
+                alert('Cat Blink v2 codec is not loaded'); return;
+            }
+
+            // Stop any other cat transmission (legacy blink or fountain QR) first.
+            try { window.catModeStop(); } catch (_) {}
+            try { window.catLegacyBlinkStop(); } catch (_) {}
+            window.catBlinkV2Stop();
+
+            const state = window.catBlinkV2State;
+            state.status = 'preparing';
+            state.frameIndex = 0;
+            state.loopCount = 0;
+            state.bitIndex = 0;
+            const speed = parseInt(document.getElementById('catBlinkSpeed').value) || 500;
+            state.targetIntervalMs = speed;
+
+            try {
+                if (!catOriginalImageData) {
+                    await initCatCanvas();
+                }
+
+                // Build the encrypted payload EXACTLY as the fountain QR path does
+                // (salt/nonce/Argon2id/encrypt + packPayload → "MEOW:"+base64 bytes),
+                // then feed those payload BYTES to the v2 codec.
+                const saltResult = await crypto.generateSalt();
+                const nonceResult = await crypto.generateNonce();
+                if (!saltResult.success || !nonceResult.success) {
+                    throw new Error('Failed to generate encryption parameters');
+                }
+                const security = getSecurityParams();
+                const keyResult = await crypto.deriveKey(
+                    encoder.encode(password), saltResult.data, security.memoryKib, security.iterations);
+                if (!keyResult.success) throw new Error(keyResult.error || 'Key derivation failed');
+                const cipherResult = await crypto.encrypt(
+                    encoder.encode(message), keyResult.data, nonceResult.data, null);
+                if (!cipherResult.success) throw new Error(cipherResult.error || 'Encryption failed');
+
+                const packed = packPayload(saltResult.data, nonceResult.data, cipherResult.data, null);
+                const encryptedPayload = `MEOW:${bytesToBase64(packed)}`;
+                const payloadBytes = encoder.encode(encryptedPayload);
+
+                const v2 = window.CatBlinkV2.encode(payloadBytes, {
+                    blockSize: CAT_BLINK_V2_BLOCK_SIZE,
+                    redundancy: CAT_BLINK_V2_REDUNDANCY,
+                });
+
+                state.payloadBytesLen = payloadBytes.length;
+                state.kBlocks = v2.kBlocks;
+                state.blockSize = v2.blockSize;
+                state.frameCount = v2.frameCount;
+
+                // Build ONE continuous blink bit schedule that loops:
+                //   header once, then GUARD+frame for every frame. Track which
+                //   v2 frame each schedule bit belongs to so the state reports a
+                //   meaningful frameIndex during transmission.
+                const header = CAT_BLINK_V2_LEAD_IN + CAT_BLINK_V2_PREAMBLE + CAT_BLINK_V2_SYNC_WORD;
+                let schedule = header;
+                const frameStartBit = [];  // schedule bit index where each frame's body begins
+                for (let i = 0; i < v2.frames.length; i++) {
+                    schedule += CAT_BLINK_V2_GUARD;
+                    frameStartBit.push(schedule.length);
+                    schedule += v2.frames[i];
+                }
+                state.scheduleLen = schedule.length;
+
+                log(`🔦 [Cat Blink v2] ${v2.frameCount} frames, ${v2.kBlocks} × ${v2.blockSize}B blocks, ` +
+                    `${CAT_BLINK_V2_REDUNDANCY.toFixed(1)}× redundancy, ${payloadBytes.length}B payload`);
+                log(`🔦 [Cat Blink v2] Blink schedule: ${schedule.length} bits/loop at ${speed}ms/bit ` +
+                    `(header ${header.length} + ${v2.frameCount}×[${CAT_BLINK_V2_GUARD.length} guard + frame])`);
+
+                // UI: reuse legacy transmit affordances (canvas glow, buttons).
+                const startBtn = document.getElementById('catBlinkV2Btn');
+                const stopBtn = document.getElementById('catBlinkV2StopBtn');
+                if (startBtn) startBtn.style.display = 'none';
+                if (stopBtn) stopBtn.style.display = '';
+                const catCanvas = document.getElementById('catCanvas');
+                if (catCanvas) catCanvas.classList.add('transmitting');
+                resultEl.innerHTML = '<span style="color:#00ccff">🔦 Transmitting v2 fountain blink frames — keep looping until captured…</span>';
+
+                state.status = 'transmitting';
+                catTransmitting = true;
+
+                // Helper: which v2 frame index does schedule bit `b` fall in?
+                function frameIndexForBit(b) {
+                    let idx = -1;
+                    for (let i = 0; i < frameStartBit.length; i++) {
+                        if (b >= frameStartBit[i]) idx = i; else break;
+                    }
+                    return idx < 0 ? 0 : idx;
+                }
+
+                // Drift-corrected rAF loop — mirrors the legacy transmitFrame:
+                // advance bit(s) BEFORE drawing, increment the deadline by `speed`
+                // (never snap to timestamp) to avoid cumulative drift, and loop
+                // the whole schedule forever until stopped.
+                let bitStartTime = null;
+                function transmitFrame(timestamp) {
+                    if (state.status !== 'transmitting') return;
+                    if (document.hidden) {
+                        bitStartTime = null; // re-anchor on return so no bits are skipped
+                        catBlinkV2Raf = requestAnimationFrame(transmitFrame);
+                        return;
+                    }
+                    if (bitStartTime === null) bitStartTime = timestamp;
+
+                    while (timestamp - bitStartTime >= speed) {
+                        bitStartTime += speed;
+                        state.bitIndex++;
+                        if (state.bitIndex >= schedule.length) {
+                            state.bitIndex = 0;
+                            state.loopCount++;
+                        }
+                    }
+
+                    const bit = schedule.charCodeAt(state.bitIndex) === 49; // '1'
+                    // Single-eye: both eyes carry the same current bit (green=1/dark=0).
+                    drawWithDualEyeBlink(bit, bit);
+                    state.frameIndex = frameIndexForBit(state.bitIndex);
+
+                    catBlinkV2Raf = requestAnimationFrame(transmitFrame);
+                }
+
+                // Warm up rAF timing for a couple frames (same as legacy) so the
+                // first real timestamp delta doesn't skip a burst of bits.
+                const firstBit = schedule.charCodeAt(0) === 49;
+                drawWithDualEyeBlink(firstBit, firstBit);
+                let warmup = 0;
+                function warmupRaf() {
+                    warmup++;
+                    if (warmup < 3) { requestAnimationFrame(warmupRaf); }
+                    else { catBlinkV2Raf = requestAnimationFrame(transmitFrame); }
+                }
+                requestAnimationFrame(warmupRaf);
+            } catch (err) {
+                state.status = 'error';
+                catTransmitting = false;
+                if (catBlinkV2Raf !== null) { cancelAnimationFrame(catBlinkV2Raf); catBlinkV2Raf = null; }
+                const startBtn = document.getElementById('catBlinkV2Btn');
+                const stopBtn = document.getElementById('catBlinkV2StopBtn');
+                if (startBtn) startBtn.style.display = '';
+                if (stopBtn) stopBtn.style.display = 'none';
+                resultEl.innerHTML = `<span style="color:#f44336">❌ ${escapeHtml(err.message)}</span>`;
+                log('❌ [Cat Blink v2] Error: ' + err.message);
+            }
+        };
 
         // Download the recorded canvas video (native format — Safari MP4
         // or Chromium/Firefox WebM).
