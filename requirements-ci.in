@@ -4,7 +4,7 @@
 pytest==9.1.1
 pytest-cov==7.1.0
 maturin==1.14.1
-coverage==7.15.2
+coverage==7.15.4
 flake8==7.3.0
 black==26.5.1
 mypy==2.3.0
@@ -16,6 +16,6 @@ pip-audit==2.10.1
 pip-licenses==5.5.5
 cyclonedx-bom==7.3.1
 toml==0.10.2
-hypothesis==6.161.8
+hypothesis==6.165.2
 cryptography==49.0.0
 argon2-cffi==25.1.0
