@@ -19,11 +19,15 @@
     Fountain = require('./fountain-codes.js');
     module.exports = factory(Fountain);
   } else {
-    // Browser: fountain-codes.js defines these globals.
+    // Browser: fountain-codes.js declares these as `class` at global scope.
+    // A `class` declaration creates a global *lexical* binding — it does NOT
+    // become a property of `window`/`root` — so `root.FountainEncoder` is
+    // undefined. Reference the bare lexical globals instead (typeof-guarded
+    // so a missing dependency fails loudly rather than as a silent undefined).
     Fountain = {
-      FountainEncoder: root.FountainEncoder,
-      FountainDecoder: root.FountainDecoder,
-      Droplet: root.Droplet,
+      FountainEncoder: typeof FountainEncoder !== 'undefined' ? FountainEncoder : root.FountainEncoder,
+      FountainDecoder: typeof FountainDecoder !== 'undefined' ? FountainDecoder : root.FountainDecoder,
+      Droplet: typeof Droplet !== 'undefined' ? Droplet : root.Droplet,
     };
     root.CatBlinkV2 = factory(Fountain);
   }

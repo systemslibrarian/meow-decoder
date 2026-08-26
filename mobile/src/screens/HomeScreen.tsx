@@ -501,6 +501,22 @@ export function HomeScreen({ navigation }: HomeScreenProps) {
               </TouchableOpacity>
             )}
 
+            {/* Cat Blink v2 — live camera reads the blinking-eye optical channel and
+                collects fountain droplet frames for the desktop decoder. Binds a
+                frameProcessor only (no codeScanner), so the A17 QR+scanner
+                co-bind limit does not apply. */}
+            {FEATURE_FLAGS.CAT_MODE && (
+              <TouchableOpacity
+                style={styles.altButton}
+                onPress={() => navigation.navigate('CatCapture')}
+                accessibilityRole="button"
+                accessibilityLabel="Capture a Cat Blink v2 optical transmission"
+                accessibilityHint="Opens the camera to read the blinking-eye channel and collect fountain droplets"
+              >
+                <Text style={styles.altButtonText}>👁 Blink capture (slow)</Text>
+              </TouchableOpacity>
+            )}
+
             {/* ── Import Video / GIF — hidden when feature flag is off ── */}
             {FEATURE_FLAGS.VIDEO_IMPORT && (
               <TouchableOpacity

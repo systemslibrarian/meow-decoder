@@ -339,6 +339,79 @@ function sampleFrames(
   return bits;
 }
 
+// ── v2 raw-bit sampling (frame layer parses downstream) ─────────────────────
+
+export interface CatSampleBitsResult {
+  /** True once the preamble was located and a blink period estimated. */
+  locked: boolean;
+  /**
+   * The WHITENED bit stream recovered from every blink frame after the preamble,
+   * in transmit order. NOT de-whitened and NOT length-limited: the v2 frame
+   * scanner (catBlinkV2.scanFrames) de-whitens per-frame and finds the frame
+   * boundaries itself, so this stage only does clock recovery + NRZ sampling.
+   */
+  whitenedBits: string;
+  /** Estimated blink period in milliseconds (0 until locked). */
+  blinkPeriodMs: number;
+  /** Time (ms) where the data region begins, or null when not locked. */
+  dataStartMs: number | null;
+}
+
+/**
+ * Cat Blink v2 sampling stage: recover the raw whitened bit stream from the eye
+ * brightness samples. Shares the exact preamble-sync + drift-free period-refine
+ * + NRZ majority-vote machinery used by {@link decodeCatBlink}; ONLY the parse
+ * stage differs — v1 reads a fixed 68-byte header and stops at the payload
+ * length, whereas v2 defers all framing to the fountain frame scanner and simply
+ * samples every blink from data-start to the end of the stream.
+ *
+ * The whitened bits are returned as-is (self-inverse whitening is undone per
+ * frame downstream), so a lossy or partial capture still yields whatever frames
+ * were transmitted for the scanner to sift.
+ */
+export function sampleCatBlinkV2Bits(
+  samples: BrightnessSample[],
+  options: CatDecodeOptions = {},
+): CatSampleBitsResult {
+  const hysteresisFrac = options.hysteresis ?? DEFAULT_HYSTERESIS;
+
+  const empty: CatSampleBitsResult = {
+    locked: false,
+    whitenedBits: '',
+    blinkPeriodMs: 0,
+    dataStartMs: null,
+  };
+  if (samples.length < PREAMBLE_ON + PREAMBLE_OFF) return empty;
+
+  const ordered = [...samples].sort((a, b) => a.t_ms - b.t_ms);
+
+  const leftLevels = learnLevels(ordered.map((s) => s.left));
+  const rightLevels = learnLevels(ordered.map((s) => s.right));
+  const leftBand = ((leftLevels.onLevel - leftLevels.offLevel) / 2) * hysteresisFrac;
+  const rightBand = ((rightLevels.onLevel - rightLevels.offLevel) / 2) * hysteresisFrac;
+  const leftStates = classifyEye(ordered.map((s) => s.left), leftLevels.threshold, leftBand);
+  const rightStates = classifyEye(ordered.map((s) => s.right), rightLevels.threshold, rightBand);
+
+  const classified: ClassifiedSample[] = ordered.map((s, i) => ({
+    t_ms: s.t_ms,
+    left: leftStates[i] as EyeState,
+    right: rightStates[i] as EyeState,
+  }));
+
+  const sync = detectSync(classified);
+  if (sync === null) return empty;
+  const blinkPeriodMs = refinePeriod(classified, sync.roughPeriodMs);
+  if (!(blinkPeriodMs > 0)) return empty;
+  const dataStartMs = sync.offRunEndMs + PREAMBLE_ALT * blinkPeriodMs;
+
+  // Sample every blink from data-start to the end of the stream (2 bits/frame).
+  const lastMs = (classified[classified.length - 1] as ClassifiedSample).t_ms;
+  const availableFrames = Math.max(0, Math.floor((lastMs - dataStartMs) / blinkPeriodMs));
+  const whitenedBits = sampleFrames(classified, dataStartMs, blinkPeriodMs, 0, availableFrames);
+
+  return { locked: true, whitenedBits, blinkPeriodMs, dataStartMs };
+}
+
 // ── Public API ──────────────────────────────────────────────────────────────
 
 function emptyResult(reason: string): CatDecodeResult {

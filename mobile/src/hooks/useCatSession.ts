@@ -20,13 +20,36 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   decodeCatBlink,
+  sampleCatBlinkV2Bits,
   type BrightnessSample,
   type CatDecodeResult,
 } from '../services/catBlinkDecoder';
+import { CatBlinkV2Collector, type CollectedDroplet } from '../services/catBlinkV2';
 import { CAT_CAPTURE_TIMEOUT_MS } from '../constants/config';
 
 /** Capture lifecycle for a Cat Mode session. */
 export type CatSessionStatus = 'idle' | 'sampling' | 'locked' | 'complete' | 'timeout';
+
+/**
+ * Decoder mode. v1 = legacy contiguous 68-byte-header blink stream (no FEC);
+ * v2 = fountain droplet frames collected for the desktop decoder (see
+ * services/catBlinkV2.ts and docs/CAT_BLINK_V2.md).
+ */
+export type CatDecoderMode = 'v1' | 'v2';
+
+/** Progress snapshot for a v2 (fountain droplet) collecting session. */
+export interface CatV2Progress {
+  /** Distinct droplets gathered so far (deduped by seed). */
+  droplets: CollectedDroplet[];
+  /** Fountain source-block count, or null until a frame is seen. */
+  kBlocks: number | null;
+  /** Fountain block size, or null until a frame is seen. */
+  blockSize: number | null;
+  /** Exact payload length before zero-padding, or null until a frame is seen. */
+  originalLength: number | null;
+  /** ceil(1.5 × kBlocks) unique-droplet target, or null until kBlocks is known. */
+  target: number | null;
+}
 
 export interface UseCatSessionReturn {
   status: CatSessionStatus;
@@ -53,6 +76,14 @@ export interface UseCatSessionReturn {
   expectedBits: number;
   /** True when capture was ended by the user's manual Finish (not auto-detect). */
   stoppedEarly: boolean;
+  /** Active decoder mode ('v1' legacy header, 'v2' fountain droplets). */
+  mode: CatDecoderMode;
+  /**
+   * v2 collecting-session progress (droplets, fountain params, target). Null in
+   * v1 mode. Present as soon as scanning begins in v2, populated once the first
+   * good frame is CRC-validated.
+   */
+  v2: CatV2Progress | null;
   /** Pass this to useCatBlinkSampler's onSample. */
   onSample: (sample: BrightnessSample) => void;
   /**
@@ -84,12 +115,15 @@ export interface UseCatSessionOptions {
    * indefinitely on an undecodable signal.
    */
   timeoutMs?: number;
+  /** Decoder mode. Defaults to 'v1' so existing callers are unchanged. */
+  mode?: CatDecoderMode;
 }
 
 export function useCatSession({
   active,
   scanning,
   timeoutMs = CAT_CAPTURE_TIMEOUT_MS,
+  mode = 'v1',
 }: UseCatSessionOptions): UseCatSessionReturn {
   const bufferRef = useRef<BrightnessSample[]>([]);
   const latestRef = useRef<{ left: number; right: number }>({ left: 0, right: 0 });
@@ -103,6 +137,26 @@ export function useCatSession({
   const [stoppedEarly, setStoppedEarly] = useState(false);
   // Latch completion so a later partial decode can't regress a finished capture.
   const completedRef = useRef(false);
+
+  // ── v2 collecting state ────────────────────────────────────────────────────
+  // A persistent collector so unique droplets accumulate across decode ticks
+  // (the growing sample buffer is re-scanned each tick; dedup-by-seed makes that
+  // idempotent). Snapshot to React state for the UI.
+  const v2CollectorRef = useRef<CatBlinkV2Collector>(new CatBlinkV2Collector());
+  const blinkPeriodMsV2Ref = useRef(0);
+  const [v2, setV2] = useState<CatV2Progress | null>(null);
+
+  const snapshotV2 = useCallback((): boolean => {
+    const r = v2CollectorRef.current.result();
+    setV2({
+      droplets: r.droplets,
+      kBlocks: r.kBlocks,
+      blockSize: r.blockSize,
+      originalLength: r.originalLength,
+      target: r.target,
+    });
+    return r.complete;
+  }, []);
 
   const onSample = useCallback(
     (sample: BrightnessSample) => {
@@ -124,6 +178,9 @@ export function useCatSession({
     latestRef.current = { left: 0, right: 0 };
     startMsRef.current = null;
     completedRef.current = false;
+    v2CollectorRef.current.reset();
+    blinkPeriodMsV2Ref.current = 0;
+    setV2(null);
     setSampleCount(0);
     setSignal({ left: 0, right: 0 });
     setResult(null);
@@ -141,6 +198,25 @@ export function useCatSession({
     completedRef.current = true;
     setStoppedEarly(true);
     const buf = bufferRef.current;
+
+    if (mode === 'v2') {
+      // Fold in one last scan, then finalize with whatever droplets we hold.
+      if (buf.length >= 64) {
+        const sampled = sampleCatBlinkV2Bits(buf);
+        if (sampled.locked) {
+          if (sampled.blinkPeriodMs > 0) {
+            setEverLocked(true);
+            blinkPeriodMsV2Ref.current = sampled.blinkPeriodMs;
+          }
+          v2CollectorRef.current.addStream(sampled.whitenedBits);
+        }
+      }
+      snapshotV2();
+      // 'complete' when we captured at least one droplet (worth exporting), else timeout.
+      setStatus(v2CollectorRef.current.size > 0 ? 'complete' : 'timeout');
+      return;
+    }
+
     const decoded = buf.length >= 64 ? decodeCatBlink(buf) : null;
     if (decoded) {
       setResult(decoded);
@@ -148,7 +224,7 @@ export function useCatSession({
     }
     // 'complete' when we have bits worth showing (Copy/Save), else 'timeout'.
     setStatus(decoded && decoded.bits > 0 ? 'complete' : 'timeout');
-  }, []);
+  }, [mode, snapshotV2]);
 
   // Live signal + sample-count ticker (throttled, independent of decode cost).
   useEffect(() => {
@@ -168,6 +244,8 @@ export function useCatSession({
       // Timeout guard: give up if no complete decode within the budget.
       if (startMsRef.current !== null && Date.now() - startMsRef.current > timeoutMs) {
         completedRef.current = true;
+        // In v2, whatever droplets we gathered are still worth exporting.
+        if (mode === 'v2') snapshotV2();
         setStatus('timeout');
         return;
       }
@@ -176,6 +254,30 @@ export function useCatSession({
         setStatus((s) => (s === 'idle' ? 'sampling' : s));
         return;
       }
+
+      if (mode === 'v2') {
+        // Re-scan the growing buffer for frames; dedup-by-seed makes re-feeding
+        // the same samples idempotent. Complete at ceil(1.5×k) unique droplets.
+        const sampled = sampleCatBlinkV2Bits(buf);
+        if (sampled.locked) {
+          if (sampled.blinkPeriodMs > 0) {
+            setEverLocked(true);
+            blinkPeriodMsV2Ref.current = sampled.blinkPeriodMs;
+          }
+          v2CollectorRef.current.addStream(sampled.whitenedBits);
+        }
+        const complete = snapshotV2();
+        if (complete) {
+          completedRef.current = true;
+          setStatus('complete');
+        } else if (sampled.locked) {
+          setStatus('locked');
+        } else {
+          setStatus('sampling');
+        }
+        return;
+      }
+
       const decoded = decodeCatBlink(buf);
       setResult(decoded);
       if (decoded.blinkPeriodMs > 0) setEverLocked(true);
@@ -189,11 +291,26 @@ export function useCatSession({
       }
     }, DECODE_INTERVAL_MS);
     return () => clearInterval(id);
-  }, [scanning, timeoutMs]);
+  }, [scanning, timeoutMs, mode, snapshotV2]);
 
-  const expectedBits = result?.diagnostics.expectedBits ?? 0;
-  const capturedBits = result?.bits ?? 0;
-  const progress = expectedBits > 0 ? Math.min(1, capturedBits / expectedBits) : 0;
+  // Progress: v1 tracks payload bits from the header; v2 tracks unique droplets
+  // toward the ceil(1.5×k) fountain-collect target.
+  let expectedBits: number;
+  let capturedBits: number;
+  let progress: number;
+  if (mode === 'v2') {
+    const collected = v2?.droplets.length ?? 0;
+    const target = v2?.target ?? 0;
+    // Surface droplet counts through the existing "bits" fields so the screen's
+    // progress math works unchanged (1 unit = 1 droplet here).
+    expectedBits = target;
+    capturedBits = collected;
+    progress = target > 0 ? Math.min(1, collected / target) : 0;
+  } else {
+    expectedBits = result?.diagnostics.expectedBits ?? 0;
+    capturedBits = result?.bits ?? 0;
+    progress = expectedBits > 0 ? Math.min(1, capturedBits / expectedBits) : 0;
+  }
 
   return {
     status,
@@ -204,11 +321,14 @@ export function useCatSession({
     everLocked,
     binary: status === 'complete' ? (result?.binary ?? '') : '',
     bits: status === 'complete' ? (result?.bits ?? 0) : 0,
-    blinkPeriodMs: result?.blinkPeriodMs ?? 0,
+    blinkPeriodMs:
+      mode === 'v2' ? (v2 ? blinkPeriodMsV2Ref.current : 0) : (result?.blinkPeriodMs ?? 0),
     progress,
     capturedBits,
     expectedBits,
     stoppedEarly,
+    mode,
+    v2: mode === 'v2' ? v2 : null,
     onSample,
     finish,
     reset,
