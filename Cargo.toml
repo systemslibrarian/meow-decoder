@@ -9,7 +9,7 @@ members = ["crypto_core", "rust_crypto"]
 # Shared workspace dependencies can be defined here
 [workspace.dependencies]
 aes-gcm = "0.11"
-argon2 = "0.5"
+argon2 = "0.6"
 hkdf = "0.13"
 hmac = "0.13"
 sha2 = "0.11"
