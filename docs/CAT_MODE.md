@@ -7,7 +7,7 @@
 
 Cat Mode is a presentation layer for the web demo's encrypted payload. In the current **Blended** presentation ("Cat Mode 2 · Blended") the cat stays fully visible — no dimming — behind a high-contrast QR inset, and the cat's eyes perform a brief cosmetic blink on every optical frame advance, making the blink the visible heartbeat of the transfer. Meow Capture reads the inset with its normal native QR scanner and collects fountain droplets until the transfer threshold is reached.
 
-Cat Mode no longer uses blinking eyes as the data channel for the user-facing transfer: the blink is purely cosmetic and carries no bits. The old blink encoder and decoder remain available only for compatibility with previously recorded research artifacts. A roadmap for restoring true blink transport as an optional slow mode is in [CAT_MODE_BLINK_ROADMAP.md](CAT_MODE_BLINK_ROADMAP.md).
+Cat Mode no longer uses blinking eyes as the data channel for the default transfer: in the Blended presentation the blink is purely cosmetic and carries no bits. The original blink transport is still selectable with the **Blink the message with the cat's eyes (legacy)** checkbox in Step 1 (normal and fullscreen Start); its recordings are decoded by uploading them in Step 2 with the same blink speed, and `npm run test:legacy-blink` exercises that flow in headless Chromium. A roadmap for restoring true blink transport as an optional slow mode is in [CAT_MODE_BLINK_ROADMAP.md](CAT_MODE_BLINK_ROADMAP.md).
 
 ## End-to-end flow
 
