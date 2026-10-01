@@ -140,8 +140,12 @@ async function encodeThenRecord(page, message, password, speed, dualEye) {
     const binary = await page.evaluate(() => sessionStorage.getItem('meow_cat_binary'));
     info(`Binary: ${binary.length} bits`);
 
-    await page.waitForFunction(() => !window.catTransmitting, { timeout: 600000 });
-    info('Transmission done, generating video...');
+    // catTransmitting is a module-scoped let inside the page, not a window
+    // property, so it cannot be polled from here (the old wait resolved at
+    // once). Only the binary is needed: stop the live blink loop so it does
+    // not keep drawing and recording while the synthetic video is rendered.
+    await page.evaluate(() => window.catLegacyBlinkStop());
+    info('Binary captured, generating video...');
 
     const videoResult = await page.evaluate(async ({ spd, isDual }) => {
         const binary = sessionStorage.getItem('meow_cat_binary');

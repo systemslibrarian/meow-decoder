@@ -77,6 +77,7 @@ test:
 
 test-cat-mode:
 	$(PYTHON) -m pytest -o addopts= tests/test_cat_mode_loop.py -v --tb=short
+	node tests/test_cat_legacy_blink_ui.mjs --quick
 
 test-security:
 	@echo "🐾 Running security coverage gate (TIER 1 modules, ≥85% required)..."

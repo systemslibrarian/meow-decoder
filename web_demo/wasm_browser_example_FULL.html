@@ -1366,8 +1366,12 @@
 
                         <label for="catVideoBlinkSpeed">⚡ Blink Speed Used:</label>
                         <select id="catVideoBlinkSpeed" style="margin-bottom: 10px;">
-                            <option value="200" selected>200ms</option>
+                            <option value="500" selected>500ms — Step 1 default</option>
+                            <option value="750">750ms</option>
+                            <option value="1000">1000ms</option>
+                            <option value="200">200ms — older recordings</option>
                         </select>
+                        <p style="color: #888; font-size: 0.8em; margin: 0 0 10px 0;">Choose the same "Frame / blink interval" that Step 1 used when the video was recorded.</p>
 
                         <label for="catVideoThreshold">🎚️ Detection Sensitivity:</label>
                         <select id="catVideoThreshold" style="margin-bottom: 10px;">
@@ -4288,6 +4292,15 @@
         let catBlinkInterval = null;
         let catOriginalImageData = null;
         let catTransmitting = false;
+        // True only while the legacy blink encoder owns #catCanvas. The
+        // fountain QR path shares catTransmitting, so Stop/Start dispatch
+        // must not infer "legacy is running" from that flag alone.
+        let catLegacyRunActive = false;
+        // Bumped by every legacy Start and Stop. The encoder awaits key
+        // derivation before it owns the canvas, so a second Start (or a
+        // Stop) during that wait must make the earlier call abort instead
+        // of starting a second blink loop and recorder.
+        let catLegacyRunId = 0;
         let catBinaryData = '';
         let catEyeRegions = null; // auto-detected from image
         let catMediaRecorder = null;
@@ -4745,16 +4758,22 @@
             if (!message) { alert('Enter a message to transmit'); return; }
             if (!password) { alert('Enter a password'); return; }
 
+            const legacyRunId = ++catLegacyRunId;
+            resultEl.innerHTML = '<span style="color:#00ccff">🔐 Encrypting message…</span>';
+            document.getElementById('catFsState').textContent = 'Encrypting message…';
+
             try {
                 // Load cat image if needed
                 if (!catOriginalImageData) {
                     await initCatCanvas();
                 }
+                if (legacyRunId !== catLegacyRunId) return; // superseded while loading
 
                 const redundancyEl = document.getElementById('catRedundancy');
                 const redundancy = (redundancyEl && redundancyEl.checked) ? 2 : 1;
 
                 const payloadResult = await buildCatBinaryPayload(message, password, redundancy);
+                if (legacyRunId !== catLegacyRunId) return; // superseded while encrypting
                 catBinaryData = payloadResult.binary;
                 try {
                     sessionStorage.setItem('meow_cat_binary', catBinaryData);
@@ -4868,7 +4887,14 @@
                 document.getElementById('catCanvasStage').classList.remove('optical-active');
                 progressEl.style.display = 'block';
                 catTransmitting = true;
+                catLegacyRunActive = true;
                 document.getElementById('catCanvas').classList.add('transmitting');
+                const txParamsEl = document.getElementById('catTxParams');
+                if (txParamsEl) {
+                    txParamsEl.textContent = `${speed}ms/bit | ${effectiveIntervals} eye-blink intervals | ` +
+                        `${payloadResult.redundancy}× packet redundancy | ~${totalDuration}s | ` +
+                        `decode in Step 2 with "Blink Speed Used" = ${speed}ms`;
+                }
 
                 // ============================================================
                 // VIDEO RECORDING via captureStream + MediaRecorder
@@ -4976,7 +5002,18 @@
                         intervalIndex++;
                     }
 
-                    if (!catTransmitting || intervalIndex >= effectiveIntervals) {
+                    if (!catTransmitting) {
+                        // Stopped from outside this loop (another transport's
+                        // Stop cleared the shared flag without cancelling our
+                        // rAF). Tear down without claiming a completed
+                        // transmission or offering a truncated recording.
+                        document.removeEventListener('visibilitychange', visibilityHandler);
+                        window.catLegacyBlinkStop();
+                        resultEl.innerHTML = '<span style="color:#ffaa44">⏹️ Transmission stopped before completion.</span>';
+                        return;
+                    }
+
+                    if (intervalIndex >= effectiveIntervals) {
                         // Transmission complete — stop recorder, show download
                         if (catMediaRecorder && catMediaRecorder.state === 'recording') {
                             catMediaRecorder.stop();
@@ -5062,17 +5099,21 @@
                 const firstInterval = catTransmitSchedule[0];
                 drawWithDualEyeBlink(firstInterval.left === '1', firstInterval.right === '1');
 
+                // The warm-up handle is kept in catBlinkInterval so a Stop
+                // during these first frames cancels it instead of letting
+                // transmitFrame start (and report completion) after the stop.
                 let warmupCount = 0;
                 function warmupRaf(ts) {
+                    if (!catTransmitting) return;
                     warmupCount++;
                     if (warmupCount < 3) {
-                        requestAnimationFrame(warmupRaf);
+                        catBlinkInterval = requestAnimationFrame(warmupRaf);
                     } else {
                         // Start real transmission with fresh timestamp
                         catBlinkInterval = requestAnimationFrame(transmitFrame);
                     }
                 }
-                requestAnimationFrame(warmupRaf);
+                catBlinkInterval = requestAnimationFrame(warmupRaf);
 
             } catch (err) {
                 window.catLegacyBlinkStop();
@@ -5083,6 +5124,8 @@
 
         window.catModeStop = function() {
             catTransmitting = false;
+            catLegacyRunActive = false;
+            catLegacyRunId += 1; // abort any legacy Start still deriving its key
             if (catBlinkInterval) {
                 cancelAnimationFrame(catBlinkInterval);
                 catBlinkInterval = null;
@@ -5316,18 +5359,23 @@
         }
 
         window.catModeEncode = async function() {
-            const legacyBlink = document.getElementById('catLegacyBlink');
-            if (legacyBlink && legacyBlink.checked) {
-                return window.catLegacyBlinkEncode();
-            }
-
             const message = document.getElementById('catMessage').value;
             const password = document.getElementById('catPassword').value;
             const resultEl = document.getElementById('catModeResult');
             if (!message) { alert('Enter a message to transmit'); return; }
             if (!password) { alert('Enter a password'); return; }
 
+            // Whatever is running must stop first. The legacy blink loop and
+            // the fountain QR loop both draw on #catCanvas and share the
+            // catTransmitting flag, so they can never run at the same time —
+            // regardless of how the checkbox was toggled since the last Start.
             window.catModeStop();
+
+            const legacyBlink = document.getElementById('catLegacyBlink');
+            if (legacyBlink && legacyBlink.checked) {
+                return window.catLegacyBlinkEncode();
+            }
+
             const runId = ++catOpticalRunId;
             const state = window.catModeTransmission;
             const testConfig = window.__MEOW_CAT_TEST_CONFIG__ || {};
@@ -5428,11 +5476,15 @@
         };
 
         window.catModeStop = function() {
-            const legacyBlink = document.getElementById('catLegacyBlink');
-            if (legacyBlink && legacyBlink.checked && catTransmitting) {
-                return window.catLegacyBlinkStop();
+            // Stop every cat transport, not only the one the checkbox names
+            // right now: the box can be toggled mid-run, and a Stop that
+            // leaves a loop drawing on #catCanvas is a Stop that did nothing.
+            if (catLegacyRunActive) {
+                window.catLegacyBlinkStop();
             }
 
+            const state = window.catModeTransmission;
+            const opticalWasActive = ['preparing', 'countdown', 'transmitting'].includes(state.status);
             catOpticalRunId += 1;
             catTransmitting = false;
             if (catOpticalRaf !== null) cancelAnimationFrame(catOpticalRaf);
@@ -5441,10 +5493,9 @@
             catOpticalCountdownRaf = null;
             cancelCatCosmeticBlink();
             document.getElementById('catCountdown').classList.remove('active');
-            const state = window.catModeTransmission;
             state.status = 'idle';
             updateCatOpticalUi();
-            log('⏹️ [Cat Mode] Fountain transmission stopped');
+            if (opticalWasActive) log('⏹️ [Cat Mode] Fountain transmission stopped');
         };
 
         updateCatOpticalUi();

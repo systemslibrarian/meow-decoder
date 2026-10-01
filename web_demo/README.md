@@ -221,10 +221,12 @@ Carrier stego defaults to level 2 and the core 2.5× fountain redundancy. It is 
 
 ### Legacy blinking-eye transport
 
+- **How to use it:** in the WASM demo's Cat tab tick **Blink the message with the cat's eyes (legacy)**, pick a **Frame / blink interval** (500, 750 or 1000 ms) and press **Start Transmitting**. The eyes carry the bits while the QR inset stays hidden. When the page reports **Transmission Complete**, press **Download Video** (or record the screen with a phone) and upload the file in **Step 2: Legacy Blink Video Decoder** with the same password, the same **Blink Speed Used**, and **Auto** sensitivity.
 - **Crypto:** AES-256-GCM + Argon2id before visual transmission
-- **Transport:** Eye color encodes ciphertext bits (green = 1, dark = 0)
+- **Transport:** Eye color encodes ciphertext bits (green = 1, dark = 0); every packet is sent twice for gap resilience, so a short message takes roughly ten minutes at 500 ms per bit
 - **Server route:** The Flask Cat page retains the production Argon2id password-only implementation
-- **Compatibility:** Retained for old video fixtures; it is not the current Meow Capture droplet workflow
+- **Compatibility:** Retained for old video fixtures (pick **200ms — older recordings** in Step 2 for those); it is not the current Meow Capture droplet workflow
+- **Test:** `npm run test:legacy-blink` drives the checkbox, Start/Stop, Download Video, upload and Analyze in headless Chromium; `npm run test:legacy-blink:quick` skips the slow record-and-decode cycle
 
 ### Technical Details
 

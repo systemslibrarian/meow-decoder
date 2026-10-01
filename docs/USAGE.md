@@ -320,13 +320,14 @@ Cat Mode enables secure file transfer via animated blinking cat eyes displayed o
 
 ### Quick Start
 
-1. **Load the web demo** (`examples/wasm_browser_example.html`)
-2. **Switch to Cat Mode** tab
-3. **Enter your message** and set blink speed (default 100ms works well)
-4. **Click "Start Blinking"** - cat eyes will blink the encoded message
-5. **Record with phone camera** (10-15 seconds, include 2-3 extra seconds)
-6. **Upload video** in Step 2
-7. **Click "Analyze Video"** to decode
+1. **Load the web demo** (`web_demo/wasm_browser_example_FULL.html`, served over HTTP)
+2. **Switch to the Cat tab**
+3. **Tick "Blink the message with the cat's eyes (legacy)"** — without it, Cat Mode shows fountain QR frames for Meow Capture and the eye blink is only cosmetic
+4. **Enter your message and password** and pick a **Frame / blink interval** (500 ms default; 750 or 1000 ms for difficult cameras)
+5. **Click "Start Transmitting"** — the cat's eyes blink the encrypted message (expect roughly ten minutes for a short message at 500 ms)
+6. **Record with a phone camera** (start before the blinking begins, keep recording 2-3 seconds after it ends) or click **Download Video** once the page reports "Transmission Complete"
+7. **Upload the video in Step 2**, enter the same password, select the same **Blink Speed Used** and leave sensitivity on **Auto**
+8. **Click "Analyze Video"** to decode
 
 ### Best Practices for Recording
 
