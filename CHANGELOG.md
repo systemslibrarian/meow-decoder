@@ -20,11 +20,35 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
   "Transmission Complete" with a download button for a truncated
   recording; a second Start click during key derivation no longer starts
   a second blink loop; the stage shows the legacy transmit parameters.
+  Hiding the tab mid-run no longer stretches the interval being recorded
+  (the already-recorded part is credited back on resume), each Stop
+  removes its visibility listener and reports "stopped" instead of
+  leaving "Transmitting…", and a failed cat-image load now errors out
+  instead of blinking a blank canvas.
+- **Step 2 decoder** — decodes at the shipped speeds in minutes instead of
+  tens of minutes: the per-frame confidence gate no longer re-sorts every
+  green level for every sampled frame, and slow bit periods are sampled
+  ten times per bit (which also puts 750 ms on an exact grid). The bit
+  period is refined by least squares over the whole recording, so a fixed
+  period no longer drifts past the half-bit margin on longer messages;
+  the adaptive threshold only accepts recalibrations that land between
+  the global off/on levels; the "frame gap" heuristic ignores runs of
+  equal bits; the duration fallback allows hour-long recordings; the
+  compare diagnostic aligns on the stored header; the result summary
+  prints the learned bit period.
 - **`tests/test_cat_legacy_blink_ui.mjs`** *(new)* — headless-Chromium
   harness that drives the real checkbox, Start/Stop, Download Video,
-  upload and Analyze controls. `make test-cat-mode` runs its quick
-  checks; `npm run test:legacy-blink` runs the full record-and-decode
-  cycle.
+  upload and Analyze controls, including a tab hide/show mid-run.
+  `make test-cat-mode` runs its quick checks; `npm run test:legacy-blink`
+  runs the full record-and-decode cycle.
+- **Dependencies & housekeeping** — the open Dependabot bumps were merged
+  (cryptoki 0.12.1 clears RUSTSEC-2026-0286, which had been failing the
+  dependency-audit job on every PR), the tox `>=4.61.1` bump is carried
+  here because its PR conflicted after the others landed,
+  `.github/dependabot.yml` no longer assigns labels the repository does
+  not have (Dependabot refused them on every PR), and a stray file named
+  `e all dependabot remote branches` (an accidental shell redirect) is
+  removed.
 
 ### Product & UX track — Milestones A and B (2026-05-04 → 2026-05-05) 🐾
 

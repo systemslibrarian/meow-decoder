@@ -6,9 +6,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "python"
     # Group minor/patch updates to reduce PR noise
     groups:
       python-minor:
@@ -25,9 +22,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
 
   - package-ecosystem: "cargo"
     directory: "/crypto_core"
@@ -35,9 +29,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
 
   - package-ecosystem: "cargo"
     directory: "/rust_crypto"
@@ -45,9 +36,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 10
-    labels:
-      - "dependencies"
-      - "rust"
 
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -55,9 +43,6 @@ updates:
       interval: "weekly"
       day: "monday"
     open-pull-requests-limit: 5
-    labels:
-      - "dependencies"
-      - "ci"
     # Group action updates
     groups:
       actions-minor:

@@ -1309,7 +1309,7 @@
                         </div>
 
                         <div style="margin-bottom: 15px; color:#888; font-size:0.9em;">
-                            🛡️ Fixed 4.0× fountain redundancy for up to 40% simulated frame loss.
+                            <span id="catRedundancyNote">🛡️ Fixed 4.0× fountain redundancy for up to 40% simulated frame loss.</span>
                             <input type="checkbox" id="catRedundancy" checked style="display:none;">
                         </div>
 
@@ -1337,7 +1337,7 @@
             <div class="step" style="background: linear-gradient(135deg, rgba(0,255,136,0.07) 0%, rgba(0,204,255,0.07) 100%); border: 1px solid #00ccff;">
                 <span class="step-number" style="background: #00ccff;">2</span>
                 <h2>📹 Legacy Blink Video Decoder</h2>
-                <p class="step-desc">Compatibility only: upload a recording made by the former blinking-eye transmitter. Current Cat Mode uses fountain QR frames and Meow Capture.</p>
+                <p class="step-desc">Upload a recording made with the legacy blink checkbox in Step 1 (or an older blinking-eye recording). Without that checkbox, Cat Mode uses fountain QR frames and Meow Capture instead.</p>
 
                 <div style="background: rgba(255,136,0,0.15); border: 2px solid #ff8800; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
                     <p style="color:#ff8800; margin:0; font-weight:bold;">⚠️ Video Recording Tips</p>
@@ -4301,6 +4301,9 @@
         // Stop) during that wait must make the earlier call abort instead
         // of starting a second blink loop and recorder.
         let catLegacyRunId = 0;
+        // visibilitychange listener of the current legacy run, so Stop can
+        // remove it instead of leaking one listener per run.
+        let catVisibilityHandler = null;
         let catBinaryData = '';
         let catEyeRegions = null; // auto-detected from image
         let catMediaRecorder = null;
@@ -4768,6 +4771,9 @@
                     await initCatCanvas();
                 }
                 if (legacyRunId !== catLegacyRunId) return; // superseded while loading
+                if (!catOriginalImageData) {
+                    throw new Error('Cat image failed to load — the eyes cannot blink without it');
+                }
 
                 const redundancyEl = document.getElementById('catRedundancy');
                 const redundancy = (redundancyEl && redundancyEl.checked) ? 2 : 1;
@@ -4949,10 +4955,19 @@
                 // the video has no gap and no stale frames.
                 let catVisibilityLost = false;
                 let catEncodingPaused = false;
+                // Part of the current interval that was already recorded when
+                // the tab was hidden. Credited back on resume so the interval
+                // is not held for a full `speed` ms again, which would stretch
+                // it in the recording and shift every later bit for the
+                // fixed-period decoder.
+                let pausedElapsedMs = 0;
                 const visibilityHandler = () => {
                     if (document.hidden && catTransmitting) {
                         catVisibilityLost = true;
                         catEncodingPaused = true;
+                        pausedElapsedMs = bitStartTime === null
+                            ? 0
+                            : Math.max(0, performance.now() - bitStartTime);
                         // Pause MediaRecorder to avoid recording stale frames
                         if (catMediaRecorder && catMediaRecorder.state === 'recording') {
                             try { catMediaRecorder.pause(); } catch (_) {}
@@ -4960,7 +4975,8 @@
                         log('⏸️ [Cat Mode] Tab hidden — encoding PAUSED. Switch back to resume!');
                     } else if (!document.hidden && catEncodingPaused && catTransmitting) {
                         catEncodingPaused = false;
-                        // Reset timing anchor so no intervals are skipped
+                        // Re-anchor on the next frame; transmitFrame credits
+                        // pausedElapsedMs so no interval is stretched or skipped.
                         bitStartTime = null;
                         // Resume recorder
                         if (catMediaRecorder && catMediaRecorder.state === 'paused') {
@@ -4969,6 +4985,10 @@
                         log('▶️ [Cat Mode] Tab visible — encoding RESUMED from interval ' + intervalIndex);
                     }
                 };
+                if (catVisibilityHandler) {
+                    document.removeEventListener('visibilitychange', catVisibilityHandler);
+                }
+                catVisibilityHandler = visibilityHandler;
                 document.addEventListener('visibilitychange', visibilityHandler);
 
                 // TIME-BASED encoding: hold each interval for exactly 'speed' ms
@@ -4993,8 +5013,12 @@
                         return;
                     }
 
-                    // Initialize start time on first frame (also resets after pause/resume)
-                    if (bitStartTime === null) bitStartTime = timestamp;
+                    // Initialize start time on first frame (also resets after pause/resume,
+                    // crediting the part of the interval recorded before the pause)
+                    if (bitStartTime === null) {
+                        bitStartTime = timestamp - pausedElapsedMs;
+                        pausedElapsedMs = 0;
+                    }
 
                     // Advance to next interval(s) when 'speed' ms have elapsed
                     while (intervalIndex < effectiveIntervals && timestamp - bitStartTime >= speed) {
@@ -5126,6 +5150,10 @@
             catTransmitting = false;
             catLegacyRunActive = false;
             catLegacyRunId += 1; // abort any legacy Start still deriving its key
+            if (catVisibilityHandler) {
+                document.removeEventListener('visibilitychange', catVisibilityHandler);
+                catVisibilityHandler = null;
+            }
             if (catBlinkInterval) {
                 cancelAnimationFrame(catBlinkInterval);
                 catBlinkInterval = null;
@@ -5481,6 +5509,8 @@
             // leaves a loop drawing on #catCanvas is a Stop that did nothing.
             if (catLegacyRunActive) {
                 window.catLegacyBlinkStop();
+                document.getElementById('catModeResult').innerHTML =
+                    '<span style="color:#ffaa44">⏹️ Transmission stopped before completion.</span>';
             }
 
             const state = window.catModeTransmission;
@@ -5499,6 +5529,22 @@
         };
 
         updateCatOpticalUi();
+
+        // The redundancy note describes the fountain QR path; swap it while
+        // the legacy blink transport is selected (2× packet repetition,
+        // no fountain coding).
+        (function wireLegacyBlinkNote() {
+            const box = document.getElementById('catLegacyBlink');
+            const note = document.getElementById('catRedundancyNote');
+            if (!box || !note) return;
+            const update = () => {
+                note.textContent = box.checked
+                    ? '🛡️ Legacy blink: every packet is sent twice with its own CRC32 (no fountain coding). A short message takes minutes.'
+                    : '🛡️ Fixed 4.0× fountain redundancy for up to 40% simulated frame loss.';
+            };
+            box.addEventListener('change', update);
+            update();
+        })();
 
         // ============================================================
         // CAT BLINK v2 — fountain-coded BLINK transport (dev/experimental)
@@ -6029,6 +6075,36 @@
             };
         }
 
+        // Least-squares bit period over the hysteresis state changes of a
+        // recording. Crossings are assigned integer bit indices with the
+        // current estimate, first over the early part of the recording (where
+        // a small period error cannot yet mis-assign a crossing), then over all
+        // of it. Returns period0 when the data is too thin or the fit is wild.
+        function refineBitPeriod(samples, period0, anchorTime) {
+            if (!(period0 > 0) || !samples || samples.length < 2) return period0;
+            const crossings = [];
+            for (let i = 1; i < samples.length; i++) {
+                if (samples[i].isGreen !== samples[i - 1].isGreen && samples[i].time >= anchorTime) {
+                    crossings.push((samples[i - 1].time + samples[i].time) / 2);
+                }
+            }
+            if (crossings.length < 8) return period0;
+            let period = period0;
+            for (const horizonBits of [200, 600, Infinity]) {
+                let n = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+                for (const t of crossings) {
+                    const k = Math.round((t - anchorTime) / period);
+                    if (k > horizonBits) break;
+                    n++; sx += k; sy += t; sxx += k * k; sxy += k * t;
+                }
+                const den = n * sxx - sx * sx;
+                if (n < 8 || den <= 0) continue;
+                const slope = (n * sxy - sx * sy) / den;
+                if (slope > period0 * 0.95 && slope < period0 * 1.05) period = slope;
+            }
+            return period;
+        }
+
         window.catVideoAnalyze = async function() {
             if (!catVideoFile) { alert('Upload a video first'); return; }
 
@@ -6223,7 +6299,7 @@
 
                     if (!isFinite(duration) || duration <= 0) {
                         // Fallback: binary search for the actual end of the video
-                        let low = 0, high = 300; // max 5 minutes
+                        let low = 0, high = 3600; // up to an hour: legacy blink recordings are long
                         for (let attempt = 0; attempt < 25; attempt++) {
                             const mid = (low + high) / 2;
                             const beforeSeek = video.currentTime;
@@ -6284,8 +6360,18 @@
                 const catRoiState = { shrinkFactor: 0, adjustments: 0 };
 
                 // Calculate step size: at least 5 samples per blink bit,
-                // capped at ~30 fps equivalent for efficiency
-                const sampleInterval = Math.min(1 / 30, blinkSpeedMs / (5 * 1000));
+                // capped at ~30 fps equivalent for efficiency, and no more than
+                // 10 samples per bit for the slow shipped speeds (500/750/1000
+                // ms) so a seek-based decode of a ten-minute recording takes
+                // minutes rather than tens of minutes. Ten per bit also puts
+                // every shipped speed on an exact sample grid, so the learned
+                // bit period is not quantized (750 ms on a 1/30 s grid came
+                // out as 733 or 767 ms).
+                const sampleInterval = Math.max(blinkSpeedMs / 10000, Math.min(1 / 30, blinkSpeedMs / (5 * 1000)));
+                const samplesPerBit = (blinkSpeedMs / 1000) / sampleInterval;
+                // A run of identical green sums shorter than ~9 bits is a run
+                // of equal bits (0x00 / 0xFF bytes), not a MediaRecorder gap.
+                const staleRunMinSamples = Math.max(10, Math.ceil(9 * samplesPerBit));
                 let totalPositions = Math.ceil(duration / sampleInterval) + 1;
 
                 // Safety cap: never exceed 50,000 positions (prevents infinite loops
@@ -6420,7 +6506,7 @@
                     if (greenSum === lastDistinctGreenSum && i > 0) {
                         if (staleRunStart < 0) staleRunStart = i - 1;
                     } else {
-                        if (staleRunStart >= 0 && (i - staleRunStart) >= 10) {
+                        if (staleRunStart >= 0 && (i - staleRunStart) >= staleRunMinSamples) {
                             const startT = staleRunStart * sampleInterval;
                             const endT = (i - 1) * sampleInterval;
                             staleFrameRuns.push({
@@ -6463,7 +6549,7 @@
                 log(`📹 [Cat Video] Extracted ${totalFrames} frames (~${actualFps.toFixed(1)} samples/sec, ${(sampleInterval * 1000).toFixed(1)}ms step)`);
 
                 // Flush any in-progress stale run
-                if (staleRunStart >= 0 && (totalFrames - staleRunStart) >= 10) {
+                if (staleRunStart >= 0 && (totalFrames - staleRunStart) >= staleRunMinSamples) {
                     const startT = staleRunStart * sampleInterval;
                     const endT = (totalFrames - 1) * sampleInterval;
                     staleFrameRuns.push({
@@ -6606,6 +6692,22 @@
                 const p90 = sorted[Math.floor(sorted.length * 0.90)];
                 const estimatedOffMean = p10;
                 const estimatedOnMean = p90;
+                // 5th-95th percentile range for the per-frame confidence gate
+                // (same math as CatQuality.classifyFrameWithPercentiles, which
+                // re-sorts the whole array on every call; at 10-15 samples per
+                // bit and a ten-minute recording that was O(N^2 log N)).
+                const percentileRange = sorted[Math.floor(sorted.length * 0.95)] - sorted[Math.floor(sorted.length * 0.05)];
+                const classifyWithRange = (greenScore, thr, rangeValue, margin) => {
+                    const distance = Math.abs(greenScore - thr);
+                    const confidence = Math.min(distance / (rangeValue + 0.01), 1);
+                    return {
+                        state: confidence < margin ? 'unknown' : (greenScore > thr ? 'on' : 'off'),
+                        confidence,
+                        distance,
+                        greenScore,
+                        range: rangeValue
+                    };
+                };
 
                 log(`📊 [Quality] Initial estimates: off=${estimatedOffMean.toFixed(2)}, on=${estimatedOnMean.toFixed(2)}, threshold=${threshold.toFixed(2)}`);
 
@@ -6623,7 +6725,16 @@
                         // distribution with reasonable confidence. Unimodal/uniform
                         // recalibrations cause threshold to jump wildly when the
                         // 100-frame window happens to contain mostly ON or OFF bits.
-                        if (diag.distributionType === 'bimodal' && diag.confidence >= 0.3) {
+                        // ...and only when the new threshold lies between the
+                        // global off/on levels: a window that holds a single eye
+                        // state (long runs of equal bits at 500-1000 ms) can be
+                        // split into two "peaks" by compression noise alone,
+                        // which would park the threshold on one state and
+                        // misread every later bit.
+                        const bandLow = estimatedOffMean + 0.2 * (estimatedOnMean - estimatedOffMean);
+                        const bandHigh = estimatedOnMean - 0.2 * (estimatedOnMean - estimatedOffMean);
+                        const inBand = adaptiveResult.threshold > bandLow && adaptiveResult.threshold < bandHigh;
+                        if (diag.distributionType === 'bimodal' && diag.confidence >= 0.3 && inBand) {
                             threshold = adaptiveResult.threshold;
                             log(`🎯 [Adaptive] Recalibrated #${diag.calibrationCount}: threshold=${threshold.toFixed(3)}, type=${diag.distributionType}, confidence=${diag.confidence.toFixed(2)}, peaks=${diag.peakCount}`);
                         } else {
@@ -6641,12 +6752,7 @@
                     }
 
                     // Use hysteresis state for classification
-                    const classification = CatQuality.classifyFrameWithPercentiles(
-                        sample.greenLevel,
-                        threshold,  // Adaptive threshold
-                        greenLevels,
-                        confidenceMargin
-                    );
+                    const classification = classifyWithRange(sample.greenLevel, threshold, percentileRange, confidenceMargin);
 
                     // Override state with hysteresis result (more stable)
                     sample.state = hysteresisResult.state;
@@ -6894,17 +7000,27 @@
                         log(`✅ [Sync] Alternating region detected: ${altLength} bits (start=${altStart}, end=${altEndIdx})`);
                         log(`✅ [Sync] Data starts at t=${(dataStartTime * 1000).toFixed(1)}ms — bypassing sync word search`);
 
+                        // The preamble-learned period is quantized to the sample
+                        // grid and the recorder's clock runs slightly off the
+                        // encoder's, so a fixed period drifts by half a bit after
+                        // roughly a thousand bits (a short message at 500 ms).
+                        // Refine it over every state change in the recording.
+                        const dataBitDuration = refineBitPeriod(frameSamples, effectiveBitDuration, dataStartTime);
+                        if (Math.abs(dataBitDuration - effectiveBitDuration) > 1e-6) {
+                            log(`🧭 [Sync] Bit period refined over the whole recording: ${(effectiveBitDuration * 1000).toFixed(2)}ms → ${(dataBitDuration * 1000).toFixed(2)}ms`);
+                        }
+
                         // Sample data bits from the alternation boundary
                         const lastFrameTime = frameSamples[frameSamples.length - 1].time;
                         const availableDuration = lastFrameTime - dataStartTime;
-                        const numBits = Math.min(100000, Math.floor(availableDuration / effectiveBitDuration));
+                        const numBits = Math.min(100000, Math.floor(availableDuration / dataBitDuration));
 
                         // Sample data bits using raw green levels + threshold
                         // (same approach as sync scan — avoids state/vote bias)
                         const resolvedData = [];
                         let searchIdx = 0;
                         for (let i = 0; i < numBits; i++) {
-                            const sampleTime = dataStartTime + (i + 0.5) * effectiveBitDuration;
+                            const sampleTime = dataStartTime + (i + 0.5) * dataBitDuration;
                             let bestIdx = searchIdx;
                             let bestDist = Math.abs(frameSamples[searchIdx].time - sampleTime);
                             for (let j = searchIdx + 1; j < frameSamples.length; j++) {
@@ -6912,7 +7028,7 @@
                                 if (dist < bestDist) {
                                     bestDist = dist;
                                     bestIdx = j;
-                                } else if (frameSamples[j].time > sampleTime + effectiveBitDuration) {
+                                } else if (frameSamples[j].time > sampleTime + dataBitDuration) {
                                     break;
                                 }
                             }
@@ -6932,7 +7048,7 @@
                                 totalBits: numBits,
                                 uncertainBits: uncertainCount,
                                 uncertainPercent: numBits > 0 ? (uncertainCount / numBits * 100) : 0,
-                                bitPeriod: effectiveBitDuration * 1000,
+                                bitPeriod: dataBitDuration * 1000,
                                 syncBits: 0
                             }
                         };
@@ -7144,7 +7260,15 @@
                 try {
                     const original = sessionStorage.getItem('meow_cat_binary');
                     if (original) {
-                        const cmp = compareBinary(original, binary);
+                        // Step 1 stores the whole transmission (lead-in, preamble,
+                        // sync, packets, end marker) while the decoded stream
+                        // starts at the first data bit, so align on the stored
+                        // header length before comparing.
+                        const storedHeaderLen = parseInt(sessionStorage.getItem('meow_cat_header_len') || '', 10);
+                        const alignedOriginal = Number.isFinite(storedHeaderLen) && storedHeaderLen > 0 && storedHeaderLen < original.length
+                            ? original.substring(storedHeaderLen)
+                            : original;
+                        const cmp = compareBinary(alignedOriginal, binary);
                         const drift = cmp.lengthB - cmp.lengthA;
                         catDiagnostics.compare = cmp;
                         catDiagnostics.original = original.substring(0, 200);
@@ -7447,7 +7571,7 @@
                     <h3>🔓 Decoded from Video</h3>
                     <div class='message'>${escapeHtml(message)}</div>
                     <div class='cat-reaction'>Meow! Secret transmitted through cat eyes! 📹🐱💚</div>
-                    <p style="color:#888; font-size:0.85em; margin-top:10px;">Captured ${totalFrames} frames (${resolutionInfo}, ~${actualFps.toFixed(0)} fps), ${stateChanges.length} transitions → ${binary.length} bits (${(bitDuration*1000).toFixed(0)}ms/bit, threshold: ${typeof threshold === 'number' ? threshold.toFixed(1) : threshold}${autoThreshold ? ' auto' : ''})</p>
+                    <p style="color:#888; font-size:0.85em; margin-top:10px;">Captured ${totalFrames} frames (${resolutionInfo}, ~${actualFps.toFixed(0)} fps), ${stateChanges.length} transitions → ${binary.length} bits (${((nrzResult && nrzResult.stats && nrzResult.stats.bitPeriod) || bitDuration * 1000).toFixed(0)}ms/bit, threshold: ${typeof threshold === 'number' ? threshold.toFixed(1) : threshold}${autoThreshold ? ' auto' : ''})</p>
                     ${qualityHtml}
                     ${compareHtml}
                     ${decodedBinaryHtml}

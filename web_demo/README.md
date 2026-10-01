@@ -224,7 +224,7 @@ Carrier stego defaults to level 2 and the core 2.5× fountain redundancy. It is 
 - **How to use it:** in the WASM demo's Cat tab tick **Blink the message with the cat's eyes (legacy)**, pick a **Frame / blink interval** (500, 750 or 1000 ms) and press **Start Transmitting**. The eyes carry the bits while the QR inset stays hidden. When the page reports **Transmission Complete**, press **Download Video** (or record the screen with a phone) and upload the file in **Step 2: Legacy Blink Video Decoder** with the same password, the same **Blink Speed Used**, and **Auto** sensitivity.
 - **Crypto:** AES-256-GCM + Argon2id before visual transmission
 - **Transport:** Eye color encodes ciphertext bits (green = 1, dark = 0); every packet is sent twice for gap resilience, so a short message takes roughly ten minutes at 500 ms per bit
-- **Server route:** The Flask Cat page retains the production Argon2id password-only implementation
+- **Where the crypto runs:** the static demo's legacy checkbox encrypts in the browser with the WASM module and the selected security preset; the separate Flask Cat page (`templates/cat_mode.html`) keeps its own server-side Argon2id implementation
 - **Compatibility:** Retained for old video fixtures (pick **200ms — older recordings** in Step 2 for those); it is not the current Meow Capture droplet workflow
 - **Test:** `npm run test:legacy-blink` drives the checkbox, Start/Stop, Download Video, upload and Analyze in headless Chromium; `npm run test:legacy-blink:quick` skips the slow record-and-decode cycle
 
@@ -424,7 +424,7 @@ Modes covered:
 
 #### `test_cat_e2e_speeds.py` — Cat Eye-Blink E2E Speed Test
 
-This is the **real-world demo verification test**. It simulates the exact user flow where the cat's eyes blink out an encrypted message as a video, the browser is refreshed (no carryover state), the video is uploaded, and the password is entered to decode it. Use this to confirm the full demo pipeline works end-to-end, not just the encryption layer.
+This test exercises the **Flask Cat page** (`templates/cat_mode.html`) pipeline: it simulates the flow where the cat's eyes blink out an encrypted message as a video, the browser is refreshed (no carryover state), the video is uploaded, and the password is entered to decode it. For the static WASM demo's legacy checkbox, use `npm run test:legacy-blink` instead (see the Cat Mode section above).
 
 It tests **5 blink speeds × 3 trials = 15 full roundtrips**:
 - POST `/cat-mode-encrypt-server` → get encrypted payload hex

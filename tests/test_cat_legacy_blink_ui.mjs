@@ -12,9 +12,10 @@
  *   2. Start/Stop interplay between the legacy blink loop and the fountain
  *      QR loop (one Stop click always stops; no false "Transmission
  *      Complete"; a double Start starts exactly one blink loop).
- *   3. Full cycle: tick the box, Start, wait for "Transmission Complete",
- *      Download Video, reload the page, upload the recording in Step 2,
- *      pick the matching speed, Analyze, and verify the decoded message.
+ *   3. Full cycle: tick the box, Start, hide and re-show the tab mid-run,
+ *      wait for "Transmission Complete", Download Video, reload the page,
+ *      upload the recording in Step 2, pick the matching speed, Analyze,
+ *      and verify the decoded message.
  *
  * USAGE:
  *   node tests/test_cat_legacy_blink_ui.mjs            # all checks, fast cycle
@@ -22,10 +23,13 @@
  *   MEOW_LEGACY_BLINK_MS=500 node tests/test_cat_legacy_blink_ui.mjs
  *       # cycle at the real UI default (≈10 min transmit + ≈15 min decode)
  *
- * The fast cycle injects a 100 ms option into both selects (a test-only
- * speed) and turns the hidden 2× packet redundancy off so the run takes a
- * few minutes instead of half an hour. Set MEOW_LEGACY_BLINK_MS to one of
- * the shipped values (500/750/1000) to exercise the UI exactly as shipped.
+ * The fast cycle injects a 200 ms option into both selects (a test-only
+ * speed) and turns the hidden 2× packet redundancy off so the run takes
+ * about five minutes instead of half an hour. The time-based encoder drops
+ * a bit whenever a frame is delayed by more than one interval, so much
+ * faster test speeds become flaky on a loaded machine. Set
+ * MEOW_LEGACY_BLINK_MS to one of the shipped values (500/750/1000) to
+ * exercise the UI exactly as shipped.
  *
  * Env:
  *   MEOW_BASE_URL          use an already running server instead of the
@@ -46,7 +50,7 @@ const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(HERE, '..');
 const QUICK = process.argv.includes('--quick');
 const SHIPPED_SPEEDS = ['500', '750', '1000'];
-const BLINK_MS = Number(process.env.MEOW_LEGACY_BLINK_MS || 100);
+const BLINK_MS = Number(process.env.MEOW_LEGACY_BLINK_MS || 200);
 const SHIPPED_SPEED = SHIPPED_SPEEDS.includes(String(BLINK_MS));
 const MESSAGE = process.env.MEOW_LEGACY_MESSAGE || 'Hi';
 const PASSWORD = 'legacy-blink-ui-test'; // pragma: allowlist secret
@@ -340,6 +344,19 @@ async function runFullCycle(context, url) {
     check('eyes toggle between green and dark', new Set(samples).size >= 2 && Math.min(...samples) === 0,
         `samples: ${[...new Set(samples)].join(',')}`);
 
+    // Long transmissions invite tab switching. Simulate the tab going hidden
+    // for a moment: the encoder must pause the recorder and resume without
+    // stretching or skipping an interval, or the recording will not decode.
+    const setHidden = (hidden) => page.evaluate((h) => {
+        Object.defineProperty(document, 'hidden', { configurable: true, get: () => h });
+        document.dispatchEvent(new Event('visibilitychange'));
+    }, hidden);
+    await setHidden(true);
+    await page.waitForTimeout(1500);
+    await setHidden(false);
+    state = await uiState(page);
+    check('transmission still running after the tab was hidden and shown again', state.stopShown && !state.startShown);
+
     await page.waitForFunction(
         () => document.getElementById('catModeResult')?.textContent.includes('Transmission Complete'),
         undefined, { timeout: expectedMs + 120_000 },
@@ -347,6 +364,7 @@ async function runFullCycle(context, url) {
     await page.waitForTimeout(1500);
     state = await uiState(page);
     check('"Transmission Complete" with a Download Video button', state.download && state.startShown && !state.stopShown);
+    check('completion notes the paused tab', /tab was briefly hidden/i.test(state.result));
 
     const [download] = await Promise.all([
         page.waitForEvent('download', { timeout: 30_000 }),
