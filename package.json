@@ -10,6 +10,8 @@
     "test:errors": "python3 tests/run_error_tests.py",
     "test:errors:js": "node tests/run_error_tests.js",
     "test:blink-v2": "node tests/test_cat_blink_v2_roundtrip.mjs",
+    "test:legacy-blink": "node tests/test_cat_legacy_blink_ui.mjs",
+    "test:legacy-blink:quick": "node tests/test_cat_legacy_blink_ui.mjs --quick",
     "test:browsers": "playwright test",
     "test:browsers:chromium": "playwright test --project=chromium",
     "test:browsers:firefox": "playwright test --project=firefox",

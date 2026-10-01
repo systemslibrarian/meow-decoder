@@ -10,6 +10,22 @@ All notable purr-ogress in Meow Decoder, tracked by the clowder.
 
 ## [Unreleased]
 
+### Legacy Cat Mode blink transport — verified and repaired (2026-10-01) 🐱
+
+- **`web_demo/wasm_browser_example_FULL.html`** — "Blink the message with
+  the cat's eyes (legacy)": the Step 2 decoder now offers the same
+  500/750/1000 ms speeds as the encoder (200 ms stays for older
+  recordings); Stop halts whichever cat transport is running even when the
+  checkbox was toggled mid-run; Stop no longer reports a false
+  "Transmission Complete" with a download button for a truncated
+  recording; a second Start click during key derivation no longer starts
+  a second blink loop; the stage shows the legacy transmit parameters.
+- **`tests/test_cat_legacy_blink_ui.mjs`** *(new)* — headless-Chromium
+  harness that drives the real checkbox, Start/Stop, Download Video,
+  upload and Analyze controls. `make test-cat-mode` runs its quick
+  checks; `npm run test:legacy-blink` runs the full record-and-decode
+  cycle.
+
 ### Product & UX track — Milestones A and B (2026-05-04 → 2026-05-05) 🐾
 
 Tracking branch: `audit/cat-mode-fixes` (PR #172). Establishes the
