@@ -6,6 +6,6 @@ cryptography==50.0.1
 pyzbar==0.1.9
 opencv-python==5.0.0.93
 numpy>=1.24.0
-Werkzeug==3.1.8
+Werkzeug==3.1.9
 # Note: imageio is NOT required (uses Pillow for GIF)
 # Note: No ffmpeg required (Python-only solution)
