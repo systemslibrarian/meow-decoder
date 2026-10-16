@@ -217,12 +217,10 @@ describe('AdaptiveThreshold', () => {
 
   it('calibrates on bimodal data', () => {
     const at = new AdaptiveThreshold(100, 0.001); // Very fast recalibration
-    // Feed bimodal distribution: cluster around 0.3 and 0.7
-    for (let i = 0; i < 50; i++) {
-      at.update(0.3 + Math.random() * 0.05, i * 100);
-    }
-    for (let i = 0; i < 50; i++) {
-      at.update(0.7 + Math.random() * 0.05, (50 + i) * 100);
+    // Alternate deterministic clusters, so gradient compensation does not
+    // interpret a single long off-to-on transition as changing illumination.
+    for (let i = 0; i < 100; i++) {
+      at.update((i % 2 ? 0.7 : 0.3) + (i % 5) * 0.01, i * 100);
     }
     // Force recalibrate
     at.recalibrate();

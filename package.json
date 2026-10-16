@@ -18,7 +18,8 @@
     "test:browsers:webkit": "playwright test --project=webkit",
     "test:browsers:mobile": "playwright test --project=mobile-chrome --project=mobile-safari",
     "serve": "python3 -m http.server 8080",
-    "serve:tests": "cd tests && python3 -m http.server 8765"
+    "serve:tests": "cd tests && python3 -m http.server 8765",
+    "test:demo-security": "node --test tests/test_web_demo_security.cjs"
   },
   "keywords": [
     "optical",

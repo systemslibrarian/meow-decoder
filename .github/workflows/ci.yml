@@ -584,6 +584,11 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: Run demo security and signal regressions
+        run: |
+          npm run test:demo-security
+          npx jest web_demo/__tests__ --runInBand
+
       - name: Run Cat Mode optical loop
         env:
           MEOW_CAT_CAPTURE_DIR: test-results/cat-mode
