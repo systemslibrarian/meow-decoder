@@ -230,7 +230,13 @@ jobs:
               pushed=0
               for attempt in 1 2 3 4 5; do
                 git fetch origin main
-                git rebase origin/main
+                # Coverage can modify tracked build outputs. Preserve them
+                # while rebasing only the badge commit onto current main.
+                if ! git rebase --autostash origin/main; then
+                  git rebase --abort || true
+                  echo "::warning::Badge rebase conflicted - leaving the tested source and coverage artifacts intact"
+                  break
+                fi
                 if git push https://x-access-token:${BADGE_PUSH_TOKEN}@github.com/${{ github.repository }}.git HEAD:main; then
                   pushed=1
                   break

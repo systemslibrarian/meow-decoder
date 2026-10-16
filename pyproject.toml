@@ -103,6 +103,7 @@ markers = [
     "adversarial: adversarial / abuse-case tests (malformed input, fuzzing)",
     "crypto: cryptographic primitive and protocol tests",
     "fuzz: fuzz / property-based tests (may be slow)",
+    "property: property-based invariant tests",
     "integration: end-to-end integration tests",
     "cat: cat-themed error and UX tests",
     "deprecated: tests for deprecated modules scheduled for removal (deselect with '-m \"not deprecated\"')",
