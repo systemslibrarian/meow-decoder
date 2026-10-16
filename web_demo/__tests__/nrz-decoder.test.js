@@ -66,9 +66,8 @@ describe('sampleBits', () => {
   });
 
   it('handles empty frame array gracefully', () => {
-    // sampleBits accesses frames[0] unconditionally — this is expected to throw
-    // on empty input. Verify it does not silently return wrong data.
-    expect(() => sampleBits([], 0, 0.1, 3)).toThrow();
+    // No input must never fabricate recovered bits.
+    expect(sampleBits([], 0, 0.1, 3)).toEqual([]);
   });
 });
 

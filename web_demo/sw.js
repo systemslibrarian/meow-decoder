@@ -8,7 +8,7 @@
  * which registers it.
  */
 
-const CACHE_NAME = 'meow-decoder-v3';
+const CACHE_NAME = 'meow-decoder-v4';
 
 // Assets to cache on install (paths resolve relative to this script's URL)
 const PRECACHE_ASSETS = [
@@ -16,7 +16,22 @@ const PRECACHE_ASSETS = [
     './crypto-worker.js',
     './crypto_core.js',
     './crypto_core_bg.wasm',
-    '../assets/meow-decoder-logo.svg'
+    '../crypto_core/pkg/crypto_core.js',
+    '../crypto_core/pkg/crypto_core_bg.wasm',
+    './static/jsQR.js',
+    './static/qrcode.min.js',
+    './static/fountain-codes.js',
+    './static/cat-blink-v2.js',
+    './static/convert-webm-to-mp4.js',
+    './cat-mode-protocol.js',
+    './quality-metrics.js',
+    './preamble-calibration.js',
+    './nrz-decoder.js',
+    './adaptive-threshold.js',
+    './hysteresis.js',
+    '../assets/meow-decoder-logo.png',
+    '../assets/MeowDecoderDemo.png',
+    '../assets/CatCrocheting.png'
 ];
 
 // Install event - cache critical assets
@@ -52,7 +67,7 @@ self.addEventListener('activate', (event) => {
             .then((cacheNames) => {
                 return Promise.all(
                     cacheNames
-                        .filter((name) => name !== CACHE_NAME)
+                        .filter((name) => name.startsWith('meow-decoder-') && name !== CACHE_NAME)
                         .map((name) => {
                             console.log('[SW] Deleting old cache:', name);
                             return caches.delete(name);
