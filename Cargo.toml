@@ -13,7 +13,7 @@ argon2 = "0.6"
 hkdf = "0.13"
 hmac = "0.13"
 sha2 = "0.11"
-rand = "0.8.6"
+rand = "0.10.3"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 x25519-dalek = { version = "3.0", features = ["static_secrets", "getrandom"] }
 thiserror = "1.0"
