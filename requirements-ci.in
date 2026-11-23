@@ -1,13 +1,13 @@
 # CI tooling dependencies (pinned with hashes for supply chain security)
 # Regenerate lock: uv pip compile --generate-hashes requirements-ci.in -o requirements-ci.lock
 
-pytest==9.1.1
+pytest==9.2.0
 pytest-cov==7.1.0
-maturin==1.15.0
+maturin==1.16.0
 coverage==7.16.2
 flake8==7.4.1
 black==26.10.1
-mypy==2.4.0
+mypy==2.4.1
 bandit==1.9.4
 build==1.6.1
 atheris==3.0.0
